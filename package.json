@@ -1,0 +1,151 @@
+{
+  "name": "lpc-support",
+  "displayName": "lpc-linter",
+  "description": "LPC (LP MUD Creation Language) 语言支持",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:lpc"
+  ],
+  "dependencies": {
+    "@types/vscode": "^1.95.0",
+    "axios": "^1.7.7",
+    "prettier": "^2.8.8"
+  },
+  "devDependencies": {
+    "@types/node": "^16.x",
+    "typescript": "^4.x"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "lpc",
+        "aliases": [
+          "LPC",
+          "lpc"
+        ],
+        "extensions": [
+          ".c",
+          ".h",
+          ".lpc",
+          ".i"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lpc",
+        "scopeName": "source.lpc",
+        "path": "./syntaxes/lpc.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "lpc",
+        "path": "./snippets/lpc.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "lpc-support.checkUnusedVariables",
+        "title": "检查未使用的变量"
+      },
+      {
+        "command": "lpc.showVariables",
+        "title": "显示所有 LPC 变量"
+      },
+      {
+        "command": "lpc.scanFolder",
+        "title": "扫描文件夹中未使用的变量",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.addServer",
+        "title": "LPC: 添加FluffOS服务器",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.selectServer",
+        "title": "LPC: 选择活动服务器",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.removeServer",
+        "title": "LPC: 删除服务器",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.compileFile",
+        "title": "编译LPC文件",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.manageServers",
+        "title": "管理编译服务器",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.showMacros",
+        "title": "显示所有宏定义",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.configureMacroPath",
+        "title": "配置宏定义目录",
+        "category": "LPC"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "resourceLangId == lpc",
+          "command": "lpc-support.checkUnusedVariables",
+          "group": "1_modification"
+        },
+        {
+          "when": "editorLangId == lpc",
+          "command": "lpc.showVariables",
+          "group": "navigation"
+        },
+        {
+          "when": "resourceLangId == lpc",
+          "command": "lpc.compileFile",
+          "group": "LPC"
+        },
+        {
+          "when": "resourceLangId == lpc",
+          "command": "lpc.manageServers",
+          "group": "LPC"
+        },
+        {
+          "when": "resourceLangId == lpc",
+          "command": "lpc.showMacros",
+          "group": "LPC"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "lpc.scanFolder",
+          "group": "LPC"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "LPC",
+      "properties": {
+        "lpc.includePath": {
+          "type": "string",
+          "default": "",
+          "description": "LPC宏定义包含目录的路径"
+        }
+      }
+    }
+  }
+}
