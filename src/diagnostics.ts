@@ -620,7 +620,7 @@ export class LPCDiagnostics {
     }
 
     private checkVariableUsage(varName: string, code: string): boolean {
-        // 创建正则表达式来匹配变量的各种使用情况
+        // 添加 foreach 语法的检查
         const patterns = [
             // 接赋值
             new RegExp(`\\b${varName}\\s*=`, 'g'),
@@ -635,7 +635,12 @@ export class LPCDiagnostics {
             // 数组赋值
             new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g'),
             // mapping 赋值
-            new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g')
+            new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g'),
+            // foreach 语句中的使用
+            new RegExp(`\\bforeach\\s*\\(${varName}\\s+in\\s+`, 'g'),
+            
+            // 作为 foreach 的集合
+            new RegExp(`\\bforeach\\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\s+in\\s+${varName}\\b`, 'g')
         ];
 
         // 检查是否匹配任一模式
@@ -826,7 +831,7 @@ export class LPCDiagnostics {
                 const canResolveMacro = await this.macroManager?.canResolveMacro(object);
                 
                 if (macro || canResolveMacro) {
-                    // 如果是已定义的宏或可以被解析的宏，添加信息性诊断
+                    // 如果是已定义的宏或可以被解析的宏，添加信息性诊
                     const range = new vscode.Range(
                         document.positionAt(match.index),
                         document.positionAt(match.index + object.length)
@@ -853,38 +858,6 @@ export class LPCDiagnostics {
                 }
             }
         }
-    }
-
-    private isObjectDefined(objectName: string, text: string): boolean {
-        // 首先检查是否是宏定义
-        if (this.macroManager?.getMacro(objectName)) {
-            return true;  // 如果是宏定义，直接返回 true
-        }
-        
-        // 检查是否是预定义对象
-        if (this.excludedIdentifiers.has(objectName)) {
-            return true;
-        }
-        
-        // 检查是否是通过inherit获得的对象
-        const inheritMatch = /inherit\s+([A-Z_][A-Z0-9_]*)/g.exec(text);
-        if (inheritMatch && inheritMatch[1] === objectName) {
-            return true;
-        }
-        
-        // 检查是否是局部变量
-        const varDeclaration = new RegExp(
-            `\\b(?:object|class)\\s+${objectName}\\b`,
-            'g'
-        );
-        
-        // 检查是否是全局变量
-        const globalVarDeclaration = new RegExp(
-            `^\\s*(?:private|public|protected|nosave)?\\s*(?:object|class)\\s+${objectName}\\b`,
-            'gm'
-        );
-        
-        return varDeclaration.test(text) || globalVarDeclaration.test(text);
     }
 
     private analyzeNumericLiterals(text: string, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {

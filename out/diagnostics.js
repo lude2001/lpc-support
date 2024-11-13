@@ -492,7 +492,7 @@ class LPCDiagnostics {
         }
     }
     checkVariableUsage(varName, code) {
-        // 创建正则表达式来匹配变量的各种使用情况
+        // 添加 foreach 语法的检查
         const patterns = [
             // 接赋值
             new RegExp(`\\b${varName}\\s*=`, 'g'),
@@ -507,7 +507,11 @@ class LPCDiagnostics {
             // 数组赋值
             new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g'),
             // mapping 赋值
-            new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g')
+            new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g'),
+            // foreach 语句中的使用
+            new RegExp(`\\bforeach\\s*\\(${varName}\\s+in\\s+`, 'g'),
+            // 作为 foreach 的集合
+            new RegExp(`\\bforeach\\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\s+in\\s+${varName}\\b`, 'g')
         ];
         // 检查是否匹配任一模式
         return patterns.some(pattern => pattern.test(code));
@@ -662,7 +666,7 @@ class LPCDiagnostics {
                 // 检查宏是否可以被解析（通过转到定义功能）
                 const canResolveMacro = await this.macroManager?.canResolveMacro(object);
                 if (macro || canResolveMacro) {
-                    // 如果是已定义的宏或可以被解析的宏，添加信息性诊断
+                    // 如果是已定义的宏或可以被解析的宏，添加信息性诊���
                     const range = new vscode.Range(document.positionAt(match.index), document.positionAt(match.index + object.length));
                     if (macro) {
                         diagnostics.push(new vscode.Diagnostic(range, `宏 '${object}' 的值为: ${macro.value}`, vscode.DiagnosticSeverity.Information));
@@ -722,6 +726,48 @@ class LPCDiagnostics {
                 diagnostics.push(new vscode.Diagnostic(range, '空的多行字符串', vscode.DiagnosticSeverity.Warning));
             }
         }
+    }
+    isVariableUsed(variable, node) {
+        // 检查变量是否在 foreach 语句中使用
+        if (node.type === 'ForeachStatement') {
+            // 检查 foreach 的迭代变量 (foreach(ob in array) 格式)
+            if (node.iteratorVariable && node.iteratorVariable.name === variable) {
+                return true;
+            }
+        }
+        // ... 其他变量使用检查逻辑 ...
+        return false;
+    }
+    analyzeVariableUsage(node, variables) {
+        if (!node)
+            return;
+        // 遍历 AST
+        if (Array.isArray(node)) {
+            node.forEach(child => this.analyzeVariableUsage(child, variables));
+            return;
+        }
+        // 检查 foreach 语句
+        if (node.type === 'ForeachStatement') {
+            // 将 foreach 的迭代变量标记为已使用 (foreach(ob in array))
+            if (node.iteratorVariable) {
+                variables.set(node.iteratorVariable.name, true);
+            }
+        }
+        // 检查变量在 foreach 语句中的使用
+        const foreachRegex = /\bforeach\s*\(([a-zA-Z_][a-zA-Z0-9_]*)\s+in\s+/g;
+        let match;
+        while ((match = foreachRegex.exec(node.content || ''))) {
+            const iteratorVar = match[1];
+            if (variables.has(iteratorVar)) {
+                variables.set(iteratorVar, true);
+            }
+        }
+        // 递归处理子节点
+        Object.keys(node).forEach(key => {
+            if (typeof node[key] === 'object') {
+                this.analyzeVariableUsage(node[key], variables);
+            }
+        });
     }
 }
 exports.LPCDiagnostics = LPCDiagnostics;

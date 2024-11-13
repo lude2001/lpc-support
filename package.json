@@ -15,8 +15,7 @@
   ],
   "dependencies": {
     "@types/vscode": "^1.95.0",
-    "axios": "^1.7.7",
-    "prettier": "^2.8.8"
+    "axios": "^1.7.7"
   },
   "devDependencies": {
     "@types/node": "^16.x",
