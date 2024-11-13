@@ -4,7 +4,7 @@
   "description": "LPC (LP MUD Creation Language) 语言支持",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.93.0"
   },
   "categories": [
     "Programming Languages"
@@ -146,6 +146,21 @@
           "description": "LPC宏定义包含目录的路径"
         }
       }
-    }
+    },
+    "keybindings": [
+      {
+        "command": "editor.action.commentLine",
+        "key": "ctrl+/",
+        "when": "editorTextFocus && !editorReadonly && editorLangId == 'lpc'"
+      },
+      {
+        "command": "editor.action.blockComment",
+        "key": "shift+alt+a",
+        "when": "editorTextFocus && !editorReadonly && editorLangId == 'lpc'"
+      }
+    ]
+  },
+  "scripts": {
+    "package": "vsce package"
   }
 }

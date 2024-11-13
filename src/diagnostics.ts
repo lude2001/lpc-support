@@ -700,9 +700,13 @@ export class LPCDiagnostics {
 
     private checkFileNaming(document: vscode.TextDocument, diagnostics: vscode.Diagnostic[]) {
         const fileName = path.basename(document.fileName);
-        const fileNameRegex = /^[a-zA-Z0-9_]+\.(c|h)$/i;
+        const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+        const extension = fileName.substring(fileName.lastIndexOf('.') + 1);
         
-        if (!fileNameRegex.test(fileName)) {
+        const validNameRegex = /^[a-zA-Z0-9_]+$/i;
+        const validExtensions = ['c', 'h'];
+        
+        if (!validNameRegex.test(fileNameWithoutExt) || !validExtensions.includes(extension.toLowerCase())) {
             diagnostics.push(new vscode.Diagnostic(
                 new vscode.Range(0, 0, 0, 0),
                 'LPC 文件名只能包含字母、数字和下划线，扩展名必须为 .c 或 .h',
@@ -847,20 +851,6 @@ export class LPCDiagnostics {
                         vscode.DiagnosticSeverity.Warning
                     ));
                 }
-            }
-            
-            // 检查对象是否已定义（如果不是宏的话）
-            if (!this.isObjectDefined(object, text)) {
-                const range = new vscode.Range(
-                    document.positionAt(match.index),
-                    document.positionAt(match.index + object.length)
-                );
-                
-                diagnostics.push(new vscode.Diagnostic(
-                    range,
-                    `未定义的对象: '${object}'`,
-                    vscode.DiagnosticSeverity.Warning
-                ));
             }
         }
     }
