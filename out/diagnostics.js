@@ -116,8 +116,18 @@ class LPCDiagnostics {
             this.analyzeDocument(event.document, false);
         }
     }
+    // 文件过滤函数
+    shouldCheckFile(fileName) {
+        const ext = path.extname(fileName).toLowerCase();
+        return ext === '.c' || ext === '.h';
+    }
     analyzeDocument(document, showMessage = false) {
         const text = document.getText();
+        const fileName = document.fileName;
+        // 如果不是 LPC 文件，不进行检查
+        if (!this.shouldCheckFile(fileName)) {
+            return;
+        }
         const diagnostics = [];
         // 首先检查继承和包含
         const inheritedFiles = this.findInherits(text);
@@ -136,8 +146,6 @@ class LPCDiagnostics {
         this.checkFileNaming(document, diagnostics);
         // 添加对象访问语法检查
         this.analyzeObjectAccess(text, diagnostics, document);
-        // 添加数字字面量检查（支持下划线分隔符）
-        this.analyzeNumericLiterals(text, diagnostics, document);
         // 添加字符串语法检查
         this.analyzeStringLiterals(text, diagnostics, document);
         this.diagnosticCollection.set(document.uri, diagnostics);
@@ -172,36 +180,36 @@ class LPCDiagnostics {
             let bracketCount = 0;
             let inString = false;
             let stringChar = '';
-            let inComment = false;
+            let inSingleLineComment = false;
+            let inMultiLineComment = false;
             let currentIndex = start;
             while (currentIndex < text.length) {
                 const char = text[currentIndex];
                 const nextTwoChars = text.substr(currentIndex, 2);
                 if (inString) {
-                    if (char === stringChar) {
+                    if (char === stringChar && text[currentIndex - 1] !== '\\') {
                         inString = false;
                     }
-                    else if (char === '\\') {
-                        currentIndex++;
+                }
+                else if (inSingleLineComment) {
+                    if (char === '\n') {
+                        inSingleLineComment = false;
                     }
                 }
-                else if (inComment) {
+                else if (inMultiLineComment) {
                     if (nextTwoChars === '*/') {
-                        inComment = false;
+                        inMultiLineComment = false;
                         currentIndex++;
                     }
                 }
                 else {
-                    if (nextTwoChars === '//' || nextTwoChars === '/*') {
-                        inComment = true;
-                        if (nextTwoChars === '//') {
-                            currentIndex = text.indexOf('\n', currentIndex);
-                            if (currentIndex === -1)
-                                break;
-                        }
-                        else {
-                            currentIndex++;
-                        }
+                    if (nextTwoChars === '//') {
+                        inSingleLineComment = true;
+                        currentIndex++;
+                    }
+                    else if (nextTwoChars === '/*') {
+                        inMultiLineComment = true;
+                        currentIndex++;
                     }
                     else if (char === '"' || char === '\'') {
                         inString = true;
@@ -494,43 +502,69 @@ class LPCDiagnostics {
     checkVariableUsage(varName, code) {
         // 添加 foreach 语法的检查
         const patterns = [
-            // 接赋值
+            // 保持原有的基础模式
             new RegExp(`\\b${varName}\\s*=`, 'g'),
-            // 复合赋值
             new RegExp(`\\b${varName}\\s*[+\\-*/%]?=`, 'g'),
-            // 自增自减
             new RegExp(`\\b${varName}\\s*[+\\-]{2}`, 'g'),
-            // 作为 sscanf 的引用参数
-            new RegExp(`sscanf\\([^)]*,\\s*[^,]*,\\s*${varName}\\b`, 'g'),
-            // 其他常见的引用参数函数
-            new RegExp(`(?:fscanf|scanf|parse_arg)\\([^)]*,\\s*${varName}\\b`, 'g'),
-            // 数组赋值
             new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g'),
-            // mapping 赋值
             new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g'),
-            // foreach 语句中的使用
-            new RegExp(`\\bforeach\\s*\\(${varName}\\s+in\\s+`, 'g'),
-            // 作为 foreach 的集合
-            new RegExp(`\\bforeach\\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\s+in\\s+${varName}\\b`, 'g')
+            // foreach的三种使用场景
+            // 1. 作为第一个变量: foreach (varName, xxx in yyy)
+            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
+            // 2. 作为第二个变量: foreach (xxx, varName in yyy)
+            new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
+            // 3. 作为单个变量: foreach (varName in yyy)
+            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
+            // 4. 作为集合变量
+            new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g')
         ];
+        // 这里应该是要循环语句来处理sscanf和input_to,因为这些函数可以贪婪的一直接收参数var2后面可能还有var3.var4等，用法示例：sscanf( string str, string fmt, mixed var1, mixed var2 ... );
+        // 但是之前这里只是简单的处理了一下，只检查了var1是否被使用，如果有多个变量的话，这里就不会检查了
+        // 应该检查var1到);之前的所有变量是否被使用，如果有一个变量没有被使用，就报错
+        // 但是这里的正则表达式不会匹配到这种情况，所以这里需要修改
+        //匹配sscanf和input_to函数的第3个参数开始的所有参数
+        const functionCallPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
+        let funcMatch;
+        while ((funcMatch = functionCallPattern.exec(code)) !== null) {
+            //截取第3个参数开始的所有参数
+            const argsString = funcMatch[1];
+            //将参数字符串按逗号分割成数组
+            const args = argsString.split(',').map(arg => arg.trim());
+            // 输出args
+            // console.log(args);
+            // 开始匹配参数
+            for (let i = 0; i < args.length; i++) {
+                if (args[i] === varName) {
+                    // 输出args[i]
+                    // console.log(args[i]);
+                    return true;
+                }
+            }
+        }
         // 检查是否匹配任一模式
         return patterns.some(pattern => pattern.test(code));
     }
     analyzeApplyFunctions(text, diagnostics, document) {
-        for (const applyFunc of this.applyFunctions) {
-            const regex = new RegExp(`^\\s*(?:${this.modifiers}\\s+)*(${this.lpcTypes})\\s+${applyFunc}\\s*\\(`, 'gm');
-            let match;
-            while ((match = regex.exec(text)) !== null) {
-                // 检查 apply 函数的返回类型是否正确
-                const returnType = match[1];
-                const startPos = document.positionAt(match.index);
-                const endPos = document.positionAt(match.index + match[0].length);
-                if (!this.isValidApplyReturnType(applyFunc, returnType)) {
-                    const diagnostic = new vscode.Diagnostic(new vscode.Range(startPos, endPos), `apply 函数 ${applyFunc} 的返回类型应该是 ${this.getExpectedReturnType(applyFunc)}`, vscode.DiagnosticSeverity.Warning);
-                    diagnostics.push(diagnostic);
-                }
-            }
-        }
+        // 暂时关闭检查 apply 函数的返回类型，因为 FluffOS 的 apply 函数返回类型不固定，用户可以自行定义
+        return;
+        // for (const applyFunc of this.applyFunctions) {
+        //     const regex = new RegExp(`^\\s*(?:${this.modifiers}\\s+)*(${this.lpcTypes})\\s+${applyFunc}\\s*\\(`, 'gm');
+        //     let match;
+        //     while ((match = regex.exec(text)) !== null) {
+        //         // 检查 apply 函数的返回类型是否正确
+        //         const returnType = match[1];
+        //         const startPos = document.positionAt(match.index);
+        //         const endPos = document.positionAt(match.index + match[0].length);
+        //         if (!this.isValidApplyReturnType(applyFunc, returnType)) {
+        //             const diagnostic = new vscode.Diagnostic(
+        //                 new vscode.Range(startPos, endPos),
+        //                 `apply 函数 ${applyFunc} 的返回类型应该是 ${this.getExpectedReturnType(applyFunc)}`,
+        //                 vscode.DiagnosticSeverity.Warning
+        //             );
+        //             diagnostics.push(diagnostic);
+        //         }
+        //     }
+        // }
     }
     // 添加 LPC 特有的函数返回类型检查
     isValidApplyReturnType(funcName, returnType) {
@@ -567,10 +601,13 @@ class LPCDiagnostics {
         const fileName = path.basename(document.fileName);
         const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
         const extension = fileName.substring(fileName.lastIndexOf('.') + 1);
-        const validNameRegex = /^[a-zA-Z0-9_]+$/i;
         const validExtensions = ['c', 'h'];
-        if (!validNameRegex.test(fileNameWithoutExt) || !validExtensions.includes(extension.toLowerCase())) {
-            diagnostics.push(new vscode.Diagnostic(new vscode.Range(0, 0, 0, 0), 'LPC 文件名只能包含字母、数字和下划线，扩展名必须为 .c 或 .h', vscode.DiagnosticSeverity.Warning));
+        if (!validExtensions.includes(extension.toLowerCase())) {
+            return; // Skip files that are not .c or .h
+        }
+        const validNameRegex = /^[a-zA-Z0-9_-]+$/i;
+        if (!validNameRegex.test(fileNameWithoutExt)) {
+            diagnostics.push(new vscode.Diagnostic(new vscode.Range(0, 0, 0, 0), 'LPC 文件名只能包含字母、数字、下划线和连字符，扩展名必须为 .c 或 .h', vscode.DiagnosticSeverity.Warning));
         }
     }
     async scanFolder() {
@@ -666,7 +703,7 @@ class LPCDiagnostics {
                 // 检查宏是否可以被解析（通过转到定义功能）
                 const canResolveMacro = await this.macroManager?.canResolveMacro(object);
                 if (macro || canResolveMacro) {
-                    // 如果是已定义的宏或可以被解析的宏，添加信息性诊���
+                    // 如果是已定义的宏或可以被解析的宏，添加信息性诊
                     const range = new vscode.Range(document.positionAt(match.index), document.positionAt(match.index + object.length));
                     if (macro) {
                         diagnostics.push(new vscode.Diagnostic(range, `宏 '${object}' 的值为: ${macro.value}`, vscode.DiagnosticSeverity.Information));
@@ -678,39 +715,6 @@ class LPCDiagnostics {
                     const range = new vscode.Range(document.positionAt(match.index), document.positionAt(match.index + object.length));
                     diagnostics.push(new vscode.Diagnostic(range, `'${object}' 符合宏命名规范但未定义为宏`, vscode.DiagnosticSeverity.Warning));
                 }
-            }
-        }
-    }
-    isObjectDefined(objectName, text) {
-        // 首先检查是否是宏定义
-        if (this.macroManager?.getMacro(objectName)) {
-            return true; // 如果是宏定义，直接返回 true
-        }
-        // 检查是否是预定义对象
-        if (this.excludedIdentifiers.has(objectName)) {
-            return true;
-        }
-        // 检查是否是通过inherit获得的对象
-        const inheritMatch = /inherit\s+([A-Z_][A-Z0-9_]*)/g.exec(text);
-        if (inheritMatch && inheritMatch[1] === objectName) {
-            return true;
-        }
-        // 检查是否是局部变量
-        const varDeclaration = new RegExp(`\\b(?:object|class)\\s+${objectName}\\b`, 'g');
-        // 检查是否是全局变量
-        const globalVarDeclaration = new RegExp(`^\\s*(?:private|public|protected|nosave)?\\s*(?:object|class)\\s+${objectName}\\b`, 'gm');
-        return varDeclaration.test(text) || globalVarDeclaration.test(text);
-    }
-    analyzeNumericLiterals(text, diagnostics, document) {
-        // 支持带下划线的数字字面量，如: 1_000_000
-        const numericRegex = /\b\d+(_\d+)*(\.\d+(_\d+)*)?\b/g;
-        let match;
-        while ((match = numericRegex.exec(text)) !== null) {
-            // 验证数字格式的正确性
-            const number = match[0];
-            if (number.startsWith('_') || number.endsWith('_') || number.includes('__')) {
-                const range = new vscode.Range(document.positionAt(match.index), document.positionAt(match.index + number.length));
-                diagnostics.push(new vscode.Diagnostic(range, '数字字面量中的下划线使用不正确', vscode.DiagnosticSeverity.Error));
             }
         }
     }
@@ -726,48 +730,6 @@ class LPCDiagnostics {
                 diagnostics.push(new vscode.Diagnostic(range, '空的多行字符串', vscode.DiagnosticSeverity.Warning));
             }
         }
-    }
-    isVariableUsed(variable, node) {
-        // 检查变量是否在 foreach 语句中使用
-        if (node.type === 'ForeachStatement') {
-            // 检查 foreach 的迭代变量 (foreach(ob in array) 格式)
-            if (node.iteratorVariable && node.iteratorVariable.name === variable) {
-                return true;
-            }
-        }
-        // ... 其他变量使用检查逻辑 ...
-        return false;
-    }
-    analyzeVariableUsage(node, variables) {
-        if (!node)
-            return;
-        // 遍历 AST
-        if (Array.isArray(node)) {
-            node.forEach(child => this.analyzeVariableUsage(child, variables));
-            return;
-        }
-        // 检查 foreach 语句
-        if (node.type === 'ForeachStatement') {
-            // 将 foreach 的迭代变量标记为已使用 (foreach(ob in array))
-            if (node.iteratorVariable) {
-                variables.set(node.iteratorVariable.name, true);
-            }
-        }
-        // 检查变量在 foreach 语句中的使用
-        const foreachRegex = /\bforeach\s*\(([a-zA-Z_][a-zA-Z0-9_]*)\s+in\s+/g;
-        let match;
-        while ((match = foreachRegex.exec(node.content || ''))) {
-            const iteratorVar = match[1];
-            if (variables.has(iteratorVar)) {
-                variables.set(iteratorVar, true);
-            }
-        }
-        // 递归处理子节点
-        Object.keys(node).forEach(key => {
-            if (typeof node[key] === 'object') {
-                this.analyzeVariableUsage(node[key], variables);
-            }
-        });
     }
 }
 exports.LPCDiagnostics = LPCDiagnostics;

@@ -1,120 +1,98 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { MacroManager } from './macroManager';
+
+// 加载配置文件
+interface LPCConfig {
+    types: string[];
+    modifiers: string[];
+    efuns: { [key: string]: { snippet: string; detail: string } };
+}
+
+function loadLPCConfig(configPath: string): LPCConfig {
+    try {
+        const configContent = fs.readFileSync(configPath, 'utf-8');
+        return JSON.parse(configContent) as LPCConfig;
+    } catch (error) {
+        vscode.window.showErrorMessage(`无法加载配置文件: ${error}`);
+        return {
+            types: [],
+            modifiers: [],
+            efuns: {}
+        };
+    }
+}
 
 export class LPCDiagnostics {
     private diagnosticCollection: vscode.DiagnosticCollection;
     private macroManager: MacroManager;
-    
-    // 更新 lpcTypes，添加更多 LPC 支持的类型
-    private lpcTypes = 'void|int|string|object|array|mapping|float|buffer|mixed|function|class|struct|status|closure|symbol|pointer';
-    
-    // 添加 modifiers 定义
-    private modifiers = 'private|public|protected|static|nosave|varargs|nomask';
-    
-    // 更新预定义标识符，按类别组织
-    private excludedIdentifiers = new Set([
-        // 数组相关函数
-        'allocate', 'arrayp', 'element_of', 'filter_array', 'map_array', 'member_array', 'pointerp', 'shuffle', 'sort_array', 'unique_array',
-        
-        // 缓冲区相关函数
-        'allocate_buffer', 'bufferp', 'buffer_transcode', 'crc32', 'read_buffer', 'write_buffer',
-        
-        // 调用相关函数
-        'call_other', 'call_out', 'call_out_walltime', 'call_stack', 'catch', 'origin', 'previous_object', 'query_shadowing', 'remove_call_out', 'shadow', 'this_object', 'throw',
-        
-        // 数据库相关函数
-        'db_close', 'db_commit', 'db_connect', 'db_exec', 'db_fetch', 'db_rollback', 'db_status',
-        
-        // 文件系统相关函数
-        'cp', 'file_size', 'get_dir', 'link', 'mkdir', 'read_bytes', 'read_file', 'rename', 'rm', 'rmdir', 'stat', 'write_bytes', 'write_file',
-        
-        // 浮点运算相关函数
-        'acos', 'angle', 'asin', 'atan', 'ceil', 'cos', 'distance', 'dotprod', 'exp', 'floatp', 'floor', 'log', 'pow', 'round', 'sin', 'sqrt', 'tan',
-        
-        // 函数相关函数
-        'bind', 'evaluate', 'functionp',
-        
-        // 常规函数
-        'filter', 'map', 'nullp', 'restore_variable', 'save_variable', 'sizeof', 'typeof', 'undefinedp',
-        
-        // 互动对象相关函数
-        'add_action', 'command', 'commands', 'disable_commands', 'enable_commands', 'exec', 'find_player', 'get_char', 'in_edit', 'in_input', 'input_to', 'interactive', 'message', 'notify_fail', 'printf', 'query_ip_name', 'query_ip_number', 'say', 'shout', 'tell_object', 'tell_room', 'this_player', 'write',
-        
-        // 映射相关函数
-        'allocate_mapping', 'filter_mapping', 'keys', 'map_delete', 'map_mapping', 'mapp', 'values',
-        
-        // MUDLIB相关函数
-        'find_living', 'geteuid', 'getuid', 'living', 'livings', 'set_light', 'set_living_name', 'seteuid',
-        
-        // 对象相关函数
-        'all_inventory', 'children', 'clone_object', 'clonep', 'deep_inventory', 'destruct', 'environment', 'file_name', 'find_object', 'first_inventory', 'load_object', 'move_object', 'new', 'next_inventory', 'objectp', 'present',
-        
-        // 字符串相关函数
-        'capitalize', 'explode', 'implode', 'lower_case', 'replace_string', 'sprintf', 'sscanf', 'strcmp', 'stringp', 'strlen', 'strsrch',
-        
-        // 系统相关函数
-        'ctime', 'localtime', 'time', 'uptime',
-        
-        // FluffOS新增函数
-        'abs', 'base_name', 'copy', 'max', 'min', 'pluralize', 'upper_case'
-    ]);
-    
-    // 改进变量声明的正则表达式，支持带星号的数组声明和多变量声明
-    private variableDeclarationRegex = new RegExp(
-        `^\\s*((?:${this.modifiers}\\s+)*)(${this.lpcTypes})\\s+` + 
-        '(\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*(?:\\s*,\\s*\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*)*);',
-        'gm'
-    );
-
-    // 改进全局变量检测，只匹配函数外的变量声明
-    private globalVariableRegex = new RegExp(
-        `^\\s*(?:private|public|protected|nosave)?\\s*(${this.lpcTypes})\\s+` +
-        '([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=\\s*[^;]+)?;',
-        'gm'
-    );
-
-    // 改进函数声明检测
-    private functionDeclRegex = new RegExp(
-        `^\\s*(?:private|public|protected|static|nomask|varargs)?\\s*(${this.lpcTypes})\\s+` +
-        '([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\([^)]*\\)\\s*{',
-        'gm'
-    );
-
-    // 添加继承相关的检测
-    private inheritRegex = /^\s*inherit\s+([A-Z_][A-Z0-9_]*(?:\s*,\s*[A-Z_][A-Z0-9_]*)*);/gm;
-    private includeRegex = /^\s*#include\s+[<"]([^>"]+)[>"]/gm;
-
-    // 更新 apply 函数列表
-    private applyFunctions = new Set([
-        // 基础 apply 函数
-        'create', 'setup', 'init', 'clean_up', 'reset',
-        
-        // 对象相关
-        'receive_object', 'move_object', 'can_move',
-        'valid_move', 'query_heart_beat', 'set_heart_beat',
-        
-        // 玩家交互相关
-        'catch_tell', 'receive_message', 'write_prompt',
-        'process_input', 'do_command',
-        
-        // 连接相关
-        'logon', 'connect', 'disconnect', 'net_dead',
-        'terminal_type', 'window_size', 'receive_snoop',
-        
-        // 安全相关
-        'valid_override', 'valid_seteuid', 'valid_shadow',
-        'query_prevent_shadow', 'valid_bind',
-        
-        // 其他系统相关
-        'clean_up', 'reset', 'virtual_start', 'epilog',
-        'preload', 'valid_read', 'valid_write'
-    ]);
+    private lpcTypes: string;
+    private modifiers: string;
+    private excludedIdentifiers: Set<string>;
+    private variableDeclarationRegex: RegExp;
+    private globalVariableRegex: RegExp;
+    private functionDeclRegex: RegExp;
+    private inheritRegex: RegExp;
+    private includeRegex: RegExp;
+    private applyFunctions: Set<string>;
+    private config: LPCConfig;
 
     constructor(context: vscode.ExtensionContext, macroManager: MacroManager) {
         this.macroManager = macroManager;
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
         context.subscriptions.push(this.diagnosticCollection);
+
+        // 加载配置
+        const configPath = path.join(context.extensionPath, 'config', 'lpc-config.json');
+        this.config = loadLPCConfig(configPath);
+
+        // 初始化类型和修饰符
+        this.lpcTypes = this.config.types.join('|');
+        this.modifiers = this.config.modifiers.join('|');
+
+        // 初始化排除标识符
+        this.excludedIdentifiers = new Set([
+            // 从配置的 efuns 中提取所有函数名
+            ...Object.keys(this.config.efuns)
+        ]);
+
+        // 初始化正则表达式
+        this.variableDeclarationRegex = new RegExp(
+            `^\\s*((?:${this.modifiers}\\s+)*)(${this.lpcTypes})\\s+` +
+            '(\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*(?:\\s*,\\s*\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*)*);',
+            'gm'
+        );
+
+        this.globalVariableRegex = new RegExp(
+            `^\\s*(?:${this.modifiers}?\\s*)(${this.lpcTypes})\\s+` +
+            '([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=\\s*[^;]+)?;',
+            'gm'
+        );
+
+        this.functionDeclRegex = new RegExp(
+            `^\\s*(?:${this.modifiers}\\s+)*(${this.lpcTypes})\\s+` +
+            '([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\([^)]*\\)\\s*{',
+            'gm'
+        );
+
+        this.inheritRegex = /^\s*inherit\s+([A-Z_][A-Z0-9_]*(?:\s*,\s*[A-Z_][A-Z0-9_]*)*);/gm;
+        this.includeRegex = /^\s*#include\s+[<"]([^>"]+)[>"]/gm;
+
+        // 从配置中提取 apply 函数
+        this.applyFunctions = new Set([
+            'create', 'setup', 'init', 'clean_up', 'reset',
+            'receive_object', 'move_object', 'can_move',
+            'valid_move', 'query_heart_beat', 'set_heart_beat',
+            'catch_tell', 'receive_message', 'write_prompt',
+            'process_input', 'do_command',
+            'logon', 'connect', 'disconnect', 'net_dead',
+            'terminal_type', 'window_size', 'receive_snoop',
+            'valid_override', 'valid_seteuid', 'valid_shadow',
+            'query_prevent_shadow', 'valid_bind',
+            'clean_up', 'reset', 'virtual_start', 'epilog',
+            'preload', 'valid_read', 'valid_write'
+        ]);
 
         // 添加右键菜单命令
         let showVariablesCommand = vscode.commands.registerCommand('lpc.showVariables', () => {
@@ -167,8 +145,21 @@ export class LPCDiagnostics {
         }
     }
 
+    // 文件过滤函数
+    private shouldCheckFile(fileName: string): boolean {
+        const ext = path.extname(fileName).toLowerCase();
+        return ext === '.c' || ext === '.h';
+    }
+
     public analyzeDocument(document: vscode.TextDocument, showMessage: boolean = false) {
         const text = document.getText();
+        const fileName = document.fileName;
+
+        // 如果不是 LPC 文件，不进行检查
+        if (!this.shouldCheckFile(fileName)) {
+            return;
+        }
+
         const diagnostics: vscode.Diagnostic[] = [];
 
         // 首先检查继承和包含
@@ -177,8 +168,8 @@ export class LPCDiagnostics {
 
         // 收集全局变量
         const globalVars = this.findGlobalVariables(document);
-        
-        // 收集函
+
+        // 收集函数
         const functionDefs = this.findFunctionDefinitions(text);
 
         // 分析每个函数块中的变量使用情况
@@ -194,9 +185,6 @@ export class LPCDiagnostics {
 
         // 添加对象访问语法检查
         this.analyzeObjectAccess(text, diagnostics, document);
-
-        // 添加数字字面量检查（支持下划线分隔符）
-        this.analyzeNumericLiterals(text, diagnostics, document);
 
         // 添加字符串语法检查
         this.analyzeStringLiterals(text, diagnostics, document);
@@ -228,8 +216,8 @@ export class LPCDiagnostics {
         return includes;
     }
 
-    private getFunctionBlocks(text: string): Array<{start: number, content: string}> {
-        const blocks: Array<{start: number, content: string}> = [];
+    private getFunctionBlocks(text: string): Array<{ start: number, content: string }> {
+        const blocks: Array<{ start: number, content: string }> = [];
         this.functionDeclRegex.lastIndex = 0;
         let match;
         while ((match = this.functionDeclRegex.exec(text)) !== null) {
@@ -237,32 +225,33 @@ export class LPCDiagnostics {
             let bracketCount = 0;
             let inString = false;
             let stringChar = '';
-            let inComment = false;
+            let inSingleLineComment = false;
+            let inMultiLineComment = false;
             let currentIndex = start;
             while (currentIndex < text.length) {
                 const char = text[currentIndex];
                 const nextTwoChars = text.substr(currentIndex, 2);
 
                 if (inString) {
-                    if (char === stringChar) {
+                    if (char === stringChar && text[currentIndex - 1] !== '\\') {
                         inString = false;
-                    } else if (char === '\\') {
-                        currentIndex++;
                     }
-                } else if (inComment) {
+                } else if (inSingleLineComment) {
+                    if (char === '\n') {
+                        inSingleLineComment = false;
+                    }
+                } else if (inMultiLineComment) {
                     if (nextTwoChars === '*/') {
-                        inComment = false;
+                        inMultiLineComment = false;
                         currentIndex++;
                     }
                 } else {
-                    if (nextTwoChars === '//' || nextTwoChars === '/*') {
-                        inComment = true;
-                        if (nextTwoChars === '//') {
-                            currentIndex = text.indexOf('\n', currentIndex);
-                            if (currentIndex === -1) break;
-                        } else {
-                            currentIndex++;
-                        }
+                    if (nextTwoChars === '//') {
+                        inSingleLineComment = true;
+                        currentIndex++;
+                    } else if (nextTwoChars === '/*') {
+                        inMultiLineComment = true;
+                        currentIndex++;
                     } else if (char === '"' || char === '\'') {
                         inString = true;
                         stringChar = char;
@@ -288,9 +277,9 @@ export class LPCDiagnostics {
     private findGlobalVariables(document: vscode.TextDocument): Set<string> {
         const text = document.getText();
         const globalVariables = new Set<string>();
-        
+
         // 首先获取所有函数块的范围
-        const functionRanges: {start: number, end: number}[] = [];
+        const functionRanges: { start: number, end: number }[] = [];
         this.functionDeclRegex.lastIndex = 0;
         let funcMatch;
         while ((funcMatch = this.functionDeclRegex.exec(text)) !== null) {
@@ -299,7 +288,7 @@ export class LPCDiagnostics {
             let inString = false;
             let stringChar = '';
             let currentIndex = start;
-            
+
             // 找到函数块的结束位置
             while (currentIndex < text.length) {
                 const char = text[currentIndex];
@@ -316,7 +305,7 @@ export class LPCDiagnostics {
                     } else if (char === '}') {
                         bracketCount--;
                         if (bracketCount === 0) {
-                            functionRanges.push({start, end: currentIndex});
+                            functionRanges.push({ start, end: currentIndex });
                             break;
                         }
                     }
@@ -330,12 +319,12 @@ export class LPCDiagnostics {
         let match;
         while ((match = this.globalVariableRegex.exec(text))) {
             const matchStart = match.index;
-            
+
             // 检查这个变量声明是否在任何函数块内
-            const isInFunction = functionRanges.some(range => 
+            const isInFunction = functionRanges.some(range =>
                 matchStart > range.start && matchStart < range.end
             );
-            
+
             // 如果不在函数内，这是一个全局变量
             if (!isInFunction) {
                 const varName = match[2];
@@ -344,7 +333,7 @@ export class LPCDiagnostics {
                 }
             }
         }
-        
+
         return globalVariables;
     }
 
@@ -364,7 +353,7 @@ export class LPCDiagnostics {
         const localVars = new Map<string, {
             type: string,
             range: vscode.Range,
-            declarationIndex: number,  // 添加声明位置索引
+            declarationIndex: number,
             isArray: boolean
         }>();
 
@@ -375,28 +364,28 @@ export class LPCDiagnostics {
             const varType = match[2];
             const varDeclarations = match[3];
             const fullMatchStart = match.index;
-            
+
             // 分割变量声明，保留每个变量声明的完整形式（包括星号）
             const vars = varDeclarations.split(',');
             let hasArrayInDeclaration = false;
-            
+
             for (let varDecl of vars) {
                 varDecl = varDecl.trim();
                 let isArray = false;
                 let varName = varDecl;
-                
+
                 // 检查是否是数组声明
                 if (varDecl.includes('*')) {
                     isArray = true;
                     hasArrayInDeclaration = true;
                     varName = varDecl.replace('*', '').trim();
                 }
-                
+
                 // 如果这个声明中有数组，那么后续的变量都是普通变量
                 if (!isArray && hasArrayInDeclaration) {
                     isArray = false;
                 }
-                
+
                 if (!this.excludedIdentifiers.has(varName)) {
                     const varRegex = new RegExp(`\\b${varName}\\b`);
                     const varMatch = varRegex.exec(text.slice(fullMatchStart));
@@ -406,7 +395,7 @@ export class LPCDiagnostics {
                             document.positionAt(varIndex),
                             document.positionAt(varIndex + varName.length)
                         );
-                        localVars.set(varName, { 
+                        localVars.set(varName, {
                             type: isArray ? `${varType}[]` : varType,
                             range,
                             declarationIndex: varIndex,
@@ -472,13 +461,13 @@ export class LPCDiagnostics {
                 </div>
                 <div class="section">
                     <h3>全局变量:</h3>
-                    ${Array.from(globalVars).map(varName => 
+                    ${Array.from(globalVars).map(varName =>
                         `<div class="variable">- ${varName}</div>`
                     ).join('')}
                 </div>
                 <div class="section">
                     <h3>局部变量:</h3>
-                    ${Array.from(localVars.entries()).map(([name, info]) => 
+                    ${Array.from(localVars.entries()).map(([name, info]) =>
                         `<div class="variable" data-line="${info.range.start.line}" data-char="${info.range.start.character}">
                             - ${info.type} ${name}
                         </div>`
@@ -554,28 +543,28 @@ export class LPCDiagnostics {
             const varDeclarations = match[3];
             const fullMatchStart = block.start + match.index;
             const fullMatchEnd = fullMatchStart + match[0].length;
-            
-            // 分割变量明，保留每个变量声明的完整形式（包括星号）
+
+            // 分割变量声明，保留每个变量声明的完整形式（包括星号）
             const vars = varDeclarations.split(',');
             let hasArrayInDeclaration = false;
-            
+
             for (let varDecl of vars) {
                 varDecl = varDecl.trim();
                 let isArray = false;
                 let varName = varDecl;
-                
+
                 // 检查是否是数组声明
                 if (varDecl.includes('*')) {
                     isArray = true;
                     hasArrayInDeclaration = true;
                     varName = varDecl.replace('*', '').trim();
                 }
-                
+
                 // 如果这个声明中有数组，那么后续的变量都是普通变量
                 if (!isArray && hasArrayInDeclaration) {
                     isArray = false;
                 }
-                
+
                 if (!this.excludedIdentifiers.has(varName) && !functionDefs.has(varName)) {
                     // 找到这个变量在声明中实际位置
                     const varRegex = new RegExp(`\\b${varName}\\b`);
@@ -586,11 +575,11 @@ export class LPCDiagnostics {
                         const varEnd = document.positionAt(block.start + varIndex + varName.length);
                         const declStart = document.positionAt(fullMatchStart);
                         const declEnd = document.positionAt(fullMatchEnd);
-                        
+
                         localVars.set(varName, {
                             range: new vscode.Range(varStart, varEnd),
                             declarationRange: new vscode.Range(declStart, declEnd),
-                            declarationIndex: match.index,  // 保存声明位置
+                            declarationIndex: match.index,
                             isArray,
                             type: isArray ? `${varType}[]` : varType
                         });
@@ -603,7 +592,7 @@ export class LPCDiagnostics {
         for (const [varName, info] of localVars) {
             // 在变量声明后的代码中查找变量使用
             const afterDeclaration = block.content.slice(info.declarationIndex + varName.length);
-            
+
             // 检查是否被赋值或作为引用参数使用
             const isUsed = this.checkVariableUsage(varName, afterDeclaration);
 
@@ -622,56 +611,48 @@ export class LPCDiagnostics {
     private checkVariableUsage(varName: string, code: string): boolean {
         // 添加 foreach 语法的检查
         const patterns = [
-            // 接赋值
+            // 保持原有的基础模式
             new RegExp(`\\b${varName}\\s*=`, 'g'),
-            // 复合赋值
             new RegExp(`\\b${varName}\\s*[+\\-*/%]?=`, 'g'),
-            // 自增自减
             new RegExp(`\\b${varName}\\s*[+\\-]{2}`, 'g'),
-            // 作为 sscanf 的引用参数
-            new RegExp(`sscanf\\([^)]*,\\s*[^,]*,\\s*${varName}\\b`, 'g'),
-            // 其他常见的引用参数函数
-            new RegExp(`(?:fscanf|scanf|parse_arg)\\([^)]*,\\s*${varName}\\b`, 'g'),
-            // 数组赋值
             new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g'),
-            // mapping 赋值
-            new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g'),
-            // foreach 语句中的使用
-            new RegExp(`\\bforeach\\s*\\(${varName}\\s+in\\s+`, 'g'),
-            
-            // 作为 foreach 的集合
-            new RegExp(`\\bforeach\\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\s+in\\s+${varName}\\b`, 'g')
+
+            // foreach的三种使用场景
+            // 1. 作为第一个变量: foreach (varName, xxx in yyy)
+            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
+            // 2. 作为第二个变量: foreach (xxx, varName in yyy)
+            new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
+            // 3. 作为单个变量: foreach (varName in yyy)
+            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
+            // 4. 作为集合变量
+            new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g')
         ];
+
+        // 匹配sscanf和input_to函数的第3个参数开始的所有参数
+        const functionCallPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
+        let funcMatch;
+        while ((funcMatch = functionCallPattern.exec(code)) !== null) {
+            // 截取第3个参数开始的所有参数
+            const argsString = funcMatch[1];
+            // 将参数字符串按逗号分割成数组
+            const args = argsString.split(',').map(arg => arg.trim());
+            // 检查参数是否包含varName
+            if (args.includes(varName)) {
+                return true;
+            }
+        }
 
         // 检查是否匹配任一模式
         return patterns.some(pattern => pattern.test(code));
     }
 
     private analyzeApplyFunctions(text: string, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {
-        for (const applyFunc of this.applyFunctions) {
-            const regex = new RegExp(`^\\s*(?:${this.modifiers}\\s+)*(${this.lpcTypes})\\s+${applyFunc}\\s*\\(`, 'gm');
-            let match;
-            while ((match = regex.exec(text)) !== null) {
-                // 检查 apply 函数的返回类型是否正确
-                const returnType = match[1];
-                const startPos = document.positionAt(match.index);
-                const endPos = document.positionAt(match.index + match[0].length);
-                
-                if (!this.isValidApplyReturnType(applyFunc, returnType)) {
-                    const diagnostic = new vscode.Diagnostic(
-                        new vscode.Range(startPos, endPos),
-                        `apply 函数 ${applyFunc} 的返回类型应该是 ${this.getExpectedReturnType(applyFunc)}`,
-                        vscode.DiagnosticSeverity.Warning
-                    );
-                    diagnostics.push(diagnostic);
-                }
-            }
-        }
+        // 暂时关闭检查 apply 函数的返回类型，因为 FluffOS 的 apply 函数返回类型不固定，用户可以自行定义
+        return;
     }
 
-    // 添加 LPC 特有的函数返回类型检查
     private isValidApplyReturnType(funcName: string, returnType: string): boolean {
-        const typeMap: {[key: string]: string} = {
+        const typeMap: { [key: string]: string } = {
             'create': 'void',
             'setup': 'void',
             'init': 'void',
@@ -695,7 +676,7 @@ export class LPCDiagnostics {
             'query_prevent_shadow': 'int',
             'valid_bind': 'int'
         };
-        
+
         return typeMap[funcName] === returnType;
     }
 
@@ -707,14 +688,18 @@ export class LPCDiagnostics {
         const fileName = path.basename(document.fileName);
         const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
         const extension = fileName.substring(fileName.lastIndexOf('.') + 1);
-        
-        const validNameRegex = /^[a-zA-Z0-9_]+$/i;
+
         const validExtensions = ['c', 'h'];
-        
-        if (!validNameRegex.test(fileNameWithoutExt) || !validExtensions.includes(extension.toLowerCase())) {
+        if (!validExtensions.includes(extension.toLowerCase())) {
+            return; // 跳过非 .c 或 .h 文件
+        }
+
+        const validNameRegex = /^[a-zA-Z0-9_-]+$/i;
+
+        if (!validNameRegex.test(fileNameWithoutExt)) {
             diagnostics.push(new vscode.Diagnostic(
                 new vscode.Range(0, 0, 0, 0),
-                'LPC 文件名只能包含字母、数字和下划线，扩展名必须为 .c 或 .h',
+                'LPC 文件名只能包含字母、数字、下划线和连字符，扩展名必须为 .c 或 .h',
                 vscode.DiagnosticSeverity.Warning
             ));
         }
@@ -734,14 +719,14 @@ export class LPCDiagnostics {
         }
 
         const folderPath = folders[0].fsPath;
-        
+
         // 创建输出通道
         const outputChannel = vscode.window.createOutputChannel('LPC 变量检查');
         outputChannel.show();
         outputChannel.appendLine(`开始扫描文件夹: ${folderPath}`);
 
         try {
-            // 显进度条
+            // 显示进度条
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 title: "正在扫描 LPC 文件...",
@@ -794,16 +779,16 @@ export class LPCDiagnostics {
     // 递归查找所有 LPC 文件
     private async findLPCFiles(folderPath: string): Promise<string[]> {
         const files: string[] = [];
-        
+
         async function walk(dir: string) {
-            const entries = await vscode.workspace.fs.readDirectory(vscode.Uri.file(dir));
-            
-            for (const [name, type] of entries) {
-                const fullPath = path.join(dir, name);
-                
-                if (type === vscode.FileType.Directory) {
+            const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+
+                if (entry.isDirectory()) {
                     await walk(fullPath);
-                } else if (type === vscode.FileType.File && name.endsWith('.c')) {
+                } else if (entry.isFile() && (entry.name.endsWith('.c') || entry.name.endsWith('.h'))) {
                     files.push(fullPath);
                 }
             }
@@ -816,22 +801,22 @@ export class LPCDiagnostics {
     private async analyzeObjectAccess(text: string, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {
         // 匹配对象访问语法 ob->func() 和 ob.func
         const objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)/g;
-        
+
         let match;
         while ((match = objectAccessRegex.exec(text)) !== null) {
             const [fullMatch, object, accessor, member] = match;
-            
+
             // 首先检查是否是宏
             if (/^[A-Z][A-Z0-9_]*_D$/.test(object)) {
                 // 强制刷新宏定义
                 this.macroManager?.refreshMacros();
                 const macro = this.macroManager?.getMacro(object);
-                
+
                 // 检查宏是否可以被解析（通过转到定义功能）
                 const canResolveMacro = await this.macroManager?.canResolveMacro(object);
-                
+
                 if (macro || canResolveMacro) {
-                    // 如果是已定义的宏或可以被解析的宏，添加信息性诊
+                    // 如果是已定义的宏或可以被解析的宏，添加信息性诊断
                     const range = new vscode.Range(
                         document.positionAt(match.index),
                         document.positionAt(match.index + object.length)
@@ -860,33 +845,10 @@ export class LPCDiagnostics {
         }
     }
 
-    private analyzeNumericLiterals(text: string, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {
-        // 支持带下划线的数字字面量，如: 1_000_000
-        const numericRegex = /\b\d+(_\d+)*(\.\d+(_\d+)*)?\b/g;
-        
-        let match;
-        while ((match = numericRegex.exec(text)) !== null) {
-            // 验证数字格式的正确性
-            const number = match[0];
-            if (number.startsWith('_') || number.endsWith('_') || number.includes('__')) {
-                const range = new vscode.Range(
-                    document.positionAt(match.index),
-                    document.positionAt(match.index + number.length)
-                );
-                
-                diagnostics.push(new vscode.Diagnostic(
-                    range,
-                    '数字字面量中的下划线使用不正确',
-                    vscode.DiagnosticSeverity.Error
-                ));
-            }
-        }
-    }
-
     private analyzeStringLiterals(text: string, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {
         // 检查多行字符串语法
         const multilineStringRegex = /@text\s*(.*?)\s*text@/gs;
-        
+
         let match;
         while ((match = multilineStringRegex.exec(text)) !== null) {
             // 验证多行字符串的格式
@@ -896,7 +858,7 @@ export class LPCDiagnostics {
                     document.positionAt(match.index),
                     document.positionAt(match.index + match[0].length)
                 );
-                
+
                 diagnostics.push(new vscode.Diagnostic(
                     range,
                     '空的多行字符串',

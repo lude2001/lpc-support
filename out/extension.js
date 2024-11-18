@@ -68,17 +68,46 @@ function activate(context) {
 }
 exports.activate = activate;
 function formatLPCCode(code) {
-    // 分割成行
     const lines = code.split(/\r?\n/);
     let formatted = '';
     let indentLevel = 0;
     const indentSize = 4;
-    // 处理每一行
+    let inMultilineComment = false;
+    let inMultilineString = false;
+    let mappingLevel = 0;
+    let inLongText = false;
     for (let line of lines) {
-        // 移除行首尾空白
         let trimmedLine = line.trim();
+        // 处理多行注释的开始
+        if (trimmedLine.startsWith('/*')) {
+            inMultilineComment = true;
+        }
+        // 处理多行注释的结束
+        if (trimmedLine.endsWith('*/')) {
+            inMultilineComment = false;
+        }
+        // 处理多行字符串的开始和结束
+        if (trimmedLine.startsWith('"""') || trimmedLine.endsWith('"""')) {
+            inMultilineString = !inMultilineString;
+        }
+        // 处理 mapping 的开始
+        if (trimmedLine.startsWith('([')) {
+            mappingLevel++;
+        }
+        // 处理 mapping 的结束
+        if (trimmedLine.endsWith('])')) {
+            mappingLevel = Math.max(0, mappingLevel - 1);
+        }
+        // 处理 @LONG 和 @TEXT 的开始
+        if (trimmedLine.startsWith('@LONG') || trimmedLine.startsWith('@TEXT')) {
+            inLongText = true;
+        }
+        // 处理 @LONG 和 @TEXT 的结束
+        if (inLongText && (trimmedLine === 'LONG' || trimmedLine === 'TEXT')) {
+            inLongText = false;
+        }
         // 处理缩进减少
-        if (trimmedLine.startsWith('}')) {
+        if (!inMultilineComment && !inMultilineString && mappingLevel === 0 && !inLongText && trimmedLine.startsWith('}')) {
             indentLevel = Math.max(0, indentLevel - 1);
         }
         // 添加当前缩进
@@ -89,16 +118,18 @@ function formatLPCCode(code) {
             formatted += '\n';
         }
         // 处理缩进增加
-        if (trimmedLine.endsWith('{')) {
+        if (!inMultilineComment && !inMultilineString && mappingLevel === 0 && !inLongText && trimmedLine.endsWith('{')) {
             indentLevel++;
         }
-        // 处理case语句
-        if (trimmedLine.startsWith('case') || trimmedLine.startsWith('default:')) {
+        // 处理 case 和 default 语句
+        if (!inMultilineComment && !inMultilineString && mappingLevel === 0 && !inLongText && (trimmedLine.startsWith('case') || trimmedLine.startsWith('default:'))) {
+            formatted += ' '.repeat(indentLevel * indentSize) + trimmedLine + '\n';
             indentLevel++;
         }
-        // 处理break语句
-        if (trimmedLine.startsWith('break;')) {
+        // 处理 else 和 break 语句
+        if (!inMultilineComment && !inMultilineString && mappingLevel === 0 && !inLongText && (trimmedLine.startsWith('else') || trimmedLine.startsWith('break;'))) {
             indentLevel = Math.max(0, indentLevel - 1);
+            formatted += ' '.repeat(indentLevel * indentSize) + trimmedLine + '\n';
         }
     }
     return formatted;
