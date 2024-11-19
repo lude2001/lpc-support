@@ -453,25 +453,25 @@ export class LPCDiagnostics {
                 <div class="section">
                     <h3>未使用的变量:</h3>
                     ${Array.from(unusedVars).map(varName => {
-                        const info = localVars.get(varName);
-                        return `<div class="variable unused" data-line="${info?.range.start.line}" data-char="${info?.range.start.character}">
+            const info = localVars.get(varName);
+            return `<div class="variable unused" data-line="${info?.range.start.line}" data-char="${info?.range.start.character}">
                             - ${info?.type} ${varName}
                         </div>`;
-                    }).join('')}
+        }).join('')}
                 </div>
                 <div class="section">
                     <h3>全局变量:</h3>
                     ${Array.from(globalVars).map(varName =>
-                        `<div class="variable">- ${varName}</div>`
-                    ).join('')}
+            `<div class="variable">- ${varName}</div>`
+        ).join('')}
                 </div>
                 <div class="section">
                     <h3>局部变量:</h3>
                     ${Array.from(localVars.entries()).map(([name, info]) =>
-                        `<div class="variable" data-line="${info.range.start.line}" data-char="${info.range.start.character}">
+            `<div class="variable" data-line="${info.range.start.line}" data-char="${info.range.start.character}">
                             - ${info.type} ${name}
                         </div>`
-                    ).join('')}
+        ).join('')}
                 </div>
                 <script>
                     const vscode = acquireVsCodeApi();
@@ -593,6 +593,32 @@ export class LPCDiagnostics {
             // 在变量声明后的代码中查找变量使用
             const afterDeclaration = block.content.slice(info.declarationIndex + varName.length);
 
+            // 获取变量的类型
+            const varType = info.type;
+
+            // 查找变量的赋值表达式
+            const assignRegex = new RegExp(`\\b${varName}\\s*=\\s*(.*?);`, 'g');
+            let assignMatch;
+            while ((assignMatch = assignRegex.exec(afterDeclaration)) !== null) {
+                const expression = assignMatch[1];
+                const inferredType = this.inferExpressionType(expression);
+
+                // 在类型比较时，使用新的类型兼容性检查函数
+                if (!this.areTypesCompatible(varType, inferredType)) {
+                    const expressionStart = assignMatch.index + info.declarationIndex + varName.length + assignMatch[0].indexOf(expression);
+                    const expressionEnd = expressionStart + expression.length;
+                    const range = new vscode.Range(
+                        document.positionAt(block.start + expressionStart),
+                        document.positionAt(block.start + expressionEnd)
+                    );
+                    diagnostics.push(new vscode.Diagnostic(
+                        range,
+                        `变量 '${varName}' 声明为 '${varType}'，但赋值的表达式类型为 '${inferredType}'`,
+                        vscode.DiagnosticSeverity.Warning
+                    ));
+                }
+            }
+
             // 检查是否被赋值或作为引用参数使用
             const isUsed = this.checkVariableUsage(varName, afterDeclaration);
 
@@ -609,6 +635,11 @@ export class LPCDiagnostics {
     }
 
     private checkVariableUsage(varName: string, code: string): boolean {
+
+
+        //定义一个布尔类型，用于记录是否被使用
+        let isUsed = false;
+
         // 添加 foreach 语法的检查
         const patterns = [
             // 保持原有的基础模式
@@ -628,22 +659,77 @@ export class LPCDiagnostics {
             new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g')
         ];
 
-        // 匹配sscanf和input_to函数的第3个参数开始的所有参数
-        const functionCallPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
-        let funcMatch;
-        while ((funcMatch = functionCallPattern.exec(code)) !== null) {
-            // 截取第3个参数开始的所有参数
-            const argsString = funcMatch[1];
-            // 将参数字符串按逗号分割成数组
-            const args = argsString.split(',').map(arg => arg.trim());
-            // 检查参数是否包含varName
-            if (args.includes(varName)) {
-                return true;
+
+        // 检查是否匹配任一模式
+        isUsed = patterns.some(pattern => pattern.test(code));
+
+        //如果没有匹配到，则检查sscanf和input_to函数
+        if (!isUsed) {
+            // 匹配sscanf和input_to函数的第3个参数开始的所有参数
+            const functionCallPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
+            let funcMatch;
+            while ((funcMatch = functionCallPattern.exec(code)) !== null) {
+                // 截取第3个参数开始的所有参数
+                const argsString = funcMatch[1];
+                // 将参数字符串按逗号分割成数组
+                const args = argsString.split(',').map(arg => arg.trim());
+                // 检查参数是否包含varName
+                if (args.includes(varName)) {
+                    isUsed = true;
+                }
             }
         }
 
-        // 检查是否匹配任一模式
-        return patterns.some(pattern => pattern.test(code));
+        //所有变量检测已经有明确的赋值，代表了有明确的意义，这个时候开始检测是否被使用
+        if (isUsed) {
+            // 添加检查：如果变量仅被赋值，但未被使用，应视为未使用
+            // 如果变量被以下情况使用，则视为已使用：
+            // 1. 被赋值给其他变量
+            // 2. 作为参数传递给函数调用
+            // 3. 被 return 语句返回
+
+            // 检查变量是否被赋值给其他变量（右值）
+            const assignedToVariablePattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*${varName}\\b`, 'g');
+
+
+            //未通过检查，视为有意义但是没有使用的变量
+            isUsed = false;
+
+            if (assignedToVariablePattern.test(code)) {
+                isUsed = true;
+            }
+
+            // 检查变量是否作为参数传递给函数调用
+            const functionCallPattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g');
+            if (functionCallPattern.test(code)) {
+                isUsed = true;
+            }
+
+            // 检查变量是否被 return 语句返回
+            const returnPattern = new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g');
+            if (returnPattern.test(code)) {
+                isUsed = true;
+            }
+
+            // 检查变量是否在表达式中使用（非赋值左侧）
+            const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
+            let match;
+            while ((match = usagePattern.exec(code)) !== null) {
+                const index = match.index;
+                const beforeChar = code[index - 1];
+                const afterChar = code[index + varName.length];
+
+                // 忽略赋值左侧的情况
+                const isAssignmentLeft = /\s*=/.test(code.slice(index + varName.length, index + varName.length + 2));
+                if (!isAssignmentLeft) {
+                    isUsed = true;
+                }
+            }
+
+
+        }
+
+        return isUsed;
     }
 
     private analyzeApplyFunctions(text: string, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {
@@ -866,5 +952,71 @@ export class LPCDiagnostics {
                 ));
             }
         }
+    }
+
+    /**
+     * 推断给定表达式的类型
+     * 作者：Lu Dexiang
+     * @param expression 表达式字符串
+     * @returns 推断出的类型
+     */
+    private inferExpressionType(expression: string): string {
+        // 简单的类型推断逻辑
+        expression = expression.trim();
+
+        // 当表达式为 0 时，返回 'mixed'
+        if (expression === '0') {
+            return 'mixed';
+        }
+
+        // 整数
+        if (/^\d+$/.test(expression)) {
+            return 'int';
+        }
+        // 浮点数
+        else if (/^\d+\.\d+$/.test(expression)) {
+            return 'float';
+        }
+        // 字符串
+        else if (/^"(?:[^"\\]|\\.)*"$/.test(expression)) {
+            return 'string';
+        }
+        // 映射（匹配 ([ ... ]) 的形式）
+        else if (/^\(\[\s*(?:[^:\]]+\s*:\s*[^,\]]+\s*,?\s*)*\]\)$/.test(expression)) {
+            return 'mapping';
+        }
+        // 数组
+        else if (/^\({.*}\)$/.test(expression) || /^\[.*\]$/.test(expression)) {
+            return 'array';
+        }
+        // 对象
+        else if (/^new\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(.*\)$/.test(expression)) {
+            return 'object';
+        }
+        // 函数调用
+        else if (/^[a-zA-Z_][a-zA-Z0-9_]*\s*\(.*\)$/.test(expression)) {
+            // 可以进一步解析函数返回类型，暂时返回 mixed
+            return 'mixed';
+        }
+        // 其他
+        else {
+            return 'mixed';
+        }
+    }
+
+    // 新增一个辅助方法来判断类型兼容性
+    private areTypesCompatible(varType: string, inferredType: string): boolean {
+        if (varType === inferredType || inferredType === 'mixed') {
+            return true; // 类型完全匹配或表达式类型为混合类型
+        }
+
+        // 处理数组类型的兼容性
+        if (varType.endsWith('[]') && inferredType === 'array') {
+            return true; // 变量声明为数组类型，赋值表达式为数组，类型兼容
+        }
+
+        // 可以根据需要添加更多类型兼容性的判断逻辑
+
+        return false; // 类型不兼容
     }
 }
