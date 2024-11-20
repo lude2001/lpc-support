@@ -106,81 +106,159 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 function formatLPCCode(code: string): string {
+    // 作者：Lu Dexiang
     const lines = code.split(/\r?\n/);
     let formatted = '';
     let indentLevel = 0;
     const indentSize = 4;
+
     let inMultilineComment = false;
-    let inMultilineString = false;
-    let mappingLevel = 0;
-    let inLongText = false;
+    let inSingleLineComment = false;
+    let inString = false;
+    let inChar = false;
+    let inSpecialBlock = false; // 标记是否在 @LONG/@TEXT/@HELP 等特殊块中
+
+    const specialBlockStart = ['@LONG', '@TEXT', '@HELP'];
+    const specialBlockEnd = ['LONG', 'TEXT', 'HELP'];
 
     for (let line of lines) {
         let trimmedLine = line.trim();
 
-        // 处理多行注释的开始
-        if (trimmedLine.startsWith('/*')) {
-            inMultilineComment = true;
+        // 检查特殊块的开始
+        if (specialBlockStart.some(tag => trimmedLine.startsWith(tag))) {
+            inSpecialBlock = true;
         }
 
-        // 处理多行注释的结束
-        if (trimmedLine.endsWith('*/')) {
-            inMultilineComment = false;
+        // 在特殊块中，直接添加，不处理缩进
+        if (inSpecialBlock) {
+            formatted += line + '\n';
+
+            // 检查特殊块的结束
+            if (specialBlockEnd.some(tag => trimmedLine === tag || trimmedLine.endsWith(tag))) {
+                inSpecialBlock = false;
+            }
+            continue;
         }
 
-        // 处理多行字符串的开始和结束
-        if (trimmedLine.startsWith('"""') || trimmedLine.endsWith('"""')) {
-            inMultilineString = !inMultilineString;
-        }
-
-        // 处理 mapping 的开始
-        if (trimmedLine.startsWith('([')) {
-            mappingLevel++;
-        }
-
-        // 处理 mapping 的结束
-        if (trimmedLine.endsWith('])')) {
-            mappingLevel = Math.max(0, mappingLevel - 1);
-        }
-
-        // 处理 @LONG 和 @TEXT 的开始
-        if (trimmedLine.startsWith('@LONG') || trimmedLine.startsWith('@TEXT')) {
-            inLongText = true;
-        }
-
-        // 处理 @LONG 和 @TEXT 的结束
-        if (inLongText && (trimmedLine === 'LONG' || trimmedLine === 'TEXT')) {
-            inLongText = false;
-        }
-
-        // 处理缩进减少
-        if (!inMultilineComment && !inMultilineString && mappingLevel === 0 && !inLongText && trimmedLine.startsWith('}')) {
-            indentLevel = Math.max(0, indentLevel - 1);
-        }
-
-        // 添加当前缩进
-        if (trimmedLine.length > 0) {
-            formatted += ' '.repeat(indentLevel * indentSize) + trimmedLine + '\n';
-        } else {
+        // 忽略空行
+        if (trimmedLine.length === 0) {
             formatted += '\n';
+            continue;
         }
 
-        // 处理缩进增加
-        if (!inMultilineComment && !inMultilineString && mappingLevel === 0 && !inLongText && trimmedLine.endsWith('{')) {
-            indentLevel++;
+        let i = 0;
+        let lineLength = line.length;
+        let char = '';
+        let nextChar = '';
+        let previousChar = '';
+        let tempIndentLevel = indentLevel;
+        let shouldDecreaseIndent = false;
+        inSingleLineComment = false;
+
+        // 检查当前行是否需要减少缩进
+        while (i < lineLength) {
+            char = line[i];
+            nextChar = i + 1 < lineLength ? line[i + 1] : '';
+
+            // 处理单行注释
+            if (!inString && !inChar && !inMultilineComment && char === '/' && nextChar === '/') {
+                inSingleLineComment = true;
+                break;
+            }
+
+            // 处理多行注释的开始
+            if (!inString && !inChar && !inMultilineComment && char === '/' && nextChar === '*') {
+                inMultilineComment = true;
+                i++;
+                previousChar = char;
+                continue;
+            }
+
+            // 处理多行注释的结束
+            if (inMultilineComment && char === '*' && nextChar === '/') {
+                inMultilineComment = false;
+                i++;
+                previousChar = char;
+                continue;
+            }
+
+            // 处理字符串的开始和结束
+            if (!inSingleLineComment && !inMultilineComment) {
+                if (!inString && !inChar && char === '"') {
+                    inString = true;
+                } else if (inString && char === '"' && previousChar !== '\\') {
+                    inString = false;
+                }
+
+                if (!inString && !inChar && char === "'") {
+                    inChar = true;
+                } else if (inChar && char === "'" && previousChar !== '\\') {
+                    inChar = false;
+                }
+            }
+
+            // 检查是否需要减少缩进
+            if (!inString && !inChar && !inSingleLineComment && !inMultilineComment) {
+                if (char === '}' && line.trim().startsWith('}')) {
+                    tempIndentLevel = Math.max(tempIndentLevel - 1, 0);
+                    shouldDecreaseIndent = true;
+                    break;
+                }
+            }
+
+            previousChar = char;
+            i++;
         }
 
-        // 处理 case 和 default 语句
-        if (!inMultilineComment && !inMultilineString && mappingLevel === 0 && !inLongText && (trimmedLine.startsWith('case') || trimmedLine.startsWith('default:'))) {
-            formatted += ' '.repeat(indentLevel * indentSize) + trimmedLine + '\n';
-            indentLevel++;
+        // 应用缩进
+        let currentIndent = shouldDecreaseIndent ? tempIndentLevel : indentLevel;
+        formatted += ' '.repeat(currentIndent * indentSize) + trimmedLine + '\n';
+
+        // 更新缩进级别
+        i = 0;
+        inString = false;
+        inChar = false;
+        previousChar = '';
+
+        while (i < lineLength) {
+            char = line[i];
+            nextChar = i + 1 < lineLength ? line[i + 1] : '';
+
+            if (!inString && !inChar && !inSingleLineComment && !inMultilineComment) {
+                if (char === '{') {
+                    indentLevel++;
+                } else if (char === '}') {
+                    indentLevel = Math.max(indentLevel - 1, 0);
+                }
+            }
+
+            // 更新状态
+            if (!inString && !inChar && char === '/' && nextChar === '/') {
+                break; // 剩余部分为单行注释，忽略
+            }
+
+            if (!inString && !inChar && char === '/' && nextChar === '*') {
+                inMultilineComment = true;
+                i++;
+            } else if (inMultilineComment && char === '*' && nextChar === '/') {
+                inMultilineComment = false;
+                i++;
+            } else if (!inString && !inChar && char === '"') {
+                inString = true;
+            } else if (inString && char === '"' && previousChar !== '\\') {
+                inString = false;
+            } else if (!inString && !inChar && char === "'") {
+                inChar = true;
+            } else if (inChar && char === "'" && previousChar !== '\\') {
+                inChar = false;
+            }
+
+            previousChar = char;
+            i++;
         }
 
-        // 处理 else 和 break 语句
-        if (!inMultilineComment && !inMultilineString && mappingLevel === 0 && !inLongText && (trimmedLine.startsWith('else') || trimmedLine.startsWith('break;'))) {
-            indentLevel = Math.max(0, indentLevel - 1);
-            formatted += ' '.repeat(indentLevel * indentSize) + trimmedLine + '\n';
-        }
+        // 重置单行注释标志
+        inSingleLineComment = false;
     }
 
     return formatted;
