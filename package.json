@@ -15,11 +15,13 @@
   ],
   "dependencies": {
     "@types/vscode": "^1.95.0",
-    "axios": "^1.7.7"
+    "axios": "^1.7.7",
+    "cheerio": "^1.0.0-rc.12",
+    "@types/cheerio": "^0.22.35"
   },
   "devDependencies": {
     "@types/node": "^16.x",
-    "typescript": "^4.x"
+    "typescript": "^5.0.0"
   },
   "contributes": {
     "languages": [
@@ -99,6 +101,11 @@
         "command": "lpc.configureMacroPath",
         "title": "配置宏定义目录",
         "category": "LPC"
+      },
+      {
+        "command": "lpc.updateEfunDocs",
+        "title": "更新 Efun 文档",
+        "category": "LPC"
       }
     ],
     "menus": {
@@ -126,6 +133,11 @@
         {
           "when": "resourceLangId == lpc",
           "command": "lpc.showMacros",
+          "group": "LPC"
+        },
+        {
+          "when": "resourceLangId == lpc",
+          "command": "lpc.updateEfunDocs",
           "group": "LPC"
         }
       ],

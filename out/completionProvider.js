@@ -5,10 +5,11 @@ const vscode = require("vscode");
 const path = require("path");
 const fs = require("fs");
 class LPCCompletionItemProvider {
-    constructor() {
+    constructor(efunDocsManager) {
         this.types = [];
         this.modifiers = [];
         this.efuns = {};
+        this.efunDocsManager = efunDocsManager;
         this.loadConfig();
     }
     loadConfig() {
@@ -40,10 +41,27 @@ class LPCCompletionItemProvider {
             completionItems.push(item);
         });
         // 添加标准函数提示
-        Object.entries(this.efuns).forEach(([name, info]) => {
-            const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
-            item.detail = info.detail;
-            item.insertText = new vscode.SnippetString(info.snippet);
+        const efunFunctions = this.efunDocsManager.getAllFunctions();
+        efunFunctions.forEach(funcName => {
+            const item = new vscode.CompletionItem(funcName, vscode.CompletionItemKind.Function);
+            item.detail = `LPC Efun: ${funcName}`;
+            item.documentation = new vscode.MarkdownString(`正在加载 ${funcName} 的文档...`);
+            // 异步加载函数文档
+            this.efunDocsManager.getEfunDoc(funcName).then(doc => {
+                if (doc) {
+                    const markdown = new vscode.MarkdownString();
+                    if (doc.syntax) {
+                        markdown.appendCodeblock(doc.syntax, 'lpc');
+                        markdown.appendMarkdown('\n');
+                    }
+                    if (doc.description) {
+                        markdown.appendMarkdown(doc.description);
+                    }
+                    item.documentation = markdown;
+                }
+            });
+            // 添加基本的代码片段
+            item.insertText = new vscode.SnippetString(`${funcName}(\${1})`);
             completionItems.push(item);
         });
         // 添加特定上下文的提示
