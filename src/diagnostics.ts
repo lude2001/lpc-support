@@ -531,7 +531,8 @@ export class LPCDiagnostics {
             declarationRange: vscode.Range,
             declarationIndex: number,
             isArray: boolean,
-            type: string
+            type: string,
+            isDeclarationWithAssign: boolean
         }>();
         let match;
 
@@ -576,12 +577,17 @@ export class LPCDiagnostics {
                         const declStart = document.positionAt(fullMatchStart);
                         const declEnd = document.positionAt(fullMatchEnd);
 
+                        // 检查是否是声明时赋值
+                        const declarationLine = block.content.slice(match.index, match.index + match[0].length);
+                        const isDeclarationWithAssign = declarationLine.includes('=');
+
                         localVars.set(varName, {
                             range: new vscode.Range(varStart, varEnd),
                             declarationRange: new vscode.Range(declStart, declEnd),
                             declarationIndex: match.index,
                             isArray,
-                            type: isArray ? `${varType}[]` : varType
+                            type: isArray ? `${varType}[]` : varType,
+                            isDeclarationWithAssign
                         });
                     }
                 }
@@ -619,8 +625,10 @@ export class LPCDiagnostics {
                 }
             }
 
-            // 检查是否被赋值或作为引用参数使用
-            const isUsed = this.checkVariableUsage(varName, afterDeclaration);
+            // 检查变量使用情况，区分声明时赋值和后续赋值
+            const isUsed = info.isDeclarationWithAssign ? 
+                this.checkActualUsage(varName, afterDeclaration) :
+                this.checkActualUsageIncludingAssignment(varName, afterDeclaration);
 
             if (!isUsed) {
                 const diagnostic = new vscode.Diagnostic(
@@ -635,101 +643,146 @@ export class LPCDiagnostics {
     }
 
     private checkVariableUsage(varName: string, code: string): boolean {
-
-
-        //定义一个布尔类型，用于记录是否被使用
         let isUsed = false;
 
-        // 添加 foreach 语法的检查
-        const patterns = [
-            // 保持原有的基础模式
-            new RegExp(`\\b${varName}\\s*=`, 'g'),
-            new RegExp(`\\b${varName}\\s*[+\\-*/%]?=`, 'g'),
-            new RegExp(`\\b${varName}\\s*[+\\-]{2}`, 'g'),
-            new RegExp(`\\b${varName}\\s*\\[[^\\]]*\\]\\s*=`, 'g'),
+        // 检查变量是否作为参数传递给函数调用
+        const functionCallPattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g');
+        if (functionCallPattern.test(code)) {
+            isUsed = true;
+        }
 
-            // foreach的三种使用场景
-            // 1. 作为第一个变量: foreach (varName, xxx in yyy)
+        // 检查变量是否被赋值给其他变量（作为右值）
+        const assignedToVariablePattern = new RegExp(`\\b(?!${varName}\\s*=)[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*.*\\b${varName}\\b.*?;`, 'g');
+        if (assignedToVariablePattern.test(code)) {
+            isUsed = true;
+        }
+
+        // 检查变量是否被 return 语句返回
+        const returnPattern = new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g');
+        if (returnPattern.test(code)) {
+            isUsed = true;
+        }
+
+        // 检查变量是否在表达式中使用
+        const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
+        let match;
+        while ((match = usagePattern.exec(code)) !== null) {
+            const index = match.index;
+
+            // 忽略赋值左侧的情况
+            const isAssignmentLeft = /\s*[+\-*\/%]?=/.test(code.slice(index + varName.length, index + varName.length + 2));
+            if (!isAssignmentLeft) {
+                // 检查是否在数组访问或其他表达式中使用
+                const isArrayAccess = /\s*\[/.test(code.slice(index + varName.length, index + varName.length + 2));
+                const isInExpression = /[-+*\/%&|^<>]/.test(code.slice(index - 1, index)) || 
+                                    /[-+*\/%&|^<>]/.test(code.slice(index + varName.length, index + varName.length + 1));
+                if (isArrayAccess || isInExpression) {
+                    isUsed = true;
+                }
+            }
+        }
+
+        // 检查foreach语句中的使用
+        const foreachPatterns = [
             new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
-            // 2. 作为第二个变量: foreach (xxx, varName in yyy)
             new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
-            // 3. 作为单个变量: foreach (varName in yyy)
             new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
-            // 4. 作为集合变量
             new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g')
         ];
 
-
-        // 检查是否匹配任一模式
-        isUsed = patterns.some(pattern => pattern.test(code));
-
-        //如果没有匹配到，则检查sscanf和input_to函数
-        if (!isUsed) {
-            // 匹配sscanf和input_to函数的第3个参数开始的所有参数
-            const functionCallPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
-            let funcMatch;
-            while ((funcMatch = functionCallPattern.exec(code)) !== null) {
-                // 截取第3个参数开始的所有参数
-                const argsString = funcMatch[1];
-                // 将参数字符串按逗号分割成数组
-                const args = argsString.split(',').map(arg => arg.trim());
-                // 检查参数是否包含varName
-                if (args.includes(varName)) {
-                    isUsed = true;
-                }
-            }
+        if (foreachPatterns.some(pattern => pattern.test(code))) {
+            isUsed = true;
         }
 
-        //所有变量检测已经有明确的赋值，代表了有明确的意义，这个时候开始检测是否被使用
-        if (isUsed) {
-            // 添加检查：如果变量仅被赋值，但未被使用，应视为未使用
-            // 如果变量被以下情况使用，则视为已使用：
-            // 1. 被赋值给其他变量
-            // 2. 作为参数传递给函数调用
-            // 3. 被 return 语句返回
-
-            // 检查变量是否被赋值给其他变量（右值）
-            const assignedToVariablePattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*${varName}\\b`, 'g');
-
-
-            //未通过检查，视为有意义但是没有使用的变量
-            isUsed = false;
-
-            if (assignedToVariablePattern.test(code)) {
+        // 检查sscanf和input_to函数的使用
+        const specialFunctionPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
+        let funcMatch;
+        while ((funcMatch = specialFunctionPattern.exec(code)) !== null) {
+            const argsString = funcMatch[1];
+            const args = argsString.split(',').map(arg => arg.trim());
+            if (args.includes(varName)) {
                 isUsed = true;
             }
-
-            // 检查变量是否作为参数传递给函数调用
-            const functionCallPattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g');
-            if (functionCallPattern.test(code)) {
-                isUsed = true;
-            }
-
-            // 检查变量是否被 return 语句返回
-            const returnPattern = new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g');
-            if (returnPattern.test(code)) {
-                isUsed = true;
-            }
-
-            // 检查变量是否在表达式中使用（非赋值左侧）
-            const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
-            let match;
-            while ((match = usagePattern.exec(code)) !== null) {
-                const index = match.index;
-                const beforeChar = code[index - 1];
-                const afterChar = code[index + varName.length];
-
-                // 忽略赋值左侧的情况
-                const isAssignmentLeft = /\s*=/.test(code.slice(index + varName.length, index + varName.length + 2));
-                if (!isAssignmentLeft) {
-                    isUsed = true;
-                }
-            }
-
-
         }
 
         return isUsed;
+    }
+
+    private checkActualUsage(varName: string, code: string): boolean {
+        let isUsed = false;
+
+        // 检查变量是否作为参数传递给函数调用
+        const functionCallPattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g');
+        if (functionCallPattern.test(code)) {
+            isUsed = true;
+        }
+
+        // 检查变量是否被赋值给其他变量（作为右值）
+        const assignedToVariablePattern = new RegExp(`\\b(?!${varName}\\s*=)[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*.*\\b${varName}\\b.*?;`, 'g');
+        if (assignedToVariablePattern.test(code)) {
+            isUsed = true;
+        }
+
+        // 检查变量是否被 return 语句返回
+        const returnPattern = new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g');
+        if (returnPattern.test(code)) {
+            isUsed = true;
+        }
+
+        // 检查变量是否在表达式中使用
+        const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
+        let match;
+        while ((match = usagePattern.exec(code)) !== null) {
+            const index = match.index;
+
+            // 忽略赋值左侧的情况
+            const isAssignmentLeft = /\s*[+\-*\/%]?=/.test(code.slice(index + varName.length, index + varName.length + 2));
+            if (!isAssignmentLeft) {
+                // 检查是否在数组访问或其他表达式中使用
+                const isArrayAccess = /\s*\[/.test(code.slice(index + varName.length, index + varName.length + 2));
+                const isInExpression = /[-+*\/%&|^<>]/.test(code.slice(index - 1, index)) || 
+                                    /[-+*\/%&|^<>]/.test(code.slice(index + varName.length, index + varName.length + 1));
+                if (isArrayAccess || isInExpression) {
+                    isUsed = true;
+                }
+            }
+        }
+
+        // 检查foreach语句中的使用
+        const foreachPatterns = [
+            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
+            new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
+            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
+            new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g')
+        ];
+
+        if (foreachPatterns.some(pattern => pattern.test(code))) {
+            isUsed = true;
+        }
+
+        // 检查sscanf和input_to函数的使用
+        const specialFunctionPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
+        let funcMatch;
+        while ((funcMatch = specialFunctionPattern.exec(code)) !== null) {
+            const argsString = funcMatch[1];
+            const args = argsString.split(',').map(arg => arg.trim());
+            if (args.includes(varName)) {
+                isUsed = true;
+            }
+        }
+
+        return isUsed;
+    }
+
+    private checkActualUsageIncludingAssignment(varName: string, code: string): boolean {
+        // 首先检查是否有赋值操作（这种情况下认为变量被使用）
+        const assignmentPattern = new RegExp(`\\b${varName}\\s*[+\\-*\\/%]?=`, 'g');
+        if (assignmentPattern.test(code)) {
+            return true;
+        }
+
+        // 如果没有赋值，检查其他使用情况
+        return this.checkVariableUsage(varName, code);
     }
 
     private analyzeApplyFunctions(text: string, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {

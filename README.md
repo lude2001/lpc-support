@@ -1,84 +1,89 @@
-# LPC Support Extension
+# LPC Support 扩展
 
-一个用于支持 LPC (LPMud Creation) 语言开发的 VSCode 扩展。
-A VSCode extension for LPC (LPMud Creation) language development support.
+LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode 扩展，由武侠黎明团队开发，可能是目前国内首个多功能，通用性强的LPC语言的VSCode扩展。
 
-## 功能特性 Features
+## 注意事项
 
-- 语法高亮 Syntax highlighting
-- 代码补全 Code completion
-- 代码诊断 Code diagnostics 
-- 变量检查 Variable checking
-- 宏定义支持 Macro definition support
-- 服务器管理 Server management
-- 代码格式化 Code formatting
+- 本扩展的语法规范仅适应作者团队的代码风格，请按需使用。
+- 未使用变量的检查功能其中的一部分说明,目前不提示在定义变量后，在后续代码块中赋值但是没有被引用的变量。因为fluffos驱动的逻辑仅弹出[变量类型 变量名]或[变量类型 变量名=值]两种情况未使用的变量。为了兼容fluffos的逻辑，所以此处不提示。
+## 功能特色
 
-## 安装要求 Requirements
+- **语法高亮**：LPC 语言语法高亮显示。
+- **智能补全**：支持 LPC 内置函数（efun）、库函数及自定义函数的智能代码补全。
+- **实时诊断**：自动检测语法错误、未使用变量及潜在问题，提升代码质量。
+- **宏定义支持**：识别并处理宏定义，提供宏补全及跳转功能。
+- **服务器管理**：简单添加、删除及管理 FluffOS 服务器配置，并支持一键编译文件至服务器。
+- **代码格式化**：代码格式化，按作者团队代码风格格式化。
 
-- VSCode 1.95.0 或更高版本 / VSCode 1.95.0 or higher
-- Node.js 16.x 或更高版本 / Node.js 16.x or higher
+## 安装与依赖
 
-## 扩展设置 Extension Settings
+### 环境要求
 
-本扩展提供以下设置:
-This extension contributes the following settings:
+- Visual Studio Code 版本 1.95.0 或更高
+- Node.js 版本 16.x 或更高
 
-* `lpc.macroPath`: 宏定义文件目录路径 / Macro definition files directory path
-* `lpc.servers`: FluffOS 服务器配置 / FluffOS server configurations
+### 安装步骤
 
-## 使用方法 Usage
+1. 打开 VSCode 扩展市场，搜索 "LPC Support"。
+2. 点击安装，并重启 VSCode 以激活扩展。
 
-### 代码补全 Code Completion
+## 扩展设置
 
-提供了大量 LPC 内置函数(efun)的代码补全,包括:
-Provides code completion for many LPC built-in functions (efuns), including:
+该扩展支持以下主要设置项：
 
-- 缓冲区操作 Buffer operations
-- 数组操作 Array operations  
-- 字符串处理 String manipulation
-- 文件操作 File operations
-- 数据库操作 Database operations
-- 系统调用 System calls
+- `lpc.macroPath`: 指定宏定义文件目录。
+- `lpc.servers`: 配置 FluffOS 服务器信息，包括添加、编辑及切换服务器。
 
-### 诊断功能 Diagnostics
+## 使用指南
 
-- 检查未使用的变量 Check unused variables
-- 分析函数调用 Analyze function calls
-- 检查语法规范 Check syntax conventions
-- 验证文件命名 Validate file naming
+### 代码补全
 
-### 服务器管理 Server Management
+扩展提供全面的代码补全功能，涵盖：
 
-- 添加/删除服务器 Add/Remove servers
-- 编辑服务器配置 Edit server configurations  
-- 切换活动服务器 Switch active server
-- 编译文件到服务器 Compile files to server
+- 缓冲区操作
+- 数组与字符串处理
+- 文件操作
+- 数据库与系统调用
 
-### 宏定义支持 Macro Support
+### 代码诊断
 
-- 扫描宏定义文件 Scan macro definition files
-- 提供宏定义补全 Provide macro completion
-- 显示宏定义信息 Show macro information
-- 跳转到宏定义 Jump to macro definition
+自动检测并提示：
 
-## 已知问题 Known Issues
+- 未使用的变量和函数
+- 函数调用错误
+- 语法不规范
+- 文件命名问题
 
-请在 GitHub 仓库提交问题:
-Please submit issues on GitHub repository:
+### 服务器管理
 
-[Issues](https://github.com/your-repo/lpc-support/issues)
+管理服务器配置，支持：
 
-## 发布说明 Release Notes
+- 添加/删除服务器
+- 编辑服务器信息
+- 切换活动服务器
+- 编译文件至服务器
+
+### 宏定义支持
+
+提供以下功能：
+
+- 自动扫描宏文件
+- 提供宏补全及详细信息
+- 快速跳转至宏定义
+
+## 已知问题
+
+如遇到任何问题，请至代码仓库提交issue。
+
+## 版本更新
 
 ### 0.0.1
 
-- 初始版本发布 Initial release
-- 基础功能实现 Basic features implementation
+- 实现基本功能：语法高亮、代码补全、诊断及服务器管理
+- 初步支持宏定义功能
 
-## 更多信息 For More Information
+## 更多资源
 
-* [LPC 语言文档](https://mud.wiki/LPC)
-* [FluffOS 文档](https://www.fluffos.info)
-* [扩展源码](https://github.com/your-repo/lpc-support)
+- [LPC 语言文档](https://mud.wiki/LPC)
+- [FluffOS 文档](https://www.fluffos.info)
 
-**尽情享用!** **Enjoy!**

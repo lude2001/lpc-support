@@ -156,6 +156,11 @@
         "command": "editor.action.blockComment",
         "key": "shift+alt+a",
         "when": "editorTextFocus && !editorReadonly && editorLangId == 'lpc'"
+      },
+      {
+        "command": "lpc.compileFile",
+        "key": "ctrl+f5",
+        "when": "editorTextFocus && editorLangId == 'lpc'"
       }
     ]
   },
