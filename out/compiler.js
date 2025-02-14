@@ -7,8 +7,37 @@ const path = require("path");
 class LPCCompiler {
     constructor(configManager) {
         this.configManager = configManager;
+        this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
+    }
+    parseCompileMessage(msg, document) {
+        const diagnostics = [];
+        const lines = msg.split('\n');
+        for (const line of lines) {
+            // 匹配包含 "line X:" 格式的错误信息
+            const lineMatch = line.match(/line (\d+):/);
+            if (lineMatch) {
+                const lineNumber = parseInt(lineMatch[1]) - 1; // VSCode使用0基索引
+                // 判断消息类型（Warning 或 Error）
+                const isWarning = line.includes('Warning');
+                const severity = isWarning ?
+                    vscode.DiagnosticSeverity.Warning :
+                    vscode.DiagnosticSeverity.Error;
+                // 提取错误消息
+                let message = line;
+                const messageMatch = line.match(/line \d+:\s*(.*)/);
+                if (messageMatch) {
+                    message = messageMatch[1];
+                }
+                const range = new vscode.Range(new vscode.Position(lineNumber, 0), new vscode.Position(lineNumber, Number.MAX_VALUE));
+                const diagnostic = new vscode.Diagnostic(range, message, severity);
+                diagnostics.push(diagnostic);
+            }
+        }
+        return diagnostics;
     }
     async compileFile(filePath) {
+        // 清除之前的诊断信息
+        this.diagnosticCollection.clear();
         const server = this.configManager.getActiveServer();
         if (!server) {
             const result = await vscode.window.showErrorMessage('未配置FluffOS服务器', '配置服务器');
@@ -17,15 +46,12 @@ class LPCCompiler {
             }
             return;
         }
-        // 获取工作区根目录
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
         if (!workspaceFolder) {
             vscode.window.showErrorMessage('无法确定项目根目录，请在工作区中打开项目');
             return;
         }
-        // 计算相对路径
         const relativePath = path.relative(workspaceFolder.uri.fsPath, filePath);
-        // 确保路径以 / 开头
         const mudPath = '/' + relativePath.replace(/\\/g, '/');
         try {
             const response = await axios_1.default.post(`${server.url}/update_code/update_file`, {
@@ -37,14 +63,24 @@ class LPCCompiler {
             });
             if (response.status === 200) {
                 const data = response.data;
-                if (data.code === 'update_file') {
-                    // 移除消息中的换行符，使提示更整洁
-                    const msg = data.msg.replace(/[\n\r]+/g, ' ').trim();
-                    vscode.window.showInformationMessage(msg);
+                const document = await vscode.workspace.openTextDocument(filePath);
+                // 检查编译消息中是否包含"成功"
+                if (data.msg.includes('成功')) {
+                    vscode.window.showInformationMessage(data.msg);
+                    // 清除之前的诊断信息
+                    this.diagnosticCollection.delete(document.uri);
                 }
                 else {
-                    // 如果返回的不是 update_file，说明编译失败
-                    vscode.window.showErrorMessage(data.msg || '编译失败，未知错误');
+                    // 解析编译消息中的警告和错误
+                    const diagnostics = this.parseCompileMessage(data.msg, document);
+                    // 设置诊断信息
+                    this.diagnosticCollection.set(document.uri, diagnostics);
+                    // 如果没有解析到具体的警告或错误，但编译失败了，显示整个错误消息
+                    if (diagnostics.length === 0) {
+                        const diagnostic = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 0), data.msg, vscode.DiagnosticSeverity.Error);
+                        this.diagnosticCollection.set(document.uri, [diagnostic]);
+                    }
+                    vscode.window.showErrorMessage(data.msg);
                 }
             }
             else {
@@ -52,17 +88,13 @@ class LPCCompiler {
             }
         }
         catch (error) {
-            // 处理网络错误或其他异常
             if (error.response) {
-                // 服务器返回了错误状态码
                 vscode.window.showErrorMessage(`编译失败: ${error.response.data.msg || error.message}`);
             }
             else if (error.request) {
-                // 请求发出但没有收到响应
                 vscode.window.showErrorMessage('无法连接到FluffOS服务器，请检查服务器配置和网络连接');
             }
             else {
-                // 请求设置时发生错误
                 vscode.window.showErrorMessage(`编译错误: ${error.message}`);
             }
         }

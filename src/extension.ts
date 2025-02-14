@@ -16,6 +16,32 @@ export function activate(context: vscode.ExtensionContext) {
     // 初始化 Efun 文档管理器
     const efunDocsManager = new EfunDocsManager(context);
 
+    // 注册 efun 文档设置命令
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.efunDocsSettings', async () => {
+            const items = [
+                {
+                    label: "更新 Efun 文档",
+                    description: "从在线文档更新 Efun 函数文档",
+                    command: 'lpc.updateEfunDocs'
+                },
+                {
+                    label: "配置模拟函数库目录",
+                    description: "设置模拟函数库的目录路径",
+                    command: 'lpc.configureSimulatedEfuns'
+                }
+            ];
+
+            const selected = await vscode.window.showQuickPick(items, {
+                placeHolder: 'efun文档设置'
+            });
+
+            if (selected) {
+                vscode.commands.executeCommand(selected.command);
+            }
+        })
+    );
+
     // 注册代码操作提供程序
     context.subscriptions.push(
         vscode.languages.registerCodeActionsProvider('lpc', new LPCCodeActionProvider(), {

@@ -4,28 +4,12 @@ import * as fs from 'fs';
 import { EfunDocsManager } from './efunDocs';
 
 export class LPCCompletionItemProvider implements vscode.CompletionItemProvider {
-    private types: string[] = [];
-    private modifiers: string[] = [];
-    private efuns: {[key: string]: {snippet: string, detail: string}} = {};
+    private types = ['void', 'int', 'string', 'object', 'mapping', 'mixed', 'float', 'buffer'];
+    private modifiers = ['private', 'protected', 'public', 'static', 'nomask', 'varargs'];
     private efunDocsManager: EfunDocsManager;
 
     constructor(efunDocsManager: EfunDocsManager) {
         this.efunDocsManager = efunDocsManager;
-        this.loadConfig();
-    }
-
-    private loadConfig() {
-        try {
-            const configPath = path.join(__dirname, '..', 'config', 'lpc-config.json');
-            const configContent = fs.readFileSync(configPath, 'utf8');
-            const config = JSON.parse(configContent);
-            
-            this.types = config.types || [];
-            this.modifiers = config.modifiers || [];
-            this.efuns = config.efuns || {};
-        } catch (error) {
-            console.error('加载LPC配置文件失败:', error);
-        }
     }
 
     provideCompletionItems(
@@ -78,6 +62,32 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
             completionItems.push(item);
         });
 
+        // 添加模拟函数库提示
+        const simulatedFunctions = this.efunDocsManager.getAllSimulatedFunctions();
+        simulatedFunctions.forEach(funcName => {
+            const item = new vscode.CompletionItem(funcName, vscode.CompletionItemKind.Function);
+            item.detail = `模拟函数库: ${funcName}`;
+            item.documentation = new vscode.MarkdownString(`正在加载 ${funcName} 的文档...`);
+
+            // 获取函数文档
+            const doc = this.efunDocsManager.getSimulatedDoc(funcName);
+            if (doc) {
+                const markdown = new vscode.MarkdownString();
+                if (doc.syntax) {
+                    markdown.appendCodeblock(doc.syntax, 'lpc');
+                    markdown.appendMarkdown('\n');
+                }
+                if (doc.description) {
+                    markdown.appendMarkdown(doc.description);
+                }
+                item.documentation = markdown;
+            }
+
+            // 添加基本的代码片段
+            item.insertText = new vscode.SnippetString(`${funcName}(\${1})`);
+            completionItems.push(item);
+        });
+
         // 添加特定上下文的提示
         if (linePrefix.endsWith('->')) {
             // 对象方法调用提示
@@ -90,7 +100,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         return completionItems;
     }
 
-    private addObjectMethodCompletions(items: vscode.CompletionItem[]) {
+    private addObjectMethodCompletions(completionItems: vscode.CompletionItem[]): void {
         const commonMethods = [
             { name: 'query', snippet: 'query(${1:prop})', detail: '查询属性值' },
             { name: 'set', snippet: 'set(${1:prop}, ${2:value})', detail: '设置属性值' },
@@ -102,11 +112,11 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
             const item = new vscode.CompletionItem(method.name, vscode.CompletionItemKind.Method);
             item.detail = method.detail;
             item.insertText = new vscode.SnippetString(method.snippet);
-            items.push(item);
+            completionItems.push(item);
         });
     }
 
-    private addPreprocessorCompletions(items: vscode.CompletionItem[]) {
+    private addPreprocessorCompletions(completionItems: vscode.CompletionItem[]): void {
         const preprocessors = [
             { name: 'include', snippet: 'include <${1:file}>', detail: '包含头文件' },
             { name: 'define', snippet: 'define ${1:MACRO} ${2:value}', detail: '定义宏' },
@@ -119,7 +129,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
             const item = new vscode.CompletionItem(prep.name, vscode.CompletionItemKind.Keyword);
             item.detail = prep.detail;
             item.insertText = new vscode.SnippetString(prep.snippet);
-            items.push(item);
+            completionItems.push(item);
         });
     }
 } 

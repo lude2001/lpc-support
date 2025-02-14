@@ -13,14 +13,17 @@ export interface EfunDoc {
     reference?: string[];
     category?: string;
     lastUpdated?: number;  // 添加最后更新时间戳
+    isSimulated?: boolean;
 }
 
 export class EfunDocsManager {
     private static EFUN_LIST_URL = 'https://mud.wiki/Lpc:Efun';
     private static EFUN_DOC_BASE_URL = 'https://mud.wiki/';
     private static CACHE_FILE_NAME = 'efun_docs_cache.json';
+    private static SIMULATED_EFUNS_PATH_CONFIG = 'lpc.simulatedEfunsPath';
     private efunDocs: Map<string, EfunDoc> = new Map();
     private efunCategories: Map<string, string[]> = new Map();
+    private simulatedEfunDocs: Map<string, EfunDoc> = new Map();
     private statusBarItem: vscode.StatusBarItem;
     private cacheFilePath: string;
     private static CACHE_EXPIRY_DAYS = 7; // 缓存过期时间（天）
@@ -48,6 +51,14 @@ export class EfunDocsManager {
                 provideHover: (document, position) => this.provideHover(document, position)
             })
         );
+
+        // 注册模拟函数库配置命令
+        context.subscriptions.push(
+            vscode.commands.registerCommand('lpc.configureSimulatedEfuns', () => this.configureSimulatedEfuns())
+        );
+
+        // 加载模拟函数库文档
+        this.loadSimulatedEfuns();
 
         // 启动时自动更新文档
         this.updateDocs();
@@ -186,7 +197,140 @@ export class EfunDocsManager {
         }
     }
 
-    private async provideHover(
+    private async configureSimulatedEfuns(): Promise<void> {
+        const options: vscode.OpenDialogOptions = {
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: '选择模拟函数库目录'
+        };
+
+        const folders = await vscode.window.showOpenDialog(options);
+        if (folders && folders[0]) {
+            await vscode.workspace.getConfiguration().update(
+                EfunDocsManager.SIMULATED_EFUNS_PATH_CONFIG,
+                folders[0].fsPath,
+                vscode.ConfigurationTarget.Global
+            );
+            await this.loadSimulatedEfuns();
+            vscode.window.showInformationMessage('模拟函数库目录已更新');
+        }
+    }
+
+    private async loadSimulatedEfuns(): Promise<void> {
+        const config = vscode.workspace.getConfiguration();
+        const simulatedEfunsPath = config.get<string>(EfunDocsManager.SIMULATED_EFUNS_PATH_CONFIG);
+        
+        if (!simulatedEfunsPath) {
+            return;
+        }
+
+        try {
+            const files = await vscode.workspace.findFiles(
+                new vscode.RelativePattern(simulatedEfunsPath, '**/*.{c,h}')
+            );
+
+            this.simulatedEfunDocs.clear();
+
+            for (const file of files) {
+                const content = await vscode.workspace.fs.readFile(file);
+                const text = Buffer.from(content).toString('utf8');
+                
+                // 解析文件中的函数文档
+                const functionDocs = this.parseSimulatedEfunDocs(text);
+                
+                for (const [funcName, doc] of functionDocs) {
+                    this.simulatedEfunDocs.set(funcName, doc);
+                }
+            }
+        } catch (error) {
+            console.error('加载模拟函数库文档失败:', error);
+        }
+    }
+
+    private parseSimulatedEfunDocs(content: string): Map<string, EfunDoc> {
+        const docs = new Map<string, EfunDoc>();
+        const functionPattern = /\/\*\*\s*([\s\S]*?)\s*\*\/\s*(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+)*((?:varargs\s+)?[a-zA-Z_][a-zA-Z0-9_]*\s*\**\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\))/g;
+        const paramPattern = /@param\s+(\S+)\s+(\S+)\s+([^\n]+)/g;
+        const returnPattern = /@return\s+(\S+)\s+(.*)/;
+        const briefPattern = /@brief\s+([^\n]+)/;
+
+        let match;
+        while ((match = functionPattern.exec(content)) !== null) {
+            const [_, docComment, funcDecl] = match;
+            const funcName = funcDecl.match(/(?:varargs\s+)?[a-zA-Z_][a-zA-Z0-9_]*\s*\**\s*([a-zA-Z_][a-zA-Z0-9_]*)/)?.[1];
+            
+            if (funcName) {
+                const doc: EfunDoc = {
+                    name: funcName,
+                    syntax: funcDecl.trim(),
+                    description: '',
+                    category: '模拟函数库',
+                    isSimulated: true
+                };
+
+                // 解析 @brief
+                const briefMatch = docComment.match(briefPattern);
+                if (briefMatch) {
+                    doc.description = briefMatch[1].trim();
+                }
+
+                // 解析参数
+                const params: string[] = [];
+                let paramMatch;
+                const paramText = docComment.replace(/\r\n/g, '\n');  // 统一换行符
+                while ((paramMatch = paramPattern.exec(paramText)) !== null) {
+                    const [_, type, name, desc] = paramMatch;
+                    // 处理可能跨行的描述
+                    let fullDesc = desc.trim();
+                    // 如果描述在下一行继续，查找到下一个@标记或结束
+                    const nextIndex = paramText.indexOf('@', paramMatch.index + paramMatch[0].length);
+                    if (nextIndex !== -1) {
+                        const extraDesc = paramText
+                            .slice(paramMatch.index + paramMatch[0].length, nextIndex)
+                            .split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line && !line.startsWith('*'))
+                            .join(' ');
+                        if (extraDesc) {
+                            fullDesc += ' ' + extraDesc;
+                        }
+                    }
+                    params.push(`${type} ${name}: ${fullDesc}`);
+                }
+                if (params.length > 0) {
+                    doc.description += '\n\n参数:\n' + params.join('\n');
+                }
+
+                // 解析返回值
+                const returnMatch = docComment.match(returnPattern);
+                if (returnMatch?.index !== undefined) {
+                    const [_, type, desc] = returnMatch;
+                    // 处理可能跨行的返回值描述
+                    let fullDesc = desc.trim();
+                    const nextIndex = docComment.indexOf('@', returnMatch.index + returnMatch[0].length);
+                    if (nextIndex !== -1) {
+                        const extraDesc = docComment
+                            .slice(returnMatch.index + returnMatch[0].length, nextIndex)
+                            .split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line && !line.startsWith('*'))
+                            .join(' ');
+                        if (extraDesc) {
+                            fullDesc += ' ' + extraDesc;
+                        }
+                    }
+                    doc.returnValue = `${type}: ${fullDesc}`;
+                }
+
+                docs.set(funcName, doc);
+            }
+        }
+
+        return docs;
+    }
+
+    public async provideHover(
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<vscode.Hover | undefined> {
@@ -196,12 +340,23 @@ export class EfunDocsManager {
         }
 
         const word = document.getText(wordRange);
-        const doc = await this.getEfunDoc(word);
         
+        // 先查找模拟函数库文档
+        const simulatedDoc = this.simulatedEfunDocs.get(word);
+        if (simulatedDoc) {
+            return this.createHoverContent(simulatedDoc);
+        }
+
+        // 再查找标准efun文档
+        const doc = await this.getEfunDoc(word);
         if (!doc) {
             return undefined;
         }
 
+        return this.createHoverContent(doc);
+    }
+
+    private createHoverContent(doc: EfunDoc): vscode.Hover {
         const content = new vscode.MarkdownString();
         content.appendMarkdown(`# ${doc.name}\n\n`);
         
@@ -234,5 +389,13 @@ export class EfunDocsManager {
 
     public getAllFunctions(): string[] {
         return Array.from(this.efunDocs.keys());
+    }
+
+    public getAllSimulatedFunctions(): string[] {
+        return Array.from(this.simulatedEfunDocs.keys());
+    }
+
+    public getSimulatedDoc(funcName: string): EfunDoc | undefined {
+        return this.simulatedEfunDocs.get(funcName);
     }
 }

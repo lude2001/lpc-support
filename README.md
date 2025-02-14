@@ -6,6 +6,7 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 
 - 本扩展的语法规范仅适应作者团队的代码风格，请按需使用。
 - 未使用变量的检查功能其中的一部分说明,目前不提示在定义变量后，在后续代码块中赋值但是没有被引用的变量。因为fluffos驱动的逻辑仅弹出[变量类型 变量名]或[变量类型 变量名=值]两种情况未使用的变量。为了兼容fluffos的逻辑，所以此处不提示。
+
 ## 功能特色
 
 - **语法高亮**：LPC 语言语法高亮显示。
@@ -14,6 +15,8 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 - **宏定义支持**：识别并处理宏定义，提供宏补全及跳转功能。
 - **服务器管理**：简单添加、删除及管理 FluffOS 服务器配置，并支持一键编译文件至服务器。
 - **代码格式化**：代码格式化，按作者团队代码风格格式化。
+- **Efun 文档**：内置 efun 函数文档，支持实时查看和更新。
+- **快速修复**：提供代码问题的快速修复建议。
 
 ## 安装与依赖
 
@@ -34,6 +37,12 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 - `lpc.macroPath`: 指定宏定义文件目录。
 - `lpc.servers`: 配置 FluffOS 服务器信息，包括添加、编辑及切换服务器。
 
+## 快捷键
+
+- `Ctrl+/`: 行注释
+- `Shift+Alt+A`: 块注释
+- `Ctrl+F5`: 编译当前文件
+
 ## 使用指南
 
 ### 代码补全
@@ -44,6 +53,7 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 - 数组与字符串处理
 - 文件操作
 - 数据库与系统调用
+- Efun 函数文档实时提示
 
 ### 代码诊断
 
@@ -70,10 +80,12 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 - 自动扫描宏文件
 - 提供宏补全及详细信息
 - 快速跳转至宏定义
+- 宏定义文档注释支持
 
-## 已知问题
+## 更多资源
 
-如遇到任何问题，请至代码仓库提交issue。
+- [LPC 语言文档](https://mud.wiki/LPC)
+- [FluffOS 文档](https://www.fluffos.info)
 
 ## 版本更新
 
@@ -81,9 +93,6 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 
 - 实现基本功能：语法高亮、代码补全、诊断及服务器管理
 - 初步支持宏定义功能
-
-## 更多资源
-
-- [LPC 语言文档](https://mud.wiki/LPC)
-- [FluffOS 文档](https://www.fluffos.info)
+- 添加 Efun 文档支持
+- 实现代码快速修复功能
 

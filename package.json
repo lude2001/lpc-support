@@ -106,6 +106,16 @@
         "command": "lpc.updateEfunDocs",
         "title": "更新 Efun 文档",
         "category": "LPC"
+      },
+      {
+        "command": "lpc.configureSimulatedEfuns",
+        "title": "配置模拟函数库目录",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.efunDocsSettings",
+        "title": "efun文档设置",
+        "category": "LPC"
       }
     ],
     "menus": {
@@ -137,8 +147,9 @@
         },
         {
           "when": "resourceLangId == lpc",
-          "command": "lpc.updateEfunDocs",
-          "group": "LPC"
+          "command": "lpc.efunDocsSettings",
+          "label": "efun文档设置",
+          "group": "LPC@1"
         }
       ],
       "explorer/context": [
@@ -155,6 +166,11 @@
           "type": "string",
           "default": "",
           "description": "LPC宏定义包含目录的路径"
+        },
+        "lpc.simulatedEfunsPath": {
+          "type": "string",
+          "default": "",
+          "description": "LPC模拟函数库目录的路径"
         }
       }
     },

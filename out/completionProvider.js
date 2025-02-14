@@ -2,28 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LPCCompletionItemProvider = void 0;
 const vscode = require("vscode");
-const path = require("path");
-const fs = require("fs");
 class LPCCompletionItemProvider {
     constructor(efunDocsManager) {
-        this.types = [];
-        this.modifiers = [];
-        this.efuns = {};
+        this.types = ['void', 'int', 'string', 'object', 'mapping', 'mixed', 'float', 'buffer'];
+        this.modifiers = ['private', 'protected', 'public', 'static', 'nomask', 'varargs'];
         this.efunDocsManager = efunDocsManager;
-        this.loadConfig();
-    }
-    loadConfig() {
-        try {
-            const configPath = path.join(__dirname, '..', 'config', 'lpc-config.json');
-            const configContent = fs.readFileSync(configPath, 'utf8');
-            const config = JSON.parse(configContent);
-            this.types = config.types || [];
-            this.modifiers = config.modifiers || [];
-            this.efuns = config.efuns || {};
-        }
-        catch (error) {
-            console.error('加载LPC配置文件失败:', error);
-        }
     }
     provideCompletionItems(document, position, token, context) {
         const linePrefix = document.lineAt(position).text.substr(0, position.character);
@@ -64,6 +47,29 @@ class LPCCompletionItemProvider {
             item.insertText = new vscode.SnippetString(`${funcName}(\${1})`);
             completionItems.push(item);
         });
+        // 添加模拟函数库提示
+        const simulatedFunctions = this.efunDocsManager.getAllSimulatedFunctions();
+        simulatedFunctions.forEach(funcName => {
+            const item = new vscode.CompletionItem(funcName, vscode.CompletionItemKind.Function);
+            item.detail = `模拟函数库: ${funcName}`;
+            item.documentation = new vscode.MarkdownString(`正在加载 ${funcName} 的文档...`);
+            // 获取函数文档
+            const doc = this.efunDocsManager.getSimulatedDoc(funcName);
+            if (doc) {
+                const markdown = new vscode.MarkdownString();
+                if (doc.syntax) {
+                    markdown.appendCodeblock(doc.syntax, 'lpc');
+                    markdown.appendMarkdown('\n');
+                }
+                if (doc.description) {
+                    markdown.appendMarkdown(doc.description);
+                }
+                item.documentation = markdown;
+            }
+            // 添加基本的代码片段
+            item.insertText = new vscode.SnippetString(`${funcName}(\${1})`);
+            completionItems.push(item);
+        });
         // 添加特定上下文的提示
         if (linePrefix.endsWith('->')) {
             // 对象方法调用提示
@@ -75,7 +81,7 @@ class LPCCompletionItemProvider {
         }
         return completionItems;
     }
-    addObjectMethodCompletions(items) {
+    addObjectMethodCompletions(completionItems) {
         const commonMethods = [
             { name: 'query', snippet: 'query(${1:prop})', detail: '查询属性值' },
             { name: 'set', snippet: 'set(${1:prop}, ${2:value})', detail: '设置属性值' },
@@ -86,10 +92,10 @@ class LPCCompletionItemProvider {
             const item = new vscode.CompletionItem(method.name, vscode.CompletionItemKind.Method);
             item.detail = method.detail;
             item.insertText = new vscode.SnippetString(method.snippet);
-            items.push(item);
+            completionItems.push(item);
         });
     }
-    addPreprocessorCompletions(items) {
+    addPreprocessorCompletions(completionItems) {
         const preprocessors = [
             { name: 'include', snippet: 'include <${1:file}>', detail: '包含头文件' },
             { name: 'define', snippet: 'define ${1:MACRO} ${2:value}', detail: '定义宏' },
@@ -101,7 +107,7 @@ class LPCCompletionItemProvider {
             const item = new vscode.CompletionItem(prep.name, vscode.CompletionItemKind.Keyword);
             item.detail = prep.detail;
             item.insertText = new vscode.SnippetString(prep.snippet);
-            items.push(item);
+            completionItems.push(item);
         });
     }
 }
