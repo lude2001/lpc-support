@@ -88,6 +88,11 @@
         "category": "LPC"
       },
       {
+        "command": "lpc.compileFolder",
+        "title": "批量编译LPC文件",
+        "category": "LPC"
+      },
+      {
         "command": "lpc.manageServers",
         "title": "管理编译服务器",
         "category": "LPC"

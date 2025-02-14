@@ -3,7 +3,7 @@ import axios from 'axios';
 import * as path from 'path';
 import { LPCConfigManager } from './config';
 
-export class LPCRunner {
+export class LPCCompiler {
     private configManager: LPCConfigManager;
     private diagnosticCollection: vscode.DiagnosticCollection;
 
@@ -48,7 +48,7 @@ export class LPCRunner {
         return diagnostics;
     }
 
-    public async runFile(filePath: string, args: string[] = []): Promise<void> {
+    public async compileFile(filePath: string): Promise<void> {
         // 清除之前的诊断信息
         this.diagnosticCollection.clear();
         
@@ -74,8 +74,7 @@ export class LPCRunner {
         const mudPath = '/' + relativePath.replace(/\\/g, '/');
 
         try {
-            // 首先尝试编译文件
-            const compileResponse = await axios.post(`${server.url}/update_code/update_file`, {
+            const response = await axios.post(`${server.url}/update_code/update_file`, {
                 file_name: mudPath
             }, {
                 headers: {
@@ -83,63 +82,44 @@ export class LPCRunner {
                 }
             });
 
-            if (compileResponse.status === 200) {
-                const compileData = compileResponse.data;
+            if (response.status === 200) {
+                const data = response.data;
                 const document = await vscode.workspace.openTextDocument(filePath);
-
-                // 如果编译成功，尝试运行文件
-                if (compileData.msg.includes('成功')) {
+                
+                // 检查编译消息中是否包含"成功"
+                if (data.msg.includes('成功')) {
+                    vscode.window.showInformationMessage(data.msg);
                     // 清除之前的诊断信息
                     this.diagnosticCollection.delete(document.uri);
-
-                    // 构建运行参数
-                    const runParams = {
-                        file_name: mudPath,
-                        args: args
-                    };
-
-                    // 发送运行请求
-                    const runResponse = await axios.post(`${server.url}/run_file`, runParams, {
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-
-                    if (runResponse.status === 200) {
-                        const runData = runResponse.data;
-                        // 显示运行结果
-                        if (runData.success) {
-                            vscode.window.showInformationMessage(`运行成功: ${runData.output || '无输出'}`);
-                        } else {
-                            vscode.window.showErrorMessage(`运行失败: ${runData.error || '未知错误'}`);
-                        }
-                    }
                 } else {
-                    // 处理编译错误
-                    const diagnostics = this.parseCompileMessage(compileData.msg, document);
+                    // 解析编译消息中的警告和错误
+                    const diagnostics = this.parseCompileMessage(data.msg, document);
+                    
+                    // 设置诊断信息
                     this.diagnosticCollection.set(document.uri, diagnostics);
                     
+                    // 如果没有解析到具体的警告或错误，但编译失败了，显示整个错误消息
                     if (diagnostics.length === 0) {
                         const diagnostic = new vscode.Diagnostic(
                             new vscode.Range(0, 0, 0, 0),
-                            compileData.msg,
+                            data.msg,
                             vscode.DiagnosticSeverity.Error
                         );
                         this.diagnosticCollection.set(document.uri, [diagnostic]);
                     }
                     
-                    vscode.window.showErrorMessage(compileData.msg);
+                    vscode.window.showErrorMessage(data.msg);
                 }
             } else {
-                vscode.window.showErrorMessage(`请求失败: ${compileResponse.statusText}`);
+                vscode.window.showErrorMessage(`请求失败: ${response.statusText}`);
             }
         } catch (error: any) {
             if (error.response) {
-                vscode.window.showErrorMessage(`操作失败: ${error.response.data.msg || error.message}`);
+                vscode.window.showErrorMessage(`编译失败: ${error.response.data.msg || error.message}`);
             } else if (error.request) {
                 vscode.window.showErrorMessage('无法连接到FluffOS服务器，请检查服务器配置和网络连接');
             } else {
-                vscode.window.showErrorMessage(`错误: ${error.message}`);
+                vscode.window.showErrorMessage(`编译错误: ${error.message}`);
             }
         }
     }
@@ -152,5 +132,58 @@ export class LPCRunner {
         relativePath = relativePath.replace(/\\/g, '/');
         // 确保以 / 开头
         return relativePath.startsWith('/') ? relativePath : '/' + relativePath;
+    }
+
+    public async compileFolder(folderPath: string): Promise<void> {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folderPath));
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('无法确定项目根目录，请在工作区中打开项目');
+            return;
+        }
+
+        // 获取文件夹下所有的.c文件
+        const pattern = new vscode.RelativePattern(folderPath, '**/*.c');
+        const files = await vscode.workspace.findFiles(pattern);
+
+        if (files.length === 0) {
+            vscode.window.showInformationMessage('未找到任何.c文件');
+            return;
+        }
+
+        // 创建进度条
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "正在批量编译文件",
+            cancellable: true
+        }, async (progress, token) => {
+            const total = files.length;
+            let current = 0;
+            let success = 0;
+            let failed = 0;
+
+            for (const file of files) {
+                if (token.isCancellationRequested) {
+                    break;
+                }
+
+                try {
+                    await this.compileFile(file.fsPath);
+                    success++;
+                } catch (error) {
+                    failed++;
+                    console.error(`编译文件 ${file.fsPath} 失败:`, error);
+                }
+
+                current++;
+                progress.report({
+                    message: `进度: ${current}/${total}`,
+                    increment: (100 / total)
+                });
+            }
+
+            vscode.window.showInformationMessage(
+                `批量编译完成。成功: ${success}, 失败: ${failed}, 总计: ${total}`
+            );
+        });
     }
 } 
