@@ -108,6 +108,50 @@ class LPCCompiler {
         // 确保以 / 开头
         return relativePath.startsWith('/') ? relativePath : '/' + relativePath;
     }
+    async compileFolder(folderPath) {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folderPath));
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('无法确定项目根目录，请在工作区中打开项目');
+            return;
+        }
+        // 获取文件夹下所有的.c文件
+        const pattern = new vscode.RelativePattern(folderPath, '**/*.c');
+        const files = await vscode.workspace.findFiles(pattern);
+        if (files.length === 0) {
+            vscode.window.showInformationMessage('未找到任何.c文件');
+            return;
+        }
+        // 创建进度条
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "正在批量编译文件",
+            cancellable: true
+        }, async (progress, token) => {
+            const total = files.length;
+            let current = 0;
+            let success = 0;
+            let failed = 0;
+            for (const file of files) {
+                if (token.isCancellationRequested) {
+                    break;
+                }
+                try {
+                    await this.compileFile(file.fsPath);
+                    success++;
+                }
+                catch (error) {
+                    failed++;
+                    console.error(`编译文件 ${file.fsPath} 失败:`, error);
+                }
+                current++;
+                progress.report({
+                    message: `进度: ${current}/${total}`,
+                    increment: (100 / total)
+                });
+            }
+            vscode.window.showInformationMessage(`批量编译完成。成功: ${success}, 失败: ${failed}, 总计: ${total}`);
+        });
+    }
 }
 exports.LPCCompiler = LPCCompiler;
 //# sourceMappingURL=compiler.js.map

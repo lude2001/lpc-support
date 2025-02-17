@@ -161,6 +161,11 @@
         {
           "command": "lpc.scanFolder",
           "group": "LPC"
+        },
+        {
+          "command": "lpc.compileFolder",
+          "group": "LPC",
+          "when": "explorerResourceIsFolder"
         }
       ]
     },

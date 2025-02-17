@@ -69,6 +69,43 @@ function activate(context) {
         diagnostics.scanFolder();
     });
     context.subscriptions.push(scanFolderCommand);
+    // 注册批量编译命令
+    let compileFolderCommand = vscode.commands.registerCommand('lpc.compileFolder', async (uri) => {
+        let targetFolder;
+        if (uri) {
+            // 如果是从右键菜单调用，使用选中的文件夹
+            targetFolder = uri.fsPath;
+        }
+        else {
+            // 如果是从命令面板调用，让用户选择工作区
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders) {
+                vscode.window.showErrorMessage('请先打开一个工作区');
+                return;
+            }
+            const folders = workspaceFolders.map(folder => ({
+                label: folder.name,
+                description: folder.uri.fsPath,
+                uri: folder.uri
+            }));
+            // 如果只有一个工作区文件夹，直接使用它
+            if (folders.length === 1) {
+                targetFolder = folders[0].uri.fsPath;
+            }
+            else {
+                // 如果有多个工作区文件夹，让用户选择
+                const selected = await vscode.window.showQuickPick(folders, {
+                    placeHolder: '选择要编译的文件夹'
+                });
+                if (!selected) {
+                    return;
+                }
+                targetFolder = selected.uri.fsPath;
+            }
+        }
+        await compiler.compileFolder(targetFolder);
+    });
+    context.subscriptions.push(compileFolderCommand);
     // 注册代码补全提供程序
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider('lpc', new completionProvider_1.LPCCompletionItemProvider(efunDocsManager), '.', '->', '#' // 触发补全的字符
     ));

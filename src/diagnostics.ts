@@ -178,13 +178,13 @@ export class LPCDiagnostics {
             const endPos = startPos + fullMatch.length;
 
             // 检查访问符号的使用
-            if (accessor === '.') {
-                diagnostics.push(this.createDiagnostic(
-                    this.getRange(document, startPos + object.length, 1),
-                    'LPC 中推荐使用 -> 而不是 . 来访问对象成员',
-                    vscode.DiagnosticSeverity.Information
-                ));
-            }
+            // if (accessor === '.') {
+            //     diagnostics.push(this.createDiagnostic(
+            //         this.getRange(document, startPos + object.length, 1),
+            //         'LPC 中推荐使用 -> 而不是 . 来访问对象成员',
+            //         vscode.DiagnosticSeverity.Information
+            //     ));
+            // }
 
             // 检查宏定义
             if (/^[A-Z][A-Z0-9_]*_D$/.test(object)) {
@@ -207,13 +207,13 @@ export class LPCDiagnostics {
             }
 
             // 检查成员命名规范
-            if (!/^[a-z][a-zA-Z0-9_]*$/.test(member)) {
-                diagnostics.push(this.createDiagnostic(
-                    this.getRange(document, startPos + object.length + accessor.length, member.length),
-                    '成员名应该使用小写字母开头的驼峰命名法',
-                    vscode.DiagnosticSeverity.Warning
-                ));
-            }
+            // if (!/^[a-z][a-zA-Z0-9_]*$/.test(member)) {
+            //     diagnostics.push(this.createDiagnostic(
+            //         this.getRange(document, startPos + object.length + accessor.length, member.length),
+            //         '成员名应该使用小写字母开头的驼峰命名法',
+            //         vscode.DiagnosticSeverity.Warning
+            //     ));
+            // }
         }
     }
 
@@ -1166,17 +1166,17 @@ export class LPCDiagnostics {
             const endPos = startPos + fullMatch.length;
 
             // 检查访问符号的使用
-            if (accessor === '.') {
-                const range = new vscode.Range(
-                    document.positionAt(startPos + object.length),
-                    document.positionAt(startPos + object.length + 1)
-                );
-                diagnostics.push(new vscode.Diagnostic(
-                    range,
-                    'LPC 中推荐使用 -> 而不是 . 来访问对象成员',
-                    vscode.DiagnosticSeverity.Information
-                ));
-            }
+            // if (accessor === '.') {
+            //     const range = new vscode.Range(
+            //         document.positionAt(startPos + object.length),
+            //         document.positionAt(startPos + object.length + 1)
+            //     );
+            //     diagnostics.push(new vscode.Diagnostic(
+            //         range,
+            //         'LPC 中推荐使用 -> 而不是 . 来访问对象成员',
+            //         vscode.DiagnosticSeverity.Information
+            //     ));
+            // }
 
             // 首先检查是否是宏
             if (/^[A-Z][A-Z0-9_]*_D$/.test(object)) {
@@ -1261,17 +1261,17 @@ export class LPCDiagnostics {
             }
 
             // 检查成员命名规范
-            if (!/^[a-z][a-zA-Z0-9_]*$/.test(member)) {
-                const range = new vscode.Range(
-                    document.positionAt(startPos + object.length + accessor.length),
-                    document.positionAt(startPos + object.length + accessor.length + member.length)
-                );
-                diagnostics.push(new vscode.Diagnostic(
-                    range,
-                    '成员名应该使用小写字母开头的驼峰命名法',
-                    vscode.DiagnosticSeverity.Warning
-                ));
-            }
+            // if (!/^[a-z][a-zA-Z0-9_]*$/.test(member)) {
+            //     const range = new vscode.Range(
+            //         document.positionAt(startPos + object.length + accessor.length),
+            //         document.positionAt(startPos + object.length + accessor.length + member.length)
+            //     );
+            //     diagnostics.push(new vscode.Diagnostic(
+            //         range,
+            //         '成员名应该使用小写字母开头的驼峰命名法',
+            //         vscode.DiagnosticSeverity.Warning
+            //     ));
+            // }
         }
     }
 
