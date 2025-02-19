@@ -111,7 +111,7 @@ function activate(context) {
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider('lpc', completionProvider, '.', '->', '#' // 触发补全的字符
     ));
     // 注册定义跳转提供程序
-    context.subscriptions.push(vscode.languages.registerDefinitionProvider('lpc', new definitionProvider_1.LPCDefinitionProvider(macroManager)));
+    context.subscriptions.push(vscode.languages.registerDefinitionProvider('lpc', new definitionProvider_1.LPCDefinitionProvider(macroManager, efunDocsManager)));
     // 注册扫描继承关系命令
     context.subscriptions.push(vscode.commands.registerCommand('lpc.scanInheritance', () => {
         const editor = vscode.window.activeTextEditor;

@@ -141,7 +141,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.languages.registerDefinitionProvider(
             'lpc',
-            new LPCDefinitionProvider(macroManager)
+            new LPCDefinitionProvider(macroManager, efunDocsManager)
         )
     );
 

@@ -1,15 +1,18 @@
 import * as vscode from 'vscode';
 import { MacroManager } from './macroManager';
+import { EfunDocsManager } from './efunDocs';
 import * as path from 'path';
 import * as fs from 'fs';
 
 export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private macroManager: MacroManager;
+    private efunDocsManager: EfunDocsManager;
     private processedFiles: Set<string> = new Set();
     private functionDefinitions: Map<string, vscode.Location> = new Map();
 
-    constructor(macroManager: MacroManager) {
+    constructor(macroManager: MacroManager, efunDocsManager: EfunDocsManager) {
         this.macroManager = macroManager;
+        this.efunDocsManager = efunDocsManager;
     }
 
     async provideDefinition(
@@ -38,11 +41,49 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
             return new vscode.Location(uri, new vscode.Range(startPos, endPos));
         }
 
+        // 2. 检查是否是模拟函数库中的函数
+        const simulatedDoc = this.efunDocsManager.getSimulatedDoc(word);
+        if (simulatedDoc) {
+            const config = vscode.workspace.getConfiguration();
+            const simulatedEfunsPath = config.get<string>('lpc.simulatedEfunsPath');
+            if (simulatedEfunsPath) {
+                const files = await vscode.workspace.findFiles(
+                    new vscode.RelativePattern(simulatedEfunsPath, '**/*.{c,h}')
+                );
+                
+                for (const file of files) {
+                    const content = await vscode.workspace.fs.readFile(file);
+                    const text = Buffer.from(content).toString('utf8');
+                    
+                    // 查找函数定义
+                    const functionRegex = new RegExp(
+                        `(?:(?:private|public|protected|static|nomask|varargs)\\s+)*` +
+                        `(?:void|int|string|object|mapping|mixed|float|buffer)\\s+` +
+                        `(?:\\*\\s*)?${word}\\s*\\([^)]*\\)`,
+                        'g'
+                    );
+                    
+                    const match = functionRegex.exec(text);
+                    if (match) {
+                        const startPos = new vscode.Position(
+                            text.substring(0, match.index).split('\n').length - 1,
+                            0
+                        );
+                        const endPos = new vscode.Position(
+                            text.substring(0, match.index + match[0].length).split('\n').length - 1,
+                            match[0].length
+                        );
+                        return new vscode.Location(file, new vscode.Range(startPos, endPos));
+                    }
+                }
+            }
+        }
+
         // 清除之前的缓存
         this.processedFiles.clear();
         this.functionDefinitions.clear();
 
-        // 2. 检查是否是函数定义
+        // 3. 检查是否是函数定义
         await this.findFunctionDefinitions(document);
         if (!this.functionDefinitions.has(word)) {
             await this.findInheritedFunctionDefinitions(document);
@@ -52,7 +93,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
             return functionDef;
         }
 
-        // 3. 检查是否是变量定义
+        // 4. 检查是否是变量定义
         const variableDef = await this.findVariableDefinition(word, document, position);
         if (variableDef) {
             return variableDef;
