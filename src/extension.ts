@@ -127,13 +127,34 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(compileFolderCommand);
 
-    // 注册代码补全提供程序
+    // 初始化代码补全提供程序
+    const completionProvider = new LPCCompletionItemProvider(efunDocsManager, macroManager);
     context.subscriptions.push(
         vscode.languages.registerCompletionItemProvider(
             'lpc',
-            new LPCCompletionItemProvider(efunDocsManager),
+            completionProvider,
             '.', '->', '#' // 触发补全的字符
         )
+    );
+
+    // 注册定义跳转提供程序
+    context.subscriptions.push(
+        vscode.languages.registerDefinitionProvider(
+            'lpc',
+            new LPCDefinitionProvider(macroManager)
+        )
+    );
+
+    // 注册扫描继承关系命令
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.scanInheritance', () => {
+            const editor = vscode.window.activeTextEditor;
+            if (editor && editor.document.languageId === 'lpc') {
+                completionProvider.scanInheritance(editor.document);
+            } else {
+                vscode.window.showWarningMessage('请在LPC文件中使用此命令');
+            }
+        })
     );
 
     // 初始化配置管理器和编译器
@@ -166,14 +187,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     // 将宏管理器添加到清理列表
     context.subscriptions.push(macroManager);
-
-    // 注册定义提供程序
-    context.subscriptions.push(
-        vscode.languages.registerDefinitionProvider(
-            'lpc',
-            new LPCDefinitionProvider(macroManager)
-        )
-    );
 }
 
 function formatLPCCode(code: string): string {

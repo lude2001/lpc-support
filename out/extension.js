@@ -106,9 +106,22 @@ function activate(context) {
         await compiler.compileFolder(targetFolder);
     });
     context.subscriptions.push(compileFolderCommand);
-    // 注册代码补全提供程序
-    context.subscriptions.push(vscode.languages.registerCompletionItemProvider('lpc', new completionProvider_1.LPCCompletionItemProvider(efunDocsManager), '.', '->', '#' // 触发补全的字符
+    // 初始化代码补全提供程序
+    const completionProvider = new completionProvider_1.LPCCompletionItemProvider(efunDocsManager, macroManager);
+    context.subscriptions.push(vscode.languages.registerCompletionItemProvider('lpc', completionProvider, '.', '->', '#' // 触发补全的字符
     ));
+    // 注册定义跳转提供程序
+    context.subscriptions.push(vscode.languages.registerDefinitionProvider('lpc', new definitionProvider_1.LPCDefinitionProvider(macroManager)));
+    // 注册扫描继承关系命令
+    context.subscriptions.push(vscode.commands.registerCommand('lpc.scanInheritance', () => {
+        const editor = vscode.window.activeTextEditor;
+        if (editor && editor.document.languageId === 'lpc') {
+            completionProvider.scanInheritance(editor.document);
+        }
+        else {
+            vscode.window.showWarningMessage('请在LPC文件中使用此命令');
+        }
+    }));
     // 初始化配置管理器和编译器
     const configManager = new config_1.LPCConfigManager(context);
     const compiler = new compiler_1.LPCCompiler(configManager);
@@ -125,8 +138,6 @@ function activate(context) {
     context.subscriptions.push(vscode.commands.registerCommand('lpc.showMacros', () => macroManager.showMacrosList()), vscode.commands.registerCommand('lpc.configureMacroPath', () => macroManager.configurePath()));
     // 将宏管理器添加到清理列表
     context.subscriptions.push(macroManager);
-    // 注册定义提供程序
-    context.subscriptions.push(vscode.languages.registerDefinitionProvider('lpc', new definitionProvider_1.LPCDefinitionProvider(macroManager)));
 }
 function formatLPCCode(code) {
     const lines = code.split(/\r?\n/);

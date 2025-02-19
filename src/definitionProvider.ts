@@ -4,13 +4,20 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 export class LPCDefinitionProvider implements vscode.DefinitionProvider {
-    constructor(private macroManager: MacroManager) {}
+    private macroManager: MacroManager;
+    private processedFiles: Set<string> = new Set();
+    private functionDefinitions: Map<string, vscode.Location> = new Map();
+
+    constructor(macroManager: MacroManager) {
+        this.macroManager = macroManager;
+    }
 
     async provideDefinition(
         document: vscode.TextDocument,
         position: vscode.Position,
         token: vscode.CancellationToken
-    ): Promise<vscode.Definition | vscode.LocationLink[] | undefined> {
+    ): Promise<vscode.Location | vscode.Location[] | undefined> {
+        // 获取当前光标所在的单词
         const wordRange = document.getWordRangeAtPosition(position);
         if (!wordRange) {
             return undefined;
@@ -31,8 +38,16 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
             return new vscode.Location(uri, new vscode.Range(startPos, endPos));
         }
 
+        // 清除之前的缓存
+        this.processedFiles.clear();
+        this.functionDefinitions.clear();
+
         // 2. 检查是否是函数定义
-        const functionDef = await this.findFunctionDefinition(word, document);
+        await this.findFunctionDefinitions(document);
+        if (!this.functionDefinitions.has(word)) {
+            await this.findInheritedFunctionDefinitions(document);
+        }
+        const functionDef = this.functionDefinitions.get(word);
         if (functionDef) {
             return functionDef;
         }
@@ -41,71 +56,6 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         const variableDef = await this.findVariableDefinition(word, document, position);
         if (variableDef) {
             return variableDef;
-        }
-
-        // 4. 检查是否是继承的对象
-        const inheritDef = await this.findInheritDefinition(word, document);
-        if (inheritDef) {
-            return inheritDef;
-        }
-
-        return undefined;
-    }
-
-    private async findFunctionDefinition(
-        functionName: string,
-        document: vscode.TextDocument
-    ): Promise<vscode.Location | undefined> {
-        const text = document.getText();
-        
-        // 匹配函数定义（不带分号结尾）
-        const functionDefRegex = new RegExp(
-            `^\\s*(?:private|public|protected|static|nomask|varargs)?\\s*` +
-            `(?:void|int|string|object|mapping|mixed|float|buffer)\\s+` +
-            `${functionName}\\s*\\([^;{]*\\{`,
-            'gm'
-        );
-
-        // 首先在当前文件中查找函数定义
-        const defMatch = functionDefRegex.exec(text);
-        if (defMatch) {
-            const startPos = document.positionAt(defMatch.index);
-            const endPos = document.positionAt(defMatch.index + defMatch[0].length);
-            const range = new vscode.Range(startPos, endPos);
-            return new vscode.Location(document.uri, range);
-        }
-
-        // 如果在当前文件中没找到，查找所有继承的文件
-        const inheritedFiles = await this.findInheritedFiles(document);
-        for (const file of inheritedFiles) {
-            try {
-                const inheritedDoc = await vscode.workspace.openTextDocument(file);
-                const inheritedText = inheritedDoc.getText();
-                const inheritedMatch = functionDefRegex.exec(inheritedText);
-                if (inheritedMatch) {
-                    const startPos = inheritedDoc.positionAt(inheritedMatch.index);
-                    const endPos = inheritedDoc.positionAt(inheritedMatch.index + inheritedMatch[0].length);
-                    const range = new vscode.Range(startPos, endPos);
-                    return new vscode.Location(inheritedDoc.uri, range);
-                }
-            } catch (error) {
-                console.error(`Error searching in inherited file: ${file}`, error);
-            }
-        }
-
-        // 如果还是没找到，查找函数声明
-        const functionDeclRegex = new RegExp(
-            `^\\s*(?:private|public|protected|static|nomask|varargs)?\\s*` +
-            `(?:void|int|string|object|mapping|mixed|float|buffer)\\s+` +
-            `${functionName}\\s*\\([^;{]*;`,
-            'gm'
-        );
-        const declMatch = functionDeclRegex.exec(text);
-        if (declMatch) {
-            const startPos = document.positionAt(declMatch.index);
-            const endPos = document.positionAt(declMatch.index + declMatch[0].length);
-            const range = new vscode.Range(startPos, endPos);
-            return new vscode.Location(document.uri, range);
         }
 
         return undefined;
@@ -117,12 +67,14 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         position: vscode.Position
     ): Promise<vscode.Location | undefined> {
         const text = document.getText();
+        const lines = text.split('\n');
 
         // 1. 首先检查局部变量
         const functionText = this.getFunctionText(text, position);
         if (functionText) {
+            // 匹配局部变量定义，支持所有LPC类型和数组声明
             const localVarRegex = new RegExp(
-                `\\b(?:int|string|object|mapping|mixed|float|buffer)\\s+` +
+                `\\b(?:int|string|object|mapping|mixed|float|buffer|array)\\s+` +
                 `(?:\\*\\s*)?${variableName}\\b[^;]*;`,
                 'g'
             );
@@ -137,7 +89,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         // 2. 检查全局变量
         const globalVarRegex = new RegExp(
             `^\\s*(?:private|public|protected|nosave)?\\s*` +
-            `(?:int|string|object|mapping|mixed|float|buffer)\\s+` +
+            `(?:int|string|object|mapping|mixed|float|buffer|array)\\s+` +
             `(?:\\*\\s*)?${variableName}\\b[^;]*;`,
             'gm'
         );
@@ -148,51 +100,12 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
             return new vscode.Location(document.uri, new vscode.Range(startPos, endPos));
         }
 
-        return undefined;
-    }
-
-    private async findInheritDefinition(
-        className: string,
-        document: vscode.TextDocument
-    ): Promise<vscode.Location | undefined> {
-        const text = document.getText();
-        // 匹配 inherit 语句，支持多种形式
-        const inheritRegex = /\binherit\s+([A-Z_][A-Z0-9_]*)\s*;/g;
-        let match;
-
-        while ((match = inheritRegex.exec(text)) !== null) {
-            const inheritName = match[1];
-            if (inheritName === className) {
-                // 1. 首先检查是否是宏定义
-                const macro = this.macroManager.getMacro(inheritName);
-                if (macro) {
-                    // 获取宏定义的实际文件路径
-                    const macroValue = macro.value.trim().replace(/['"]/g, '');
-                    if (macroValue.startsWith('/')) {
-                        // 在工作区中查找对应的文件
-                        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-                        if (workspaceFolder) {
-                            const fullPath = path.join(workspaceFolder.uri.fsPath, macroValue + '.c');
-                            try {
-                                const inheritedDoc = await vscode.workspace.openTextDocument(fullPath);
-                                return new vscode.Location(inheritedDoc.uri, new vscode.Position(0, 0));
-                            } catch (error) {
-                                console.error(`Error opening inherited file: ${fullPath}`, error);
-                            }
-                        }
-                    }
-                }
-
-                // 2. 如果不是宏定义，尝试直接查找文件
-                const files = await vscode.workspace.findFiles(
-                    `**/${className.toLowerCase()}.{c,h}`,
-                    '**/node_modules/**'
-                );
-                if (files.length > 0) {
-                    return new vscode.Location(files[0], new vscode.Position(0, 0));
-                }
-            }
+        // 3. 检查继承文件中的变量定义
+        const inheritedVarDef = await this.findInheritedVariableDefinition(document, variableName);
+        if (inheritedVarDef) {
+            return inheritedVarDef;
         }
+
         return undefined;
     }
 
@@ -205,31 +118,29 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         // 向上查找函数开始
         for (let i = position.line; i >= 0; i--) {
             const line = lines[i];
-            if (line.includes('{')) {
-                bracketCount++;
-                if (bracketCount === 1) {
-                    functionStart = i;
-                    break;
-                }
-            }
-            if (line.includes('}')) {
-                bracketCount--;
+            const openCount = (line.match(/{/g) || []).length;
+            const closeCount = (line.match(/}/g) || []).length;
+            bracketCount += openCount - closeCount;
+
+            if (bracketCount === 1 && openCount > 0) {
+                functionStart = i;
+                break;
             }
         }
 
+        if (functionStart === -1) return undefined;
+
         // 向下查找函数结束
-        bracketCount = 0;
-        for (let i = position.line; i < lines.length; i++) {
+        bracketCount = 1;
+        for (let i = functionStart + 1; i < lines.length; i++) {
             const line = lines[i];
-            if (line.includes('{')) {
-                bracketCount++;
-            }
-            if (line.includes('}')) {
-                bracketCount--;
-                if (bracketCount === 0) {
-                    functionEnd = i;
-                    break;
-                }
+            const openCount = (line.match(/{/g) || []).length;
+            const closeCount = (line.match(/}/g) || []).length;
+            bracketCount += openCount - closeCount;
+
+            if (bracketCount === 0) {
+                functionEnd = i;
+                break;
             }
         }
 
@@ -242,37 +153,172 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         return undefined;
     }
 
-    private async findInheritedFiles(document: vscode.TextDocument): Promise<string[]> {
+    private async findInheritedVariableDefinition(
+        document: vscode.TextDocument,
+        variableName: string
+    ): Promise<vscode.Location | undefined> {
         const text = document.getText();
-        const inheritRegex = /\binherit\s+([A-Z_][A-Z0-9_]*)\s*;/g;
-        const files: string[] = [];
-        let match;
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+        if (!workspaceFolder) return;
 
-        while ((match = inheritRegex.exec(text)) !== null) {
-            const inheritName = match[1];
-            // 检查是否是宏定义
-            const macro = this.macroManager.getMacro(inheritName);
-            if (macro) {
-                const macroValue = macro.value.trim().replace(/['"]/g, '');
-                if (macroValue.startsWith('/')) {
-                    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-                    if (workspaceFolder) {
-                        const fullPath = path.join(workspaceFolder.uri.fsPath, macroValue + '.c');
-                        if (fs.existsSync(fullPath)) {
-                            files.push(fullPath);
-                        }
+        // 支持两种继承语法
+        const inheritRegexes = [
+            /inherit\s+"([^"]+)"/g,
+            /inherit\s+([A-Z_][A-Z0-9_]*)\s*;/g
+        ];
+
+        for (const inheritRegex of inheritRegexes) {
+            let match;
+            while ((match = inheritRegex.exec(text)) !== null) {
+                let inheritedFile = match[1];
+                
+                // 如果是宏定义形式，尝试解析宏
+                if (inheritedFile.match(/^[A-Z_][A-Z0-9_]*$/)) {
+                    const macro = this.macroManager.getMacro(inheritedFile);
+                    if (macro) {
+                        inheritedFile = macro.value.replace(/^"(.*)"$/, '$1');
+                    } else {
+                        continue;
                     }
                 }
-            } else {
-                // 如果不是宏定义，尝试直接查找文件
-                const inheritedFiles = await vscode.workspace.findFiles(
-                    `**/${inheritName.toLowerCase()}.{c,h}`,
-                    '**/node_modules/**'
-                );
-                files.push(...inheritedFiles.map(f => f.fsPath));
+
+                // 处理文件路径
+                if (!inheritedFile.endsWith('.c')) {
+                    inheritedFile = inheritedFile + '.c';
+                }
+
+                // 构建可能的文件路径
+                const possiblePaths = [];
+                if (inheritedFile.startsWith('/')) {
+                    const relativePath = inheritedFile.slice(1);
+                    possiblePaths.push(
+                        path.join(workspaceFolder.uri.fsPath, relativePath),
+                        path.join(workspaceFolder.uri.fsPath, relativePath.replace('.c', ''))
+                    );
+                } else {
+                    possiblePaths.push(
+                        path.join(path.dirname(document.uri.fsPath), inheritedFile),
+                        path.join(path.dirname(document.uri.fsPath), inheritedFile.replace('.c', '')),
+                        path.join(workspaceFolder.uri.fsPath, inheritedFile),
+                        path.join(workspaceFolder.uri.fsPath, inheritedFile.replace('.c', ''))
+                    );
+                }
+
+                for (const filePath of possiblePaths) {
+                    if (fs.existsSync(filePath) && !this.processedFiles.has(filePath)) {
+                        try {
+                            const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
+                            const varDef = await this.findVariableDefinition(variableName, inheritedDoc, new vscode.Position(0, 0));
+                            if (varDef) {
+                                return varDef;
+                            }
+                            // 递归处理继承的文件
+                            const inheritedVarDef = await this.findInheritedVariableDefinition(inheritedDoc, variableName);
+                            if (inheritedVarDef) {
+                                return inheritedVarDef;
+                            }
+                        } catch (error) {
+                            console.error(`Error reading inherited file: ${filePath}`, error);
+                        }
+                        break;
+                    }
+                }
             }
         }
 
-        return files;
+        return undefined;
+    }
+
+    private async findFunctionDefinitions(document: vscode.TextDocument): Promise<void> {
+        const text = document.getText();
+        
+        // 匹配函数定义，支持各种修饰符和返回类型
+        const functionRegex = /(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)/g;
+        
+        let match;
+        while ((match = functionRegex.exec(text)) !== null) {
+            const functionName = match[1];
+            const startPos = document.positionAt(match.index);
+            const endPos = document.positionAt(match.index + match[0].length);
+            
+            this.functionDefinitions.set(functionName, new vscode.Location(
+                document.uri,
+                new vscode.Range(startPos, endPos)
+            ));
+        }
+    }
+
+    private async findInheritedFunctionDefinitions(document: vscode.TextDocument): Promise<void> {
+        const text = document.getText();
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+        if (!workspaceFolder) return;
+
+        // 如果这个文件已经处理过，就跳过
+        if (this.processedFiles.has(document.uri.fsPath)) {
+            return;
+        }
+        this.processedFiles.add(document.uri.fsPath);
+
+        // 支持两种继承语法
+        const inheritRegexes = [
+            /inherit\s+"([^"]+)"/g,
+            /inherit\s+([A-Z_][A-Z0-9_]*)\s*;/g
+        ];
+
+        for (const inheritRegex of inheritRegexes) {
+            let match;
+            while ((match = inheritRegex.exec(text)) !== null) {
+                let inheritedFile = match[1];
+                
+                // 如果是宏定义形式，尝试解析宏
+                if (inheritedFile.match(/^[A-Z_][A-Z0-9_]*$/)) {
+                    const macro = this.macroManager.getMacro(inheritedFile);
+                    if (macro) {
+                        inheritedFile = macro.value.replace(/^"(.*)"$/, '$1');
+                    } else {
+                        continue;
+                    }
+                }
+
+                // 处理文件路径
+                if (!inheritedFile.endsWith('.c')) {
+                    inheritedFile = inheritedFile + '.c';
+                }
+
+                // 构建可能的文件路径
+                const possiblePaths = [];
+                if (inheritedFile.startsWith('/')) {
+                    const relativePath = inheritedFile.slice(1);
+                    possiblePaths.push(
+                        path.join(workspaceFolder.uri.fsPath, relativePath),
+                        path.join(workspaceFolder.uri.fsPath, relativePath.replace('.c', ''))
+                    );
+                } else {
+                    possiblePaths.push(
+                        path.join(path.dirname(document.uri.fsPath), inheritedFile),
+                        path.join(path.dirname(document.uri.fsPath), inheritedFile.replace('.c', '')),
+                        path.join(workspaceFolder.uri.fsPath, inheritedFile),
+                        path.join(workspaceFolder.uri.fsPath, inheritedFile.replace('.c', ''))
+                    );
+                }
+
+                // 去重路径
+                const uniquePaths = [...new Set(possiblePaths)];
+
+                for (const filePath of uniquePaths) {
+                    if (fs.existsSync(filePath) && !this.processedFiles.has(filePath)) {
+                        try {
+                            const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
+                            await this.findFunctionDefinitions(inheritedDoc);
+                            // 递归处理继承的文件
+                            await this.findInheritedFunctionDefinitions(inheritedDoc);
+                        } catch (error) {
+                            console.error(`Error reading inherited file: ${filePath}`, error);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
     }
 } 

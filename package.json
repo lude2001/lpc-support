@@ -1,12 +1,12 @@
 {
   "name": "lpc-support",
-  "displayName": "lpc-linter",
+  "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "ludexiang",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/lpc-support.git"
+    "url": "https://github.com/lude2001/lpc-support.git"
   },
   "engines": {
     "vscode": "^1.93.0"
@@ -126,6 +126,11 @@
         "command": "lpc.efunDocsSettings",
         "title": "efun文档设置",
         "category": "LPC"
+      },
+      {
+        "command": "lpc.scanInheritance",
+        "title": "扫描继承关系",
+        "category": "LPC"
       }
     ],
     "menus": {
@@ -160,6 +165,11 @@
           "command": "lpc.efunDocsSettings",
           "label": "efun文档设置",
           "group": "LPC@1"
+        },
+        {
+          "when": "resourceLangId == lpc",
+          "command": "lpc.scanInheritance",
+          "group": "LPC"
         }
       ],
       "explorer/context": [
@@ -209,5 +219,7 @@
   },
   "scripts": {
     "package": "vsce package"
-  }
+  },
+  "license": "MIT",
+  "icon": "icon.png"
 }

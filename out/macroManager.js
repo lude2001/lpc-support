@@ -147,6 +147,9 @@ class MacroManager {
             vscode.window.showInformationMessage(`已更新宏定义目录: ${newPath}`);
         }
     }
+    getIncludePath() {
+        return this.includePath;
+    }
     dispose() {
         this.watcher?.dispose();
     }

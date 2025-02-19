@@ -1,11 +1,11 @@
 # LPC Support 扩展
 
-LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode 扩展，由武侠黎明团队开发，可能是目前国内首个多功能，通用性强的LPC语言的VSCode扩展。
+LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode 扩展，由武侠黎明团队开发，具备兼容性和通用性的LPC语言的VSCode扩展。
 
 ## 注意事项
 
 - 本扩展的语法规范仅适应作者团队的代码风格，请按需使用。
-- 未使用变量的检查功能其中的一部分说明,目前不提示在定义变量后，在后续代码块中赋值但是没有被引用的变量。因为fluffos驱动的逻辑仅弹出[变量类型 变量名]或[变量类型 变量名=值]两种情况未使用的变量。为了兼容fluffos的逻辑，所以此处不提示。
+- 未使用变量的检查功能其中的一部分说明,目前不提示在定义变量后，在后续代码块中赋值但是没有被引用的变量。因为fluffos驱动的逻辑仅弹出[变量类型 变量名]定义后后续不进行使用或[变量类型 变量名=值]两种情况未使用的变量。为了兼容fluffos的逻辑，所以此处不提示，后续考虑在0.0.3版本将根据fluffos驱动的弹出的逻辑进行二次调整。
 
 ## 功能特色
 
@@ -38,12 +38,22 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 
 1. **宏定义目录配置**
    - 配置项：`lpc.includePath`
-   - 说明：设置宏定义文件所在的目录路径
+   - 说明：设置宏定义文件所在的目录路径，或者通过编辑器窗口选择目录。
    - 示例：`/path/to/include`
+   - 配置方式：
+     ```json
+     {
+       "lpc.includePath": [
+         "/mud/include",
+         "/mud/include/feature",
+         "${workspaceFolder}/include"
+       ]
+     }
+     ```
 
 2. **模拟函数库配置**
    - 配置项：`lpc.simulatedEfunsPath`
-   - 说明：设置模拟函数库目录的路径
+   - 说明：设置模拟函数库目录的路径【通过javadoc解析模拟函数库用于代码提示，详细请看模拟函数库内函数文档注释规范】
    - 示例：`/path/to/simul_efun`
 
 ### 服务器配置
@@ -128,7 +138,7 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 2. **文档更新**
    - 手动更新文档
    - 自动同步最新文档
-   - 离线文档支持
+   - 离线文档支持，自动缓存文档
 
 ## 快捷键
 
@@ -157,8 +167,8 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 
 ## 更多资源
 
-- [LPC 语言文档](https://mud.wiki/LPC)
-- [FluffOS 文档](https://www.fluffos.info)
+- [LPC 函数文档](https://mud.wiki/LPC) 本扩展从mud.wiki获取LPC函数文档并更新
+- [FluffOS 文档](https://www.fluffos.info) 本扩展从fluffos.info获取FluffOS文档并更新
 - [项目 GitHub](https://github.com/yourusername/lpc-support)
 
 ## 版本更新
@@ -169,4 +179,119 @@ LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode �
 - 初步支持宏定义功能
 - 添加 Efun 文档支持
 - 实现代码快速修复功能
+
+## 模拟函数库内函数文档注释规范
+
+为了更好地支持代码提示和文档生成，请按照以下 JavaDoc 格式编写函数注释：
+
+```c
+/**
+ * @brief 创建一个299类型的消息(用于特殊提示)
+ * @param string title 消息标题
+ * @param string msg 消息内容
+ * @return string JSON格式的消息字符串
+ */
+string msg299(string title,string msg)
+{
+    mapping jsonData = ([]);
+
+    jsonData["code"] = 299;
+    jsonData["title"] = title;
+    jsonData["msg"] = replace_string(msg, "\n",ZJBR);
+
+    return json_encode(jsonData) + "\n";
+}
+```
+
+注释格式说明：
+1. 使用 `/**` 开始，`*/` 结束的多行注释
+2. `@brief` 标签：简短描述函数的功能
+3. `@param` 标签：描述函数参数
+   - 格式：`@param 类型 参数名 参数描述`
+   - 每个参数单独一行
+4. `@return` 标签：描述返回值
+   - 格式：`@return 返回类型 返回值描述`
+
+编写规范的函数文档注释可以获得以下好处：
+- 在使用函数时获得完整的代码提示
+- 鼠标悬停时显示详细的函数文档
+- 支持函数参数提示
+- 便于生成API文档
+
+## 服务器接口实现示例
+
+为了支持远程编译功能，LPMud 服务器需要实现以下 HTTP 接口。以下是一个基本的实现示例：
+
+```c
+#define RequestType(f_name,http_type) string f_name = http_type;
+
+inherit "/adm/special_ob/http/base.c";
+
+string url_decode(string str)
+{
+    str = replace_string(str, "%2F", "/");
+    str = replace_string(str, "%20", " ");
+    str = replace_string(str, "%3A", ":");
+    str = replace_string(str, "%2E", ".");
+    // 添加其他需要解码的字符
+    return str;
+}
+
+RequestType(update_file,"POST")
+mapping update_file(string file_name)
+{   
+    mapping result = ([]);
+    string msg;
+
+    if (!file_name)
+    {
+        result["code"] = "update_file";
+        result["file_name"] = "空文件";
+        result["msg"] = "没有指定文件！";
+        return result;
+    }
+
+    // 对文件名进行URL解码
+    file_name = url_decode(file_name);
+
+    result["code"] = "update_file";
+    result["file_name"] = file_name;
+    msg = call_other("/cmds/wiz/update", "compile_file", file_name);
+    result["msg"] = msg;
+
+    return result;
+}
+```
+
+接口说明：
+1. **接口定义**
+   - 使用 `RequestType` 宏定义 HTTP 请求类型
+   - 示例中定义了 `update_file` 为 POST 请求
+
+2. **URL 解码**
+   - 实现 `url_decode` 函数处理文件路径中的特殊字符
+   - 支持常见的 URL 编码字符转换
+
+3. **编译接口**
+   - 接口名：`update_file`
+   - 请求方式：POST
+   - 参数：`file_name`（文件路径）
+   - 返回格式：JSON
+     ```json
+     {
+       "code": "update_file",
+       "file_name": "文件路径",
+       "msg": "编译结果信息"
+     }
+     ```
+
+4. **错误处理**
+   - 文件名为空时返回错误信息
+   - 编译失败时返回错误详情，并弹出错误信息到编辑器上下文进行定位，并通过问题栏输出。
+
+5. **使用方法**
+   - 在服务器配置中设置正确的 URL
+   - VSCode 扩展会自动调用此接口进行远程编译
+
+注意：实际部署时请根据您的服务器环境和安全需求进行适当调整。
 

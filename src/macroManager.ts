@@ -175,6 +175,10 @@ export class MacroManager {
         }
     }
 
+    public getIncludePath(): string | undefined {
+        return this.includePath;
+    }
+
     public dispose() {
         this.watcher?.dispose();
     }
