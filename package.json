@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "ludexiang",
   "repository": {
     "type": "git",
@@ -131,6 +131,11 @@
         "command": "lpc.scanInheritance",
         "title": "扫描继承关系",
         "category": "LPC"
+      },
+      {
+        "command": "lpc.clearVariableCache",
+        "title": "清除变量缓存",
+        "category": "LPC"
       }
     ],
     "menus": {
@@ -169,6 +174,11 @@
         {
           "when": "resourceLangId == lpc",
           "command": "lpc.scanInheritance",
+          "group": "LPC"
+        },
+        {
+          "when": "resourceLangId == lpc",
+          "command": "lpc.clearVariableCache",
           "group": "LPC"
         }
       ],

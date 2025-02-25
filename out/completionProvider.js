@@ -11,14 +11,21 @@ class LPCCompletionItemProvider {
         this.types = ['void', 'int', 'string', 'object', 'mapping', 'mixed', 'float', 'buffer'];
         this.modifiers = ['private', 'protected', 'public', 'static', 'nomask', 'varargs'];
         this.functionCache = new Map();
+        this.variableCache = new Map();
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
+    }
+    // 清除变量缓存的公共方法
+    clearVariableCache() {
+        this.variableCache.clear();
     }
     async provideCompletionItems(document, position, token, context) {
         const linePrefix = document.lineAt(position).text.substr(0, position.character);
         const completionItems = [];
         // 添加当前文件中定义的函数和继承的函数
         await this.addLocalFunctionCompletions(document, completionItems);
+        // 添加当前作用域内的变量
+        this.addLocalVariableCompletions(document, position, completionItems);
         // 添加类型提示
         this.types.forEach(type => {
             const item = new vscode.CompletionItem(type, vscode.CompletionItemKind.TypeParameter);
@@ -101,6 +108,291 @@ class LPCCompletionItemProvider {
         this.parseFunctionsInFile(document, completionItems);
         // 解析继承文件，但不显示输出
         await this.parseInheritedFunctions(document, completionItems, false);
+    }
+    // 添加当前作用域内的变量提示
+    addLocalVariableCompletions(document, position, completionItems) {
+        // 获取当前文件的变量
+        const variables = this.parseVariablesInScope(document, position);
+        completionItems.push(...variables);
+    }
+    // 解析当前作用域内的变量
+    parseVariablesInScope(document, position) {
+        const text = document.getText();
+        const lines = text.split('\n');
+        const currentLine = position.line;
+        const currentChar = position.character;
+        const result = [];
+        // 缓存键
+        const cacheKey = `${document.uri.toString()}_${currentLine}_${currentChar}`;
+        // 检查缓存
+        if (this.variableCache.has(cacheKey)) {
+            return this.variableCache.get(cacheKey) || [];
+        }
+        // 1. 解析全局变量
+        this.parseGlobalVariables(text, result);
+        // 2. 解析当前函数内的局部变量
+        this.parseLocalVariables(document, position, result);
+        // 3. 解析函数参数
+        this.parseFunctionParameters(document, position, result);
+        // 更新缓存
+        this.variableCache.set(cacheKey, result);
+        return result;
+    }
+    // 解析全局变量
+    parseGlobalVariables(text, result) {
+        // 匹配全局变量定义，确保它们在函数外部
+        const lines = text.split('\n');
+        let inFunction = false;
+        let bracketCount = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            // 计算大括号来跟踪函数范围
+            const openBrackets = (line.match(/{/g) || []).length;
+            const closeBrackets = (line.match(/}/g) || []).length;
+            bracketCount += openBrackets - closeBrackets;
+            // 检查是否是函数定义行
+            if (!inFunction && bracketCount > 0 && line.match(/(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\)\s*{/)) {
+                inFunction = true;
+                continue;
+            }
+            // 如果括号平衡，说明函数结束
+            if (inFunction && bracketCount === 0) {
+                inFunction = false;
+            }
+            // 只在函数外部处理全局变量
+            if (!inFunction && bracketCount === 0) {
+                // 匹配全局变量定义，例如: int global_var;
+                const globalVarRegex = /(?:(?:private|public|protected|static|nosave)\s+)*(?:int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(?:=\s*[^;]+)?\s*;/;
+                const match = line.match(globalVarRegex);
+                if (match) {
+                    // 处理可能的多变量声明 (int a, b, c;)
+                    const varNames = match[1].split(',').map(v => v.trim());
+                    const varDefinition = match[0].trim();
+                    for (const varName of varNames) {
+                        // 创建补全项
+                        const item = new vscode.CompletionItem(varName, vscode.CompletionItemKind.Variable);
+                        item.detail = `全局变量: ${varName}`;
+                        // 添加变量定义作为文档
+                        const markdown = new vscode.MarkdownString();
+                        markdown.appendCodeblock(varDefinition, 'lpc');
+                        item.documentation = markdown;
+                        result.push(item);
+                    }
+                }
+            }
+        }
+    }
+    // 解析局部变量
+    parseLocalVariables(document, position, result) {
+        const text = document.getText();
+        const lines = text.split('\n');
+        const currentLine = position.line;
+        // 找到当前函数的范围
+        let startLine = 0;
+        let endLine = lines.length - 1;
+        let bracketCount = 0;
+        let inFunction = false;
+        let functionStartBracketLine = -1;
+        // 向上查找函数开始
+        for (let i = currentLine; i >= 0; i--) {
+            const line = lines[i];
+            // 计算大括号
+            const openBrackets = (line.match(/{/g) || []).length;
+            const closeBrackets = (line.match(/}/g) || []).length;
+            // 更新括号计数
+            for (let j = 0; j < line.length; j++) {
+                if (line[j] === '{') {
+                    bracketCount++;
+                    if (bracketCount === 1 && functionStartBracketLine === -1) {
+                        functionStartBracketLine = i;
+                    }
+                }
+                else if (line[j] === '}') {
+                    bracketCount--;
+                    // 如果括号计数变为0，说明我们离开了当前代码块
+                    if (bracketCount === 0) {
+                        inFunction = false;
+                    }
+                }
+            }
+            // 检查是否是函数定义行
+            if (!inFunction && line.match(/(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\)/)) {
+                inFunction = true;
+                startLine = i;
+                break;
+            }
+        }
+        // 如果没有找到函数，返回空结果
+        if (!inFunction || functionStartBracketLine === -1) {
+            return;
+        }
+        // 向下查找函数结束
+        bracketCount = 1; // 从函数开始的大括号开始计数
+        for (let i = functionStartBracketLine + 1; i <= endLine; i++) {
+            const line = lines[i];
+            // 逐字符计算大括号以处理同一行中的多个大括号
+            for (let j = 0; j < line.length; j++) {
+                if (line[j] === '{') {
+                    bracketCount++;
+                }
+                else if (line[j] === '}') {
+                    bracketCount--;
+                    // 如果括号计数变为0，说明函数结束
+                    if (bracketCount === 0) {
+                        endLine = i;
+                        break;
+                    }
+                }
+            }
+            if (bracketCount === 0) {
+                break;
+            }
+        }
+        // 提取函数体内的局部变量
+        let continuedLine = '';
+        let inMultiLineDeclaration = false;
+        for (let i = startLine; i < Math.min(currentLine + 1, endLine); i++) {
+            let line = lines[i];
+            // 处理多行声明
+            if (inMultiLineDeclaration) {
+                continuedLine += line;
+                if (line.includes(';')) {
+                    line = continuedLine;
+                    inMultiLineDeclaration = false;
+                    continuedLine = '';
+                }
+                else {
+                    continue;
+                }
+            }
+            else if (line.match(/(?:int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*/) && !line.includes(';')) {
+                inMultiLineDeclaration = true;
+                continuedLine = line;
+                continue;
+            }
+            // 匹配局部变量定义，例如: int local_var = 10;
+            const localVarRegex = /(?:int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(?:=\s*[^;]+)?\s*;/;
+            const match = line.match(localVarRegex);
+            if (match) {
+                // 处理可能的多变量声明 (int a, b, c;)
+                const varNames = match[1].split(',').map(v => v.trim());
+                const varDefinition = match[0].trim();
+                for (const varName of varNames) {
+                    // 创建补全项
+                    const item = new vscode.CompletionItem(varName, vscode.CompletionItemKind.Variable);
+                    item.detail = `局部变量: ${varName}`;
+                    // 添加变量定义作为文档
+                    const markdown = new vscode.MarkdownString();
+                    markdown.appendCodeblock(varDefinition, 'lpc');
+                    item.documentation = markdown;
+                    result.push(item);
+                }
+            }
+            // 匹配 for 循环中的变量定义
+            const forLoopVarRegex = /for\s*\(\s*(?:int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=/;
+            const forMatch = line.match(forLoopVarRegex);
+            if (forMatch) {
+                const varName = forMatch[1];
+                // 创建补全项
+                const item = new vscode.CompletionItem(varName, vscode.CompletionItemKind.Variable);
+                item.detail = `循环变量: ${varName}`;
+                result.push(item);
+            }
+            // 匹配 foreach 循环中的变量定义
+            const foreachVarRegex = /foreach\s*\(\s*(?:int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*:/;
+            const foreachMatch = line.match(foreachVarRegex);
+            if (foreachMatch) {
+                const varName = foreachMatch[1];
+                // 创建补全项
+                const item = new vscode.CompletionItem(varName, vscode.CompletionItemKind.Variable);
+                item.detail = `循环变量: ${varName}`;
+                result.push(item);
+            }
+        }
+    }
+    // 解析函数参数
+    parseFunctionParameters(document, position, result) {
+        const text = document.getText();
+        const lines = text.split('\n');
+        const currentLine = position.line;
+        // 向上查找函数定义
+        let functionStartLine = -1;
+        let functionParams = '';
+        let inMultiLineParams = false;
+        let bracketCount = 0;
+        for (let i = currentLine; i >= 0; i--) {
+            const line = lines[i];
+            // 如果我们已经在处理多行参数
+            if (inMultiLineParams) {
+                // 添加当前行到参数字符串
+                functionParams = line + functionParams;
+                // 检查是否找到了函数定义的开始
+                if (line.match(/(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(/)) {
+                    functionStartLine = i;
+                    break;
+                }
+                continue;
+            }
+            // 计算括号来跟踪函数定义
+            for (let j = line.length - 1; j >= 0; j--) {
+                const char = line[j];
+                if (char === ')') {
+                    bracketCount++;
+                    if (bracketCount === 1 && !inMultiLineParams) {
+                        // 开始收集参数
+                        inMultiLineParams = true;
+                        functionParams = line.substring(j);
+                    }
+                }
+                else if (char === '(' && inMultiLineParams) {
+                    bracketCount--;
+                    if (bracketCount === 0) {
+                        // 找到了完整的参数列表
+                        functionStartLine = i;
+                        break;
+                    }
+                }
+            }
+            if (functionStartLine !== -1) {
+                break;
+            }
+            // 匹配单行函数定义，例如: void func(int param1, string param2)
+            const funcDefRegex = /(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(([^)]*)\)/;
+            const match = line.match(funcDefRegex);
+            if (match) {
+                functionStartLine = i;
+                functionParams = match[1];
+                break;
+            }
+        }
+        // 如果找到了函数定义
+        if (functionStartLine !== -1 && functionParams) {
+            // 提取参数部分
+            const paramRegex = /\(([^)]*)\)/;
+            const paramMatch = functionParams.match(paramRegex);
+            if (paramMatch) {
+                const params = paramMatch[1].split(',');
+                // 解析每个参数
+                for (const param of params) {
+                    const trimmedParam = param.trim();
+                    if (!trimmedParam)
+                        continue;
+                    // 匹配参数定义，支持各种类型
+                    const paramMatch = trimmedParam.match(/(?:int|string|object|mapping|mixed|float|buffer|array)\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+                    if (paramMatch) {
+                        const paramName = paramMatch[1];
+                        // 创建补全项
+                        const item = new vscode.CompletionItem(paramName, vscode.CompletionItemKind.Variable);
+                        item.detail = `函数参数: ${paramName}`;
+                        // 添加参数定义作为文档
+                        const markdown = new vscode.MarkdownString();
+                        markdown.appendCodeblock(trimmedParam, 'lpc');
+                        item.documentation = markdown;
+                        result.push(item);
+                    }
+                }
+            }
+        }
     }
     async parseInheritedFunctions(document, completionItems, showOutput = false) {
         const text = document.getText();

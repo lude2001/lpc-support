@@ -24,6 +24,14 @@ export class EfunDocsManager {
     private efunDocs: Map<string, EfunDoc> = new Map();
     private efunCategories: Map<string, string[]> = new Map();
     private simulatedEfunDocs: Map<string, EfunDoc> = new Map();
+    // 存储当前文件的函数文档
+    private currentFileDocs: Map<string, EfunDoc> = new Map();
+    // 存储继承文件的函数文档，键为文件路径，值为该文件的函数文档 Map
+    private inheritedFileDocs: Map<string, Map<string, EfunDoc>> = new Map();
+    // 存储当前文件路径
+    private currentFilePath: string = '';
+    // 当前文件的继承文件路径列表
+    private inheritedFiles: string[] = [];
     private statusBarItem: vscode.StatusBarItem;
     private cacheFilePath: string;
     private static CACHE_EXPIRY_DAYS = 7; // 缓存过期时间（天）
@@ -62,6 +70,27 @@ export class EfunDocsManager {
 
         // 启动时自动更新文档
         this.updateDocs();
+        
+        // 添加文件变更事件监听
+        context.subscriptions.push(
+            vscode.workspace.onDidChangeTextDocument(e => {
+                if (e.document.languageId === 'lpc' || e.document.fileName.endsWith('.c')) {
+                    this.updateCurrentFileDocs(e.document);
+                }
+            }),
+            vscode.window.onDidChangeActiveTextEditor(editor => {
+                if (editor && (editor.document.languageId === 'lpc' || editor.document.fileName.endsWith('.c'))) {
+                    this.updateCurrentFileDocs(editor.document);
+                }
+            })
+        );
+
+        // 如果已经有活动编辑器，则立即更新当前文件的文档
+        if (vscode.window.activeTextEditor && 
+            (vscode.window.activeTextEditor.document.languageId === 'lpc' || 
+             vscode.window.activeTextEditor.document.fileName.endsWith('.c'))) {
+            this.updateCurrentFileDocs(vscode.window.activeTextEditor.document);
+        }
     }
 
     private loadCache(): void {
@@ -330,6 +359,163 @@ export class EfunDocsManager {
         return docs;
     }
 
+    /**
+     * 更新当前文件的函数文档
+     * @param document 当前活动的文档
+     */
+    private async updateCurrentFileDocs(document: vscode.TextDocument): Promise<void> {
+        // 如果不是 LPC 文件，则不处理
+        if (document.languageId !== 'lpc' && !document.fileName.endsWith('.c')) {
+            return;
+        }
+
+        this.currentFilePath = document.uri.fsPath;
+        this.currentFileDocs.clear();
+        this.inheritedFileDocs.clear();
+        this.inheritedFiles = [];
+
+        // 解析当前文件的函数文档
+        const content = document.getText();
+        this.currentFileDocs = this.parseFunctionDocs(content, '当前文件');
+
+        // 解析并加载继承文件
+        this.inheritedFiles = this.parseInheritStatements(content);
+        await this.loadInheritedFileDocs();
+    }
+
+    /**
+     * 解析文件内容中的函数文档
+     * @param content 文件内容
+     * @param category 文档分类
+     * @returns 函数文档 Map
+     */
+    private parseFunctionDocs(content: string, category: string): Map<string, EfunDoc> {
+        const docs = new Map<string, EfunDoc>();
+        // 匹配文档注释后跟着的函数定义
+        const functionPattern = /\/\*\*\s*([\s\S]*?)\s*\*\/\s*(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+|varargs\s+)*((?:mixed|void|int|string|object|mapping|array|float|function|buffer|class|[a-zA-Z_][a-zA-Z0-9_]*)\s*\**\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\))/g;
+        const paramPattern = /@param\s+(\S+)\s+(\S+)\s+([^\n]+)/g;
+        const returnPattern = /@return\s+(\S+)\s+(.*)/;
+        const briefPattern = /@brief\s+([^\n]+)/;
+
+        let match;
+        while ((match = functionPattern.exec(content)) !== null) {
+            try {
+                const [_, docComment, funcDecl, funcName] = match;
+                
+                if (funcName) {
+                    const doc: EfunDoc = {
+                        name: funcName,
+                        syntax: funcDecl.trim(),
+                        description: '',
+                        category: category,
+                        lastUpdated: Date.now()
+                    };
+
+                    // 解析 @brief
+                    const briefMatch = docComment.match(briefPattern);
+                    if (briefMatch) {
+                        doc.description = briefMatch[1].trim();
+                    } else {
+                        // 没有 @brief 的情况下，使用注释的第一行作为描述
+                        const firstLine = docComment.trim().split('\n')[0].replace(/^\*+\s*/, '').trim();
+                        if (firstLine) {
+                            doc.description = firstLine;
+                        }
+                    }
+
+                    // 解析参数
+                    const params: string[] = [];
+                    let paramMatch;
+                    const paramText = docComment.replace(/\r\n/g, '\n');  // 统一换行符
+                    while ((paramMatch = paramPattern.exec(paramText)) !== null) {
+                        const [_, type, name, desc] = paramMatch;
+                        params.push(`${type} ${name}: ${desc.trim()}`);
+                    }
+                    if (params.length > 0) {
+                        doc.description += '\n\n参数:\n' + params.join('\n');
+                    }
+
+                    // 解析返回值
+                    const returnMatch = docComment.match(returnPattern);
+                    if (returnMatch) {
+                        const [_, type, desc] = returnMatch;
+                        doc.returnValue = `${type}: ${desc.trim()}`;
+                    }
+
+                    docs.set(funcName, doc);
+                }
+            } catch (error) {
+                console.error('解析函数文档失败:', error);
+            }
+        }
+
+        return docs;
+    }
+
+    /**
+     * 解析文件内容中的继承语句
+     * @param content 文件内容
+     * @returns 继承文件路径列表
+     */
+    private parseInheritStatements(content: string): string[] {
+        const inheritFiles: string[] = [];
+        const inheritPattern = /inherit\s+["']([^"']+)["']\s*;/g;
+        
+        let match;
+        while ((match = inheritPattern.exec(content)) !== null) {
+            const [_, inheritPath] = match;
+            inheritFiles.push(inheritPath);
+        }
+        
+        return inheritFiles;
+    }
+
+    /**
+     * 加载继承文件的函数文档
+     */
+    private async loadInheritedFileDocs(): Promise<void> {
+        if (!this.inheritedFiles.length) {
+            return;
+        }
+
+        try {
+            // 获取当前工作区
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                return;
+            }
+
+            const workspaceRoot = workspaceFolders[0].uri.fsPath;
+            
+            for (const inheritPath of this.inheritedFiles) {
+                // 解析继承文件的绝对路径
+                // 在 LPC 中，继承路径可能是相对于游戏根目录的，需要根据项目结构调整
+                const possiblePaths = [
+                    path.join(workspaceRoot, inheritPath),
+                    path.join(workspaceRoot, inheritPath + '.c'),
+                    path.join(path.dirname(this.currentFilePath), inheritPath),
+                    path.join(path.dirname(this.currentFilePath), inheritPath + '.c')
+                ];
+
+                for (const filePath of possiblePaths) {
+                    try {
+                        if (fs.existsSync(filePath)) {
+                            const content = fs.readFileSync(filePath, 'utf8');
+                            const fileName = path.basename(filePath);
+                            const funcDocs = this.parseFunctionDocs(content, `继承自 ${fileName}`);
+                            this.inheritedFileDocs.set(filePath, funcDocs);
+                            break; // 找到文件后停止搜索其他可能的路径
+                        }
+                    } catch (error) {
+                        console.error(`加载继承文件失败: ${filePath}`, error);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('加载继承文件文档失败:', error);
+        }
+    }
+
     public async provideHover(
         document: vscode.TextDocument,
         position: vscode.Position
@@ -341,19 +527,40 @@ export class EfunDocsManager {
 
         const word = document.getText(wordRange);
         
-        // 先查找模拟函数库文档
+        // 确保当前文件的文档是最新的
+        if (document.uri.fsPath !== this.currentFilePath) {
+            await this.updateCurrentFileDocs(document);
+        }
+        
+        // 查找顺序：当前文件 -> 继承文件 -> 模拟函数库 -> 标准 efun
+        
+        // 1. 先查找当前文件中的函数文档
+        const currentDoc = this.currentFileDocs.get(word);
+        if (currentDoc) {
+            return this.createHoverContent(currentDoc);
+        }
+        
+        // 2. 再查找继承文件中的函数文档
+        for (const [filePath, funcDocs] of this.inheritedFileDocs.entries()) {
+            const inheritedDoc = funcDocs.get(word);
+            if (inheritedDoc) {
+                return this.createHoverContent(inheritedDoc);
+            }
+        }
+        
+        // 3. 再查找模拟函数库文档
         const simulatedDoc = this.simulatedEfunDocs.get(word);
         if (simulatedDoc) {
             return this.createHoverContent(simulatedDoc);
         }
 
-        // 再查找标准efun文档
-        const doc = await this.getEfunDoc(word);
-        if (!doc) {
+        // 4. 最后查找标准efun文档
+        const efunDoc = await this.getEfunDoc(word);
+        if (!efunDoc) {
             return undefined;
         }
 
-        return this.createHoverContent(doc);
+        return this.createHoverContent(efunDoc);
     }
 
     private createHoverContent(doc: EfunDoc): vscode.Hover {

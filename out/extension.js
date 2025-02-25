@@ -110,6 +110,17 @@ function activate(context) {
     const completionProvider = new completionProvider_1.LPCCompletionItemProvider(efunDocsManager, macroManager);
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider('lpc', completionProvider, '.', '->', '#' // 触发补全的字符
     ));
+    // 注册文档变更事件，自动清除变量缓存
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
+        if (event.document.languageId === 'lpc') {
+            completionProvider.clearVariableCache();
+        }
+    }));
+    // 注册清除变量缓存命令
+    context.subscriptions.push(vscode.commands.registerCommand('lpc.clearVariableCache', () => {
+        completionProvider.clearVariableCache();
+        vscode.window.showInformationMessage('已清除变量缓存');
+    }));
     // 注册定义跳转提供程序
     context.subscriptions.push(vscode.languages.registerDefinitionProvider('lpc', new definitionProvider_1.LPCDefinitionProvider(macroManager, efunDocsManager)));
     // 注册扫描继承关系命令
