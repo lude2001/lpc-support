@@ -1,9 +1,30 @@
-# Change Log
+# 更新日志
 
-All notable changes to the "lpc-support" extension will be documented in this file.
+所有LPC Support扩展的显著变更都将记录在此文件中。
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+## [0.0.3] - 2024-02-25
 
-## [Unreleased]
+### 新增
+- 增强了代码补全功能，支持更多LPC特性
+- 改进了服务器管理界面
+- 【变量】现在可以支持上下文提示作用域范围内的变量
+- 【函数】现在可以在上下文中提示上下文的函数，以及继承文件的函数。
+- 【文档】上下文的javadoc函数文档可以被智能提示，找到继承链最后一个文件为止。
 
-- Initial release
+### 修复
+- 修复了宏定义处理逻辑中一些的问题
+- 修复了代码诊断中的一些误报问题
+- 修复了编译文件时的路径处理一些问题
+
+### 改进
+- 改进了代码诊断功能，提高了准确性
+- 优化了宏定义处理逻辑，提高了性能
+- 改进了服务器管理界面的用户体验
+
+## [0.0.2] - 2024-01-25
+
+### 初始版本
+- 实现基本功能：语法高亮、代码补全、诊断及服务器管理
+- 初步支持宏定义功能
+- 添加 Efun 文档支持
+- 实现代码快速修复功能
