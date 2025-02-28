@@ -38,6 +38,10 @@ export class LPCDiagnostics {
     private applyFunctions: Set<string>;
     private config: LPCConfig;
 
+    // 预编译的正则表达式，避免重复创建
+    private objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\()?/g;
+    private macroDefRegex = /\b([A-Z_][A-Z0-9_]*)\b/;
+
     constructor(context: vscode.ExtensionContext, macroManager: MacroManager) {
         this.macroManager = macroManager;
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
@@ -1096,28 +1100,48 @@ export class LPCDiagnostics {
 
                 outputChannel.appendLine(`找到 ${totalFiles} 个 LPC 文件`);
 
-                for (const file of files) {
+                // 批量处理文件以提高性能
+                const batchSize = 10; // 每批处理的文件数
+                const diagnosticsByFile = new Map<string, vscode.Diagnostic[]>();
+
+                // 将文件分批处理
+                for (let i = 0; i < files.length; i += batchSize) {
                     if (token.isCancellationRequested) {
                         outputChannel.appendLine('扫描已取消');
                         return;
                     }
 
-                    // 更新进度
-                    progress.report({
-                        increment: (1 / totalFiles) * 100,
-                        message: `正在检查 ${path.basename(file)} (${++processedFiles}/${totalFiles})`
-                    });
+                    const batch = files.slice(i, i + batchSize);
+                    
+                    // 并行处理每一批文件
+                    await Promise.all(batch.map(async (file) => {
+                        // 更新进度
+                        progress.report({
+                            increment: (1 / totalFiles) * 100,
+                            message: `正在检查 ${path.basename(file)} (${++processedFiles}/${totalFiles})`
+                        });
 
-                    // 分析文件
-                    const document = await vscode.workspace.openTextDocument(file);
-                    const diagnostics: vscode.Diagnostic[] = [];
-                    this.analyzeDocument(document, false);
+                        try {
+                            // 分析文件
+                            const document = await vscode.workspace.openTextDocument(file);
+                            this.analyzeDocument(document, false);
 
-                    // 获取诊断结果
-                    const fileDiagnostics = this.diagnosticCollection.get(document.uri);
-                    if (fileDiagnostics && fileDiagnostics.length > 0) {
+                            // 获取诊断结果
+                            const fileDiagnostics = this.diagnosticCollection.get(document.uri);
+                            if (fileDiagnostics && fileDiagnostics.length > 0) {
+                                diagnosticsByFile.set(file, [...fileDiagnostics]);
+                            }
+                        } catch (error) {
+                            outputChannel.appendLine(`处理文件 ${file} 时出错: ${error}`);
+                        }
+                    }));
+                }
+
+                // 处理完毕后，输出所有收集到的诊断信息
+                if (diagnosticsByFile.size > 0) {
+                    for (const [file, diagnostics] of diagnosticsByFile.entries()) {
                         outputChannel.appendLine(`\n文件: ${path.relative(folderPath, file)}`);
-                        for (const diagnostic of fileDiagnostics) {
+                        for (const diagnostic of diagnostics) {
                             const line = diagnostic.range.start.line + 1;
                             const character = diagnostic.range.start.character + 1;
                             outputChannel.appendLine(`  [行 ${line}, 列 ${character}] ${diagnostic.message}`);
@@ -1136,18 +1160,37 @@ export class LPCDiagnostics {
     // 递归查找所有 LPC 文件
     private async findLPCFiles(folderPath: string): Promise<string[]> {
         const files: string[] = [];
+        const fileExtensions = ['.c', '.h'];
+        const ignoreDirs = ['node_modules', '.git', '.vscode']; // 常见需要忽略的目录
 
         async function walk(dir: string) {
-            const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+            let entries;
+            try {
+                entries = await fs.promises.readdir(dir, { withFileTypes: true });
+            } catch (error) {
+                console.error(`无法读取目录 ${dir}:`, error);
+                return;
+            }
 
+            // 分离目录和文件以便并行处理
+            const directories: string[] = [];
+            
             for (const entry of entries) {
                 const fullPath = path.join(dir, entry.name);
-
+                
                 if (entry.isDirectory()) {
-                    await walk(fullPath);
-                } else if (entry.isFile() && (entry.name.endsWith('.c') || entry.name.endsWith('.h'))) {
+                    // 跳过忽略的目录
+                    if (!ignoreDirs.includes(entry.name)) {
+                        directories.push(fullPath);
+                    }
+                } else if (entry.isFile() && fileExtensions.some(ext => entry.name.endsWith(ext))) {
                     files.push(fullPath);
                 }
+            }
+            
+            // 并行处理子目录
+            if (directories.length > 0) {
+                await Promise.all(directories.map(walk));
             }
         }
 
@@ -1156,122 +1199,73 @@ export class LPCDiagnostics {
     }
 
     private async analyzeObjectAccess(text: string, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {
+        // 如果文本过大，分块处理
+        const chunkSize = 50000; // 每块50KB
+        if (text.length > chunkSize) {
+            // 大文件分块处理
+            const chunks = Math.ceil(text.length / chunkSize);
+            for (let i = 0; i < chunks; i++) {
+                const start = i * chunkSize;
+                const end = Math.min((i + 1) * chunkSize, text.length);
+                const chunk = text.slice(start, end);
+                
+                // 对当前块进行分析，需要考虑边界问题
+                await this.analyzeObjectAccessChunk(chunk, start, diagnostics, document);
+            }
+        } else {
+            // 小文件直接处理
+            await this.analyzeObjectAccessChunk(text, 0, diagnostics, document);
+        }
+    }
+
+    private async analyzeObjectAccessChunk(text: string, offset: number, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {
         // 匹配对象访问语法 ob->func() 和 ob.func
-        const objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\()?/g;
-
-        let match;
+        const objectAccessRegex = this.objectAccessRegex;
+        objectAccessRegex.lastIndex = 0; // 重置正则状态
+        
+        // 预先收集所有匹配项，然后批量处理
+        const matches: Array<{match: RegExpExecArray, startPos: number}> = [];
+        let match: RegExpExecArray | null;
+        
         while ((match = objectAccessRegex.exec(text)) !== null) {
-            const [fullMatch, object, accessor, member, isFunction] = match;
-            const startPos = match.index;
-            const endPos = startPos + fullMatch.length;
-
-            // 检查访问符号的使用
-            // if (accessor === '.') {
-            //     const range = new vscode.Range(
-            //         document.positionAt(startPos + object.length),
-            //         document.positionAt(startPos + object.length + 1)
-            //     );
-            //     diagnostics.push(new vscode.Diagnostic(
-            //         range,
-            //         'LPC 中推荐使用 -> 而不是 . 来访问对象成员',
-            //         vscode.DiagnosticSeverity.Information
-            //     ));
-            // }
-
-            // 首先检查是否是宏
-            if (/^[A-Z][A-Z0-9_]*_D$/.test(object)) {
-                // 强制刷新宏定义
-                this.macroManager?.refreshMacros();
-                const macro = this.macroManager?.getMacro(object);
-                const canResolveMacro = await this.macroManager?.canResolveMacro(object);
-
-                if (macro || canResolveMacro) {
-                    // 如果是已定义的宏或可以被解析的宏，添加信息性诊断
-                    const range = new vscode.Range(
-                        document.positionAt(startPos),
-                        document.positionAt(startPos + object.length)
+            const startPos = match.index + offset;
+            matches.push({match, startPos});
+        }
+        
+        // 如果匹配数量很大，分批处理避免阻塞主线程
+        const batchSize = 50;
+        for (let i = 0; i < matches.length; i += batchSize) {
+            const batch = matches.slice(i, i + batchSize);
+            
+            // 处理当前批次的匹配
+            for (const {match, startPos} of batch) {
+                const object = match[1];
+                const accessor = match[2];
+                const func = match[3];
+                const isCall = match[4] !== undefined;
+                
+                // 检查是否宏定义
+                if (this.macroDefRegex.test(object)) {
+                    await this.checkMacroUsage(object, startPos, document, diagnostics);
+                }
+                
+                // 其他对象方法调用检查
+                if (isCall && accessor === '->') {
+                    this.checkFunctionCall(
+                        text,
+                        startPos + match[0].indexOf(func),
+                        startPos + match[0].length,
+                        document,
+                        diagnostics
                     );
-                    if (macro) {
-                        diagnostics.push(new vscode.Diagnostic(
-                            range,
-                            `宏 '${object}' 的值为: ${macro.value}`,
-                            vscode.DiagnosticSeverity.Information
-                        ));
-                    }
-                    continue;
                 }
             }
-
-            // 检查对象命名规范
-            if (!/^[A-Z][A-Z0-9_]*(?:_D)?$/.test(object)) {
-                const range = new vscode.Range(
-                    document.positionAt(startPos),
-                    document.positionAt(startPos + object.length)
-                );
-                diagnostics.push(new vscode.Diagnostic(
-                    range,
-                    '对象名应该使用大写字母和下划线，例如: USER_OB',
-                    vscode.DiagnosticSeverity.Warning
-                ));
+            
+            // 每处理一批后让出主线程，防止UI卡顿
+            if (i + batchSize < matches.length) {
+                // 使用 setTimeout 0 来让出主线程
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
-
-            // 检查成员访问
-            if (isFunction) {
-                // 检查函数调用的括号匹配
-                let bracketCount = 1;
-                let currentPos = endPos;
-                let foundClosing = false;
-                let inString = false;
-                let stringChar = '';
-
-                while (currentPos < text.length) {
-                    const char = text[currentPos];
-                    if (inString) {
-                        if (char === stringChar && text[currentPos - 1] !== '\\') {
-                            inString = false;
-                        }
-                    } else {
-                        if (char === '"' || char === '\'') {
-                            inString = true;
-                            stringChar = char;
-                        } else if (char === '(') {
-                            bracketCount++;
-                        } else if (char === ')') {
-                            bracketCount--;
-                            if (bracketCount === 0) {
-                                foundClosing = true;
-                                break;
-                            }
-                        }
-                    }
-                    currentPos++;
-                }
-
-                if (!foundClosing) {
-                    const range = new vscode.Range(
-                        document.positionAt(startPos),
-                        document.positionAt(endPos)
-                    );
-                    diagnostics.push(new vscode.Diagnostic(
-                        range,
-                        '函数调用缺少闭合的括号',
-                        vscode.DiagnosticSeverity.Error
-                    ));
-                }
-            }
-
-            // 检查成员命名规范
-            // if (!/^[a-z][a-zA-Z0-9_]*$/.test(member)) {
-            //     const range = new vscode.Range(
-            //         document.positionAt(startPos + object.length + accessor.length),
-            //         document.positionAt(startPos + object.length + accessor.length + member.length)
-            //     );
-            //     diagnostics.push(new vscode.Diagnostic(
-            //         range,
-            //         '成员名应该使用小写字母开头的驼峰命名法',
-            //         vscode.DiagnosticSeverity.Warning
-            //     ));
-            // }
         }
     }
 

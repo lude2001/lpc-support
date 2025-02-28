@@ -14,6 +14,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
     private macroManager: MacroManager;
     private functionCache: Map<string, vscode.CompletionItem[]> = new Map();
     private variableCache: Map<string, vscode.CompletionItem[]> = new Map();
+    private filePathCache: Map<string, string> = new Map();
 
     constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager) {
         this.efunDocsManager = efunDocsManager;
@@ -496,13 +497,22 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         let includeMatch;
         const processedIncludes = new Set<string>();
 
+        // 批量处理所有include
+        const includeMatches: string[] = [];
         while ((includeMatch = includeRegex.exec(text)) !== null) {
             const includePath = includeMatch[1];
-            if (processedIncludes.has(includePath)) continue;
-            processedIncludes.add(includePath);
-            
-            if (showOutput) { inheritanceChannel.appendLine(`发现include文件: ${includePath}`); }
-            // 尝试加载include文件中的宏定义
+            if (!processedIncludes.has(includePath)) {
+                processedIncludes.add(includePath);
+                includeMatches.push(includePath);
+            }
+        }
+
+        // 批量处理所有宏定义
+        if (includeMatches.length > 0) {
+            if (showOutput) { 
+                inheritanceChannel.appendLine(`发现 ${includeMatches.length} 个include文件`); 
+                includeMatches.forEach(path => inheritanceChannel.appendLine(`  - ${path}`));
+            }
             await this.macroManager.scanMacros();
         }
 
@@ -510,7 +520,12 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         if (!workspaceFolder) return;
 
         const processedFiles = new Set<string>();
-
+        
+        // 收集所有继承条目，准备并行处理
+        const inheritTasks: Promise<void>[] = [];
+        const allInheritedFiles: Array<{file: string, source: string}> = [];
+        
+        // 从两种regex中收集所有inherit语句
         for (const inheritRegex of inheritRegexes) {
             let match;
             while ((match = inheritRegex.exec(text)) !== null) {
@@ -523,7 +538,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
                     if (macro) {
                         inheritedFile = macro.value.replace(/^"(.*)"$/, '$1');
                         if (showOutput) { inheritanceChannel.appendLine(`解析宏 ${macro.name}: ${macro.value} (来自 ${macro.file})`); }
-                        // 记录宏的来源，用于显示在提示中
+                        
                         let macroPath = path.basename(macro.file);
                         const includePath = this.macroManager.getIncludePath();
                         if (includePath) {
@@ -540,83 +555,143 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
                 if (!inheritedFile.endsWith('.c')) {
                     inheritedFile = inheritedFile + '.c';
                 }
-
-                if (showOutput) { inheritanceChannel.appendLine(`\n正在查找继承文件: ${inheritedFile}`); }
-
-                // 构建可能的文件路径
-                const possiblePaths = [];
                 
-                if (inheritedFile.startsWith('/')) {
-                    // 绝对路径：移除开头的/，然后从工作区根目录开始查找
-                    const relativePath = inheritedFile.slice(1);
-                    possiblePaths.push(
-                        path.join(workspaceFolder.uri.fsPath, relativePath),
-                        path.join(workspaceFolder.uri.fsPath, relativePath.replace('.c', ''))
-                    );
-                } else {
-                    // 相对路径：先相对于当前文件查找，再从工作区根目录查找
-                    possiblePaths.push(
-                        path.join(path.dirname(document.uri.fsPath), inheritedFile),
-                        path.join(path.dirname(document.uri.fsPath), inheritedFile.replace('.c', '')),
-                        path.join(workspaceFolder.uri.fsPath, inheritedFile),
-                        path.join(workspaceFolder.uri.fsPath, inheritedFile.replace('.c', ''))
-                    );
-                }
-
-                // 去重路径
-                const uniquePaths = [...new Set(possiblePaths)];
-
-                let fileFound = false;
-                for (const filePath of uniquePaths) {
-                    if (showOutput) { inheritanceChannel.appendLine(`  尝试路径: ${filePath}`); }
-                    if (fs.existsSync(filePath) && !processedFiles.has(filePath)) {
-                        processedFiles.add(filePath);
-                        fileFound = true;
-                        if (showOutput) { inheritanceChannel.appendLine(`  ✓ 找到文件: ${filePath}`); }
-                        
-                        try {
-                            const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
-                            
-                            // 检查缓存
-                            const cacheKey = filePath;
-                            if (this.functionCache.has(cacheKey)) {
-                                const cachedItems = this.functionCache.get(cacheKey)!;
-                                if (showOutput) { inheritanceChannel.appendLine(`  使用缓存的函数定义`); }
-                                // 更新缓存项的来源信息
-                                cachedItems.forEach(item => {
-                                    const originalDetail = item.detail?.split(':')[1] || '';
-                                    item.detail = `继承自 ${path.basename(filePath)}${macroSource}: ${originalDetail.trim()}`;
-                                });
-                                completionItems.push(...cachedItems);
-                            } else {
-                                const inheritedCompletions: vscode.CompletionItem[] = [];
-                                await this.parseFunctionsInFile(
-                                    inheritedDoc, 
-                                    inheritedCompletions, 
-                                    `继承自 ${path.basename(filePath)}${macroSource}`
-                                );
-                                
-                                // 更新缓存
-                                this.functionCache.set(cacheKey, inheritedCompletions);
-                                completionItems.push(...inheritedCompletions);
-                            }
-
-                            // 递归处理继承的文件
-                            await this.parseInheritedFunctions(inheritedDoc, completionItems, showOutput);
-                        } catch (error) {
-                            if (showOutput) { inheritanceChannel.appendLine(`  ✗ 错误: 读取继承文件失败: ${filePath}`); }
-                            console.error(`Error reading inherited file: ${filePath}`, error);
-                        }
-                        break;
-                    }
-                }
-                
-                if (!fileFound) {
-                    if (showOutput) { inheritanceChannel.appendLine(`  ✗ 未找到文件: ${inheritedFile}`); }
-                }
-                if (showOutput) { inheritanceChannel.appendLine('----------------------------------------'); }
+                allInheritedFiles.push({file: inheritedFile, source: macroSource});
             }
         }
+        
+        // 并行处理所有继承文件
+        if (allInheritedFiles.length > 0) {
+            if (showOutput) {
+                inheritanceChannel.appendLine(`找到 ${allInheritedFiles.length} 个继承文件，并行处理中...`);
+            }
+            
+            // 创建所有继承文件的处理任务
+            for (const {file, source} of allInheritedFiles) {
+                inheritTasks.push(this.processInheritedFile(
+                    file, 
+                    source, 
+                    document, 
+                    workspaceFolder, 
+                    processedFiles, 
+                    completionItems, 
+                    showOutput
+                ));
+            }
+            
+            // 等待所有任务完成
+            await Promise.all(inheritTasks);
+        }
+    }
+    
+    // 提取单个继承文件的处理为独立方法
+    private async processInheritedFile(
+        inheritedFile: string,
+        macroSource: string,
+        document: vscode.TextDocument,
+        workspaceFolder: vscode.WorkspaceFolder,
+        processedFiles: Set<string>,
+        completionItems: vscode.CompletionItem[],
+        showOutput: boolean
+    ): Promise<void> {
+        if (showOutput) { inheritanceChannel.appendLine(`\n正在查找继承文件: ${inheritedFile}`); }
+        
+        // 检查文件路径缓存
+        const cacheKey = `${document.uri.fsPath}:${inheritedFile}`;
+        let resolvedPath = this.filePathCache.get(cacheKey);
+        let fileFound = false;
+        
+        if (resolvedPath) {
+            // 使用缓存的路径
+            if (showOutput) { inheritanceChannel.appendLine(`  使用缓存的文件路径: ${resolvedPath}`); }
+            if (fs.existsSync(resolvedPath) && !processedFiles.has(resolvedPath)) {
+                fileFound = true;
+            }
+        } else {
+            // 构建可能的文件路径
+            const possiblePaths = [];
+            
+            if (inheritedFile.startsWith('/')) {
+                // 绝对路径：移除开头的/，然后从工作区根目录开始查找
+                const relativePath = inheritedFile.slice(1);
+                possiblePaths.push(
+                    path.join(workspaceFolder.uri.fsPath, relativePath),
+                    path.join(workspaceFolder.uri.fsPath, relativePath.replace('.c', ''))
+                );
+            } else {
+                // 相对路径：先相对于当前文件查找，再从工作区根目录查找
+                possiblePaths.push(
+                    path.join(path.dirname(document.uri.fsPath), inheritedFile),
+                    path.join(path.dirname(document.uri.fsPath), inheritedFile.replace('.c', '')),
+                    path.join(workspaceFolder.uri.fsPath, inheritedFile),
+                    path.join(workspaceFolder.uri.fsPath, inheritedFile.replace('.c', ''))
+                );
+            }
+
+            // 去重路径
+            const uniquePaths = [...new Set(possiblePaths)];
+
+            for (const filePath of uniquePaths) {
+                if (showOutput) { inheritanceChannel.appendLine(`  尝试路径: ${filePath}`); }
+                if (fs.existsSync(filePath) && !processedFiles.has(filePath)) {
+                    resolvedPath = filePath;
+                    // 缓存解析结果
+                    this.filePathCache.set(cacheKey, filePath);
+                    fileFound = true;
+                    break;
+                }
+            }
+        }
+
+        // 同步检查是否有其他线程已经处理过这个文件
+        if (processedFiles.has(resolvedPath || '')) {
+            if (showOutput) { inheritanceChannel.appendLine(`  文件已被其他任务处理: ${resolvedPath}`); }
+            return;
+        }
+        
+        if (fileFound && resolvedPath) {
+            // 标记为已处理
+            processedFiles.add(resolvedPath);
+            if (showOutput) { inheritanceChannel.appendLine(`  ✓ 找到文件: ${resolvedPath}`); }
+            
+            try {
+                const inheritedDoc = await vscode.workspace.openTextDocument(resolvedPath);
+                
+                // 检查函数缓存
+                const functionCacheKey = resolvedPath;
+                if (this.functionCache.has(functionCacheKey)) {
+                    const cachedItems = this.functionCache.get(functionCacheKey)!;
+                    if (showOutput) { inheritanceChannel.appendLine(`  使用缓存的函数定义`); }
+                    // 更新缓存项的来源信息
+                    cachedItems.forEach(item => {
+                        const originalDetail = item.detail?.split(':')[1] || '';
+                        item.detail = `继承自 ${path.basename(resolvedPath!)}${macroSource}: ${originalDetail.trim()}`;
+                    });
+                    completionItems.push(...cachedItems);
+                } else {
+                    const inheritedCompletions: vscode.CompletionItem[] = [];
+                    await this.parseFunctionsInFile(
+                        inheritedDoc, 
+                        inheritedCompletions, 
+                        `继承自 ${path.basename(resolvedPath)}${macroSource}`
+                    );
+                    
+                    // 更新缓存
+                    this.functionCache.set(functionCacheKey, inheritedCompletions);
+                    completionItems.push(...inheritedCompletions);
+                }
+
+                // 递归处理继承的文件
+                await this.parseInheritedFunctions(inheritedDoc, completionItems, showOutput);
+            } catch (error) {
+                if (showOutput) { inheritanceChannel.appendLine(`  ✗ 错误: 读取继承文件失败: ${resolvedPath}`); }
+                console.error(`Error reading inherited file: ${resolvedPath}`, error);
+            }
+        } else {
+            if (showOutput) { inheritanceChannel.appendLine(`  ✗ 未找到文件: ${inheritedFile}`); }
+        }
+        
+        if (showOutput) { inheritanceChannel.appendLine('----------------------------------------'); }
     }
 
     private parseFunctionsInFile(
