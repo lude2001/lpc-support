@@ -28,11 +28,147 @@
 			"include": "#operators"
 		},
 		{
+			"name": "meta.closure.lpc",
+			"begin": "(\\(:)",
+			"beginCaptures": {
+				"1": { "name": "punctuation.definition.closure.begin.lpc" }
+			},
+			"end": "(:\))",
+			"endCaptures": {
+				"1": { "name": "punctuation.definition.closure.end.lpc" }
+			},
+			"patterns": [
+				{ "include": "#comments" },
+				{ "include": "#strings" },
+				{ "include": "#keywords" },
+				{ "include": "#types" },
+				{ "include": "#variables" },
+				{ "include": "#numbers" },
+				{ "include": "#operators" },
+				{ "include": "#functions" }
+			]
+		},
+		{
 			"name": "meta.preprocessor.include.lpc",
 			"match": "^\\s*(#\\s*include)\\b\\s*([<\"].*?[\">])",
 			"captures": {
 				"1": { "name": "keyword.control.import.include.lpc" },
 				"2": { "name": "string.quoted.other.lt-gt.include.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.define.lpc",
+			"match": "^\\s*(#\\s*define)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\\(([^)]*)\\))?(?:\\s+(.*))?$",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.define.lpc" },
+				"2": { "name": "entity.name.constant.macro.lpc" },
+				"3": { "name": "variable.parameter.macro.lpc" },
+				"4": { "name": "string.unquoted.preprocessor.macro-value.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.undef.lpc",
+			"match": "^\\s*(#\\s*undef)\\s+([a-zA-Z_][a-zA-Z0-9_]*)$",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.undef.lpc" },
+				"2": { "name": "entity.name.constant.macro.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.if.lpc",
+			"match": "^\\s*(#\\s*if)(.*)$",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.conditional.lpc" },
+				"2": { "name": "meta.preprocessor.conditional.condition.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.ifdef.lpc",
+			"match": "^\\s*(#\\s*ifdef)\\s+(.*)$",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.conditional.lpc" },
+				"2": { "name": "entity.name.constant.macro.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.ifndef.lpc",
+			"match": "^\\s*(#\\s*ifndef)\\s+(.*)$",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.conditional.lpc" },
+				"2": { "name": "entity.name.constant.macro.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.else.lpc",
+			"match": "^\\s*(#\\s*else)\\b",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.conditional.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.elif.lpc",
+			"match": "^\\s*(#\\s*elif)(.*)$",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.conditional.lpc" },
+				"2": { "name": "meta.preprocessor.conditional.condition.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.endif.lpc",
+			"match": "^\\s*(#\\s*endif)\\b",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.conditional.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.pragma.lpc",
+			"match": "^\\s*(#\\s*pragma)(.*)$",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.pragma.lpc" },
+				"2": { "name": "string.unquoted.preprocessor.message.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.error.lpc",
+			"match": "^\\s*(#\\s*error)(.*)$",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.error.lpc" },
+				"2": { "name": "string.unquoted.preprocessor.message.lpc" }
+			}
+		},
+		{
+			"name": "meta.preprocessor.warning.lpc",
+			"match": "^\\s*(#\\s*warning)(.*)$",
+			"captures": {
+				"1": { "name": "keyword.control.preprocessor.warning.lpc" },
+				"2": { "name": "string.unquoted.preprocessor.message.lpc" }
+			}
+		},
+		{
+			"name": "meta.function-pointer.simple.lpc",
+			"match": "(#')([a-zA-Z_][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": { "name": "keyword.operator.function-pointer.lpc" },
+				"2": { "name": "entity.name.function.pointer.lpc" }
+			}
+		},
+		{
+			"name": "meta.function-pointer.object.lpc",
+			"match": "(#')((?:[a-zA-Z_][a-zA-Z0-9_]*::)*[a-zA-Z_][a-zA-Z0-9_]*)(\\s*->\\s*)([a-zA-Z_][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": { "name": "keyword.operator.function-pointer.lpc" },
+				"2": { "name": "variable.other.object.path.lpc" },
+				"3": { "name": "keyword.operator.arrow.lpc" },
+				"4": { "name": "entity.name.function.pointer.lpc" }
+			}
+		},
+		{
+			"name": "meta.function-pointer.implicit-this.lpc",
+			"match": "(#')(->\\s*)([a-zA-Z_][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": { "name": "keyword.operator.function-pointer.lpc" },
+				"2": { "name": "keyword.operator.arrow.lpc" },
+				"3": { "name": "entity.name.function.pointer.lpc" }
 			}
 		},
 		{
@@ -98,6 +234,15 @@
 		"functions": {
 			"patterns": [
 				{
+					"name": "support.function.efun.lpc",
+					"match": "\\b(allocate_buffer|allocate_mapping|call_out_walltime|disassemble_class|fetch_class_member|function_exists|query_heart_beat|query_load_average|query_shadowing|remove_call_out|replace_string|reset_eval_cost|restore_variable|set_living_name|set_malloc_mask|store_class_member|telnet_msp_oob|this_interactive|async_db_exec|async_getdir|element_of|filter_array|member_array|previous_object|query_ip_name|query_ip_number|read_buffer|remove_interactive|set_this_player|socket_create|socket_listen|socket_write|sort_array|unique_array|valid_write|write_buffer|add_action|arrayp|assemble_class|async_read|async_write|base_name|bufferp|call_other|call_out|call_stack|capitalize|classp|clear_bit|clone_object|commands|ctime|db_close|db_commit|db_connect|db_exec|db_fetch|db_rollback|db_status|debug_message|destruct|disable_commands|disable_wizard|dotprod|dump_prog|dump_trace|ed_cmd|ed_start|enable_commands|enable_wizard|environment|eval_cost|evaluate|explode|export_uid|file_size|find_living|find_player|floatp|floor|functionp|get_char|get_dir|geteuid|getuid|heart_beats|implode|inherits|input_to|in_edit|in_input|interactive|keys|living|log10|log2|map_array|map_delete|memory_info|memory_summary|message|mkdir|move_object|network_stats|notify_fail|nullp|origin|pcre_extract|pcre_match|pcre_replace|pluralize|pointerp|present|printf|program_info|query_charmode|query_encoding|query_host_name|query_idle|query_invis|query_ip_port|query_snoop|query_snooping|read_file|real_time|reclaim_objects|receive|reg_assoc|regexp|reload_object|remove_action|rename|restore_object|rusage|save_object|save_variable|set_bit|set_encoding|set_eval_limit|set_heart_beat|set_hide|set_light|set_reset|seteuid|shutdown|shout|shuffle|sizeof|snoop|socket_accept|socket_bind|socket_close|sprintf|sscanf|strlen|strsrch|telnet_ga|telnet_nop|test_bit|this_object|this_player|this_user|throw|time|to_int|trace|traceprefix|trim|typeof|uptime|userp|users|valid_read|values|virtualp|wizardp|write_file|abs|acos|angle|asin|atan|bind|break_string|cache_stats|catch|ceil|classes|command|copy|cos|cp|crypt|defer|distance|ed|exec|exp|fetch_variable|filter|link|log|ltrim|map|master|max|min|norm|pow|resolve|rm|rmdir|rtrim|sin|sqrt|stat|swap|tan)(?=\\s*\\()"
+				},
+				{
+					"name": "entity.name.function.special.lpc",
+					"match": "\\b(create|init|reset|main)\\b(?=\\s*\\()",
+					"comment": "Special LPC functions like create, init, reset, main"
+				},
+				{
 					"name": "entity.name.function.lpc",
 					"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\("
 				}
@@ -111,19 +256,22 @@
 				}
 			]
 		},
-		"objectAccess": {
-			"name": "Object Access",
-			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*->",
-			"captures": {
-				"1": {
-					"name": "variable.object.lpc"
-				}
-			}
-		},
 		"numbers": {
 			"patterns": [
 				{
-					"name": "constant.numeric.lpc",
+					"name": "constant.numeric.hex.lpc",
+					"match": "\\b0[xX][0-9a-fA-F]+\\b"
+				},
+				{
+					"name": "constant.numeric.octal.lpc",
+					"match": "\\b0[0-7]+\\b"
+				},
+				{
+					"name": "constant.numeric.float.lpc",
+					"match": "\\b(?:(?:\\d*\\.\\d+)|(?:\\d+\\.\\d*))(?:[eE][+-]?\\d+)?\\b|\\b\\d+[eE][+-]?\\d+\\b"
+				},
+				{
+					"name": "constant.numeric.integer.lpc",
 					"match": "\\b\\d+\\b"
 				}
 			]
@@ -131,8 +279,40 @@
 		"operators": {
 			"patterns": [
 				{
+					"name": "meta.member.access.lpc",
+					"match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(->)",
+					"captures": {
+						"1": { "name": "variable.other.object.access.lpc" },
+						"2": { "name": "keyword.operator.arrow.lpc" }
+					}
+				},
+				{
+					"name": "keyword.operator.assignment.lpc",
+					"match": "(?:\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|<<=|>>=|=)"
+				},
+				{
 					"name": "keyword.operator.arithmetic.lpc",
-					"match": "[+\\-*/%]"
+					"match": "(?:\\+\\+|--|\\+|-|\\*|/|%)"
+				},
+				{
+					"name": "keyword.operator.comparison.lpc",
+					"match": "(?:==|!=|<=|>=|<|>)"
+				},
+				{
+					"name": "keyword.operator.logical.lpc",
+					"match": "(?:&&|\\|\\||!)"
+				},
+				{
+					"name": "keyword.operator.bitwise.lpc",
+					"match": "(?:&|\\||\\^|~|<<|>>)"
+				},
+				{
+					"name": "keyword.operator.ternary.lpc",
+					"match": "(?:\\?|:)"
+				},
+				{
+					"name": "keyword.operator.scope-resolution.lpc",
+					"match": "::"
 				}
 			]
 		}
