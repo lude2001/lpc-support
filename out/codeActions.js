@@ -100,6 +100,6 @@ class LPCCodeActionProvider {
         return action;
     }
 }
-exports.LPCCodeActionProvider = LPCCodeActionProvider;
 LPCCodeActionProvider.unusedVarDiagnosticCode = 'unusedVar';
+exports.LPCCodeActionProvider = LPCCodeActionProvider;
 //# sourceMappingURL=codeActions.js.map

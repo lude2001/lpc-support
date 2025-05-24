@@ -33,7 +33,7 @@
 			"beginCaptures": {
 				"1": { "name": "punctuation.definition.closure.begin.lpc" }
 			},
-			"end": "(:\))",
+			"end": "(:\\))",
 			"endCaptures": {
 				"1": { "name": "punctuation.definition.closure.end.lpc" }
 			},

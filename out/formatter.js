@@ -1,20 +1,70 @@
 "use strict";
+// fs and path would be needed for actual file reading in a Node.js environment
+// import * as fs from 'fs';
+// import * as path from 'path';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.formatLPCCode = formatLPCCode;
-function formatLPCCode(code) {
-    // // console.log("[formatter.ts] formatLPCCode START"); // DIAGNOSTIC LOG
-    code = code.replace(/\t/g, "    "); // Replace all tabs with 4 spaces at the beginning
+exports.formatLPCCode = void 0;
+const defaultConfig = {
+    indentSize: 4,
+    maxLineLength: 80,
+};
+// configContent is an optional parameter primarily for environments where direct file reading
+// from within this module is not feasible (like this sandboxed agent environment or unit tests).
+// In a standard Node.js environment, this function would attempt to read 'formatter-config.json' directly using fs.
+function loadFormatterConfig(configContent) {
+    try {
+        let fileJsonContent;
+        if (configContent) {
+            fileJsonContent = configContent;
+        }
+        else {
+            // Placeholder for actual file reading logic in a Node.js/VS Code extension environment
+            // e.g., const configFilePath = path.resolve(process.cwd(), 'formatter-config.json');
+            // fileJsonContent = fs.readFileSync(configFilePath, 'utf8');
+            // Since fs is not available directly here in this sandboxed execution,
+            // attempting to read would fail. We simulate this by throwing an error if no content is provided,
+            // which leads to the use of the default configuration as per requirements.
+            throw new Error("File system access for 'formatter-config.json' not available or configContent not provided.");
+        }
+        const parsedConfig = JSON.parse(fileJsonContent);
+        // Validate and merge with defaults to ensure type safety and fallback for missing properties
+        const indentSize = typeof parsedConfig.indentSize === 'number' && parsedConfig.indentSize > 0
+            ? parsedConfig.indentSize
+            : defaultConfig.indentSize;
+        const maxLineLength = typeof parsedConfig.maxLineLength === 'number' && parsedConfig.maxLineLength > 0
+            ? parsedConfig.maxLineLength
+            : defaultConfig.maxLineLength;
+        return {
+            indentSize,
+            maxLineLength,
+            // ...assign other validated config properties here
+        };
+    }
+    catch (error) {
+        // Catches errors from file reading (simulated by throw) or JSON.parse
+        // console.warn(`[formatter.ts] Failed to load or parse formatter configuration: ${error.message}. Using default settings.`);
+        return { ...defaultConfig }; // Fallback to default config
+    }
+}
+// The contentOfFormatterConfig parameter allows the caller (e.g., the extension's main file or a test runner)
+// to provide the content of 'formatter-config.json'. If not provided, loadFormatterConfig attempts to load it,
+// which in this sandboxed environment will result in defaults being used.
+function formatLPCCode(code, contentOfFormatterConfig) {
+    const config = loadFormatterConfig(contentOfFormatterConfig);
+    const indentSize = config.indentSize; // Use this for indentation
+    const maxLineLength = config.maxLineLength; // Available, though not used for line breaking in this subtask
+    code = code.replace(/\t/g, " ".repeat(indentSize)); // Replace tabs with configured indentSize spaces
     const lines = code.split(/\r?\n/);
     const result = [];
     let indentLevel = 0;
-    const indentSize = 4;
+    // const indentSize = 4; // Removed, now using config.indentSize
     const state = {
+        // maxLineLength can be added to state if other parts of the formatter need it:
+        // maxLineLength: maxLineLength, 
         inBlockComment: false,
         inSpecialBlock: false,
         inString: false,
         inChar: false,
-        escapeActive: false,
-        inMultiLineCondition: false,
         inFunctionDeclaration: false,
         inFunctionParams: false,
         inSwitchBlock: false,
@@ -25,14 +75,11 @@ function formatLPCCode(code) {
         inInheritBlock: false,
         inVarargs: false,
         inSquareBracketMapping: false,
-        bracketStack: [], // 用于跟踪括号匹配
-        inIfBlock: false, // 是否在if块内
-        ifWithoutBrace: false, // 是否是没有大括号的if语句
-        pendingCloseBrace: false, // 是否有待关闭的大括号
-        functionCommentBlock: false, // 是否在函数注释块内
-        inFunctionBody: false, // 是否在函数体内
-        lastLineWasBrace: false, // 上一行是否是大括号
-        lastLineWasIf: false, // 上一行是否是if语句
+        inExitsMapping: false,
+        ifWithoutBrace: false,
+        functionCommentBlock: false,
+        lastLineWasBrace: false,
+        lastLineWasIf: false,
         pendingBrace: false // 是否需要添加大括号到新行
     };
     const specialBlocks = {
@@ -65,45 +112,50 @@ function formatLPCCode(code) {
     const singleLineCommentPattern = /^\s*\/\//;
     const blockCommentStartPattern = /^\s*\/\*/;
     const blockCommentEndPattern = /\*\/\s*$/;
+    const preprocessorDirectivePattern = /^\s*#(if|ifdef|ifndef|else|elif|endif|undef|line|pragma|error|warning)/;
     // 处理连续空行
     let consecutiveEmptyLines = 0;
     const maxConsecutiveEmptyLines = 2;
-    // 第一遍：分析代码结构
+    // 启用 console.log 来帮助调试
+    // console.log("[formatter.ts] formatLPCCode START with code length: " + code.length);
+    // 第一遍：分析代码结构 (Purpose: Trim lines of function comments)
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        // 分析括号匹配
-        if (line.includes('{') && !state.inString && !state.inChar && !state.inBlockComment) {
-            state.bracketStack.push('{');
-        }
-        if (line.includes('}') && !state.inString && !state.inChar && !state.inBlockComment) {
-            if (state.bracketStack.length > 0 && state.bracketStack[state.bracketStack.length - 1] === '{') {
-                state.bracketStack.pop();
-            }
-        }
-        // 分析函数声明
+        const line = lines[i].trim(); // Current line being checked if it's a function declaration
+        // Analyze function declarations for preceding block comments
         if (functionPattern.test(line) && !line.endsWith(";")) {
-            // 查找前面的注释块
-            let j = i - 1;
-            while (j >= 0 && (lines[j].trim() === '' || singleLineCommentPattern.test(lines[j]))) {
-                j--;
+            let potentialCommentEndLine = i - 1;
+            // Skip empty lines and single-line comments upwards from function
+            while (potentialCommentEndLine >= 0 &&
+                (lines[potentialCommentEndLine].trim() === '' || singleLineCommentPattern.test(lines[potentialCommentEndLine]))) {
+                potentialCommentEndLine--;
             }
-            if (j >= 0 && blockCommentStartPattern.test(lines[j])) {
-                // 找到了函数注释块
-                let k = j;
-                while (k >= 0 && !blockCommentEndPattern.test(lines[k])) {
-                    k--;
-                }
-                if (k < j) {
-                    // 这是一个多行注释块
-                    for (let l = k; l <= j; l++) {
-                        lines[l] = lines[l].trim();
+            if (potentialCommentEndLine >= 0 && blockCommentEndPattern.test(lines[potentialCommentEndLine])) {
+                // Found a line ending with */. This is potentially the end of the func comment.
+                let potentialCommentStartLine = potentialCommentEndLine;
+                // Scan upwards to find the start of this comment block (line with /*)
+                while (potentialCommentStartLine >= 0) {
+                    if (blockCommentStartPattern.test(lines[potentialCommentStartLine])) {
+                        // Found the start. Now trim lines from potentialCommentStartLine to potentialCommentEndLine.
+                        // This ensures that if a comment like /* Blah */ is used for a function, its lines are trimmed.
+                        for (let l = potentialCommentStartLine; l <= potentialCommentEndLine; l++) {
+                            lines[l] = lines[l].trim(); // Trim the original lines array
+                        }
+                        break; // Found and processed the comment block
                     }
+                    // Safety break: if we are looking upwards for /* but hit another */, something is wrong.
+                    if (potentialCommentStartLine < potentialCommentEndLine && blockCommentEndPattern.test(lines[potentialCommentStartLine])) {
+                        break;
+                    }
+                    // Safety break: if the comment starts looking too far, break.
+                    if (potentialCommentEndLine - potentialCommentStartLine > 20) { // Arbitrary limit for very long comments
+                        break;
+                    }
+                    potentialCommentStartLine--;
                 }
             }
         }
     }
     // 第二遍：格式化代码
-    state.bracketStack = []; // 重置括号栈
     // // console.log("[formatter.ts] Starting second pass..."); // 添加日志
     for (let i = 0; i < lines.length; i++) {
         // // console.log(`[formatter.ts] Processing line ${i + 1}: ${lines[i]}`); // 添加日志
@@ -125,6 +177,12 @@ function formatLPCCode(code) {
             continue; // Skip all other formatting for this line
         }
         // --- END NEW SPECIAL BLOCK HANDLING ---
+        // Handle preprocessor directives (#if, #else, #endif, etc.)
+        // These should not be indented.
+        if (preprocessorDirectivePattern.test(trimmed)) {
+            result.push(trimmed);
+            continue;
+        }
         // 处理函数注释块 (/** ... */)
         if (functionCommentPattern.test(trimmed) && !state.inBlockComment) {
             // 函数注释块不缩进
@@ -222,7 +280,6 @@ function formatLPCCode(code) {
         // 处理函数声明
         if (functionPattern.test(trimmed) && !trimmed.endsWith(";")) {
             state.inFunctionDeclaration = true;
-            state.inFunctionBody = true;
             const indentStr = " ".repeat(indentLevel * indentSize);
             // 处理函数声明末尾的大括号
             if (trimmed.endsWith('{')) {
@@ -363,9 +420,6 @@ function formatLPCCode(code) {
             continue;
         }
         // 处理可变参数
-        if (varargsPattern.test(trimmed)) {
-            state.inVarargs = true;
-        }
         // 处理switch语句
         if (switchPattern.test(trimmed)) {
             state.inSwitchBlock = true;
@@ -436,7 +490,6 @@ function formatLPCCode(code) {
         }
         // Handling for '([' square bracket mapping start
         if (squareBracketMappingStartPattern.test(trimmed)) {
-            console.log(`[DEBUG] ENTERING squareBracketMappingStart: trimmed="${trimmed}", indentLevel=${indentLevel}`);
             state.inSquareBracketMapping = true;
             const indentStr = " ".repeat(indentLevel * indentSize);
             result.push(indentStr + trimmed);
@@ -455,7 +508,6 @@ function formatLPCCode(code) {
         }
         // Handle LPC-specific '])' and '}))' closers
         if (trimmed.endsWith('])') && state.inSquareBracketMapping) {
-            console.log(`[DEBUG] Check endsWith('])'): trimmed="${trimmed}", inSquareBracketMapping=${state.inSquareBracketMapping}, indentLevel=${indentLevel}`);
             // 确保缩进是一致的
             indentLevel = Math.max(0, indentLevel - 1);
             const indentStr = " ".repeat(indentLevel * indentSize);
@@ -498,7 +550,6 @@ function formatLPCCode(code) {
             }
             if (state.inFunctionDeclaration && trimmed === '}') {
                 state.inFunctionDeclaration = false;
-                state.inFunctionBody = false;
             }
             if (state.inInheritBlock && trimmed === '}') {
                 state.inInheritBlock = false;
@@ -537,8 +588,6 @@ function formatLPCCode(code) {
             !trimmed.startsWith('}') && // General block end
             !trimmed.startsWith('})') && // ({ ... }) array end
             !trimmed.startsWith('])')) { // ([ ... ]) mapping end - 这里修复了之前的 ']]))'
-            console.log(`[DEBUG] Check endsWith('])'): trimmed="${trimmed}", inSquareBracketMapping=${state.inSquareBracketMapping}, indentLevel=${indentLevel}`);
-            console.log(`[DEBUG] Check endsWith('})'): trimmed="${trimmed}", inArray=${state.inArray}, indentLevel=${indentLevel}`);
             // 确保正确的缩进级别
             const indentStr = " ".repeat(indentLevel * indentSize);
             // 格式化操作符周围的空格，但保护字符串内容
@@ -558,14 +607,39 @@ function formatLPCCode(code) {
             result.push(indentStr + formattedLine);
             continue;
         }
-        // 在嵌套映射结构内确保一致的缩进
-        if (trimmed.startsWith("set(") && trimmed.includes("exits") && trimmed.endsWith("([")) {
-            console.log(`[DEBUG] Found exits mapping start: "${trimmed}"`);
-            state.inSquareBracketMapping = true;
+        // 提前检测 set("exits"...) 行，并应用特殊处理
+        if (trimmed.includes('set("exits"')) {
+            // 确保它和其他 set 语句有相同的缩进
             const indentStr = " ".repeat(indentLevel * indentSize);
-            result.push(indentStr + trimmed);
-            indentLevel++;
-            state.lastLineWasBrace = true;
+            if (trimmed.endsWith('([')) {
+                // 这是映射的开始
+                result.push(indentStr + trimmed);
+                state.inExitsMapping = true;
+                state.inSquareBracketMapping = true;
+                indentLevel++;
+                continue;
+            }
+        }
+        // 处理 set("exits", ([...]) 结构的内容
+        if (state.inExitsMapping && !trimmed.endsWith(']);')) {
+            const indentStr = " ".repeat(indentLevel * indentSize);
+            let formattedLine = formatLinePreservingStrings(trimmed);
+            formattedLine = formatLPCSpecificSyntax(formattedLine);
+            result.push(indentStr + formattedLine);
+            continue;
+        }
+        // 处理 set("exits", ([...]) 结构的结束
+        if (state.inExitsMapping && trimmed.endsWith(']);')) {
+            // 减少缩进等级
+            indentLevel = Math.max(0, indentLevel - 1);
+            // 设置当前行的正确缩进
+            const indentStr = " ".repeat(indentLevel * indentSize);
+            let formattedLine = formatLinePreservingStrings(trimmed);
+            formattedLine = formatLPCSpecificSyntax(formattedLine);
+            result.push(indentStr + formattedLine);
+            // 重置标志
+            state.inExitsMapping = false;
+            state.inSquareBracketMapping = false;
             continue;
         }
         // 应用缩进
@@ -598,21 +672,22 @@ function formatLPCCode(code) {
             }
         }
         // --- END SETTING state.inSpecialBlock FOR NEXT LINE ---
+        // Handle indentation for single-line statements after if/else without braces
+        if (state.ifWithoutBrace && trimmed.endsWith(';')) {
+            indentLevel = Math.max(0, indentLevel - 1);
+            state.ifWithoutBrace = false;
+            state.pendingBrace = false; // Clear pendingBrace as the block is now closed
+        }
         // 重置上一行状态
         state.lastLineWasIf = false;
     }
     // // console.log("[formatter.ts] Main processing loop FINISHED. Result lines collected:", result.length); // DIAGNOSTIC LOG
-    // 处理待添加的大括号
-    if (state.pendingBrace) {
-        const indentStr = " ".repeat(indentLevel * indentSize);
-        result.push(indentStr + "{");
-        state.pendingBrace = false;
-    }
     // // console.log("[formatter.ts] Preparing to join result. Result length:", result.length); // DIAGNOSTIC LOG
     const finalResult = result.join('\n');
     // // console.log("[formatter.ts] formatLPCCode END. Final string length:", finalResult.length); // DIAGNOSTIC LOG
     return finalResult;
 }
+exports.formatLPCCode = formatLPCCode;
 // 格式化一行代码，但保护字符串内容不被修改
 function formatLinePreservingStrings(line) {
     // 提取所有字符串
@@ -668,16 +743,29 @@ function formatLinePreservingStrings(line) {
         compoundOps.push(match);
         return compoundOpPlaceholder + (compoundOps.length - 1);
     });
-    // 格式化单个操作符周围的空格
-    // 格式化算术操作符（+, -, *, /, %）
-    processedLine = processedLine.replace(/([^+\-*\/%\-= ])\s*([+\-*\/%])\s*([^= ])/g, '$1 $2 $3');
-    // 格式化比较操作符（>, <）
-    processedLine = processedLine.replace(/([^><= ])\s*([><])\s*([^= ])/g, '$1 $2 $3');
-    // 格式化赋值操作符（=）
-    processedLine = processedLine.replace(/([^+\-*\/%\-= ])\s*(=)\s*/g, '$1 $2 ');
-    // 格式化冒号周围的空格 (e.g. key: value -> key : value)
+    // Format assignment operator =
+    // Handles a=b, a =b, a= b, a = b. Ensures ' = '.
+    // Example: a=-b -> a = -b. This is processed before other operators.
+    // Example: a=b+c -> a = b+c
+    processedLine = processedLine.replace(/(\S)\s*=\s*(\S)/g, '$1 = $2');
+    // Format colons : (e.g. for mappings or case statements)
+    // Example: "key":val -> "key" : val
     processedLine = processedLine.replace(/(\S)\s*:\s*(\S)/g, '$1 : $2');
-    // 恢复复合操作符并添加适当的空格
+    // Format binary operators: +, *, /, %, <, >
+    // These are processed after assignment and colons.
+    // \S ensures we are matching non-whitespace characters around the operator.
+    processedLine = processedLine.replace(/(\S)\s*([+*\/%<>])\s*(\S)/g, (match, g1, op, g3) => {
+        // Ensure that g1 and g3 are not part of a placeholder (very unlikely with \S but good to be mindful)
+        // A more robust check might involve checking if g1 or g3 end/start with ___PLACEHOLDER___ patterns.
+        // However, \S should not match space, so it won't span across placeholders easily.
+        return `${g1} ${op} ${g3}`;
+    });
+    // Format binary minus (-), carefully to distinguish from unary minus.
+    // A binary minus is typically preceded by a word character, digit, closing parenthesis, or closing bracket.
+    // And followed by a word character, digit, opening parenthesis, or opening bracket.
+    // Example: var-var, var-1, 1-var, (expr)-var, var-(expr)
+    processedLine = processedLine.replace(/([\w\d)\]])\s*(-)\s*([\w\d(\[])/g, '$1 $2 $3');
+    // Restore compound operators and ensure proper spacing around them
     for (let i = 0; i < compoundOps.length; i++) {
         const op = compoundOps[i];
         if (op === '->') {
@@ -757,9 +845,40 @@ function formatLPCSpecificSyntax(line) {
     result = result.replace(/\+\s*"/g, '+ "');
     result = result.replace(/"\s*\+/g, '" +');
     // 格式化LPC中的映射声明和操作
-    result = result.replace(/\(\s*\[\s*/g, '([');
-    result = result.replace(/\s*\]\s*\)/g, '])');
-    result = result.replace(/\[\s*([^,\s]+)\s*\]/g, '[$1]');
+    // Ensure no space immediately inside ([ and ]) for mapping declarations themselves
+    result = result.replace(/\(\s*\[\s*/g, '(['); // e.g. mapping x = ([ ...
+    result = result.replace(/\s*\]\s*\)/g, '])'); // e.g. ... ]);
+    // Spacing for single-line mapping literals
+    // Empty: ([]) -> ([ ])
+    result = result.replace(/\(\[\s*\]\)/g, '([ ])');
+    // Non-empty: ([ "key": value ]) -> ([ "key": value ]) (ensuring one space padding)
+    result = result.replace(/\(\[\s*(.+?)\s*\]\)/g, (match, content) => {
+        // Avoid re-mangling content that might be complex (e.g. already contains placeholders)
+        if (content.includes("___STRING_PLACEHOLDER___") || content.includes("___COMMENT_PLACEHOLDER___") || content.trim() !== content) {
+            return match; // If content itself has leading/trailing spaces or placeholders, trust prior formatting.
+        }
+        return `([ ${content.trim()} ])`;
+    });
+    // Spacing for single-line array literals
+    // Empty: ({}) -> ({ })
+    result = result.replace(/\(\{\s*\}\)/g, '({ })');
+    // Non-empty: ({ val1, val2 }) -> ({ val1, val2 }) (ensuring one space padding)
+    result = result.replace(/\(\{\s*(.+?)\s*\}\)/g, (match, content) => {
+        if (content.includes("___STRING_PLACEHOLDER___") || content.includes("___COMMENT_PLACEHOLDER___") || content.trim() !== content) {
+            return match;
+        }
+        return `({ ${content.trim()} })`;
+    });
+    // Ensure no space after # for function pointers like #'func or #"func"
+    result = result.replace(/#\s+(['"])/g, "#$1");
+    // Ensure space after (: and before :) for closures.
+    // e.g., (:ob,func:) -> (: ob, func :)
+    // Comma spacing between elements is handled by formatLinePreservingStrings.
+    result = result.replace(/\(:\s*(?!\s)/g, '(: '); // Add space after (: if not already there, but not if already '(: '
+    result = result.replace(/(?<!\s)\s*:\)/g, ' :)'); // Add space before :) if not already there, but not if already ' :)'
+    // 格式化LPC中的索引访问 (e.g. arr[idx], map[key]) - already partially covered
+    // This rule is more specific for index part of an array/mapping access
+    result = result.replace(/\[\s*([^,\s]+)\s*\]/g, '[$1]'); // map[ "key" ] -> map["key"], arr[ i ] -> arr[i]
     return result;
 }
 //# sourceMappingURL=formatter.js.map

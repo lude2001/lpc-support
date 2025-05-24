@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.activate = activate;
-exports.deactivate = deactivate;
+exports.deactivate = exports.activate = void 0;
 const vscode = require("vscode");
 const diagnostics_1 = require("./diagnostics");
 const codeActions_1 = require("./codeActions");
@@ -157,6 +156,8 @@ function activate(context) {
     // 将宏管理器添加到清理列表
     context.subscriptions.push(macroManager);
 }
+exports.activate = activate;
 // 停用扩展时调用
 function deactivate() { }
+exports.deactivate = deactivate;
 //# sourceMappingURL=extension.js.map
