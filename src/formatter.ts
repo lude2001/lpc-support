@@ -47,7 +47,7 @@ function loadFormatterConfig(configContent?: string): FormatterConfig {
             maxLineLength,
             // ...assign other validated config properties here
         };
-    } catch (error)
+    } catch (error) {
         // Catches errors from file reading (simulated by throw) or JSON.parse
         // console.warn(`[formatter.ts] Failed to load or parse formatter configuration: ${error.message}. Using default settings.`);
         return { ...defaultConfig }; // Fallback to default config
