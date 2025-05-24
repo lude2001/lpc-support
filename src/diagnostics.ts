@@ -745,22 +745,68 @@ export class LPCDiagnostics {
             }
         }
 
-        // 检查变量使用
-        for (const [varName, info] of localVars) {
-            // 在变量声明后的代码中查找变量使用
-            const afterDeclaration = block.content.slice(info.declarationIndex + varName.length);
+        const processedForeachVars = new Set<string>();
 
-            // 获取变量的类型
+        // Find and analyze foreach loops first
+        const foreachRegex = /\bforeach\s*\(([^)]+)\)\s*\{/g; // Captures header and start of body
+        let foreachMatch;
+        while ((foreachMatch = foreachRegex.exec(block.content)) !== null) {
+            const foreachHeaderString = foreachMatch[1]; // Full string inside foreach(...), e.g., "string k, v in m"
+            const loopBodyStartIndex = foreachMatch.index + foreachMatch[0].length; // Index of char after "{"
+            const loopBodyContent = this.extractBlockContent(block.content, loopBodyStartIndex - 1); // Pass index of "{"
+
+            if (loopBodyContent === null) continue;
+
+            const iterVars = this.parseForeachHeader(foreachHeaderString);
+
+            for (const iterVar of iterVars) {
+                const varName = iterVar.name;
+                
+                // Find the precise start index of varName within the foreachHeaderString for accurate diagnostic range
+                const varNameRegex = new RegExp(`\\b(${varName})\\b`);
+                const nameMatchInHeader = varNameRegex.exec(foreachHeaderString);
+                
+                if (!nameMatchInHeader) continue; // Should be found if parseForeachHeader worked
+                
+                const varNameOffsetInHeader = nameMatchInHeader.index;
+
+                // Calculate global offset for the diagnostic
+                const varStartOffset = block.start + foreachMatch.index + "foreach(".length + varNameOffsetInHeader;
+                const varRange = new vscode.Range(
+                    document.positionAt(varStartOffset),
+                    document.positionAt(varStartOffset + varName.length)
+                );
+
+                const isUsed = this.checkVariableUsage(varName, loopBodyContent);
+                if (!isUsed) {
+                    const diagnostic = new vscode.Diagnostic(
+                        varRange,
+                        `未使用的 foreach 迭代变量: '${varName}'`,
+                        vscode.DiagnosticSeverity.Warning
+                    );
+                    diagnostic.code = 'unusedForeachVar';
+                    diagnostics.push(diagnostic);
+                }
+                // Add to processed set to avoid re-checking if they happen to be also declared vars (though less common for iter vars)
+                processedForeachVars.add(varName); 
+            }
+        }
+
+
+        // Check normal variable usage, skipping those already processed as foreach iteration variables
+        for (const [varName, info] of localVars) {
+            if (processedForeachVars.has(varName)) {
+                continue;
+            }
+
+            const afterDeclaration = block.content.slice(info.declarationIndex + varName.length);
             const varType = info.type;
 
-            // 查找变量的赋值表达式
             const assignRegex = new RegExp(`\\b${varName}\\s*=\\s*(.*?);`, 'g');
             let assignMatch;
             while ((assignMatch = assignRegex.exec(afterDeclaration)) !== null) {
                 const expression = assignMatch[1];
                 const inferredType = this.inferExpressionType(expression);
-
-                // 在类型比较时，使用新的类型兼容性检查函数
                 if (!this.areTypesCompatible(varType, inferredType)) {
                     const expressionStart = assignMatch.index + info.declarationIndex + varName.length + assignMatch[0].indexOf(expression);
                     const expressionEnd = expressionStart + expression.length;
@@ -776,7 +822,6 @@ export class LPCDiagnostics {
                 }
             }
 
-            // 检查变量使用情况，区分声明时赋值和后续赋值
             const isUsed = info.isDeclarationWithAssign ? 
                 this.checkActualUsage(varName, afterDeclaration) :
                 this.checkActualUsageIncludingAssignment(varName, afterDeclaration);
@@ -792,6 +837,60 @@ export class LPCDiagnostics {
             }
         }
     }
+
+    /**
+     * Extracts the content of a block enclosed by braces {}.
+     * @param text The text containing the block.
+     * @param startIndex The index of the opening brace '{'.
+     * @returns The content of the block, or null if not found.
+     */
+    private extractBlockContent(text: string, startIndex: number): string | null {
+        if (text[startIndex] !== '{') {
+            return null;
+        }
+
+        let braceDepth = 1;
+        for (let i = startIndex + 1; i < text.length; i++) {
+            if (text[i] === '{') {
+                braceDepth++;
+            } else if (text[i] === '}') {
+                braceDepth--;
+                if (braceDepth === 0) {
+                    return text.substring(startIndex + 1, i);
+                }
+            }
+        }
+        return null; // Unmatched brace
+    }
+
+    /**
+     * Parses the header of a foreach loop to extract iteration variables.
+     * E.g., "key, val in mapping" -> [{name: "key"}, {name: "val"}]
+     * E.g., "item in array" -> [{name: "item"}]
+     * @param headerString The content inside foreach(...), e.g., "string k, string v in m".
+     * @returns An array of objects containing iteration variable names.
+     */
+    private parseForeachHeader(headerString: string): { name: string }[] {
+        const result: { name: string }[] = [];
+        const inKeyword = " in ";
+        const inIndex = headerString.lastIndexOf(inKeyword); // Use lastIndexOf to correctly handle "in" in var names if possible (though unlikely for iter vars)
+
+        if (inIndex === -1) return result;
+
+        const iterVarDeclarations = headerString.substring(0, inIndex).trim();
+        // const collectionName = headerString.substring(inIndex + inKeyword.length).trim(); // Not used here
+
+        if (!iterVarDeclarations) return result;
+
+        return iterVarDeclarations.split(',').map(vDecl => {
+            const trimmedDecl = vDecl.trim();
+            // Extract the last word, which should be the variable name (e.g., "string foo" -> "foo")
+            const nameMatch = trimmedDecl.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
+            const varName = nameMatch ? nameMatch[0] : "";
+            return { name: varName };
+        }).filter(v => v.name.length > 0 && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(v.name)); // Ensure it's a valid C-like identifier
+    }
+
 
     private createDiagnostic(
         range: vscode.Range,
@@ -817,12 +916,13 @@ export class LPCDiagnostics {
         );
     }
 
-    private checkVariableInCode(
+    private checkVariableInCode( // This helper function seems unused now, can be removed if checkVariableUsage is refactored.
         varName: string,
         code: string,
         patterns: { pattern: RegExp, description: string }[]
     ): { isUsed: boolean, usageType?: string } {
         for (const { pattern, description } of patterns) {
+            pattern.lastIndex = 0; // Reset lastIndex for global regexes
             if (pattern.test(code)) {
                 return { isUsed: true, usageType: description };
             }
@@ -831,179 +931,139 @@ export class LPCDiagnostics {
     }
 
     private getVariableUsagePatterns(varName: string): { pattern: RegExp, description: string }[] {
+        // Patterns for when a variable's value is read or it's passed by reference (like sscanf).
         return [
             {
-                pattern: new RegExp(
-                    `\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'
-                ),
+                // varName as a function argument: foo(varName), foo(x, varName, y)
+                pattern: new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: '函数参数'
             },
             {
-                pattern: new RegExp(
-                    `\\b(?!${varName}\\s*=)[a-zA-Z_][a-zA-Z0-9_]*\\s*[+\\-*\\/%]?=\\s*.*\\b${varName}\\b.*?;`, 'g'
-                ),
+                // varName on the RHS of an assignment: x = varName; y = z + varName;
+                // Negative lookahead (?!...) ensures varName is not on LHS of simple assignment like "varName = value"
+                // It allows varName on LHS of compound assignment "varName += value" because that's handled by '复合赋值'
+                pattern: new RegExp(`\\b(?!${varName}\\s*=[^=])[a-zA-Z_][a-zA-Z0-9_]*\\s*[+\\-*\\/%]?=\\s*.*\\b${varName}\\b.*?;`, 'g'),
                 description: '赋值右值'
             },
             {
+                // varName in a return statement: return varName; return obj->method(varName);
                 pattern: new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g'),
                 description: 'return语句'
             },
             {
+                // varName in an if condition: if (varName), if (varName > 0)
                 pattern: new RegExp(`\\bif\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: 'if条件'
             },
             {
+                // varName in a while condition: while (varName), while (varName--)
                 pattern: new RegExp(`\\bwhile\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: 'while循环'
             },
             {
+                // varName in a for loop's condition or increment part (not initializer if it's LHS of simple assignment):
+                // for (...; varName; ...), for (...; ; varName++)
                 pattern: new RegExp(`\\bfor\\s*\\([^;]*;[^;]*\\b${varName}\\b[^;]*;[^)]*\\)`, 'g'),
                 description: 'for循环'
             },
             {
+                // varName in a switch statement: switch (varName)
                 pattern: new RegExp(`\\bswitch\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: 'switch语句'
             },
             {
-                pattern: new RegExp(`\\bcase\\s+${varName}\\b`, 'g'),
+                // varName in a case statement: case varName:
+                pattern: new RegExp(`\\bcase\\s+\\b${varName}\\b`, 'g'),
                 description: 'case语句'
             },
-            {
-                pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
-                description: 'foreach迭代器'
+            // The following foreach patterns are for varName as LHS (iteration variable), so NOT a read.
+            // {
+            //     pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
+            //     description: 'foreach迭代器 (LHS)'
+            // },
+            // {
+            //     pattern: new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
+            //     description: 'foreach值 (LHS)'
+            // },
+            // {
+            //     pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
+            //     description: 'foreach单值 (LHS)'
+            // },
+            { 
+                // varName is the collection being iterated (RHS usage): foreach (x in varName)
+                pattern: new RegExp(`\\bforeach\\s*\\([^)]+in\\s+\\b${varName}\\b`, 'g'),
+                description: 'foreach集合 (RHS)'
             },
-            {
-                pattern: new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
-                description: 'foreach值'
+            { 
+                // For sscanf, input_to, the variable's address is effectively taken.
+                // For call_other, if varName is an argument, its value is read.
+                // Matches varName when it's one of the arguments, not just the first or specific one.
+                pattern: new RegExp(`\\b(?:sscanf|input_to|call_other)\\s*\\((?:[^(),]*\\(\\s*[^()]*\\s*\\)[^(),]*|[^(),])*\\b${varName}\\b`, 'g'),
+                description: '特殊函数调用 (sscanf, input_to, call_other arg)'
             },
-            {
-                pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
-                description: 'foreach单值'
+            { 
+                // varName is an object, and its member/method is accessed: varName->prop, varName->method()
+                pattern: new RegExp(`\\b${varName}\\s*->`, 'g'),
+                description: '对象成员访问'
             },
-            {
-                pattern: new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g'),
-                description: 'foreach集合'
-            },
-            {
-                pattern: new RegExp(`\\b(?:sscanf|input_to|call_other)\\s*\\([^,]*(?:,\\s*[^,]*)*\\b${varName}\\b`, 'g'),
-                description: '特殊函数调用'
-            },
-            {
-                pattern: new RegExp(`->\\s*${varName}\\b`, 'g'),
-                description: '对象方法调用'
-            },
-            {
-                pattern: new RegExp(`\\bcall_other\\s*\\([^,]+,\\s*"${varName}"`, 'g'),
-                description: 'call_other调用'
+            // Removed: `->\\s*${varName}\\b` (varName as method name, not a variable read)
+            // Removed: `\\bcall_other\\s*\\([^,]+,\\s*"${varName}"` (varName as string literal for func name)
+            { 
+                // Compound assignment: varName += value; varName -= value; etc. This is a read.
+                pattern: new RegExp(`\\b${varName}\\s*(?:\\+=|-=|\\*=|\\/=|%=)\\s*[^;]+`, 'g'),
+                description: '复合赋值'
             }
         ];
     }
 
     private checkVariableUsage(varName: string, code: string): boolean {
         const patterns = this.getVariableUsagePatterns(varName);
-        const { isUsed } = this.checkVariableInCode(varName, code, patterns);
-        
-        if (isUsed) return true;
+        for (const { pattern } of patterns) {
+            pattern.lastIndex = 0; // Reset lastIndex for global regexes before each test
+            if (pattern.test(code)) {
+                return true;
+            }
+        }
 
-        // 检查变量是否在数组访问或其他表达式中使用
+        // Fallback: Check for other usages of varName, ensuring it's not just on the LHS of a simple assignment.
+        // A simple assignment is like "varName = value;"
+        // A compound assignment like "varName += value;" is covered by getVariableUsagePatterns.
+        // Usage in an expression "x = varName + y", "if (varName)", "foo(varName)" (if not caught by specific patterns) should be caught.
         const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
         let match;
         while ((match = usagePattern.exec(code)) !== null) {
             const index = match.index;
-            const beforeChar = index > 0 ? code[index - 1] : '';
-            const afterSlice = code.slice(index + varName.length, index + varName.length + 2);
 
-            // 忽略赋值左侧的情况
-            const isAssignmentLeft = /\s*[+\-*\/%]?=/.test(afterSlice);
-            if (!isAssignmentLeft) {
-                // 检查是否在数组访问、成员访问或其他表达式中使用
-                const isArrayAccess = /\s*\[/.test(afterSlice);
-                const isMemberAccess = /\s*\.|\s*->/.test(afterSlice);
-                const isInExpression = /[-+*\/%&|^<>!?:]/.test(beforeChar) || 
-                                     /[-+*\/%&|^<>!?:]/.test(afterSlice);
-                if (isArrayAccess || isMemberAccess || isInExpression) {
-                    return true;
-                }
+            // Check context around varName to see if it's LHS of a simple assignment.
+            // Look at characters immediately after varName. e.g., "varName =", "varName  ="
+            const postVariableContext = code.substring(index + varName.length);
+            // Regex: starts with optional whitespace, then '=', then NOT another '=', then anything or end of line.
+            const simpleAssignmentLHSRegex = /^\s*=\s*([^=]|$)/; 
+            
+            if (!simpleAssignmentLHSRegex.test(postVariableContext)) {
+                // It's not on the LHS of a simple assignment like "varName = value".
+                // This means it's used in an expression, as a function argument (if not caught above),
+                // as an array index, part of a comparison, on RHS of assignment, etc.
+                return true;
             }
         }
-
         return false;
     }
 
+    // checkActualUsage is for variables declared WITH an assignment.
+    // It needs to check if the variable is *read* after its declaration.
+    // It can now directly use checkVariableUsage, as checkVariableUsage
+    // is designed to find "read" operations (not just assignments to the variable).
     private checkActualUsage(varName: string, code: string): boolean {
-        let isUsed = false;
-
-        // 检查变量是否作为参数传递给函数调用
-        const functionCallPattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g');
-        if (functionCallPattern.test(code)) {
-            isUsed = true;
-        }
-
-        // 检查变量是否被赋值给其他变量（作为右值）
-        const assignedToVariablePattern = new RegExp(`\\b(?!${varName}\\s*=)[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*.*\\b${varName}\\b.*?;`, 'g');
-        if (assignedToVariablePattern.test(code)) {
-            isUsed = true;
-        }
-
-        // 检查变量是否被 return 语句返回
-        const returnPattern = new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g');
-        if (returnPattern.test(code)) {
-            isUsed = true;
-        }
-
-        // 检查变量是否在表达式中使用
-        const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
-        let match;
-        while ((match = usagePattern.exec(code)) !== null) {
-            const index = match.index;
-
-            // 忽略赋值左侧的情况
-            const isAssignmentLeft = /\s*[+\-*\/%]?=/.test(code.slice(index + varName.length, index + varName.length + 2));
-            if (!isAssignmentLeft) {
-                // 检查是否在数组访问或其他表达式中使用
-                const isArrayAccess = /\s*\[/.test(code.slice(index + varName.length, index + varName.length + 2));
-                const isInExpression = /[-+*\/%&|^<>]/.test(code.slice(index - 1, index)) || 
-                                    /[-+*\/%&|^<>]/.test(code.slice(index + varName.length, index + varName.length + 1));
-                if (isArrayAccess || isInExpression) {
-                    isUsed = true;
-                }
-            }
-        }
-
-        // 检查foreach语句中的使用
-        const foreachPatterns = [
-            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
-            new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
-            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
-            new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g')
-        ];
-
-        if (foreachPatterns.some(pattern => pattern.test(code))) {
-            isUsed = true;
-        }
-
-        // 检查sscanf和input_to函数的使用
-        const specialFunctionPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
-        let funcMatch;
-        while ((funcMatch = specialFunctionPattern.exec(code)) !== null) {
-            const argsString = funcMatch[1];
-            const args = argsString.split(',').map(arg => arg.trim());
-            if (args.includes(varName)) {
-                isUsed = true;
-            }
-        }
-
-        return isUsed;
+        return this.checkVariableUsage(varName, code);
     }
 
     private checkActualUsageIncludingAssignment(varName: string, code: string): boolean {
-        // 首先检查是否有赋值操作（这种情况下认为变量被使用）
-        const assignmentPattern = new RegExp(`\\b${varName}\\s*[+\\-*\\/%]?=`, 'g');
-        if (assignmentPattern.test(code)) {
-            return true;
-        }
-
-        // 如果没有赋值，检查其他使用情况
+        // A variable is considered "used" if it's read from or its address is taken (like in sscanf),
+        // or it's part of a compound assignment (like x += 1).
+        // Simple assignment TO the variable (e.g., x = 5) doesn't make it "used" in terms of its prior value.
+        // Its subsequent use (reading the assigned value) makes it used.
+        // This function now relies entirely on checkVariableUsage to determine if a meaningful "read" or "by-reference modification" occurs.
         return this.checkVariableUsage(varName, code);
     }
 
