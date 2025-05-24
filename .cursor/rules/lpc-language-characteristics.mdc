@@ -1,0 +1,73 @@
+---
+description: 语言特性
+globs: 
+alwaysApply: false
+---
+# LPC 语言特性及扩展支持
+
+本规则概述了 LPC (Lars Pensjö C) 语言的一些核心特性，以及本 VS Code 扩展如何支持这些特性，以改善开发体验。
+
+## 1. 面向对象概念 (Object-Oriented Concepts)
+LPC 支持继承，允许对象从其他对象（蓝本文件）继承代码和变量。
+*   **扩展支持:**
+    *   通过 `[src/definitionProvider.ts](mdc:src/definitionProvider.ts)` 提供对继承函数和变量的跳转支持。
+    *   `[src/completionProvider.ts](mdc:src/completionProvider.ts)` 在代码补全时会考虑继承关系。
+
+## 2. 数据类型 (Data Types)
+LPC 拥有多种数据类型，包括：
+*   `int`, `string`, `float`
+*   `array` (数组)
+*   `mapping` (映射，类似关联数组)
+*   `object` (对象引用)
+*   `mixed` (混合类型)
+*   `void` (用于函数返回类型)
+*   **扩展支持:**
+    *   `[syntaxes/lpc.tmLanguage.json](mdc:syntaxes/lpc.tmLanguage.json)` 为这些类型提供语法高亮。
+    *   `[src/diagnostics.ts](mdc:src/diagnostics.ts)` 可能包含对类型不匹配的检查（视具体实现）。
+
+## 3. 特殊函数 (Special Functions)
+LPC 对象通常包含一些具有特殊用途的函数，例如：
+*   `create()`: 对象首次加载时调用。
+*   `init()`: 当对象被另一个对象交互时（例如，玩家进入房间）调用。
+*   `reset()`: 驱动程序定期调用，用于清理或重置对象状态。
+*   **扩展支持:**
+    *   代码补全 `[src/completionProvider.ts](mdc:src/completionProvider.ts)` 可能会建议这些常用函数。
+    *   语法高亮 `[syntaxes/lpc.tmLanguage.json](mdc:syntaxes/lpc.tmLanguage.json)` 会正确高亮这些函数定义。
+
+## 4. Efuns 和 Simul_efuns
+*   **Efuns (External Functions):** 由驱动程序提供的内建函数，功能强大。
+*   **Simul_efuns (Simulated Efuns):** 用 LPC 编写的函数，可以覆盖或补充某些 Efun 的行为，或提供新的常用功能。
+*   **扩展支持:**
+    *   `[src/efunDocs.ts](mdc:src/efunDocs.ts)` 和 `[src/functionDocPanel.ts](mdc:src/functionDocPanel.ts)` 用于管理和显示 Efun 文档。
+    *   `[src/completionProvider.ts](mdc:src/completionProvider.ts)` 提供 Efun 和 Simul_efun 的代码补全。
+    *   `[src/definitionProvider.ts](mdc:src/definitionProvider.ts)` 支持跳转到 Simul_efun 的定义。
+
+## 5. 预处理指令 (Preprocessor Directives)
+LPC 支持类似 C 语言的预处理指令，如：
+*   `#include`: 包含其他文件。
+*   `#define`: 定义宏。
+*   `#if`, `#ifdef`, `#ifndef`, `#else`, `#endif`: 条件编译。
+*   **扩展支持:**
+    *   `[src/macroManager.ts](mdc:src/macroManager.ts)` 负责解析和管理宏定义。
+    *   语法高亮 `[syntaxes/lpc.tmLanguage.json](mdc:syntaxes/lpc.tmLanguage.json)` 支持这些指令。
+    *   代码补全和定义跳转可能也支持宏。
+
+## 6. 控制结构 (Control Structures)
+LPC 支持常见的控制结构，如 `if-else`, `for`, `while`, `do-while`, `switch-case`。
+*   **扩展支持:**
+    *   `[src/extension.ts](mdc:src/extension.ts)` 中的 `formatLPCCode` 函数负责正确缩进和格式化这些结构。
+    *   语法高亮 `[syntaxes/lpc.tmLanguage.json](mdc:syntaxes/lpc.tmLanguage.json)` 支持这些关键字。
+
+## 7. 函数指针和闭包 (Function Pointers and Closures)
+LPC 支持函数指针 (`#'function_name`) 和闭包 (`(: ... :)` 或 `bind()`)，提供了灵活的编程方式。
+*   **扩展支持:**
+    *   语法高亮 `[syntaxes/lpc.tmLanguage.json](mdc:syntaxes/lpc.tmLanguage.json)` 会识别这些语法。
+
+## 8. 延迟执行 (Delayed Execution)
+*   `call_out()`: 延迟执行一个函数。
+*   `heart_beat`: 为对象注册一个周期性执行的 `heart_beat()` 函数。
+*   **扩展支持:**
+    *   这些是 LPC 的核心运行时特性，扩展主要通过语法高亮和可能的代码补全来支持它们的书写。
+
+此规则旨在帮助理解 LPC 的主要语言特性，并了解此 VS Code 扩展如何辅助使用这些特性进行开发。
+
