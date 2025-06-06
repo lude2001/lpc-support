@@ -31,7 +31,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
 
         // Check for "->" operator
         if (line.includes('->')) {
-            const regex = new RegExp(`(.*?)->\\s*${word}`);
+            const regex = new RegExp(`([a-zA-Z_][a-zA-Z0-9_]*|\\"(?:\\\\.|[^\\"])*\\")\\s*->\\s*${word}`);
             const match = regex.exec(line);
             if (match) {
                 const targetObject = match[1].trim();
