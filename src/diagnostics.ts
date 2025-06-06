@@ -3,6 +3,13 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from './macroManager';
 
+// ANTLR Imports for new parser-based diagnostics
+import { CharStreams, CommonTokenStream } from 'antlr4';
+import { ParseTreeWalker } from 'antlr4/src/antlr4/tree/Tree';
+import LPCLexer from '../../out/parser/LPCLexer.js';
+import LPCParser from '../../out/parser/LPCParser.js';
+import { LPCSymbolTableListener } from '../parser/lpcSymbolTableListener'; // Adjusted path
+
 // 加载配置文件
 interface LPCConfig {
     types: string[];
@@ -341,14 +348,83 @@ export class LPCDiagnostics {
 
     public analyzeDocument(document: vscode.TextDocument, showMessage: boolean = false): void {
         if (!this.shouldCheckFile(document.fileName)) {
+            this.diagnosticCollection.delete(document.uri); // Clear diagnostics for non-LPC files if any
             return;
         }
 
-        const diagnostics = this.collectDiagnostics(document);
-        this.diagnosticCollection.set(document.uri, diagnostics);
+        const text = document.getText();
+        let allDiagnostics: vscode.Diagnostic[] = [];
 
-        if (showMessage && diagnostics.length === 0) {
-            vscode.window.showInformationMessage('代码检查完成，未发现问题');
+        // 1. Existing Regex-based diagnostics (now collected into allDiagnostics)
+        // The old collectDiagnostics method is split and its parts are called here.
+        // Note: Some of these might become redundant or replaced by parser-based checks later.
+        this.collectObjectAccessDiagnostics(text, allDiagnostics, document);
+        this.collectStringLiteralDiagnostics(text, allDiagnostics, document);
+        // The old collectVariableUsageDiagnostics is very complex and regex-based for unused vars.
+        // We are replacing its core function (undefined var check) with the parser-based one.
+        // For now, we can choose to call the old one or skip it to avoid duplicate/conflicting "unused" checks.
+        // Let's comment it out for now to prioritize the new parser-based undefined check.
+        // this.collectVariableUsageDiagnostics(text, allDiagnostics, document);
+        this.collectFileNamingDiagnostics(document, allDiagnostics);
+
+        // 2. New Parser-based diagnostics (e.g., undefined variable check)
+        try {
+            // console.log(`LPCDiagnostics: Starting parser-based analysis for ${document.uri.fsPath}`);
+            const inputStream = CharStreams.fromString(text);
+            const lexer = new LPCLexer(inputStream);
+            lexer.removeErrorListeners(); // Suppress default console output for lexer errors
+
+            const tokenStream = new CommonTokenStream(lexer);
+            const parser = new LPCParser(tokenStream);
+            parser.removeErrorListeners(); // Suppress default console output for parser errors
+
+            // Add a custom error listener to collect syntax errors from the parser itself
+            const syntaxErrors: vscode.Diagnostic[] = [];
+            const errorListener = {
+                syntaxError: (recognizer: any, offendingSymbol: any, line: number, column: number, msg: string, e: any) => {
+                    syntaxErrors.push(
+                        new vscode.Diagnostic(
+                            new vscode.Range(line - 1, column, line - 1, column + (offendingSymbol?.text?.length || 1)),
+                            `Syntax Error: ${msg}`,
+                            vscode.DiagnosticSeverity.Error
+                        )
+                    );
+                }
+            };
+            parser.addErrorListener(errorListener as any); // Cast as any to satisfy ANTLR's listener interface
+
+            const tree = parser.program();
+
+            if (syntaxErrors.length > 0) {
+                allDiagnostics = allDiagnostics.concat(syntaxErrors);
+                // console.log(`LPCDiagnostics: Found ${syntaxErrors.length} syntax errors.`);
+            }
+
+            // Only run symbol table listener if no syntax errors, or if desired even with errors
+            if (syntaxErrors.length === 0 && tree) { // Or just 'if (tree)'
+                const symbolTableListener = new LPCSymbolTableListener(parser);
+                ParseTreeWalker.DEFAULT.walk(symbolTableListener, tree);
+                const semanticDiagnostics = symbolTableListener.getDiagnostics();
+                allDiagnostics = allDiagnostics.concat(semanticDiagnostics);
+                // console.log(`LPCDiagnostics: Added ${semanticDiagnostics.length} diagnostics from symbol table listener.`);
+            }
+
+        } catch (error) {
+            console.error(`LPCDiagnostics: Error during parser-based analysis for ${document.uri.fsPath}:`, error);
+            allDiagnostics.push(new vscode.Diagnostic(
+                new vscode.Range(0,0,0,0), // Default to start of file for catastrophic errors
+                "LPC Parser failed to analyze the document. Check developer console for error details.",
+                vscode.DiagnosticSeverity.Error
+            ));
+        }
+
+        this.diagnosticCollection.set(document.uri, allDiagnostics);
+
+        if (showMessage && allDiagnostics.filter(d => d.severity === vscode.DiagnosticSeverity.Error).length === 0) {
+            // Adjusted to only show "no issues" if no errors. Warnings might still exist.
+            vscode.window.showInformationMessage('代码检查完成，未发现严重问题。');
+        } else if (showMessage && allDiagnostics.filter(d => d.severity === vscode.DiagnosticSeverity.Error).length > 0) {
+            vscode.window.showInformationMessage('代码检查完成，发现一些问题。');
         }
     }
 
