@@ -29,6 +29,98 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         const word = document.getText(wordRange);
         const line = document.lineAt(position.line).text;
 
+        // Check for "->" operator
+        if (line.includes('->')) {
+            const regex = new RegExp(`(.*?)->\\s*${word}`);
+            const match = regex.exec(line);
+            if (match) {
+                const targetObject = match[1].trim();
+                const functionName = word; // functionName is the 'word' clicked on
+
+                // Check if targetObject is a string literal (file path)
+                const stringLiteralRegex = /^"(.*)"$/;
+                const stringMatch = stringLiteralRegex.exec(targetObject);
+
+                if (stringMatch) {
+                    let extractedPath = stringMatch[1];
+
+                    // Normalize path: append .c if not present
+                    if (!extractedPath.endsWith('.c')) {
+                        extractedPath += '.c';
+                    }
+
+                    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+                    if (workspaceFolder) {
+                        // Handle both /path/file and path/file as relative to workspace root
+                        const fullPathUri = vscode.Uri.joinPath(
+                            workspaceFolder.uri,
+                            extractedPath.startsWith('/') ? extractedPath.substring(1) : extractedPath
+                        );
+
+                        if (fs.existsSync(fullPathUri.fsPath)) {
+                            try {
+                                const fileContent = await vscode.workspace.fs.readFile(fullPathUri);
+                                const text = Buffer.from(fileContent).toString('utf8');
+
+                                // Search for the functionName in the text
+                                // Ensure word in regex is properly escaped if it can contain special characters.
+                                // For simplicity, assuming 'word' is a simple identifier.
+                                const functionRegex = new RegExp(
+                                    `(?:(?:private|public|protected|static|nomask|varargs)\\s+)*` +
+                                    `(?:void|int|string|object|mapping|mixed|float|buffer)\\s+` +
+                                    `${functionName}\\s*\\([^)]*\\)`, // Using functionName (word) directly
+                                    'g'
+                                );
+
+                                const location = await this._findFunctionInFile(fullPathUri, functionName);
+                                if (location) {
+                                    return location;
+                                }
+                            } catch (error) {
+                                console.error(`Error processing file for "->" operator: ${fullPathUri.fsPath}`, error);
+                                // Fall through to other checks if file processing fails
+                            }
+                        }
+                    }
+                } else if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(targetObject)) {
+                    // targetObject is an identifier, possibly a macro
+                    const macro = this.macroManager.getMacro(targetObject);
+                    if (macro && macro.value) {
+                        let macroPath = macro.value.replace(/^"(.*)"$/, '$1'); // Remove quotes
+
+                        if (!macroPath.endsWith('.c')) {
+                            macroPath += '.c';
+                        }
+
+                        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+                        if (workspaceFolder) {
+                            let resolvedPath = macroPath;
+                            // If macroPath looks absolute (e.g. "/include/foo.c"), treat it as relative to workspace root
+                            if (resolvedPath.startsWith('/')) {
+                                resolvedPath = resolvedPath.substring(1);
+                            }
+                            const fullPathUri = vscode.Uri.joinPath(workspaceFolder.uri, resolvedPath);
+
+                            if (fs.existsSync(fullPathUri.fsPath)) {
+                                try {
+                                    const location = await this._findFunctionInFile(fullPathUri, functionName);
+                                    if (location) {
+                                        return location;
+                                    }
+                                } catch (error) {
+                                    console.error(`Error processing file from macro for "->" operator: ${fullPathUri.fsPath}`, error);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // If targetObject is not a string literal or a recognized identifier (macro),
+                    // or if any step above failed, log and fall through.
+                    console.log(`Found "->" operator. Target object: ${targetObject}, Function name: ${functionName}. No definition found via string or macro path.`);
+                }
+            }
+        }
+
         // 1. 检查是否是宏定义
         const macro = this.macroManager.getMacro(word);
         if (macro) {
@@ -99,6 +191,38 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
             return variableDef;
         }
 
+        return undefined;
+    }
+
+    private _offsetToPosition(docText: string, offset: number): vscode.Position {
+        const before = docText.substring(0, offset);
+        const lines = before.split('\n');
+        const line = lines.length - 1;
+        const character = lines[line].length;
+        return new vscode.Position(line, character);
+    }
+
+    private async _findFunctionInFile(fileUri: vscode.Uri, functionName: string): Promise<vscode.Location | undefined> {
+        try {
+            const fileContent = await vscode.workspace.fs.readFile(fileUri);
+            const text = Buffer.from(fileContent).toString('utf8');
+
+            const functionRegex = new RegExp(
+                `(?:(?:private|public|protected|static|nomask|varargs)\\s+)*` +
+                `(?:void|int|string|object|mapping|mixed|float|buffer)\\s+` +
+                `${functionName}\\s*\\([^)]*\\)`,
+                'g'
+            );
+
+            const funcMatch = functionRegex.exec(text);
+            if (funcMatch) {
+                const defStartPos = this._offsetToPosition(text, funcMatch.index);
+                const defEndPos = this._offsetToPosition(text, funcMatch.index + funcMatch[0].length);
+                return new vscode.Location(fileUri, new vscode.Range(defStartPos, defEndPos));
+            }
+        } catch (error) {
+            console.error(`Error reading or processing file ${fileUri.fsPath}:`, error);
+        }
         return undefined;
     }
 
