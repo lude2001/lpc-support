@@ -24,6 +24,11 @@ function loadLPCConfig(configPath: string): LPCConfig {
     }
 }
 
+interface ForeachIterVariable {
+    name: string;
+    role: string; // "key", "value", "item" or "unknown"
+}
+
 export class LPCDiagnostics {
     private diagnosticCollection: vscode.DiagnosticCollection;
     private macroManager: MacroManager;
@@ -757,10 +762,21 @@ export class LPCDiagnostics {
 
             if (loopBodyContent === null) continue;
 
-            const iterVars = this.parseForeachHeader(foreachHeaderString);
+            const iterVars: ForeachIterVariable[] = this.parseForeachHeader(foreachHeaderString);
+            
+            // 检查是否是mapping迭代 (有两个变量且第一个是key)
+            const isMappingIteration = iterVars.length === 2 && 
+                                      iterVars[0].role === "key" && 
+                                      iterVars[1].role === "value";
 
             for (const iterVar of iterVars) {
                 const varName = iterVar.name;
+                
+                // 对于mapping迭代中的key变量，即使未使用也不要警告
+                if (isMappingIteration && iterVar.role === "key") {
+                    processedForeachVars.add(varName);
+                    continue;
+                }
                 
                 // Find the precise start index of varName within the foreachHeaderString for accurate diagnostic range
                 const varNameRegex = new RegExp(`\\b(${varName})\\b`);
@@ -791,7 +807,6 @@ export class LPCDiagnostics {
                 processedForeachVars.add(varName); 
             }
         }
-
 
         // Check normal variable usage, skipping those already processed as foreach iteration variables
         for (const [varName, info] of localVars) {
@@ -842,7 +857,7 @@ export class LPCDiagnostics {
      * Extracts the content of a block enclosed by braces {}.
      * @param text The text containing the block.
      * @param startIndex The index of the opening brace '{'.
-     * @returns The content of the block, or null if not found.
+     * @returns The content of the block (excluding braces), or null if not found.
      */
     private extractBlockContent(text: string, startIndex: number): string | null {
         if (text[startIndex] !== '{') {
@@ -865,30 +880,45 @@ export class LPCDiagnostics {
 
     /**
      * Parses the header of a foreach loop to extract iteration variables.
-     * E.g., "key, val in mapping" -> [{name: "key"}, {name: "val"}]
-     * E.g., "item in array" -> [{name: "item"}]
+     * E.g., "key, val in mapping" -> [{name: "key", role: "key"}, {name: "val", role: "value"}]
+     * E.g., "item in array" -> [{name: "item", role: "item"}]
      * @param headerString The content inside foreach(...), e.g., "string k, string v in m".
-     * @returns An array of objects containing iteration variable names.
+     * @returns An array of objects containing iteration variable names and roles.
      */
-    private parseForeachHeader(headerString: string): { name: string }[] {
-        const result: { name: string }[] = [];
+    private parseForeachHeader(headerString: string): ForeachIterVariable[] {
+        const result: ForeachIterVariable[] = [];
         const inKeyword = " in ";
         const inIndex = headerString.lastIndexOf(inKeyword); // Use lastIndexOf to correctly handle "in" in var names if possible (though unlikely for iter vars)
 
         if (inIndex === -1) return result;
 
         const iterVarDeclarations = headerString.substring(0, inIndex).trim();
-        // const collectionName = headerString.substring(inIndex + inKeyword.length).trim(); // Not used here
+        const collectionName = headerString.substring(inIndex + inKeyword.length).trim(); // Now used for detecting mapping iteration
 
         if (!iterVarDeclarations) return result;
 
-        return iterVarDeclarations.split(',').map(vDecl => {
+        const vars = iterVarDeclarations.split(',').map(vDecl => {
             const trimmedDecl = vDecl.trim();
             // Extract the last word, which should be the variable name (e.g., "string foo" -> "foo")
             const nameMatch = trimmedDecl.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
             const varName = nameMatch ? nameMatch[0] : "";
             return { name: varName };
         }).filter(v => v.name.length > 0 && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(v.name)); // Ensure it's a valid C-like identifier
+
+        // Determine variable roles based on count and pattern
+        if (vars.length === 1) {
+            // Single variable is always an array item or the only mapping value if used alone
+            result.push({ name: vars[0].name, role: "item" });
+        } else if (vars.length === 2) {
+            // Two variables indicate a key-value pair for mapping iteration
+            result.push({ name: vars[0].name, role: "key" });
+            result.push({ name: vars[1].name, role: "value" });
+        } else {
+            // For any other case, just use generic role
+            vars.forEach(v => result.push({ name: v.name, role: "unknown" }));
+        }
+
+        return result;
     }
 
 
