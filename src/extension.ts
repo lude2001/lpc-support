@@ -1,4 +1,3 @@
-// Test comment to check file modification
 import * as vscode from 'vscode';
 import { LPCDiagnostics } from './diagnostics';
 import { LPCCodeActionProvider } from './codeActions';
@@ -6,14 +5,10 @@ import { LPCCompletionItemProvider } from './completionProvider';
 import { LPCConfigManager } from './config';
 import { LPCCompiler } from './compiler';
 import { MacroManager } from './macroManager';
-// import { LPCDefinitionProvider } from './definitionProvider'; // Original provider
+import { LPCDefinitionProvider } from './definitionProvider';
 import { EfunDocsManager } from './efunDocs';
 import { FunctionDocPanel } from './functionDocPanel';
 import { formatLPCCode } from './formatter'; // 从 formatter.ts 导入
-import { parseLpcCode } from './parser/lpcParserUtil';
-import { LPCSemanticTokensProvider, lpcSemanticTokenLegend } from './parser/lpcSemanticTokensProvider';
-import { LPCHoverProvider } from './hoverProvider';
-import { LPCWrappingDefinitionProvider } from './parser/lpcWrappingDefinitionProvider'; // New Wrapping Provider
 
 export function activate(context: vscode.ExtensionContext) {
     // 初始化诊断功能
@@ -167,11 +162,11 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // 注册定义跳转提供程序 (using the new wrapper)
+    // 注册定义跳转提供程序
     context.subscriptions.push(
         vscode.languages.registerDefinitionProvider(
-            { language: 'lpc', scheme: 'file' }, // Added document selector
-            new LPCWrappingDefinitionProvider(macroManager, efunDocsManager)
+            'lpc',
+            new LPCDefinitionProvider(macroManager, efunDocsManager)
         )
     );
 
@@ -213,85 +208,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('lpc.showMacros', () => macroManager.showMacrosList()),
         vscode.commands.registerCommand('lpc.configureMacroPath', () => macroManager.configurePath())
-    );
-
-    // Register the test parser command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('lpc.testParser', () => {
-            const testCodeSnippet = `
-                // Test LPC Code
-                string s = "hello";
-                int main(string arg1, int arg2) {
-                    if (s == "hello") {
-                        return 1 + arg2;
-                    } else {
-                        s = "world";
-                    }
-                    return 0;
-                }
-
-                void other_func() {
-                    int *arr = ({ 1, 2, 3 });
-                    mapping m = ([ "key": "value", "another": arr[0] ]);
-                    arr[0] = m["key"];
-                    s = arr[<1]; // Example of range access with <
-                }
-            `;
-            vscode.window.showInformationMessage('LPC Parser test command executed. Check console for output.');
-            console.log('LPC Test Parser: Attempting to parse code snippet...');
-            try {
-                const tree = parseLpcCode(testCodeSnippet);
-                console.log('LPC Test Parser: Parse tree:');
-                // Note: The actual tree object might be very large and complex.
-                // For detailed inspection, a visitor or listener pattern is typically used.
-                if (tree && typeof tree.toStringTree === 'function') {
-                    // The LPCParser instance isn't readily available here to pass for ruleNames
-                    // A simple log indicating success and structure is often sufficient for a basic test
-                    console.log("Parse tree object obtained. Root rule: program, Number of children:", tree.getChildCount());
-                    // Example: Logging text of first few children if they exist
-                    if (tree.getChildCount() > 0 && tree.children) {
-                        for(let i = 0; i < Math.min(tree.getChildCount(), 5); i++) { // Log up to 5 children
-                            const child = tree.children[i];
-                            if (child && typeof child.getText === 'function') {
-                                console.log(`Child ${i} text: ${child.getText()}`);
-                            } else if (child) {
-                                console.log(`Child ${i} type: (TerminalNode or similar, text not directly available)`);
-                            }
-                        }
-                    }
-                } else if (tree) {
-                     console.log("Parse tree object obtained (structure might be complex to log directly). Root rule context:", tree.constructor.name);
-                } else {
-                    console.log("Parsing returned null or undefined tree.");
-                }
-                vscode.window.showInformationMessage('LPC code parsed successfully! Check console.');
-            } catch (error) {
-                console.error('LPC Test Parser: Error during parsing:');
-                console.error(error); // Log the actual error object
-                if (error instanceof Error) {
-                   vscode.window.showErrorMessage(`LPC code parsing failed: ${error.message}. Check console.`);
-                } else {
-                   vscode.window.showErrorMessage('LPC code parsing failed. Check console for error.');
-                }
-            }
-        })
-    );
-
-    // Register Semantic Tokens Provider
-    context.subscriptions.push(
-        vscode.languages.registerDocumentSemanticTokensProvider(
-            { language: 'lpc', scheme: 'file' },
-            new LPCSemanticTokensProvider(),
-            lpcSemanticTokenLegend // Use the legend exported from the provider file
-        )
-    );
-
-    // Register Hover Provider
-    context.subscriptions.push(
-        vscode.languages.registerHoverProvider(
-            { language: 'lpc', scheme: 'file' },
-            new LPCHoverProvider()
-        )
     );
 
     // 将宏管理器添加到清理列表
