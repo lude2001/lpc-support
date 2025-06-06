@@ -4,70 +4,26 @@ import * as fs from 'fs';
 import { EfunDocsManager } from './efunDocs';
 import { MacroManager } from './macroManager';
 
-// ANTLR and Symbol Table Imports
-import { CharStreams, CommonTokenStream, Token, ParserRuleContext as AntlrParserRuleContext } from 'antlr4';
-import { ParseTreeWalker, TerminalNode, ParseTree } from 'antlr4/src/antlr4/tree/Tree';
-import LPCLexer from '../../out/parser/LPCLexer.js';
-import LPCParser, { ProgramContext, FunctionDefinitionContext } from '../../out/parser/LPCParser.js'; // Added FunctionDefinitionContext
-import { LPCSymbolTableListener } from './parser/lpcSymbolTableListener'; // Adjusted path
-import { LPCSymbol, Scope, SymbolKind } from './parser/symbolTable';   // Adjusted path
-
 // 创建输出通道
 const inheritanceChannel = vscode.window.createOutputChannel('LPC Inheritance');
 
-// Helper function to get unique elements from an array
-const uniquePathsFromArray = (arr: string[]) => [...new Set(arr)];
-
-// Helper to find the most specific scope at a given text offset
-// (Similar to the one in LPCHoverProvider)
-function findScopeAtOffset(startingScope: Scope, offset: number): Scope {
-    let bestMatch: Scope = startingScope;
-
-    function findRecursive(currentScope: Scope) {
-        const scopeNode = currentScope.scopeNode;
-        let nodeStartOffset = -1;
-        let nodeEndOffset = -1;
-
-        if (scopeNode instanceof AntlrParserRuleContext) {
-            if (scopeNode.start && scopeNode.stop) {
-                nodeStartOffset = scopeNode.start.start;
-                nodeEndOffset = scopeNode.stop.stop;
-            }
-        }
-
-        if (nodeStartOffset !== -1 && nodeEndOffset !== -1 && offset >= nodeStartOffset && offset <= nodeEndOffset) {
-            bestMatch = currentScope;
-            for (const childScope of currentScope.children) {
-                findRecursive(childScope);
-            }
-        }
-    }
-
-    if (startingScope.scopeNode) {
-        findRecursive(startingScope);
-    }
-    return bestMatch;
-}
-
 export class LPCCompletionItemProvider implements vscode.CompletionItemProvider {
     private types = ['void', 'int', 'string', 'object', 'mapping', 'mixed', 'float', 'buffer'];
-    private modifiers = ['private', 'protected', 'public', 'static', 'nomask', 'varargs', 'nosave']; // Added nosave
+    private modifiers = ['private', 'protected', 'public', 'static', 'nomask', 'varargs'];
     private efunDocsManager: EfunDocsManager;
     private macroManager: MacroManager;
-    private functionCache: Map<string, vscode.CompletionItem[]> = new Map(); // For inherited functions (regex-based)
-    // private variableCache: Map<string, vscode.CompletionItem[]> = new Map(); // Removed, parser handles locals
-    private filePathCache: Map<string, string> = new Map(); // For resolved inherited file paths
+    private functionCache: Map<string, vscode.CompletionItem[]> = new Map();
+    private variableCache: Map<string, vscode.CompletionItem[]> = new Map();
+    private filePathCache: Map<string, string> = new Map();
 
     constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager) {
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
     }
 
-    // 清除变量缓存的公共方法 - Now clears all relevant caches
-    public clearCaches(): void {
-        this.functionCache.clear();
-        this.filePathCache.clear();
-        // console.log("LPCCompletionItemProvider caches cleared.");
+    // 清除变量缓存的公共方法
+    public clearVariableCache(): void {
+        this.variableCache.clear();
     }
 
     async provideCompletionItems(
@@ -79,12 +35,11 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         const linePrefix = document.lineAt(position).text.substr(0, position.character);
         const completionItems: vscode.CompletionItem[] = [];
 
-        // Add parser-based completions (local variables, functions, parameters, etc. in current file)
-        await this.addParserBasedCompletions(document, position, completionItems, token);
+        // 添加当前文件中定义的函数和继承的函数
+        await this.addLocalFunctionCompletions(document, completionItems);
         
-        // Regex-based completions for inherited functions
-        await this.addInheritedFunctionCompletions(document, completionItems, false);
-
+        // 添加当前作用域内的变量
+        this.addLocalVariableCompletions(document, position, completionItems);
 
         // 添加类型提示
         this.types.forEach(type => {
@@ -165,136 +120,361 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         return completionItems;
     }
 
-    private async addParserBasedCompletions(
-        document: vscode.TextDocument,
-        position: vscode.Position,
-        completionItems: vscode.CompletionItem[],
-        cancellationToken: vscode.CancellationToken
-    ): Promise<void> {
-        try {
-            const text = document.getText();
-            const inputStream = CharStreams.fromString(text);
-            const lexer = new LPCLexer(inputStream);
-            lexer.removeErrorListeners();
-            const tokenStream = new CommonTokenStream(lexer);
-            const parser = new LPCParser(tokenStream);
-            parser.removeErrorListeners();
-            const tree = parser.program();
-
-            if (cancellationToken.isCancellationRequested) return;
-
-            const symbolTableListener = new LPCSymbolTableListener(parser);
-            if (tree) {
-                symbolTableListener.globalScope.scopeNode = tree;
-            }
-            ParseTreeWalker.DEFAULT.walk(symbolTableListener, tree);
-
-            if (cancellationToken.isCancellationRequested) return;
-
-            const offset = document.offsetAt(position);
-            const currentScope = findScopeAtOffset(symbolTableListener.globalScope, offset);
-
-            let tempScope: Scope | null = currentScope;
-            const addedSymbols = new Set<string>(); // To avoid duplicates from different scopes if not shadowed
-
-            while (tempScope) {
-                tempScope.symbols.forEach(symbol => {
-                    if (addedSymbols.has(symbol.name)) return; // Already added from a more specific scope
-
-                    const item = new vscode.CompletionItem(symbol.name);
-                    item.detail = `(${symbol.kind}) ${symbol.type || ''} ${symbol.name}`;
-
-                    let vsKind = vscode.CompletionItemKind.Text;
-                    switch(symbol.kind) {
-                        case 'function': vsKind = vscode.CompletionItemKind.Function; break;
-                        case 'variable': vsKind = vscode.CompletionItemKind.Variable; break;
-                        case 'parameter': vsKind = vscode.CompletionItemKind.Variable; item.detail = `(parameter) ${symbol.type || ''} ${symbol.name}`; break;
-                        case 'class': vsKind = vscode.CompletionItemKind.Class; break;
-                        case 'macro': vsKind = vscode.CompletionItemKind.Snippet; item.detail = `(macro) ${symbol.name} ${symbol.type || ''}`; break; // Type stores value for macros
-                        default: vsKind = vscode.CompletionItemKind.Text;
-                    }
-                    item.kind = vsKind;
-
-                    if (symbol.kind === 'function') {
-                        // Attempt to get full function signature from declaration node if it's a FunctionDefinitionContext
-                        // The LPCSymbolTableListener stores the IDENTIFIER node for functions. Its parent is FunctionDefinitionContext.
-                        if (symbol.declarationNode?.parentCtx instanceof FunctionDefinitionContext) {
-                            const funcDefCtx = symbol.declarationNode.parentCtx as FunctionDefinitionContext;
-                            const signature = funcDefCtx.getText().split('{')[0].trim(); // Get text up to the opening brace
-                            item.documentation = new vscode.MarkdownString().appendCodeblock(signature, 'lpc');
-                            // Create a snippet with placeholders for parameters
-                            const params = funcDefCtx.parameterList()?.parameterDeclaration();
-                            if (params && params.length > 0) {
-                                const paramSnippets = params.map((p, i) => `\${${i+1}:${p.IDENTIFIER().getText()}}`);
-                                item.insertText = new vscode.SnippetString(`${symbol.name}(${paramSnippets.join(', ')})`);
-                            } else {
-                                item.insertText = new vscode.SnippetString(`${symbol.name}()`);
-                            }
-                        } else {
-                             item.insertText = new vscode.SnippetString(`${symbol.name}()`);
-                        }
-                    } else if (symbol.kind === 'macro') {
-                        item.insertText = symbol.name; // Macros are just their name
-                         const macroDetail = symbol.type?.startsWith("defined as: ") ? symbol.type.substring("defined as: ".length) : symbol.type;
-                        item.documentation = new vscode.MarkdownString().appendCodeblock(`#define ${symbol.name} ${macroDetail || ''}`, 'lpc');
-                    } else {
-                        item.insertText = symbol.name;
-                    }
-
-                    completionItems.push(item);
-                    addedSymbols.add(symbol.name);
-                });
-                tempScope = tempScope.parent;
-            }
-
-        } catch (error) {
-            console.error("Error during parser-based completion gathering:", error);
-        }
-    }
-
     // 添加一个公共方法用于手动扫描
     public async scanInheritance(document: vscode.TextDocument): Promise<void> {
         // 清除之前的输出
         inheritanceChannel.clear();
         inheritanceChannel.show(true);
-        // Call the renamed method that now focuses on inherited functions
-        await this.addInheritedFunctionCompletions(document, [], true);
+        await this.parseInheritedFunctions(document, [], true);
     }
 
-    // Renamed from addLocalFunctionCompletions - now primarily for inherited items
-    private async addInheritedFunctionCompletions(
-        document: vscode.TextDocument,
-        completionItems: vscode.CompletionItem[],
-        showOutput: boolean = false // For debugging inheritance scan
-    ): Promise<void> {
-        // Current file functions are handled by addParserBasedCompletions.
-        // This method now focuses on its original strength: cross-file inheritance.
-        await this.parseInheritedFunctionsRegex(document, completionItems, showOutput);
+    private async addLocalFunctionCompletions(document: vscode.TextDocument, completionItems: vscode.CompletionItem[]): Promise<void> {
+        // 首先添加当前文件的函数
+        this.parseFunctionsInFile(document, completionItems);
+        
+        // 解析继承文件，但不显示输出
+        await this.parseInheritedFunctions(document, completionItems, false);
     }
 
-    // Old regex-based methods for variable parsing - these are now superseded by addParserBasedCompletions
-    // and can be removed or left commented out for reference.
-    /*
+    // 添加当前作用域内的变量提示
     private addLocalVariableCompletions(document: vscode.TextDocument, position: vscode.Position, completionItems: vscode.CompletionItem[]): void {
-        // ... old code ...
+        // 获取当前文件的变量
+        const variables = this.parseVariablesInScope(document, position);
+        completionItems.push(...variables);
     }
-    private parseVariablesInScope(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
-        // ... old code ...
-        return [];
-    }
-    private parseGlobalVariables(text: string, result: vscode.CompletionItem[]): void {
-        // ... old code ...
-    }
-    private parseLocalVariables(document: vscode.TextDocument, position: vscode.Position, result: vscode.CompletionItem[]): void {
-        // ... old code ...
-    }
-    private parseFunctionParameters(document: vscode.TextDocument, position: vscode.Position, result: vscode.CompletionItem[]): void {
-        // ... old code ...
-    }
-    */
 
-    // Renamed from parseInheritedFunctions to clarify it's regex based and what it does
-    private async parseInheritedFunctionsRegex(
+    // 解析当前作用域内的变量
+    private parseVariablesInScope(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
+        const text = document.getText();
+        const lines = text.split('\n');
+        const currentLine = position.line;
+        const currentChar = position.character;
+        const result: vscode.CompletionItem[] = [];
+        
+        // 缓存键
+        const cacheKey = `${document.uri.toString()}_${currentLine}_${currentChar}`;
+        
+        // 检查缓存
+        if (this.variableCache.has(cacheKey)) {
+            return this.variableCache.get(cacheKey) || [];
+        }
+        
+        // 1. 解析全局变量
+        this.parseGlobalVariables(text, result);
+        
+        // 2. 解析当前函数内的局部变量
+        this.parseLocalVariables(document, position, result);
+        
+        // 3. 解析函数参数
+        this.parseFunctionParameters(document, position, result);
+        
+        // 更新缓存
+        this.variableCache.set(cacheKey, result);
+        
+        return result;
+    }
+    
+    // 解析全局变量
+    private parseGlobalVariables(text: string, result: vscode.CompletionItem[]): void {
+        // 匹配全局变量定义，确保它们在函数外部
+        const lines = text.split('\n');
+        let inFunction = false;
+        let bracketCount = 0;
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // 计算大括号来跟踪函数范围
+            const openBrackets = (line.match(/{/g) || []).length;
+            const closeBrackets = (line.match(/}/g) || []).length;
+            bracketCount += openBrackets - closeBrackets;
+            
+            // 检查是否是函数定义行
+            if (!inFunction && bracketCount > 0 && line.match(/(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\)\s*{/)) {
+                inFunction = true;
+                continue;
+            }
+            
+            // 如果括号平衡，说明函数结束
+            if (inFunction && bracketCount === 0) {
+                inFunction = false;
+            }
+            
+            // 只在函数外部处理全局变量
+            if (!inFunction && bracketCount === 0) {
+                // 匹配全局变量定义，例如: int global_var;
+                const globalVarRegex = /(?:(?:private|public|protected|static|nosave)\s+)*(?:int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(?:=\s*[^;]+)?\s*;/;
+                
+                const match = line.match(globalVarRegex);
+                if (match) {
+                    // 处理可能的多变量声明 (int a, b, c;)
+                    const varNames = match[1].split(',').map(v => v.trim());
+                    const varDefinition = match[0].trim();
+                    
+                    for (const varName of varNames) {
+                        // 创建补全项
+                        const item = new vscode.CompletionItem(varName, vscode.CompletionItemKind.Variable);
+                        item.detail = `全局变量: ${varName}`;
+                        
+                        // 添加变量定义作为文档
+                        const markdown = new vscode.MarkdownString();
+                        markdown.appendCodeblock(varDefinition, 'lpc');
+                        item.documentation = markdown;
+                        
+                        result.push(item);
+                    }
+                }
+            }
+        }
+    }
+    
+    // 解析局部变量
+    private parseLocalVariables(document: vscode.TextDocument, position: vscode.Position, result: vscode.CompletionItem[]): void {
+        const text = document.getText();
+        const lines = text.split('\n');
+        const currentLine = position.line;
+        
+        // 找到当前函数的范围
+        let startLine = 0;
+        let endLine = lines.length - 1;
+        let bracketCount = 0;
+        let inFunction = false;
+        let functionStartBracketLine = -1;
+        
+        // 向上查找函数开始
+        for (let i = currentLine; i >= 0; i--) {
+            const line = lines[i];
+            
+            // 计算大括号
+            const openBrackets = (line.match(/{/g) || []).length;
+            const closeBrackets = (line.match(/}/g) || []).length;
+            
+            // 更新括号计数
+            for (let j = 0; j < line.length; j++) {
+                if (line[j] === '{') {
+                    bracketCount++;
+                    if (bracketCount === 1 && functionStartBracketLine === -1) {
+                        functionStartBracketLine = i;
+                    }
+                } else if (line[j] === '}') {
+                    bracketCount--;
+                    // 如果括号计数变为0，说明我们离开了当前代码块
+                    if (bracketCount === 0) {
+                        inFunction = false;
+                    }
+                }
+            }
+            
+            // 检查是否是函数定义行
+            if (!inFunction && line.match(/(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\)/)) {
+                inFunction = true;
+                startLine = i;
+                break;
+            }
+        }
+        
+        // 如果没有找到函数，返回空结果
+        if (!inFunction || functionStartBracketLine === -1) {
+            return;
+        }
+        
+        // 向下查找函数结束
+        bracketCount = 1; // 从函数开始的大括号开始计数
+        for (let i = functionStartBracketLine + 1; i <= endLine; i++) {
+            const line = lines[i];
+            
+            // 逐字符计算大括号以处理同一行中的多个大括号
+            for (let j = 0; j < line.length; j++) {
+                if (line[j] === '{') {
+                    bracketCount++;
+                } else if (line[j] === '}') {
+                    bracketCount--;
+                    // 如果括号计数变为0，说明函数结束
+                    if (bracketCount === 0) {
+                        endLine = i;
+                        break;
+                    }
+                }
+            }
+            
+            if (bracketCount === 0) {
+                break;
+            }
+        }
+        
+        // 提取函数体内的局部变量
+        let continuedLine = '';
+        let inMultiLineDeclaration = false;
+        
+        for (let i = startLine; i < Math.min(currentLine + 1, endLine); i++) {
+            let line = lines[i];
+            
+            // 处理多行声明
+            if (inMultiLineDeclaration) {
+                continuedLine += line;
+                if (line.includes(';')) {
+                    line = continuedLine;
+                    inMultiLineDeclaration = false;
+                    continuedLine = '';
+                } else {
+                    continue;
+                }
+            } else if (line.match(/(?:int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*/) && !line.includes(';')) {
+                inMultiLineDeclaration = true;
+                continuedLine = line;
+                continue;
+            }
+            
+            // 匹配局部变量定义，例如: int local_var = 10;
+            const localVarRegex = /(?:int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(?:=\s*[^;]+)?\s*;/;
+            
+            const match = line.match(localVarRegex);
+            if (match) {
+                // 处理可能的多变量声明 (int a, b, c;)
+                const varNames = match[1].split(',').map(v => v.trim());
+                const varDefinition = match[0].trim();
+                
+                for (const varName of varNames) {
+                    // 创建补全项
+                    const item = new vscode.CompletionItem(varName, vscode.CompletionItemKind.Variable);
+                    item.detail = `局部变量: ${varName}`;
+                    
+                    // 添加变量定义作为文档
+                    const markdown = new vscode.MarkdownString();
+                    markdown.appendCodeblock(varDefinition, 'lpc');
+                    item.documentation = markdown;
+                    
+                    result.push(item);
+                }
+            }
+            
+            // 匹配 for 循环中的变量定义
+            const forLoopVarRegex = /for\s*\(\s*(?:int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=/;
+            const forMatch = line.match(forLoopVarRegex);
+            if (forMatch) {
+                const varName = forMatch[1];
+                
+                // 创建补全项
+                const item = new vscode.CompletionItem(varName, vscode.CompletionItemKind.Variable);
+                item.detail = `循环变量: ${varName}`;
+                
+                result.push(item);
+            }
+            
+            // 匹配 foreach 循环中的变量定义
+            const foreachVarRegex = /foreach\s*\(\s*(?:int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*:/;
+            const foreachMatch = line.match(foreachVarRegex);
+            if (foreachMatch) {
+                const varName = foreachMatch[1];
+                
+                // 创建补全项
+                const item = new vscode.CompletionItem(varName, vscode.CompletionItemKind.Variable);
+                item.detail = `循环变量: ${varName}`;
+                
+                result.push(item);
+            }
+        }
+    }
+    
+    // 解析函数参数
+    private parseFunctionParameters(document: vscode.TextDocument, position: vscode.Position, result: vscode.CompletionItem[]): void {
+        const text = document.getText();
+        const lines = text.split('\n');
+        const currentLine = position.line;
+        
+        // 向上查找函数定义
+        let functionStartLine = -1;
+        let functionParams = '';
+        let inMultiLineParams = false;
+        let bracketCount = 0;
+        
+        for (let i = currentLine; i >= 0; i--) {
+            const line = lines[i];
+            
+            // 如果我们已经在处理多行参数
+            if (inMultiLineParams) {
+                // 添加当前行到参数字符串
+                functionParams = line + functionParams;
+                
+                // 检查是否找到了函数定义的开始
+                if (line.match(/(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(/)) {
+                    functionStartLine = i;
+                    break;
+                }
+                continue;
+            }
+            
+            // 计算括号来跟踪函数定义
+            for (let j = line.length - 1; j >= 0; j--) {
+                const char = line[j];
+                if (char === ')') {
+                    bracketCount++;
+                    if (bracketCount === 1 && !inMultiLineParams) {
+                        // 开始收集参数
+                        inMultiLineParams = true;
+                        functionParams = line.substring(j);
+                    }
+                } else if (char === '(' && inMultiLineParams) {
+                    bracketCount--;
+                    if (bracketCount === 0) {
+                        // 找到了完整的参数列表
+                        functionStartLine = i;
+                        break;
+                    }
+                }
+            }
+            
+            if (functionStartLine !== -1) {
+                break;
+            }
+            
+            // 匹配单行函数定义，例如: void func(int param1, string param2)
+            const funcDefRegex = /(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(([^)]*)\)/;
+            
+            const match = line.match(funcDefRegex);
+            if (match) {
+                functionStartLine = i;
+                functionParams = match[1];
+                break;
+            }
+        }
+        
+        // 如果找到了函数定义
+        if (functionStartLine !== -1 && functionParams) {
+            // 提取参数部分
+            const paramRegex = /\(([^)]*)\)/;
+            const paramMatch = functionParams.match(paramRegex);
+            
+            if (paramMatch) {
+                const params = paramMatch[1].split(',');
+                
+                // 解析每个参数
+                for (const param of params) {
+                    const trimmedParam = param.trim();
+                    if (!trimmedParam) continue;
+                    
+                    // 匹配参数定义，支持各种类型
+                    const paramMatch = trimmedParam.match(/(?:int|string|object|mapping|mixed|float|buffer|array)\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+                    if (paramMatch) {
+                        const paramName = paramMatch[1];
+                        
+                        // 创建补全项
+                        const item = new vscode.CompletionItem(paramName, vscode.CompletionItemKind.Variable);
+                        item.detail = `函数参数: ${paramName}`;
+                        
+                        // 添加参数定义作为文档
+                        const markdown = new vscode.MarkdownString();
+                        markdown.appendCodeblock(trimmedParam, 'lpc');
+                        item.documentation = markdown;
+                        
+                        result.push(item);
+                    }
+                }
+            }
+        }
+    }
+
+    private async parseInheritedFunctions(
         document: vscode.TextDocument, 
         completionItems: vscode.CompletionItem[],
         showOutput: boolean = false
@@ -405,90 +585,116 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
     }
     
     // 提取单个继承文件的处理为独立方法
-    private async processInheritedFileRegex( // Renamed
+    private async processInheritedFile(
         inheritedFile: string,
         macroSource: string,
         document: vscode.TextDocument,
         workspaceFolder: vscode.WorkspaceFolder,
-        processedFiles: Set<string>, // This set should be for the current top-level provideCompletionItems call
+        processedFiles: Set<string>,
         completionItems: vscode.CompletionItem[],
         showOutput: boolean
     ): Promise<void> {
         if (showOutput) { inheritanceChannel.appendLine(`\n正在查找继承文件: ${inheritedFile}`); }
         
-        const cacheKeyResolvedPath = `${document.uri.fsPath}:${inheritedFile}`; // Key for resolved path
-        let resolvedPath = this.filePathCache.get(cacheKeyResolvedPath);
+        // 检查文件路径缓存
+        const cacheKey = `${document.uri.fsPath}:${inheritedFile}`;
+        let resolvedPath = this.filePathCache.get(cacheKey);
         let fileFound = false;
         
-        if (resolvedPath && fs.existsSync(resolvedPath)) {
+        if (resolvedPath) {
+            // 使用缓存的路径
             if (showOutput) { inheritanceChannel.appendLine(`  使用缓存的文件路径: ${resolvedPath}`); }
-            fileFound = true;
+            if (fs.existsSync(resolvedPath) && !processedFiles.has(resolvedPath)) {
+                fileFound = true;
+            }
         } else {
+            // 构建可能的文件路径
             const possiblePaths = [];
+            
             if (inheritedFile.startsWith('/')) {
+                // 绝对路径：移除开头的/，然后从工作区根目录开始查找
                 const relativePath = inheritedFile.slice(1);
-                possiblePaths.push(path.join(workspaceFolder.uri.fsPath, relativePath));
+                possiblePaths.push(
+                    path.join(workspaceFolder.uri.fsPath, relativePath),
+                    path.join(workspaceFolder.uri.fsPath, relativePath.replace('.c', ''))
+                );
             } else {
-                possiblePaths.push(path.join(path.dirname(document.uri.fsPath), inheritedFile));
-                possiblePaths.push(path.join(workspaceFolder.uri.fsPath, inheritedFile)); // Fallback to workspace root
+                // 相对路径：先相对于当前文件查找，再从工作区根目录查找
+                possiblePaths.push(
+                    path.join(path.dirname(document.uri.fsPath), inheritedFile),
+                    path.join(path.dirname(document.uri.fsPath), inheritedFile.replace('.c', '')),
+                    path.join(workspaceFolder.uri.fsPath, inheritedFile),
+                    path.join(workspaceFolder.uri.fsPath, inheritedFile.replace('.c', ''))
+                );
             }
 
-            for (const filePath of uniquePathsFromArray(possiblePaths.map(p => p.endsWith('.c') ? p : p + '.c'))) { // Ensure .c, remove duplicates
+            // 去重路径
+            const uniquePaths = [...new Set(possiblePaths)];
+
+            for (const filePath of uniquePaths) {
                 if (showOutput) { inheritanceChannel.appendLine(`  尝试路径: ${filePath}`); }
-                if (fs.existsSync(filePath)) {
+                if (fs.existsSync(filePath) && !processedFiles.has(filePath)) {
                     resolvedPath = filePath;
-                    this.filePathCache.set(cacheKeyResolvedPath, filePath);
+                    // 缓存解析结果
+                    this.filePathCache.set(cacheKey, filePath);
                     fileFound = true;
                     break;
                 }
             }
         }
 
+        // 同步检查是否有其他线程已经处理过这个文件
         if (processedFiles.has(resolvedPath || '')) {
-            if (showOutput) { inheritanceChannel.appendLine(`  文件已被其他任务处理 (本次调用栈): ${resolvedPath}`); }
+            if (showOutput) { inheritanceChannel.appendLine(`  文件已被其他任务处理: ${resolvedPath}`); }
             return;
         }
         
         if (fileFound && resolvedPath) {
-            processedFiles.add(resolvedPath); // Add to processed set for the current scan
+            // 标记为已处理
+            processedFiles.add(resolvedPath);
             if (showOutput) { inheritanceChannel.appendLine(`  ✓ 找到文件: ${resolvedPath}`); }
             
             try {
                 const inheritedDoc = await vscode.workspace.openTextDocument(resolvedPath);
-                const functionCacheKey = resolvedPath; // Cache per file path
-
+                
+                // 检查函数缓存
+                const functionCacheKey = resolvedPath;
                 if (this.functionCache.has(functionCacheKey)) {
                     const cachedItems = this.functionCache.get(functionCacheKey)!;
-                    if (showOutput) { inheritanceChannel.appendLine(`  使用缓存的函数定义 from ${path.basename(resolvedPath)}`); }
+                    if (showOutput) { inheritanceChannel.appendLine(`  使用缓存的函数定义`); }
+                    // 更新缓存项的来源信息
                     cachedItems.forEach(item => {
-                        const updatedItem = { ...item };
-                        updatedItem.detail = `(inherited from ${path.basename(resolvedPath!)}${macroSource}) ${item.label}`;
-                        completionItems.push(updatedItem);
+                        const originalDetail = item.detail?.split(':')[1] || '';
+                        item.detail = `继承自 ${path.basename(resolvedPath!)}${macroSource}: ${originalDetail.trim()}`;
                     });
+                    completionItems.push(...cachedItems);
                 } else {
-                    const inheritedCompletionsFromFile: vscode.CompletionItem[] = [];
-                    this.parseFunctionsInFileRegex( // Call renamed regex version
+                    const inheritedCompletions: vscode.CompletionItem[] = [];
+                    await this.parseFunctionsInFile(
                         inheritedDoc, 
-                        inheritedCompletionsFromFile,
-                        `(inherited from ${path.basename(resolvedPath)}${macroSource})`
+                        inheritedCompletions, 
+                        `继承自 ${path.basename(resolvedPath)}${macroSource}`
                     );
-                    this.functionCache.set(functionCacheKey, inheritedCompletionsFromFile.map(item => ({...item}))); // Cache copies
-                    completionItems.push(...inheritedCompletionsFromFile);
+                    
+                    // 更新缓存
+                    this.functionCache.set(functionCacheKey, inheritedCompletions);
+                    completionItems.push(...inheritedCompletions);
                 }
-                await this.parseInheritedFunctionsRegex(inheritedDoc, completionItems, showOutput); // Recurse
+
+                // 递归处理继承的文件
+                await this.parseInheritedFunctions(inheritedDoc, completionItems, showOutput);
             } catch (error) {
                 if (showOutput) { inheritanceChannel.appendLine(`  ✗ 错误: 读取继承文件失败: ${resolvedPath}`); }
                 console.error(`Error reading inherited file: ${resolvedPath}`, error);
             }
         } else {
-            if (showOutput) { inheritanceChannel.appendLine(`  ✗ 未找到文件: ${inheritedFile}${macroSource}`); }
+            if (showOutput) { inheritanceChannel.appendLine(`  ✗ 未找到文件: ${inheritedFile}`); }
         }
         
         if (showOutput) { inheritanceChannel.appendLine('----------------------------------------'); }
     }
 
-    // Renamed to clarify it's regex-based
-    private parseFunctionsInFileRegex(
+    private parseFunctionsInFile(
         document: vscode.TextDocument,
         completionItems: vscode.CompletionItem[],
         source: string = '当前文件'
