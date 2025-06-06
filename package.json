@@ -22,7 +22,8 @@
     "@types/cheerio": "^0.22.35",
     "@types/vscode": "^1.95.0",
     "axios": "^1.7.7",
-    "cheerio": "^1.0.0-rc.12"
+    "cheerio": "^1.0.0-rc.12",
+    "antlr4": "~4.13.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
@@ -30,6 +31,104 @@
     "typescript": "^5.0.0"
   },
   "contributes": {
+    "semanticTokenTypes": [
+      {
+        "id": "type",
+        "description": "Type names like 'int', 'string', custom class names.",
+        "superType": "type"
+      },
+      {
+        "id": "class",
+        "description": "Class names in definitions.",
+        "superType": "class"
+      },
+      {
+        "id": "parameter",
+        "description": "Function/closure parameters.",
+        "superType": "parameter"
+      },
+      {
+        "id": "variable",
+        "description": "Variable identifiers.",
+        "superType": "variable"
+      },
+      {
+        "id": "function",
+        "description": "Function names in definitions and calls.",
+        "superType": "function"
+      },
+      {
+        "id": "method",
+        "description": "Object method calls.",
+        "superType": "method"
+      },
+      {
+        "id": "property",
+        "description": "Object/class properties/member variables.",
+        "superType": "property"
+      },
+      {
+        "id": "macro",
+        "description": "Preprocessor macro names.",
+        "superType": "macro"
+      },
+      {
+        "id": "lpcKeyword",
+        "description": "LPC specific keywords.",
+        "superType": "keyword"
+      },
+      {
+        "id": "modifier",
+        "description": "Type modifiers like 'static', 'private'.",
+        "superType": "modifier"
+      }
+    ],
+    "semanticTokenModifiers": [
+      {
+        "id": "declaration",
+        "description": "For identifier declarations."
+      },
+      {
+        "id": "definition",
+        "description": "For identifier definitions (alternative to declaration)."
+      },
+      {
+        "id": "readonly",
+        "description": "For constants or 'nosave' variables."
+      },
+      {
+        "id": "static",
+        "description": "For static members/variables/functions."
+      },
+      {
+        "id": "public",
+        "description": "For public members."
+      },
+      {
+        "id": "private",
+        "description": "For private members."
+      },
+      {
+        "id": "protected",
+        "description": "For protected members (if LPC adopts such a concept)."
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "scopes": {
+          "type": ["entity.name.type", "support.type"],
+          "class": ["entity.name.type.class"],
+          "parameter": ["variable.parameter"],
+          "variable": ["variable.other", "variable.other.lpc"],
+          "function": ["entity.name.function", "support.function"],
+          "method": ["entity.name.function.member", "support.function.member"],
+          "property": ["variable.other.property", "variable.other.member"],
+          "macro": ["entity.name.function.preprocessor"],
+          "lpcKeyword": ["keyword.other.lpc"],
+          "modifier": ["storage.modifier"]
+        }
+      }
+    ],
     "languages": [
       {
         "id": "lpc",
@@ -146,6 +245,11 @@
           "light": "./media/function-doc-light.svg",
           "dark": "./media/function-doc-dark.svg"
         }
+      },
+      {
+        "command": "lpc.testParser",
+        "title": "LPC: Test Parser Integration",
+        "category": "LPC (Development)"
       }
     ],
     "menus": {

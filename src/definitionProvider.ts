@@ -4,6 +4,64 @@ import { EfunDocsManager } from './efunDocs';
 import * as path from 'path';
 import * as fs from 'fs';
 
+// ANTLR and Symbol Table Imports
+import { CharStreams, CommonTokenStream, Token } from 'antlr4';
+import { ParseTreeWalker, TerminalNode, ParseTree } from 'antlr4/src/antlr4/tree/Tree';
+import LPCLexer from '../../out/parser/LPCLexer.js';
+import LPCParser, { ProgramContext } from '../../out/parser/LPCParser.js'; // Assuming ProgramContext is the root
+import { LPCSymbolTableListener } from '../parser/lpcSymbolTableListener';
+import { LPCSymbol, Scope } from '../parser/symbolTable';
+
+
+// Helper function to find the ParseTree node at a given offset (simplified)
+// Note: In ANTLR, ParseTree is an interface. Common specific types are ParserRuleContext and TerminalNode.
+function findNodeAtOffset(node: ParseTree | null, offset: number): ParseTree | null {
+    if (!node) return null;
+
+    let nodeStartOffset = -1;
+    let nodeEndOffset = -1;
+
+    if (node instanceof TerminalNode) {
+        nodeStartOffset = node.getSymbol().start;
+        nodeEndOffset = node.getSymbol().stop;
+    } else if (node instanceof LPCParser.ruleContexts.ProgramContext || node instanceof LPCParser.ruleContexts.FunctionDefinitionContext /* add other relevant contexts */) {
+        // Check if it's a ParserRuleContext, which has start and stop tokens
+        const prc = node as any; // Cast to access start/stop if not directly on ParseTree type
+        if (prc.start && prc.stop) {
+            nodeStartOffset = prc.start.start;
+            nodeEndOffset = prc.stop.stop;
+        } else if (prc.start) { // For rules that might only have a start token in some cases
+            nodeStartOffset = prc.start.start;
+            nodeEndOffset = prc.start.stop;
+        }
+    } else if (node.getPayload && typeof node.getPayload === 'function') {
+        // Fallback for other ParseTree types that might have a single token
+        const token = node.getPayload() as Token;
+        if (token && token.start !== undefined) {
+            nodeStartOffset = token.start;
+            nodeEndOffset = token.stop;
+        }
+    }
+
+
+    if (nodeStartOffset !== -1 && nodeEndOffset !== -1) {
+        if (offset >= nodeStartOffset && offset <= nodeEndOffset) {
+            if (node.getChildCount && node.getChildCount() > 0) {
+                for (let i = 0; i < node.getChildCount(); i++) {
+                    const child = node.getChild(i);
+                    if (child) { // Ensure child is not null
+                        const childResult = findNodeAtOffset(child, offset);
+                        if (childResult) return childResult;
+                    }
+                }
+            }
+            return node;
+        }
+    }
+    return null;
+}
+
+
 export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private macroManager: MacroManager;
     private efunDocsManager: EfunDocsManager;
@@ -192,6 +250,42 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         return undefined;
+    }
+
+    // Helper to find the most specific scope at a given text offset
+    private findScopeAtOffset(startingScope: Scope, offset: number): Scope {
+        let bestMatch: Scope = startingScope;
+
+        function findRecursive(currentScope: Scope) {
+            const scopeNode = currentScope.scopeNode; // This is a ParseTree
+            let nodeStartOffset = -1;
+            let nodeEndOffset = -1;
+
+            if (scopeNode instanceof AntlrParserRuleContext) { // Generic ANTLR ParserRuleContext
+                if (scopeNode.start && scopeNode.stop) {
+                    nodeStartOffset = scopeNode.start.start;
+                    nodeEndOffset = scopeNode.stop.stop;
+                } else if (scopeNode.start) {
+                    nodeStartOffset = scopeNode.start.start;
+                    nodeEndOffset = scopeNode.start.stop;
+                }
+            } else if (scopeNode instanceof TerminalNode) {
+                nodeStartOffset = scopeNode.getSymbol().start;
+                nodeEndOffset = scopeNode.getSymbol().stop;
+            }
+
+            if (nodeStartOffset !== -1 && nodeEndOffset !== -1 && offset >= nodeStartOffset && offset <= nodeEndOffset) {
+                bestMatch = currentScope;
+                for (const childScope of currentScope.children) {
+                    findRecursive(childScope);
+                }
+            }
+        }
+
+        if (startingScope.scopeNode) {
+            findRecursive(startingScope);
+        }
+        return bestMatch;
     }
 
     private _offsetToPosition(docText: string, offset: number): vscode.Position {
