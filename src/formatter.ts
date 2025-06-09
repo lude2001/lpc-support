@@ -868,7 +868,7 @@ function formatLinePreservingStrings(line: string): string {
         if (op === '->') {
             processedLine = processedLine.replace(compoundOpPlaceholder + i, ' -> ');
         } else if (op === '::') {
-            processedLine = processedLine.replace(compoundOpPlaceholder + i, ' :: ');
+            processedLine = processedLine.replace(compoundOpPlaceholder + i, '::');
         } else if (op === '==' || op === '!=' || op === '>=' || op === '<=') {
             processedLine = processedLine.replace(compoundOpPlaceholder + i, ' ' + op + ' ');
         } else if (op === '&&' || op === '\|\|') {

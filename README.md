@@ -1,6 +1,41 @@
-# LPC Support 扩展
+# LPC Language Support for Visual Studio Code
 
-LPC Support 是一个为 LPC (LPMud Creation) 语言开发而设计的 VSCode 扩展，由武侠黎明团队开发，具备兼容性和通用性的LPC语言的VSCode扩展。
+[![Visual Studio Marketplace](https://img.shields.io/vscode-market/v/lpc-lang.lpc-support.svg)](https://marketplace.visualstudio.com/items?itemName=lpc-lang.lpc-support)
+[![Visual Studio Marketplace Downloads](https://img.shields.io/vscode-market/d/lpc-lang.lpc-support.svg)](https://marketplace.visualstudio.com/items?itemName=lpc-lang.lpc-support)
+
+This extension provides comprehensive support for the LPC programming language, powered by a full-fledged language server built with ANTLR.
+
+## Features
+
+This extension has been re-architected from the ground up to provide robust and accurate language features by parsing the source code into an Abstract Syntax Tree (AST), rather than relying on regular expressions.
+
+- **Advanced Syntax Highlighting**: Semantic highlighting that accurately identifies keywords, types, functions, and more.
+- **Go to Symbol**: Quickly navigate to any function declaration within a file (`Ctrl+Shift+O`).
+- **In-depth Diagnostics**:
+    - **Syntax Errors**: Real-time feedback on syntax issues as you type.
+    - **Semantic Analysis**: Detects deeper code issues, such as:
+        - Use of undefined functions.
+        - Variables that are declared but never used.
+- **Context-Aware Completions**: Intelligent code completion that suggests:
+    - Keywords
+    - Global function names
+    - In-scope local variables and function parameters
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/lpc-lang/lpc-support/master/media/lpc-context-aware-completions.png" alt="LPC Context-Aware Completions"/>
+</p>
+
+## How It Works
+
+The core of this extension is the Language Server located in the `/server` directory. It uses an [ANTLR4](https://www.antlr.org/) grammar (`/server/grammar/LPC.g4`) to parse LPC code. When you open or edit an LPC file, the server generates an AST and then walks this tree to provide diagnostics, completions, and other features. This AST-based approach is significantly more accurate and powerful than traditional regex-based methods.
+
+## Contributing
+
+Contributions are welcome! If you'd like to help improve the LPC language support, please feel free to fork the repository, make your changes, and submit a pull request.
+
+## License
+
+[MIT](LICENSE)
 
 ## 注意事项
 

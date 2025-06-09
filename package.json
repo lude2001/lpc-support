@@ -1,12 +1,12 @@
 {
   "name": "lpc-support",
-  "displayName": "LPC[FluffOS]",
-  "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.0.4",
-  "publisher": "ludexiang",
+  "displayName": "LPC Language Support (ANTLR)",
+  "description": "Advanced LPC language support powered by a language server and ANTLR.",
+  "version": "1.0.0",
+  "publisher": "lpc-lang",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lude2001/lpc-support.git"
+    "url": "https://github.com/lpc-lang/lpc-support.git"
   },
   "engines": {
     "vscode": "^1.93.0"
@@ -19,14 +19,11 @@
     "onLanguage:lpc"
   ],
   "dependencies": {
-    "@types/cheerio": "^0.22.35",
-    "@types/vscode": "^1.95.0",
-    "axios": "^1.7.7",
-    "cheerio": "^1.0.0-rc.12"
+    "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.14",
-    "@types/node": "^16.x",
+    "@types/node": "^16.18.126",
+    "@types/vscode": "^1.100.0",
     "typescript": "^5.0.0"
   },
   "contributes": {
@@ -52,202 +49,13 @@
         "scopeName": "source.lpc",
         "path": "./syntaxes/lpc.tmLanguage.json"
       }
-    ],
-    "snippets": [
-      {
-        "language": "lpc",
-        "path": "./snippets/lpc.json"
-      }
-    ],
-    "commands": [
-      {
-        "command": "lpc-support.checkUnusedVariables",
-        "title": "检查未使用的变量"
-      },
-      {
-        "command": "lpc.showVariables",
-        "title": "显示所有 LPC 变量"
-      },
-      {
-        "command": "lpc.scanFolder",
-        "title": "扫描文件夹中未使用的变量",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.addServer",
-        "title": "LPC: 添加FluffOS服务器",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.selectServer",
-        "title": "LPC: 选择活动服务器",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.removeServer",
-        "title": "LPC: 删除服务器",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.compileFile",
-        "title": "编译LPC文件",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.compileFolder",
-        "title": "批量编译LPC文件",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.manageServers",
-        "title": "管理编译服务器",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.showMacros",
-        "title": "显示所有宏定义",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.configureMacroPath",
-        "title": "配置宏定义目录",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.updateEfunDocs",
-        "title": "更新 Efun 文档",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.configureSimulatedEfuns",
-        "title": "配置模拟函数库目录",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.efunDocsSettings",
-        "title": "efun文档设置",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.scanInheritance",
-        "title": "扫描继承关系",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.clearVariableCache",
-        "title": "清除变量缓存",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.showFunctionDoc",
-        "title": "显示函数文档面板",
-        "category": "LPC",
-        "icon": {
-          "light": "./media/function-doc-light.svg",
-          "dark": "./media/function-doc-dark.svg"
-        }
-      }
-    ],
-    "menus": {
-      "editor/context": [
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc-support.checkUnusedVariables",
-          "group": "1_modification"
-        },
-        {
-          "when": "editorLangId == lpc",
-          "command": "lpc.showVariables",
-          "group": "navigation"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.compileFile",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.manageServers",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.showMacros",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.efunDocsSettings",
-          "label": "efun文档设置",
-          "group": "LPC@1"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.scanInheritance",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.clearVariableCache",
-          "group": "LPC"
-        }
-      ],
-      "explorer/context": [
-        {
-          "command": "lpc.scanFolder",
-          "group": "LPC"
-        },
-        {
-          "command": "lpc.compileFolder",
-          "group": "LPC",
-          "when": "explorerResourceIsFolder"
-        }
-      ],
-      "editor/title": [
-        {
-          "command": "lpc.showFunctionDoc",
-          "when": "resourceLangId == lpc",
-          "group": "navigation"
-        }
-      ]
-    },
-    "configuration": {
-      "title": "LPC",
-      "properties": {
-        "lpc.includePath": {
-          "type": "string",
-          "default": "",
-          "description": "LPC宏定义包含目录的路径"
-        },
-        "lpc.simulatedEfunsPath": {
-          "type": "string",
-          "default": "",
-          "description": "LPC模拟函数库目录的路径"
-        }
-      }
-    },
-    "keybindings": [
-      {
-        "command": "editor.action.commentLine",
-        "key": "ctrl+/",
-        "when": "editorTextFocus && !editorReadonly && editorLangId == 'lpc'"
-      },
-      {
-        "command": "editor.action.blockComment",
-        "key": "shift+alt+a",
-        "when": "editorTextFocus && !editorReadonly && editorLangId == 'lpc'"
-      },
-      {
-        "command": "lpc.compileFile",
-        "key": "ctrl+f5",
-        "when": "editorTextFocus && editorLangId == 'lpc'"
-      }
     ]
   },
   "scripts": {
-    "package": "vsce package",
-    "compile": "tsc"
-  },
-  "license": "MIT",
-  "icon": "icon.png"
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b && (cd server && npm install && npm run build)",
+    "watch": "tsc -b -w",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  }
 }

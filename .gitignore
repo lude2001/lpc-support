@@ -1,2 +1,5 @@
 node_modules
 *.vsix
+
+# Generated parser files
+/src/parser/

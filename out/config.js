@@ -221,6 +221,6 @@ class LPCConfigManager {
         }
     }
 }
-LPCConfigManager.CONFIG_FILE = 'lpc-servers.json';
 exports.LPCConfigManager = LPCConfigManager;
+LPCConfigManager.CONFIG_FILE = 'lpc-servers.json';
 //# sourceMappingURL=config.js.map
