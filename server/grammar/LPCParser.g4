@@ -149,6 +149,7 @@ primary
     | mappingLiteral
     | arrayLiteral
     | closureExpression
+    | HASH_SINGLE_QUOTE identifier                      # FunctionPointerExpr
     | SCOPE_RESOLUTION identifier
     | IDENTIFIER STRING_LITERAL
     ;

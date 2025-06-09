@@ -117,6 +117,7 @@ BITWISE_XOR: '^';
 BITWISE_NOT: '~';
 LSHIFT: '<<';
 RSHIFT: '>>';
+HASH_SINGLE_QUOTE: '#\''; // For function pointers like #'my_func
 
 // --- Literals & Identifiers ---
 STRING_LITERAL: '"' ( '\\'. | ~[\\"] )*? '"';

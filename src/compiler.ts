@@ -15,6 +15,15 @@ export class LPCCompiler {
     private parseCompileMessage(msg: string, document: vscode.TextDocument): vscode.Diagnostic[] {
         const diagnostics: vscode.Diagnostic[] = [];
         const lines = msg.split('\n');
+
+        // Define patterns for function definition warnings to be filtered.
+        // These patterns are matched against the core message content.
+        const functionWarningPatterns = [
+            /Function '.*?' defined but not used/i,
+            /Unused function '.*?'/i,
+            /Function '.*?' previously defined at .*?/i,
+            // Add more specific function-related warning patterns here if needed.
+        ];
         
         for (const line of lines) {
             // 匹配包含 "line X:" 格式的错误信息
@@ -29,10 +38,25 @@ export class LPCCompiler {
                     vscode.DiagnosticSeverity.Error;
                 
                 // 提取错误消息
-                let message = line;
+                let message = line; // Default to full line if specific message part isn't found
                 const messageMatch = line.match(/line \d+:\s*(.*)/);
-                if (messageMatch) {
-                    message = messageMatch[1];
+                if (messageMatch && messageMatch[1]) {
+                    message = messageMatch[1]; // This is the core message text, e.g., "Warning: Function 'foo' defined but not used" or "Error: some error"
+                }
+
+                // Filter out specific function definition warnings
+                if (severity === vscode.DiagnosticSeverity.Warning) {
+                    let isFunctionDefinitionWarning = false;
+                    for (const pattern of functionWarningPatterns) {
+                        // Test against the extracted message content (after "line X: ")
+                        if (pattern.test(message)) {
+                            isFunctionDefinitionWarning = true;
+                            break;
+                        }
+                    }
+                    if (isFunctionDefinitionWarning) {
+                        continue; // Skip this specific warning
+                    }
                 }
                 
                 const range = new vscode.Range(

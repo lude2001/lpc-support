@@ -33,7 +33,7 @@
 			"beginCaptures": {
 				"1": { "name": "punctuation.definition.closure.begin.lpc" }
 			},
-			"end": "(:\\))",
+			"end": "(\\):)",
 			"endCaptures": {
 				"1": { "name": "punctuation.definition.closure.end.lpc" }
 			},
@@ -219,7 +219,7 @@
 				},
 				{
 					"name": "keyword.other.lpc",
-					"match": "\\b(inherit|private|protected|public|static|nomask|varargs)\\b"
+					"match": "\\b(inherit|private|protected|public|static|nomask|varargs|nosave|ref)\\b"
 				}
 			]
 		},
@@ -227,7 +227,7 @@
 			"patterns": [
 				{
 					"name": "storage.type.lpc",
-					"match": "\\b(void|int|string|object|array|mapping|float|buffer|mixed|function|class|struct)\\b"
+					"match": "\\b(void|int|string|object|array|mapping|float|buffer|mixed|function|class|struct|closure)\\b"
 				}
 			]
 		},
@@ -261,6 +261,10 @@
 				{
 					"name": "constant.numeric.hex.lpc",
 					"match": "\\b0[xX][0-9a-fA-F]+\\b"
+				},
+				{
+					"name": "constant.numeric.binary.lpc",
+					"match": "\\b0[bB][01]+\\b"
 				},
 				{
 					"name": "constant.numeric.octal.lpc",
@@ -313,6 +317,14 @@
 				{
 					"name": "keyword.operator.scope-resolution.lpc",
 					"match": "::"
+				},
+				{
+					"name": "keyword.operator.ellipsis.lpc",
+					"match": "\\.\\.\\."
+				},
+				{
+					"name": "keyword.operator.range.lpc",
+					"match": "\\.\\."
 				}
 			]
 		}
