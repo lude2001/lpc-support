@@ -499,10 +499,10 @@ class EfunDocsManager {
         return this.simulatedEfunDocs.get(funcName);
     }
 }
+exports.EfunDocsManager = EfunDocsManager;
 EfunDocsManager.EFUN_LIST_URL = 'https://mud.wiki/Lpc:Efun';
 EfunDocsManager.EFUN_DOC_BASE_URL = 'https://mud.wiki/';
 EfunDocsManager.CACHE_FILE_NAME = 'efun_docs_cache.json';
 EfunDocsManager.SIMULATED_EFUNS_PATH_CONFIG = 'lpc.simulatedEfunsPath';
 EfunDocsManager.CACHE_EXPIRY_DAYS = 7; // 缓存过期时间（天）
-exports.EfunDocsManager = EfunDocsManager;
 //# sourceMappingURL=efunDocs.js.map

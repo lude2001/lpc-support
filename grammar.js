@@ -1,4 +1,3 @@
-```javascript
 // Tree-sitter grammar for the LPC language (Core Subset)
 
 // Helper function for comma-separated lists
@@ -26,6 +25,7 @@ module.exports = grammar({
   conflicts: $ => [
     [$._type, $.identifier],
     [$._primary_expression, $._type], // For things like casts if they were C-style
+    [$.if_statement], // Resolve dangling else
   ],
 
   // Word rule: not strictly necessary if keywords are directly used as strings
@@ -38,8 +38,15 @@ module.exports = grammar({
     _top_level_item: $ => choice(
       $.preprocessor_directive,
       $.function_definition,
-      $.variable_declaration
+      $.variable_declaration,
+      $.inherit_statement // Added
       // More can be added here (e.g., class/struct definitions)
+    ),
+
+    inherit_statement: $ => seq(
+      'inherit', // This should be recognized as a keyword
+      field('path', choice($.identifier, $.string_literal)),
+      ';'
     ),
 
     // 2. Comments (handled in extras, but also define them as tokens)
@@ -93,7 +100,7 @@ module.exports = grammar({
       'status', // common in LPC
       'buffer', // from doc
       'function' // from doc
-      // 'array' is a keyword in the doc but syntax is `type *var`
+      // 'array' is a keyword in the doc but syntax is 'type *var'
     ),
 
     array_type: $ => prec(1, seq(
@@ -148,7 +155,7 @@ module.exports = grammar({
       // Optional 'ref' keyword for pass-by-reference
       optional('ref'),
       // Optional '...' for varargs, though 'varargs' modifier is also used
-      // The doc states `mixed *x...` - the `*` is part of the type, `...` might be part of name or special token
+      // The doc states 'mixed *x...' - the '*' is part of the type, '...' might be part of name or special token
       field('name', $.identifier)
       // Optional default value: optional(seq(':', $._expression)) // e.g. type param : (: default :)
     ),
@@ -201,7 +208,9 @@ module.exports = grammar({
       $._primary_expression,
       $.assignment_expression,
       $.binary_expression,
-      $.call_expression // Call expression can be primary, but to resolve ambiguity put here
+      $.call_expression,
+      $.subscript_expression,
+      $.member_access_expression // Added
       // TODO: Add unary_expression, conditional_expression (ternary), etc.
     ),
 
@@ -209,10 +218,25 @@ module.exports = grammar({
       $.identifier,
       $.number_literal,
       $.string_literal,
+      $.heredoc_literal, // Added
       $.parenthesized_expression,
       $.array_literal, // Added for basic array usage
       $.mapping_literal // Added for basic mapping usage
-      // TODO: function_pointer_literal `(: ... :)`
+      // TODO: function_pointer_literal '(: ... :)'
+    ),
+
+    heredoc_literal: $ => seq(
+      '@',
+      field('start_delimiter', $.identifier),
+      field('content', optional($._heredoc_content_lines)),
+      field('end_delimiter', $.identifier)
+    ),
+
+    // This rule is a placeholder for how content might be structured.
+    // It assumes content is a series of lines, where no line *is* the end_delimiter itself.
+    // This is a simplification. True heredocs are more complex.
+    _heredoc_content_lines: $ => repeat1(
+      alias(token.immediate(/[^\r\n]+/), $.heredoc_line) // Match a line of content
     ),
 
     parenthesized_expression: $ => seq('(', $._expression, ')'),
@@ -254,9 +278,12 @@ module.exports = grammar({
 
 
     // Operator precedence, from lowest to highest that's implemented
-    assignment_expression: $ => prec.right(1, seq(
-      field('left', $._primary_expression), // LHS of assignment is often more restricted (e.g. identifier, member access)
-      '=',
+    assignment_expression: $ => prec.right(0, seq( // Lower precedence for assignment
+      field('left', $._expression), // Allow more general LHS, e.g., array[i] = ..., obj->member = ...
+      field('operator', choice(
+        '=', '+=', '-=', '*=', '/=', '%=',
+        '<<=', '>>=', '&=', '|=', '^='
+      )),
       field('right', $._expression)
     )),
 
@@ -265,20 +292,39 @@ module.exports = grammar({
     // Multiplicative: *, /, %
     // Using Tree-sitter's precedence helpers
     binary_expression: $ => choice(
-      prec.left(3, seq(field('left', $._expression), field('operator', choice('+', '-')), field('right', $._expression))),
-      prec.left(4, seq(field('left', $._expression), field('operator', choice('*', '/', '%')), field('right', $._expression)))
-      // TODO: Add other binary operators (logical, bitwise, relational) with correct precedence
+      prec.left(1, seq(field('left', $._expression), field('operator', '||'), field('right', $._expression))),
+      prec.left(2, seq(field('left', $._expression), field('operator', '&&'), field('right', $._expression))),
+      prec.left(3, seq(field('left', $._expression), field('operator', '|'), field('right', $._expression))),
+      prec.left(4, seq(field('left', $._expression), field('operator', '^'), field('right', $._expression))),
+      prec.left(5, seq(field('left', $._expression), field('operator', '&'), field('right', $._expression))),
+      prec.left(6, seq(field('left', $._expression), field('operator', choice('==', '!=')), field('right', $._expression))),
+      prec.left(7, seq(field('left', $._expression), field('operator', choice('<', '<=', '>', '>=')), field('right', $._expression))),
+      prec.left(8, seq(field('left', $._expression), field('operator', choice('<<', '>>')), field('right', $._expression))),
+      prec.left(9, seq(field('left', $._expression), field('operator', choice('+', '-')), field('right', $._expression))),
+      prec.left(10, seq(field('left', $._expression), field('operator', choice('*', '/', '%')), field('right', $._expression)))
     ),
 
-    call_expression: $ => prec.left(5, seq( // Higher precedence than binary ops for func_name(a) + b
-      field('function', $._primary_expression), // Usually an identifier or member access
+    call_expression: $ => prec.left(6, seq( // Adjusted precedence
+      field('function', choice($._primary_expression, $.member_access_expression)), // Modified
       '(',
       field('arguments', commaSep($._expression)),
       ')'
     )),
 
+    subscript_expression: $ => prec.left(6, seq(
+      field('target', $._expression),
+      '[',
+      field('index', $._expression),
+      ']'
+    )),
+
+    member_access_expression: $ => prec.left(7, seq(
+      field('object', $._expression),
+      '->',
+      field('member', $.identifier)
+    )),
+
     // 9. Keywords: Handled by using string literals (e.g., 'if', 'while', 'int') directly in rules.
-    // These take precedence over the `identifier` rule in the contexts where they appear.
+    // These take precedence over the 'identifier' rule in the contexts where they appear.
   }
 });
-```

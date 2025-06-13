@@ -1,7 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deactivate = exports.activate = void 0;
+exports.activate = activate;
+exports.deactivate = deactivate;
 const vscode = require("vscode");
+const Parser = require("web-tree-sitter");
+const semanticHighlighter_1 = require("./semanticHighlighter");
 const diagnostics_1 = require("./diagnostics");
 const codeActions_1 = require("./codeActions");
 const completionProvider_1 = require("./completionProvider");
@@ -12,9 +15,37 @@ const definitionProvider_1 = require("./definitionProvider");
 const efunDocs_1 = require("./efunDocs");
 const functionDocPanel_1 = require("./functionDocPanel");
 const formatter_1 = require("./formatter"); // 从 formatter.ts 导入
-function activate(context) {
+async function activate(context) {
+    console.log('Minimal test'); // This is the minimal change
+    console.log('LPC Extension activating...');
+    let lpcLanguageInstance = undefined;
+    // Initialize Tree-sitter Parser and load the LPC grammar
+    try {
+        await Parser.init(); // Call this once globally
+        const wasmPath = vscode.Uri.joinPath(context.extensionUri, 'parser', 'tree-sitter-lpc.wasm').fsPath;
+        // In a real extension, ensure 'tree-sitter-lpc.wasm' is in the 'parser' directory
+        // and included in the vsix package.
+        // For now, this path is a placeholder as the file doesn't exist.
+        lpcLanguageInstance = await Parser.Language.load(wasmPath);
+        semanticHighlighter_1.LPCSemanticTokensProvider.setLanguage(lpcLanguageInstance); // Make language available to provider
+        // Register the semantic tokens provider
+        context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: 'lpc' }, // Ensure 'lpc' is defined in package.json contributes.languages
+        new semanticHighlighter_1.LPCSemanticTokensProvider(), // Instantiate your provider
+        semanticHighlighter_1.legend // The legend defined in semanticHighlighter.ts
+        ));
+        console.log('LPC Semantic Tokens Provider registered successfully.');
+    }
+    catch (error) {
+        console.error('Failed to load LPC grammar for Tree-sitter features:', error.message, error.stack);
+        vscode.window.showErrorMessage(`LPC Extension: Critical error loading grammar for Tree-sitter. Highlighting and AST-based features will be unavailable. Path: ${context.extensionUri}/parser/tree-sitter-lpc.wasm. Error: ${error.message}`);
+    }
     // 初始化诊断功能
     const macroManager = new macroManager_1.MacroManager();
+    if (lpcLanguageInstance) { // Check if language was loaded successfully
+        diagnostics_1.LPCDiagnostics.setLanguage(lpcLanguageInstance); // Pass the loaded language to LPCDiagnostics
+        definitionProvider_1.LPCDefinitionProvider.setLanguage(lpcLanguageInstance); // Pass the loaded language to LPCDefinitionProvider
+        completionProvider_1.LPCCompletionItemProvider.setLanguage(lpcLanguageInstance); // Pass the loaded language to LPCCompletionItemProvider
+    }
     const diagnostics = new diagnostics_1.LPCDiagnostics(context, macroManager);
     // 初始化 Efun 文档管理器
     const efunDocsManager = new efunDocs_1.EfunDocsManager(context);
@@ -156,8 +187,6 @@ function activate(context) {
     // 将宏管理器添加到清理列表
     context.subscriptions.push(macroManager);
 }
-exports.activate = activate;
 // 停用扩展时调用
 function deactivate() { }
-exports.deactivate = deactivate;
 //# sourceMappingURL=extension.js.map
