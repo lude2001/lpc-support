@@ -3,7 +3,7 @@ import { MacroManager } from './macroManager';
 import { EfunDocsManager } from './efunDocs';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as Parser from 'web-tree-sitter';
+import Parser from 'web-tree-sitter';
 
 // Module-level variable to hold the loaded language
 let LpcLanguage: Parser.Language | undefined = undefined;
@@ -96,7 +96,9 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
             const fileContentBytes = await vscode.workspace.fs.readFile(fileUri);
             const fileText = Buffer.from(fileContentBytes).toString('utf8');
             const tree = this.parser.parse(fileText);
-            return this.findFunctionDefinitionInAst(tree, functionName, fileUri, fileText);
+            if (tree) {
+                return this.findFunctionDefinitionInAst(tree, functionName, fileUri, fileText);
+            }
         } catch (e) {
             console.error(`Error reading/parsing ${fileUri.fsPath} for AST function search:`, e);
         }
@@ -120,11 +122,15 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         }
         visitedFiles.add(currentDocumentUri.fsPath);
 
-        let currentTree: Parser.Tree;
+        let currentTree: Parser.Tree | null;
         try {
             currentTree = this.parser.parse(currentDocumentText);
         } catch (e) {
             console.error(`Error parsing ${currentDocumentUri.fsPath} for inherits:`, e);
+            return undefined;
+        }
+
+        if (!currentTree) {
             return undefined;
         }
 

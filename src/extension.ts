@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as Parser from 'web-tree-sitter';
+import Parser from 'web-tree-sitter';
 import { LPCSemanticTokensProvider, legend as lpcSemanticLegend } from './semanticHighlighter';
 import { LPCDiagnostics } from './diagnostics';
 import { LPCCodeActionProvider } from './codeActions';
@@ -25,7 +25,9 @@ export async function activate(context: vscode.ExtensionContext) { // Made async
         // and included in the vsix package.
         // For now, this path is a placeholder as the file doesn't exist.
         lpcLanguageInstance = await Parser.Language.load(wasmPath);
-        LPCSemanticTokensProvider.setLanguage(lpcLanguageInstance); // Make language available to provider
+        if (lpcLanguageInstance) {
+            LPCSemanticTokensProvider.setLanguage(lpcLanguageInstance); // Make language available to provider
+        }
 
         // Register the semantic tokens provider
         context.subscriptions.push(

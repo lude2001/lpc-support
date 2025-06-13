@@ -1,0 +1,21 @@
+{
+  "grammars": [
+    {
+      "name": "lpc",
+      "src": "grammar.js",
+      "scope": "source.lpc",
+      "build": {
+        "src": "grammar.js"
+      }
+    }
+  ],
+  "metadata": {
+    "fileTypes": [
+      "c",
+      "h",
+      "lpc",
+      "i"
+    ],
+    "version": "0.0.1"
+  }
+} 

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as Parser from 'web-tree-sitter'; // Assuming web-tree-sitter is available
+import Parser from 'web-tree-sitter';
 
 // Forward declaration for Tree-sitter Language object (assuming it's loaded elsewhere)
 // In a real VS Code extension, the Language object would be properly initialized.
@@ -219,12 +219,16 @@ export class LPCSemanticTokensProvider implements vscode.DocumentSemanticTokensP
         }
 
         const text = document.getText();
-        let tree: Parser.Tree;
+        let tree: Parser.Tree | null;
         try {
             tree = this.parser.parse(text);
         } catch (e) {
             console.error("Error parsing document for semantic tokens:", e);
             return builder.build(); // Return empty on parse error
+        }
+
+        if (!tree) {
+            return builder.build();
         }
 
         // Create a query object. In a real extension, you might compile the query once.

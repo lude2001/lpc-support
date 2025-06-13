@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EfunDocsManager } from './efunDocs';
 import { MacroManager } from './macroManager';
-import * as Parser from 'web-tree-sitter';
+import Parser from 'web-tree-sitter';
 
 // Module-level variable to hold the loaded language
 let LpcLanguage: Parser.Language | undefined = undefined;

@@ -56,16 +56,27 @@ export function collectVariableDefinitionOrderDiagnostics(
                 if (foundNonDeclarationStatement) {
                     // Try to get the name of the first variable declared in this statement for a better message
                     let firstVarName = "A variable";
-                    const varDeclQueryString = `(variable_declaration (_variable_declarator name: (identifier) @var.name))`;
+                    // 尝试通过 Query 获取声明名
                     try {
+                        const varDeclQueryString = `(variable_declaration (_variable_declarator name: (identifier) @var.name))`;
                         const varDeclQuery = lpcLanguage.query(varDeclQueryString);
                         const varCaptures = varDeclQuery.captures(statementNode);
-                        const varNameNode = varCaptures.find(c => c.name === 'var.name')?.node;
-                        if (varNameNode) {
-                            firstVarName = getNodeText(varNameNode, document);
+                        const varNameNodeFromQuery = varCaptures.find(c => c.name === 'var.name')?.node;
+                        if (varNameNodeFromQuery) {
+                            firstVarName = getNodeText(varNameNodeFromQuery, document);
+                        } else {
+                            // 回退：找第一个 identifier
+                            const idNodes = statementNode.descendantsOfType('identifier');
+                            if (idNodes && idNodes.length > 0) {
+                                firstVarName = getNodeText(idNodes[0], document);
+                            }
                         }
                     } catch (e) {
-                        // Ignore if query fails, just use generic message
+                        // 如果 Query 失败，回退到简单遍历 identifier
+                        const idNodes = statementNode.descendantsOfType('identifier');
+                        if (idNodes && idNodes.length > 0) {
+                            firstVarName = getNodeText(idNodes[0], document);
+                        }
                     }
 
                     diagnostics.push(
@@ -76,7 +87,13 @@ export function collectVariableDefinitionOrderDiagnostics(
                         )
                     );
                 }
-            } else if (statementNode.type !== 'comment') { // Comments are fine amongst declarations
+            } else if (
+                statementNode.type !== 'comment' &&
+                statementNode.type !== 'line_comment' &&
+                statementNode.type !== 'block_comment' &&
+                statementNode.type !== 'ERROR' &&
+                !statementNode.type.startsWith('preproc_')
+            ) {
                 foundNonDeclarationStatement = true;
             }
         }

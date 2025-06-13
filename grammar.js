@@ -56,8 +56,13 @@ module.exports = grammar({
     // 3. Preprocessor Directives
     preprocessor_directive: $ => choice(
       $.preproc_include,
-      $.preproc_define
-      // TODO: Add other preprocessor directives like #ifdef, #ifndef, #else, #endif
+      $.preproc_define,
+      $.preproc_if,
+      $.preproc_ifdef,
+      $.preproc_ifndef,
+      $.preproc_elif,
+      $.preproc_else,
+      $.preproc_endif
     ),
 
     preproc_include: $ => seq(
@@ -81,6 +86,13 @@ module.exports = grammar({
     ),
     preproc_macro_value: $ => token(repeat1(/.|\\\r?\n/)), // Consumes tokens until end of line, handles line continuation
 
+    // 条件编译指令
+    preproc_if: $ => seq('#if', /[^\r\n]*/),
+    preproc_ifdef: $ => seq('#ifdef', /[^\r\n]*/),
+    preproc_ifndef: $ => seq('#ifndef', /[^\r\n]*/),
+    preproc_elif: $ => seq('#elif', /[^\r\n]*/),
+    preproc_else: $ => seq('#else'),
+    preproc_endif: $ => seq('#endif'),
 
     // 4. Types
     _type: $ => choice(
@@ -173,7 +185,8 @@ module.exports = grammar({
       $.if_statement,
       $.while_statement,
       $.return_statement,
-      $.variable_declaration // Local variable declarations
+      $.variable_declaration, // Local variable declarations
+      $.preprocessor_directive // 允许在语句块中出现预处理指令
       // TODO: Add for, foreach, switch, break, continue, do-while
     ),
 

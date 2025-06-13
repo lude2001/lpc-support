@@ -1,9 +1,45 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
-const vscode = require("vscode");
-const Parser = require("web-tree-sitter");
+const vscode = __importStar(require("vscode"));
+const web_tree_sitter_1 = __importDefault(require("web-tree-sitter"));
 const semanticHighlighter_1 = require("./semanticHighlighter");
 const diagnostics_1 = require("./diagnostics");
 const codeActions_1 = require("./codeActions");
@@ -21,13 +57,15 @@ async function activate(context) {
     let lpcLanguageInstance = undefined;
     // Initialize Tree-sitter Parser and load the LPC grammar
     try {
-        await Parser.init(); // Call this once globally
+        await web_tree_sitter_1.default.init(); // Call this once globally
         const wasmPath = vscode.Uri.joinPath(context.extensionUri, 'parser', 'tree-sitter-lpc.wasm').fsPath;
         // In a real extension, ensure 'tree-sitter-lpc.wasm' is in the 'parser' directory
         // and included in the vsix package.
         // For now, this path is a placeholder as the file doesn't exist.
-        lpcLanguageInstance = await Parser.Language.load(wasmPath);
-        semanticHighlighter_1.LPCSemanticTokensProvider.setLanguage(lpcLanguageInstance); // Make language available to provider
+        lpcLanguageInstance = await web_tree_sitter_1.default.Language.load(wasmPath);
+        if (lpcLanguageInstance) {
+            semanticHighlighter_1.LPCSemanticTokensProvider.setLanguage(lpcLanguageInstance); // Make language available to provider
+        }
         // Register the semantic tokens provider
         context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: 'lpc' }, // Ensure 'lpc' is defined in package.json contributes.languages
         new semanticHighlighter_1.LPCSemanticTokensProvider(), // Instantiate your provider

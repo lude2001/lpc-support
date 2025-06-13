@@ -106,6 +106,30 @@
         {
           "type": "SYMBOL",
           "name": "preproc_define"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "preproc_if"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "preproc_ifdef"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "preproc_ifndef"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "preproc_elif"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "preproc_else"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "preproc_endif"
         }
       ]
     },
@@ -256,6 +280,76 @@
           "value": ".|\\\\\\r?\\n"
         }
       }
+    },
+    "preproc_if": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "#if"
+        },
+        {
+          "type": "PATTERN",
+          "value": "[^\\r\\n]*"
+        }
+      ]
+    },
+    "preproc_ifdef": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "#ifdef"
+        },
+        {
+          "type": "PATTERN",
+          "value": "[^\\r\\n]*"
+        }
+      ]
+    },
+    "preproc_ifndef": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "#ifndef"
+        },
+        {
+          "type": "PATTERN",
+          "value": "[^\\r\\n]*"
+        }
+      ]
+    },
+    "preproc_elif": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "#elif"
+        },
+        {
+          "type": "PATTERN",
+          "value": "[^\\r\\n]*"
+        }
+      ]
+    },
+    "preproc_else": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "#else"
+        }
+      ]
+    },
+    "preproc_endif": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "#endif"
+        }
+      ]
     },
     "_type": {
       "type": "CHOICE",
@@ -641,6 +735,10 @@
         {
           "type": "SYMBOL",
           "name": "variable_declaration"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "preprocessor_directive"
         }
       ]
     },

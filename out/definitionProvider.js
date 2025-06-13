@@ -1,10 +1,46 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LPCDefinitionProvider = void 0;
-const vscode = require("vscode");
-const path = require("path");
-const fs = require("fs");
-const Parser = require("web-tree-sitter");
+const vscode = __importStar(require("vscode"));
+const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
+const web_tree_sitter_1 = __importDefault(require("web-tree-sitter"));
 // Module-level variable to hold the loaded language
 let LpcLanguage = undefined;
 const FUNCTION_DEFINITION_QUERY = `
@@ -24,7 +60,7 @@ class LPCDefinitionProvider {
         this.macroManager = macroManager;
         this.efunDocsManager = efunDocsManager;
         if (LpcLanguage) {
-            this.parser = new Parser();
+            this.parser = new web_tree_sitter_1.default();
             this.parser.setLanguage(LpcLanguage);
             console.log("LPCDefinitionProvider: Parser initialized in constructor.");
         }
@@ -70,7 +106,7 @@ class LPCDefinitionProvider {
     async _findFunctionInAstFile(fileUri, functionName) {
         if (!this.parser) {
             if (LpcLanguage) { // Try to initialize parser if language is available
-                this.parser = new Parser();
+                this.parser = new web_tree_sitter_1.default();
                 this.parser.setLanguage(LpcLanguage);
             }
             else {
@@ -82,7 +118,9 @@ class LPCDefinitionProvider {
             const fileContentBytes = await vscode.workspace.fs.readFile(fileUri);
             const fileText = Buffer.from(fileContentBytes).toString('utf8');
             const tree = this.parser.parse(fileText);
-            return this.findFunctionDefinitionInAst(tree, functionName, fileUri, fileText);
+            if (tree) {
+                return this.findFunctionDefinitionInAst(tree, functionName, fileUri, fileText);
+            }
         }
         catch (e) {
             console.error(`Error reading/parsing ${fileUri.fsPath} for AST function search:`, e);
@@ -104,6 +142,9 @@ class LPCDefinitionProvider {
         }
         catch (e) {
             console.error(`Error parsing ${currentDocumentUri.fsPath} for inherits:`, e);
+            return undefined;
+        }
+        if (!currentTree) {
             return undefined;
         }
         // Ensure INHERIT_STATEMENT_QUERY is defined at the top of the file or passed in
@@ -276,7 +317,7 @@ class LPCDefinitionProvider {
         // 3. AST-based function definition search (current file then inherited)
         // Ensure parser is initialized (it might have been set late via setLanguage)
         if (!this.parser && LpcLanguage) {
-            this.parser = new Parser();
+            this.parser = new web_tree_sitter_1.default();
             this.parser.setLanguage(LpcLanguage);
             console.log("LPCDefinitionProvider: Parser initialized on-demand in provideDefinition (AST path).");
         }

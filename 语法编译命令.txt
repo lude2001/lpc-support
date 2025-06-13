@@ -1,0 +1,3 @@
+cd emsdk
+.\emsdk_env.bat
+npx tree-sitter build --wasm --output ./parser/tree-sitter-lpc.wasm

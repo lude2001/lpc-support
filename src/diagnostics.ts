@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from './macroManager';
-import * as Parser from 'web-tree-sitter'; // Import Tree-sitter
+import Parser from 'web-tree-sitter'; // Import Tree-sitter
 import { collectVariableDefinitionOrderDiagnostics } from './variableOrderChecker'; // Import the new checker
 
 // Module-level variable to hold the loaded language
