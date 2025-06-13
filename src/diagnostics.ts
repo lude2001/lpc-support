@@ -2,6 +2,11 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from './macroManager';
+import * as Parser from 'web-tree-sitter'; // Import Tree-sitter
+import { collectVariableDefinitionOrderDiagnostics } from './variableOrderChecker'; // Import the new checker
+
+// Module-level variable to hold the loaded language
+let LpcLanguage: Parser.Language | undefined = undefined;
 
 // 加载配置文件
 interface LPCConfig {
@@ -32,16 +37,17 @@ interface ForeachIterVariable {
 export class LPCDiagnostics {
     private diagnosticCollection: vscode.DiagnosticCollection;
     private macroManager: MacroManager;
-    private lpcTypes: string;
-    private modifiers: string;
+    // private lpcTypes: string; // Old, for regex
+    // private modifiers: string; // Old, for regex
     private excludedIdentifiers: Set<string>;
-    private variableDeclarationRegex: RegExp;
-    private globalVariableRegex: RegExp;
-    private functionDeclRegex: RegExp;
+    // private variableDeclarationRegex: RegExp; // To be removed/commented
+    // private globalVariableRegex: RegExp; // To be removed/commented
+    // private functionDeclRegex: RegExp; // To be removed/commented
     private inheritRegex: RegExp;
     private includeRegex: RegExp;
     private applyFunctions: Set<string>;
     private config: LPCConfig;
+    private parser: Parser | undefined; // Tree-sitter parser instance
 
     // 预编译的正则表达式，避免重复创建
     private objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\()?/g;
@@ -52,21 +58,31 @@ export class LPCDiagnostics {
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
         context.subscriptions.push(this.diagnosticCollection);
 
+        // Initialize parser if LpcLanguage is already available
+        if (LpcLanguage) {
+            this.parser = new Parser();
+            this.parser.setLanguage(LpcLanguage);
+            console.log("LPCDiagnostics: Parser initialized in constructor.");
+        } else {
+            console.warn("LPCDiagnostics: LpcLanguage not available at construction. Parser will be initialized later if language is set.");
+        }
+
         // 加载配置
         const configPath = path.join(context.extensionPath, 'config', 'lpc-config.json');
         this.config = loadLPCConfig(configPath);
 
-        // 初始化类型和修饰符
-        this.lpcTypes = this.config.types.join('|');
-        this.modifiers = this.config.modifiers.join('|');
+        // 初始化类型和修饰符 - these might still be used by other diagnostic methods
+        // this.lpcTypes = this.config.types.join('|');
+        // this.modifiers = this.config.modifiers.join('|');
 
         // 初始化排除标识符
         this.excludedIdentifiers = new Set([
-            // 从配置的 efuns 中提取所有函数名
-            ...Object.keys(this.config.efuns)
+            ...Object.keys(this.config.efuns),
+            "this_object", "this_player", "previous_object", "this_interactive" // Common LPC implicit identifiers
         ]);
 
-        // 初始化正则表达式
+        // Comment out regexes for variable analysis as they will be replaced by Tree-sitter
+        /*
         this.variableDeclarationRegex = new RegExp(
             `^\\s*((?:${this.modifiers}\\s+)*)(${this.lpcTypes})\\s+` +
             '(\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*(?:\\s*,\\s*\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*)*);',
@@ -80,10 +96,11 @@ export class LPCDiagnostics {
         );
 
         this.functionDeclRegex = new RegExp(
-            `^\\s*(?:${this.modifiers}\\s+)*(${this.lpcTypes})\\s+` +
+            `^\\s*(?:${this.modifiers}\\s+)*)(${this.lpcTypes})\\s+` +
             '([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\([^)]*\\)\\s*{',
             'gm'
         );
+        */
 
         this.inheritRegex = /^\s*inherit\s+([A-Z_][A-Z0-9_]*(?:\s*,\s*[A-Z_][A-Z0-9_]*)*);/gm;
         this.includeRegex = /^\s*#include\s+[<"]([^>"]+)[>"]/gm;
@@ -107,7 +124,8 @@ export class LPCDiagnostics {
         let showVariablesCommand = vscode.commands.registerCommand('lpc.showVariables', () => {
             const editor = vscode.window.activeTextEditor;
             if (editor && editor.document.languageId === 'lpc') {
-                this.showAllVariables(editor.document);
+                // this.showAllVariables(editor.document); // TODO: Refactor this method
+                vscode.window.showInformationMessage("The 'Show All Variables' command needs to be updated for Tree-sitter analysis.");
             }
         });
         context.subscriptions.push(showVariablesCommand);
@@ -130,15 +148,15 @@ export class LPCDiagnostics {
                     if (!range) return;
 
                     const word = document.getText(range);
-                    if (/^[A-Z][A-Z0-9_]*_D$/.test(word)) {
+                    if (/^[A-Z][A-Z0-9_]*_D$/.test(word)) { // Assuming _D is a macro suffix
                         // 获取宏定义
-                        const macro = macroManager?.getMacro(word);
+                        const macro = this.macroManager?.getMacro(word);
                         if (macro) {
-                            return new vscode.Hover(macroManager.getMacroHoverContent(macro));
+                            return new vscode.Hover(this.macroManager.getMacroHoverContent(macro));
                         }
 
                         // 尝试解析宏
-                        const canResolve = await macroManager?.canResolveMacro(word);
+                        const canResolve = await this.macroManager?.canResolveMacro(word);
                         if (canResolve) {
                             return new vscode.Hover(`宏 \`${word}\` 已定义但无法获取具体值`);
                         }
@@ -148,8 +166,20 @@ export class LPCDiagnostics {
         );
     }
 
+    public static setLanguage(lang: Parser.Language) {
+        LpcLanguage = lang;
+        console.log("LPCDiagnostics: LpcLanguage static field has been set.");
+        // Note: Existing instances won't get this updated parser automatically
+        // unless they re-check the static LpcLanguage or are re-created.
+    }
+
     private onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent) {
         if (event.document.languageId === 'lpc') {
+            if (!this.parser && LpcLanguage) { // Initialize parser if language is now available
+                this.parser = new Parser();
+                this.parser.setLanguage(LpcLanguage);
+                console.log("LPCDiagnostics: Parser initialized on text document change because LpcLanguage was available.");
+            }
             this.analyzeDocument(event.document, false);
         }
     }
@@ -160,6 +190,197 @@ export class LPCDiagnostics {
         return ext === '.c' || ext === '.h';
     }
 
+    // --- Start of New AST-based methods (shells for now) ---
+    private getRangeFromNode(document: vscode.TextDocument, node: Parser.SyntaxNode): vscode.Range {
+        // TODO: Implement actual logic
+        return new vscode.Range(document.positionAt(node.startIndex), document.positionAt(node.endIndex));
+    }
+
+    private isActualVariableUsage(usageNode: Parser.SyntaxNode): boolean {
+        // TODO: Implement actual logic
+        // Placeholder:
+        const parent = usageNode.parent;
+        if (!parent) return true;
+        if ((parent.type === '_variable_declarator' && parent.childForFieldName('name') === usageNode) ||
+            (parent.type === 'parameter_declaration' && parent.childForFieldName('name') === usageNode)) {
+            return false;
+        }
+        if (parent.type === 'function_definition' && parent.childForFieldName('name') === usageNode) {
+            return false;
+        }
+        if (parent.type === 'call_expression' && parent.childForFieldName('function') === usageNode) {
+            return false;
+        }
+        return true;
+    }
+
+    private collectAstBasedUnusedVariableDiagnostics(document: vscode.TextDocument, tree: Parser.Tree): vscode.Diagnostic[] {
+        const diagnostics: vscode.Diagnostic[] = [];
+        if (!LpcLanguage || !this.parser) {
+            console.warn("LPCDiagnostics: Parser or Language not ready for AST analysis for document: " + document.uri.fsPath);
+            return diagnostics;
+        }
+
+        console.log(`LPCDiagnostics: Starting AST-based unused variable analysis for ${document.uri.fsPath}`);
+
+        // Map: scopeId (node.id of function_definition or rootNode) -> Map<varName, {declNode: SyntaxNode, used: boolean, isParam: boolean}>
+        const scopes = new Map<number, Map<string, { declNode: Parser.SyntaxNode, used: boolean, isParam: boolean }>>();
+
+        const getNodeText = (node: Parser.SyntaxNode) => document.getText(this.getRangeFromNode(document, node));
+
+        try {
+            // --- 1. Collect all declarations ---
+            const rootScopeId = tree.rootNode.id;
+            scopes.set(rootScopeId, new Map()); // For global variables
+
+            // Collect global variable declarations
+            const globalVarQuery = LpcLanguage.query(variableQueriesSource.declarations);
+            for (const topLevelNode of tree.rootNode.namedChildren) {
+                if (topLevelNode.type === 'variable_declaration') {
+                    const captures = globalVarQuery.captures(topLevelNode);
+                    for (const capture of captures) {
+                        if (capture.name === 'variable.name') {
+                            const varName = getNodeText(capture.node);
+                            if (!this.excludedIdentifiers.has(varName)) {
+                                scopes.get(rootScopeId)!.set(varName, { declNode: capture.node, used: false, isParam: false });
+                                // console.log(`Collected global var: ${varName}`);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Collect function parameters and local variables
+            const functionQuery = LpcLanguage.query(variableQueriesSource.function_definitions);
+            const functionMatches = functionQuery.matches(tree.rootNode);
+
+            for (const funcMatch of functionMatches) {
+                const functionNode = funcMatch.node;
+                const functionScopeId = functionNode.id;
+                scopes.set(functionScopeId, new Map());
+
+                // const funcNameNode = funcMatch.captures.find(c => c.name === 'function.name')?.node;
+                // const funcNameStr = funcNameNode ? getNodeText(funcNameNode) : "anonymous_fn";
+
+                // Collect parameters
+                const paramDeclQuery = LpcLanguage.query(variableQueriesSource.declarations);
+                const paramListNodes = functionNode.children.filter(c => c.type === 'parameter_list');
+                for (const paramListNode of paramListNodes) {
+                     paramListNode.descendantsOfType('parameter_declaration').forEach(paramDeclNode => {
+                        const paramCaptures = paramDeclQuery.captures(paramDeclNode);
+                        for (const capture of paramCaptures) {
+                            if (capture.name === 'param.name') {
+                                const paramName = getNodeText(capture.node);
+                                if (!this.excludedIdentifiers.has(paramName)) {
+                                    scopes.get(functionScopeId)!.set(paramName, { declNode: capture.node, used: false, isParam: true });
+                                    // console.log(`Collected param: ${paramName} in ${funcNameStr}`);
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Collect local variables within the function body
+                const functionBodyNode = funcMatch.captures.find(c => c.name === 'function.body')?.node;
+                if (functionBodyNode) {
+                    const localVarQuery = LpcLanguage.query(variableQueriesSource.declarations);
+                    functionBodyNode.descendantsOfType('variable_declaration').forEach(varDeclNode => {
+                        const localVarCaptures = localVarQuery.captures(varDeclNode);
+                        for (const capture of localVarCaptures) {
+                             if (capture.name === 'variable.name') {
+                                const varName = getNodeText(capture.node);
+                                if (!this.excludedIdentifiers.has(varName)) {
+                                     // Ensure it's not already declared as a param (shadowing)
+                                    if (!scopes.get(functionScopeId)!.has(varName)) {
+                                        scopes.get(functionScopeId)!.set(varName, { declNode: capture.node, used: false, isParam: false });
+                                        // console.log(`Collected local var: ${varName} in ${funcNameStr}`);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // --- 2. Mark used variables ---
+            const usageQuery = LpcLanguage.query(variableQueriesSource.usages);
+            const allUsageCaptures = usageQuery.captures(tree.rootNode);
+
+            for (const usageCapture of allUsageCaptures) {
+                if (usageCapture.name === 'identifier.usage') {
+                    const usageName = getNodeText(usageCapture.node);
+                    const usageNode = usageCapture.node;
+
+                    if (!this.isActualVariableUsage(usageNode)) continue;
+
+                    // Determine scope of usage
+                    let currentScopeNode: Parser.SyntaxNode | null = usageNode;
+                    let owningFunctionNode: Parser.SyntaxNode | null = null;
+                    while(currentScopeNode) {
+                        if (currentScopeNode.type === 'function_definition') {
+                            owningFunctionNode = currentScopeNode;
+                            break;
+                        }
+                        if (!currentScopeNode.parent) break;
+                        currentScopeNode = currentScopeNode.parent;
+                    }
+
+                    const usageScopeId = owningFunctionNode ? owningFunctionNode.id : rootScopeId;
+
+                    // Check if used in its own scope (local or param)
+                    const localScopeVars = scopes.get(usageScopeId);
+                    if (localScopeVars && localScopeVars.has(usageName)) {
+                        localScopeVars.get(usageName)!.used = true;
+                        // console.log(`Marked used (local/param): ${usageName} in scope ${usageScopeId}`);
+                    } else if (!owningFunctionNode) { // If usage is global and var is global
+                         const globalScopeVars = scopes.get(rootScopeId);
+                         if (globalScopeVars && globalScopeVars.has(usageName)) {
+                            globalScopeVars.get(usageName)!.used = true;
+                            // console.log(`Marked used (global from global): ${usageName}`);
+                         }
+                    } else { // Usage is in a function, but not a local/param - check globals
+                        const globalScopeVars = scopes.get(rootScopeId);
+                        if (globalScopeVars && globalScopeVars.has(usageName)) {
+                           globalScopeVars.get(usageName)!.used = true;
+                           // console.log(`Marked used (global from function ${owningFunctionNode?.id}): ${usageName}`);
+                        }
+                    }
+                }
+            }
+
+            // --- 3. Generate diagnostics for unused variables ---
+            for (const [scopeId, declarationsInScope] of scopes) {
+                for (const [varName, { declNode, used, isParam }] of declarationsInScope) {
+                    if (!used) {
+                        let messageType = "";
+                        let diagnosticCode = "";
+                        if (scopeId === rootScopeId) { // Global
+                            messageType = "全局变量";
+                            diagnosticCode = "unusedGlobalVar";
+                        } else { // Function scope
+                            messageType = isParam ? "参数" : "局部变量";
+                            diagnosticCode = isParam ? "unusedParameter" : "unusedLocalVar";
+                        }
+                        diagnostics.push(this.createDiagnostic(
+                            this.getRangeFromNode(document, declNode),
+                            `未使用的${messageType}: '${varName}'`,
+                            vscode.DiagnosticSeverity.Warning,
+                            diagnosticCode
+                        ));
+                        console.log(`Reported unused ${messageType}: ${varName}`);
+                    }
+                }
+            }
+            console.log(`LPCDiagnostics: Finished AST-based unused variable analysis for ${document.uri.fsPath}. Found ${diagnostics.length} unused variables.`);
+
+        } catch (e: any) {
+            console.error(`Error during AST-based unused variable analysis for ${document.uri.fsPath}:`, e.message, e.stack);
+        }
+
+        return diagnostics;
+    }
+    // --- End of New AST-based methods ---
+
     private collectDiagnostics(document: vscode.TextDocument): vscode.Diagnostic[] {
         const diagnostics: vscode.Diagnostic[] = [];
         const text = document.getText();
@@ -167,7 +388,19 @@ export class LPCDiagnostics {
         // 收集所有诊断信息
         this.collectObjectAccessDiagnostics(text, diagnostics, document);
         this.collectStringLiteralDiagnostics(text, diagnostics, document);
-        this.collectVariableUsageDiagnostics(text, diagnostics, document);
+        // this.collectVariableUsageDiagnostics(text, diagnostics, document); // To be replaced
+        if (this.parser && LpcLanguage) {
+            const tree = this.parser.parse(text); // Parse once
+            try {
+                diagnostics.push(...this.collectAstBasedUnusedVariableDiagnostics(document, tree));
+                // Call the new variable definition order checker
+                collectVariableDefinitionOrderDiagnostics(tree.rootNode, document, diagnostics, LpcLanguage);
+            } catch (e: any) {
+                console.error(`Error during AST diagnostics: ${document.uri.fsPath}`, e.message, e.stack);
+            }
+        } else {
+             console.warn(`LPCDiagnostics: Parser not ready for ${document.uri.fsPath}. Skipping AST-based checks.`);
+        }
         this.collectFileNamingDiagnostics(document, diagnostics);
 
         return diagnostics;

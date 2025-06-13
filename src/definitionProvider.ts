@@ -3,16 +3,160 @@ import { MacroManager } from './macroManager';
 import { EfunDocsManager } from './efunDocs';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as Parser from 'web-tree-sitter';
+
+// Module-level variable to hold the loaded language
+let LpcLanguage: Parser.Language | undefined = undefined;
 
 export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private macroManager: MacroManager;
     private efunDocsManager: EfunDocsManager;
-    private processedFiles: Set<string> = new Set();
-    private functionDefinitions: Map<string, vscode.Location> = new Map();
+    private parser?: Parser;
+    // private processedFiles: Set<string> = new Set(); // Will be managed by visitedFiles in recursive calls
+    // private functionDefinitions: Map<string, vscode.Location> = new Map(); // Will be replaced by AST lookups
 
     constructor(macroManager: MacroManager, efunDocsManager: EfunDocsManager) {
         this.macroManager = macroManager;
         this.efunDocsManager = efunDocsManager;
+        if (LpcLanguage) {
+            this.parser = new Parser();
+            this.parser.setLanguage(LpcLanguage);
+            console.log("LPCDefinitionProvider: Parser initialized in constructor.");
+        } else {
+            console.warn("LPCDefinitionProvider: LpcLanguage not available at construction. Parser will be initialized on demand or when language is set.");
+        }
+    }
+
+    public static setLanguage(lang: Parser.Language) {
+        LpcLanguage = lang;
+        console.log("LPCDefinitionProvider: LpcLanguage static field has been set.");
+        // Note: Existing instances might need to re-check LpcLanguage or be re-created
+        // if they were constructed before this was called. The provideDefinition method
+        // will also attempt to initialize the parser if it's missing.
+    }
+
+    private nodeToLocation(node: Parser.SyntaxNode, uri: vscode.Uri, documentText: string): vscode.Location {
+        // Helper to convert AST node start/end byte offsets to vscode.Position
+        const startPosition = this._offsetToPosition(documentText, node.startIndex);
+        const endPosition = this._offsetToPosition(documentText, node.endIndex);
+        return new vscode.Location(uri, new vscode.Range(startPosition, endPosition));
+    }
+
+    // Reusable helper for converting byte offset to Position
+    private _offsetToPosition(docText: string, offset: number): vscode.Position {
+        const before = docText.substring(0, offset);
+        const lines = before.split('\n');
+        const line = lines.length - 1;
+        const character = lines[line].length; // Corrected: length of the last line segment
+        return new vscode.Position(line, character);
+    }
+
+    private findFunctionDefinitionInAst(
+        tree: Parser.Tree,
+        functionName: string,
+        documentUri: vscode.Uri,
+        documentText: string
+    ): vscode.Location | undefined {
+        if (!LpcLanguage || !this.parser) return undefined;
+        // Ensure FUNCTION_DEFINITION_QUERY is defined at the top of the file or passed in
+        const query = LpcLanguage.query(FUNCTION_DEFINITION_QUERY);
+        const matches = query.matches(tree.rootNode);
+        for (const match of matches) {
+            const nameNode = match.captures.find(c => c.name === 'function.name')?.node;
+            if (nameNode && nameNode.text === functionName) {
+                return this.nodeToLocation(nameNode, documentUri, documentText);
+            }
+        }
+        return undefined;
+    }
+
+    private async _findFunctionInAstFile(fileUri: vscode.Uri, functionName: string): Promise<vscode.Location | undefined> {
+        if (!this.parser) {
+            if (LpcLanguage) { // Try to initialize parser if language is available
+                this.parser = new Parser();
+                this.parser.setLanguage(LpcLanguage);
+            } else {
+                console.warn("LPCDefinitionProvider: Parser not initialized in _findFunctionInAstFile.");
+                return undefined;
+            }
+        }
+        try {
+            const fileContentBytes = await vscode.workspace.fs.readFile(fileUri);
+            const fileText = Buffer.from(fileContentBytes).toString('utf8');
+            const tree = this.parser.parse(fileText);
+            return this.findFunctionDefinitionInAst(tree, functionName, fileUri, fileText);
+        } catch (e) {
+            console.error(`Error reading/parsing ${fileUri.fsPath} for AST function search:`, e);
+        }
+        return undefined;
+    }
+
+    private async findFunctionDefinitionInInheritedAsts(
+        currentDocumentUri: vscode.Uri,
+        currentDocumentText: string,
+        functionName: string,
+        workspaceFolderUri: vscode.Uri | undefined,
+        visitedFiles: Set<string>
+    ): Promise<vscode.Location | undefined> {
+        if (!LpcLanguage || !this.parser || !workspaceFolderUri) {
+            console.warn("LPCDefinitionProvider: Prerequisites for inheritance check not met.");
+            return undefined;
+        }
+
+        if (visitedFiles.has(currentDocumentUri.fsPath)) {
+            return undefined;
+        }
+        visitedFiles.add(currentDocumentUri.fsPath);
+
+        let currentTree: Parser.Tree;
+        try {
+            currentTree = this.parser.parse(currentDocumentText);
+        } catch (e) {
+            console.error(`Error parsing ${currentDocumentUri.fsPath} for inherits:`, e);
+            return undefined;
+        }
+
+        // Ensure INHERIT_STATEMENT_QUERY is defined at the top of the file or passed in
+        const inheritQuery = LpcLanguage.query(INHERIT_STATEMENT_QUERY);
+        const inheritMatches = inheritQuery.matches(currentTree.rootNode);
+
+        for (const match of inheritMatches) {
+            const pathNode = match.captures.find(c => c.name === 'inherit.path')?.node;
+            if (pathNode) {
+                let inheritedPath = pathNode.text.slice(1, -1); // Remove quotes
+                if (!inheritedPath.endsWith(".c")) {
+                    inheritedPath += ".c";
+                }
+
+                let resolvedUri: vscode.Uri | undefined;
+                if (inheritedPath.startsWith('/')) {
+                    resolvedUri = vscode.Uri.joinPath(workspaceFolderUri, inheritedPath.substring(1));
+                } else {
+                    const currentDir = vscode.Uri.joinPath(currentDocumentUri, '..');
+                    resolvedUri = vscode.Uri.joinPath(currentDir, inheritedPath);
+                }
+
+                if (resolvedUri && fs.existsSync(resolvedUri.fsPath)) {
+                    if (visitedFiles.has(resolvedUri.fsPath)) continue;
+
+                    try {
+                        const inheritedContentBytes = await vscode.workspace.fs.readFile(resolvedUri);
+                        const inheritedText = Buffer.from(inheritedContentBytes).toString('utf8');
+                        // No need to parse here, _findFunctionInAstFile will parse
+                        const location = await this._findFunctionInAstFile(resolvedUri, functionName);
+                        if (location) return location;
+
+                        if (visitedFiles.size < 10) { // Limit recursion depth
+                            const deeperLocation = await this.findFunctionDefinitionInInheritedAsts(resolvedUri, inheritedText, functionName, workspaceFolderUri, visitedFiles);
+                            if (deeperLocation) return deeperLocation;
+                        }
+                    } catch (e) {
+                        console.error(`Error reading/parsing inherited file ${resolvedUri.fsPath}:`, e);
+                    }
+                }
+            }
+        }
+        return undefined;
     }
 
     async provideDefinition(
@@ -171,22 +315,51 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
             }
         }
 
-        // 清除之前的缓存
-        this.processedFiles.clear();
-        this.functionDefinitions.clear();
+        // 清除之前的缓存 -- This old cache logic is no longer needed for AST-based func defs
+        // this.processedFiles.clear();
+        // this.functionDefinitions.clear();
 
-        // 3. 检查是否是函数定义
-        await this.findFunctionDefinitions(document);
-        if (!this.functionDefinitions.has(word)) {
-            await this.findInheritedFunctionDefinitions(document);
-        }
-        const functionDef = this.functionDefinitions.get(word);
-        if (functionDef) {
-            return functionDef;
+        // 3. AST-based function definition search (current file then inherited)
+        // Ensure parser is initialized (it might have been set late via setLanguage)
+        if (!this.parser && LpcLanguage) {
+            this.parser = new Parser();
+            this.parser.setLanguage(LpcLanguage);
+            console.log("LPCDefinitionProvider: Parser initialized on-demand in provideDefinition (AST path).");
         }
 
-        // 4. 检查是否是变量定义
-        const variableDef = await this.findVariableDefinition(word, document, position);
+        if (this.parser) {
+            const documentText = document.getText();
+            let astTree: Parser.Tree;
+            try {
+                astTree = this.parser.parse(documentText);
+                let astLocation = this.findFunctionDefinitionInAst(astTree, word, document.uri, documentText);
+                if (astLocation) return astLocation;
+
+                const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+                astLocation = await this.findFunctionDefinitionInInheritedAsts(document.uri, documentText, word, workspaceFolder?.uri, new Set<string>());
+                if (astLocation) return astLocation;
+            } catch (e) {
+                console.error("Error during AST-based definition search:", e);
+                // Fall through to old logic if AST parsing/search fails
+            }
+        } else {
+            console.warn("LPCDefinitionProvider: Parser not available for AST-based function search.");
+            // Fallback to old regex logic if parser isn't ready
+            // (The old logic for findFunctionDefinitions and findInheritedFunctionDefinitions is currently commented out below)
+        }
+
+        // Old regex-based function definition search (can be removed once AST is fully trusted)
+        // await this.findFunctionDefinitions(document);
+        // if (!this.functionDefinitions.has(word)) {
+        //     await this.findInheritedFunctionDefinitions(document);
+        // }
+        // const functionDef = this.functionDefinitions.get(word);
+        // if (functionDef) {
+        //     return functionDef;
+        // }
+
+        // 4. 检查是否是变量定义 (Using existing regex-based logic for variables for now)
+        const variableDef = await this._findVariableDefinitionRegex(word, document, position);
         if (variableDef) {
             return variableDef;
         }
@@ -396,94 +569,33 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
 
     private async findFunctionDefinitions(document: vscode.TextDocument): Promise<void> {
         const text = document.getText();
-        
-        // 匹配函数定义，支持各种修饰符和返回类型
-        const functionRegex = /(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)/g;
-        
+        // Simplified regex for variable declarations (int x, string *y, etc.)
+        // This doesn't understand scope, so it's a very basic fallback.
+        const varRegex = new RegExp(`(?:\\w+\\s*(?:\\*\\s*)*)${variableName}\\b`);
         let match;
-        while ((match = functionRegex.exec(text)) !== null) {
-            const functionName = match[1];
-            const startPos = document.positionAt(match.index);
-            const endPos = document.positionAt(match.index + match[0].length);
-            
-            this.functionDefinitions.set(functionName, new vscode.Location(
-                document.uri,
-                new vscode.Range(startPos, endPos)
-            ));
-        }
-    }
-
-    private async findInheritedFunctionDefinitions(document: vscode.TextDocument): Promise<void> {
-        const text = document.getText();
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-        if (!workspaceFolder) return;
-
-        // 如果这个文件已经处理过，就跳过
-        if (this.processedFiles.has(document.uri.fsPath)) {
-            return;
-        }
-        this.processedFiles.add(document.uri.fsPath);
-
-        // 支持两种继承语法
-        const inheritRegexes = [
-            /inherit\s+"([^"]+)"/g,
-            /inherit\s+([A-Z_][A-Z0-9_]*)\s*;/g
-        ];
-
-        for (const inheritRegex of inheritRegexes) {
-            let match;
-            while ((match = inheritRegex.exec(text)) !== null) {
-                let inheritedFile = match[1];
-                
-                // 如果是宏定义形式，尝试解析宏
-                if (inheritedFile.match(/^[A-Z_][A-Z0-9_]*$/)) {
-                    const macro = this.macroManager.getMacro(inheritedFile);
-                    if (macro) {
-                        inheritedFile = macro.value.replace(/^"(.*)"$/, '$1');
-                    } else {
-                        continue;
-                    }
-                }
-
-                // 处理文件路径
-                if (!inheritedFile.endsWith('.c')) {
-                    inheritedFile = inheritedFile + '.c';
-                }
-
-                // 构建可能的文件路径
-                const possiblePaths = [];
-                if (inheritedFile.startsWith('/')) {
-                    const relativePath = inheritedFile.slice(1);
-                    possiblePaths.push(
-                        path.join(workspaceFolder.uri.fsPath, relativePath),
-                        path.join(workspaceFolder.uri.fsPath, relativePath.replace('.c', ''))
-                    );
-                } else {
-                    possiblePaths.push(
-                        path.join(path.dirname(document.uri.fsPath), inheritedFile),
-                        path.join(path.dirname(document.uri.fsPath), inheritedFile.replace('.c', '')),
-                        path.join(workspaceFolder.uri.fsPath, inheritedFile),
-                        path.join(workspaceFolder.uri.fsPath, inheritedFile.replace('.c', ''))
-                    );
-                }
-
-                // 去重路径
-                const uniquePaths = [...new Set(possiblePaths)];
-
-                for (const filePath of uniquePaths) {
-                    if (fs.existsSync(filePath) && !this.processedFiles.has(filePath)) {
-                        try {
-                            const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
-                            await this.findFunctionDefinitions(inheritedDoc);
-                            // 递归处理继承的文件
-                            await this.findInheritedFunctionDefinitions(inheritedDoc);
-                        } catch (error) {
-                            console.error(`Error reading inherited file: ${filePath}`, error);
-                        }
-                        break;
-                    }
+        const lines = text.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            match = varRegex.exec(lines[i]);
+            if (match) {
+                // Find the specific variable name in the match
+                const nameMatch = new RegExp(`\\b${variableName}\\b`).exec(lines[i]);
+                if (nameMatch) {
+                    const startPos = new vscode.Position(i, nameMatch.index);
+                    const endPos = new vscode.Position(i, nameMatch.index + variableName.length);
+                    return new vscode.Location(document.uri, new vscode.Range(startPos, endPos));
                 }
             }
         }
+        return undefined;
     }
+
+    // Commenting out old regex-based function search methods
+    /*
+    private async findFunctionDefinitions(document: vscode.TextDocument): Promise<void> { ... }
+    private async findInheritedFunctionDefinitions(document: vscode.TextDocument): Promise<void> { ... }
+    */
+
+    // Existing helper methods like getFunctionText, findInheritedVariableDefinition (if regex based)
+    // would also be candidates for AST refactoring or removal if their callers are fully AST based.
+    // For now, _findVariableDefinitionRegex is kept as a fallback.
 } 

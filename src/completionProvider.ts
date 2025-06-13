@@ -3,6 +3,36 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EfunDocsManager } from './efunDocs';
 import { MacroManager } from './macroManager';
+import * as Parser from 'web-tree-sitter';
+
+// Module-level variable to hold the loaded language
+let LpcLanguage: Parser.Language | undefined = undefined;
+
+// Tree-sitter Queries
+const FUNCTION_DEFINITION_QUERY_COMPLETION = `
+(function_definition
+  name: (identifier) @function.name
+  parameters: (parameter_list)? @function.parameters
+  return_type: (_type)? @function.return_type
+) @function.definition
+`;
+
+const VARIABLE_DECLARATION_QUERY_COMPLETION = `
+(variable_declaration
+  (_variable_declarator
+    name: (identifier) @variable.name
+    initializer: (initializer_expression)? @variable.initializer
+  ) @variable.declarator
+  type: (_type) @variable.type
+) @variable.declaration
+`;
+
+const PARAMETER_DECLARATION_QUERY_COMPLETION = `
+(parameter_declaration
+  name: (identifier) @parameter.name
+  type: (_type) @parameter.type
+) @parameter.declaration
+`;
 
 // 创建输出通道
 const inheritanceChannel = vscode.window.createOutputChannel('LPC Inheritance');
@@ -15,10 +45,23 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
     private functionCache: Map<string, vscode.CompletionItem[]> = new Map();
     private variableCache: Map<string, vscode.CompletionItem[]> = new Map();
     private filePathCache: Map<string, string> = new Map();
+    private parser?: Parser;
 
     constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager) {
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
+        if (LpcLanguage) {
+            this.parser = new Parser();
+            this.parser.setLanguage(LpcLanguage);
+            console.log("LPCCompletionProvider: Parser initialized in constructor.");
+        } else {
+            console.warn("LPCCompletionProvider: LpcLanguage not available at construction. Parser will be initialized on demand or when language is set.");
+        }
+    }
+
+    public static setLanguage(lang: Parser.Language) {
+        LpcLanguage = lang;
+        console.log("LPCCompletionProvider: LpcLanguage static field has been set.");
     }
 
     // 清除变量缓存的公共方法
@@ -26,20 +69,238 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         this.variableCache.clear();
     }
 
+    // Helper to get text of a node
+    private _getNodeText(node: Parser.SyntaxNode, document: vscode.TextDocument): string {
+        return document.getText(new vscode.Range(
+            document.positionAt(node.startIndex),
+            document.positionAt(node.endIndex)
+        ));
+    }
+
+    // Helper to convert AST node to CompletionItem for functions
+    private _functionNodeToCompletionItem(node: Parser.SyntaxNode, query: Parser.Query, document: vscode.TextDocument, source: string = "当前文件"): vscode.CompletionItem | null {
+        const captures = query.captures(node);
+        const funcNameNode = captures.find(c => c.name === 'function.name')?.node;
+        const paramsNode = captures.find(c => c.name === 'function.parameters')?.node;
+        const returnTypeNode = captures.find(c => c.name === 'function.return_type')?.node;
+
+        if (!funcNameNode) return null;
+
+        const funcName = this._getNodeText(funcNameNode, document);
+        const item = new vscode.CompletionItem(funcName, vscode.CompletionItemKind.Function);
+
+        let paramText = "()";
+        if (paramsNode) {
+            // Attempt to get clean parameter text, might need refinement based on grammar structure
+            paramText = `(${paramsNode.children.filter(c => c.type !== ',' && c.type !== '(' && c.type !== ')').map(p => this._getNodeText(p,document)).join(', ')})`;
+            if (paramText === "()") { // If only parens, make it look like no args for snippet
+                 const paramNames = paramsNode.children.filter(c => c.type === 'parameter_declaration').map(pd => pd.childForFieldName('name')?.text).filter(n=>n);
+                 if(paramNames.length > 0) {
+                    paramText = `(${paramNames.join(', ')})`;
+                 }
+            }
+        }
+
+        let detail = "";
+        if(returnTypeNode) detail += `${this._getNodeText(returnTypeNode, document)} `;
+        detail += `${funcName}${paramText}`;
+        item.detail = `${source}: ${detail}`;
+
+        const markdown = new vscode.MarkdownString();
+        markdown.appendCodeblock(detail, 'lpc');
+        item.documentation = markdown;
+
+        // Create snippet with parameters
+        let snippetParams = "";
+        if (paramsNode) {
+            const paramDeclarations = paramsNode.children.filter(c => c.type === 'parameter_declaration');
+            snippetParams = paramDeclarations.map((pd, i) => {
+                const nameNode = pd.childForFieldName('name');
+                return `\${${i+1}:${nameNode ? this._getNodeText(nameNode, document) : 'arg'+(i+1)}}`;
+            }).join(", ");
+        }
+        item.insertText = new vscode.SnippetString(`${funcName}(${snippetParams})`);
+        return item;
+    }
+
+    // Helper to convert AST node to CompletionItem for variables/parameters
+    private _variableNodeToCompletionItem(varNameNode: Parser.SyntaxNode, typeNode: Parser.SyntaxNode | undefined, document: vscode.TextDocument, kind: vscode.CompletionItemKind, detailPrefix: string): vscode.CompletionItem {
+        const varName = this._getNodeText(varNameNode, document);
+        const item = new vscode.CompletionItem(varName, kind);
+        let typeText = typeNode ? this._getNodeText(typeNode, document) : "mixed";
+        item.detail = `${detailPrefix}: ${typeText} ${varName}`;
+
+        const markdown = new vscode.MarkdownString();
+        markdown.appendCodeblock(`${typeText} ${varName};`, 'lpc');
+        item.documentation = markdown;
+        item.insertText = varName; // Plain text for variable names
+        return item;
+    }
+
+    private _addAstLocalFunctionCompletions(tree: Parser.Tree, document: vscode.TextDocument, completionItems: vscode.CompletionItem[]): void {
+        if (!LpcLanguage || !this.parser) return;
+        // console.log("AST: Adding local function completions");
+        try {
+            const query = LpcLanguage.query(FUNCTION_DEFINITION_QUERY_COMPLETION);
+            const matches = query.matches(tree.rootNode);
+            for (const match of matches) {
+                 const funcDefNode = match.captures.find(c => c.name === 'function.definition')?.node;
+                 if (funcDefNode) { // Check if funcDefNode is found
+                    const item = this._functionNodeToCompletionItem(funcDefNode, query, document, "当前文件");
+                    if (item) {
+                        // Check if an item with the same name already exists from regex-based inherited functions
+                        // This is a simple way to avoid duplicates if parseInheritedFunctions (regex) runs first.
+                        // A more robust solution would be to clearly separate or prioritize AST results.
+                        if (!completionItems.some(ci => ci.label === item.label && ci.kind === vscode.CompletionItemKind.Function)) {
+                            completionItems.push(item);
+                        }
+                    }
+                 }
+            }
+        } catch (e: any) {
+            console.error("Error querying local functions from AST:", e.message, e.stack);
+        }
+    }
+
+    private _addAstScopedVariableCompletions(tree: Parser.Tree, document: vscode.TextDocument, position: vscode.Position, completionItems: vscode.CompletionItem[]): void {
+        if (!LpcLanguage || !this.parser) return;
+        // console.log("AST: Adding scoped variable completions");
+
+        const offset = document.offsetAt(position);
+        let currentNode = tree.rootNode.descendantForOffset(offset);
+
+        // Find enclosing function definition for parameters and local variables
+        let enclosingFunctionNode: Parser.SyntaxNode | null = currentNode;
+        while (enclosingFunctionNode && enclosingFunctionNode.type !== 'function_definition') {
+            enclosingFunctionNode = enclosingFunctionNode.parent;
+        }
+
+        if (enclosingFunctionNode) {
+            // Add Parameters from the enclosing function
+            try {
+                const paramQuery = LpcLanguage.query(PARAMETER_DECLARATION_QUERY_COMPLETION);
+                // Parameters are direct children of parameter_list, which is a child of function_definition
+                const paramListNodes = enclosingFunctionNode.children.filter(c => c.type === 'parameter_list');
+                for (const paramListNode of paramListNodes) {
+                    // const paramMatches = paramQuery.matches(paramListNode); // Query matches on the paramListNode itself
+                     paramListNode.descendantsOfType('parameter_declaration').forEach(paramDeclNode => {
+                        const paramCaptures = paramQuery.captures(paramDeclNode); // Use captures on each paramDeclNode
+                        for (const pMatch of paramCaptures) { // Iterate captures from each paramDeclNode
+                            const paramNameNode = pMatch.name === 'parameter.name' ? pMatch.node : null;
+                            const paramTypeNode = pMatch.name === 'parameter.type' ? pMatch.node : null; // Assuming type is also captured, adjust query if not
+
+                            // A bit convoluted due to captures structure, ensure we get name and type for *this* parameter
+                            if (paramNameNode) {
+                                let actualTypeNode : Parser.SyntaxNode | undefined = paramTypeNode;
+                                if(!actualTypeNode) { // If type wasn't captured with name, find it on the same declaration node
+                                    const siblingCaptures = paramQuery.captures(paramDeclNode);
+                                    actualTypeNode = siblingCaptures.find(c => c.name === 'parameter.type')?.node;
+                                }
+                                completionItems.push(this._variableNodeToCompletionItem(paramNameNode, actualTypeNode, document, vscode.CompletionItemKind.Variable, "参数"));
+                            }
+                        }
+                    });
+                }
+            } catch (e: any) { console.error("Error querying parameters from AST:", e.message, e.stack); }
+
+            // Add Local Variables (declared before current position within the current function's blocks)
+            try {
+                const varQuery = LpcLanguage.query(VARIABLE_DECLARATION_QUERY_COMPLETION);
+                // Iterate upwards from current position to find relevant blocks within the function
+                let blockScopeNode: Parser.SyntaxNode | null = currentNode; // Start from current node
+                while(blockScopeNode && blockScopeNode !== enclosingFunctionNode.parent) { // Stop if we go above the function
+                    if (blockScopeNode.type === 'block_statement' && blockScopeNode.startIndex < offset) {
+                         blockScopeNode.children.filter(c => c.type === 'variable_declaration' && c.endIndex < offset).forEach(varDeclNode => {
+                            // const varMatches = varQuery.matches(varDeclNode); // Query matches on the varDeclNode
+                            const varCaptures = varQuery.captures(varDeclNode); // Use captures
+                            for (const vMatch of varCaptures) { // Iterate captures
+                                const varNameNode = vMatch.name === 'variable.name' ? vMatch.node : null;
+                                const varTypeNode = vMatch.name === 'variable.type' ? vMatch.node : null;
+
+                                if (varNameNode) {
+                                     let actualTypeNode : Parser.SyntaxNode | undefined = varTypeNode;
+                                     if(!actualTypeNode) {
+                                         const siblingCaptures = varQuery.captures(varDeclNode);
+                                         actualTypeNode = siblingCaptures.find(c => c.name === 'variable.type')?.node;
+                                     }
+                                     completionItems.push(this._variableNodeToCompletionItem(varNameNode, actualTypeNode, document, vscode.CompletionItemKind.Variable, "局部变量"));
+                                }
+                            }
+                        });
+                    }
+                    blockScopeNode = blockScopeNode.parent;
+                }
+            } catch (e: any) { console.error("Error querying local variables from AST:", e.message, e.stack); }
+        }
+        // Global variable completions could be added here by querying tree.rootNode for variable_declarations
+        // that are direct children of source_file, but for this subtask, we focus on local/param.
+    }
+
+    private _addAstGlobalVariableCompletions(tree: Parser.Tree, document: vscode.TextDocument, completionItems: vscode.CompletionItem[]): void {
+        if (!LpcLanguage || !this.parser) return;
+        // console.log("AST: Adding global variable completions");
+        try {
+            const query = LpcLanguage.query(VARIABLE_DECLARATION_QUERY_COMPLETION);
+            // Global variables are direct children of the source_file (root node)
+            for (const topLevelNode of tree.rootNode.namedChildren) {
+                if (topLevelNode.type === 'variable_declaration') {
+                    const captures = query.captures(topLevelNode);
+                    // Need to find the name and type from the captures of this specific declaration
+                    let varNameNode: Parser.SyntaxNode | undefined;
+                    let varTypeNode: Parser.SyntaxNode | undefined;
+
+                    for (const capture of captures) {
+                        if (capture.name === 'variable.name') {
+                            varNameNode = capture.node;
+                        } else if (capture.name === 'variable.type') {
+                            varTypeNode = capture.node;
+                        }
+                    }
+
+                    if (varNameNode) {
+                        if (!this.excludedIdentifiers.has(this._getNodeText(varNameNode, document))) {
+                             completionItems.push(this._variableNodeToCompletionItem(varNameNode, varTypeNode, document, vscode.CompletionItemKind.Variable, "全局变量"));
+                        }
+                    }
+                }
+            }
+        } catch (e: any) {
+            console.error("Error querying global variables from AST:", e.message, e.stack);
+        }
+    }
+
+
     async provideCompletionItems(
         document: vscode.TextDocument,
         position: vscode.Position,
         token: vscode.CancellationToken,
         context: vscode.CompletionContext
     ): Promise<vscode.CompletionItem[] | vscode.CompletionList> {
+        if (!this.parser && LpcLanguage) { // Initialize parser if needed (e.g. if setLanguage was called after constructor)
+            this.parser = new Parser();
+            this.parser.setLanguage(LpcLanguage);
+            console.log("LPCCompletionProvider: Parser initialized on-demand in provideCompletionItems.");
+        }
+
         const linePrefix = document.lineAt(position).text.substr(0, position.character);
         const completionItems: vscode.CompletionItem[] = [];
 
-        // 添加当前文件中定义的函数和继承的函数
-        await this.addLocalFunctionCompletions(document, completionItems);
-        
-        // 添加当前作用域内的变量
-        this.addLocalVariableCompletions(document, position, completionItems);
+        if (this.parser && LpcLanguage) {
+            // console.log("LPCCompletionProvider: Using AST-based completions for current file funcs/vars.");
+            const tree = this.parser.parse(document.getText());
+            this._addAstLocalFunctionCompletions(tree, document, completionItems);
+            this._addAstScopedVariableCompletions(tree, document, position, completionItems);
+            this._addAstGlobalVariableCompletions(tree, document, completionItems); // Add this call
+
+            // For inherited functions, the existing regex-based method is still used.
+            // Note: parseInheritedFunctions internally calls the regex version of parseFunctionsInFileRegex
+            await this.parseInheritedFunctions(document, completionItems, false);
+        } else {
+            console.warn("LPCCompletionProvider: Parser not available. Falling back to regex for local funcs/vars.");
+            // Fallback to old regex methods if parser isn't ready
+            await this.addLocalFunctionCompletionsRegex(document, completionItems);
+            this.addLocalVariableCompletionsRegex(document, position, completionItems);
+        }
 
         // 添加类型提示
         this.types.forEach(type => {
@@ -128,23 +389,23 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         await this.parseInheritedFunctions(document, [], true);
     }
 
-    private async addLocalFunctionCompletions(document: vscode.TextDocument, completionItems: vscode.CompletionItem[]): Promise<void> {
+    private async addLocalFunctionCompletionsRegex(document: vscode.TextDocument, completionItems: vscode.CompletionItem[]): Promise<void> {
         // 首先添加当前文件的函数
-        this.parseFunctionsInFile(document, completionItems);
+        this.parseFunctionsInFileRegex(document, completionItems); // Renamed call
         
         // 解析继承文件，但不显示输出
-        await this.parseInheritedFunctions(document, completionItems, false);
+        await this.parseInheritedFunctions(document, completionItems, false); // This still uses regex internally for inherited
     }
 
-    // 添加当前作用域内的变量提示
-    private addLocalVariableCompletions(document: vscode.TextDocument, position: vscode.Position, completionItems: vscode.CompletionItem[]): void {
+    // Renamed old regex-based method
+    private addLocalVariableCompletionsRegex(document: vscode.TextDocument, position: vscode.Position, completionItems: vscode.CompletionItem[]): void {
         // 获取当前文件的变量
-        const variables = this.parseVariablesInScope(document, position);
+        const variables = this.parseVariablesInScopeRegex(document, position); // Renamed call
         completionItems.push(...variables);
     }
 
-    // 解析当前作用域内的变量
-    private parseVariablesInScope(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
+    // Renamed old regex-based method
+    private parseVariablesInScopeRegex(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
         const text = document.getText();
         const lines = text.split('\n');
         const currentLine = position.line;
@@ -694,39 +955,44 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         if (showOutput) { inheritanceChannel.appendLine('----------------------------------------'); }
     }
 
-    private parseFunctionsInFile(
+    // Renamed to parseFunctionsInFileRegex
+    private parseFunctionsInFileRegex(
         document: vscode.TextDocument,
         completionItems: vscode.CompletionItem[],
         source: string = '当前文件'
     ): void {
         const text = document.getText();
-        const lines = text.split('\n');
+        // const lines = text.split('\n'); // Not used in this version
         
         // 匹配函数定义，支持各种修饰符和返回类型
-        const functionRegex = /(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)/g;
+        const functionRegex = /(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/g;
         
         let match;
         while ((match = functionRegex.exec(text)) !== null) {
             const functionName = match[1];
-            const functionDefinition = match[0];
-            
-            // 获取函数前的注释
-            let comment = '';
-            let lineIndex = lines.findIndex(line => line.includes(functionDefinition));
-            if (lineIndex > 0) {
-                // 向上查找注释
-                let commentLines = [];
-                let i = lineIndex - 1;
-                while (i >= 0 && (lines[i].trim().startsWith('*') || lines[i].trim().startsWith('/*'))) {
-                    commentLines.unshift(lines[i]);
-                    i--;
-                }
-                if (commentLines.length > 0) {
-                    comment = commentLines.join('\n');
-                }
-            }
+            const functionDefinition = match[0]; // Full matched definition line
+            const params = match[2];
 
-            this.addFunctionCompletion(functionName, functionDefinition, comment, completionItems, source);
+            const item = new vscode.CompletionItem(functionName, vscode.CompletionItemKind.Function);
+            item.detail = `${source}: ${functionDefinition}`;
+            const markdown = new vscode.MarkdownString();
+            markdown.appendCodeblock(functionDefinition.trim() + " { ... }", 'lpc'); // Assume it's a definition
+            item.documentation = markdown;
+            
+            // Create snippet with parameters
+            const paramNames = params.split(',').map(p => {
+                const parts = p.trim().split(/\s+/); // split by whitespace
+                return parts.pop(); // last part is the name
+            }).filter(p => p && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(p)); // Ensure it's a valid identifier
+
+            let snippet = functionName + "(";
+            if (paramNames.length > 0) {
+                snippet += paramNames.map((name, i) => `\${${i+1}:${name}}`).join(", ");
+            }
+            snippet += ")";
+            item.insertText = new vscode.SnippetString(snippet);
+
+            completionItems.push(item);
         }
     }
 
