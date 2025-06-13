@@ -1,0 +1,459 @@
+```javascript
+// Tree-sitter LPC Grammar Outline (lpc_grammar_outline.txt)
+// Based on 'doc/lpc语言语法大纲.md'
+
+module.exports = grammar({
+  name: 'lpc',
+
+  // Extras: whitespace and comments
+  extras: $ => [
+    /\s/, // Whitespace (includes newlines)
+    $.line_comment,
+    $.block_comment,
+  ],
+
+  // Word rule for identifiers, allowing keywords to be aliased or conflict
+  // It's often better to define keywords as strings directly in rules for clarity.
+  // word: $ => $.identifier, // If using this, keywords would be listed in `conflicts` or `inline`
+
+  // Top-level rule
+  rules: {
+    source_file: $ => repeat($._top_level_definition),
+
+    _top_level_definition: $ => choice(
+      $.preprocessor_directive,
+      $.function_definition,
+      $.variable_declaration,
+      $.struct_definition, // If distinct from class or handled generally
+      $.class_definition,  // If distinct from file-as-class or for explicit class syntax
+      $.comment_statement // Allow top-level comments if not handled by extras alone
+    ),
+
+    // === I. Preprocessor Directives ===
+    // From doc: #define, #include, #if, #ifdef, #ifndef, #else, #endif
+    preprocessor_directive: $ => choice(
+      $.include_directive,
+      $.define_directive,
+      $.undef_directive, // Common, though not explicitly listed, good to consider
+      $.if_directive,
+      $.ifdef_directive,
+      $.ifndef_directive,
+      $.else_directive,
+      $.endif_directive
+    ),
+    include_directive: $ => seq('#include', field('path', choice($.string_literal, $.system_lib_string))),
+    define_directive: $ => seq(
+        '#define',
+        field('name', $.identifier),
+        field('value', optional(repeat($._preprocessor_expression))) // Can be complex
+    ),
+    undef_directive: $ => seq('#undef', field('name', $.identifier)),
+    if_directive: $ => seq('#if', field('condition', $._preprocessor_expression), $._preprocessor_body),
+    ifdef_directive: $ => seq('#ifdef', field('name', $.identifier), $._preprocessor_body),
+    ifndef_directive: $ => seq('#ifndef', field('name', $.identifier), $._preprocessor_body),
+    else_directive: $ => seq('#else', $._preprocessor_body),
+    endif_directive: $ => seq('#endif'),
+    _preprocessor_expression: $ => /.+/, // Simplified: actual C preproc expressions are complex
+    _preprocessor_body: $ => repeat($._top_level_definition), // Or text until #else/#endif
+
+    system_lib_string: $ => seq('<', field('path', /[^>]+/), '>'),
+
+
+    // === II. Declarations ===
+    // Variable, Function, Struct/Class
+
+    // Variable Declarations
+    // Doc: dataType varName1[, varName2 = value2, ...];
+    // Doc:同一作用域内不可重复声明 (handled by parser context, not grammar rule itself)
+    variable_declaration: $ => seq(
+      optional($._declaration_modifiers), // e.g., static, nosave
+      field('type', $._type),
+      commaSep1($._variable_declarator),
+      ';'
+    ),
+    _variable_declarator: $ => seq(
+      optional('*'), // For array types, though type rule might handle it better
+      field('name', $.identifier),
+      optional(field('initializer', $.initializer_expression))
+    ),
+    initializer_expression: $ => seq('=', field('value', $._expression)),
+
+    _declaration_modifiers: $ => repeat1(choice(
+        'static', // Not listed in doc keywords for vars, but common in C-like
+        'nosave', // Listed under function修饰符, but can apply to vars
+        'private', 'protected', 'public' // Also func modifiers, may apply to global vars
+    )),
+
+
+    // Function Definitions
+    // Doc: return_type function_name(parameter_list) { statement_block }
+    // Doc: Modifiers: public, protected, private, nomask, varargs, nosave
+    function_definition: $ => seq(
+      optional($._function_modifiers),
+      field('return_type', $._type),
+      field('name', $.identifier),
+      '(',
+      field('parameters', optional($.parameter_list)),
+      ')',
+      optional($.inheritance_specifier), // e.g., inherit class_name; or for specific func: class_name::func_name()
+      field('body', $.block_statement)
+    ),
+    _function_modifiers: $ => repeat1(choice(
+        'public', 'protected', 'private',
+        'nomask', 'varargs', 'nosave'
+    )),
+    parameter_list: $ => commaSep1($.parameter_declaration),
+    parameter_declaration: $ => seq(
+      field('type', $._type),
+      optional(field('reference', 'ref')), // Doc: void func(type ref param)
+      optional(field('varargs_dots', '...')), // Doc: mixed *x... (the '*' is part of type)
+      field('name', $.identifier),
+      optional($.default_parameter_value) // Doc: void func(type param : (: default_value :)) (FluffOS 2023+)
+    ),
+    default_parameter_value: $ => seq(':', $._expression), // Typically a function pointer expression `(: val :)`
+
+    inheritance_specifier: $ => seq('inherit', field('class_name', $.identifier), ';'), // Simple form
+
+    // Struct/Class Definitions
+    // Doc: struct/class. Members only. `new(class name)` for instantiation.
+    // LPC files are often classes themselves. Explicit `class {}` syntax might be for specific variants.
+    // Assuming a simple struct-like definition if explicitly used.
+    struct_definition: $ => seq(
+      'struct', // or 'class'
+      field('name', $.identifier),
+      '{',
+      repeat($.struct_member_declaration),
+      '}',
+      optional(';') // Some C-like languages allow/require this
+    ),
+    class_definition: $ => seq( // More common in some LPCds
+        'class',
+        field('name', $.identifier),
+        optional(seq('extends', commaSep1($.identifier))), // Inheritance
+        '{',
+        repeat(choice($.variable_declaration, $.function_definition)), // Classes can have methods and members
+        '}',
+        optional(';')
+    ),
+    struct_member_declaration: $ => seq(
+        field('type', $._type),
+        commaSep1(field('name', $.identifier)),
+        ';'
+    ),
+
+
+    // === III. Statements ===
+    _statement: $ => choice(
+      $.block_statement,
+      $.expression_statement,
+      $.selection_statement, // if, switch
+      $.iteration_statement, // while, do-while, for, foreach
+      $.jump_statement,      // break, continue, return
+      $.variable_declaration, // Local declarations
+      $.empty_statement,
+      $.comment_statement // To allow comments as statements if needed
+      // TODO: Other specific statements from LPC doc
+    ),
+    empty_statement: $ => ';',
+    comment_statement: $ => choice($.line_comment, $.block_comment), // If comments are part of the AST nodes
+
+    block_statement: $ => seq(
+      '{',
+      repeat($._statement), // Or repeat(choice($._statement, $.variable_declaration))
+      '}'
+    ),
+    expression_statement: $ => seq($._expression, ';'),
+
+    selection_statement: $ => choice(
+      $.if_statement,
+      $.switch_statement
+    ),
+    if_statement: $ => seq(
+      'if', '(', field('condition', $._expression), ')', field('consequence', $._statement),
+      optional(seq('else', field('alternative', $._statement)))
+    ),
+    switch_statement: $ => seq(
+      'switch', '(', field('value', $._expression), ')',
+      '{',
+      repeat($.case_statement),
+      '}'
+    ),
+    case_statement: $ => choice(
+      seq('case', field('value', choice($._expression, $.range_pattern)), ':', repeat($._statement)),
+      seq('default', ':', repeat($._statement))
+    ),
+    range_pattern: $ => choice( // Doc: case x..y:, case ..x:, case x..:
+        seq($._expression, '..', $._expression), // x..y
+        seq('..', $._expression),                // ..y
+        seq($._expression, '..')                 // x..
+    ),
+
+    iteration_statement: $ => choice(
+      $.while_statement,
+      $.do_while_statement,
+      $.for_statement,
+      $.foreach_statement
+    ),
+    while_statement: $ => seq('while', '(', field('condition', $._expression), ')', field('body', $._statement)),
+    do_while_statement: $ => seq('do', field('body', $._statement), 'while', '(', field('condition', $._expression), ')', ';'),
+    for_statement: $ => seq(
+      'for', '(',
+      field('initializer', optional(choice($.variable_declaration, $.expression_statement))),
+      field('condition', optional($._expression)), ';',
+      field('increment', optional($._expression)),
+      ')', field('body', $._statement)
+    ),
+    foreach_statement: $ => seq( // Doc: foreach (var in expr), foreach (var1, var2 in expr), foreach (ref var in array)
+      'foreach', '(',
+      optional('ref'), // For by-reference iteration
+      field('variable', $.identifier),
+      optional(seq(',', field('key_variable', $.identifier))), // For mappings
+      'in',
+      field('collection', $._expression),
+      ')',
+      field('body', $._statement)
+    ),
+
+    jump_statement: $ => choice(
+      $.break_statement,
+      $.continue_statement,
+      $.return_statement
+    ),
+    break_statement: $ => seq('break', ';'),
+    continue_statement: $ => seq('continue', ';'),
+    return_statement: $ => seq('return', optional(field('value', $._expression)), ';'),
+
+
+    // === IV. Expressions ===
+    // Operator precedence will be handled by the order and structure of these rules.
+    _expression: $ => choice(
+      $.assignment_expression,
+      $.conditional_expression, // ternary
+      $.logical_or_expression,
+      // ... other binary ops in precedence order
+      $.primary_expression
+    ),
+
+    primary_expression: $ => choice(
+      $.identifier,
+      $.literal,
+      $.parenthesized_expression,
+      $.function_call,
+      $.member_access, // -> or .
+      $.index_access,  // []
+      $.class_scope_resolution, // class::member
+      $.array_spread_expression, // ...array
+      $.function_pointer_literal // (: ... :)
+    ),
+
+    parenthesized_expression: $ => seq('(', $._expression, ')'),
+
+    assignment_expression: $ => prec.right(seq(
+      field('left', $._expression), // Should be lvalue
+      field('operator', choice('=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '<<=', '>>=')),
+      field('right', $._expression)
+    )),
+
+    conditional_expression: $ => prec.right(seq(
+      field('condition', $.logical_or_expression), '?', field('consequence', $._expression), ':', field('alternative', $._expression)
+    )),
+
+    logical_or_expression: $ => prec.left(seq($._expression, '||', $._expression)),
+    logical_and_expression: $ => prec.left(seq($._expression, '&&', $._expression)),
+    bitwise_or_expression: $ => prec.left(seq($._expression, '|', $._expression)),
+    bitwise_xor_expression: $ => prec.left(seq($._expression, '^', $._expression)),
+    bitwise_and_expression: $ => prec.left(seq($._expression, '&', $._expression)),
+    equality_expression: $ => prec.left(seq($._expression, choice('==', '!='), $._expression)),
+    relational_expression: $ => prec.left(seq($._expression, choice('<', '<=', '>', '>='), $._expression)),
+    shift_expression: $ => prec.left(seq($._expression, choice('<<', '>>'), $._expression)),
+    additive_expression: $ => prec.left(seq($._expression, choice('+', '-'), $._expression)), // Note: array/string concat/diff
+    multiplicative_expression: $ => prec.left(seq($._expression, choice('*', '/', '%'), $._expression)),
+
+    unary_expression: $ => prec.right(seq(
+      choice('!', '~', '-', '++', '--'), // Doc: no +variable
+      $._expression
+    )),
+    postfix_expression: $ => prec.left(seq($._expression, choice('++', '--'))),
+
+
+    function_call: $ => seq(
+        field('function', choice($._expression, $.function_pointer_literal)), // Can be identifier, member_access, or pointer
+        '(',
+        field('arguments', commaSep(choice($._expression, $.array_spread_expression))), // Allow ...array in args
+        ')'
+    ),
+    // Doc: (*f)(args) for func pointers, evaluate(f, args)
+    // The above `function_call` handles `(*f)(args)` if `_expression` can be `parenthesized_expression` containing `*f`.
+    // `*f` itself needs to be defined as a unary op if it's generic, or part of function_pointer_literal.
+    // The document implies `(*f)` is the syntax, so `*` might be a dereference operator for function type.
+    // Let's add a specific rule for pointer dereference if needed, or ensure `primary_expression` covers it.
+
+    member_access: $ => prec.left(seq(
+      field('object', $._expression),
+      choice('->', '.'), // Doc: v2019.20220507+ supports .
+      field('member', $.identifier)
+    )),
+    index_access: $ => seq( // Doc: str[n], str[n1..n2], str[<n], str[n..]
+      field('target', $._expression),
+      '[',
+      field('index', choice($._expression, $.range_expression, $.left_range_expression, $.right_range_expression)),
+      ']'
+    ),
+    range_expression: $ => seq($._expression, '..', $._expression),
+    left_range_expression: $ => seq('<', $._expression), // str[<n]
+    right_range_expression: $ => seq($._expression, '..'), // str[n..]
+
+
+    class_scope_resolution: $ => seq( // Doc: class::member
+        field('class', $.identifier),
+        '::',
+        field('member', $.identifier)
+    ),
+    array_spread_expression: $ => seq('...', $._expression), // Doc: ...array
+
+    // === V. Literals (Constants) ===
+    literal: $ => choice(
+      $.integer_literal,
+      $.float_literal,
+      $.string_literal,
+      $.array_literal,
+      $.mapping_literal,
+      $.char_literal
+    ),
+
+    integer_literal: $ => token(choice(
+      /[1-9][0-9_]*[0-9]|[0-9]/, // Decimal (with optional underscores)
+      /0[xX][0-9a-fA-F_]*[0-9a-fA-F]/, // Hex
+      /0[bB][01_]*[01]/ // Binary (v20230823+)
+    )),
+    char_literal: $ => seq("'", field('char', /[^']/), "'"), // Doc: 'a' (converted to ASCII)
+
+    float_literal: $ => token(/[0-9][0-9_]*\.[0-9_]*[0-9]|[0-9]\.[0-9_]*[0-9]/), // Doc: no exponent form, underscores allowed
+
+    string_literal: $ => choice(
+      // Standard double-quoted string
+      seq('"', repeat(choice(/[^"\\]+/, $.escape_sequence)), '"'),
+      // Heredoc @DELIMITER ... DELIMITER;
+      // This needs an external scanner for robust DELIMITER matching and ; termination.
+      alias($._heredoc_string, $.heredoc_string_literal),
+      // Heredoc array @@DELIMITER ... DELIMITER;
+      alias($._heredoc_array_string, $.heredoc_array_literal)
+    ),
+    escape_sequence: $ => token(seq('\\', choice(
+      /[^ux]/, // \n, \t, \\, \" etc.
+      /u[0-9a-fA-F]{4}/, // Unicode (assuming, not in doc but standard)
+      /x[0-9a-fA-F]{2}/,  // Hex \xnn
+      /[0-7]{1,3}/       // Octal \nnn
+    ))),
+    // For external scanner:
+    // _heredoc_string: $ => seq('@', $.identifier, /\n/, ???, $.identifier, ';'),
+    // _heredoc_array_string: $ => seq('@@', $.identifier, /\n/, ???, $.identifier, ';'),
+
+    array_literal: $ => seq('({', commaSep($._expression), '})'), // Doc: ({value1, value2, ...})
+    mapping_literal: $ => seq('([', optional(commaSep1($.mapping_pair)), '])'), // Doc: ([ "k":v, ...]) or ([])
+    mapping_pair: $ => seq(field('key', $._expression), ':', field('value', $._expression)),
+
+
+    // Function Pointers and Anonymous Functions
+    // Doc: function f = (: function_name :);
+    // Doc: function f = (: function_name, args... :); (pre-filled args)
+    // Doc: function f = (: expression :);
+    // Doc: function f = (: $1 + $2 :); ($n are placeholders)
+    // Doc: function f = (: $(local_var) :); ($() saves local)
+    // Doc: Anonymous: function f = function(params) { body };
+    // This section is complex and might need refinement.
+    function_pointer_literal: $ => seq(
+      '(:',
+      choice(
+        field('expression_body', $._expression), // Covers (: expr :), (: $1+$2 :), (: $(lv) :)
+        seq( // Covers (: func_name :) and (: func_name, arg1, ... :)
+          field('function_name', choice($.identifier, $.string_literal)), // Function name
+          optional(field('bound_arguments', seq(',', commaSep1($._expression)))) // Pre-bound args
+        )
+        // The document also implies `(: { /* block */ } :)` for closures,
+        // which might be covered if $._expression can be a block_expression if LPC has it,
+        // or it's a separate construct.
+        // Let's assume `_expression` can eventually lead to a block for `(: { ... } :)` or add:
+        // field('closure_body', $.block_statement)
+      ),
+      ':)'
+    ),
+    anonymous_function: $ => seq(
+      'function', // Keyword
+      '(', optional($.parameter_list), ')',
+      field('body', $.block_statement)
+    ),
+
+    // === VI. Types ===
+    _type: $ => choice(
+      $.primitive_type,
+      $.array_type,
+      $.mapping_type,
+      $.function_type,
+      $.class_type, // e.g. identifier that is a class name
+      $.struct_type // e.g. identifier that is a struct name
+    ),
+    primitive_type: $ => choice(
+      'int', 'float', 'void', 'string', 'object', 'buffer',
+      'mapping', 'mixed', 'function', 'class' // 'class' is also a keyword for type
+      // 'array' and 'closure' are listed as keywords, might be types or used in contexts.
+      // 'efun', 'new' are OO/func related. 'ref' is a modifier.
+    ),
+    array_type: $ => seq($._type, '*'), // Doc: dataType *arrayName
+    mapping_type: $ => 'mapping', // Explicit type
+    function_type: $ => 'function', // Explicit type, details captured in usage (e.g. func def, anon func)
+    class_type: $ => $.identifier, // A class name used as a type
+    struct_type: $ => $.identifier, // A struct name used as a type
+
+
+    // === VII. Identifiers & Comments (already partially covered) ===
+    identifier: $ => /[a-zA-Z_][a-zA-Z0-9_]*/,
+
+    line_comment: $ => token(seq('//', /.*/)),
+    block_comment: $ => token(seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')), // Standard block comment
+
+    // === VIII. Keywords (implicit by string literals in rules) ===
+    // C inherited: int, float, void, struct, if, else, switch, case, default, for, do, while, continue, break, return, sizeof (sizeof might be an efun)
+    // LPC new: string, object, buffer, function, mapping, mixed, class,
+    //          varargs, private, protected, public, nomask, nosave,
+    //          inherit, efun, new, foreach, in, ref, array, closure, __TREE__
+
+    // Note on `sizeof`: if it's an operator `sizeof(type)` or `sizeof expression`, it needs a rule.
+    // If it's a function `sizeof(variable)`, it's parsed as a normal function call.
+    // The doc lists it with C keywords, implying it might be an operator.
+    // Let's assume it's an efun call for now unless specific syntax is given.
+
+  },
+
+  // External scanner for heredocs and potentially other complex lexical tasks
+  externals: $ => [
+    $._heredoc_string, // For @DELIMITER ... DELIMITER;
+    $._heredoc_array_string, // For @@DELIMITER ... DELIMITER;
+    // Potentially:
+    // $.heredoc_content, // To manage content between delimiters
+    // $.heredoc_end_delimiter, // To ensure matching delimiters
+  ],
+
+  // Conflicts that might arise, e.g. identifier vs type name
+  conflicts: $ => [
+    // [$._type, $.identifier], // If types can be user-defined and clash with var names
+    // [$.primary_expression, $._type], // e.g. in `(type) cast` vs `(expression)`
+  ],
+
+  // Rules to inline for performance or simplicity
+  inline: $ => [
+    // $.primitive_type,
+    // $._statement,
+  ]
+});
+
+// Helper functions (JavaScript functions to generate rule sequences)
+function commaSep1(rule) {
+  return seq(rule, repeat(seq(',', rule)));
+}
+
+function commaSep(rule) {
+  return optional(commaSep1(rule));
+}
+
+```
