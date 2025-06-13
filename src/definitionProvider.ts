@@ -8,6 +8,18 @@ import * as Parser from 'web-tree-sitter';
 // Module-level variable to hold the loaded language
 let LpcLanguage: Parser.Language | undefined = undefined;
 
+const FUNCTION_DEFINITION_QUERY = `
+(function_definition
+  name: (identifier) @function.name
+) @function.definition
+`;
+
+const INHERIT_STATEMENT_QUERY = `
+(inherit_statement
+  path: (string_literal) @inherit.path
+) @inherit.statement
+`;
+
 export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private macroManager: MacroManager;
     private efunDocsManager: EfunDocsManager;
@@ -359,7 +371,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         // }
 
         // 4. 检查是否是变量定义 (Using existing regex-based logic for variables for now)
-        const variableDef = await this._findVariableDefinitionRegex(word, document, position);
+        const variableDef = await this.findVariableDefinition(word, document, position, new Set<string>());
         if (variableDef) {
             return variableDef;
         }
@@ -367,13 +379,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         return undefined;
     }
 
-    private _offsetToPosition(docText: string, offset: number): vscode.Position {
-        const before = docText.substring(0, offset);
-        const lines = before.split('\n');
-        const line = lines.length - 1;
-        const character = lines[line].length;
-        return new vscode.Position(line, character);
-    }
+    // Removed duplicate _offsetToPosition
 
     private async _findFunctionInFile(fileUri: vscode.Uri, functionName: string): Promise<vscode.Location | undefined> {
         try {
@@ -402,7 +408,8 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private async findVariableDefinition(
         variableName: string,
         document: vscode.TextDocument,
-        position: vscode.Position
+        position: vscode.Position, // position is not used here, but kept for signature consistency if needed later
+        visitedFiles: Set<string>
     ): Promise<vscode.Location | undefined> {
         const text = document.getText();
         const lines = text.split('\n');
@@ -439,7 +446,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         // 3. 检查继承文件中的变量定义
-        const inheritedVarDef = await this.findInheritedVariableDefinition(document, variableName);
+        const inheritedVarDef = await this.findInheritedVariableDefinition(document, variableName, visitedFiles);
         if (inheritedVarDef) {
             return inheritedVarDef;
         }
@@ -493,7 +500,8 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
 
     private async findInheritedVariableDefinition(
         document: vscode.TextDocument,
-        variableName: string
+        variableName: string,
+        visitedFiles: Set<string>
     ): Promise<vscode.Location | undefined> {
         const text = document.getText();
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
@@ -543,21 +551,24 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
                 }
 
                 for (const filePath of possiblePaths) {
-                    if (fs.existsSync(filePath) && !this.processedFiles.has(filePath)) {
+                    if (fs.existsSync(filePath) && !visitedFiles.has(filePath)) {
+                        visitedFiles.add(filePath); // Mark as visited before processing
                         try {
                             const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
-                            const varDef = await this.findVariableDefinition(variableName, inheritedDoc, new vscode.Position(0, 0));
+                            // Pass the visitedFiles set in the recursive call
+                            const varDef = await this.findVariableDefinition(variableName, inheritedDoc, new vscode.Position(0, 0), visitedFiles);
                             if (varDef) {
                                 return varDef;
                             }
-                            // 递归处理继承的文件
-                            const inheritedVarDef = await this.findInheritedVariableDefinition(inheritedDoc, variableName);
-                            if (inheritedVarDef) {
-                                return inheritedVarDef;
-                            }
+                            // Recursive call to findInheritedVariableDefinition is implicitly handled by the above findVariableDefinition call
+                            // as it will call findInheritedVariableDefinition itself if var is not found locally.
+                            // So no need for: const inheritedVarDef = await this.findInheritedVariableDefinition(inheritedDoc, variableName, visitedFiles);
                         } catch (error) {
                             console.error(`Error reading inherited file: ${filePath}`, error);
                         }
+                        // Removed break here to check all possible paths if the first one doesn't yield a result, though typically the first found is taken.
+                        // Consider if only the first valid path should be explored or all. For now, let's assume first valid path is enough.
+                        // If we found a valid file and processed it, we should probably break.
                         break;
                     }
                 }
@@ -567,27 +578,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         return undefined;
     }
 
-    private async findFunctionDefinitions(document: vscode.TextDocument): Promise<void> {
-        const text = document.getText();
-        // Simplified regex for variable declarations (int x, string *y, etc.)
-        // This doesn't understand scope, so it's a very basic fallback.
-        const varRegex = new RegExp(`(?:\\w+\\s*(?:\\*\\s*)*)${variableName}\\b`);
-        let match;
-        const lines = text.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-            match = varRegex.exec(lines[i]);
-            if (match) {
-                // Find the specific variable name in the match
-                const nameMatch = new RegExp(`\\b${variableName}\\b`).exec(lines[i]);
-                if (nameMatch) {
-                    const startPos = new vscode.Position(i, nameMatch.index);
-                    const endPos = new vscode.Position(i, nameMatch.index + variableName.length);
-                    return new vscode.Location(document.uri, new vscode.Range(startPos, endPos));
-                }
-            }
-        }
-        return undefined;
-    }
+    // Removed the problematic findFunctionDefinitions method (which was actually for variables and had errors)
 
     // Commenting out old regex-based function search methods
     /*
@@ -597,5 +588,5 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
 
     // Existing helper methods like getFunctionText, findInheritedVariableDefinition (if regex based)
     // would also be candidates for AST refactoring or removal if their callers are fully AST based.
-    // For now, _findVariableDefinitionRegex is kept as a fallback.
+    // For now, findVariableDefinition (renamed from _findVariableDefinitionRegex) is kept.
 } 

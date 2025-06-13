@@ -8,6 +8,28 @@ import { collectVariableDefinitionOrderDiagnostics } from './variableOrderChecke
 // Module-level variable to hold the loaded language
 let LpcLanguage: Parser.Language | undefined = undefined;
 
+const variableQueriesSource = {
+    declarations: `
+        (variable_declaration
+          (_variable_declarator
+            name: (identifier) @variable.name
+          )
+        ) @variable.declaration
+        (parameter_declaration
+          name: (identifier) @param.name
+        ) @parameter.declaration
+    `,
+    function_definitions: `
+        (function_definition
+          name: (identifier) @function.name
+          body: (_) @function.body
+        ) @function.definition
+    `,
+    usages: `
+        (identifier) @identifier.usage
+    `
+};
+
 // 加载配置文件
 interface LPCConfig {
     types: string[];
@@ -37,12 +59,12 @@ interface ForeachIterVariable {
 export class LPCDiagnostics {
     private diagnosticCollection: vscode.DiagnosticCollection;
     private macroManager: MacroManager;
-    // private lpcTypes: string; // Old, for regex
-    // private modifiers: string; // Old, for regex
+    private lpcTypes: string; // Old, for regex
+    private modifiers: string; // Old, for regex
     private excludedIdentifiers: Set<string>;
-    // private variableDeclarationRegex: RegExp; // To be removed/commented
-    // private globalVariableRegex: RegExp; // To be removed/commented
-    // private functionDeclRegex: RegExp; // To be removed/commented
+    private variableDeclarationRegex: RegExp; // To be removed/commented
+    private globalVariableRegex: RegExp; // To be removed/commented
+    private functionDeclRegex: RegExp; // To be removed/commented
     private inheritRegex: RegExp;
     private includeRegex: RegExp;
     private applyFunctions: Set<string>;
@@ -72,8 +94,8 @@ export class LPCDiagnostics {
         this.config = loadLPCConfig(configPath);
 
         // 初始化类型和修饰符 - these might still be used by other diagnostic methods
-        // this.lpcTypes = this.config.types.join('|');
-        // this.modifiers = this.config.modifiers.join('|');
+        this.lpcTypes = this.config.types.join('|');
+        this.modifiers = this.config.modifiers.join('|');
 
         // 初始化排除标识符
         this.excludedIdentifiers = new Set([
@@ -82,7 +104,7 @@ export class LPCDiagnostics {
         ]);
 
         // Comment out regexes for variable analysis as they will be replaced by Tree-sitter
-        /*
+        // /*
         this.variableDeclarationRegex = new RegExp(
             `^\\s*((?:${this.modifiers}\\s+)*)(${this.lpcTypes})\\s+` +
             '(\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*(?:\\s*,\\s*\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*)*);',
@@ -96,11 +118,11 @@ export class LPCDiagnostics {
         );
 
         this.functionDeclRegex = new RegExp(
-            `^\\s*(?:${this.modifiers}\\s+)*)(${this.lpcTypes})\\s+` +
+            `^\\s*((?:${this.modifiers}\\s+)*)(${this.lpcTypes})\\s+` + // Corrected: removed extra ')'
             '([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\([^)]*\\)\\s*{',
             'gm'
         );
-        */
+        // */
 
         this.inheritRegex = /^\s*inherit\s+([A-Z_][A-Z0-9_]*(?:\s*,\s*[A-Z_][A-Z0-9_]*)*);/gm;
         this.includeRegex = /^\s*#include\s+[<"]([^>"]+)[>"]/gm;
@@ -255,7 +277,10 @@ export class LPCDiagnostics {
             const functionMatches = functionQuery.matches(tree.rootNode);
 
             for (const funcMatch of functionMatches) {
-                const functionNode = funcMatch.node;
+                const functionNodeCapture = funcMatch.captures.find(c => c.name === 'function.definition');
+                const functionNode = functionNodeCapture?.node;
+                if (!functionNode) continue;
+
                 const functionScopeId = functionNode.id;
                 scopes.set(functionScopeId, new Map());
 
@@ -264,9 +289,9 @@ export class LPCDiagnostics {
 
                 // Collect parameters
                 const paramDeclQuery = LpcLanguage.query(variableQueriesSource.declarations);
-                const paramListNodes = functionNode.children.filter(c => c.type === 'parameter_list');
+                const paramListNodes = functionNode.children.filter((c: Parser.SyntaxNode) => c.type === 'parameter_list');
                 for (const paramListNode of paramListNodes) {
-                     paramListNode.descendantsOfType('parameter_declaration').forEach(paramDeclNode => {
+                     paramListNode.descendantsOfType('parameter_declaration').forEach((paramDeclNode: Parser.SyntaxNode) => {
                         const paramCaptures = paramDeclQuery.captures(paramDeclNode);
                         for (const capture of paramCaptures) {
                             if (capture.name === 'param.name') {

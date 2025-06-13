@@ -3,7 +3,7 @@
 // import * as fs from 'fs';
 // import * as path from 'path';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.formatLPCCode = void 0;
+exports.formatLPCCode = formatLPCCode;
 const defaultConfig = {
     indentSize: 4,
     maxLineLength: 80,
@@ -75,11 +75,11 @@ function formatLPCCode(code, contentOfFormatterConfig) {
         inInheritBlock: false,
         inVarargs: false,
         inSquareBracketMapping: false,
-        inExitsMapping: false,
-        ifWithoutBrace: false,
-        functionCommentBlock: false,
-        lastLineWasBrace: false,
-        lastLineWasIf: false,
+        inExitsMapping: false, // 添加新状态标志用于跟踪 set("exits", ([...])) 结构
+        ifWithoutBrace: false, // 是否是没有大括号的if语句
+        functionCommentBlock: false, // 是否在函数注释块内
+        lastLineWasBrace: false, // 上一行是否是大括号
+        lastLineWasIf: false, // 上一行是否是if语句
         pendingBrace: false // 是否需要添加大括号到新行
     };
     const specialBlocks = {
@@ -687,7 +687,6 @@ function formatLPCCode(code, contentOfFormatterConfig) {
     // // console.log("[formatter.ts] formatLPCCode END. Final string length:", finalResult.length); // DIAGNOSTIC LOG
     return finalResult;
 }
-exports.formatLPCCode = formatLPCCode;
 // 格式化一行代码，但保护字符串内容不被修改
 function formatLinePreservingStrings(line) {
     // 提取所有字符串

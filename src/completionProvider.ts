@@ -46,10 +46,12 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
     private variableCache: Map<string, vscode.CompletionItem[]> = new Map();
     private filePathCache: Map<string, string> = new Map();
     private parser?: Parser;
+    private excludedIdentifiers: Set<string>;
 
     constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager) {
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
+        this.excludedIdentifiers = new Set<string>(); // Initialize excludedIdentifiers
         if (LpcLanguage) {
             this.parser = new Parser();
             this.parser.setLanguage(LpcLanguage);
@@ -166,8 +168,12 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         if (!LpcLanguage || !this.parser) return;
         // console.log("AST: Adding scoped variable completions");
 
-        const offset = document.offsetAt(position);
-        let currentNode = tree.rootNode.descendantForOffset(offset);
+        // const offset = document.offsetAt(position);
+        // let currentNode = tree.rootNode.descendantForOffset(offset);
+        // Convert vscode.Position to Tree-sitter Point
+        const currentPoint: Parser.Point = { row: position.line, column: position.character };
+        let currentNode = tree.rootNode.descendantForPosition(currentPoint);
+
 
         // Find enclosing function definition for parameters and local variables
         let enclosingFunctionNode: Parser.SyntaxNode | null = currentNode;
@@ -182,22 +188,17 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
                 // Parameters are direct children of parameter_list, which is a child of function_definition
                 const paramListNodes = enclosingFunctionNode.children.filter(c => c.type === 'parameter_list');
                 for (const paramListNode of paramListNodes) {
-                    // const paramMatches = paramQuery.matches(paramListNode); // Query matches on the paramListNode itself
-                     paramListNode.descendantsOfType('parameter_declaration').forEach(paramDeclNode => {
-                        const paramCaptures = paramQuery.captures(paramDeclNode); // Use captures on each paramDeclNode
-                        for (const pMatch of paramCaptures) { // Iterate captures from each paramDeclNode
-                            const paramNameNode = pMatch.name === 'parameter.name' ? pMatch.node : null;
-                            const paramTypeNode = pMatch.name === 'parameter.type' ? pMatch.node : null; // Assuming type is also captured, adjust query if not
+                    paramListNode.descendantsOfType('parameter_declaration').forEach(paramDeclNode => {
+                        const paramCaptures = paramQuery.captures(paramDeclNode);
+                        let paramNameNode: Parser.SyntaxNode | undefined;
+                        let paramTypeNode: Parser.SyntaxNode | undefined;
+                        for (const pCapture of paramCaptures) {
+                            if (pCapture.name === 'parameter.name') paramNameNode = pCapture.node;
+                            if (pCapture.name === 'parameter.type') paramTypeNode = pCapture.node;
+                        }
 
-                            // A bit convoluted due to captures structure, ensure we get name and type for *this* parameter
-                            if (paramNameNode) {
-                                let actualTypeNode : Parser.SyntaxNode | undefined = paramTypeNode;
-                                if(!actualTypeNode) { // If type wasn't captured with name, find it on the same declaration node
-                                    const siblingCaptures = paramQuery.captures(paramDeclNode);
-                                    actualTypeNode = siblingCaptures.find(c => c.name === 'parameter.type')?.node;
-                                }
-                                completionItems.push(this._variableNodeToCompletionItem(paramNameNode, actualTypeNode, document, vscode.CompletionItemKind.Variable, "参数"));
-                            }
+                        if (paramNameNode) {
+                            completionItems.push(this._variableNodeToCompletionItem(paramNameNode, paramTypeNode, document, vscode.CompletionItemKind.Variable, "参数"));
                         }
                     });
                 }
@@ -206,25 +207,21 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
             // Add Local Variables (declared before current position within the current function's blocks)
             try {
                 const varQuery = LpcLanguage.query(VARIABLE_DECLARATION_QUERY_COMPLETION);
-                // Iterate upwards from current position to find relevant blocks within the function
-                let blockScopeNode: Parser.SyntaxNode | null = currentNode; // Start from current node
-                while(blockScopeNode && blockScopeNode !== enclosingFunctionNode.parent) { // Stop if we go above the function
-                    if (blockScopeNode.type === 'block_statement' && blockScopeNode.startIndex < offset) {
+                const offset = document.offsetAt(position); // Keep offset for startIndex/endIndex comparisons
+                let blockScopeNode: Parser.SyntaxNode | null = currentNode;
+                while(blockScopeNode && blockScopeNode !== enclosingFunctionNode.parent) {
+                    if ((blockScopeNode.type === 'block_statement' || blockScopeNode.type === 'function_definition_body') && blockScopeNode.startIndex < offset) {
                          blockScopeNode.children.filter(c => c.type === 'variable_declaration' && c.endIndex < offset).forEach(varDeclNode => {
-                            // const varMatches = varQuery.matches(varDeclNode); // Query matches on the varDeclNode
-                            const varCaptures = varQuery.captures(varDeclNode); // Use captures
-                            for (const vMatch of varCaptures) { // Iterate captures
-                                const varNameNode = vMatch.name === 'variable.name' ? vMatch.node : null;
-                                const varTypeNode = vMatch.name === 'variable.type' ? vMatch.node : null;
+                            const varCaptures = varQuery.captures(varDeclNode);
+                            let varNameNode: Parser.SyntaxNode | undefined;
+                            let varTypeNode: Parser.SyntaxNode | undefined;
+                            for (const vCapture of varCaptures) {
+                                if (vCapture.name === 'variable.name') varNameNode = vCapture.node;
+                                if (vCapture.name === 'variable.type') varTypeNode = vCapture.node;
+                            }
 
-                                if (varNameNode) {
-                                     let actualTypeNode : Parser.SyntaxNode | undefined = varTypeNode;
-                                     if(!actualTypeNode) {
-                                         const siblingCaptures = varQuery.captures(varDeclNode);
-                                         actualTypeNode = siblingCaptures.find(c => c.name === 'variable.type')?.node;
-                                     }
-                                     completionItems.push(this._variableNodeToCompletionItem(varNameNode, actualTypeNode, document, vscode.CompletionItemKind.Variable, "局部变量"));
-                                }
+                            if (varNameNode) {
+                                 completionItems.push(this._variableNodeToCompletionItem(varNameNode, varTypeNode, document, vscode.CompletionItemKind.Variable, "局部变量"));
                             }
                         });
                     }
@@ -931,7 +928,8 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
                     completionItems.push(...cachedItems);
                 } else {
                     const inheritedCompletions: vscode.CompletionItem[] = [];
-                    await this.parseFunctionsInFile(
+                    // Corrected to call the regex version for inherited files as per previous refactoring logic
+                    this.parseFunctionsInFileRegex(
                         inheritedDoc, 
                         inheritedCompletions, 
                         `继承自 ${path.basename(resolvedPath)}${macroSource}`

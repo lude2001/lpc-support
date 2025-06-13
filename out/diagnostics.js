@@ -4,6 +4,31 @@ exports.LPCDiagnostics = void 0;
 const vscode = require("vscode");
 const path = require("path");
 const fs = require("fs");
+const Parser = require("web-tree-sitter"); // Import Tree-sitter
+const variableOrderChecker_1 = require("./variableOrderChecker"); // Import the new checker
+// Module-level variable to hold the loaded language
+let LpcLanguage = undefined;
+const variableQueriesSource = {
+    declarations: `
+        (variable_declaration
+          (_variable_declarator
+            name: (identifier) @variable.name
+          )
+        ) @variable.declaration
+        (parameter_declaration
+          name: (identifier) @param.name
+        ) @parameter.declaration
+    `,
+    function_definitions: `
+        (function_definition
+          name: (identifier) @function.name
+          body: (_) @function.body
+        ) @function.definition
+    `,
+    usages: `
+        (identifier) @identifier.usage
+    `
+};
 function loadLPCConfig(configPath) {
     try {
         const configContent = fs.readFileSync(configPath, 'utf-8');
@@ -26,24 +51,35 @@ class LPCDiagnostics {
         this.macroManager = macroManager;
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
         context.subscriptions.push(this.diagnosticCollection);
+        // Initialize parser if LpcLanguage is already available
+        if (LpcLanguage) {
+            this.parser = new Parser();
+            this.parser.setLanguage(LpcLanguage);
+            console.log("LPCDiagnostics: Parser initialized in constructor.");
+        }
+        else {
+            console.warn("LPCDiagnostics: LpcLanguage not available at construction. Parser will be initialized later if language is set.");
+        }
         // 加载配置
         const configPath = path.join(context.extensionPath, 'config', 'lpc-config.json');
         this.config = loadLPCConfig(configPath);
-        // 初始化类型和修饰符
+        // 初始化类型和修饰符 - these might still be used by other diagnostic methods
         this.lpcTypes = this.config.types.join('|');
         this.modifiers = this.config.modifiers.join('|');
         // 初始化排除标识符
         this.excludedIdentifiers = new Set([
-            // 从配置的 efuns 中提取所有函数名
-            ...Object.keys(this.config.efuns)
+            ...Object.keys(this.config.efuns),
+            "this_object", "this_player", "previous_object", "this_interactive" // Common LPC implicit identifiers
         ]);
-        // 初始化正则表达式
+        // Comment out regexes for variable analysis as they will be replaced by Tree-sitter
+        // /*
         this.variableDeclarationRegex = new RegExp(`^\\s*((?:${this.modifiers}\\s+)*)(${this.lpcTypes})\\s+` +
             '(\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*(?:\\s*,\\s*\\*?\\s*[a-zA-Z_][a-zA-Z0-9_]*)*);', 'gm');
         this.globalVariableRegex = new RegExp(`^\\s*(?:${this.modifiers}?\\s*)(${this.lpcTypes})\\s+` +
             '([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=\\s*[^;]+)?;', 'gm');
-        this.functionDeclRegex = new RegExp(`^\\s*(?:${this.modifiers}\\s+)*(${this.lpcTypes})\\s+` +
+        this.functionDeclRegex = new RegExp(`^\\s*((?:${this.modifiers}\\s+)*)(${this.lpcTypes})\\s+` + // Corrected: removed extra ')'
             '([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\([^)]*\\)\\s*{', 'gm');
+        // */
         this.inheritRegex = /^\s*inherit\s+([A-Z_][A-Z0-9_]*(?:\s*,\s*[A-Z_][A-Z0-9_]*)*);/gm;
         this.includeRegex = /^\s*#include\s+[<"]([^>"]+)[>"]/gm;
         // 从配置中提取 apply 函数
@@ -64,7 +100,8 @@ class LPCDiagnostics {
         let showVariablesCommand = vscode.commands.registerCommand('lpc.showVariables', () => {
             const editor = vscode.window.activeTextEditor;
             if (editor && editor.document.languageId === 'lpc') {
-                this.showAllVariables(editor.document);
+                // this.showAllVariables(editor.document); // TODO: Refactor this method
+                vscode.window.showInformationMessage("The 'Show All Variables' command needs to be updated for Tree-sitter analysis.");
             }
         });
         context.subscriptions.push(showVariablesCommand);
@@ -79,14 +116,14 @@ class LPCDiagnostics {
                 if (!range)
                     return;
                 const word = document.getText(range);
-                if (/^[A-Z][A-Z0-9_]*_D$/.test(word)) {
+                if (/^[A-Z][A-Z0-9_]*_D$/.test(word)) { // Assuming _D is a macro suffix
                     // 获取宏定义
-                    const macro = macroManager?.getMacro(word);
+                    const macro = this.macroManager?.getMacro(word);
                     if (macro) {
-                        return new vscode.Hover(macroManager.getMacroHoverContent(macro));
+                        return new vscode.Hover(this.macroManager.getMacroHoverContent(macro));
                     }
                     // 尝试解析宏
-                    const canResolve = await macroManager?.canResolveMacro(word);
+                    const canResolve = await this.macroManager?.canResolveMacro(word);
                     if (canResolve) {
                         return new vscode.Hover(`宏 \`${word}\` 已定义但无法获取具体值`);
                     }
@@ -94,8 +131,19 @@ class LPCDiagnostics {
             }
         }));
     }
+    static setLanguage(lang) {
+        LpcLanguage = lang;
+        console.log("LPCDiagnostics: LpcLanguage static field has been set.");
+        // Note: Existing instances won't get this updated parser automatically
+        // unless they re-check the static LpcLanguage or are re-created.
+    }
     onDidChangeTextDocument(event) {
         if (event.document.languageId === 'lpc') {
+            if (!this.parser && LpcLanguage) { // Initialize parser if language is now available
+                this.parser = new Parser();
+                this.parser.setLanguage(LpcLanguage);
+                console.log("LPCDiagnostics: Parser initialized on text document change because LpcLanguage was available.");
+            }
             this.analyzeDocument(event.document, false);
         }
     }
@@ -104,13 +152,201 @@ class LPCDiagnostics {
         const ext = path.extname(fileName).toLowerCase();
         return ext === '.c' || ext === '.h';
     }
+    // --- Start of New AST-based methods (shells for now) ---
+    getRangeFromNode(document, node) {
+        // TODO: Implement actual logic
+        return new vscode.Range(document.positionAt(node.startIndex), document.positionAt(node.endIndex));
+    }
+    isActualVariableUsage(usageNode) {
+        // TODO: Implement actual logic
+        // Placeholder:
+        const parent = usageNode.parent;
+        if (!parent)
+            return true;
+        if ((parent.type === '_variable_declarator' && parent.childForFieldName('name') === usageNode) ||
+            (parent.type === 'parameter_declaration' && parent.childForFieldName('name') === usageNode)) {
+            return false;
+        }
+        if (parent.type === 'function_definition' && parent.childForFieldName('name') === usageNode) {
+            return false;
+        }
+        if (parent.type === 'call_expression' && parent.childForFieldName('function') === usageNode) {
+            return false;
+        }
+        return true;
+    }
+    collectAstBasedUnusedVariableDiagnostics(document, tree) {
+        const diagnostics = [];
+        if (!LpcLanguage || !this.parser) {
+            console.warn("LPCDiagnostics: Parser or Language not ready for AST analysis for document: " + document.uri.fsPath);
+            return diagnostics;
+        }
+        console.log(`LPCDiagnostics: Starting AST-based unused variable analysis for ${document.uri.fsPath}`);
+        // Map: scopeId (node.id of function_definition or rootNode) -> Map<varName, {declNode: SyntaxNode, used: boolean, isParam: boolean}>
+        const scopes = new Map();
+        const getNodeText = (node) => document.getText(this.getRangeFromNode(document, node));
+        try {
+            // --- 1. Collect all declarations ---
+            const rootScopeId = tree.rootNode.id;
+            scopes.set(rootScopeId, new Map()); // For global variables
+            // Collect global variable declarations
+            const globalVarQuery = LpcLanguage.query(variableQueriesSource.declarations);
+            for (const topLevelNode of tree.rootNode.namedChildren) {
+                if (topLevelNode.type === 'variable_declaration') {
+                    const captures = globalVarQuery.captures(topLevelNode);
+                    for (const capture of captures) {
+                        if (capture.name === 'variable.name') {
+                            const varName = getNodeText(capture.node);
+                            if (!this.excludedIdentifiers.has(varName)) {
+                                scopes.get(rootScopeId).set(varName, { declNode: capture.node, used: false, isParam: false });
+                                // console.log(`Collected global var: ${varName}`);
+                            }
+                        }
+                    }
+                }
+            }
+            // Collect function parameters and local variables
+            const functionQuery = LpcLanguage.query(variableQueriesSource.function_definitions);
+            const functionMatches = functionQuery.matches(tree.rootNode);
+            for (const funcMatch of functionMatches) {
+                const functionNodeCapture = funcMatch.captures.find(c => c.name === 'function.definition');
+                const functionNode = functionNodeCapture?.node;
+                if (!functionNode)
+                    continue;
+                const functionScopeId = functionNode.id;
+                scopes.set(functionScopeId, new Map());
+                // const funcNameNode = funcMatch.captures.find(c => c.name === 'function.name')?.node;
+                // const funcNameStr = funcNameNode ? getNodeText(funcNameNode) : "anonymous_fn";
+                // Collect parameters
+                const paramDeclQuery = LpcLanguage.query(variableQueriesSource.declarations);
+                const paramListNodes = functionNode.children.filter((c) => c.type === 'parameter_list');
+                for (const paramListNode of paramListNodes) {
+                    paramListNode.descendantsOfType('parameter_declaration').forEach((paramDeclNode) => {
+                        const paramCaptures = paramDeclQuery.captures(paramDeclNode);
+                        for (const capture of paramCaptures) {
+                            if (capture.name === 'param.name') {
+                                const paramName = getNodeText(capture.node);
+                                if (!this.excludedIdentifiers.has(paramName)) {
+                                    scopes.get(functionScopeId).set(paramName, { declNode: capture.node, used: false, isParam: true });
+                                    // console.log(`Collected param: ${paramName} in ${funcNameStr}`);
+                                }
+                            }
+                        }
+                    });
+                }
+                // Collect local variables within the function body
+                const functionBodyNode = funcMatch.captures.find(c => c.name === 'function.body')?.node;
+                if (functionBodyNode) {
+                    const localVarQuery = LpcLanguage.query(variableQueriesSource.declarations);
+                    functionBodyNode.descendantsOfType('variable_declaration').forEach(varDeclNode => {
+                        const localVarCaptures = localVarQuery.captures(varDeclNode);
+                        for (const capture of localVarCaptures) {
+                            if (capture.name === 'variable.name') {
+                                const varName = getNodeText(capture.node);
+                                if (!this.excludedIdentifiers.has(varName)) {
+                                    // Ensure it's not already declared as a param (shadowing)
+                                    if (!scopes.get(functionScopeId).has(varName)) {
+                                        scopes.get(functionScopeId).set(varName, { declNode: capture.node, used: false, isParam: false });
+                                        // console.log(`Collected local var: ${varName} in ${funcNameStr}`);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+            // --- 2. Mark used variables ---
+            const usageQuery = LpcLanguage.query(variableQueriesSource.usages);
+            const allUsageCaptures = usageQuery.captures(tree.rootNode);
+            for (const usageCapture of allUsageCaptures) {
+                if (usageCapture.name === 'identifier.usage') {
+                    const usageName = getNodeText(usageCapture.node);
+                    const usageNode = usageCapture.node;
+                    if (!this.isActualVariableUsage(usageNode))
+                        continue;
+                    // Determine scope of usage
+                    let currentScopeNode = usageNode;
+                    let owningFunctionNode = null;
+                    while (currentScopeNode) {
+                        if (currentScopeNode.type === 'function_definition') {
+                            owningFunctionNode = currentScopeNode;
+                            break;
+                        }
+                        if (!currentScopeNode.parent)
+                            break;
+                        currentScopeNode = currentScopeNode.parent;
+                    }
+                    const usageScopeId = owningFunctionNode ? owningFunctionNode.id : rootScopeId;
+                    // Check if used in its own scope (local or param)
+                    const localScopeVars = scopes.get(usageScopeId);
+                    if (localScopeVars && localScopeVars.has(usageName)) {
+                        localScopeVars.get(usageName).used = true;
+                        // console.log(`Marked used (local/param): ${usageName} in scope ${usageScopeId}`);
+                    }
+                    else if (!owningFunctionNode) { // If usage is global and var is global
+                        const globalScopeVars = scopes.get(rootScopeId);
+                        if (globalScopeVars && globalScopeVars.has(usageName)) {
+                            globalScopeVars.get(usageName).used = true;
+                            // console.log(`Marked used (global from global): ${usageName}`);
+                        }
+                    }
+                    else { // Usage is in a function, but not a local/param - check globals
+                        const globalScopeVars = scopes.get(rootScopeId);
+                        if (globalScopeVars && globalScopeVars.has(usageName)) {
+                            globalScopeVars.get(usageName).used = true;
+                            // console.log(`Marked used (global from function ${owningFunctionNode?.id}): ${usageName}`);
+                        }
+                    }
+                }
+            }
+            // --- 3. Generate diagnostics for unused variables ---
+            for (const [scopeId, declarationsInScope] of scopes) {
+                for (const [varName, { declNode, used, isParam }] of declarationsInScope) {
+                    if (!used) {
+                        let messageType = "";
+                        let diagnosticCode = "";
+                        if (scopeId === rootScopeId) { // Global
+                            messageType = "全局变量";
+                            diagnosticCode = "unusedGlobalVar";
+                        }
+                        else { // Function scope
+                            messageType = isParam ? "参数" : "局部变量";
+                            diagnosticCode = isParam ? "unusedParameter" : "unusedLocalVar";
+                        }
+                        diagnostics.push(this.createDiagnostic(this.getRangeFromNode(document, declNode), `未使用的${messageType}: '${varName}'`, vscode.DiagnosticSeverity.Warning, diagnosticCode));
+                        console.log(`Reported unused ${messageType}: ${varName}`);
+                    }
+                }
+            }
+            console.log(`LPCDiagnostics: Finished AST-based unused variable analysis for ${document.uri.fsPath}. Found ${diagnostics.length} unused variables.`);
+        }
+        catch (e) {
+            console.error(`Error during AST-based unused variable analysis for ${document.uri.fsPath}:`, e.message, e.stack);
+        }
+        return diagnostics;
+    }
+    // --- End of New AST-based methods ---
     collectDiagnostics(document) {
         const diagnostics = [];
         const text = document.getText();
         // 收集所有诊断信息
         this.collectObjectAccessDiagnostics(text, diagnostics, document);
         this.collectStringLiteralDiagnostics(text, diagnostics, document);
-        this.collectVariableUsageDiagnostics(text, diagnostics, document);
+        // this.collectVariableUsageDiagnostics(text, diagnostics, document); // To be replaced
+        if (this.parser && LpcLanguage) {
+            const tree = this.parser.parse(text); // Parse once
+            try {
+                diagnostics.push(...this.collectAstBasedUnusedVariableDiagnostics(document, tree));
+                // Call the new variable definition order checker
+                (0, variableOrderChecker_1.collectVariableDefinitionOrderDiagnostics)(tree.rootNode, document, diagnostics, LpcLanguage);
+            }
+            catch (e) {
+                console.error(`Error during AST diagnostics: ${document.uri.fsPath}`, e.message, e.stack);
+            }
+        }
+        else {
+            console.warn(`LPCDiagnostics: Parser not ready for ${document.uri.fsPath}. Skipping AST-based checks.`);
+        }
         this.collectFileNamingDiagnostics(document, diagnostics);
         return diagnostics;
     }
@@ -568,19 +804,59 @@ class LPCDiagnostics {
                 }
             }
         }
-        // 检查变量使用
+        const processedForeachVars = new Set();
+        // Find and analyze foreach loops first
+        const foreachRegex = /\bforeach\s*\(([^)]+)\)\s*\{/g; // Captures header and start of body
+        let foreachMatch;
+        while ((foreachMatch = foreachRegex.exec(block.content)) !== null) {
+            const foreachHeaderString = foreachMatch[1]; // Full string inside foreach(...), e.g., "string k, v in m"
+            const loopBodyStartIndex = foreachMatch.index + foreachMatch[0].length; // Index of char after "{"
+            const loopBodyContent = this.extractBlockContent(block.content, loopBodyStartIndex - 1); // Pass index of "{"
+            if (loopBodyContent === null)
+                continue;
+            const iterVars = this.parseForeachHeader(foreachHeaderString);
+            // 检查是否是mapping迭代 (有两个变量且第一个是key)
+            const isMappingIteration = iterVars.length === 2 &&
+                iterVars[0].role === "key" &&
+                iterVars[1].role === "value";
+            for (const iterVar of iterVars) {
+                const varName = iterVar.name;
+                // 对于mapping迭代中的key变量，即使未使用也不要警告
+                if (isMappingIteration && iterVar.role === "key") {
+                    processedForeachVars.add(varName);
+                    continue;
+                }
+                // Find the precise start index of varName within the foreachHeaderString for accurate diagnostic range
+                const varNameRegex = new RegExp(`\\b(${varName})\\b`);
+                const nameMatchInHeader = varNameRegex.exec(foreachHeaderString);
+                if (!nameMatchInHeader)
+                    continue; // Should be found if parseForeachHeader worked
+                const varNameOffsetInHeader = nameMatchInHeader.index;
+                // Calculate global offset for the diagnostic
+                const varStartOffset = block.start + foreachMatch.index + "foreach(".length + varNameOffsetInHeader;
+                const varRange = new vscode.Range(document.positionAt(varStartOffset), document.positionAt(varStartOffset + varName.length));
+                const isUsed = this.checkVariableUsage(varName, loopBodyContent);
+                if (!isUsed) {
+                    const diagnostic = new vscode.Diagnostic(varRange, `未使用的 foreach 迭代变量: '${varName}'`, vscode.DiagnosticSeverity.Warning);
+                    diagnostic.code = 'unusedForeachVar';
+                    diagnostics.push(diagnostic);
+                }
+                // Add to processed set to avoid re-checking if they happen to be also declared vars (though less common for iter vars)
+                processedForeachVars.add(varName);
+            }
+        }
+        // Check normal variable usage, skipping those already processed as foreach iteration variables
         for (const [varName, info] of localVars) {
-            // 在变量声明后的代码中查找变量使用
+            if (processedForeachVars.has(varName)) {
+                continue;
+            }
             const afterDeclaration = block.content.slice(info.declarationIndex + varName.length);
-            // 获取变量的类型
             const varType = info.type;
-            // 查找变量的赋值表达式
             const assignRegex = new RegExp(`\\b${varName}\\s*=\\s*(.*?);`, 'g');
             let assignMatch;
             while ((assignMatch = assignRegex.exec(afterDeclaration)) !== null) {
                 const expression = assignMatch[1];
                 const inferredType = this.inferExpressionType(expression);
-                // 在类型比较时，使用新的类型兼容性检查函数
                 if (!this.areTypesCompatible(varType, inferredType)) {
                     const expressionStart = assignMatch.index + info.declarationIndex + varName.length + assignMatch[0].indexOf(expression);
                     const expressionEnd = expressionStart + expression.length;
@@ -588,7 +864,6 @@ class LPCDiagnostics {
                     diagnostics.push(new vscode.Diagnostic(range, `变量 '${varName}' 声明为 '${varType}'，但赋值的表达式类型为 '${inferredType}'`, vscode.DiagnosticSeverity.Warning));
                 }
             }
-            // 检查变量使用情况，区分声明时赋值和后续赋值
             const isUsed = info.isDeclarationWithAssign ?
                 this.checkActualUsage(varName, afterDeclaration) :
                 this.checkActualUsageIncludingAssignment(varName, afterDeclaration);
@@ -598,6 +873,70 @@ class LPCDiagnostics {
                 diagnostics.push(diagnostic);
             }
         }
+    }
+    /**
+     * Extracts the content of a block enclosed by braces {}.
+     * @param text The text containing the block.
+     * @param startIndex The index of the opening brace '{'.
+     * @returns The content of the block (excluding braces), or null if not found.
+     */
+    extractBlockContent(text, startIndex) {
+        if (text[startIndex] !== '{') {
+            return null;
+        }
+        let braceDepth = 1;
+        for (let i = startIndex + 1; i < text.length; i++) {
+            if (text[i] === '{') {
+                braceDepth++;
+            }
+            else if (text[i] === '}') {
+                braceDepth--;
+                if (braceDepth === 0) {
+                    return text.substring(startIndex + 1, i);
+                }
+            }
+        }
+        return null; // Unmatched brace
+    }
+    /**
+     * Parses the header of a foreach loop to extract iteration variables.
+     * E.g., "key, val in mapping" -> [{name: "key", role: "key"}, {name: "val", role: "value"}]
+     * E.g., "item in array" -> [{name: "item", role: "item"}]
+     * @param headerString The content inside foreach(...), e.g., "string k, string v in m".
+     * @returns An array of objects containing iteration variable names and roles.
+     */
+    parseForeachHeader(headerString) {
+        const result = [];
+        const inKeyword = " in ";
+        const inIndex = headerString.lastIndexOf(inKeyword); // Use lastIndexOf to correctly handle "in" in var names if possible (though unlikely for iter vars)
+        if (inIndex === -1)
+            return result;
+        const iterVarDeclarations = headerString.substring(0, inIndex).trim();
+        const collectionName = headerString.substring(inIndex + inKeyword.length).trim(); // Now used for detecting mapping iteration
+        if (!iterVarDeclarations)
+            return result;
+        const vars = iterVarDeclarations.split(',').map(vDecl => {
+            const trimmedDecl = vDecl.trim();
+            // Extract the last word, which should be the variable name (e.g., "string foo" -> "foo")
+            const nameMatch = trimmedDecl.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
+            const varName = nameMatch ? nameMatch[0] : "";
+            return { name: varName };
+        }).filter(v => v.name.length > 0 && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(v.name)); // Ensure it's a valid C-like identifier
+        // Determine variable roles based on count and pattern
+        if (vars.length === 1) {
+            // Single variable is always an array item or the only mapping value if used alone
+            result.push({ name: vars[0].name, role: "item" });
+        }
+        else if (vars.length === 2) {
+            // Two variables indicate a key-value pair for mapping iteration
+            result.push({ name: vars[0].name, role: "key" });
+            result.push({ name: vars[1].name, role: "value" });
+        }
+        else {
+            // For any other case, just use generic role
+            vars.forEach(v => result.push({ name: v.name, role: "unknown" }));
+        }
+        return result;
     }
     createDiagnostic(range, message, severity, code) {
         const diagnostic = new vscode.Diagnostic(range, message, severity);
@@ -609,8 +948,10 @@ class LPCDiagnostics {
     getRange(document, startPos, length) {
         return new vscode.Range(document.positionAt(startPos), document.positionAt(startPos + length));
     }
-    checkVariableInCode(varName, code, patterns) {
+    checkVariableInCode(// This helper function seems unused now, can be removed if checkVariableUsage is refactored.
+    varName, code, patterns) {
         for (const { pattern, description } of patterns) {
+            pattern.lastIndex = 0; // Reset lastIndex for global regexes
             if (pattern.test(code)) {
                 return { isUsed: true, usageType: description };
             }
@@ -618,159 +959,133 @@ class LPCDiagnostics {
         return { isUsed: false };
     }
     getVariableUsagePatterns(varName) {
+        // Patterns for when a variable's value is read or it's passed by reference (like sscanf).
         return [
             {
+                // varName as a function argument: foo(varName), foo(x, varName, y)
                 pattern: new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: '函数参数'
             },
             {
-                pattern: new RegExp(`\\b(?!${varName}\\s*=)[a-zA-Z_][a-zA-Z0-9_]*\\s*[+\\-*\\/%]?=\\s*.*\\b${varName}\\b.*?;`, 'g'),
+                // varName on the RHS of an assignment: x = varName; y = z + varName;
+                // Negative lookahead (?!...) ensures varName is not on LHS of simple assignment like "varName = value"
+                // It allows varName on LHS of compound assignment "varName += value" because that's handled by '复合赋值'
+                pattern: new RegExp(`\\b(?!${varName}\\s*=[^=])[a-zA-Z_][a-zA-Z0-9_]*\\s*[+\\-*\\/%]?=\\s*.*\\b${varName}\\b.*?;`, 'g'),
                 description: '赋值右值'
             },
             {
+                // varName in a return statement: return varName; return obj->method(varName);
                 pattern: new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g'),
                 description: 'return语句'
             },
             {
+                // varName in an if condition: if (varName), if (varName > 0)
                 pattern: new RegExp(`\\bif\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: 'if条件'
             },
             {
+                // varName in a while condition: while (varName), while (varName--)
                 pattern: new RegExp(`\\bwhile\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: 'while循环'
             },
             {
+                // varName in a for loop's condition or increment part (not initializer if it's LHS of simple assignment):
+                // for (...; varName; ...), for (...; ; varName++)
                 pattern: new RegExp(`\\bfor\\s*\\([^;]*;[^;]*\\b${varName}\\b[^;]*;[^)]*\\)`, 'g'),
                 description: 'for循环'
             },
             {
+                // varName in a switch statement: switch (varName)
                 pattern: new RegExp(`\\bswitch\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: 'switch语句'
             },
             {
-                pattern: new RegExp(`\\bcase\\s+${varName}\\b`, 'g'),
+                // varName in a case statement: case varName:
+                pattern: new RegExp(`\\bcase\\s+\\b${varName}\\b`, 'g'),
                 description: 'case语句'
             },
+            // The following foreach patterns are for varName as LHS (iteration variable), so NOT a read.
+            // {
+            //     pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
+            //     description: 'foreach迭代器 (LHS)'
+            // },
+            // {
+            //     pattern: new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
+            //     description: 'foreach值 (LHS)'
+            // },
+            // {
+            //     pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
+            //     description: 'foreach单值 (LHS)'
+            // },
             {
-                pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
-                description: 'foreach迭代器'
+                // varName is the collection being iterated (RHS usage): foreach (x in varName)
+                pattern: new RegExp(`\\bforeach\\s*\\([^)]+in\\s+\\b${varName}\\b`, 'g'),
+                description: 'foreach集合 (RHS)'
             },
             {
-                pattern: new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
-                description: 'foreach值'
+                // For sscanf, input_to, the variable's address is effectively taken.
+                // For call_other, if varName is an argument, its value is read.
+                // Matches varName when it's one of the arguments, not just the first or specific one.
+                pattern: new RegExp(`\\b(?:sscanf|input_to|call_other)\\s*\\((?:[^(),]*\\(\\s*[^()]*\\s*\\)[^(),]*|[^(),])*\\b${varName}\\b`, 'g'),
+                description: '特殊函数调用 (sscanf, input_to, call_other arg)'
             },
             {
-                pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
-                description: 'foreach单值'
+                // varName is an object, and its member/method is accessed: varName->prop, varName->method()
+                pattern: new RegExp(`\\b${varName}\\s*->`, 'g'),
+                description: '对象成员访问'
             },
+            // Removed: `->\\s*${varName}\\b` (varName as method name, not a variable read)
+            // Removed: `\\bcall_other\\s*\\([^,]+,\\s*"${varName}"` (varName as string literal for func name)
             {
-                pattern: new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g'),
-                description: 'foreach集合'
-            },
-            {
-                pattern: new RegExp(`\\b(?:sscanf|input_to|call_other)\\s*\\([^,]*(?:,\\s*[^,]*)*\\b${varName}\\b`, 'g'),
-                description: '特殊函数调用'
-            },
-            {
-                pattern: new RegExp(`->\\s*${varName}\\b`, 'g'),
-                description: '对象方法调用'
-            },
-            {
-                pattern: new RegExp(`\\bcall_other\\s*\\([^,]+,\\s*"${varName}"`, 'g'),
-                description: 'call_other调用'
+                // Compound assignment: varName += value; varName -= value; etc. This is a read.
+                pattern: new RegExp(`\\b${varName}\\s*(?:\\+=|-=|\\*=|\\/=|%=)\\s*[^;]+`, 'g'),
+                description: '复合赋值'
             }
         ];
     }
     checkVariableUsage(varName, code) {
         const patterns = this.getVariableUsagePatterns(varName);
-        const { isUsed } = this.checkVariableInCode(varName, code, patterns);
-        if (isUsed)
-            return true;
-        // 检查变量是否在数组访问或其他表达式中使用
+        for (const { pattern } of patterns) {
+            pattern.lastIndex = 0; // Reset lastIndex for global regexes before each test
+            if (pattern.test(code)) {
+                return true;
+            }
+        }
+        // Fallback: Check for other usages of varName, ensuring it's not just on the LHS of a simple assignment.
+        // A simple assignment is like "varName = value;"
+        // A compound assignment like "varName += value;" is covered by getVariableUsagePatterns.
+        // Usage in an expression "x = varName + y", "if (varName)", "foo(varName)" (if not caught by specific patterns) should be caught.
         const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
         let match;
         while ((match = usagePattern.exec(code)) !== null) {
             const index = match.index;
-            const beforeChar = index > 0 ? code[index - 1] : '';
-            const afterSlice = code.slice(index + varName.length, index + varName.length + 2);
-            // 忽略赋值左侧的情况
-            const isAssignmentLeft = /\s*[+\-*\/%]?=/.test(afterSlice);
-            if (!isAssignmentLeft) {
-                // 检查是否在数组访问、成员访问或其他表达式中使用
-                const isArrayAccess = /\s*\[/.test(afterSlice);
-                const isMemberAccess = /\s*\.|\s*->/.test(afterSlice);
-                const isInExpression = /[-+*\/%&|^<>!?:]/.test(beforeChar) ||
-                    /[-+*\/%&|^<>!?:]/.test(afterSlice);
-                if (isArrayAccess || isMemberAccess || isInExpression) {
-                    return true;
-                }
+            // Check context around varName to see if it's LHS of a simple assignment.
+            // Look at characters immediately after varName. e.g., "varName =", "varName  ="
+            const postVariableContext = code.substring(index + varName.length);
+            // Regex: starts with optional whitespace, then '=', then NOT another '=', then anything or end of line.
+            const simpleAssignmentLHSRegex = /^\s*=\s*([^=]|$)/;
+            if (!simpleAssignmentLHSRegex.test(postVariableContext)) {
+                // It's not on the LHS of a simple assignment like "varName = value".
+                // This means it's used in an expression, as a function argument (if not caught above),
+                // as an array index, part of a comparison, on RHS of assignment, etc.
+                return true;
             }
         }
         return false;
     }
+    // checkActualUsage is for variables declared WITH an assignment.
+    // It needs to check if the variable is *read* after its declaration.
+    // It can now directly use checkVariableUsage, as checkVariableUsage
+    // is designed to find "read" operations (not just assignments to the variable).
     checkActualUsage(varName, code) {
-        let isUsed = false;
-        // 检查变量是否作为参数传递给函数调用
-        const functionCallPattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g');
-        if (functionCallPattern.test(code)) {
-            isUsed = true;
-        }
-        // 检查变量是否被赋值给其他变量（作为右值）
-        const assignedToVariablePattern = new RegExp(`\\b(?!${varName}\\s*=)[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*.*\\b${varName}\\b.*?;`, 'g');
-        if (assignedToVariablePattern.test(code)) {
-            isUsed = true;
-        }
-        // 检查变量是否被 return 语句返回
-        const returnPattern = new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g');
-        if (returnPattern.test(code)) {
-            isUsed = true;
-        }
-        // 检查变量是否在表达式中使用
-        const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
-        let match;
-        while ((match = usagePattern.exec(code)) !== null) {
-            const index = match.index;
-            // 忽略赋值左侧的情况
-            const isAssignmentLeft = /\s*[+\-*\/%]?=/.test(code.slice(index + varName.length, index + varName.length + 2));
-            if (!isAssignmentLeft) {
-                // 检查是否在数组访问或其他表达式中使用
-                const isArrayAccess = /\s*\[/.test(code.slice(index + varName.length, index + varName.length + 2));
-                const isInExpression = /[-+*\/%&|^<>]/.test(code.slice(index - 1, index)) ||
-                    /[-+*\/%&|^<>]/.test(code.slice(index + varName.length, index + varName.length + 1));
-                if (isArrayAccess || isInExpression) {
-                    isUsed = true;
-                }
-            }
-        }
-        // 检查foreach语句中的使用
-        const foreachPatterns = [
-            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
-            new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
-            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
-            new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g')
-        ];
-        if (foreachPatterns.some(pattern => pattern.test(code))) {
-            isUsed = true;
-        }
-        // 检查sscanf和input_to函数的使用
-        const specialFunctionPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
-        let funcMatch;
-        while ((funcMatch = specialFunctionPattern.exec(code)) !== null) {
-            const argsString = funcMatch[1];
-            const args = argsString.split(',').map(arg => arg.trim());
-            if (args.includes(varName)) {
-                isUsed = true;
-            }
-        }
-        return isUsed;
+        return this.checkVariableUsage(varName, code);
     }
     checkActualUsageIncludingAssignment(varName, code) {
-        // 首先检查是否有赋值操作（这种情况下认为变量被使用）
-        const assignmentPattern = new RegExp(`\\b${varName}\\s*[+\\-*\\/%]?=`, 'g');
-        if (assignmentPattern.test(code)) {
-            return true;
-        }
-        // 如果没有赋值，检查其他使用情况
+        // A variable is considered "used" if it's read from or its address is taken (like in sscanf),
+        // or it's part of a compound assignment (like x += 1).
+        // Simple assignment TO the variable (e.g., x = 5) doesn't make it "used" in terms of its prior value.
+        // Its subsequent use (reading the assigned value) makes it used.
+        // This function now relies entirely on checkVariableUsage to determine if a meaningful "read" or "by-reference modification" occurs.
         return this.checkVariableUsage(varName, code);
     }
     analyzeApplyFunctions(text, diagnostics, document) {

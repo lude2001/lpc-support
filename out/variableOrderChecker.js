@@ -1,0 +1,70 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.collectVariableDefinitionOrderDiagnostics = collectVariableDefinitionOrderDiagnostics;
+const vscode = require("vscode");
+// Helper to get the text of a node
+function getNodeText(node, document) {
+    return document.getText(new vscode.Range(document.positionAt(node.startIndex), document.positionAt(node.endIndex)));
+}
+function getRangeFromNode(document, node) {
+    return new vscode.Range(document.positionAt(node.startIndex), document.positionAt(node.endIndex));
+}
+/**
+ * Collects diagnostics for variable declarations that are not at the top of their block.
+ * @param rootNode The root node of the AST to analyze.
+ * @param document The text document being analyzed.
+ * @param diagnostics An array to push new diagnostics into.
+ */
+function collectVariableDefinitionOrderDiagnostics(rootNode, document, diagnostics, lpcLanguage // Pass the loaded Language object
+) {
+    if (!lpcLanguage) {
+        console.warn("VariableOrderChecker: LpcLanguage not available, skipping check.");
+        return;
+    }
+    // Query for block statements. This might need to be adjusted based on your grammar.js.
+    // Common block containers: function_definition, if_statement, else_clause, while_statement, for_statement, do_statement
+    // The direct child of these that is a 'block_statement' or '{ ... }' is what we need.
+    // In the provided grammar.js, `block_statement` is the node type for `{ ... }`.
+    const blockQueryString = `(block_statement) @block`;
+    let blockQuery;
+    try {
+        blockQuery = lpcLanguage.query(blockQueryString);
+    }
+    catch (e) {
+        console.error("Error creating Tree-sitter query for blocks:", e);
+        return;
+    }
+    const blockMatches = blockQuery.matches(rootNode);
+    for (const match of blockMatches) {
+        const blockNode = match.captures.find(c => c.name === 'block')?.node;
+        if (!blockNode)
+            continue;
+        let foundNonDeclarationStatement = false;
+        // Iterate over named children of the block statement
+        for (const statementNode of blockNode.namedChildren) { // Use namedChildren to get actual statements
+            if (statementNode.type === 'variable_declaration') {
+                if (foundNonDeclarationStatement) {
+                    // Try to get the name of the first variable declared in this statement for a better message
+                    let firstVarName = "A variable";
+                    const varDeclQueryString = `(variable_declaration (_variable_declarator name: (identifier) @var.name))`;
+                    try {
+                        const varDeclQuery = lpcLanguage.query(varDeclQueryString);
+                        const varCaptures = varDeclQuery.captures(statementNode);
+                        const varNameNode = varCaptures.find(c => c.name === 'var.name')?.node;
+                        if (varNameNode) {
+                            firstVarName = getNodeText(varNameNode, document);
+                        }
+                    }
+                    catch (e) {
+                        // Ignore if query fails, just use generic message
+                    }
+                    diagnostics.push(new vscode.Diagnostic(getRangeFromNode(document, statementNode), `变量声明 '${firstVarName}' 不在块的顶部。LPC 要求所有局部变量声明在块内任何其他语句之前。`, vscode.DiagnosticSeverity.Warning));
+                }
+            }
+            else if (statementNode.type !== 'comment') { // Comments are fine amongst declarations
+                foundNonDeclarationStatement = true;
+            }
+        }
+    }
+}
+//# sourceMappingURL=variableOrderChecker.js.map
