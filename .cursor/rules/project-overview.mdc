@@ -1,7 +1,7 @@
 ---
-description: 项目概览
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # LPC Support Extension 项目概览
 

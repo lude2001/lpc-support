@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from './macroManager';
+import { getParsed } from './parseCache';
+import { FunctionDefContext, ParameterContext } from './antlr/LPCParser';
 
 /**
  * 函数信息接口
@@ -12,6 +14,7 @@ interface FunctionInfo {
     comment: string;
     source: string;
     filePath: string;
+    line: number; // 行号用于跳转
 }
 
 /**
@@ -82,6 +85,9 @@ export class FunctionDocPanel {
                     case 'showFunctionDoc':
                         this.showFunctionDoc(message.functionName, message.source);
                         return;
+                    case 'gotoDefinition':
+                        this.gotoDefinition(message.filePath, message.line);
+                        return;
                 }
             },
             null,
@@ -139,38 +145,62 @@ export class FunctionDocPanel {
         const lines = text.split('\n');
         const functions: FunctionInfo[] = [];
         
-        // 匹配函数定义，支持各种修饰符和返回类型
-        const functionRegex = /(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)/g;
-        
-        let match;
-        while ((match = functionRegex.exec(text)) !== null) {
-            const functionName = match[1];
-            const functionDefinition = match[0];
-            
-            // 获取函数前的注释
-            let comment = '';
-            let lineIndex = lines.findIndex(line => line.includes(functionDefinition));
-            if (lineIndex > 0) {
-                // 向上查找注释
-                let commentLines = [];
-                let i = lineIndex - 1;
-                while (i >= 0 && (lines[i].trim().startsWith('*') || lines[i].trim().startsWith('/*'))) {
-                    commentLines.unshift(lines[i]);
-                    i--;
+        const { tree, tokens } = getParsed(document);
+
+        const visit = (ctx: any) => {
+            if (ctx instanceof FunctionDefContext) {
+                const nameToken = ctx.Identifier().symbol;
+                const name = nameToken.text ?? '';
+
+                // 返回类型文本
+                const retTypeCtx = ctx.typeSpec();
+                const retType = retTypeCtx ? document.getText(new vscode.Range(
+                    document.positionAt(retTypeCtx.start.startIndex),
+                    document.positionAt(retTypeCtx.stop?.stopIndex ?? retTypeCtx.start.stopIndex + 1)
+                )) : 'void';
+
+                // 参数列表文本
+                const paramCtx = ctx.parameterList();
+                const paramText = paramCtx ? document.getText(new vscode.Range(
+                    document.positionAt(paramCtx.start.startIndex),
+                    document.positionAt(paramCtx.stop?.stopIndex ?? paramCtx.start.stopIndex + 1)
+                )) : '()';
+
+                const definition = `${retType} ${name}${paramText}`;
+
+                // 行号
+                const line = document.positionAt(ctx.start.startIndex).line;
+
+                // 提取紧前注释（简单向上查找最多三行）
+                let comment = '';
+                for (let l = line - 1; l >= 0 && line - l <= 3; l--) {
+                    const lineText = lines[l].trim();
+                    if (lineText.startsWith('/*') || lineText.startsWith('*') || lineText.startsWith('//')) {
+                        comment = lineText + '\n' + comment;
+                    } else if (lineText === '') {
+                        continue;
+                    } else {
+                        break;
+                    }
                 }
-                if (commentLines.length > 0) {
-                    comment = commentLines.join('\n');
+
+                functions.push({
+                    name,
+                    definition,
+                    comment,
+                    source,
+                    filePath,
+                    line
+                });
+            }
+            for (let i = 0; i < (ctx.childCount ?? 0); i++) {
+                const child = ctx.getChild(i);
+                if (child && typeof child === 'object' && child.symbol === undefined) {
+                    visit(child);
                 }
             }
-
-            functions.push({
-                name: functionName,
-                definition: functionDefinition,
-                comment: comment,
-                source: source,
-                filePath: filePath
-            });
-        }
+        };
+        visit(tree);
         
         // 如果是当前文件，保存到当前函数列表
         if (source === '当前文件') {
@@ -188,71 +218,63 @@ export class FunctionDocPanel {
     private async parseInheritedFunctions(document: vscode.TextDocument): Promise<void> {
         const text = document.getText();
         
-        // 支持两种继承语法：字符串形式和宏定义形式
-        const inheritRegexes = [
-            /inherit\s+"([^"]+)"/g,
-            /inherit\s+([A-Z_][A-Z0-9_]*)\s*;/g
-        ];
+        // —— AST 方式收集 inherit ——
+        const { tree } = getParsed(document);
+        const inherits: Array<{file: string, source: string}> = [];
 
-        // 先处理include文件以解析宏
-        const includeRegex = /#include\s+["<]([^">]+)[">]/g;
-        let includeMatch;
-        const processedIncludes = new Set<string>();
+        const collect = (ctx: any) => {
+            if (ctx instanceof (require('./antlr/LPCParser').InheritStatementContext)) {
+                const inheritText = document.getText(new vscode.Range(
+                    document.positionAt(ctx.start.startIndex),
+                    document.positionAt(ctx.stop.stopIndex + 1)
+                ));
 
-        // 批量处理所有include
-        const includeMatches: string[] = [];
-        while ((includeMatch = includeRegex.exec(text)) !== null) {
-            const includePath = includeMatch[1];
-            if (!processedIncludes.has(includePath)) {
-                processedIncludes.add(includePath);
-                includeMatches.push(includePath);
+                // 提取路径或宏
+                let m = /inherit\s+(?:"([^"]+)"|([A-Z_][A-Z0-9_]*))/i.exec(inheritText);
+                if (m) {
+                    let inheritedFile = (m[1] || m[2]).trim();
+                    let macroSource = '';
+
+                    // 宏解析（无扩展名）
+                    if (/^[A-Z_][A-Z0-9_]*$/.test(inheritedFile)) {
+                        const macro = this.macroManager.getMacro(inheritedFile);
+                        if (macro) {
+                            inheritedFile = macro.value.replace(/^"(.*)"$/, '$1');
+                            let macroPath = path.basename(macro.file);
+                            const includePath = this.macroManager.getIncludePath();
+                            if (includePath) {
+                                macroPath = path.relative(includePath, macro.file);
+                            }
+                            macroSource = `(通过宏 ${macro.name} 从 ${macroPath})`;
+                        } else {
+                            return;
+                        }
+                    }
+
+                    if (!inheritedFile.endsWith('.c')) {
+                        inheritedFile += '.c';
+                    }
+
+                    inherits.push({file: inheritedFile, source: macroSource});
+                }
             }
-        }
+            for (let i = 0; i < (ctx.childCount ?? 0); i++) {
+                const child = ctx.getChild(i);
+                if (child && typeof child === 'object' && child.symbol === undefined) {
+                    collect(child);
+                }
+            }
+        };
+        collect(tree);
 
-        // 批量处理所有宏定义
-        if (includeMatches.length > 0) {
-            await this.macroManager.scanMacros();
-        }
+        // 预处理include -> 扫描宏
+        await this.macroManager.scanMacros();
 
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
         if (!workspaceFolder) return;
 
-        // 收集所有继承条目，准备并行处理
         const inheritTasks: Promise<void>[] = [];
-        const allInheritedFiles: Array<{file: string, source: string}> = [];
-        
-        // 从两种regex中收集所有inherit语句
-        for (const inheritRegex of inheritRegexes) {
-            let match;
-            while ((match = inheritRegex.exec(text)) !== null) {
-                let inheritedFile = match[1];
-                let macroSource = '';
-                
-                // 如果是宏定义形式，尝试解析宏
-                if (inheritedFile.match(/^[A-Z_][A-Z0-9_]*$/)) {
-                    const macro = this.macroManager.getMacro(inheritedFile);
-                    if (macro) {
-                        inheritedFile = macro.value.replace(/^"(.*)"$/, '$1');
-                        
-                        let macroPath = path.basename(macro.file);
-                        const includePath = this.macroManager.getIncludePath();
-                        if (includePath) {
-                            macroPath = path.relative(includePath, macro.file);
-                        }
-                        macroSource = `(通过宏 ${macro.name} 从 ${macroPath})`;
-                    } else {
-                        continue; // 如果找不到宏定义，跳过这个继承
-                    }
-                }
-
-                // 处理文件路径
-                if (!inheritedFile.endsWith('.c')) {
-                    inheritedFile = inheritedFile + '.c';
-                }
-                
-                allInheritedFiles.push({file: inheritedFile, source: macroSource});
-            }
-        }
+        const allInheritedFiles = inherits;
         
         // 并行处理所有继承文件
         if (allInheritedFiles.length > 0) {
@@ -380,16 +402,20 @@ export class FunctionDocPanel {
         // 准备函数列表数据
         const currentFunctions = this.currentFunctions.map(f => ({
             name: f.name,
-            source: f.source
+            source: f.source,
+            filePath: f.filePath,
+            line: f.line
         }));
         
-        const inheritedFunctionGroups: Array<{source: string, functions: Array<{name: string, source: string}>}> = [];
+        const inheritedFunctionGroups: Array<{source: string, functions: Array<{name: string, source: string, filePath: string, line: number}>}> = [];
         this.inheritedFunctions.forEach((functions, source) => {
             inheritedFunctionGroups.push({
                 source: source,
                 functions: functions.map(f => ({
                     name: f.name,
-                    source: f.source
+                    source: f.source,
+                    filePath: f.filePath,
+                    line: f.line
                 }))
             });
         });
@@ -478,10 +504,11 @@ export class FunctionDocPanel {
         <body>
             <div class="container">
                 <div class="function-list">
+                    <input type="text" id="search" placeholder="搜索函数..." style="width:100%;margin-bottom:6px;" />
                     <h2>当前文件</h2>
                     <div class="function-group">
                         ${currentFunctions.map(f => `
-                            <div class="function-item" data-name="${f.name}" data-source="${f.source}">
+                            <div class="function-item" data-name="${f.name}" data-source="${f.source}" data-file="${f.filePath}" data-line="${f.line}">
                                 ${f.name}
                             </div>
                         `).join('')}
@@ -491,7 +518,7 @@ export class FunctionDocPanel {
                         <h2>${group.source}</h2>
                         <div class="function-group">
                             ${group.functions.map(f => `
-                                <div class="function-item" data-name="${f.name}" data-source="${f.source}">
+                                <div class="function-item" data-name="${f.name}" data-source="${f.source}" data-file="${f.filePath}" data-line="${f.line}">
                                     ${f.name}
                                 </div>
                             `).join('')}
@@ -558,6 +585,7 @@ export class FunctionDocPanel {
                             <div class="doc-section">
                                 <h3>定义</h3>
                                 <pre><code>\${escapeHtml(functionInfo.definition)}</code></pre>
+                                <button id="goto-def">跳转到定义</button>
                             </div>
                             <div class="doc-section">
                                 <h3>来源</h3>
@@ -654,6 +682,35 @@ export class FunctionDocPanel {
                             .replace(/"/g, "&quot;")
                             .replace(/'/g, "&#039;");
                     }
+
+                    // 搜索过滤
+                    const searchInput = document.getElementById('search');
+                    searchInput.addEventListener('input', () => {
+                        const query = searchInput.value.toLowerCase();
+                        document.querySelectorAll('.function-item').forEach(item => {
+                            const name = item.getAttribute('data-name').toLowerCase();
+                            item.style.display = name.includes(query) ? 'block' : 'none';
+                        });
+                    });
+
+                    // 跳转按钮事件
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        if (message.command === 'updateFunctionDoc') {
+                            setTimeout(() => {
+                                const btn = document.getElementById('goto-def');
+                                if (btn) {
+                                    btn.addEventListener('click', () => {
+                                        vscode.postMessage({
+                                            command: 'gotoDefinition',
+                                            filePath: message.functionInfo.filePath,
+                                            line: message.functionInfo.line
+                                        });
+                                    });
+                                }
+                            }, 50);
+                        }
+                    });
                 })();
             </script>
         </body>
@@ -709,6 +766,16 @@ export class FunctionDocPanel {
         }
 
         return markdown;
+    }
+
+    private gotoDefinition(filePath: string, line: number) {
+        vscode.workspace.openTextDocument(filePath).then(doc => {
+            vscode.window.showTextDocument(doc, {preview: false}).then(editor => {
+                const pos = new vscode.Position(line, 0);
+                editor.selection = new vscode.Selection(pos, pos);
+                editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+            });
+        });
     }
 
     /**

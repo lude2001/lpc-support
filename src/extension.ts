@@ -9,6 +9,15 @@ import { LPCDefinitionProvider } from './definitionProvider';
 import { EfunDocsManager } from './efunDocs';
 import { FunctionDocPanel } from './functionDocPanel';
 import { formatLPCCode } from './formatter'; // 从 formatter.ts 导入
+import { getParseTreeString } from './parser/ParseTreePrinter';
+import { DebugErrorListener } from './parser/DebugErrorListener';
+import { CharStreams, CommonTokenStream } from 'antlr4ts';
+import { LPCLexer } from './antlr/LPCLexer';
+import { LPCParser } from './antlr/LPCParser';
+import { LPCSemanticTokensProvider, LPCSemanticTokensLegend } from './semanticTokensProvider';
+import { LPCSymbolProvider } from './symbolProvider';
+import { LPCReferenceProvider } from './referenceProvider';
+import { LPCRenameProvider } from './renameProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     // 初始化诊断功能
@@ -135,6 +144,66 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(compileFolderCommand);
 
+    // 注册显示解析树命令（调试用）
+    const parseTreeCommand = vscode.commands.registerCommand('lpc.showParseTree', () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== 'lpc') {
+            vscode.window.showWarningMessage('请在 LPC 文件中使用此命令。');
+            return;
+        }
+        try {
+            const parseTreeStr = getParseTreeString(editor.document.getText());
+            const output = vscode.window.createOutputChannel('LPC ParseTree');
+            output.clear();
+            output.appendLine(parseTreeStr);
+            output.show(true);
+        } catch (err: any) {
+            vscode.window.showErrorMessage(`解析 LPC 代码时发生错误: ${err.message || err}`);
+        }
+    });
+    context.subscriptions.push(parseTreeCommand);
+
+    // —— 调试语法错误命令 ——
+    const debugParseCmd = vscode.commands.registerCommand('lpc.debugParseErrors', () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== 'lpc') {
+            vscode.window.showWarningMessage('请在 LPC 文件中使用此命令');
+            return;
+        }
+
+        const code = editor.document.getText();
+        const input = CharStreams.fromString(code);
+        const lexer = new LPCLexer(input);
+        const tokenStream = new CommonTokenStream(lexer);
+        const parser = new LPCParser(tokenStream);
+
+        const debugListener = new DebugErrorListener();
+        parser.removeErrorListeners();
+        parser.addErrorListener(debugListener);
+
+        // 解析
+        parser.sourceFile();
+
+        const output = vscode.window.createOutputChannel('LPC Parse Debug');
+        output.clear();
+
+        if (debugListener.errors.length === 0) {
+            output.appendLine('未发现 ANTLR 语法错误。');
+        } else {
+            debugListener.errors.forEach((err, idx) => {
+                output.appendLine(`错误 ${idx + 1}: 行 ${err.line}, 列 ${err.column}`);
+                output.appendLine(`  token: ${err.offendingToken}`);
+                output.appendLine(`  message: ${err.message}`);
+                if (err.ruleStack.length) {
+                    output.appendLine(`  rule stack: ${err.ruleStack.join(' -> ')}`);
+                }
+                output.appendLine('');
+            });
+        }
+        output.show(true);
+    });
+    context.subscriptions.push(debugParseCmd);
+
     // 初始化代码补全提供程序
     const completionProvider = new LPCCompletionItemProvider(efunDocsManager, macroManager);
     context.subscriptions.push(
@@ -212,6 +281,36 @@ export function activate(context: vscode.ExtensionContext) {
 
     // 将宏管理器添加到清理列表
     context.subscriptions.push(macroManager);
+
+    // 注册语义标记提供程序
+    context.subscriptions.push(
+        vscode.languages.registerDocumentSemanticTokensProvider(
+            { language: 'lpc' },
+            new LPCSemanticTokensProvider(),
+            LPCSemanticTokensLegend
+        )
+    );
+
+    // 注册文档符号提供程序 (大纲)
+    context.subscriptions.push(
+        vscode.languages.registerDocumentSymbolProvider(
+            { language: 'lpc' },
+            new LPCSymbolProvider()
+        )
+    );
+
+    // 注册引用提供程序
+    context.subscriptions.push(
+        vscode.languages.registerReferenceProvider(
+            'lpc',
+            new LPCReferenceProvider()
+        )
+    );
+
+    // 注册重命名提供程序
+    context.subscriptions.push(
+        vscode.languages.registerRenameProvider('lpc', new LPCRenameProvider())
+    );
 }
 
 // 停用扩展时调用

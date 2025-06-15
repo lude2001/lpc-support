@@ -4,6 +4,14 @@ exports.LPCDiagnostics = void 0;
 const vscode = require("vscode");
 const path = require("path");
 const fs = require("fs");
+const parseCache_1 = require("./parseCache");
+const StringLiteralCollector_1 = require("./collectors/StringLiteralCollector");
+const FileNamingCollector_1 = require("./collectors/FileNamingCollector");
+const UnusedVariableCollector_1 = require("./collectors/UnusedVariableCollector");
+const UnusedParameterCollector_1 = require("./collectors/UnusedParameterCollector");
+const GlobalVariableCollector_1 = require("./collectors/GlobalVariableCollector");
+const ApplyFunctionReturnCollector_1 = require("./collectors/ApplyFunctionReturnCollector");
+const LocalVariableDeclarationCollector_1 = require("./collectors/LocalVariableDeclarationCollector");
 function loadLPCConfig(configPath) {
     try {
         const configContent = fs.readFileSync(configPath, 'utf-8');
@@ -21,7 +29,7 @@ function loadLPCConfig(configPath) {
 class LPCDiagnostics {
     constructor(context, macroManager) {
         // 预编译的正则表达式，避免重复创建
-        this.objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\()?/g;
+        this.objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)(\()?/g;
         this.macroDefRegex = /\b([A-Z_][A-Z0-9_]*)\b/;
         this.macroManager = macroManager;
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
@@ -46,20 +54,6 @@ class LPCDiagnostics {
             '([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\([^)]*\\)\\s*{', 'gm');
         this.inheritRegex = /^\s*inherit\s+([A-Z_][A-Z0-9_]*(?:\s*,\s*[A-Z_][A-Z0-9_]*)*);/gm;
         this.includeRegex = /^\s*#include\s+[<"]([^>"]+)[>"]/gm;
-        // 从配置中提取 apply 函数
-        this.applyFunctions = new Set([
-            'create', 'setup', 'init', 'clean_up', 'reset',
-            'receive_object', 'move_object', 'can_move',
-            'valid_move', 'query_heart_beat', 'set_heart_beat',
-            'catch_tell', 'receive_message', 'write_prompt',
-            'process_input', 'do_command',
-            'logon', 'connect', 'disconnect', 'net_dead',
-            'terminal_type', 'window_size', 'receive_snoop',
-            'valid_override', 'valid_seteuid', 'valid_shadow',
-            'query_prevent_shadow', 'valid_bind',
-            'clean_up', 'reset', 'virtual_start', 'epilog',
-            'preload', 'valid_read', 'valid_write'
-        ]);
         // 添加右键菜单命令
         let showVariablesCommand = vscode.commands.registerCommand('lpc.showVariables', () => {
             const editor = vscode.window.activeTextEditor;
@@ -68,6 +62,16 @@ class LPCDiagnostics {
             }
         });
         context.subscriptions.push(showVariablesCommand);
+        // 初始化子诊断收集器
+        this.collectors = [
+            new StringLiteralCollector_1.StringLiteralCollector(),
+            new FileNamingCollector_1.FileNamingCollector(),
+            new UnusedVariableCollector_1.UnusedVariableCollector(),
+            new UnusedParameterCollector_1.UnusedParameterCollector(),
+            new GlobalVariableCollector_1.GlobalVariableCollector(),
+            new ApplyFunctionReturnCollector_1.ApplyFunctionReturnCollector(),
+            new LocalVariableDeclarationCollector_1.LocalVariableDeclarationCollector(),
+        ];
         // 注册文档更改事件
         context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument.bind(this)));
         // 注册文档打开事件
@@ -107,11 +111,23 @@ class LPCDiagnostics {
     collectDiagnostics(document) {
         const diagnostics = [];
         const text = document.getText();
-        // 收集所有诊断信息
+        // 收集旧的诊断信息
         this.collectObjectAccessDiagnostics(text, diagnostics, document);
-        this.collectStringLiteralDiagnostics(text, diagnostics, document);
-        this.collectVariableUsageDiagnostics(text, diagnostics, document);
-        this.collectFileNamingDiagnostics(document, diagnostics);
+        // 调用模块化收集器
+        const parsed = (0, parseCache_1.getParsed)(document);
+        for (const c of this.collectors) {
+            diagnostics.push(...c.collect(document, parsed));
+        }
+        // 使用 ParseCache 中的解析结果，避免重复解析并收集语法错误
+        try {
+            const { diagnostics: parseDiags } = (0, parseCache_1.getParsed)(document);
+            diagnostics.push(...parseDiags);
+        }
+        catch (err) {
+            if (err instanceof Error) {
+                vscode.window.showErrorMessage(`解析 LPC 失败: ${err.message}`);
+            }
+        }
         return diagnostics;
     }
     collectObjectAccessDiagnostics(text, diagnostics, document) {
@@ -249,69 +265,6 @@ class LPCDiagnostics {
         }
         return includes;
     }
-    getFunctionBlocks(text) {
-        const blocks = [];
-        this.functionDeclRegex.lastIndex = 0;
-        let match;
-        while ((match = this.functionDeclRegex.exec(text)) !== null) {
-            const start = match.index;
-            let bracketCount = 0;
-            let inString = false;
-            let stringChar = '';
-            let inSingleLineComment = false;
-            let inMultiLineComment = false;
-            let currentIndex = start;
-            while (currentIndex < text.length) {
-                const char = text[currentIndex];
-                const nextTwoChars = text.substr(currentIndex, 2);
-                if (inString) {
-                    if (char === stringChar && text[currentIndex - 1] !== '\\') {
-                        inString = false;
-                    }
-                }
-                else if (inSingleLineComment) {
-                    if (char === '\n') {
-                        inSingleLineComment = false;
-                    }
-                }
-                else if (inMultiLineComment) {
-                    if (nextTwoChars === '*/') {
-                        inMultiLineComment = false;
-                        currentIndex++;
-                    }
-                }
-                else {
-                    if (nextTwoChars === '//') {
-                        inSingleLineComment = true;
-                        currentIndex++;
-                    }
-                    else if (nextTwoChars === '/*') {
-                        inMultiLineComment = true;
-                        currentIndex++;
-                    }
-                    else if (char === '"' || char === '\'') {
-                        inString = true;
-                        stringChar = char;
-                    }
-                    else if (char === '{') {
-                        bracketCount++;
-                    }
-                    else if (char === '}') {
-                        bracketCount--;
-                        if (bracketCount === 0) {
-                            blocks.push({
-                                start: start,
-                                content: text.substring(start, currentIndex + 1)
-                            });
-                            break;
-                        }
-                    }
-                }
-                currentIndex++;
-            }
-        }
-        return blocks;
-    }
     findGlobalVariables(document) {
         const text = document.getText();
         const globalVariables = new Set();
@@ -368,15 +321,6 @@ class LPCDiagnostics {
             }
         }
         return globalVariables;
-    }
-    findFunctionDefinitions(text) {
-        const functionDefs = new Set();
-        let match;
-        this.functionDeclRegex.lastIndex = 0;
-        while ((match = this.functionDeclRegex.exec(text)) !== null) {
-            functionDefs.add(match[2]);
-        }
-        return functionDefs;
     }
     async showAllVariables(document) {
         const text = document.getText();
@@ -516,89 +460,6 @@ class LPCDiagnostics {
         this.diagnosticCollection.clear();
         this.diagnosticCollection.dispose();
     }
-    analyzeVariablesInFunction(block, globalVars, functionDefs, diagnostics, document) {
-        const localVars = new Map();
-        let match;
-        this.variableDeclarationRegex.lastIndex = 0;
-        // 查找局部变量声明
-        while ((match = this.variableDeclarationRegex.exec(block.content)) !== null) {
-            const varType = match[2];
-            const varDeclarations = match[3];
-            const fullMatchStart = block.start + match.index;
-            const fullMatchEnd = fullMatchStart + match[0].length;
-            // 分割变量声明，保留每个变量声明的完整形式（包括星号）
-            const vars = varDeclarations.split(',');
-            let hasArrayInDeclaration = false;
-            for (let varDecl of vars) {
-                varDecl = varDecl.trim();
-                let isArray = false;
-                let varName = varDecl;
-                // 检查是否是数组声明
-                if (varDecl.includes('*')) {
-                    isArray = true;
-                    hasArrayInDeclaration = true;
-                    varName = varDecl.replace('*', '').trim();
-                }
-                // 如果这个声明中有数组，那么后续的变量都是普通变量
-                if (!isArray && hasArrayInDeclaration) {
-                    isArray = false;
-                }
-                if (!this.excludedIdentifiers.has(varName) && !functionDefs.has(varName)) {
-                    // 找到这个变量在声明中实际位置
-                    const varRegex = new RegExp(`\\b${varName}\\b`);
-                    const varMatch = varRegex.exec(block.content.slice(match.index));
-                    if (varMatch) {
-                        const varIndex = match.index + varMatch.index;
-                        const varStart = document.positionAt(block.start + varIndex);
-                        const varEnd = document.positionAt(block.start + varIndex + varName.length);
-                        const declStart = document.positionAt(fullMatchStart);
-                        const declEnd = document.positionAt(fullMatchEnd);
-                        // 检查是否是声明时赋值
-                        const declarationLine = block.content.slice(match.index, match.index + match[0].length);
-                        const isDeclarationWithAssign = declarationLine.includes('=');
-                        localVars.set(varName, {
-                            range: new vscode.Range(varStart, varEnd),
-                            declarationRange: new vscode.Range(declStart, declEnd),
-                            declarationIndex: match.index,
-                            isArray,
-                            type: isArray ? `${varType}[]` : varType,
-                            isDeclarationWithAssign
-                        });
-                    }
-                }
-            }
-        }
-        // 检查变量使用
-        for (const [varName, info] of localVars) {
-            // 在变量声明后的代码中查找变量使用
-            const afterDeclaration = block.content.slice(info.declarationIndex + varName.length);
-            // 获取变量的类型
-            const varType = info.type;
-            // 查找变量的赋值表达式
-            const assignRegex = new RegExp(`\\b${varName}\\s*=\\s*(.*?);`, 'g');
-            let assignMatch;
-            while ((assignMatch = assignRegex.exec(afterDeclaration)) !== null) {
-                const expression = assignMatch[1];
-                const inferredType = this.inferExpressionType(expression);
-                // 在类型比较时，使用新的类型兼容性检查函数
-                if (!this.areTypesCompatible(varType, inferredType)) {
-                    const expressionStart = assignMatch.index + info.declarationIndex + varName.length + assignMatch[0].indexOf(expression);
-                    const expressionEnd = expressionStart + expression.length;
-                    const range = new vscode.Range(document.positionAt(block.start + expressionStart), document.positionAt(block.start + expressionEnd));
-                    diagnostics.push(new vscode.Diagnostic(range, `变量 '${varName}' 声明为 '${varType}'，但赋值的表达式类型为 '${inferredType}'`, vscode.DiagnosticSeverity.Warning));
-                }
-            }
-            // 检查变量使用情况，区分声明时赋值和后续赋值
-            const isUsed = info.isDeclarationWithAssign ?
-                this.checkActualUsage(varName, afterDeclaration) :
-                this.checkActualUsageIncludingAssignment(varName, afterDeclaration);
-            if (!isUsed) {
-                const diagnostic = new vscode.Diagnostic(info.range, `未使用的变量: '${varName}'${info.isArray ? ' (数组)' : ''}`, vscode.DiagnosticSeverity.Warning);
-                diagnostic.code = 'unusedVar';
-                diagnostics.push(diagnostic);
-            }
-        }
-    }
     createDiagnostic(range, message, severity, code) {
         const diagnostic = new vscode.Diagnostic(range, message, severity);
         if (code) {
@@ -609,216 +470,120 @@ class LPCDiagnostics {
     getRange(document, startPos, length) {
         return new vscode.Range(document.positionAt(startPos), document.positionAt(startPos + length));
     }
-    checkVariableInCode(varName, code, patterns) {
-        for (const { pattern, description } of patterns) {
-            if (pattern.test(code)) {
-                return { isUsed: true, usageType: description };
-            }
-        }
-        return { isUsed: false };
-    }
     getVariableUsagePatterns(varName) {
+        // Patterns for when a variable's value is read or it's passed by reference (like sscanf).
         return [
             {
+                // varName as a function argument: foo(varName), foo(x, varName, y)
                 pattern: new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: '函数参数'
             },
             {
-                pattern: new RegExp(`\\b(?!${varName}\\s*=)[a-zA-Z_][a-zA-Z0-9_]*\\s*[+\\-*\\/%]?=\\s*.*\\b${varName}\\b.*?;`, 'g'),
+                // varName on the RHS of an assignment: x = varName; y = z + varName;
+                // Negative lookahead (?!...) ensures varName is not on LHS of simple assignment like "varName = value"
+                // It allows varName on LHS of compound assignment "varName += value" because that's handled by '复合赋值'
+                pattern: new RegExp(`\\b(?!${varName}\\s*=[^=])[a-zA-Z_][a-zA-Z0-9_]*\\s*[+\\-*\\/%]?=\\s*.*\\b${varName}\\b.*?;`, 'g'),
                 description: '赋值右值'
             },
             {
+                // varName in a return statement: return varName; return obj->method(varName);
                 pattern: new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g'),
                 description: 'return语句'
             },
             {
+                // varName in an if condition: if (varName), if (varName > 0)
                 pattern: new RegExp(`\\bif\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: 'if条件'
             },
             {
+                // varName in a while condition: while (varName), while (varName--)
                 pattern: new RegExp(`\\bwhile\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: 'while循环'
             },
             {
+                // varName in a for loop's condition or increment part (not initializer if it's LHS of simple assignment):
+                // for (...; varName; ...), for (...; ; varName++)
                 pattern: new RegExp(`\\bfor\\s*\\([^;]*;[^;]*\\b${varName}\\b[^;]*;[^)]*\\)`, 'g'),
                 description: 'for循环'
             },
             {
+                // varName in a switch statement: switch (varName)
                 pattern: new RegExp(`\\bswitch\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g'),
                 description: 'switch语句'
             },
             {
-                pattern: new RegExp(`\\bcase\\s+${varName}\\b`, 'g'),
+                // varName in a case statement: case varName:
+                pattern: new RegExp(`\\bcase\\s+\\b${varName}\\b`, 'g'),
                 description: 'case语句'
             },
+            // The following foreach patterns are for varName as LHS (iteration variable), so NOT a read.
+            // {
+            //     pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
+            //     description: 'foreach迭代器 (LHS)'
+            // },
+            // {
+            //     pattern: new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
+            //     description: 'foreach值 (LHS)'
+            // },
+            // {
+            //     pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
+            //     description: 'foreach单值 (LHS)'
+            // },
             {
-                pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
-                description: 'foreach迭代器'
+                // varName is the collection being iterated (RHS usage): foreach (x in varName)
+                pattern: new RegExp(`\\bforeach\\s*\\([^)]+in\\s+\\b${varName}\\b`, 'g'),
+                description: 'foreach集合 (RHS)'
             },
             {
-                pattern: new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
-                description: 'foreach值'
+                // For sscanf, input_to, the variable's address is effectively taken.
+                // For call_other, if varName is an argument, its value is read.
+                // Matches varName when it's one of the arguments, not just the first or specific one.
+                pattern: new RegExp(`\\b(?:sscanf|input_to|call_other)\\s*\\((?:[^(),]*\\(\\s*[^()]*\\s*\\)[^(),]*|[^(),])*\\b${varName}\\b`, 'g'),
+                description: '特殊函数调用 (sscanf, input_to, call_other arg)'
             },
             {
-                pattern: new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
-                description: 'foreach单值'
+                // varName is an object, and its member/method is accessed: varName->prop, varName->method()
+                pattern: new RegExp(`\\b${varName}\\s*->`, 'g'),
+                description: '对象成员访问'
             },
+            // Removed: `->\\s*${varName}\\b` (varName as method name, not a variable read)
+            // Removed: `\\bcall_other\\s*\\([^,]+,\\s*"${varName}"` (varName as string literal for func name)
             {
-                pattern: new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g'),
-                description: 'foreach集合'
-            },
-            {
-                pattern: new RegExp(`\\b(?:sscanf|input_to|call_other)\\s*\\([^,]*(?:,\\s*[^,]*)*\\b${varName}\\b`, 'g'),
-                description: '特殊函数调用'
-            },
-            {
-                pattern: new RegExp(`->\\s*${varName}\\b`, 'g'),
-                description: '对象方法调用'
-            },
-            {
-                pattern: new RegExp(`\\bcall_other\\s*\\([^,]+,\\s*"${varName}"`, 'g'),
-                description: 'call_other调用'
+                // Compound assignment: varName += value; varName -= value; etc. This is a read.
+                pattern: new RegExp(`\\b${varName}\\s*(?:\\+=|-=|\\*=|\\/=|%=)\\s*[^;]+`, 'g'),
+                description: '复合赋值'
             }
         ];
     }
     checkVariableUsage(varName, code) {
         const patterns = this.getVariableUsagePatterns(varName);
-        const { isUsed } = this.checkVariableInCode(varName, code, patterns);
-        if (isUsed)
-            return true;
-        // 检查变量是否在数组访问或其他表达式中使用
+        for (const { pattern } of patterns) {
+            pattern.lastIndex = 0; // Reset lastIndex for global regexes before each test
+            if (pattern.test(code)) {
+                return true;
+            }
+        }
+        // Fallback: Check for other usages of varName, ensuring it's not just on the LHS of a simple assignment.
+        // A simple assignment is like "varName = value;"
+        // A compound assignment like "varName += value;" is covered by getVariableUsagePatterns.
+        // Usage in an expression "x = varName + y", "if (varName)", "foo(varName)" (if not caught by specific patterns) should be caught.
         const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
         let match;
         while ((match = usagePattern.exec(code)) !== null) {
             const index = match.index;
-            const beforeChar = index > 0 ? code[index - 1] : '';
-            const afterSlice = code.slice(index + varName.length, index + varName.length + 2);
-            // 忽略赋值左侧的情况
-            const isAssignmentLeft = /\s*[+\-*\/%]?=/.test(afterSlice);
-            if (!isAssignmentLeft) {
-                // 检查是否在数组访问、成员访问或其他表达式中使用
-                const isArrayAccess = /\s*\[/.test(afterSlice);
-                const isMemberAccess = /\s*\.|\s*->/.test(afterSlice);
-                const isInExpression = /[-+*\/%&|^<>!?:]/.test(beforeChar) ||
-                    /[-+*\/%&|^<>!?:]/.test(afterSlice);
-                if (isArrayAccess || isMemberAccess || isInExpression) {
-                    return true;
-                }
+            // Check context around varName to see if it's LHS of a simple assignment.
+            // Look at characters immediately after varName. e.g., "varName =", "varName  ="
+            const postVariableContext = code.substring(index + varName.length);
+            // Regex: starts with optional whitespace, then '=', then NOT another '=', then anything or end of line.
+            const simpleAssignmentLHSRegex = /^\s*=\s*([^=]|$)/;
+            if (!simpleAssignmentLHSRegex.test(postVariableContext)) {
+                // It's not on the LHS of a simple assignment like "varName = value".
+                // This means it's used in an expression, as a function argument (if not caught above),
+                // as an array index, part of a comparison, on RHS of assignment, etc.
+                return true;
             }
         }
         return false;
-    }
-    checkActualUsage(varName, code) {
-        let isUsed = false;
-        // 检查变量是否作为参数传递给函数调用
-        const functionCallPattern = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\([^)]*\\b${varName}\\b[^)]*\\)`, 'g');
-        if (functionCallPattern.test(code)) {
-            isUsed = true;
-        }
-        // 检查变量是否被赋值给其他变量（作为右值）
-        const assignedToVariablePattern = new RegExp(`\\b(?!${varName}\\s*=)[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*.*\\b${varName}\\b.*?;`, 'g');
-        if (assignedToVariablePattern.test(code)) {
-            isUsed = true;
-        }
-        // 检查变量是否被 return 语句返回
-        const returnPattern = new RegExp(`\\breturn\\s+.*\\b${varName}\\b`, 'g');
-        if (returnPattern.test(code)) {
-            isUsed = true;
-        }
-        // 检查变量是否在表达式中使用
-        const usagePattern = new RegExp(`\\b${varName}\\b`, 'g');
-        let match;
-        while ((match = usagePattern.exec(code)) !== null) {
-            const index = match.index;
-            // 忽略赋值左侧的情况
-            const isAssignmentLeft = /\s*[+\-*\/%]?=/.test(code.slice(index + varName.length, index + varName.length + 2));
-            if (!isAssignmentLeft) {
-                // 检查是否在数组访问或其他表达式中使用
-                const isArrayAccess = /\s*\[/.test(code.slice(index + varName.length, index + varName.length + 2));
-                const isInExpression = /[-+*\/%&|^<>]/.test(code.slice(index - 1, index)) ||
-                    /[-+*\/%&|^<>]/.test(code.slice(index + varName.length, index + varName.length + 1));
-                if (isArrayAccess || isInExpression) {
-                    isUsed = true;
-                }
-            }
-        }
-        // 检查foreach语句中的使用
-        const foreachPatterns = [
-            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s+in\\b`, 'g'),
-            new RegExp(`\\bforeach\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*${varName}\\s+in\\b`, 'g'),
-            new RegExp(`\\bforeach\\s*\\(\\s*${varName}\\s+in\\b`, 'g'),
-            new RegExp(`\\bforeach\\s*\\([^)]+in\\s+${varName}\\b`, 'g')
-        ];
-        if (foreachPatterns.some(pattern => pattern.test(code))) {
-            isUsed = true;
-        }
-        // 检查sscanf和input_to函数的使用
-        const specialFunctionPattern = new RegExp(`\\b(?:sscanf|input_to)\\s*\\([^,]+,\\s*[^,]+,\\s*([^)]*)\\)`, 'g');
-        let funcMatch;
-        while ((funcMatch = specialFunctionPattern.exec(code)) !== null) {
-            const argsString = funcMatch[1];
-            const args = argsString.split(',').map(arg => arg.trim());
-            if (args.includes(varName)) {
-                isUsed = true;
-            }
-        }
-        return isUsed;
-    }
-    checkActualUsageIncludingAssignment(varName, code) {
-        // 首先检查是否有赋值操作（这种情况下认为变量被使用）
-        const assignmentPattern = new RegExp(`\\b${varName}\\s*[+\\-*\\/%]?=`, 'g');
-        if (assignmentPattern.test(code)) {
-            return true;
-        }
-        // 如果没有赋值，检查其他使用情况
-        return this.checkVariableUsage(varName, code);
-    }
-    analyzeApplyFunctions(text, diagnostics, document) {
-        // 暂时关闭检查 apply 函数的返回类型，因为 FluffOS 的 apply 函数返回类型不固定，用户可以自行定义
-        return;
-    }
-    isValidApplyReturnType(funcName, returnType) {
-        const typeMap = {
-            'create': 'void',
-            'setup': 'void',
-            'init': 'void',
-            'clean_up': 'int',
-            'reset': 'void',
-            'receive_object': 'int',
-            'move_object': 'int',
-            'can_move': 'int',
-            'valid_move': 'int',
-            'catch_tell': 'void',
-            'receive_message': 'void',
-            'write_prompt': 'void',
-            'process_input': 'void',
-            'logon': 'void',
-            'connect': 'void',
-            'disconnect': 'void',
-            'net_dead': 'void',
-            'valid_override': 'int',
-            'valid_seteuid': 'int',
-            'valid_shadow': 'int',
-            'query_prevent_shadow': 'int',
-            'valid_bind': 'int'
-        };
-        return typeMap[funcName] === returnType;
-    }
-    getExpectedReturnType(funcName) {
-        return this.isValidApplyReturnType(funcName, 'void') ? 'void' : 'int';
-    }
-    checkFileNaming(document, diagnostics) {
-        const fileName = path.basename(document.fileName);
-        const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
-        const extension = fileName.substring(fileName.lastIndexOf('.') + 1);
-        const validExtensions = ['c', 'h'];
-        if (!validExtensions.includes(extension.toLowerCase())) {
-            return; // 跳过非 .c 或 .h 文件
-        }
-        const validNameRegex = /^[a-zA-Z0-9_-]+$/i;
-        if (!validNameRegex.test(fileNameWithoutExt)) {
-            diagnostics.push(new vscode.Diagnostic(new vscode.Range(0, 0, 0, 0), 'LPC 文件名只能包含字母、数字、下划线和连字符，扩展名必须为 .c 或 .h', vscode.DiagnosticSeverity.Warning));
-        }
     }
     async scanFolder() {
         // 让用户选择要扫描的文件夹
@@ -1004,117 +769,29 @@ class LPCDiagnostics {
             }
         }
     }
-    /**
-     * 推断给定表达式的类型
-     * 作者：Lu Dexiang
-     * @param expression 表达式字符串
-     * @returns 推断出的类型
-     */
     inferExpressionType(expression) {
-        // 简单的类型推断逻辑
+        // 简化实现: 仅区分数字/字符串/数组/映射，其余返回 mixed
         expression = expression.trim();
-        // 当表达式为 0 时，返回 'mixed'
-        if (expression === '0') {
-            return 'mixed';
-        }
-        // 整数
-        if (/^\d+$/.test(expression)) {
+        if (/^\d+$/.test(expression))
             return 'int';
-        }
-        // 浮点数
-        else if (/^\d+\.\d+$/.test(expression)) {
+        if (/^\d+\.\d+$/.test(expression))
             return 'float';
-        }
-        // 字符串
-        else if (/^"(?:[^"\\]|\\.)*"$/.test(expression)) {
+        if (/^".*"$/.test(expression))
             return 'string';
-        }
-        // 映射（匹配 ([ ... ]) 的形式）
-        else if (/^\(\[\s*(?:[^:\]]+\s*:\s*[^,\]]+\s*,?\s*)*\]\)$/.test(expression)) {
+        if (/^\(\[.*\]\)$/.test(expression) || /^\[.*\]$/.test(expression))
             return 'mapping';
-        }
-        // 数组
-        else if (/^\({.*}\)$/.test(expression) || /^\[.*\]$/.test(expression)) {
+        if (/^\({.*}\)$/.test(expression))
             return 'array';
-        }
-        // 对象
-        else if (/^new\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(.*\)$/.test(expression)) {
-            return 'object';
-        }
-        // 函数调用
-        else if (/^[a-zA-Z_][a-zA-Z0-9_]*\s*\(.*\)$/.test(expression)) {
-            const funcName = expression.match(/^([a-zA-Z_][a-zA-Z0-9_]*)/)?.[1] || '';
-            // 检查是否是常见的 efun
-            const efunReturnTypes = {
-                'sizeof': 'int',
-                'strlen': 'int',
-                'to_int': 'int',
-                'to_float': 'float',
-                'to_string': 'string',
-                'allocate': 'array',
-                'allocate_mapping': 'mapping',
-                'clone_object': 'object',
-                'new_empty_mapping': 'mapping',
-                'keys': 'array',
-                'values': 'array',
-                'explode': 'array',
-                'implode': 'string',
-                'member_array': 'int',
-                'file_size': 'int',
-                'time': 'int',
-                'random': 'int'
-            };
-            return efunReturnTypes[funcName] || 'mixed';
-        }
-        // 其他
-        else {
-            return 'mixed';
-        }
+        return 'mixed';
     }
-    // 新增一个辅助方法来判断类型兼容性
     areTypesCompatible(varType, inferredType) {
-        // 如果类型完全匹配或表达式类型为混合类型
-        if (varType === inferredType || inferredType === 'mixed' || varType === 'mixed') {
+        if (varType === inferredType || inferredType === 'mixed' || varType === 'mixed')
             return true;
-        }
-        // 处理数组类型的兼容性
-        if (varType.endsWith('[]') && (inferredType === 'array' || inferredType.endsWith('[]'))) {
+        if (varType.endsWith('[]') && (inferredType === 'array' || inferredType.endsWith('[]')))
             return true;
-        }
-        // 数值类型的兼容性
-        if ((varType === 'float' && inferredType === 'int') ||
-            (varType === 'int' && inferredType === 'float')) {
+        if ((varType === 'float' && inferredType === 'int') || (varType === 'int' && inferredType === 'float'))
             return true;
-        }
-        // 对象类型的兼容性
-        if (varType === 'object' &&
-            (inferredType === 'object' || /^[A-Z][A-Za-z0-9_]*$/.test(inferredType))) {
-            return true;
-        }
-        // 字符串和缓冲区的兼容性
-        if ((varType === 'string' && inferredType === 'buffer') ||
-            (varType === 'buffer' && inferredType === 'string')) {
-            return true;
-        }
-        // 函数类型的兼容性
-        if (varType === 'function' &&
-            (inferredType === 'function' || inferredType.startsWith('function'))) {
-            return true;
-        }
         return false;
-    }
-    collectVariableUsageDiagnostics(text, diagnostics, document) {
-        // 收集全局变量
-        const globalVars = this.findGlobalVariables(document);
-        // 收集函数
-        const functionDefs = this.findFunctionDefinitions(text);
-        // 分析每个函数块中的变量使用情况
-        const functionBlocks = this.getFunctionBlocks(text);
-        for (const block of functionBlocks) {
-            this.analyzeVariablesInFunction(block, globalVars, functionDefs, diagnostics, document);
-        }
-        // 分析 apply 函数
-        this.analyzeApplyFunctions(text, diagnostics, document);
     }
 }
 exports.LPCDiagnostics = LPCDiagnostics;

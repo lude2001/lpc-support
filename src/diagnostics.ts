@@ -2,6 +2,18 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from './macroManager';
+import { CharStreams, CommonTokenStream } from 'antlr4ts';
+import { LPCLexer } from './antlr/LPCLexer';
+import { LPCParser } from './antlr/LPCParser';
+import { CollectingErrorListener } from './parser/CollectingErrorListener';
+import { getParsed } from './parseCache';
+import { StringLiteralCollector } from './collectors/StringLiteralCollector';
+import { FileNamingCollector } from './collectors/FileNamingCollector';
+import { UnusedVariableCollector } from './collectors/UnusedVariableCollector';
+import { UnusedParameterCollector } from './collectors/UnusedParameterCollector';
+import { GlobalVariableCollector } from './collectors/GlobalVariableCollector';
+import { ApplyFunctionReturnCollector } from './collectors/ApplyFunctionReturnCollector';
+import { LocalVariableDeclarationCollector } from './collectors/LocalVariableDeclarationCollector';
 
 // 加载配置文件
 interface LPCConfig {
@@ -24,11 +36,6 @@ function loadLPCConfig(configPath: string): LPCConfig {
     }
 }
 
-interface ForeachIterVariable {
-    name: string;
-    role: string; // "key", "value", "item" or "unknown"
-}
-
 export class LPCDiagnostics {
     private diagnosticCollection: vscode.DiagnosticCollection;
     private macroManager: MacroManager;
@@ -40,11 +47,11 @@ export class LPCDiagnostics {
     private functionDeclRegex: RegExp;
     private inheritRegex: RegExp;
     private includeRegex: RegExp;
-    private applyFunctions: Set<string>;
     private config: LPCConfig;
+    private collectors: Array<{ collect: (doc: vscode.TextDocument, parsed: ReturnType<typeof getParsed>) => vscode.Diagnostic[] }>;
 
     // 预编译的正则表达式，避免重复创建
-    private objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\()?/g;
+    private objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)(\()?/g;
     private macroDefRegex = /\b([A-Z_][A-Z0-9_]*)\b/;
 
     constructor(context: vscode.ExtensionContext, macroManager: MacroManager) {
@@ -88,21 +95,6 @@ export class LPCDiagnostics {
         this.inheritRegex = /^\s*inherit\s+([A-Z_][A-Z0-9_]*(?:\s*,\s*[A-Z_][A-Z0-9_]*)*);/gm;
         this.includeRegex = /^\s*#include\s+[<"]([^>"]+)[>"]/gm;
 
-        // 从配置中提取 apply 函数
-        this.applyFunctions = new Set([
-            'create', 'setup', 'init', 'clean_up', 'reset',
-            'receive_object', 'move_object', 'can_move',
-            'valid_move', 'query_heart_beat', 'set_heart_beat',
-            'catch_tell', 'receive_message', 'write_prompt',
-            'process_input', 'do_command',
-            'logon', 'connect', 'disconnect', 'net_dead',
-            'terminal_type', 'window_size', 'receive_snoop',
-            'valid_override', 'valid_seteuid', 'valid_shadow',
-            'query_prevent_shadow', 'valid_bind',
-            'clean_up', 'reset', 'virtual_start', 'epilog',
-            'preload', 'valid_read', 'valid_write'
-        ]);
-
         // 添加右键菜单命令
         let showVariablesCommand = vscode.commands.registerCommand('lpc.showVariables', () => {
             const editor = vscode.window.activeTextEditor;
@@ -111,6 +103,17 @@ export class LPCDiagnostics {
             }
         });
         context.subscriptions.push(showVariablesCommand);
+
+        // 初始化子诊断收集器
+        this.collectors = [
+            new StringLiteralCollector(),
+            new FileNamingCollector(),
+            new UnusedVariableCollector(),
+            new UnusedParameterCollector(),
+            new GlobalVariableCollector(),
+            new ApplyFunctionReturnCollector(),
+            new LocalVariableDeclarationCollector(),
+        ];
 
         // 注册文档更改事件
         context.subscriptions.push(
@@ -164,11 +167,24 @@ export class LPCDiagnostics {
         const diagnostics: vscode.Diagnostic[] = [];
         const text = document.getText();
 
-        // 收集所有诊断信息
+        // 收集旧的诊断信息
         this.collectObjectAccessDiagnostics(text, diagnostics, document);
-        this.collectStringLiteralDiagnostics(text, diagnostics, document);
-        this.collectVariableUsageDiagnostics(text, diagnostics, document);
-        this.collectFileNamingDiagnostics(document, diagnostics);
+
+        // 调用模块化收集器
+        const parsed = getParsed(document);
+        for (const c of this.collectors) {
+            diagnostics.push(...c.collect(document, parsed));
+        }
+
+        // 使用 ParseCache 中的解析结果，避免重复解析并收集语法错误
+        try {
+            const { diagnostics: parseDiags } = getParsed(document);
+            diagnostics.push(...parseDiags);
+        } catch (err) {
+            if (err instanceof Error) {
+                vscode.window.showErrorMessage(`解析 LPC 失败: ${err.message}`);
+            }
+        }
 
         return diagnostics;
     }
@@ -372,64 +388,6 @@ export class LPCDiagnostics {
         return includes;
     }
 
-    private getFunctionBlocks(text: string): Array<{ start: number, content: string }> {
-        const blocks: Array<{ start: number, content: string }> = [];
-        this.functionDeclRegex.lastIndex = 0;
-        let match;
-        while ((match = this.functionDeclRegex.exec(text)) !== null) {
-            const start = match.index;
-            let bracketCount = 0;
-            let inString = false;
-            let stringChar = '';
-            let inSingleLineComment = false;
-            let inMultiLineComment = false;
-            let currentIndex = start;
-            while (currentIndex < text.length) {
-                const char = text[currentIndex];
-                const nextTwoChars = text.substr(currentIndex, 2);
-
-                if (inString) {
-                    if (char === stringChar && text[currentIndex - 1] !== '\\') {
-                        inString = false;
-                    }
-                } else if (inSingleLineComment) {
-                    if (char === '\n') {
-                        inSingleLineComment = false;
-                    }
-                } else if (inMultiLineComment) {
-                    if (nextTwoChars === '*/') {
-                        inMultiLineComment = false;
-                        currentIndex++;
-                    }
-                } else {
-                    if (nextTwoChars === '//') {
-                        inSingleLineComment = true;
-                        currentIndex++;
-                    } else if (nextTwoChars === '/*') {
-                        inMultiLineComment = true;
-                        currentIndex++;
-                    } else if (char === '"' || char === '\'') {
-                        inString = true;
-                        stringChar = char;
-                    } else if (char === '{') {
-                        bracketCount++;
-                    } else if (char === '}') {
-                        bracketCount--;
-                        if (bracketCount === 0) {
-                            blocks.push({
-                                start: start,
-                                content: text.substring(start, currentIndex + 1)
-                            });
-                            break;
-                        }
-                    }
-                }
-                currentIndex++;
-            }
-        }
-        return blocks;
-    }
-
     private findGlobalVariables(document: vscode.TextDocument): Set<string> {
         const text = document.getText();
         const globalVariables = new Set<string>();
@@ -491,16 +449,6 @@ export class LPCDiagnostics {
         }
 
         return globalVariables;
-    }
-
-    private findFunctionDefinitions(text: string): Set<string> {
-        const functionDefs = new Set<string>();
-        let match;
-        this.functionDeclRegex.lastIndex = 0;
-        while ((match = this.functionDeclRegex.exec(text)) !== null) {
-            functionDefs.add(match[2]);
-        }
-        return functionDefs;
     }
 
     private async showAllVariables(document: vscode.TextDocument) {
@@ -675,253 +623,6 @@ export class LPCDiagnostics {
         this.diagnosticCollection.dispose();
     }
 
-    private analyzeVariablesInFunction(
-        block: { start: number; content: string },
-        globalVars: Set<string>,
-        functionDefs: Set<string>,
-        diagnostics: vscode.Diagnostic[],
-        document: vscode.TextDocument
-    ) {
-        const localVars = new Map<string, {
-            range: vscode.Range,
-            declarationRange: vscode.Range,
-            declarationIndex: number,
-            isArray: boolean,
-            type: string,
-            isDeclarationWithAssign: boolean
-        }>();
-        let match;
-
-        this.variableDeclarationRegex.lastIndex = 0;
-
-        // 查找局部变量声明
-        while ((match = this.variableDeclarationRegex.exec(block.content)) !== null) {
-            const varType = match[2];
-            const varDeclarations = match[3];
-            const fullMatchStart = block.start + match.index;
-            const fullMatchEnd = fullMatchStart + match[0].length;
-
-            // 分割变量声明，保留每个变量声明的完整形式（包括星号）
-            const vars = varDeclarations.split(',');
-            let hasArrayInDeclaration = false;
-
-            for (let varDecl of vars) {
-                varDecl = varDecl.trim();
-                let isArray = false;
-                let varName = varDecl;
-
-                // 检查是否是数组声明
-                if (varDecl.includes('*')) {
-                    isArray = true;
-                    hasArrayInDeclaration = true;
-                    varName = varDecl.replace('*', '').trim();
-                }
-
-                // 如果这个声明中有数组，那么后续的变量都是普通变量
-                if (!isArray && hasArrayInDeclaration) {
-                    isArray = false;
-                }
-
-                if (!this.excludedIdentifiers.has(varName) && !functionDefs.has(varName)) {
-                    // 找到这个变量在声明中实际位置
-                    const varRegex = new RegExp(`\\b${varName}\\b`);
-                    const varMatch = varRegex.exec(block.content.slice(match.index));
-                    if (varMatch) {
-                        const varIndex = match.index + varMatch.index;
-                        const varStart = document.positionAt(block.start + varIndex);
-                        const varEnd = document.positionAt(block.start + varIndex + varName.length);
-                        const declStart = document.positionAt(fullMatchStart);
-                        const declEnd = document.positionAt(fullMatchEnd);
-
-                        // 检查是否是声明时赋值
-                        const declarationLine = block.content.slice(match.index, match.index + match[0].length);
-                        const isDeclarationWithAssign = declarationLine.includes('=');
-
-                        localVars.set(varName, {
-                            range: new vscode.Range(varStart, varEnd),
-                            declarationRange: new vscode.Range(declStart, declEnd),
-                            declarationIndex: match.index,
-                            isArray,
-                            type: isArray ? `${varType}[]` : varType,
-                            isDeclarationWithAssign
-                        });
-                    }
-                }
-            }
-        }
-
-        const processedForeachVars = new Set<string>();
-
-        // Find and analyze foreach loops first
-        const foreachRegex = /\bforeach\s*\(([^)]+)\)\s*\{/g; // Captures header and start of body
-        let foreachMatch;
-        while ((foreachMatch = foreachRegex.exec(block.content)) !== null) {
-            const foreachHeaderString = foreachMatch[1]; // Full string inside foreach(...), e.g., "string k, v in m"
-            const loopBodyStartIndex = foreachMatch.index + foreachMatch[0].length; // Index of char after "{"
-            const loopBodyContent = this.extractBlockContent(block.content, loopBodyStartIndex - 1); // Pass index of "{"
-
-            if (loopBodyContent === null) continue;
-
-            const iterVars: ForeachIterVariable[] = this.parseForeachHeader(foreachHeaderString);
-            
-            // 检查是否是mapping迭代 (有两个变量且第一个是key)
-            const isMappingIteration = iterVars.length === 2 && 
-                                      iterVars[0].role === "key" && 
-                                      iterVars[1].role === "value";
-
-            for (const iterVar of iterVars) {
-                const varName = iterVar.name;
-                
-                // 对于mapping迭代中的key变量，即使未使用也不要警告
-                if (isMappingIteration && iterVar.role === "key") {
-                    processedForeachVars.add(varName);
-                    continue;
-                }
-                
-                // Find the precise start index of varName within the foreachHeaderString for accurate diagnostic range
-                const varNameRegex = new RegExp(`\\b(${varName})\\b`);
-                const nameMatchInHeader = varNameRegex.exec(foreachHeaderString);
-                
-                if (!nameMatchInHeader) continue; // Should be found if parseForeachHeader worked
-                
-                const varNameOffsetInHeader = nameMatchInHeader.index;
-
-                // Calculate global offset for the diagnostic
-                const varStartOffset = block.start + foreachMatch.index + "foreach(".length + varNameOffsetInHeader;
-                const varRange = new vscode.Range(
-                    document.positionAt(varStartOffset),
-                    document.positionAt(varStartOffset + varName.length)
-                );
-
-                const isUsed = this.checkVariableUsage(varName, loopBodyContent);
-                if (!isUsed) {
-                    const diagnostic = new vscode.Diagnostic(
-                        varRange,
-                        `未使用的 foreach 迭代变量: '${varName}'`,
-                        vscode.DiagnosticSeverity.Warning
-                    );
-                    diagnostic.code = 'unusedForeachVar';
-                    diagnostics.push(diagnostic);
-                }
-                // Add to processed set to avoid re-checking if they happen to be also declared vars (though less common for iter vars)
-                processedForeachVars.add(varName); 
-            }
-        }
-
-        // Check normal variable usage, skipping those already processed as foreach iteration variables
-        for (const [varName, info] of localVars) {
-            if (processedForeachVars.has(varName)) {
-                continue;
-            }
-
-            const afterDeclaration = block.content.slice(info.declarationIndex + varName.length);
-            const varType = info.type;
-
-            const assignRegex = new RegExp(`\\b${varName}\\s*=\\s*(.*?);`, 'g');
-            let assignMatch;
-            while ((assignMatch = assignRegex.exec(afterDeclaration)) !== null) {
-                const expression = assignMatch[1];
-                const inferredType = this.inferExpressionType(expression);
-                if (!this.areTypesCompatible(varType, inferredType)) {
-                    const expressionStart = assignMatch.index + info.declarationIndex + varName.length + assignMatch[0].indexOf(expression);
-                    const expressionEnd = expressionStart + expression.length;
-                    const range = new vscode.Range(
-                        document.positionAt(block.start + expressionStart),
-                        document.positionAt(block.start + expressionEnd)
-                    );
-                    diagnostics.push(new vscode.Diagnostic(
-                        range,
-                        `变量 '${varName}' 声明为 '${varType}'，但赋值的表达式类型为 '${inferredType}'`,
-                        vscode.DiagnosticSeverity.Warning
-                    ));
-                }
-            }
-
-            const isUsed = info.isDeclarationWithAssign ? 
-                this.checkActualUsage(varName, afterDeclaration) :
-                this.checkActualUsageIncludingAssignment(varName, afterDeclaration);
-
-            if (!isUsed) {
-                const diagnostic = new vscode.Diagnostic(
-                    info.range,
-                    `未使用的变量: '${varName}'${info.isArray ? ' (数组)' : ''}`,
-                    vscode.DiagnosticSeverity.Warning
-                );
-                diagnostic.code = 'unusedVar';
-                diagnostics.push(diagnostic);
-            }
-        }
-    }
-
-    /**
-     * Extracts the content of a block enclosed by braces {}.
-     * @param text The text containing the block.
-     * @param startIndex The index of the opening brace '{'.
-     * @returns The content of the block (excluding braces), or null if not found.
-     */
-    private extractBlockContent(text: string, startIndex: number): string | null {
-        if (text[startIndex] !== '{') {
-            return null;
-        }
-
-        let braceDepth = 1;
-        for (let i = startIndex + 1; i < text.length; i++) {
-            if (text[i] === '{') {
-                braceDepth++;
-            } else if (text[i] === '}') {
-                braceDepth--;
-                if (braceDepth === 0) {
-                    return text.substring(startIndex + 1, i);
-                }
-            }
-        }
-        return null; // Unmatched brace
-    }
-
-    /**
-     * Parses the header of a foreach loop to extract iteration variables.
-     * E.g., "key, val in mapping" -> [{name: "key", role: "key"}, {name: "val", role: "value"}]
-     * E.g., "item in array" -> [{name: "item", role: "item"}]
-     * @param headerString The content inside foreach(...), e.g., "string k, string v in m".
-     * @returns An array of objects containing iteration variable names and roles.
-     */
-    private parseForeachHeader(headerString: string): ForeachIterVariable[] {
-        const result: ForeachIterVariable[] = [];
-        const inKeyword = " in ";
-        const inIndex = headerString.lastIndexOf(inKeyword); // Use lastIndexOf to correctly handle "in" in var names if possible (though unlikely for iter vars)
-
-        if (inIndex === -1) return result;
-
-        const iterVarDeclarations = headerString.substring(0, inIndex).trim();
-        const collectionName = headerString.substring(inIndex + inKeyword.length).trim(); // Now used for detecting mapping iteration
-
-        if (!iterVarDeclarations) return result;
-
-        const vars = iterVarDeclarations.split(',').map(vDecl => {
-            const trimmedDecl = vDecl.trim();
-            // Extract the last word, which should be the variable name (e.g., "string foo" -> "foo")
-            const nameMatch = trimmedDecl.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
-            const varName = nameMatch ? nameMatch[0] : "";
-            return { name: varName };
-        }).filter(v => v.name.length > 0 && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(v.name)); // Ensure it's a valid C-like identifier
-
-        // Determine variable roles based on count and pattern
-        if (vars.length === 1) {
-            // Single variable is always an array item or the only mapping value if used alone
-            result.push({ name: vars[0].name, role: "item" });
-        } else if (vars.length === 2) {
-            // Two variables indicate a key-value pair for mapping iteration
-            result.push({ name: vars[0].name, role: "key" });
-            result.push({ name: vars[1].name, role: "value" });
-        } else {
-            // For any other case, just use generic role
-            vars.forEach(v => result.push({ name: v.name, role: "unknown" }));
-        }
-
-        return result;
-    }
-
-
     private createDiagnostic(
         range: vscode.Range,
         message: string,
@@ -944,20 +645,6 @@ export class LPCDiagnostics {
             document.positionAt(startPos),
             document.positionAt(startPos + length)
         );
-    }
-
-    private checkVariableInCode( // This helper function seems unused now, can be removed if checkVariableUsage is refactored.
-        varName: string,
-        code: string,
-        patterns: { pattern: RegExp, description: string }[]
-    ): { isUsed: boolean, usageType?: string } {
-        for (const { pattern, description } of patterns) {
-            pattern.lastIndex = 0; // Reset lastIndex for global regexes
-            if (pattern.test(code)) {
-                return { isUsed: true, usageType: description };
-            }
-        }
-        return { isUsed: false };
     }
 
     private getVariableUsagePatterns(varName: string): { pattern: RegExp, description: string }[] {
@@ -1078,82 +765,6 @@ export class LPCDiagnostics {
             }
         }
         return false;
-    }
-
-    // checkActualUsage is for variables declared WITH an assignment.
-    // It needs to check if the variable is *read* after its declaration.
-    // It can now directly use checkVariableUsage, as checkVariableUsage
-    // is designed to find "read" operations (not just assignments to the variable).
-    private checkActualUsage(varName: string, code: string): boolean {
-        return this.checkVariableUsage(varName, code);
-    }
-
-    private checkActualUsageIncludingAssignment(varName: string, code: string): boolean {
-        // A variable is considered "used" if it's read from or its address is taken (like in sscanf),
-        // or it's part of a compound assignment (like x += 1).
-        // Simple assignment TO the variable (e.g., x = 5) doesn't make it "used" in terms of its prior value.
-        // Its subsequent use (reading the assigned value) makes it used.
-        // This function now relies entirely on checkVariableUsage to determine if a meaningful "read" or "by-reference modification" occurs.
-        return this.checkVariableUsage(varName, code);
-    }
-
-    private analyzeApplyFunctions(text: string, diagnostics: vscode.Diagnostic[], document: vscode.TextDocument) {
-        // 暂时关闭检查 apply 函数的返回类型，因为 FluffOS 的 apply 函数返回类型不固定，用户可以自行定义
-        return;
-    }
-
-    private isValidApplyReturnType(funcName: string, returnType: string): boolean {
-        const typeMap: { [key: string]: string } = {
-            'create': 'void',
-            'setup': 'void',
-            'init': 'void',
-            'clean_up': 'int',
-            'reset': 'void',
-            'receive_object': 'int',
-            'move_object': 'int',
-            'can_move': 'int',
-            'valid_move': 'int',
-            'catch_tell': 'void',
-            'receive_message': 'void',
-            'write_prompt': 'void',
-            'process_input': 'void',
-            'logon': 'void',
-            'connect': 'void',
-            'disconnect': 'void',
-            'net_dead': 'void',
-            'valid_override': 'int',
-            'valid_seteuid': 'int',
-            'valid_shadow': 'int',
-            'query_prevent_shadow': 'int',
-            'valid_bind': 'int'
-        };
-
-        return typeMap[funcName] === returnType;
-    }
-
-    private getExpectedReturnType(funcName: string): string {
-        return this.isValidApplyReturnType(funcName, 'void') ? 'void' : 'int';
-    }
-
-    private checkFileNaming(document: vscode.TextDocument, diagnostics: vscode.Diagnostic[]) {
-        const fileName = path.basename(document.fileName);
-        const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
-        const extension = fileName.substring(fileName.lastIndexOf('.') + 1);
-
-        const validExtensions = ['c', 'h'];
-        if (!validExtensions.includes(extension.toLowerCase())) {
-            return; // 跳过非 .c 或 .h 文件
-        }
-
-        const validNameRegex = /^[a-zA-Z0-9_-]+$/i;
-
-        if (!validNameRegex.test(fileNameWithoutExt)) {
-            diagnostics.push(new vscode.Diagnostic(
-                new vscode.Range(0, 0, 0, 0),
-                'LPC 文件名只能包含字母、数字、下划线和连字符，扩展名必须为 .c 或 .h',
-                vscode.DiagnosticSeverity.Warning
-            ));
-        }
     }
 
     public async scanFolder() {
@@ -1382,135 +993,21 @@ export class LPCDiagnostics {
         }
     }
 
-    /**
-     * 推断给定表达式的类型
-     * 作者：Lu Dexiang
-     * @param expression 表达式字符串
-     * @returns 推断出的类型
-     */
     private inferExpressionType(expression: string): string {
-        // 简单的类型推断逻辑
+        // 简化实现: 仅区分数字/字符串/数组/映射，其余返回 mixed
         expression = expression.trim();
-
-        // 当表达式为 0 时，返回 'mixed'
-        if (expression === '0') {
-            return 'mixed';
-        }
-
-        // 整数
-        if (/^\d+$/.test(expression)) {
-            return 'int';
-        }
-        // 浮点数
-        else if (/^\d+\.\d+$/.test(expression)) {
-            return 'float';
-        }
-        // 字符串
-        else if (/^"(?:[^"\\]|\\.)*"$/.test(expression)) {
-            return 'string';
-        }
-        // 映射（匹配 ([ ... ]) 的形式）
-        else if (/^\(\[\s*(?:[^:\]]+\s*:\s*[^,\]]+\s*,?\s*)*\]\)$/.test(expression)) {
-            return 'mapping';
-        }
-        // 数组
-        else if (/^\({.*}\)$/.test(expression) || /^\[.*\]$/.test(expression)) {
-            return 'array';
-        }
-        // 对象
-        else if (/^new\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(.*\)$/.test(expression)) {
-            return 'object';
-        }
-        // 函数调用
-        else if (/^[a-zA-Z_][a-zA-Z0-9_]*\s*\(.*\)$/.test(expression)) {
-            const funcName = expression.match(/^([a-zA-Z_][a-zA-Z0-9_]*)/)?.[1] || '';
-            
-            // 检查是否是常见的 efun
-            const efunReturnTypes: { [key: string]: string } = {
-                'sizeof': 'int',
-                'strlen': 'int',
-                'to_int': 'int',
-                'to_float': 'float',
-                'to_string': 'string',
-                'allocate': 'array',
-                'allocate_mapping': 'mapping',
-                'clone_object': 'object',
-                'new_empty_mapping': 'mapping',
-                'keys': 'array',
-                'values': 'array',
-                'explode': 'array',
-                'implode': 'string',
-                'member_array': 'int',
-                'file_size': 'int',
-                'time': 'int',
-                'random': 'int'
-            };
-
-            return efunReturnTypes[funcName] || 'mixed';
-        }
-        // 其他
-        else {
-            return 'mixed';
-        }
+        if (/^\d+$/.test(expression)) return 'int';
+        if (/^\d+\.\d+$/.test(expression)) return 'float';
+        if (/^".*"$/.test(expression)) return 'string';
+        if (/^\(\[.*\]\)$/.test(expression) || /^\[.*\]$/.test(expression)) return 'mapping';
+        if (/^\({.*}\)$/.test(expression)) return 'array';
+        return 'mixed';
     }
 
-    // 新增一个辅助方法来判断类型兼容性
     private areTypesCompatible(varType: string, inferredType: string): boolean {
-        // 如果类型完全匹配或表达式类型为混合类型
-        if (varType === inferredType || inferredType === 'mixed' || varType === 'mixed') {
-            return true;
-        }
-
-        // 处理数组类型的兼容性
-        if (varType.endsWith('[]') && (inferredType === 'array' || inferredType.endsWith('[]'))) {
-            return true;
-        }
-
-        // 数值类型的兼容性
-        if ((varType === 'float' && inferredType === 'int') ||
-            (varType === 'int' && inferredType === 'float')) {
-            return true;
-        }
-
-        // 对象类型的兼容性
-        if (varType === 'object' && 
-            (inferredType === 'object' || /^[A-Z][A-Za-z0-9_]*$/.test(inferredType))) {
-            return true;
-        }
-
-        // 字符串和缓冲区的兼容性
-        if ((varType === 'string' && inferredType === 'buffer') ||
-            (varType === 'buffer' && inferredType === 'string')) {
-            return true;
-        }
-
-        // 函数类型的兼容性
-        if (varType === 'function' && 
-            (inferredType === 'function' || inferredType.startsWith('function'))) {
-            return true;
-        }
-
+        if (varType === inferredType || inferredType === 'mixed' || varType === 'mixed') return true;
+        if (varType.endsWith('[]') && (inferredType === 'array' || inferredType.endsWith('[]'))) return true;
+        if ((varType === 'float' && inferredType === 'int') || (varType === 'int' && inferredType === 'float')) return true;
         return false;
-    }
-
-    private collectVariableUsageDiagnostics(
-        text: string,
-        diagnostics: vscode.Diagnostic[],
-        document: vscode.TextDocument
-    ): void {
-        // 收集全局变量
-        const globalVars = this.findGlobalVariables(document);
-
-        // 收集函数
-        const functionDefs = this.findFunctionDefinitions(text);
-
-        // 分析每个函数块中的变量使用情况
-        const functionBlocks = this.getFunctionBlocks(text);
-        for (const block of functionBlocks) {
-            this.analyzeVariablesInFunction(block, globalVars, functionDefs, diagnostics, document);
-        }
-
-        // 分析 apply 函数
-        this.analyzeApplyFunctions(text, diagnostics, document);
     }
 }

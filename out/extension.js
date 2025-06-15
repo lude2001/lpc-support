@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deactivate = exports.activate = void 0;
+exports.activate = activate;
+exports.deactivate = deactivate;
 const vscode = require("vscode");
 const diagnostics_1 = require("./diagnostics");
 const codeActions_1 = require("./codeActions");
@@ -12,6 +13,15 @@ const definitionProvider_1 = require("./definitionProvider");
 const efunDocs_1 = require("./efunDocs");
 const functionDocPanel_1 = require("./functionDocPanel");
 const formatter_1 = require("./formatter"); // 从 formatter.ts 导入
+const ParseTreePrinter_1 = require("./parser/ParseTreePrinter");
+const DebugErrorListener_1 = require("./parser/DebugErrorListener");
+const antlr4ts_1 = require("antlr4ts");
+const LPCLexer_1 = require("./antlr/LPCLexer");
+const LPCParser_1 = require("./antlr/LPCParser");
+const semanticTokensProvider_1 = require("./semanticTokensProvider");
+const symbolProvider_1 = require("./symbolProvider");
+const referenceProvider_1 = require("./referenceProvider");
+const renameProvider_1 = require("./renameProvider");
 function activate(context) {
     // 初始化诊断功能
     const macroManager = new macroManager_1.MacroManager();
@@ -112,6 +122,61 @@ function activate(context) {
         await compiler.compileFolder(targetFolder);
     });
     context.subscriptions.push(compileFolderCommand);
+    // 注册显示解析树命令（调试用）
+    const parseTreeCommand = vscode.commands.registerCommand('lpc.showParseTree', () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== 'lpc') {
+            vscode.window.showWarningMessage('请在 LPC 文件中使用此命令。');
+            return;
+        }
+        try {
+            const parseTreeStr = (0, ParseTreePrinter_1.getParseTreeString)(editor.document.getText());
+            const output = vscode.window.createOutputChannel('LPC ParseTree');
+            output.clear();
+            output.appendLine(parseTreeStr);
+            output.show(true);
+        }
+        catch (err) {
+            vscode.window.showErrorMessage(`解析 LPC 代码时发生错误: ${err.message || err}`);
+        }
+    });
+    context.subscriptions.push(parseTreeCommand);
+    // —— 调试语法错误命令 ——
+    const debugParseCmd = vscode.commands.registerCommand('lpc.debugParseErrors', () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== 'lpc') {
+            vscode.window.showWarningMessage('请在 LPC 文件中使用此命令');
+            return;
+        }
+        const code = editor.document.getText();
+        const input = antlr4ts_1.CharStreams.fromString(code);
+        const lexer = new LPCLexer_1.LPCLexer(input);
+        const tokenStream = new antlr4ts_1.CommonTokenStream(lexer);
+        const parser = new LPCParser_1.LPCParser(tokenStream);
+        const debugListener = new DebugErrorListener_1.DebugErrorListener();
+        parser.removeErrorListeners();
+        parser.addErrorListener(debugListener);
+        // 解析
+        parser.sourceFile();
+        const output = vscode.window.createOutputChannel('LPC Parse Debug');
+        output.clear();
+        if (debugListener.errors.length === 0) {
+            output.appendLine('未发现 ANTLR 语法错误。');
+        }
+        else {
+            debugListener.errors.forEach((err, idx) => {
+                output.appendLine(`错误 ${idx + 1}: 行 ${err.line}, 列 ${err.column}`);
+                output.appendLine(`  token: ${err.offendingToken}`);
+                output.appendLine(`  message: ${err.message}`);
+                if (err.ruleStack.length) {
+                    output.appendLine(`  rule stack: ${err.ruleStack.join(' -> ')}`);
+                }
+                output.appendLine('');
+            });
+        }
+        output.show(true);
+    });
+    context.subscriptions.push(debugParseCmd);
     // 初始化代码补全提供程序
     const completionProvider = new completionProvider_1.LPCCompletionItemProvider(efunDocsManager, macroManager);
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider('lpc', completionProvider, '.', '->', '#' // 触发补全的字符
@@ -155,9 +220,15 @@ function activate(context) {
     context.subscriptions.push(vscode.commands.registerCommand('lpc.showMacros', () => macroManager.showMacrosList()), vscode.commands.registerCommand('lpc.configureMacroPath', () => macroManager.configurePath()));
     // 将宏管理器添加到清理列表
     context.subscriptions.push(macroManager);
+    // 注册语义标记提供程序
+    context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: 'lpc' }, new semanticTokensProvider_1.LPCSemanticTokensProvider(), semanticTokensProvider_1.LPCSemanticTokensLegend));
+    // 注册文档符号提供程序 (大纲)
+    context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider({ language: 'lpc' }, new symbolProvider_1.LPCSymbolProvider()));
+    // 注册引用提供程序
+    context.subscriptions.push(vscode.languages.registerReferenceProvider('lpc', new referenceProvider_1.LPCReferenceProvider()));
+    // 注册重命名提供程序
+    context.subscriptions.push(vscode.languages.registerRenameProvider('lpc', new renameProvider_1.LPCRenameProvider()));
 }
-exports.activate = activate;
 // 停用扩展时调用
 function deactivate() { }
-exports.deactivate = deactivate;
 //# sourceMappingURL=extension.js.map

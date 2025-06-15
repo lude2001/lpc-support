@@ -3,12 +3,18 @@ import { MacroManager } from './macroManager';
 import { EfunDocsManager } from './efunDocs';
 import * as path from 'path';
 import * as fs from 'fs';
+import { CommonTokenStream } from 'antlr4ts';
+import { LPCLexer } from './antlr/LPCLexer';
+import { LPCParser } from './antlr/LPCParser';
+import { FunctionDefContext, VariableDeclContext, VariableDeclaratorContext } from './antlr/LPCParser';
+import { getParsed } from './parseCache';
 
 export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private macroManager: MacroManager;
     private efunDocsManager: EfunDocsManager;
     private processedFiles: Set<string> = new Set();
     private functionDefinitions: Map<string, vscode.Location> = new Map();
+    private variableDeclarations: Map<string, { loc: vscode.Location; offset: number }[]> = new Map();
 
     constructor(macroManager: MacroManager, efunDocsManager: EfunDocsManager) {
         this.macroManager = macroManager;
@@ -169,6 +175,25 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
                     }
                 }
             }
+        }
+
+        // 解析并缓存变量声明
+        await this.collectVariableDeclarations(document);
+
+        const varEntries = this.variableDeclarations.get(word);
+        if (varEntries) {
+            // 找到距离当前位置最近且在之前的声明
+            const posOffset = document.offsetAt(position);
+            let best: vscode.Location | undefined;
+            for (const entry of varEntries) {
+                const offset = entry.offset;
+                if (offset <= posOffset) {
+                    if (!best || offset > document.offsetAt(best.range.start)) {
+                        best = entry.loc;
+                    }
+                }
+            }
+            if (best) return best;
         }
 
         // 清除之前的缓存
@@ -335,7 +360,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         for (const inheritRegex of inheritRegexes) {
             let match;
             while ((match = inheritRegex.exec(text)) !== null) {
-                let inheritedFile = match[1];
+                let inheritedFile = match[1] ?? match[2];
                 
                 // 如果是宏定义形式，尝试解析宏
                 if (inheritedFile.match(/^[A-Z_][A-Z0-9_]*$/)) {
@@ -395,95 +420,87 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     }
 
     private async findFunctionDefinitions(document: vscode.TextDocument): Promise<void> {
-        const text = document.getText();
-        
-        // 匹配函数定义，支持各种修饰符和返回类型
-        const functionRegex = /(?:(?:private|public|protected|static|nomask|varargs)\s+)*(?:void|int|string|object|mapping|mixed|float|buffer)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)/g;
-        
-        let match;
-        while ((match = functionRegex.exec(text)) !== null) {
-            const functionName = match[1];
-            const startPos = document.positionAt(match.index);
-            const endPos = document.positionAt(match.index + match[0].length);
-            
-            this.functionDefinitions.set(functionName, new vscode.Location(
-                document.uri,
-                new vscode.Range(startPos, endPos)
-            ));
+        const { tree } = getParsed(document);
+
+        for (const stmt of tree.statement()) {
+            const funcCtx: FunctionDefContext | undefined = stmt.functionDef();
+            if (!funcCtx) continue;
+
+            const idToken = funcCtx.Identifier().symbol;
+            const funcName = idToken.text ?? '';
+            const namePos = document.positionAt(idToken.startIndex);
+            const location = new vscode.Location(document.uri, namePos);
+            this.functionDefinitions.set(funcName, location);
         }
     }
 
     private async findInheritedFunctionDefinitions(document: vscode.TextDocument): Promise<void> {
-        const text = document.getText();
+        const inherits = this.findInherits(document.getText());
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
         if (!workspaceFolder) return;
 
-        // 如果这个文件已经处理过，就跳过
-        if (this.processedFiles.has(document.uri.fsPath)) {
-            return;
-        }
-        this.processedFiles.add(document.uri.fsPath);
+        for (const inh of inherits) {
+            let path = inh;
+            if (!path.endsWith('.c')) path += '.c';
+            if (path.startsWith('/')) path = path.substring(1);
+            const uri = vscode.Uri.joinPath(workspaceFolder.uri, path);
+            if (this.processedFiles.has(uri.fsPath)) continue;
+            this.processedFiles.add(uri.fsPath);
 
-        // 支持两种继承语法
-        const inheritRegexes = [
-            /inherit\s+"([^"]+)"/g,
-            /inherit\s+([A-Z_][A-Z0-9_]*)\s*;/g
-        ];
-
-        for (const inheritRegex of inheritRegexes) {
-            let match;
-            while ((match = inheritRegex.exec(text)) !== null) {
-                let inheritedFile = match[1];
-                
-                // 如果是宏定义形式，尝试解析宏
-                if (inheritedFile.match(/^[A-Z_][A-Z0-9_]*$/)) {
-                    const macro = this.macroManager.getMacro(inheritedFile);
-                    if (macro) {
-                        inheritedFile = macro.value.replace(/^"(.*)"$/, '$1');
-                    } else {
-                        continue;
-                    }
-                }
-
-                // 处理文件路径
-                if (!inheritedFile.endsWith('.c')) {
-                    inheritedFile = inheritedFile + '.c';
-                }
-
-                // 构建可能的文件路径
-                const possiblePaths = [];
-                if (inheritedFile.startsWith('/')) {
-                    const relativePath = inheritedFile.slice(1);
-                    possiblePaths.push(
-                        path.join(workspaceFolder.uri.fsPath, relativePath),
-                        path.join(workspaceFolder.uri.fsPath, relativePath.replace('.c', ''))
-                    );
-                } else {
-                    possiblePaths.push(
-                        path.join(path.dirname(document.uri.fsPath), inheritedFile),
-                        path.join(path.dirname(document.uri.fsPath), inheritedFile.replace('.c', '')),
-                        path.join(workspaceFolder.uri.fsPath, inheritedFile),
-                        path.join(workspaceFolder.uri.fsPath, inheritedFile.replace('.c', ''))
-                    );
-                }
-
-                // 去重路径
-                const uniquePaths = [...new Set(possiblePaths)];
-
-                for (const filePath of uniquePaths) {
-                    if (fs.existsSync(filePath) && !this.processedFiles.has(filePath)) {
-                        try {
-                            const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
-                            await this.findFunctionDefinitions(inheritedDoc);
-                            // 递归处理继承的文件
-                            await this.findInheritedFunctionDefinitions(inheritedDoc);
-                        } catch (error) {
-                            console.error(`Error reading inherited file: ${filePath}`, error);
-                        }
-                        break;
-                    }
-                }
+            try {
+                const doc = await vscode.workspace.openTextDocument(uri);
+                await this.findFunctionDefinitions(doc); // 递归解析父文件
+            } catch {
+                /* ignore */
             }
         }
+    }
+
+    private findInherits(text: string): Set<string> {
+        const result = new Set<string>();
+        const inheritRegex = /inherit\s+(?:"([^"]+)"|([A-Z_][A-Z0-9_]*))\s*;/g;
+        let m: RegExpExecArray | null;
+        while ((m = inheritRegex.exec(text)) !== null) {
+            const file = m[1] ?? m[2];
+            if (file) result.add(file);
+        }
+        return result;
+    }
+
+    private async collectVariableDeclarations(document: vscode.TextDocument): Promise<void> {
+        if (this.processedFiles.has(document.uri.fsPath)) return;
+        this.processedFiles.add(document.uri.fsPath);
+
+        const { tree } = getParsed(document);
+
+        const addVar = (name: string, token: any) => {
+            const pos = document.positionAt(token.startIndex);
+            const loc = new vscode.Location(document.uri, pos);
+            const entry = { loc, offset: token.startIndex };
+            if (!this.variableDeclarations.has(name)) this.variableDeclarations.set(name, []);
+            this.variableDeclarations.get(name)!.push(entry);
+        };
+
+        const traverse = (ctx: any) => {
+            if (!ctx) return;
+            if (ctx instanceof VariableDeclContext) {
+                for (const decl of ctx.variableDeclarator()) {
+                    const idToken = decl.Identifier().symbol;
+                    addVar(idToken.text ?? '', idToken);
+                }
+            } else if (ctx instanceof FunctionDefContext) {
+                const params = ctx.parameterList()?.parameter() || [];
+                for (const p of params) {
+                    const idToken = p.Identifier().symbol;
+                    addVar(idToken.text ?? '', idToken);
+                }
+            }
+            for (let i = 0; i < ctx.childCount; i++) {
+                const child = ctx.getChild(i);
+                traverse(child);
+            }
+        };
+
+        traverse(tree);
     }
 } 

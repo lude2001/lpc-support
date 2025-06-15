@@ -15,10 +15,55 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
     private functionCache: Map<string, vscode.CompletionItem[]> = new Map();
     private variableCache: Map<string, vscode.CompletionItem[]> = new Map();
     private filePathCache: Map<string, string> = new Map();
+    private staticItems: vscode.CompletionItem[];
 
     constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager) {
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
+
+        // 预构造类型 / 修饰符 / efun / 模拟 efun 静态 CompletionItem
+        this.staticItems = [];
+        this.types.forEach(type => {
+            const item = new vscode.CompletionItem(type, vscode.CompletionItemKind.TypeParameter);
+            item.detail = `LPC 类型: ${type}`;
+            this.staticItems.push(item);
+        });
+
+        this.modifiers.forEach(mod => {
+            const item = new vscode.CompletionItem(mod, vscode.CompletionItemKind.Keyword);
+            item.detail = `LPC 修饰符: ${mod}`;
+            this.staticItems.push(item);
+        });
+
+        this.efunDocsManager.getAllFunctions().forEach(fn => {
+            const item = new vscode.CompletionItem(fn, vscode.CompletionItemKind.Function);
+            item.detail = `LPC Efun: ${fn}`;
+            item.insertText = new vscode.SnippetString(`${fn}($1)`);
+            // 延迟文档加载保持原逻辑
+            this.efunDocsManager.getEfunDoc(fn).then(doc => {
+                if (doc) {
+                    const md = new vscode.MarkdownString();
+                    if (doc.syntax) md.appendCodeblock(doc.syntax, 'lpc');
+                    if (doc.description) md.appendMarkdown(doc.description);
+                    item.documentation = md;
+                }
+            });
+            this.staticItems.push(item);
+        });
+
+        this.efunDocsManager.getAllSimulatedFunctions().forEach(fn => {
+            const item = new vscode.CompletionItem(fn, vscode.CompletionItemKind.Function);
+            item.detail = `模拟函数库: ${fn}`;
+            item.insertText = new vscode.SnippetString(`${fn}($1)`);
+            const doc = this.efunDocsManager.getSimulatedDoc(fn);
+            if (doc) {
+                const md = new vscode.MarkdownString();
+                if (doc.syntax) md.appendCodeblock(doc.syntax, 'lpc');
+                if (doc.description) md.appendMarkdown(doc.description);
+                item.documentation = md;
+            }
+            this.staticItems.push(item);
+        });
     }
 
     // 清除变量缓存的公共方法
@@ -33,80 +78,13 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         context: vscode.CompletionContext
     ): Promise<vscode.CompletionItem[] | vscode.CompletionList> {
         const linePrefix = document.lineAt(position).text.substr(0, position.character);
-        const completionItems: vscode.CompletionItem[] = [];
+        const completionItems: vscode.CompletionItem[] = [...this.staticItems];
 
         // 添加当前文件中定义的函数和继承的函数
         await this.addLocalFunctionCompletions(document, completionItems);
         
         // 添加当前作用域内的变量
         this.addLocalVariableCompletions(document, position, completionItems);
-
-        // 添加类型提示
-        this.types.forEach(type => {
-            const item = new vscode.CompletionItem(type, vscode.CompletionItemKind.TypeParameter);
-            item.detail = `LPC 类型: ${type}`;
-            completionItems.push(item);
-        });
-
-        // 添加修饰符提示
-        this.modifiers.forEach(modifier => {
-            const item = new vscode.CompletionItem(modifier, vscode.CompletionItemKind.Keyword);
-            item.detail = `LPC 修饰符: ${modifier}`;
-            completionItems.push(item);
-        });
-
-        // 添加标准函数提示
-        const efunFunctions = this.efunDocsManager.getAllFunctions();
-        efunFunctions.forEach(funcName => {
-            const item = new vscode.CompletionItem(funcName, vscode.CompletionItemKind.Function);
-            item.detail = `LPC Efun: ${funcName}`;
-            item.documentation = new vscode.MarkdownString(`正在加载 ${funcName} 的文档...`);
-
-            // 异步加载函数文档
-            this.efunDocsManager.getEfunDoc(funcName).then(doc => {
-                if (doc) {
-                    const markdown = new vscode.MarkdownString();
-                    if (doc.syntax) {
-                        markdown.appendCodeblock(doc.syntax, 'lpc');
-                        markdown.appendMarkdown('\n');
-                    }
-                    if (doc.description) {
-                        markdown.appendMarkdown(doc.description);
-                    }
-                    item.documentation = markdown;
-                }
-            });
-
-            // 添加基本的代码片段
-            item.insertText = new vscode.SnippetString(`${funcName}(\${1})`);
-            completionItems.push(item);
-        });
-
-        // 添加模拟函数库提示
-        const simulatedFunctions = this.efunDocsManager.getAllSimulatedFunctions();
-        simulatedFunctions.forEach(funcName => {
-            const item = new vscode.CompletionItem(funcName, vscode.CompletionItemKind.Function);
-            item.detail = `模拟函数库: ${funcName}`;
-            item.documentation = new vscode.MarkdownString(`正在加载 ${funcName} 的文档...`);
-
-            // 获取函数文档
-            const doc = this.efunDocsManager.getSimulatedDoc(funcName);
-            if (doc) {
-                const markdown = new vscode.MarkdownString();
-                if (doc.syntax) {
-                    markdown.appendCodeblock(doc.syntax, 'lpc');
-                    markdown.appendMarkdown('\n');
-                }
-                if (doc.description) {
-                    markdown.appendMarkdown(doc.description);
-                }
-                item.documentation = markdown;
-            }
-
-            // 添加基本的代码片段
-            item.insertText = new vscode.SnippetString(`${funcName}(\${1})`);
-            completionItems.push(item);
-        });
 
         // 添加特定上下文的提示
         if (linePrefix.endsWith('->')) {

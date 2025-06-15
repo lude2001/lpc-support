@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "publisher": "ludexiang",
   "repository": {
     "type": "git",
@@ -22,12 +22,14 @@
     "@types/cheerio": "^0.22.35",
     "@types/vscode": "^1.95.0",
     "axios": "^1.7.7",
-    "cheerio": "^1.0.0-rc.12"
+    "cheerio": "^1.0.0-rc.12",
+    "antlr4ts": "^0.5.0-alpha.4"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
-    "@types/node": "^16.x",
-    "typescript": "^5.0.0"
+    "@types/node": "^20.x",
+    "typescript": "^5.0.0",
+    "antlr4ts-cli": "^0.5.0-alpha.4"
   },
   "contributes": {
     "languages": [
@@ -146,6 +148,16 @@
           "light": "./media/function-doc-light.svg",
           "dark": "./media/function-doc-dark.svg"
         }
+      },
+      {
+        "command": "lpc.showParseTree",
+        "title": "调试：显示 LPC 解析树",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.debugParseErrors",
+        "title": "调试：解析错误详情",
+        "category": "LPC"
       }
     ],
     "menus": {
@@ -223,6 +235,21 @@
           "type": "string",
           "default": "",
           "description": "LPC模拟函数库目录的路径"
+        },
+        "lpc.enableApplyReturnCheck": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用 apply 函数返回类型匹配检查"
+        },
+        "lpc.enableUnusedParameterCheck": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用 未使用参数 检查"
+        },
+        "lpc.enableUnusedGlobalVarCheck": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用 未使用全局变量 检查"
         }
       }
     },
@@ -242,12 +269,36 @@
         "key": "ctrl+f5",
         "when": "editorTextFocus && editorLangId == 'lpc'"
       }
-    ]
+    ],
+    "semanticTokenTypes": [
+      { "id": "keyword", "description": "关键字" },
+      { "id": "type", "description": "类型关键字" },
+      { "id": "variable", "description": "变量" },
+      { "id": "function", "description": "函数名" },
+      { "id": "property", "description": "成员/属性" },
+      { "id": "macro", "description": "宏或常量" },
+      { "id": "number", "description": "数字" },
+      { "id": "string", "description": "字符串" },
+      { "id": "comment", "description": "注释" },
+      { "id": "operator", "description": "运算符" },
+      { "id": "builtin", "description": "内置函数" }
+    ],
+    "semanticTokenModifiers": []
   },
   "scripts": {
-    "package": "vsce package",
-    "compile": "tsc"
+    "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPC.g4",
+    "package": "npm run compile && vsce package",
+    "compile": "npm run generate-parser && tsc"
   },
   "license": "MIT",
-  "icon": "icon.png"
+  "icon": "icon.png",
+  "files": [
+    "out/**",
+    "syntaxes/**",
+    "snippets/**",
+    "media/**",
+    "language-configuration.json",
+    "config/**",
+    "formatter-config.json"
+  ]
 }
