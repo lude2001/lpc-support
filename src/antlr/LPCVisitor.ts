@@ -5,7 +5,7 @@ import { ParseTreeVisitor } from "antlr4ts/tree/ParseTreeVisitor";
 
 import { ScopeIdentifierContext } from "./LPCParser";
 import { StringConcatenationContext } from "./LPCParser";
-import { ClosureExprContext } from "./LPCParser";
+import { ClosurePrimaryContext } from "./LPCParser";
 import { MappingLiteralExprContext } from "./LPCParser";
 import { AnonFunctionContext } from "./LPCParser";
 import { IdentifierPrimaryContext } from "./LPCParser";
@@ -69,11 +69,11 @@ import { BreakStatementContext } from "./LPCParser";
 import { ContinueStatementContext } from "./LPCParser";
 import { ReturnStatementContext } from "./LPCParser";
 import { InheritStatementContext } from "./LPCParser";
-import { InheritPathContext } from "./LPCParser";
 import { PrototypeStatementContext } from "./LPCParser";
 import { MappingLiteralContext } from "./LPCParser";
 import { MappingPairListContext } from "./LPCParser";
 import { MappingPairContext } from "./LPCParser";
+import { ClosureExprContext } from "./LPCParser";
 import { SliceExprContext } from "./LPCParser";
 import { MacroInvokeContext } from "./LPCParser";
 
@@ -103,12 +103,12 @@ export interface LPCVisitor<Result> extends ParseTreeVisitor<Result> {
 	visitStringConcatenation?: (ctx: StringConcatenationContext) => Result;
 
 	/**
-	 * Visit a parse tree produced by the `closureExpr`
+	 * Visit a parse tree produced by the `closurePrimary`
 	 * labeled alternative in `LPCParser.primary`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	visitClosureExpr?: (ctx: ClosureExprContext) => Result;
+	visitClosurePrimary?: (ctx: ClosurePrimaryContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `mappingLiteralExpr`
@@ -567,13 +567,6 @@ export interface LPCVisitor<Result> extends ParseTreeVisitor<Result> {
 	visitInheritStatement?: (ctx: InheritStatementContext) => Result;
 
 	/**
-	 * Visit a parse tree produced by `LPCParser.inheritPath`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitInheritPath?: (ctx: InheritPathContext) => Result;
-
-	/**
 	 * Visit a parse tree produced by `LPCParser.prototypeStatement`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -600,6 +593,13 @@ export interface LPCVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitMappingPair?: (ctx: MappingPairContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.closureExpr`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitClosureExpr?: (ctx: ClosureExprContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.sliceExpr`.

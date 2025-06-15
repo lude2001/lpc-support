@@ -403,7 +403,9 @@ class LPCDefinitionProvider {
             else if (ctx instanceof LPCParser_1.FunctionDefContext) {
                 const params = ctx.parameterList()?.parameter() || [];
                 for (const p of params) {
-                    const idToken = p.Identifier().symbol;
+                    const idToken = p.Identifier()?.symbol;
+                    if (!idToken)
+                        continue; // 参数可能没有名字（函数原型）
                     addVar(idToken.text ?? '', idToken);
                 }
             }

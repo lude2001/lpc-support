@@ -43,6 +43,7 @@ parameterList
 
 parameter
     :   typeSpec REF? STAR* Identifier      // int ref a | int a
+    |   typeSpec REF? STAR*                 // 仅类型，无参数名，用于函数原型
     |   STAR* Identifier                    // a
     ;
 
@@ -157,13 +158,13 @@ postfixExpression
     ;
 
 argumentList
-    :   assignmentExpression (ELLIPSIS)? (',' assignmentExpression (ELLIPSIS)?)*
+    :   assignmentExpression (ELLIPSIS)? (',' assignmentExpression (ELLIPSIS)?)* (',')?
     ;
 
 primary
     :   SCOPE Identifier                              # scopeIdentifier
     |   stringConcat                                  # stringConcatenation
-    |   CLOSURE                                       # closureExpr
+    |   closureExpr                                   # closurePrimary
     |   mappingLiteral                                # mappingLiteralExpr
     |   'function' '(' parameterList? ')' block       # anonFunction
     |   Identifier                                    # identifierPrimary
@@ -256,11 +257,7 @@ returnStatement
 
 // inherit path 支持 __DIR__"foo" 等连续拼接的标识符/字符串
 inheritStatement
-    :   INHERIT inheritPath ';'
-    ;
-
-inheritPath
-    :   (Identifier | STRING_LITERAL)+
+    :   INHERIT expression ';'           // 支持宏调用、字符串拼接等任意表达式
     ;
 
 prototypeStatement
@@ -393,8 +390,10 @@ NOT         : '!';
 AND         : '&&';
 OR          : '||';
 
-// 闭包/匿名函数片段，如 (: command("foo") :)
-CLOSURE     : '(:' .*? ':)';
+// 闭包表达式 (function pointer)：(: expr :)
+closureExpr
+    :   '(' ':' expression? ':' ')'    // 拆分为多 token，避免与 '::' 冲突
+    ;
 
 // 修饰符
 MODIFIER    : 'private' | 'public' | 'protected' | 'varargs' | 'nosave' | 'static' | 'nomask';
