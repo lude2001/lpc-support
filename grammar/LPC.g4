@@ -254,8 +254,13 @@ returnStatement
     :   RETURN expression? ';'
     ;
 
+// inherit path 支持 __DIR__"foo" 等连续拼接的标识符/字符串
 inheritStatement
-    :   INHERIT (Identifier | STRING_LITERAL) ';'
+    :   INHERIT inheritPath ';'
+    ;
+
+inheritPath
+    :   (Identifier | STRING_LITERAL)+
     ;
 
 prototypeStatement

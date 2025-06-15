@@ -69,6 +69,7 @@ import { BreakStatementContext } from "./LPCParser";
 import { ContinueStatementContext } from "./LPCParser";
 import { ReturnStatementContext } from "./LPCParser";
 import { InheritStatementContext } from "./LPCParser";
+import { InheritPathContext } from "./LPCParser";
 import { PrototypeStatementContext } from "./LPCParser";
 import { MappingLiteralContext } from "./LPCParser";
 import { MappingPairListContext } from "./LPCParser";
@@ -564,6 +565,13 @@ export interface LPCVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitInheritStatement?: (ctx: InheritStatementContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.inheritPath`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitInheritPath?: (ctx: InheritPathContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.prototypeStatement`.
