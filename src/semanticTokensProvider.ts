@@ -134,7 +134,7 @@ export class LPCSemanticTokensProvider implements vscode.DocumentSemanticTokensP
                     if (prevTok && (prevTok.type === LPCLexer.ARROW || prevTok.type === LPCLexer.DOT)) {
                         tokenTypeIdx = tokenTypes.indexOf('property');
                         classified = true;
-                    } else if (nextTok && nextTok.type === LPCLexer.T__1 /* '(' */) {
+                    } else if (nextTok && nextTok.type === LPCLexer.LPAREN) {
                         tokenTypeIdx = tokenTypes.indexOf('function');
                         classified = true;
                     }
@@ -144,8 +144,14 @@ export class LPCSemanticTokensProvider implements vscode.DocumentSemanticTokensP
                 }
             }
 
-            // 隐式类型关键字 token (T__4 ~ T__13)
-            if (tok.type >= LPCLexer.T__4 && tok.type <= LPCLexer.T__13) {
+            // 类型关键字显式 token
+            const TYPE_TOKENS = [
+                LPCLexer.KW_INT, LPCLexer.KW_FLOAT, LPCLexer.KW_STRING, LPCLexer.KW_OBJECT,
+                LPCLexer.KW_MIXED, LPCLexer.KW_MAPPING, LPCLexer.KW_FUNCTION, LPCLexer.KW_BUFFER,
+                LPCLexer.KW_VOID, LPCLexer.KW_STRUCT
+            ];
+
+            if (TYPE_TOKENS.includes(tok.type)) {
                 tokenTypeIdx = tokenTypes.indexOf('type');
             } else if (tok.type >= LPCLexer.IF && tok.type <= LPCLexer.IN) {
                 // 显式关键字枚举区间

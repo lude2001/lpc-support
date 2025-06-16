@@ -10,6 +10,9 @@
 			"include": "#strings"
 		},
 		{
+			"include": "#heredoc"
+		},
+		{
 			"include": "#keywords"
 		},
 		{
@@ -324,6 +327,26 @@
 					"name": "keyword.operator.scope-resolution.lpc",
 					"match": "::"
 				}
+			]
+		},
+		"heredoc": {
+			"name": "string.heredoc.lpc",
+			"begin": "@([A-Z_][A-Z0-9_]*)\\s*$",
+			"beginCaptures": {
+				"1": { "name": "entity.name.tag.heredoc.begin.lpc" }
+			},
+			"end": "^(\\1)\\s*",
+			"endCaptures": {
+				"1": { "name": "entity.name.tag.heredoc.end.lpc" }
+			},
+			"patterns": [
+				{ "include": "#comments" },
+				{ "include": "#strings" },
+				{ "include": "#keywords" },
+				{ "include": "#types" },
+				{ "include": "#variables" },
+				{ "include": "#numbers" },
+				{ "include": "#operators" }
 			]
 		}
 	}

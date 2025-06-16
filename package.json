@@ -286,7 +286,7 @@
     "semanticTokenModifiers": []
   },
   "scripts": {
-    "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPC.g4",
+    "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPCLexer.g4 grammar/LPCParser.g4",
     "package": "npm run compile && vsce package",
     "compile": "npm run generate-parser && tsc"
   },

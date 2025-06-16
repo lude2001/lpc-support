@@ -129,7 +129,7 @@ class LPCSemanticTokensProvider {
                         tokenTypeIdx = tokenTypes.indexOf('property');
                         classified = true;
                     }
-                    else if (nextTok && nextTok.type === LPCLexer_1.LPCLexer.T__1 /* '(' */) {
+                    else if (nextTok && nextTok.type === LPCLexer_1.LPCLexer.LPAREN) {
                         tokenTypeIdx = tokenTypes.indexOf('function');
                         classified = true;
                     }
@@ -138,8 +138,13 @@ class LPCSemanticTokensProvider {
                     }
                 }
             }
-            // 隐式类型关键字 token (T__4 ~ T__13)
-            if (tok.type >= LPCLexer_1.LPCLexer.T__4 && tok.type <= LPCLexer_1.LPCLexer.T__13) {
+            // 类型关键字显式 token
+            const TYPE_TOKENS = [
+                LPCLexer_1.LPCLexer.KW_INT, LPCLexer_1.LPCLexer.KW_FLOAT, LPCLexer_1.LPCLexer.KW_STRING, LPCLexer_1.LPCLexer.KW_OBJECT,
+                LPCLexer_1.LPCLexer.KW_MIXED, LPCLexer_1.LPCLexer.KW_MAPPING, LPCLexer_1.LPCLexer.KW_FUNCTION, LPCLexer_1.LPCLexer.KW_BUFFER,
+                LPCLexer_1.LPCLexer.KW_VOID, LPCLexer_1.LPCLexer.KW_STRUCT
+            ];
+            if (TYPE_TOKENS.includes(tok.type)) {
                 tokenTypeIdx = tokenTypes.indexOf('type');
             }
             else if (tok.type >= LPCLexer_1.LPCLexer.IF && tok.type <= LPCLexer_1.LPCLexer.IN) {
