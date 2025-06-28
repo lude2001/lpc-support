@@ -6,10 +6,12 @@ import { LPCConfigManager } from './config';
 export class LPCCompiler {
     private configManager: LPCConfigManager;
     private diagnosticCollection: vscode.DiagnosticCollection;
+    private outputChannel: vscode.OutputChannel;
 
     constructor(configManager: LPCConfigManager) {
         this.configManager = configManager;
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
+        this.outputChannel = vscode.window.createOutputChannel('LPC Compiler');
     }
 
     private parseCompileMessage(msg: string, document: vscode.TextDocument): vscode.Diagnostic[] {
@@ -49,11 +51,19 @@ export class LPCCompiler {
     }
 
     public async compileFile(filePath: string): Promise<void> {
+        // 检查文件扩展名，如果是 .h 文件则不编译
+        if (filePath.endsWith('.h')) {
+            vscode.window.showWarningMessage('头文件 (.h) 不需要单独编译。');
+            return;
+        }
+
         // 清除之前的诊断信息
         this.diagnosticCollection.clear();
         
         const server = this.configManager.getActiveServer();
         if (!server) {
+            this.outputChannel.appendLine('错误: 未配置FluffOS服务器。');
+            this.outputChannel.show(true);
             const result = await vscode.window.showErrorMessage(
                 '未配置FluffOS服务器',
                 '配置服务器'
@@ -66,12 +76,16 @@ export class LPCCompiler {
 
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
         if (!workspaceFolder) {
-            vscode.window.showErrorMessage('无法确定项目根目录，请在工作区中打开项目');
+            this.outputChannel.appendLine('错误: 无法确定项目根目录，请在工作区中打开项目。');
+            this.outputChannel.show(true);
             return;
         }
 
         const relativePath = path.relative(workspaceFolder.uri.fsPath, filePath);
         const mudPath = '/' + relativePath.replace(/\\/g, '/');
+
+        this.outputChannel.appendLine(`正在编译文件: ${mudPath}`);
+        this.outputChannel.show(true);
 
         try {
             const response = await axios.post(`${server.url}/update_code/update_file`, {
@@ -88,8 +102,7 @@ export class LPCCompiler {
                 
                 // 检查编译消息中是否包含"成功"
                 if (data.msg.includes('成功')) {
-                    vscode.window.showInformationMessage(data.msg);
-                    // 清除之前的诊断信息
+                    this.outputChannel.appendLine(`编译成功: ${data.msg}`);
                     this.diagnosticCollection.delete(document.uri);
                 } else {
                     // 解析编译消息中的警告和错误
@@ -107,20 +120,21 @@ export class LPCCompiler {
                         );
                         this.diagnosticCollection.set(document.uri, [diagnostic]);
                     }
-                    
-                    vscode.window.showErrorMessage(data.msg);
+                    this.outputChannel.appendLine(`编译失败: ${data.msg}`);
                 }
             } else {
-                vscode.window.showErrorMessage(`请求失败: ${response.statusText}`);
+                this.outputChannel.appendLine(`请求失败: ${response.statusText}`);
+                this.outputChannel.show(true);
             }
         } catch (error: any) {
             if (error.response) {
-                vscode.window.showErrorMessage(`编译失败: ${error.response.data.msg || error.message}`);
+                this.outputChannel.appendLine(`编译失败: ${error.response.data.msg || error.message}`);
             } else if (error.request) {
-                vscode.window.showErrorMessage('无法连接到FluffOS服务器，请检查服务器配置和网络连接');
+                this.outputChannel.appendLine('无法连接到FluffOS服务器，请检查服务器配置和网络连接');
             } else {
-                vscode.window.showErrorMessage(`编译错误: ${error.message}`);
+                this.outputChannel.appendLine(`编译错误: ${error.message}`);
             }
+            this.outputChannel.show(true);
         }
     }
 
@@ -153,7 +167,7 @@ export class LPCCompiler {
         // 创建进度条
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: "正在批量编译文件",
+            title: "正在批量编译文件 (并行)",
             cancellable: true
         }, async (progress, token) => {
             const total = files.length;
@@ -161,29 +175,37 @@ export class LPCCompiler {
             let success = 0;
             let failed = 0;
 
-            for (const file of files) {
+            // 使用 Promise.allSettled 并发编译所有文件
+            const compileTasks = files.map(async (file, index) => {
                 if (token.isCancellationRequested) {
-                    break;
+                    return;
                 }
-
                 try {
                     await this.compileFile(file.fsPath);
                     success++;
                 } catch (error) {
                     failed++;
                     console.error(`编译文件 ${file.fsPath} 失败:`, error);
+                } finally {
+                    current++;
+                    progress.report({
+                        message: `进度: ${current}/${total}`,
+                        increment: (100 / total)
+                    });
+                    // 每编译100个文件停顿0.5秒
+                    if (current % 100 === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
                 }
+            });
 
-                current++;
-                progress.report({
-                    message: `进度: ${current}/${total}`,
-                    increment: (100 / total)
-                });
-            }
+            await Promise.allSettled(compileTasks);
 
-            vscode.window.showInformationMessage(
+            // 改为输出到输出通道
+            this.outputChannel.appendLine(
                 `批量编译完成。成功: ${success}, 失败: ${failed}, 总计: ${total}`
             );
+            this.outputChannel.show(true);
         });
     }
 } 

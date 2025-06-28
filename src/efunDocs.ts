@@ -10,6 +10,7 @@ export interface EfunDoc {
     description: string;
     returnValue?: string;
     example?: string;
+    details?: string;
     reference?: string[];
     category?: string;
     lastUpdated?: number;  // 添加最后更新时间戳
@@ -283,6 +284,7 @@ export class EfunDocsManager {
         const paramPattern = /@param\s+(\S+)\s+(\S+)\s+([^\n]+)/g;
         const returnPattern = /@return\s+(\S+)\s+(.*)/;
         const briefPattern = /@brief\s+([^\n]+)/;
+        const detailsPattern = /@details\s+([^\n]+)/;
 
         let match;
         while ((match = functionPattern.exec(content)) !== null) {
@@ -302,6 +304,12 @@ export class EfunDocsManager {
                 const briefMatch = docComment.match(briefPattern);
                 if (briefMatch) {
                     doc.description = briefMatch[1].trim();
+                }
+
+                // 解析 @details
+                const detailsMatch = docComment.match(detailsPattern);
+                if (detailsMatch) {
+                    doc.details = detailsMatch[1].trim();
                 }
 
                 // 解析参数
@@ -396,6 +404,7 @@ export class EfunDocsManager {
         const paramPattern = /@param\s+(\S+)\s+(\S+)\s+([^\n]+)/g;
         const returnPattern = /@return\s+(\S+)\s+(.*)/;
         const briefPattern = /@brief\s+([^\n]+)/;
+        const detailsPattern = /@details\s+([^\n]+)/;
 
         let match;
         while ((match = functionPattern.exec(content)) !== null) {
@@ -421,6 +430,12 @@ export class EfunDocsManager {
                         if (firstLine) {
                             doc.description = firstLine;
                         }
+                    }
+
+                    // 解析 @details
+                    const detailsMatch = docComment.match(detailsPattern);
+                    if (detailsMatch) {
+                        doc.details = detailsMatch[1].trim();
                     }
 
                     // 解析参数
@@ -581,6 +596,10 @@ export class EfunDocsManager {
         
         if (doc.returnValue) {
             content.appendMarkdown(`**返回值**:\n${doc.returnValue}\n\n`);
+        }
+        
+        if (doc.details) {
+            content.appendMarkdown(`**细节**:\n${doc.details}\n\n`);
         }
         
         if (doc.reference && doc.reference.length > 0) {
