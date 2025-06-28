@@ -44,9 +44,9 @@ parameterList
     ;
 
 parameter
-    :   typeSpec REF? STAR* Identifier      // int ref a | int a
+    :   typeSpec REF? STAR* Identifier ELLIPSIS?      // int ref a | int a
     |   typeSpec REF? STAR*                 // 仅类型，无参数名，用于函数原型
-    |   STAR* Identifier                    // a
+    |   STAR* Identifier ELLIPSIS?                    // a
     ;
 
 typeSpec
