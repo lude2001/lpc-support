@@ -3,11 +3,19 @@ import { MacroManager } from './macroManager';
 import { EfunDocsManager } from './efunDocs';
 import * as path from 'path';
 import * as fs from 'fs';
-import { CommonTokenStream } from 'antlr4ts';
+import { CommonTokenStream, Token } from 'antlr4ts';
 import { LPCLexer } from './antlr/LPCLexer';
-import { LPCParser } from './antlr/LPCParser';
+import { LPCParser, PostfixExpressionContext, IdentifierPrimaryContext, StringPrimaryContext } from './antlr/LPCParser';
 import { FunctionDefContext, VariableDeclContext, VariableDeclaratorContext } from './antlr/LPCParser';
 import { getParsed } from './parseCache';
+
+interface ObjectAccessInfo {
+    objectExpression: string;  // 对象表达式（可能是标识符、字符串字面量等）
+    methodName: string;        // 方法名
+    isMethodCall: boolean;     // 是否是方法调用（带括号）
+    objectIsString: boolean;   // 对象是否是字符串字面量
+    objectIsMacro: boolean;    // 对象是否是宏
+}
 
 export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private macroManager: MacroManager;
@@ -15,6 +23,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private processedFiles: Set<string> = new Set();
     private functionDefinitions: Map<string, vscode.Location> = new Map();
     private variableDeclarations: Map<string, { loc: vscode.Location; offset: number }[]> = new Map();
+    private includeFileCache = new Map<string, string[]>(); // 缓存文件的include列表
 
     constructor(macroManager: MacroManager, efunDocsManager: EfunDocsManager) {
         this.macroManager = macroManager;
@@ -26,163 +35,49 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         position: vscode.Position,
         token: vscode.CancellationToken
     ): Promise<vscode.Location | vscode.Location[] | undefined> {
-        // 获取当前光标所在的单词
         const wordRange = document.getWordRangeAtPosition(position);
         if (!wordRange) {
             return undefined;
         }
 
         const word = document.getText(wordRange);
-        const line = document.lineAt(position.line).text;
 
-        // Check for "->" operator
-        if (line.includes('->')) {
-            const regex = new RegExp(`(.*?)->\\s*${word}`);
-            const match = regex.exec(line);
-            if (match) {
-                const targetObject = match[1].trim();
-                const functionName = word; // functionName is the 'word' clicked on
-
-                // Check if targetObject is a string literal (file path)
-                const stringLiteralRegex = /^"(.*)"$/;
-                const stringMatch = stringLiteralRegex.exec(targetObject);
-
-                if (stringMatch) {
-                    let extractedPath = stringMatch[1];
-
-                    // Normalize path: append .c if not present
-                    if (!extractedPath.endsWith('.c')) {
-                        extractedPath += '.c';
-                    }
-
-                    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-                    if (workspaceFolder) {
-                        // Handle both /path/file and path/file as relative to workspace root
-                        const fullPathUri = vscode.Uri.joinPath(
-                            workspaceFolder.uri,
-                            extractedPath.startsWith('/') ? extractedPath.substring(1) : extractedPath
-                        );
-
-                        if (fs.existsSync(fullPathUri.fsPath)) {
-                            try {
-                                const fileContent = await vscode.workspace.fs.readFile(fullPathUri);
-                                const text = Buffer.from(fileContent).toString('utf8');
-
-                                // Search for the functionName in the text
-                                // Ensure word in regex is properly escaped if it can contain special characters.
-                                // For simplicity, assuming 'word' is a simple identifier.
-                                const functionRegex = new RegExp(
-                                    `(?:(?:private|public|protected|static|nomask|varargs)\\s+)*` +
-                                    `(?:void|int|string|object|mapping|mixed|float|buffer)\\s+` +
-                                    `${functionName}\\s*\\([^)]*\\)`, // Using functionName (word) directly
-                                    'g'
-                                );
-
-                                const location = await this._findFunctionInFile(fullPathUri, functionName);
-                                if (location) {
-                                    return location;
-                                }
-                            } catch (error) {
-                                console.error(`Error processing file for "->" operator: ${fullPathUri.fsPath}`, error);
-                                // Fall through to other checks if file processing fails
-                            }
-                        }
-                    }
-                } else if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(targetObject)) {
-                    // targetObject is an identifier, possibly a macro
-                    const macro = this.macroManager.getMacro(targetObject);
-                    if (macro && macro.value) {
-                        let macroPath = macro.value.replace(/^"(.*)"$/, '$1'); // Remove quotes
-
-                        if (!macroPath.endsWith('.c')) {
-                            macroPath += '.c';
-                        }
-
-                        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-                        if (workspaceFolder) {
-                            let resolvedPath = macroPath;
-                            // If macroPath looks absolute (e.g. "/include/foo.c"), treat it as relative to workspace root
-                            if (resolvedPath.startsWith('/')) {
-                                resolvedPath = resolvedPath.substring(1);
-                            }
-                            const fullPathUri = vscode.Uri.joinPath(workspaceFolder.uri, resolvedPath);
-
-                            if (fs.existsSync(fullPathUri.fsPath)) {
-                                try {
-                                    const location = await this._findFunctionInFile(fullPathUri, functionName);
-                                    if (location) {
-                                        return location;
-                                    }
-                                } catch (error) {
-                                    console.error(`Error processing file from macro for "->" operator: ${fullPathUri.fsPath}`, error);
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // If targetObject is not a string literal or a recognized identifier (macro),
-                    // or if any step above failed, log and fall through.
-                    console.log(`Found "->" operator. Target object: ${targetObject}, Function name: ${functionName}. No definition found via string or macro path.`);
-                }
+        // 方案1：跨文件调用 - 使用AST分析对象访问语法（如 FAMILY_D->method）
+        const objectAccess = this.analyzeObjectAccessWithAST(document, position, word);
+        if (objectAccess) {
+            const crossFileResult = await this.handleObjectMethodCall(document, objectAccess);
+            if (crossFileResult) {
+                return crossFileResult;
             }
         }
 
-        // 1. 检查是否是宏定义
+        // 方案2：当前文件调用 - 在当前文件上下文中查找
+
+        // 2.1 检查是否是宏定义
         const macro = this.macroManager.getMacro(word);
         if (macro) {
             const uri = vscode.Uri.file(macro.file);
             const startPos = new vscode.Position(macro.line - 1, 0);
-            // 获取整行内容以创建高亮范围
             const macroDoc = await vscode.workspace.openTextDocument(uri);
             const macroLine = macroDoc.lineAt(macro.line - 1);
             const endPos = new vscode.Position(macro.line - 1, macroLine.text.length);
             return new vscode.Location(uri, new vscode.Range(startPos, endPos));
         }
 
-        // 2. 检查是否是模拟函数库中的函数
+        // 2.2 检查是否是模拟函数库中的函数
         const simulatedDoc = this.efunDocsManager.getSimulatedDoc(word);
         if (simulatedDoc) {
-            const config = vscode.workspace.getConfiguration();
-            const simulatedEfunsPath = config.get<string>('lpc.simulatedEfunsPath');
-            if (simulatedEfunsPath) {
-                const files = await vscode.workspace.findFiles(
-                    new vscode.RelativePattern(simulatedEfunsPath, '**/*.{c,h}')
-                );
-                
-                for (const file of files) {
-                    const content = await vscode.workspace.fs.readFile(file);
-                    const text = Buffer.from(content).toString('utf8');
-                    
-                    // 查找函数定义
-                    const functionRegex = new RegExp(
-                        `(?:(?:private|public|protected|static|nomask|varargs)\\s+)*` +
-                        `(?:void|int|string|object|mapping|mixed|float|buffer)\\s+` +
-                        `(?:\\*\\s*)?${word}\\s*\\([^)]*\\)`,
-                        'g'
-                    );
-                    
-                    const match = functionRegex.exec(text);
-                    if (match) {
-                        const startPos = new vscode.Position(
-                            text.substring(0, match.index).split('\n').length - 1,
-                            0
-                        );
-                        const endPos = new vscode.Position(
-                            text.substring(0, match.index + match[0].length).split('\n').length - 1,
-                            match[0].length
-                        );
-                        return new vscode.Location(file, new vscode.Range(startPos, endPos));
-                    }
-                }
+            const location = await this.findInSimulatedEfuns(word);
+            if (location) {
+                return location;
             }
         }
 
-        // 解析并缓存变量声明
+        // 2.3 检查变量声明（缓存优化）
         await this.collectVariableDeclarations(document);
 
         const varEntries = this.variableDeclarations.get(word);
         if (varEntries) {
-            // 找到距离当前位置最近且在之前的声明
             const posOffset = document.offsetAt(position);
             let best: vscode.Location | undefined;
             for (const entry of varEntries) {
@@ -193,60 +88,405 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
                     }
                 }
             }
-            if (best) return best;
+            if (best) {
+                return best;
+            }
         }
 
         // 清除之前的缓存
         this.processedFiles.clear();
         this.functionDefinitions.clear();
 
-        // 3. 检查是否是函数定义
+        // 2.4 检查当前文件中的函数定义
         await this.findFunctionDefinitions(document);
+        
+        // 2.5 检查继承文件中的函数定义
         if (!this.functionDefinitions.has(word)) {
             await this.findInheritedFunctionDefinitions(document);
         }
+        
+        // 2.6 检查当前文件include的文件中的函数定义
+        if (!this.functionDefinitions.has(word)) {
+            const includeLocation = await this.findFunctionInCurrentFileIncludes(document, word);
+            if (includeLocation) {
+                return includeLocation;
+            }
+        }
+        
         const functionDef = this.functionDefinitions.get(word);
         if (functionDef) {
             return functionDef;
         }
 
-        // 4. 检查是否是变量定义
+        // 2.7 检查变量定义（详细AST分析）
         const variableDef = await this.findVariableDefinition(word, document, position);
         if (variableDef) {
             return variableDef;
+        }
+        return undefined;
+    }
+
+
+
+    /**
+     * 现代化AST分析：基于语法树的对象访问检测
+     * 支持 OBJECT->method、"path"->method、OBJECT::method 等语法
+     */
+    private analyzeObjectAccessWithAST(
+        document: vscode.TextDocument, 
+        position: vscode.Position, 
+        targetWord: string
+    ): ObjectAccessInfo | undefined {
+        try {
+            const { tree } = getParsed(document);
+            const targetOffset = document.offsetAt(position);
+            
+            // 遍历AST查找包含目标位置的PostfixExpression
+            const visitor = {
+                visitPostfixExpression: (ctx: PostfixExpressionContext): ObjectAccessInfo | undefined => {
+                    if (!this.containsPosition(ctx, targetOffset)) return undefined;
+                    
+                    // 获取primary表达式（对象部分）
+                    const primaryCtx = ctx.primary();
+                    if (!primaryCtx) return undefined;
+
+                    let objectExpression = '';
+                    let objectIsString = false;
+                    let objectIsMacro = false;
+
+                    // 解析primary表达式
+                    const primaryText = primaryCtx.text;
+                    if (primaryText.startsWith('"') && primaryText.endsWith('"')) {
+                        objectExpression = primaryText;
+                        objectIsString = true;
+                    } else if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(primaryText)) {
+                        objectExpression = primaryText;
+                        objectIsMacro = /^[A-Z][A-Z0-9_]*$/.test(objectExpression);
+                    } else {
+                        return undefined; // 不支持的primary类型
+                    }
+
+                    // 检查postfix操作符 - 根据语法 (ARROW | DOT | SCOPE) Identifier ( LPAREN argumentList? RPAREN )?
+                    const arrows = ctx.ARROW();
+                    const dots = ctx.DOT();
+                    const scopes = ctx.SCOPE();
+                    const identifiers = ctx.Identifier();
+
+                    if (identifiers && identifiers.length > 0) {
+                        // 遍历所有标识符，找到与目标词匹配且位置匹配的
+                        for (const identifier of identifiers) {
+                            const idStart = identifier.symbol.startIndex;
+                            const idEnd = identifier.symbol.stopIndex + 1;
+                            
+                            if (identifier.text === targetWord && 
+                                targetOffset >= idStart && 
+                                targetOffset <= idEnd) {
+                                
+                                // 检查是否有对应的操作符
+                                const hasArrow = arrows.length > 0;
+                                const hasDot = dots.length > 0;
+                                const hasScope = scopes.length > 0;
+                                
+                                if (hasArrow || hasDot || hasScope) {
+                                    // 检查是否是方法调用（后面跟着括号）
+                                    const isMethodCall = this.hasFollowingParen(ctx, identifier);
+                                    
+                                    return {
+                                        objectExpression,
+                                        methodName: targetWord,
+                                        isMethodCall,
+                                        objectIsString,
+                                        objectIsMacro
+                                    };
+                                }
+                            }
+                        }
+                    }
+
+                    return undefined;
+                }
+            };
+
+            // 遍历AST寻找匹配的表达式
+            return this.traverseAST(tree, visitor.visitPostfixExpression);
+        } catch (error) {
+            return undefined;
+        }
+    }
+
+    /**
+     * 检查AST节点是否包含目标位置
+     */
+    private containsPosition(ctx: any, targetOffset: number): boolean {
+        if (!ctx.start || !ctx.stop) return false;
+        return targetOffset >= ctx.start.startIndex && targetOffset <= ctx.stop.stopIndex;
+    }
+
+    /**
+     * 检查标识符后面是否跟着括号
+     */
+    private hasFollowingParen(ctx: PostfixExpressionContext, identifier: any): boolean {
+        const lparens = ctx.LPAREN();
+        if (lparens.length === 0) return false;
+        
+        const idEnd = identifier.symbol.stopIndex;
+        return lparens.some(lparen => lparen.symbol.startIndex > idEnd);
+    }
+
+    /**
+     * 遍历AST查找匹配项
+     */
+    private traverseAST<T>(node: any, visitor: (ctx: any) => T | undefined): T | undefined {
+        if (!node) return undefined;
+
+        // 检查当前节点
+        if (node instanceof PostfixExpressionContext) {
+            const result = visitor(node);
+            if (result) return result;
+        }
+
+        // 递归检查子节点
+        if (node.childCount) {
+            for (let i = 0; i < node.childCount; i++) {
+                const child = node.getChild(i);
+                const result = this.traverseAST(child, visitor);
+                if (result) return result;
+            }
         }
 
         return undefined;
     }
 
-    private _offsetToPosition(docText: string, offset: number): vscode.Position {
-        const before = docText.substring(0, offset);
-        const lines = before.split('\n');
-        const line = lines.length - 1;
-        const character = lines[line].length;
-        return new vscode.Position(line, character);
+    /**
+     * 处理对象方法调用的定义跳转
+     */
+    private async handleObjectMethodCall(
+        document: vscode.TextDocument, 
+        objectAccess: ObjectAccessInfo
+    ): Promise<vscode.Location | undefined> {
+        let targetFilePath: string | undefined;
+
+        if (objectAccess.objectIsString) {
+            // 字符串字面量：解析为文件路径
+            targetFilePath = this.parseStringPath(objectAccess.objectExpression);
+        } else if (objectAccess.objectIsMacro) {
+            // 宏：解析宏值为文件路径
+            const macro = this.macroManager.getMacro(objectAccess.objectExpression);
+            if (macro && macro.value) {
+                targetFilePath = this.parseStringPath(macro.value);
+            }
+        }
+
+        if (targetFilePath) {
+            // 查找目标文件中的方法定义
+            const location = await this.findMethodInFile(document, targetFilePath, objectAccess.methodName);
+            if (location) {
+                return location;
+            }
+
+            // 查找目标文件include的文件中的方法定义
+            const includeLocation = await this.findMethodInIncludedFiles(document, targetFilePath, objectAccess.methodName);
+            if (includeLocation) {
+                return includeLocation;
+            }
+        }
+
+        return undefined;
     }
 
-    private async _findFunctionInFile(fileUri: vscode.Uri, functionName: string): Promise<vscode.Location | undefined> {
+    /**
+     * 解析字符串路径
+     */
+    private parseStringPath(pathString: string): string {
+        let cleanPath = pathString.replace(/^"(.*)"$/, '$1');
+        if (!cleanPath.endsWith('.c')) {
+            cleanPath += '.c';
+        }
+        return cleanPath;
+    }
+
+    /**
+     * 在指定文件中查找方法定义
+     */
+    private async findMethodInFile(
+        currentDocument: vscode.TextDocument,
+        targetFilePath: string,
+        methodName: string
+    ): Promise<vscode.Location | undefined> {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentDocument.uri);
+        if (!workspaceFolder) {
+            return undefined;
+        }
+
+        // 构建完整的文件路径
+        let fullPath = targetFilePath;
+        if (targetFilePath.startsWith('/')) {
+            fullPath = targetFilePath.substring(1);
+        }
+        const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, fullPath);
+
+        if (!fs.existsSync(fileUri.fsPath)) {
+            return undefined;
+        }
+
         try {
-            const fileContent = await vscode.workspace.fs.readFile(fileUri);
-            const text = Buffer.from(fileContent).toString('utf8');
+            // 使用AST查找函数定义
+            const targetDoc = await vscode.workspace.openTextDocument(fileUri);
+            const { tree } = getParsed(targetDoc);
+            
+            for (const stmt of tree.statement()) {
+                const funcCtx: FunctionDefContext | undefined = stmt.functionDef();
+                if (!funcCtx) continue;
 
-            const functionRegex = new RegExp(
-                `(?:(?:private|public|protected|static|nomask|varargs)\\s+)*` +
-                `(?:void|int|string|object|mapping|mixed|float|buffer)\\s+` +
-                `${functionName}\\s*\\([^)]*\\)`,
-                'g'
-            );
-
-            const funcMatch = functionRegex.exec(text);
-            if (funcMatch) {
-                const defStartPos = this._offsetToPosition(text, funcMatch.index);
-                const defEndPos = this._offsetToPosition(text, funcMatch.index + funcMatch[0].length);
-                return new vscode.Location(fileUri, new vscode.Range(defStartPos, defEndPos));
+                const idToken = funcCtx.Identifier();
+                if (idToken && idToken.text === methodName) {
+                    const namePos = targetDoc.positionAt(idToken.symbol.startIndex);
+                    return new vscode.Location(fileUri, namePos);
+                }
             }
         } catch (error) {
-            console.error(`Error reading or processing file ${fileUri.fsPath}:`, error);
+            // 静默处理错误
+        }
+
+        return undefined;
+    }
+
+    /**
+     * 在包含文件中查找方法定义
+     */
+    private async findMethodInIncludedFiles(
+        currentDocument: vscode.TextDocument,
+        targetFilePath: string,
+        methodName: string
+    ): Promise<vscode.Location | undefined> {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentDocument.uri);
+        if (!workspaceFolder) {
+            return undefined;
+        }
+
+        // 构建目标文件的完整路径
+        let fullPath = targetFilePath;
+        if (targetFilePath.startsWith('/')) {
+            fullPath = targetFilePath.substring(1);
+        }
+        const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, fullPath);
+
+        if (!fs.existsSync(fileUri.fsPath)) {
+            return undefined;
+        }
+
+        try {
+            // 获取或缓存include列表
+            const includeFiles = await this.getIncludeFiles(fileUri.fsPath);
+            
+            // 在每个include文件中查找方法
+            for (const includeFile of includeFiles) {
+                const location = await this.findMethodInFile(currentDocument, includeFile, methodName);
+                if (location) {
+                    return location;
+                }
+            }
+        } catch (error) {
+            // 静默处理错误
+        }
+
+        return undefined;
+    }
+
+    /**
+     * 获取文件的include列表
+     */
+    private async getIncludeFiles(filePath: string): Promise<string[]> {
+        if (this.includeFileCache.has(filePath)) {
+            return this.includeFileCache.get(filePath)!;
+        }
+
+        const includeFiles: string[] = [];
+        
+        try {
+            const content = await fs.promises.readFile(filePath, 'utf-8');
+            const lines = content.split('\n');
+
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                // 匹配 #include "path" 或 #include <path>，允许后面有注释
+                const includeMatch = trimmedLine.match(/^#include\s+[<"]([^>"]+)[>"](?:\s*\/\/.*)?$/);
+                if (includeMatch) {
+                    let includePath = includeMatch[1];
+                    if (!includePath.endsWith('.h') && !includePath.endsWith('.c')) {
+                        includePath += '.h'; // 默认为头文件
+                    }
+                    includeFiles.push(includePath);
+                }
+            }
+
+            this.includeFileCache.set(filePath, includeFiles);
+        } catch (error) {
+            // 静默处理错误
+        }
+
+        return includeFiles;
+    }
+
+    /**
+     * 在当前文件的include文件中查找函数定义
+     */
+    private async findFunctionInCurrentFileIncludes(
+        document: vscode.TextDocument,
+        functionName: string
+    ): Promise<vscode.Location | undefined> {
+        try {
+            // 获取当前文件的include列表
+            const includeFiles = await this.getIncludeFiles(document.uri.fsPath);
+            
+            // 在每个include文件中查找函数
+            for (const includeFile of includeFiles) {
+                const location = await this.findMethodInFile(document, includeFile, functionName);
+                if (location) {
+                    return location;
+                }
+            }
+        } catch (error) {
+            // 静默处理错误
+        }
+
+        return undefined;
+    }
+
+    private async findInSimulatedEfuns(word: string): Promise<vscode.Location | undefined> {
+        const config = vscode.workspace.getConfiguration();
+        const simulatedEfunsPath = config.get<string>('lpc.simulatedEfunsPath');
+        if (!simulatedEfunsPath) return undefined;
+
+        const files = await vscode.workspace.findFiles(
+            new vscode.RelativePattern(simulatedEfunsPath, '**/*.{c,h}')
+        );
+        
+        for (const file of files) {
+            const location = await this.findFunctionInFileByAST(file, word);
+            if (location) return location;
+        }
+        
+        return undefined;
+    }
+
+    private async findFunctionInFileByAST(fileUri: vscode.Uri, functionName: string): Promise<vscode.Location | undefined> {
+        try {
+            const document = await vscode.workspace.openTextDocument(fileUri);
+            const { tree } = getParsed(document);
+
+            for (const stmt of tree.statement()) {
+                const funcCtx: FunctionDefContext | undefined = stmt.functionDef();
+                if (!funcCtx) continue;
+
+                const idToken = funcCtx.Identifier();
+                if (idToken && idToken.text === functionName) {
+                    const namePos = document.positionAt(idToken.symbol.startIndex);
+                    return new vscode.Location(fileUri, namePos);
+                }
+            }
+        } catch (error) {
+            // 静默处理错误
         }
         return undefined;
     }
@@ -256,38 +496,19 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<vscode.Location | undefined> {
-        const text = document.getText();
-        const lines = text.split('\n');
+        const { tree } = getParsed(document);
+        const targetOffset = document.offsetAt(position);
 
-        // 1. 首先检查局部变量
-        const functionText = this.getFunctionText(text, position);
-        if (functionText) {
-            // 匹配局部变量定义，支持所有LPC类型和数组声明
-            const localVarRegex = new RegExp(
-                `\\b(?:int|string|object|mapping|mixed|float|buffer|array)\\s+` +
-                `(?:\\*\\s*)?${variableName}\\b[^;]*;`,
-                'g'
-            );
-            const match = localVarRegex.exec(functionText.text);
-            if (match) {
-                const startPos = document.positionAt(functionText.start + match.index);
-                const endPos = document.positionAt(functionText.start + match.index + match[0].length);
-                return new vscode.Location(document.uri, new vscode.Range(startPos, endPos));
-            }
+        // 1. 首先查找当前函数内的局部变量和参数
+        const localVarLocation = this.findLocalVariableInAST(tree, variableName, targetOffset, document);
+        if (localVarLocation) {
+            return localVarLocation;
         }
 
-        // 2. 检查全局变量
-        const globalVarRegex = new RegExp(
-            `^\\s*(?:private|public|protected|nosave)?\\s*` +
-            `(?:int|string|object|mapping|mixed|float|buffer|array)\\s+` +
-            `(?:\\*\\s*)?${variableName}\\b[^;]*;`,
-            'gm'
-        );
-        const globalMatch = globalVarRegex.exec(text);
-        if (globalMatch) {
-            const startPos = document.positionAt(globalMatch.index);
-            const endPos = document.positionAt(globalMatch.index + globalMatch[0].length);
-            return new vscode.Location(document.uri, new vscode.Range(startPos, endPos));
+        // 2. 查找全局变量
+        const globalVarLocation = this.findGlobalVariableInAST(tree, variableName, document);
+        if (globalVarLocation) {
+            return globalVarLocation;
         }
 
         // 3. 检查继承文件中的变量定义
@@ -299,49 +520,141 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         return undefined;
     }
 
-    private getFunctionText(text: string, position: vscode.Position): { text: string, start: number } | undefined {
-        const lines = text.split('\n');
-        let bracketCount = 0;
-        let functionStart = -1;
-        let functionEnd = -1;
+    /**
+     * 在AST中查找局部变量定义（包括函数参数）
+     */
+    private findLocalVariableInAST(
+        tree: any,
+        variableName: string,
+        targetOffset: number,
+        document: vscode.TextDocument
+    ): vscode.Location | undefined {
+        // 找到包含目标位置的函数
+        const containingFunction = this.findContainingFunction(tree, targetOffset);
+        if (!containingFunction) {
+            return undefined;
+        }
 
-        // 向上查找函数开始
-        for (let i = position.line; i >= 0; i--) {
-            const line = lines[i];
-            const openCount = (line.match(/{/g) || []).length;
-            const closeCount = (line.match(/}/g) || []).length;
-            bracketCount += openCount - closeCount;
+        let bestMatch: { location: vscode.Location; offset: number } | undefined;
 
-            if (bracketCount === 1 && openCount > 0) {
-                functionStart = i;
-                break;
+        // 查找函数参数
+        const paramList = containingFunction.parameterList();
+        if (paramList) {
+            for (const param of paramList.parameter()) {
+                const identifier = param.Identifier();
+                if (identifier && identifier.text === variableName) {
+                    const location = new vscode.Location(
+                        document.uri,
+                        document.positionAt(identifier.symbol.startIndex)
+                    );
+                    const offset = identifier.symbol.startIndex;
+                    if (offset <= targetOffset && (!bestMatch || offset > bestMatch.offset)) {
+                        bestMatch = { location, offset };
+                    }
+                }
             }
         }
 
-        if (functionStart === -1) return undefined;
-
-        // 向下查找函数结束
-        bracketCount = 1;
-        for (let i = functionStart + 1; i < lines.length; i++) {
-            const line = lines[i];
-            const openCount = (line.match(/{/g) || []).length;
-            const closeCount = (line.match(/}/g) || []).length;
-            bracketCount += openCount - closeCount;
-
-            if (bracketCount === 0) {
-                functionEnd = i;
-                break;
-            }
+        // 查找函数体内的局部变量声明
+        const functionBody = containingFunction.block();
+        if (functionBody) {
+            bestMatch = this.traverseForVariableDeclarations(functionBody, variableName, targetOffset, document, bestMatch);
         }
 
-        if (functionStart !== -1 && functionEnd !== -1) {
-            const startOffset = lines.slice(0, functionStart).join('\n').length;
-            const functionText = lines.slice(functionStart, functionEnd + 1).join('\n');
-            return { text: functionText, start: startOffset };
+        return bestMatch?.location;
+    }
+
+    /**
+     * 在AST中查找全局变量定义
+     */
+    private findGlobalVariableInAST(
+        tree: any,
+        variableName: string,
+        document: vscode.TextDocument
+    ): vscode.Location | undefined {
+        // 遍历顶层语句查找变量声明
+        for (const stmt of tree.statement()) {
+            const varDecl = stmt.variableDecl();
+            if (!varDecl) continue;
+
+            // 检查变量声明器
+            for (const declarator of varDecl.variableDeclarator()) {
+                const identifier = declarator.Identifier();
+                if (identifier && identifier.text === variableName) {
+                    return new vscode.Location(
+                        document.uri,
+                        document.positionAt(identifier.symbol.startIndex)
+                    );
+                }
+            }
         }
 
         return undefined;
     }
+
+    /**
+     * 查找包含目标位置的函数
+     */
+    private findContainingFunction(tree: any, targetOffset: number): FunctionDefContext | undefined {
+        for (const stmt of tree.statement()) {
+            const funcDef = stmt.functionDef();
+            if (!funcDef) continue;
+
+            // 检查函数是否包含目标位置
+            const funcStart = funcDef.start?.startIndex;
+            const funcEnd = funcDef.stop?.stopIndex;
+
+            if (funcStart !== undefined && funcEnd !== undefined && 
+                targetOffset >= funcStart && targetOffset <= funcEnd) {
+                return funcDef;
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
+     * 遍历节点查找变量声明
+     */
+    private traverseForVariableDeclarations(
+        node: any,
+        variableName: string,
+        targetOffset: number,
+        document: vscode.TextDocument,
+        bestMatch: { location: vscode.Location; offset: number } | undefined
+    ): { location: vscode.Location; offset: number } | undefined {
+        if (!node) return bestMatch;
+
+        // 检查当前节点是否是变量声明
+        if (node instanceof VariableDeclContext) {
+            for (const declarator of node.variableDeclarator()) {
+                const identifier = declarator.Identifier();
+                if (identifier && identifier.text === variableName) {
+                    const offset = identifier.symbol.startIndex;
+                    // 只考虑在目标位置之前声明的变量
+                    if (offset <= targetOffset && (!bestMatch || offset > bestMatch.offset)) {
+                        const location = new vscode.Location(
+                            document.uri,
+                            document.positionAt(offset)
+                        );
+                        bestMatch = { location, offset };
+                    }
+                }
+            }
+        }
+
+        // 递归遍历子节点
+        if (node.childCount) {
+            for (let i = 0; i < node.childCount; i++) {
+                const child = node.getChild(i);
+                bestMatch = this.traverseForVariableDeclarations(child, variableName, targetOffset, document, bestMatch);
+            }
+        }
+
+        return bestMatch;
+    }
+
+
 
     private async findInheritedVariableDefinition(
         document: vscode.TextDocument,
@@ -407,9 +720,9 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
                             if (inheritedVarDef) {
                                 return inheritedVarDef;
                             }
-                        } catch (error) {
-                            console.error(`Error reading inherited file: ${filePath}`, error);
-                        }
+                                } catch (error) {
+            // 静默处理错误
+        }
                         break;
                     }
                 }

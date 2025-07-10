@@ -14,22 +14,26 @@
   "categories": [
     "Programming Languages"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "activationEvents": [
     "onLanguage:lpc"
   ],
   "dependencies": {
     "@types/cheerio": "^0.22.35",
     "@types/vscode": "^1.95.0",
+    "antlr4ts": "^0.5.0-alpha.4",
     "axios": "^1.7.7",
-    "cheerio": "^1.0.0-rc.12",
-    "antlr4ts": "^0.5.0-alpha.4"
+    "cheerio": "^1.0.0-rc.12"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "^20.x",
-    "typescript": "^5.0.0",
-    "antlr4ts-cli": "^0.5.0-alpha.4"
+    "antlr4ts-cli": "^0.5.0-alpha.4",
+    "cross-env": "^7.0.3",
+    "esbuild": "^0.25.5",
+    "esbuild-node-externals": "^1.18.0",
+    "rimraf": "^5.0.10",
+    "typescript": "^5.0.0"
   },
   "contributes": {
     "languages": [
@@ -136,11 +140,6 @@
         "category": "LPC"
       },
       {
-        "command": "lpc.clearVariableCache",
-        "title": "清除变量缓存",
-        "category": "LPC"
-      },
-      {
         "command": "lpc.showFunctionDoc",
         "title": "显示函数文档面板",
         "category": "LPC",
@@ -157,6 +156,16 @@
       {
         "command": "lpc.debugParseErrors",
         "title": "调试：解析错误详情",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.showPerformanceStats",
+        "title": "显示性能统计",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.clearCache",
+        "title": "清理解析缓存",
         "category": "LPC"
       }
     ],
@@ -200,7 +209,12 @@
         },
         {
           "when": "resourceLangId == lpc",
-          "command": "lpc.clearVariableCache",
+          "command": "lpc.showPerformanceStats",
+          "group": "LPC"
+        },
+        {
+          "when": "resourceLangId == lpc",
+          "command": "lpc.clearCache",
           "group": "LPC"
         }
       ],
@@ -224,7 +238,8 @@
       ]
     },
     "configuration": {
-      "title": "LPC",
+      "type": "object",
+      "title": "LPC Support Configuration",
       "properties": {
         "lpc.includePath": {
           "type": "string",
@@ -249,7 +264,40 @@
         "lpc.enableUnusedGlobalVarCheck": {
           "type": "boolean",
           "default": true,
-          "description": "启用 未使用全局变量 检查"
+          "description": "启用未使用的全局变量检查"
+        },
+        "lpc.performance.debounceDelay": {
+          "type": "number",
+          "default": 300,
+          "minimum": 100,
+          "maximum": 2000,
+          "description": "诊断防抖延迟时间（毫秒），较高的值可以减少CPU使用但增加响应延迟"
+        },
+        "lpc.performance.maxCacheSize": {
+          "type": "number",
+          "default": 50,
+          "minimum": 10,
+          "maximum": 200,
+          "description": "解析缓存的最大文档数量"
+        },
+        "lpc.performance.maxCacheMemory": {
+          "type": "number",
+          "default": 5000000,
+          "minimum": 1000000,
+          "maximum": 50000000,
+          "description": "解析缓存的最大内存使用量（字符数）"
+        },
+        "lpc.performance.enableAsyncDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用异步诊断处理，可以提高大文件的性能但可能略微增加内存使用"
+        },
+        "lpc.performance.batchSize": {
+          "type": "number",
+          "default": 50,
+          "minimum": 10,
+          "maximum": 200,
+          "description": "异步处理时的批次大小，较小的值可以提高响应性但可能降低总体性能"
         }
       }
     },
@@ -271,29 +319,67 @@
       }
     ],
     "semanticTokenTypes": [
-      { "id": "keyword", "description": "关键字" },
-      { "id": "type", "description": "类型关键字" },
-      { "id": "variable", "description": "变量" },
-      { "id": "function", "description": "函数名" },
-      { "id": "property", "description": "成员/属性" },
-      { "id": "macro", "description": "宏或常量" },
-      { "id": "number", "description": "数字" },
-      { "id": "string", "description": "字符串" },
-      { "id": "comment", "description": "注释" },
-      { "id": "operator", "description": "运算符" },
-      { "id": "builtin", "description": "内置函数" }
+      {
+        "id": "keyword",
+        "description": "关键字"
+      },
+      {
+        "id": "type",
+        "description": "类型关键字"
+      },
+      {
+        "id": "variable",
+        "description": "变量"
+      },
+      {
+        "id": "function",
+        "description": "函数名"
+      },
+      {
+        "id": "property",
+        "description": "成员/属性"
+      },
+      {
+        "id": "macro",
+        "description": "宏或常量"
+      },
+      {
+        "id": "number",
+        "description": "数字"
+      },
+      {
+        "id": "string",
+        "description": "字符串"
+      },
+      {
+        "id": "comment",
+        "description": "注释"
+      },
+      {
+        "id": "operator",
+        "description": "运算符"
+      },
+      {
+        "id": "builtin",
+        "description": "内置函数"
+      }
     ],
     "semanticTokenModifiers": []
   },
   "scripts": {
+    "vscode:prepublish": "cross-env NODE_ENV=production npm run build",
+    "build": "npm run generate-parser && node esbuild.mjs",
+    "build:dev": "cross-env NODE_ENV=development npm run build",
+    "watch": "cross-env NODE_ENV=development node esbuild.mjs --watch",
     "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPCLexer.g4 grammar/LPCParser.g4",
-    "package": "npm run compile && vsce package",
-    "compile": "npm run generate-parser && tsc"
+    "package": "npm run clean && npm run build && vsce package",
+    "clean": "rimraf dist out",
+    "analyze": "cross-env NODE_ENV=development npm run build -- --analyze"
   },
   "license": "MIT",
   "icon": "icon.png",
   "files": [
-    "out/**",
+    "dist/**",
     "syntaxes/**",
     "snippets/**",
     "media/**",

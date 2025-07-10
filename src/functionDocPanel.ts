@@ -612,12 +612,23 @@ export class FunctionDocPanel {
                         let html = '';
                         let currentSection = '';
                         let description = [];
+                        let brief = '';
+                        let details = [];
                         let params = [];
                         let returnValue = '';
                         let example = [];
 
                         for (const line of lines) {
-                            if (line.startsWith('@param')) {
+                            if (line.startsWith('@brief')) {
+                                brief = line.replace('@brief', '').trim();
+                            } else if (line.startsWith('@details')) {
+                                currentSection = 'details';
+                                const detailText = line.replace('@details', '').trim();
+                                if (detailText) {
+                                    details.push(detailText);
+                                }
+                            } else if (line.startsWith('@param')) {
+                                currentSection = '';
                                 const paramMatch = line.match(/@param\\s+(\\S+)\\s+(.*)/);
                                 if (paramMatch) {
                                     params.push({
@@ -626,6 +637,7 @@ export class FunctionDocPanel {
                                     });
                                 }
                             } else if (line.startsWith('@return')) {
+                                currentSection = '';
                                 returnValue = line.replace('@return', '').trim();
                             } else if (line.startsWith('@example')) {
                                 currentSection = 'example';
@@ -635,12 +647,26 @@ export class FunctionDocPanel {
                                 } else {
                                     example.push(line);
                                 }
+                            } else if (currentSection === 'details') {
+                                if (line.startsWith('@')) {
+                                    currentSection = '';
+                                } else {
+                                    details.push(line);
+                                }
                             } else if (!line.startsWith('@')) {
                                 description.push(line);
                             }
                         }
 
                         // 构建 HTML
+                        if (brief) {
+                            html += \`<div class="doc-section"><h4>简要描述</h4><p>\${brief}</p></div>\`;
+                        }
+
+                        if (details.length > 0) {
+                            html += \`<div class="doc-section"><h4>详细描述</h4><p>\${details.join(' ')}</p></div>\`;
+                        }
+
                         if (description.length > 0) {
                             html += \`<p>\${description.join(' ')}</p>\`;
                         }
@@ -731,9 +757,20 @@ export class FunctionDocPanel {
 
         let markdown = '';
         let currentSection = '';
+        let brief = '';
+        let details: string[] = [];
 
         for (const line of lines) {
-            if (line.startsWith('@param')) {
+            if (line.startsWith('@brief')) {
+                brief = line.replace('@brief', '').trim();
+            } else if (line.startsWith('@details')) {
+                currentSection = 'details';
+                const detailText = line.replace('@details', '').trim();
+                if (detailText) {
+                    details.push(detailText);
+                }
+            } else if (line.startsWith('@param')) {
+                currentSection = '';
                 if (!markdown.includes('### 参数')) {
                     markdown += '\n### 参数\n';
                 }
@@ -742,17 +779,24 @@ export class FunctionDocPanel {
                     markdown += `- \`${paramMatch[1]}\`: ${paramMatch[2]}\n`;
                 }
             } else if (line.startsWith('@return')) {
+                currentSection = '';
                 markdown += '\n### 返回值\n';
                 markdown += line.replace('@return', '').trim() + '\n';
             } else if (line.startsWith('@example')) {
-                markdown += '\n### 示例\n```lpc\n';
                 currentSection = 'example';
+                markdown += '\n### 示例\n```lpc\n';
             } else if (currentSection === 'example') {
                 if (line.startsWith('@')) {
                     markdown += '```\n';
                     currentSection = '';
                 } else {
                     markdown += line + '\n';
+                }
+            } else if (currentSection === 'details') {
+                if (line.startsWith('@')) {
+                    currentSection = '';
+                } else {
+                    details.push(line);
                 }
             } else if (!line.startsWith('@')) {
                 if (!currentSection) {
@@ -765,7 +809,17 @@ export class FunctionDocPanel {
             markdown += '```\n';
         }
 
-        return markdown;
+        // 将 brief 和 details 添加到开头
+        let result = '';
+        if (brief) {
+            result += `### 简要描述\n${brief}\n\n`;
+        }
+        if (details.length > 0) {
+            result += `### 详细描述\n${details.join(' ')}\n\n`;
+        }
+        result += markdown;
+
+        return result;
     }
 
     private gotoDefinition(filePath: string, line: number) {

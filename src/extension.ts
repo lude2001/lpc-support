@@ -18,6 +18,7 @@ import { LPCSemanticTokensProvider, LPCSemanticTokensLegend } from './semanticTo
 import { LPCSymbolProvider } from './symbolProvider';
 import { LPCReferenceProvider } from './referenceProvider';
 import { LPCRenameProvider } from './renameProvider';
+import { disposeParseCache, getParserCacheStats, clearParseCache } from './parseCache';
 
 export function activate(context: vscode.ExtensionContext) {
     // 初始化诊断功能
@@ -223,14 +224,6 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // 注册清除变量缓存命令
-    context.subscriptions.push(
-        vscode.commands.registerCommand('lpc.clearVariableCache', () => {
-            completionProvider.clearVariableCache();
-            vscode.window.showInformationMessage('已清除变量缓存');
-        })
-    );
-
     // 注册定义跳转提供程序
     context.subscriptions.push(
         vscode.languages.registerDefinitionProvider(
@@ -311,7 +304,25 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.languages.registerRenameProvider('lpc', new LPCRenameProvider())
     );
+
+    // 注册性能监控命令
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.showPerformanceStats', () => {
+            const stats = getParserCacheStats();
+            const memoryMB = (stats.memory / 1024 / 1024).toFixed(2);
+            vscode.window.showInformationMessage(
+                `LPC 性能统计: 缓存文档 ${stats.size} 个, 内存使用 ${memoryMB} MB`
+            );
+        }),
+        vscode.commands.registerCommand('lpc.clearCache', () => {
+            clearParseCache();
+            vscode.window.showInformationMessage('LPC 解析缓存已清理');
+        })
+    );
 }
 
 // 停用扩展时调用
-export function deactivate() {} 
+export function deactivate() {
+    // 清理解析缓存资源
+    disposeParseCache();
+} 

@@ -25,8 +25,17 @@ export class MacroManager {
             this.includePath = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, 'include');
         }
 
+        console.log(`MacroManager: 配置的包含路径: ${this.includePath || '未配置'}`);
+        
         if (this.includePath) {
-            await this.scanMacros();
+            if (fs.existsSync(this.includePath)) {
+                console.log(`MacroManager: 包含路径存在，开始扫描宏定义`);
+                await this.scanMacros();
+            } else {
+                console.warn(`MacroManager: 包含路径不存在: ${this.includePath}`);
+            }
+        } else {
+            console.warn(`MacroManager: 未配置包含路径，无法扫描宏定义`);
         }
     }
 
@@ -56,10 +65,21 @@ export class MacroManager {
     public async scanMacros(progress?: vscode.Progress<{ message?: string }>) {
         this.macros.clear();
         if (!this.includePath || !fs.existsSync(this.includePath)) {
+            console.warn(`MacroManager: 无法扫描宏定义 - 路径无效: ${this.includePath}`);
             return;
         }
 
+        const startTime = Date.now();
         await this.scanDirectory(this.includePath, progress);
+        const endTime = Date.now();
+        
+        console.log(`MacroManager: 扫描完成，共找到 ${this.macros.size} 个宏定义，耗时 ${endTime - startTime}ms`);
+        
+        // 输出一些统计信息
+        if (this.macros.size > 0) {
+            const files = new Set(Array.from(this.macros.values()).map(m => m.file));
+            console.log(`MacroManager: 扫描了 ${files.size} 个文件`);
+        }
     }
 
     private async scanDirectory(dirPath: string, progress?: vscode.Progress<{ message?: string }>) {
@@ -82,49 +102,60 @@ export class MacroManager {
     }
 
     private async scanFile(filePath: string) {
-        const content = await fs.promises.readFile(filePath, 'utf8');
-        const lines = content.split('\n');
-        
-        let currentComment = '';
-        
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
+        try {
+            const content = await fs.promises.readFile(filePath, 'utf8');
+            const lines = content.split('\n');
             
-            // 收集注释
-            if (line.startsWith('//')) {
-                currentComment += line.substring(2).trim() + '\n';
-                continue;
-            } else if (line.startsWith('/*')) {
-                // 处理多行注释
-                let j = i;
-                let commentBlock = '';
-                while (j < lines.length && !lines[j].includes('*/')) {
-                    commentBlock += lines[j].replace(/^\/\*/, '').trim() + '\n';
-                    j++;
+            let currentComment = '';
+            let macrosFoundInFile = 0;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                // 收集注释
+                if (line.startsWith('//')) {
+                    currentComment += line.substring(2).trim() + '\n';
+                    continue;
+                } else if (line.startsWith('/*')) {
+                    // 处理多行注释
+                    let j = i;
+                    let commentBlock = '';
+                    while (j < lines.length && !lines[j].includes('*/')) {
+                        commentBlock += lines[j].replace(/^\/\*/, '').trim() + '\n';
+                        j++;
+                    }
+                    if (j < lines.length) {
+                        commentBlock += lines[j].replace(/\*\/.*$/, '').trim();
+                        i = j;
+                    }
+                    currentComment = commentBlock;
+                    continue;
                 }
-                if (j < lines.length) {
-                    commentBlock += lines[j].replace(/\*\/.*$/, '').trim();
-                    i = j;
+                
+                // 匹配 #define 宏定义
+                const match = line.match(/^#define\s+([A-Z_][A-Z0-9_]*)\s+(.+)$/);
+                if (match) {
+                    const [, name, value] = match;
+                    this.macros.set(name, {
+                        name,
+                        value: value.trim().replace(/^"(.*)"$/, '$1'),
+                        file: filePath,
+                        line: i + 1,
+                        description: currentComment.trim() || undefined
+                    });
+                    macrosFoundInFile++;
+                    currentComment = ''; // 重置注释
+                } else if (line.length > 0) {
+                    currentComment = ''; // 如果遇到非空行且不是宏定义，重置注释
                 }
-                currentComment = commentBlock;
-                continue;
             }
             
-            // 匹配 #define 宏定义
-            const match = line.match(/^#define\s+([A-Z_][A-Z0-9_]*)\s+(.+)$/);
-            if (match) {
-                const [, name, value] = match;
-                this.macros.set(name, {
-                    name,
-                    value: value.trim().replace(/^"(.*)"$/, '$1'),
-                    file: filePath,
-                    line: i + 1,
-                    description: currentComment.trim() || undefined
-                });
-                currentComment = ''; // 重置注释
-            } else if (line.length > 0) {
-                currentComment = ''; // 如果遇到非空行且不是宏定义，重置注释
+            // 输出调试信息
+            if (macrosFoundInFile > 0) {
+                console.log(`MacroManager: 在 ${filePath} 中找到 ${macrosFoundInFile} 个宏定义`);
             }
+        } catch (error) {
+            console.error(`MacroManager: 扫描文件 ${filePath} 时出错:`, error);
         }
     }
 
@@ -183,9 +214,9 @@ export class MacroManager {
         this.watcher?.dispose();
     }
 
-    public refreshMacros() {
+    public async refreshMacros(): Promise<void> {
         // 重新加载宏定义
-        this.scanMacros();
+        await this.scanMacros();
     }
 
     public async canResolveMacro(macroName: string): Promise<boolean> {

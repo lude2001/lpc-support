@@ -14,6 +14,7 @@ import { UnusedParameterCollector } from './collectors/UnusedParameterCollector'
 import { GlobalVariableCollector } from './collectors/GlobalVariableCollector';
 import { ApplyFunctionReturnCollector } from './collectors/ApplyFunctionReturnCollector';
 import { LocalVariableDeclarationCollector } from './collectors/LocalVariableDeclarationCollector';
+import { Debouncer, Throttler } from './utils/debounce';
 
 // 加载配置文件
 interface LPCConfig {
@@ -53,6 +54,12 @@ export class LPCDiagnostics {
     // 预编译的正则表达式，避免重复创建
     private objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)(\()?/g;
     private macroDefRegex = /\b([A-Z_][A-Z0-9_]*)\b/;
+
+    // 性能优化相关
+    private debouncer = new Debouncer();
+    private throttler = new Throttler();
+    private isAnalyzing = new Set<string>(); // 防止重复分析
+    private lastAnalysisVersion = new Map<string, number>(); // 记录上次分析的文档版本
 
     constructor(context: vscode.ExtensionContext, macroManager: MacroManager) {
         this.macroManager = macroManager;
@@ -153,7 +160,17 @@ export class LPCDiagnostics {
 
     private onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent) {
         if (event.document.languageId === 'lpc') {
-            this.analyzeDocument(event.document, false);
+            // 从配置获取防抖延迟时间
+            const config = vscode.workspace.getConfiguration('lpc.performance');
+            const debounceDelay = config.get<number>('debounceDelay', 300);
+            
+            const documentKey = event.document.uri.toString();
+            const debouncedAnalyze = this.debouncer.debounce(
+                documentKey,
+                () => this.analyzeDocument(event.document, false),
+                debounceDelay
+            );
+            debouncedAnalyze();
         }
     }
 
@@ -187,6 +204,56 @@ export class LPCDiagnostics {
         }
 
         return diagnostics;
+    }
+
+    private async collectDiagnosticsAsync(document: vscode.TextDocument): Promise<vscode.Diagnostic[]> {
+        const diagnostics: vscode.Diagnostic[] = [];
+        const text = document.getText();
+
+        // 收集旧的诊断信息（异步处理）
+        await this.collectObjectAccessDiagnosticsAsync(text, diagnostics, document);
+
+        // 调用模块化收集器（批量异步处理）
+        const parsed = getParsed(document);
+        
+        // 从配置获取批次大小
+        const config = vscode.workspace.getConfiguration('lpc.performance');
+        const configBatchSize = config.get<number>('batchSize', 50);
+        
+        // 分批处理收集器，避免长时间阻塞
+        const batchSize = Math.min(3, this.collectors.length); // 收集器批次大小
+        for (let i = 0; i < this.collectors.length; i += batchSize) {
+            const batch = this.collectors.slice(i, i + batchSize);
+            
+            // 并行处理当前批次的收集器
+            const batchResults = await Promise.all(
+                batch.map(async (collector) => {
+                    // 让出主线程
+                    await this.yieldToMainThread();
+                    return collector.collect(document, parsed);
+                })
+            );
+            
+            for (const result of batchResults) {
+                diagnostics.push(...result);
+            }
+        }
+
+        // 使用 ParseCache 中的解析结果，避免重复解析并收集语法错误
+        try {
+            const { diagnostics: parseDiags } = getParsed(document);
+            diagnostics.push(...parseDiags);
+        } catch (err) {
+            if (err instanceof Error) {
+                vscode.window.showErrorMessage(`解析 LPC 失败: ${err.message}`);
+            }
+        }
+
+        return diagnostics;
+    }
+
+    private async yieldToMainThread(): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, 0));
     }
 
     private collectObjectAccessDiagnostics(
@@ -242,29 +309,70 @@ export class LPCDiagnostics {
         }
     }
 
+    private async collectObjectAccessDiagnosticsAsync(
+        text: string,
+        diagnostics: vscode.Diagnostic[],
+        document: vscode.TextDocument
+    ): Promise<void> {
+        const objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\()?/g;
+        let match;
+        let processedCount = 0;
+        
+        // 从配置获取批次大小
+        const config = vscode.workspace.getConfiguration('lpc.performance');
+        const batchSize = config.get<number>('batchSize', 50);
+
+        while ((match = objectAccessRegex.exec(text)) !== null) {
+            const [fullMatch, object, accessor, member, isFunction] = match;
+            const startPos = match.index;
+            const endPos = startPos + fullMatch.length;
+
+            // 检查宏定义
+            if (/^[A-Z][A-Z0-9_]*_D$/.test(object)) {
+                await this.checkMacroUsage(object, startPos, document, diagnostics);
+                continue;
+            }
+
+            // 检查对象命名规范
+            if (!/^[A-Z][A-Z0-9_]*(?:_D)?$/.test(object)) {
+                diagnostics.push(this.createDiagnostic(
+                    this.getRange(document, startPos, object.length),
+                    '对象名应该使用大写字母和下划线，例如: USER_OB',
+                    vscode.DiagnosticSeverity.Warning
+                ));
+            }
+
+            // 检查函数调用
+            if (isFunction) {
+                this.checkFunctionCall(text, startPos, endPos, document, diagnostics);
+            }
+
+            processedCount++;
+            // 每处理一定数量的匹配项后让出主线程
+            if (processedCount % batchSize === 0) {
+                await this.yieldToMainThread();
+            }
+        }
+    }
+
     private async checkMacroUsage(
         object: string,
         startPos: number,
         document: vscode.TextDocument,
         diagnostics: vscode.Diagnostic[]
     ): Promise<void> {
-        this.macroManager?.refreshMacros();
         const macro = this.macroManager?.getMacro(object);
         const canResolveMacro = await this.macroManager?.canResolveMacro(object);
 
-        if (macro) {
-            diagnostics.push(this.createDiagnostic(
-                this.getRange(document, startPos, object.length),
-                `宏 '${object}' 的值为: ${macro.value}`,
-                vscode.DiagnosticSeverity.Information
-            ));
-        } else if (!canResolveMacro) {
-            diagnostics.push(this.createDiagnostic(
-                this.getRange(document, startPos, object.length),
-                `'${object}' 符合宏命名规范但未定义为宏`,
-                vscode.DiagnosticSeverity.Warning
-            ));
-        }
+        // 只对真正未定义的宏显示警告，不显示已定义宏的信息
+        // if (!macro && !canResolveMacro) {
+        //     diagnostics.push(this.createDiagnostic(
+        //         this.getRange(document, startPos, object.length),
+        //         `'${object}' 符合宏命名规范但未定义为宏`,
+        //         vscode.DiagnosticSeverity.Warning
+        //     ));
+        // }
+        // 对于已定义的宏，不添加任何诊断信息，保持问题面板清洁
     }
 
     private checkFunctionCall(
@@ -360,7 +468,42 @@ export class LPCDiagnostics {
             return;
         }
 
-        const diagnostics = this.collectDiagnostics(document);
+        const documentKey = document.uri.toString();
+        
+        // 检查是否正在分析中，避免重复分析
+        if (this.isAnalyzing.has(documentKey)) {
+            return;
+        }
+
+        // 检查文档版本是否已经分析过
+        const lastVersion = this.lastAnalysisVersion.get(documentKey);
+        if (lastVersion === document.version) {
+            return;
+        }
+
+        this.isAnalyzing.add(documentKey);
+        
+        try {
+            // 使用异步方式进行分析，避免阻塞主线程
+            this.analyzeDocumentAsync(document, showMessage).finally(() => {
+                this.isAnalyzing.delete(documentKey);
+                this.lastAnalysisVersion.set(documentKey, document.version);
+            });
+        } catch (error) {
+            this.isAnalyzing.delete(documentKey);
+            console.error('分析文档时发生错误:', error);
+        }
+    }
+
+    private async analyzeDocumentAsync(document: vscode.TextDocument, showMessage: boolean): Promise<void> {
+        // 检查是否启用异步诊断
+        const config = vscode.workspace.getConfiguration('lpc.performance');
+        const enableAsync = config.get<boolean>('enableAsyncDiagnostics', true);
+        
+        const diagnostics = enableAsync 
+            ? await this.collectDiagnosticsAsync(document)
+            : this.collectDiagnostics(document);
+            
         this.diagnosticCollection.set(document.uri, diagnostics);
 
         if (showMessage && diagnostics.length === 0) {
@@ -621,6 +764,11 @@ export class LPCDiagnostics {
     public dispose() {
         this.diagnosticCollection.clear();
         this.diagnosticCollection.dispose();
+        
+        // 清理性能优化相关的资源
+        this.debouncer.clear();
+        this.isAnalyzing.clear();
+        this.lastAnalysisVersion.clear();
     }
 
     private createDiagnostic(

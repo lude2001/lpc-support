@@ -1,10 +1,26 @@
 .vscode/**
 .vscode-test/**
-src/**
 .gitignore
-.yarnrc
 vsc-extension-quickstart.md
-**/tsconfig.json
-**/.eslintrc.json
-**/*.map
-**/*.ts
+tsconfig.json
+.eslintrc.json
+esbuild.mjs
+src/**
+out/**
+node_modules/**
+npm-debug.log*
+*.vsix
+package-lock.json
+yarn.lock
+# 开发和测试相关文件
+test-format.js
+formatted_output.txt
+# 语法文件
+grammar/**
+# LPC测试文件
+src/lpc_test/**
+# 备份文件
+**/*.backup
+**/*.bak
+# 只保留 dist/ 目录，排除源码和中间编译文件
+!dist/**
