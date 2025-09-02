@@ -15,6 +15,7 @@ export interface EfunDoc {
     category?: string;
     lastUpdated?: number;  // 添加最后更新时间戳
     isSimulated?: boolean;
+    note?: string; // 新增其他注解
 }
 
 export class EfunDocsManager {
@@ -278,6 +279,19 @@ export class EfunDocsManager {
         }
     }
 
+    /**
+     * 提取多行标签内容
+     */
+    private extractTagBlock(docComment: string, tag: string): string | undefined {
+        const regex = new RegExp(`@${tag}\\s+([\\s\\S]*?)(?=\\n\\s*\\*\\s*@|\\*/|$)`, 'i');
+        const match = docComment.match(regex);
+        if (match) {
+            // 去除每行前的 * 和多余空格
+            return match[1].split('\n').map(line => line.replace(/^\s*\*\s?/, '').trim()).join('\n').trim();
+        }
+        return undefined;
+    }
+
     private parseSimulatedEfunDocs(content: string): Map<string, EfunDoc> {
         const docs = new Map<string, EfunDoc>();
         const functionPattern = /\/\*\*\s*([\s\S]*?)\s*\*\/\s*(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+)*((?:varargs\s+)?[a-zA-Z_][a-zA-Z0-9_]*\s*\**\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\))/g;
@@ -301,15 +315,21 @@ export class EfunDocsManager {
                 };
 
                 // 解析 @brief
-                const briefMatch = docComment.match(briefPattern);
-                if (briefMatch) {
-                    doc.description = briefMatch[1].trim();
+                const brief = this.extractTagBlock(docComment, 'brief');
+                if (brief) {
+                    doc.description = brief;
                 }
 
                 // 解析 @details
-                const detailsMatch = docComment.match(detailsPattern);
-                if (detailsMatch) {
-                    doc.details = detailsMatch[1].trim();
+                const details = this.extractTagBlock(docComment, 'details');
+                if (details) {
+                    doc.details = details;
+                }
+
+                // 解析 @note
+                const note = this.extractTagBlock(docComment, 'note');
+                if (note) {
+                    doc.note = note;
                 }
 
                 // 解析参数
@@ -318,9 +338,8 @@ export class EfunDocsManager {
                 const paramText = docComment.replace(/\r\n/g, '\n');  // 统一换行符
                 while ((paramMatch = paramPattern.exec(paramText)) !== null) {
                     const [_, type, name, desc] = paramMatch;
-                    // 处理可能跨行的描述
+                    // 处理可能跨行的描述（保持原逻辑）
                     let fullDesc = desc.trim();
-                    // 如果描述在下一行继续，查找到下一个@标记或结束
                     const nextIndex = paramText.indexOf('@', paramMatch.index + paramMatch[0].length);
                     if (nextIndex !== -1) {
                         const extraDesc = paramText
@@ -340,24 +359,9 @@ export class EfunDocsManager {
                 }
 
                 // 解析返回值
-                const returnMatch = docComment.match(returnPattern);
-                if (returnMatch?.index !== undefined) {
-                    const [_, type, desc] = returnMatch;
-                    // 处理可能跨行的返回值描述
-                    let fullDesc = desc.trim();
-                    const nextIndex = docComment.indexOf('@', returnMatch.index + returnMatch[0].length);
-                    if (nextIndex !== -1) {
-                        const extraDesc = docComment
-                            .slice(returnMatch.index + returnMatch[0].length, nextIndex)
-                            .split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line && !line.startsWith('*'))
-                            .join(' ');
-                        if (extraDesc) {
-                            fullDesc += ' ' + extraDesc;
-                        }
-                    }
-                    doc.returnValue = `${type}: ${fullDesc}`;
+                const ret = this.extractTagBlock(docComment, 'return');
+                if (ret) {
+                    doc.returnValue = ret;
                 }
 
                 docs.set(funcName, doc);
@@ -402,10 +406,6 @@ export class EfunDocsManager {
         // 匹配文档注释后跟着的函数定义
         const functionPattern = /\/\*\*\s*([\s\S]*?)\s*\*\/\s*(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+|varargs\s+)*((?:mixed|void|int|string|object|mapping|array|float|function|buffer|class|[a-zA-Z_][a-zA-Z0-9_]*)\s*\**\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\))/g;
         const paramPattern = /@param\s+(\S+)\s+(\S+)\s+([^\n]+)/g;
-        const returnPattern = /@return\s+(\S+)\s+(.*)/;
-        const briefPattern = /@brief\s+([^\n]+)/;
-        const detailsPattern = /@details\s+([^\n]+)/;
-
         let match;
         while ((match = functionPattern.exec(content)) !== null) {
             try {
@@ -421,9 +421,9 @@ export class EfunDocsManager {
                     };
 
                     // 解析 @brief
-                    const briefMatch = docComment.match(briefPattern);
-                    if (briefMatch) {
-                        doc.description = briefMatch[1].trim();
+                    const brief = this.extractTagBlock(docComment, 'brief');
+                    if (brief) {
+                        doc.description = brief;
                     } else {
                         // 没有 @brief 的情况下，使用注释的第一行作为描述
                         const firstLine = docComment.trim().split('\n')[0].replace(/^\*+\s*/, '').trim();
@@ -433,9 +433,15 @@ export class EfunDocsManager {
                     }
 
                     // 解析 @details
-                    const detailsMatch = docComment.match(detailsPattern);
-                    if (detailsMatch) {
-                        doc.details = detailsMatch[1].trim();
+                    const details = this.extractTagBlock(docComment, 'details');
+                    if (details) {
+                        doc.details = details;
+                    }
+
+                    // 解析 @note
+                    const note = this.extractTagBlock(docComment, 'note');
+                    if (note) {
+                        doc.note = note;
                     }
 
                     // 解析参数
@@ -451,10 +457,9 @@ export class EfunDocsManager {
                     }
 
                     // 解析返回值
-                    const returnMatch = docComment.match(returnPattern);
-                    if (returnMatch) {
-                        const [_, type, desc] = returnMatch;
-                        doc.returnValue = `${type}: ${desc.trim()}`;
+                    const ret = this.extractTagBlock(docComment, 'return');
+                    if (ret) {
+                        doc.returnValue = ret;
                     }
 
                     docs.set(funcName, doc);
@@ -547,7 +552,7 @@ export class EfunDocsManager {
             await this.updateCurrentFileDocs(document);
         }
         
-        // 查找顺序：当前文件 -> 继承文件 -> 模拟函数库 -> 标准 efun
+        // 查找顺序：当前文件 -> 继承文件 -> include文件 -> 模拟函数库 -> 标准 efun
         
         // 1. 先查找当前文件中的函数文档
         const currentDoc = this.currentFileDocs.get(word);
@@ -563,13 +568,19 @@ export class EfunDocsManager {
             }
         }
         
-        // 3. 再查找模拟函数库文档
+        // 3. 查找include文件中的函数文档
+        const includeDoc = await this.findFunctionDocInIncludes(document, word);
+        if (includeDoc) {
+            return this.createHoverContent(includeDoc);
+        }
+        
+        // 4. 再查找模拟函数库文档
         const simulatedDoc = this.simulatedEfunDocs.get(word);
         if (simulatedDoc) {
             return this.createHoverContent(simulatedDoc);
         }
 
-        // 4. 最后查找标准efun文档
+        // 5. 最后查找标准efun文档
         const efunDoc = await this.getEfunDoc(word);
         if (!efunDoc) {
             return undefined;
@@ -601,6 +612,10 @@ export class EfunDocsManager {
         if (doc.details) {
             content.appendMarkdown(`**细节**:\n${doc.details}\n\n`);
         }
+
+        if (doc.note) {
+            content.appendMarkdown(`**其他说明**:\n${doc.note}\n\n`);
+        }
         
         if (doc.reference && doc.reference.length > 0) {
             content.appendMarkdown(`**参考**:\n${doc.reference.join(', ')}\n`);
@@ -623,5 +638,79 @@ export class EfunDocsManager {
 
     public getSimulatedDoc(funcName: string): EfunDoc | undefined {
         return this.simulatedEfunDocs.get(funcName);
+    }
+
+    /**
+     * 在include文件中查找函数文档
+     */
+    private async findFunctionDocInIncludes(document: vscode.TextDocument, functionName: string): Promise<EfunDoc | undefined> {
+        try {
+            const includeFiles = await this.getIncludeFiles(document.uri.fsPath);
+            
+            for (const includeFile of includeFiles) {
+                if (includeFile.endsWith('.h')) {
+                    try {
+                        const content = await fs.promises.readFile(includeFile, 'utf-8');
+                        const fileName = path.basename(includeFile);
+                        const funcDocs = this.parseFunctionDocs(content, `包含自 ${fileName}`);
+                        const doc = funcDocs.get(functionName);
+                        if (doc) {
+                            return doc;
+                        }
+                    } catch (error) {
+                        // 静默处理错误，继续处理下一个文件
+                    }
+                }
+            }
+        } catch (error) {
+            // 静默处理错误
+        }
+        
+        return undefined;
+    }
+
+    /**
+     * 获取文件的include列表
+     */
+    private async getIncludeFiles(filePath: string): Promise<string[]> {
+        const includeFiles: string[] = [];
+        
+        try {
+            const content = await fs.promises.readFile(filePath, 'utf-8');
+            const lines = content.split('\n');
+            const currentDir = path.dirname(filePath);
+
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                // 匹配 #include "path" 或 #include <path> 或 include "path"，允许后面有注释
+                const includeMatch = trimmedLine.match(/^#?include\s+[<"]([^>"]+)[>"](?:\s*\/\/.*)?$/);
+                if (includeMatch) {
+                    let includePath = includeMatch[1];
+                    if (!includePath.endsWith('.h') && !includePath.endsWith('.c')) {
+                        includePath += '.h'; // 默认为头文件
+                    }
+                    
+                    // 解析为绝对路径
+                    let resolvedPath: string;
+                    if (path.isAbsolute(includePath)) {
+                        resolvedPath = includePath;
+                    } else {
+                        resolvedPath = path.resolve(currentDir, includePath);
+                    }
+                    
+                    // 检查文件是否存在
+                    try {
+                        await fs.promises.access(resolvedPath);
+                        includeFiles.push(resolvedPath);
+                    } catch {
+                        // 文件不存在，跳过
+                    }
+                }
+            }
+        } catch (error) {
+            // 静默处理错误
+        }
+
+        return includeFiles;
     }
 }

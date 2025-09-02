@@ -14,36 +14,14 @@ alwaysApply: true
 *   **代码诊断 (Diagnostics):** 分析代码以查找错误和潜在问题，例如未使用的变量。 (主要实现: `LPCDiagnostics` 类，位于 `[src/diagnostics.ts](mdc:src/diagnostics.ts)`)
 *   **代码操作 (Code Actions):** 提供快速修复建议。 (主要实现: `LPCCodeActionProvider` 类，位于 `[src/codeActions.ts](mdc:src/codeActions.ts)`)
 *   **代码补全 (Completion Provider):** 提供上下文相关的代码补全建议，包括 efun、宏和变量。 (主要实现: `LPCCompletionItemProvider` 类，位于 `[src/completionProvider.ts](mdc:src/completionProvider.ts)`)
-*   **代码格式化 (Formatting):** 自动格式化 LPC 代码以保持一致的风格。 (主要实现: `formatLPCCode` 函数，位于 `[src/formatter.ts](mdc:src/formatter.ts)`)
+
 *   **定义跳转 (Definition Provider):** 允许用户跳转到函数和宏的定义处。 (主要实现: `LPCDefinitionProvider` 类，位于 `[src/definitionProvider.ts](mdc:src/definitionProvider.ts)`)
 *   **编译功能 (Compiler):** 集成了编译 LPC 文件的功能，支持单个文件和文件夹编译。 (主要实现: `LPCCompiler` 类，位于 `[src/compiler.ts](mdc:src/compiler.ts)`)
 *   **宏管理 (Macro Management):** 支持宏的解析和使用，包括路径配置和宏列表显示。 (主要实现: `MacroManager` 类，位于 `[src/macroManager.ts](mdc:src/macroManager.ts)`)
 *   **Efun 文档 (Efun Docs):** 管理和显示 Efun (LPC 内置函数) 的文档。 (主要实现: `EfunDocsManager` 类，位于 `[src/efunDocs.ts](mdc:src/efunDocs.ts)`)
 *   **函数文档面板 (Function Doc Panel):** 显示当前光标下或用户输入的函数文档。 (主要实现: `FunctionDocPanel` 类，位于 `[src/functionDocPanel.ts](mdc:src/functionDocPanel.ts)`)
 *   **服务器配置管理 (Server Configuration):** 允许用户添加、选择和移除用于编译的远程服务器配置。 (主要实现: `LPCConfigManager` 类，位于 `[src/config.ts](mdc:src/config.ts)`)
-*   **格式化代码独立测试**:
-    项目根目录下提供了一个 `test-format.js` 脚本，用于独立测试代码格式化功能 (`src/formatter.ts` 中的 `formatLPCCode` 函数)，无需运行完整的 VS Code 扩展。
-    **使用步骤**:
-    1.  **编译代码**: 确保 TypeScript 代码已编译成 JavaScript。进入项目根目录，运行：
-        ```bash
-        npm run compile
-        ```
-        或
-        ```bash
-        npx tsc
-        ```
-        这将生成 `out/formatter.js` 等必要的 JavaScript 文件。
-    2.  **运行测试脚本**: 在项目根目录下，使用以下命令：
-        ```bash
-        node test-format.js <输入LPC文件路径>
-        ```
-        *   **示例**:
-            ```bash
-            node test-format.js src/lpc_test/beidajie1.c
-            ```
-    此脚本会读取指定的 LPC 文件，使用 `formatLPCCode` 函数进行格式化，然后：
-    *   将完整的格式化后代码输出到项目根目录下的 `formatted_output.txt` 文件。
-    *   在控制台打印原始代码和格式化后的代码。
+
 
 ## 项目结构关键文件/目录
 

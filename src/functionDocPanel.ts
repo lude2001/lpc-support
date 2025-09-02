@@ -2,20 +2,11 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from './macroManager';
+import { FunctionInfo } from './types/functionInfo';
+import { LPCFunctionParser } from './functionParser';
+import { JavaDocProcessor } from './utils/javaDocProcessor';
+import { FunctionUtils } from './utils/functionUtils';
 import { getParsed } from './parseCache';
-import { FunctionDefContext, ParameterContext } from './antlr/LPCParser';
-
-/**
- * 函数信息接口
- */
-interface FunctionInfo {
-    name: string;
-    definition: string;
-    comment: string;
-    source: string;
-    filePath: string;
-    line: number; // 行号用于跳转
-}
 
 /**
  * 函数文档面板类
@@ -141,66 +132,8 @@ export class FunctionDocPanel {
         source: string,
         filePath: string
     ): Promise<FunctionInfo[]> {
-        const text = document.getText();
-        const lines = text.split('\n');
-        const functions: FunctionInfo[] = [];
-        
-        const { tree, tokens } = getParsed(document);
-
-        const visit = (ctx: any) => {
-            if (ctx instanceof FunctionDefContext) {
-                const nameToken = ctx.Identifier().symbol;
-                const name = nameToken.text ?? '';
-
-                // 返回类型文本
-                const retTypeCtx = ctx.typeSpec();
-                const retType = retTypeCtx ? document.getText(new vscode.Range(
-                    document.positionAt(retTypeCtx.start.startIndex),
-                    document.positionAt(retTypeCtx.stop?.stopIndex ?? retTypeCtx.start.stopIndex + 1)
-                )) : 'void';
-
-                // 参数列表文本
-                const paramCtx = ctx.parameterList();
-                const paramText = paramCtx ? document.getText(new vscode.Range(
-                    document.positionAt(paramCtx.start.startIndex),
-                    document.positionAt(paramCtx.stop?.stopIndex ?? paramCtx.start.stopIndex + 1)
-                )) : '()';
-
-                const definition = `${retType} ${name}${paramText}`;
-
-                // 行号
-                const line = document.positionAt(ctx.start.startIndex).line;
-
-                // 提取紧前注释（简单向上查找最多三行）
-                let comment = '';
-                for (let l = line - 1; l >= 0 && line - l <= 3; l--) {
-                    const lineText = lines[l].trim();
-                    if (lineText.startsWith('/*') || lineText.startsWith('*') || lineText.startsWith('//')) {
-                        comment = lineText + '\n' + comment;
-                    } else if (lineText === '') {
-                        continue;
-                    } else {
-                        break;
-                    }
-                }
-
-                functions.push({
-                    name,
-                    definition,
-                    comment,
-                    source,
-                    filePath,
-                    line
-                });
-            }
-            for (let i = 0; i < (ctx.childCount ?? 0); i++) {
-                const child = ctx.getChild(i);
-                if (child && typeof child === 'object' && child.symbol === undefined) {
-                    visit(child);
-                }
-            }
-        };
-        visit(tree);
+        // 使用统一的函数解析器
+        const functions = LPCFunctionParser.parseAllFunctions(document, source, filePath);
         
         // 如果是当前文件，保存到当前函数列表
         if (source === '当前文件') {
@@ -291,8 +224,83 @@ export class FunctionDocPanel {
             // 等待所有任务完成
             await Promise.all(inheritTasks);
         }
+        
+        // 解析包含文件
+        await this.parseIncludedFunctions(document, workspaceFolder);
     }
     
+    /**
+     * 解析包含文件中的函数
+     */
+    private async parseIncludedFunctions(document: vscode.TextDocument, workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
+        const includeFiles = await this.getIncludeFiles(document, workspaceFolder);
+        
+        for (const includeFile of includeFiles) {
+            if (this.processedFiles.has(includeFile)) {
+                continue;
+            }
+            
+            try {
+                const includeDoc = await vscode.workspace.openTextDocument(includeFile);
+                const functions = await this.parseFunctionsInFile(
+                    includeDoc,
+                    `包含文件: ${path.basename(includeFile)}`,
+                    includeFile
+                );
+                
+                if (functions.length > 0) {
+                    this.inheritedFunctions.set(`包含文件: ${path.basename(includeFile)}`, functions);
+                }
+                
+                this.processedFiles.add(includeFile);
+            } catch (error) {
+                console.error(`无法读取包含文件 ${includeFile}:`, error);
+            }
+        }
+    }
+    
+    /**
+     * 获取包含文件列表
+     */
+    private async getIncludeFiles(document: vscode.TextDocument, workspaceFolder: vscode.WorkspaceFolder): Promise<string[]> {
+        const content = document.getText();
+        const includeFiles: string[] = [];
+        const includeRegex = /^\s*#?include\s+["<]([^\s">]+)[">]/gm;
+        
+        let match;
+        while ((match = includeRegex.exec(content)) !== null) {
+            let includePath = match[1];
+            
+            // 如果没有扩展名，默认添加 .h
+            if (!path.extname(includePath)) {
+                includePath += '.h';
+            }
+            
+            let fullPath: string;
+            
+            // 处理绝对路径和相对路径
+            if (path.isAbsolute(includePath)) {
+                fullPath = includePath;
+            } else {
+                // 相对于当前文件的路径
+                const currentDir = path.dirname(document.uri.fsPath);
+                fullPath = path.resolve(currentDir, includePath);
+                
+                // 如果文件不存在，尝试相对于工作区根目录
+                if (!fs.existsSync(fullPath)) {
+                    fullPath = path.resolve(workspaceFolder.uri.fsPath, includePath);
+                }
+            }
+            
+            // 检查文件是否存在
+            if (fs.existsSync(fullPath)) {
+                includeFiles.push(fullPath);
+            }
+        }
+        
+        return includeFiles;
+    }
+
     /**
      * 处理单个继承文件
      */
@@ -404,422 +412,142 @@ export class FunctionDocPanel {
             name: f.name,
             source: f.source,
             filePath: f.filePath,
-            line: f.line
+            line: f.line,
+            definition: f.definition,
+            comment: f.comment,
+            briefDescription: f.briefDescription
         }));
         
-        const inheritedFunctionGroups: Array<{source: string, functions: Array<{name: string, source: string, filePath: string, line: number}>}> = [];
+        const inheritedFunctionGroups: Array<{source: string, functions: Array<{name: string, source: string, filePath: string, line: number, definition: string, comment: string, briefDescription: string}>}> = [];
         this.inheritedFunctions.forEach((functions, source) => {
             inheritedFunctionGroups.push({
                 source: source,
                 functions: functions.map(f => ({
                     name: f.name,
-                    source: f.source,
-                    filePath: f.filePath,
-                    line: f.line
+                    source: f.source || '',
+                    filePath: f.filePath || '',
+                    line: f.line || 0,
+                    definition: f.definition || '',
+                    comment: f.comment || '',
+                    briefDescription: f.briefDescription || '暂无描述'
                 }))
             });
         });
 
-        return `
-        <!DOCTYPE html>
+        // 读取HTML模板
+        // 优先从dist/templates目录查找（打包后的环境）
+        let finalHtmlPath = path.join(__dirname, 'templates', 'functionDocPanel.html');
+        let finalJsPath = path.join(__dirname, 'templates', 'functionDocPanel.js');
+        
+        // 如果dist目录中不存在，则从src目录查找（开发环境）
+        if (!fs.existsSync(finalHtmlPath)) {
+            finalHtmlPath = path.join(__dirname, '..', 'src', 'templates', 'functionDocPanel.html');
+        }
+        if (!fs.existsSync(finalJsPath)) {
+            finalJsPath = path.join(__dirname, '..', 'src', 'templates', 'functionDocPanel.js');
+        }
+        
+        let htmlContent = '';
+        let jsContent = '';
+        
+        try {
+            htmlContent = fs.readFileSync(finalHtmlPath, 'utf8');
+            jsContent = fs.readFileSync(finalJsPath, 'utf8');
+        } catch (error) {
+            console.error('Failed to read template files:', error);
+            return this.getFallbackContent();
+        }
+        
+        // 在HTML中插入JavaScript和初始数据
+        const scriptTag = `
+            <script>
+                // 初始数据
+                window.initialData = {
+                    currentFunctions: ${JSON.stringify(currentFunctions)},
+                    inheritedFunctionGroups: ${JSON.stringify(inheritedFunctionGroups)}
+                };
+                
+                ${jsContent}
+                
+                // 确保在所有脚本加载完成后渲染数据
+                (function() {
+                    function tryRender() {
+                        if (window.functionDocPanel && window.initialData) {
+                            window.functionDocPanel.renderFunctionList(
+                                window.initialData.currentFunctions,
+                                window.initialData.inheritedFunctionGroups
+                            );
+                        } else {
+                            // 如果还没准备好，稍后重试
+                            setTimeout(tryRender, 10);
+                        }
+                    }
+                    
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', tryRender);
+                    } else {
+                        tryRender();
+                    }
+                })();
+            </script>
+        `;
+        
+        // 在HTML的</body>标签前插入脚本
+        const finalHtml = htmlContent.replace('</body>', `${scriptTag}</body>`);
+        
+        return finalHtml;
+    }
+    
+    private getFallbackContent(): string {
+        return `<!DOCTYPE html>
         <html lang="zh-CN">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>LPC 函数文档</title>
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
-                    padding: 0;
-                    margin: 0;
-                    color: var(--vscode-foreground);
-                    background-color: var(--vscode-editor-background);
-                }
-                .container {
-                    display: flex;
-                    height: 100vh;
-                    overflow: hidden;
-                }
-                .function-list {
-                    width: 300px;
-                    overflow-y: auto;
-                    border-right: 1px solid var(--vscode-panel-border);
-                    padding: 10px;
-                }
-                .function-doc {
-                    flex: 1;
-                    overflow-y: auto;
-                    padding: 20px;
-                }
-                h2 {
-                    margin-top: 0;
-                    padding-bottom: 5px;
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                    color: var(--vscode-editor-foreground);
-                }
-                .function-group {
-                    margin-bottom: 20px;
-                }
-                .function-item {
-                    padding: 5px 10px;
-                    cursor: pointer;
-                    border-radius: 3px;
-                }
-                .function-item:hover {
-                    background-color: var(--vscode-list-hoverBackground);
-                }
-                .function-item.active {
-                    background-color: var(--vscode-list-activeSelectionBackground);
-                    color: var(--vscode-list-activeSelectionForeground);
-                }
-                pre {
-                    background-color: var(--vscode-textCodeBlock-background);
-                    padding: 10px;
-                    border-radius: 3px;
-                    overflow-x: auto;
-                }
-                code {
-                    font-family: Menlo, Monaco, Consolas, "Andale Mono", "Ubuntu Mono", "Courier New", monospace;
-                }
-                .doc-section {
-                    margin-bottom: 20px;
-                }
-                .doc-section h3 {
-                    margin-top: 0;
-                    color: var(--vscode-editor-foreground);
-                }
-                .param-list {
-                    list-style-type: none;
-                    padding-left: 0;
-                }
-                .param-list li {
-                    margin-bottom: 5px;
-                }
-                .param-name {
-                    font-weight: bold;
-                    color: var(--vscode-symbolIcon-variableForeground);
-                }
-            </style>
         </head>
         <body>
-            <div class="container">
-                <div class="function-list">
-                    <input type="text" id="search" placeholder="搜索函数..." style="width:100%;margin-bottom:6px;" />
-                    <h2>当前文件</h2>
-                    <div class="function-group">
-                        ${currentFunctions.map(f => `
-                            <div class="function-item" data-name="${f.name}" data-source="${f.source}" data-file="${f.filePath}" data-line="${f.line}">
-                                ${f.name}
-                            </div>
-                        `).join('')}
-                    </div>
-                    
-                    ${inheritedFunctionGroups.map(group => `
-                        <h2>${group.source}</h2>
-                        <div class="function-group">
-                            ${group.functions.map(f => `
-                                <div class="function-item" data-name="${f.name}" data-source="${f.source}" data-file="${f.filePath}" data-line="${f.line}">
-                                    ${f.name}
-                                </div>
-                            `).join('')}
-                        </div>
-                    `).join('')}
-                </div>
-                <div class="function-doc">
-                    <div id="doc-content">
-                        <h2>选择一个函数查看文档</h2>
-                        <p>在左侧列表中点击函数名称查看详细文档。</p>
-                    </div>
-                </div>
+            <div style="padding: 20px; text-align: center;">
+                <h3>模板文件加载失败</h3>
+                <p>无法加载函数文档面板模板文件。</p>
             </div>
-            
-            <script>
-                (function() {
-                    const vscode = acquireVsCodeApi();
-                    let currentActive = null;
-                    
-                    // 处理函数点击事件
-                    document.querySelectorAll('.function-item').forEach(item => {
-                        item.addEventListener('click', () => {
-                            const functionName = item.getAttribute('data-name');
-                            const source = item.getAttribute('data-source');
-                            
-                            // 更新选中状态
-                            if (currentActive) {
-                                currentActive.classList.remove('active');
-                            }
-                            item.classList.add('active');
-                            currentActive = item;
-                            
-                            // 发送消息到扩展
-                            vscode.postMessage({
-                                command: 'showFunctionDoc',
-                                functionName: functionName,
-                                source: source
-                            });
-                        });
-                    });
-                    
-                    // 处理来自扩展的消息
-                    window.addEventListener('message', event => {
-                        const message = event.data;
-                        
-                        if (message.command === 'updateFunctionDoc') {
-                            const functionInfo = message.functionInfo;
-                            updateFunctionDoc(functionInfo);
-                        }
-                    });
-                    
-                    // 更新函数文档
-                    function updateFunctionDoc(functionInfo) {
-                        const docContent = document.getElementById('doc-content');
-                        
-                        // 处理注释文档
-                        let commentHtml = '';
-                        if (functionInfo.comment) {
-                            commentHtml = processJavaDocComment(functionInfo.comment);
-                        }
-                        
-                        docContent.innerHTML = \`
-                            <h2>\${functionInfo.name}</h2>
-                            <div class="doc-section">
-                                <h3>定义</h3>
-                                <pre><code>\${escapeHtml(functionInfo.definition)}</code></pre>
-                                <button id="goto-def">跳转到定义</button>
-                            </div>
-                            <div class="doc-section">
-                                <h3>来源</h3>
-                                <p>\${functionInfo.source}</p>
-                            </div>
-                            \${commentHtml ? \`
-                                <div class="doc-section">
-                                    <h3>文档</h3>
-                                    \${commentHtml}
-                                </div>
-                            \` : ''}
-                        \`;
-                    }
-                    
-                    // 处理 JavaDoc 风格的注释
-                    function processJavaDocComment(comment) {
-                        // 移除注释标记和多余的空格
-                        let lines = comment
-                            .replace(/\\/\\*\\*|\\*\\/|\\*/g, '')
-                            .split('\\n')
-                            .map(line => line.trim())
-                            .filter(line => line.length > 0);
-
-                        let html = '';
-                        let currentSection = '';
-                        let description = [];
-                        let brief = '';
-                        let details = [];
-                        let params = [];
-                        let returnValue = '';
-                        let example = [];
-
-                        for (const line of lines) {
-                            if (line.startsWith('@brief')) {
-                                brief = line.replace('@brief', '').trim();
-                            } else if (line.startsWith('@details')) {
-                                currentSection = 'details';
-                                const detailText = line.replace('@details', '').trim();
-                                if (detailText) {
-                                    details.push(detailText);
-                                }
-                            } else if (line.startsWith('@param')) {
-                                currentSection = '';
-                                const paramMatch = line.match(/@param\\s+(\\S+)\\s+(.*)/);
-                                if (paramMatch) {
-                                    params.push({
-                                        name: paramMatch[1],
-                                        description: paramMatch[2]
-                                    });
-                                }
-                            } else if (line.startsWith('@return')) {
-                                currentSection = '';
-                                returnValue = line.replace('@return', '').trim();
-                            } else if (line.startsWith('@example')) {
-                                currentSection = 'example';
-                            } else if (currentSection === 'example') {
-                                if (line.startsWith('@')) {
-                                    currentSection = '';
-                                } else {
-                                    example.push(line);
-                                }
-                            } else if (currentSection === 'details') {
-                                if (line.startsWith('@')) {
-                                    currentSection = '';
-                                } else {
-                                    details.push(line);
-                                }
-                            } else if (!line.startsWith('@')) {
-                                description.push(line);
-                            }
-                        }
-
-                        // 构建 HTML
-                        if (brief) {
-                            html += \`<div class="doc-section"><h4>简要描述</h4><p>\${brief}</p></div>\`;
-                        }
-
-                        if (details.length > 0) {
-                            html += \`<div class="doc-section"><h4>详细描述</h4><p>\${details.join(' ')}</p></div>\`;
-                        }
-
-                        if (description.length > 0) {
-                            html += \`<p>\${description.join(' ')}</p>\`;
-                        }
-
-                        if (params.length > 0) {
-                            html += \`
-                                <h4>参数</h4>
-                                <ul class="param-list">
-                                    \${params.map(param => \`
-                                        <li><span class="param-name">\${param.name}</span>: \${param.description}</li>
-                                    \`).join('')}
-                                </ul>
-                            \`;
-                        }
-
-                        if (returnValue) {
-                            html += \`
-                                <h4>返回值</h4>
-                                <p>\${returnValue}</p>
-                            \`;
-                        }
-
-                        if (example.length > 0) {
-                            html += \`
-                                <h4>示例</h4>
-                                <pre><code>\${escapeHtml(example.join('\\n'))}</code></pre>
-                            \`;
-                        }
-
-                        return html;
-                    }
-                    
-                    // HTML 转义
-                    function escapeHtml(text) {
-                        return text
-                            .replace(/&/g, "&amp;")
-                            .replace(/</g, "&lt;")
-                            .replace(/>/g, "&gt;")
-                            .replace(/"/g, "&quot;")
-                            .replace(/'/g, "&#039;");
-                    }
-
-                    // 搜索过滤
-                    const searchInput = document.getElementById('search');
-                    searchInput.addEventListener('input', () => {
-                        const query = searchInput.value.toLowerCase();
-                        document.querySelectorAll('.function-item').forEach(item => {
-                            const name = item.getAttribute('data-name').toLowerCase();
-                            item.style.display = name.includes(query) ? 'block' : 'none';
-                        });
-                    });
-
-                    // 跳转按钮事件
-                    window.addEventListener('message', event => {
-                        const message = event.data;
-                        if (message.command === 'updateFunctionDoc') {
-                            setTimeout(() => {
-                                const btn = document.getElementById('goto-def');
-                                if (btn) {
-                                    btn.addEventListener('click', () => {
-                                        vscode.postMessage({
-                                            command: 'gotoDefinition',
-                                            filePath: message.functionInfo.filePath,
-                                            line: message.functionInfo.line
-                                        });
-                                    });
-                                }
-                            }, 50);
-                        }
-                    });
-                })();
-            </script>
         </body>
-        </html>
-        `;
+        </html>`;
+    }
+
+    /**
+     * HTML 转义
+     */
+    private escapeHtml(text: string): string {
+        return FunctionUtils.escapeHtml(text);
+    }
+
+    /**
+     * 获取函数返回类型
+     */
+    private getReturnType(definition: string): string {
+        return FunctionUtils.getReturnType(definition);
+    }
+
+    /**
+     * 获取分组类型
+     */
+    private getGroupType(source: string): string {
+        return FunctionUtils.getGroupType(source);
+    }
+
+    /**
+     * 清理ID字符串
+     */
+    private sanitizeId(str: string): string {
+        return FunctionUtils.sanitizeId(str);
     }
 
     /**
      * 处理 JavaDoc 风格的注释
      */
     private processJavaDocComment(comment: string): string {
-        // 移除注释标记和多余的空格
-        let lines = comment
-            .replace(/\/\*\*|\*\/|\*/g, '')
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0);
-
-        let markdown = '';
-        let currentSection = '';
-        let brief = '';
-        let details: string[] = [];
-
-        for (const line of lines) {
-            if (line.startsWith('@brief')) {
-                brief = line.replace('@brief', '').trim();
-            } else if (line.startsWith('@details')) {
-                currentSection = 'details';
-                const detailText = line.replace('@details', '').trim();
-                if (detailText) {
-                    details.push(detailText);
-                }
-            } else if (line.startsWith('@param')) {
-                currentSection = '';
-                if (!markdown.includes('### 参数')) {
-                    markdown += '\n### 参数\n';
-                }
-                const paramMatch = line.match(/@param\s+(\S+)\s+(.*)/);
-                if (paramMatch) {
-                    markdown += `- \`${paramMatch[1]}\`: ${paramMatch[2]}\n`;
-                }
-            } else if (line.startsWith('@return')) {
-                currentSection = '';
-                markdown += '\n### 返回值\n';
-                markdown += line.replace('@return', '').trim() + '\n';
-            } else if (line.startsWith('@example')) {
-                currentSection = 'example';
-                markdown += '\n### 示例\n```lpc\n';
-            } else if (currentSection === 'example') {
-                if (line.startsWith('@')) {
-                    markdown += '```\n';
-                    currentSection = '';
-                } else {
-                    markdown += line + '\n';
-                }
-            } else if (currentSection === 'details') {
-                if (line.startsWith('@')) {
-                    currentSection = '';
-                } else {
-                    details.push(line);
-                }
-            } else if (!line.startsWith('@')) {
-                if (!currentSection) {
-                    markdown += line + '\n';
-                }
-            }
-        }
-
-        if (currentSection === 'example') {
-            markdown += '```\n';
-        }
-
-        // 将 brief 和 details 添加到开头
-        let result = '';
-        if (brief) {
-            result += `### 简要描述\n${brief}\n\n`;
-        }
-        if (details.length > 0) {
-            result += `### 详细描述\n${details.join(' ')}\n\n`;
-        }
-        result += markdown;
-
-        return result;
+        return JavaDocProcessor.processToMarkdown(comment);
     }
 
     private gotoDefinition(filePath: string, line: number) {
@@ -847,4 +575,4 @@ export class FunctionDocPanel {
             }
         }
     }
-} 
+}

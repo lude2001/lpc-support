@@ -1,9 +1,0 @@
-{
-    "indentSize": 4,
-    "maxLineLength": 80,
-    "bracketSpacing": true,
-    "singleQuote": false,
-    "trailingComma": "none",
-    "semicolons": true,
-    "newlineBeforeBrace": true
-} 

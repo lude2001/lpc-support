@@ -2,22 +2,38 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "publisher": "ludexiang",
+  "author": {
+    "name": "ludexiang",
+    "url": "https://github.com/lude2001"
+  },
+  "homepage": "https://github.com/lude2001/lpc-support#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/lude2001/lpc-support.git"
   },
+  "bugs": {
+    "url": "https://github.com/lude2001/lpc-support/issues"
+  },
+  "keywords": [
+    "lpc",
+    "fluffos",
+    "mud",
+    "lpmud",
+    "language-support",
+    "syntax-highlighting",
+    "code-completion",
+    "programming-language"
+  ],
   "engines": {
-    "vscode": "^1.93.0"
+    "vscode": "^1.80.0"
   },
   "categories": [
     "Programming Languages"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [
-    "onLanguage:lpc"
-  ],
+  "activationEvents": [],
   "dependencies": {
     "@types/cheerio": "^0.22.35",
     "@types/vscode": "^1.95.0",
@@ -66,6 +82,11 @@
       }
     ],
     "commands": [
+      {
+        "command": "lpc.startDriver",
+        "title": "启动MUD驱动",
+        "category": "LPC"
+      },
       {
         "command": "lpc-support.checkUnusedVariables",
         "title": "检查未使用的变量"
@@ -167,9 +188,72 @@
         "command": "lpc.clearCache",
         "title": "清理解析缓存",
         "category": "LPC"
+      },
+      {
+        "command": "lpc.generateJavadoc",
+        "title": "生成Javadoc注释",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.errorTree.refresh",
+        "title": "刷新",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "lpc.errorTree.clear",
+        "title": "清空所有错误",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "lpc.errorTree.manageServers",
+        "title": "管理服务器",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "lpc.errorTree.selectServer",
+        "title": "切换服务器",
+        "icon": "$(server-environment)"
+      },
+      {
+        "command": "lpc.errorTree.openErrorLocation",
+        "title": "打开错误位置"
+      },
+      {
+        "command": "lpc.errorTree.copyError",
+        "title": "复制错误信息",
+        "icon": "$(copy)"
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "lpc.errorTree.selectServer",
+          "when": "view == lpcErrorTree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lpc.errorTree.refresh",
+          "when": "view == lpcErrorTree",
+          "group": "navigation@2"
+        },
+        {
+          "command": "lpc.errorTree.clear",
+          "when": "view == lpcErrorTree",
+          "group": "navigation@3"
+        },
+        {
+          "command": "lpc.errorTree.manageServers",
+          "when": "view == lpcErrorTree",
+          "group": "navigation@4"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "lpc.errorTree.copyError",
+          "when": "view == lpcErrorTree && viewItem == errorItem",
+          "group": "inline"
+        }
+      ],
       "editor/context": [
         {
           "when": "resourceLangId == lpc",
@@ -216,6 +300,11 @@
           "when": "resourceLangId == lpc",
           "command": "lpc.clearCache",
           "group": "LPC"
+        },
+        {
+          "when": "resourceLangId == lpc",
+          "command": "lpc.generateJavadoc",
+          "group": "LPC"
         }
       ],
       "explorer/context": [
@@ -237,10 +326,33 @@
         }
       ]
     },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "lpc-activitybar",
+          "title": "LPC",
+          "icon": "media/function-doc-dark.svg"
+        }
+      ]
+    },
+    "views": {
+      "lpc-activitybar": [
+        {
+          "id": "lpcErrorTree",
+          "name": "错误诊断中心",
+          "type": "tree"
+        }
+      ]
+    },
     "configuration": {
       "type": "object",
       "title": "LPC Support Configuration",
       "properties": {
+        "lpc.driver.command": {
+          "type": "string",
+          "default": "",
+          "description": "用于启动MUD驱动程序的命令。"
+        },
         "lpc.includePath": {
           "type": "string",
           "default": "",
@@ -251,15 +363,28 @@
           "default": "",
           "description": "LPC模拟函数库目录的路径"
         },
+        "lpc.errorViewer.servers": {
+          "type": "array",
+          "default": [],
+          "description": "配置错误查看器的服务器列表",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "服务器的名称"
+              },
+              "address": {
+                "type": "string",
+                "description": "服务器的地址 (例如 http://127.0.0.1:8092)"
+              }
+            }
+          }
+        },
         "lpc.enableApplyReturnCheck": {
           "type": "boolean",
           "default": true,
           "description": "启用 apply 函数返回类型匹配检查"
-        },
-        "lpc.enableUnusedParameterCheck": {
-          "type": "boolean",
-          "default": true,
-          "description": "启用 未使用参数 检查"
         },
         "lpc.enableUnusedGlobalVarCheck": {
           "type": "boolean",
@@ -298,6 +423,76 @@
           "minimum": 10,
           "maximum": 200,
           "description": "异步处理时的批次大小，较小的值可以提高响应性但可能降低总体性能"
+        },
+        "lpc.glm4.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "智谱AI GLM-4 API密钥，用于生成Javadoc注释"
+        },
+        "lpc.glm4.model": {
+          "type": "string",
+          "default": "GLM-4-Flash-250414",
+          "description": "GLM-4模型类型，支持预设模型或自定义模型名称。预设模型包括: glm-4, glm-4-flash, glm-z1-flash, GLM-4.5-Flash, GLM-4-Flash-250414"
+        },
+        "lpc.glm4.allowCustomModel": {
+          "type": "boolean",
+          "default": true,
+          "description": "允许用户在生成Javadoc时选择自定义模型"
+        },
+        "lpc.glm4.baseUrl": {
+          "type": "string",
+          "default": "https://open.bigmodel.cn/api/paas/v4",
+          "description": "GLM-4 API基础URL"
+        },
+        "lpc.glm4.timeout": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 5000,
+          "maximum": 120000,
+          "description": "API请求超时时间（毫秒）"
+        },
+        "lpc.javadoc.enableAutoGeneration": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用自动生成Javadoc注释功能"
+        },
+        "lpc.glm4.alwaysShowModelSelector": {
+          "type": "boolean",
+          "default": false,
+          "description": "每次生成Javadoc时都显示模型选择界面，关闭后将直接使用默认模型"
+        },
+        "lpc.glm4.rememberLastModel": {
+          "type": "boolean",
+          "default": true,
+          "description": "记住上次选择的模型，下次生成时优先使用"
+        },
+        "lpc.glm4.lastSelectedModel": {
+          "type": "string",
+          "default": "",
+          "description": "上次选择的模型名称（自动保存）"
+        },
+        "lpc.glm4.customModels": {
+          "type": "array",
+          "default": [],
+          "description": "用户自定义的模型列表",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "模型显示名称"
+              },
+              "id": {
+                "type": "string",
+                "description": "模型ID"
+              },
+              "description": {
+                "type": "string",
+                "description": "模型描述"
+              }
+            },
+            "required": ["name", "id"]
+          }
         }
       }
     },
@@ -384,7 +579,6 @@
     "snippets/**",
     "media/**",
     "language-configuration.json",
-    "config/**",
-    "formatter-config.json"
+    "config/**"
   ]
 }

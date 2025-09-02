@@ -1,3 +1,7 @@
 node_modules
 out
 *.vsix
+src/antlr/LPCLexer.interp
+dist/extension.js
+dist/extension.js.map
+src/antlr/LPCParser.interp

@@ -55,16 +55,16 @@ mode DEFAULT_MODE;
 
 // ---------- 空白 / 注释 ----------
 WS            : [ \t\r\n\u000C]+ -> skip ;
-LINE_COMMENT  : '//' ~[\r\n]* -> skip ;
-BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
+LINE_COMMENT  : '//' ~[\r\n]* -> channel(HIDDEN);
+BLOCK_COMMENT : '/*' .*? '*/' -> channel(HIDDEN);
 
 // ---------- 预处理指令 ----------
-DIRECTIVE : '#' ~[\r\n]* ( '\\' '\r'? '\n' ~[\r\n]* )* '\r'? '\n'? -> skip ;
+DIRECTIVE : '#' ~[\r\n]* ( '\\' '\r'? '\n' ~[\r\n]* )* '\r'? '\n'? -> channel(HIDDEN);
 
 // ---------- 关键字 ----------
 IF:'if'; ELSE:'else'; FOR:'for'; WHILE:'while'; DO:'do'; SWITCH:'switch'; CASE:'case';
 DEFAULT:'default'; BREAK:'break'; CONTINUE:'continue'; RETURN:'return'; FOREACH:'foreach';
-INHERIT:'inherit'; CATCH:'catch'; REF:'ref'; IN:'in';
+INHERIT:'inherit'; INCLUDE:'include'; CATCH:'catch'; REF:'ref'; IN:'in';
 KW_INT:'int'; KW_FLOAT:'float'; KW_STRING:'string'; KW_OBJECT:'object'; KW_MIXED:'mixed'; KW_MAPPING:'mapping'; KW_FUNCTION:'function'; KW_BUFFER:'buffer'; KW_VOID:'void'; KW_STRUCT:'struct';
 
 // ---------- 操作符 / 标点 ----------
@@ -84,4 +84,4 @@ BIT_OR_ASSIGN:'|='; BIT_AND_ASSIGN:'&=';
 MODIFIER : 'private' | 'public' | 'protected' | 'varargs' | 'nosave' | 'static' | 'nomask';
 
 // ---------- 标识符 ----------
-Identifier : [a-zA-Z_][a-zA-Z_0-9]* ; 
+Identifier : [a-zA-Z_][a-zA-Z_0-9]* ;

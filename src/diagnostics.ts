@@ -10,7 +10,7 @@ import { getParsed } from './parseCache';
 import { StringLiteralCollector } from './collectors/StringLiteralCollector';
 import { FileNamingCollector } from './collectors/FileNamingCollector';
 import { UnusedVariableCollector } from './collectors/UnusedVariableCollector';
-import { UnusedParameterCollector } from './collectors/UnusedParameterCollector';
+// import { UnusedParameterCollector } from './collectors/UnusedParameterCollector'; // 已移除：取消函数参数使用情况检查
 import { GlobalVariableCollector } from './collectors/GlobalVariableCollector';
 import { ApplyFunctionReturnCollector } from './collectors/ApplyFunctionReturnCollector';
 import { LocalVariableDeclarationCollector } from './collectors/LocalVariableDeclarationCollector';
@@ -116,7 +116,7 @@ export class LPCDiagnostics {
             new StringLiteralCollector(),
             new FileNamingCollector(),
             new UnusedVariableCollector(),
-            new UnusedParameterCollector(),
+            // new UnusedParameterCollector(), // 已移除：取消函数参数使用情况检查
             new GlobalVariableCollector(),
             new ApplyFunctionReturnCollector(),
             new LocalVariableDeclarationCollector(),

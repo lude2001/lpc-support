@@ -21,6 +21,7 @@ statement
     |   continueStatement
     |   returnStatement
     |   inheritStatement
+    |   includeStatement
     |   block
     |   exprStatement
     |   prototypeStatement
@@ -252,6 +253,8 @@ closureExpr : LPAREN COLON expression? COLON RPAREN ;
 
 inheritStatement : INHERIT expression SEMI ;
 
+includeStatement : INCLUDE expression SEMI ;
+
 macroInvoke : Identifier LPAREN argumentList? RPAREN ;
 
 prototypeStatement : MODIFIER* typeSpec? STAR* Identifier LPAREN parameterList? RPAREN SEMI ;
@@ -267,4 +270,4 @@ sliceExpr
     |   RANGE_OP LT? expression?                    # openRange
     |   expression                                  # singleIndex
     |   LT expression RANGE_OP LT? expression?      # tailHeadRange
-    ; 
+    ;

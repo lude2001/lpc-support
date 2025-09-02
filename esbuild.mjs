@@ -1,4 +1,32 @@
 import { build } from 'esbuild';
+import { copyFileSync, mkdirSync, existsSync } from 'fs';
+import { dirname } from 'path';
+
+// 复制文件的辅助函数
+function copyFile(src, dest) {
+  const destDir = dirname(dest);
+  if (!existsSync(destDir)) {
+    mkdirSync(destDir, { recursive: true });
+  }
+  copyFileSync(src, dest);
+}
+
+// 复制模板文件插件
+const copyTemplatesPlugin = {
+  name: 'copy-templates',
+  setup(build) {
+    build.onEnd(() => {
+      try {
+        // 复制模板文件到dist目录
+        copyFile('src/templates/functionDocPanel.html', 'dist/templates/functionDocPanel.html');
+        copyFile('src/templates/functionDocPanel.js', 'dist/templates/functionDocPanel.js');
+        console.log('✅ Template files copied successfully');
+      } catch (error) {
+        console.error('❌ Failed to copy template files:', error);
+      }
+    });
+  }
+};
 
 build({
   entryPoints: ['src/extension.ts'],
@@ -21,7 +49,8 @@ build({
   conditions: ['node'],
   mainFields: ['main', 'module'],
   keepNames: false,
-  metafile: true
+  metafile: true,
+  plugins: [copyTemplatesPlugin]
 }).then(result => {
   if (result.metafile) {
     console.log('📦 Bundle analysis:');

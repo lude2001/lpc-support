@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { GLM4Client } from './glm4Client';
+import { LPCFunctionParser } from './functionParser';
 
 export class LPCCodeActionProvider implements vscode.CodeActionProvider {
     public static readonly unusedVarDiagnosticCode = 'unusedVar';
@@ -31,6 +33,11 @@ export class LPCCodeActionProvider implements vscode.CodeActionProvider {
 
         registerRenameCmd('lpc.renameVarToSnakeCase');
         registerRenameCmd('lpc.renameVarToCamelCase');
+
+        // 注册生成Javadoc注释的命令
+        vscode.commands.registerCommand('lpc.generateJavadoc', async () => {
+            await this.generateJavadocCommand();
+        });
 
         LPCCodeActionProvider.commandsRegistered = true;
     }
@@ -305,6 +312,166 @@ export class LPCCodeActionProvider implements vscode.CodeActionProvider {
         action.edit = edit;
         action.diagnostics = [diagnostic];
         return action;
+    }
+
+    /**
+     * 生成Javadoc注释的命令处理函数
+     */
+    private async generateJavadocCommand(): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== 'lpc') {
+            vscode.window.showErrorMessage('请在LPC文件中选择一个函数');
+            return;
+        }
+
+        const config = vscode.workspace.getConfiguration('lpc');
+        const enableAutoGeneration = config.get<boolean>('javadoc.enableAutoGeneration', true);
+        
+        if (!enableAutoGeneration) {
+            vscode.window.showInformationMessage('Javadoc自动生成功能已禁用');
+            return;
+        }
+
+        const selection = editor.selection;
+        
+        try {
+            // 显示进度条
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: '正在生成Javadoc注释...',
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ increment: 0 });
+
+                // 解析函数 - 优先使用选中的文本，否则使用光标位置
+                let functionInfo: any = null;
+                if (!selection.isEmpty) {
+                    functionInfo = LPCFunctionParser.parseFunctionFromSelection(editor.document, selection);
+                } else {
+                    // 使用光标位置自动检测函数
+                    functionInfo = LPCFunctionParser.parseFunctionFromCursor(editor.document, selection.active);
+                }
+                
+                if (!functionInfo) {
+                    vscode.window.showErrorMessage('无法找到函数定义，请确保光标位于函数内部或选择完整的函数');
+                    return;
+                }
+
+                progress.report({ increment: 30, message: '解析函数信息...' });
+
+                const alwaysShowModelSelector = config.get<boolean>('glm4.alwaysShowModelSelector', false);
+                const rememberLastModel = config.get<boolean>('glm4.rememberLastModel', true);
+                const lastSelectedModel = config.get<string>('glm4.lastSelectedModel', '');
+                
+                let selectedModel: string | undefined;
+                let glm4Client: GLM4Client;
+                
+                if (alwaysShowModelSelector) {
+                    // 总是显示模型选择界面
+                    selectedModel = await GLM4Client.selectModel();
+                    if (!selectedModel) {
+                        vscode.window.showInformationMessage('已取消生成Javadoc注释');
+                        return;
+                    }
+                    glm4Client = GLM4Client.fromVSCodeConfigWithModel(selectedModel);
+                } else if (rememberLastModel && lastSelectedModel) {
+                    // 使用记住的上次选择的模型
+                    selectedModel = lastSelectedModel;
+                    glm4Client = GLM4Client.fromVSCodeConfigWithModel(selectedModel);
+                } else {
+                    // 让用户选择模型
+                    selectedModel = await GLM4Client.selectModel();
+                    if (!selectedModel) {
+                        vscode.window.showInformationMessage('已取消生成Javadoc注释');
+                        return;
+                    }
+                    glm4Client = GLM4Client.fromVSCodeConfigWithModel(selectedModel);
+                }
+                
+                progress.report({ increment: 50, message: `使用模型 ${selectedModel} 调用API...` });
+
+                // 生成Javadoc注释
+                const javadocComment = await glm4Client.generateJavadoc(functionInfo.fullText);
+                
+                progress.report({ increment: 80, message: '插入注释...' });
+
+                // 查找函数开始位置
+                const functionStartLine = this.findFunctionStartLine(editor.document, selection, functionInfo);
+                
+                // 插入注释
+                const insertPosition = new vscode.Position(functionStartLine, 0);
+                const indent = this.getLineIndentation(editor.document, functionStartLine);
+                
+                // 格式化注释（添加适当的缩进）
+                const formattedComment = this.formatJavadocComment(javadocComment, indent);
+                
+                await editor.edit(editBuilder => {
+                    editBuilder.insert(insertPosition, formattedComment + '\n');
+                });
+
+                progress.report({ increment: 100, message: '完成' });
+                
+                vscode.window.showInformationMessage('Javadoc注释生成成功！');
+            });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            vscode.window.showErrorMessage(`生成Javadoc注释失败: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * 查找函数开始行
+     */
+    private findFunctionStartLine(document: vscode.TextDocument, selection: vscode.Selection, functionInfo: any): number {
+        // 使用AST信息直接获取函数定义的开始行
+        const functionName = functionInfo.name;
+        const text = document.getText();
+        
+        // 在函数的完整文本中查找函数名的位置
+        const functionText = functionInfo.fullText;
+        const functionTextIndex = text.indexOf(functionText);
+        
+        if (functionTextIndex !== -1) {
+            // 在函数文本中查找函数名的位置
+            const functionNameInText = functionText.indexOf(functionName + '(');
+            if (functionNameInText !== -1) {
+                const absolutePosition = functionTextIndex + functionNameInText;
+                const position = document.positionAt(absolutePosition);
+                return position.line;
+            }
+        }
+        
+        // 回退方案：在整个文档中查找函数名
+        const functionNameIndex = text.indexOf(functionName + '(');
+        if (functionNameIndex !== -1) {
+            const position = document.positionAt(functionNameIndex);
+            return position.line;
+        }
+        
+        // 最后的回退：使用光标位置
+        return selection.active.line;
+    }
+
+    /**
+     * 获取指定行的缩进
+     */
+    private getLineIndentation(document: vscode.TextDocument, lineNumber: number): string {
+        const line = document.lineAt(lineNumber);
+        const match = line.text.match(/^(\s*)/);
+        return match ? match[1] : '';
+    }
+
+    /**
+     * 格式化Javadoc注释，添加适当的缩进
+     */
+    private formatJavadocComment(comment: string, indent: string): string {
+        const lines = comment.split('\n');
+        return lines.map(line => {
+            if (line.trim() === '') {
+                return indent;
+            }
+            return indent + line;
+        }).join('\n');
     }
 }
 

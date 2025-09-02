@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import { CommonTokenStream, Token } from 'antlr4ts';
 import { LPCLexer } from './antlr/LPCLexer';
 import { LPCParser, PostfixExpressionContext, IdentifierPrimaryContext, StringPrimaryContext } from './antlr/LPCParser';
-import { FunctionDefContext, VariableDeclContext, VariableDeclaratorContext } from './antlr/LPCParser';
+import { FunctionDefContext, VariableDeclContext, VariableDeclaratorContext, PrototypeStatementContext } from './antlr/LPCParser';
 import { getParsed } from './parseCache';
 
 interface ObjectAccessInfo {
@@ -24,10 +24,27 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private functionDefinitions: Map<string, vscode.Location> = new Map();
     private variableDeclarations: Map<string, { loc: vscode.Location; offset: number }[]> = new Map();
     private includeFileCache = new Map<string, string[]>(); // 缓存文件的include列表
+    private headerFunctionCache = new Map<string, Map<string, vscode.Location>>(); // 缓存头文件中的函数定义
 
     constructor(macroManager: MacroManager, efunDocsManager: EfunDocsManager) {
         this.macroManager = macroManager;
         this.efunDocsManager = efunDocsManager;
+        
+        // 监听文件变化，清除相关缓存
+        vscode.workspace.onDidChangeTextDocument((event) => {
+            const filePath = event.document.uri.fsPath;
+            if (filePath.endsWith('.h')) {
+                this.headerFunctionCache.delete(filePath);
+                // 清除依赖此头文件的include缓存
+                for (const [key, includes] of this.includeFileCache.entries()) {
+                    if (includes.includes(filePath)) {
+                        this.includeFileCache.delete(key);
+                    }
+                }
+            } else {
+                this.includeFileCache.delete(filePath);
+            }
+        });
     }
 
     async provideDefinition(
@@ -334,16 +351,33 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
             const targetDoc = await vscode.workspace.openTextDocument(fileUri);
             const { tree } = getParsed(targetDoc);
             
+            let functionImplementation: vscode.Location | undefined;
+            let functionPrototype: vscode.Location | undefined;
+            
             for (const stmt of tree.statement()) {
+                // 查找函数定义（实现）
                 const funcCtx: FunctionDefContext | undefined = stmt.functionDef();
-                if (!funcCtx) continue;
-
-                const idToken = funcCtx.Identifier();
-                if (idToken && idToken.text === methodName) {
-                    const namePos = targetDoc.positionAt(idToken.symbol.startIndex);
-                    return new vscode.Location(fileUri, namePos);
+                if (funcCtx) {
+                    const idToken = funcCtx.Identifier();
+                    if (idToken && idToken.text === methodName) {
+                        const namePos = targetDoc.positionAt(idToken.symbol.startIndex);
+                        functionImplementation = new vscode.Location(fileUri, namePos);
+                    }
+                }
+                
+                // 查找函数原型声明
+                const protoCtx: PrototypeStatementContext | undefined = stmt.prototypeStatement();
+                if (protoCtx) {
+                    const idToken = protoCtx.Identifier();
+                    if (idToken && idToken.text === methodName) {
+                        const namePos = targetDoc.positionAt(idToken.symbol.startIndex);
+                        functionPrototype = new vscode.Location(fileUri, namePos);
+                    }
                 }
             }
+            
+            // 优先返回函数实现，如果没有实现则返回原型
+            return functionImplementation || functionPrototype;
         } catch (error) {
             // 静默处理错误
         }
@@ -394,7 +428,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     }
 
     /**
-     * 获取文件的include列表
+     * 获取文件的include列表，并解析为绝对路径
      */
     private async getIncludeFiles(filePath: string): Promise<string[]> {
         if (this.includeFileCache.has(filePath)) {
@@ -406,17 +440,33 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         try {
             const content = await fs.promises.readFile(filePath, 'utf-8');
             const lines = content.split('\n');
+            const currentDir = path.dirname(filePath);
 
             for (const line of lines) {
                 const trimmedLine = line.trim();
-                // 匹配 #include "path" 或 #include <path>，允许后面有注释
-                const includeMatch = trimmedLine.match(/^#include\s+[<"]([^>"]+)[>"](?:\s*\/\/.*)?$/);
+                // 匹配 #include "path" 或 #include <path> 或 include "path"，允许后面有注释
+                const includeMatch = trimmedLine.match(/^#?include\s+[<"]([^>"]+)[>"](?:\s*\/\/.*)?$/);
                 if (includeMatch) {
                     let includePath = includeMatch[1];
                     if (!includePath.endsWith('.h') && !includePath.endsWith('.c')) {
                         includePath += '.h'; // 默认为头文件
                     }
-                    includeFiles.push(includePath);
+                    
+                    // 解析为绝对路径
+                    let resolvedPath: string;
+                    if (path.isAbsolute(includePath)) {
+                        resolvedPath = includePath;
+                    } else {
+                        resolvedPath = path.resolve(currentDir, includePath);
+                    }
+                    
+                    // 检查文件是否存在
+                    try {
+                        await fs.promises.access(resolvedPath);
+                        includeFiles.push(resolvedPath);
+                    } catch {
+                        // 文件不存在，跳过
+                    }
                 }
             }
 
@@ -426,6 +476,64 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         return includeFiles;
+    }
+
+    /**
+     * 获取头文件中的函数索引
+     */
+    private async getHeaderFunctionIndex(headerPath: string): Promise<Map<string, vscode.Location>> {
+        if (this.headerFunctionCache.has(headerPath)) {
+            return this.headerFunctionCache.get(headerPath)!;
+        }
+
+        const functionIndex = new Map<string, vscode.Location>();
+        const functionPrototypes = new Map<string, vscode.Location>();
+        
+        try {
+            const headerUri = vscode.Uri.file(headerPath);
+            const headerDoc = await vscode.workspace.openTextDocument(headerUri);
+            const { tree } = getParsed(headerDoc);
+            
+            if (tree) {
+                for (const stmt of tree.statement()) {
+                    // 查找函数原型声明
+                    const protoCtx = stmt.prototypeStatement();
+                    if (protoCtx) {
+                        const idToken = protoCtx.Identifier();
+                        if (idToken) {
+                            const namePos = headerDoc.positionAt(idToken.symbol.startIndex);
+                            const location = new vscode.Location(headerUri, namePos);
+                            functionPrototypes.set(idToken.text, location);
+                        }
+                    }
+                    
+                    // 查找内联函数定义（实现）
+                    const funcCtx = stmt.functionDef();
+                    if (funcCtx) {
+                        const idToken = funcCtx.Identifier();
+                        if (idToken) {
+                            const namePos = headerDoc.positionAt(idToken.symbol.startIndex);
+                            const location = new vscode.Location(headerUri, namePos);
+                            // 函数实现优先于原型
+                            functionIndex.set(idToken.text, location);
+                        }
+                    }
+                }
+                
+                // 对于没有实现的函数，添加原型
+                for (const [name, location] of functionPrototypes) {
+                    if (!functionIndex.has(name)) {
+                        functionIndex.set(name, location);
+                    }
+                }
+            }
+            
+            this.headerFunctionCache.set(headerPath, functionIndex);
+        } catch (error) {
+            // 静默处理错误
+        }
+        
+        return functionIndex;
     }
 
     /**
@@ -439,13 +547,56 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
             // 获取当前文件的include列表
             const includeFiles = await this.getIncludeFiles(document.uri.fsPath);
             
-            // 在每个include文件中查找函数
+            let functionImplementation: vscode.Location | undefined;
+            let functionPrototype: vscode.Location | undefined;
+            
+            // 在所有include文件中查找函数，收集实现和原型
             for (const includeFile of includeFiles) {
-                const location = await this.findMethodInFile(document, includeFile, functionName);
-                if (location) {
-                    return location;
+                if (includeFile.endsWith('.h')) {
+                    // 对于头文件，需要检查是实现还是原型
+                    try {
+                        if (!fs.existsSync(includeFile)) continue;
+                        
+                        const fileUri = vscode.Uri.file(includeFile);
+                        const targetDoc = await vscode.workspace.openTextDocument(fileUri);
+                        const { tree } = getParsed(targetDoc);
+                        
+                        for (const stmt of tree.statement()) {
+                            // 查找函数定义（实现）
+                            const funcCtx = stmt.functionDef();
+                            if (funcCtx) {
+                                const idToken = funcCtx.Identifier();
+                                if (idToken && idToken.text === functionName) {
+                                    const namePos = targetDoc.positionAt(idToken.symbol.startIndex);
+                                    functionImplementation = new vscode.Location(fileUri, namePos);
+                                }
+                            }
+                            
+                            // 查找函数原型声明
+                            const protoCtx = stmt.prototypeStatement();
+                            if (protoCtx) {
+                                const idToken = protoCtx.Identifier();
+                                if (idToken && idToken.text === functionName && !functionPrototype) {
+                                    const namePos = targetDoc.positionAt(idToken.symbol.startIndex);
+                                    functionPrototype = new vscode.Location(fileUri, namePos);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        // 静默处理错误，继续处理下一个文件
+                    }
+                } else {
+                    // 对于其他文件，使用原有方法
+                    const location = await this.findMethodInFile(document, includeFile, functionName);
+                    if (location) {
+                        // 假设.c文件中的都是实现
+                        functionImplementation = location;
+                    }
                 }
             }
+            
+            // 优先返回函数实现，如果没有实现则返回原型
+            return functionImplementation || functionPrototype;
         } catch (error) {
             // 静默处理错误
         }
@@ -734,16 +885,37 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
 
     private async findFunctionDefinitions(document: vscode.TextDocument): Promise<void> {
         const { tree } = getParsed(document);
+        const functionPrototypes = new Map<string, vscode.Location>();
 
         for (const stmt of tree.statement()) {
+            // 查找函数原型声明
+            const protoCtx = stmt.prototypeStatement();
+            if (protoCtx) {
+                const idToken = protoCtx.Identifier();
+                if (idToken) {
+                    const namePos = document.positionAt(idToken.symbol.startIndex);
+                    const location = new vscode.Location(document.uri, namePos);
+                    functionPrototypes.set(idToken.text, location);
+                }
+            }
+            
+            // 查找函数定义（实现）
             const funcCtx: FunctionDefContext | undefined = stmt.functionDef();
-            if (!funcCtx) continue;
-
-            const idToken = funcCtx.Identifier().symbol;
-            const funcName = idToken.text ?? '';
-            const namePos = document.positionAt(idToken.startIndex);
-            const location = new vscode.Location(document.uri, namePos);
-            this.functionDefinitions.set(funcName, location);
+            if (funcCtx) {
+                const idToken = funcCtx.Identifier().symbol;
+                const funcName = idToken.text ?? '';
+                const namePos = document.positionAt(idToken.startIndex);
+                const location = new vscode.Location(document.uri, namePos);
+                // 函数实现优先于原型
+                this.functionDefinitions.set(funcName, location);
+            }
+        }
+        
+        // 对于没有实现的函数，添加原型
+        for (const [name, location] of functionPrototypes) {
+            if (!this.functionDefinitions.has(name)) {
+                this.functionDefinitions.set(name, location);
+            }
         }
     }
 
@@ -817,4 +989,4 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
 
         traverse(tree);
     }
-} 
+}

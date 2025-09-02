@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { LPCDiagnostics } from './diagnostics';
 import { LPCCodeActionProvider } from './codeActions';
 import { LPCCompletionItemProvider } from './completionProvider';
@@ -8,7 +9,8 @@ import { MacroManager } from './macroManager';
 import { LPCDefinitionProvider } from './definitionProvider';
 import { EfunDocsManager } from './efunDocs';
 import { FunctionDocPanel } from './functionDocPanel';
-import { formatLPCCode } from './formatter'; // 从 formatter.ts 导入
+import { ErrorTreeDataProvider, ErrorServerConfig } from './errorTreeDataProvider';
+
 import { getParseTreeString } from './parser/ParseTreePrinter';
 import { DebugErrorListener } from './parser/DebugErrorListener';
 import { CharStreams, CommonTokenStream } from 'antlr4ts';
@@ -61,21 +63,6 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // 注册格式化提供程序
-    context.subscriptions.push(
-        vscode.languages.registerDocumentFormattingEditProvider('lpc', {
-            provideDocumentFormattingEdits(document: vscode.TextDocument): vscode.TextEdit[] {
-                const text = document.getText();
-                const formatted = formatLPCCode(text);
-                const range = new vscode.Range(
-                    document.positionAt(0),
-                    document.positionAt(text.length)
-                );
-                return [vscode.TextEdit.replace(range, formatted)];
-            }
-        })
-    );
-
     // 分析当前打开的文档
     if (vscode.window.activeTextEditor) {
         diagnostics.analyzeDocument(vscode.window.activeTextEditor.document);
@@ -104,15 +91,149 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(showFunctionDocCommand);
 
+    // 注册错误诊断中心 (Tree View)
+    const errorTreeProvider = new ErrorTreeDataProvider();
+    vscode.window.createTreeView('lpcErrorTree', { treeDataProvider: errorTreeProvider });
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.errorTree.refresh', () => errorTreeProvider.refresh())
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.errorTree.clear', () => errorTreeProvider.clearErrors())
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.errorTree.addServer', async () => {
+            const name = await vscode.window.showInputBox({ prompt: '输入服务器名称' });
+            if (!name) return;
+
+            const address = await vscode.window.showInputBox({ prompt: '输入服务器地址 (例如 http://127.0.0.1:8092)' });
+            if (!address) return;
+
+            const config = vscode.workspace.getConfiguration('lpc.errorViewer');
+            const servers = config.get<ErrorServerConfig[]>('servers') || [];
+            servers.push({ name, address });
+            await config.update('servers', servers, vscode.ConfigurationTarget.Global);
+            errorTreeProvider.refresh();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.errorTree.removeServer', async () => {
+            const servers = errorTreeProvider.getServers();
+            if (servers.length === 0) {
+                vscode.window.showInformationMessage('没有配置的服务器。');
+                return;
+            }
+
+            const serverToRemove = await vscode.window.showQuickPick(
+                servers.map(s => s.name),
+                { placeHolder: '选择要移除的服务器' }
+            );
+
+            if (serverToRemove) {
+                const updatedServers = servers.filter(s => s.name !== serverToRemove);
+                await vscode.workspace.getConfiguration('lpc.errorViewer').update('servers', updatedServers, vscode.ConfigurationTarget.Global);
+                errorTreeProvider.refresh();
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.errorTree.manageServers', async () => {
+            const items = [
+                { label: "添加新服务器", command: 'lpc.errorTree.addServer' },
+                { label: "移除服务器", command: 'lpc.errorTree.removeServer' },
+                { label: "手动编辑 settings.json", command: 'openSettings' }
+            ];
+
+            const selected = await vscode.window.showQuickPick(items, { placeHolder: '管理错误查看器服务器' });
+
+            if (selected) {
+                if (selected.command === 'openSettings') {
+                    vscode.commands.executeCommand('workbench.action.openSettings', 'lpc.errorViewer.servers');
+                } else {
+                    vscode.commands.executeCommand(selected.command);
+                }
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.errorTree.selectServer', async () => {
+            const servers = errorTreeProvider.getServers();
+            if (servers.length === 0) {
+                vscode.window.showInformationMessage('没有可用的服务器，请先添加。', '添加服务器').then(selection => {
+                    if (selection === '添加服务器') {
+                        vscode.commands.executeCommand('lpc.errorTree.addServer');
+                    }
+                });
+                return;
+            }
+            const selected = await vscode.window.showQuickPick(servers.map(s => s.name), {
+                placeHolder: "选择一个活动的错误服务器"
+            });
+            if (selected) {
+                const server = servers.find(s => s.name === selected);
+                if (server) {
+                    errorTreeProvider.setActiveServer(server);
+                }
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.errorTree.openErrorLocation', async (errorItem: any) => {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders) {
+                vscode.window.showErrorMessage("请先打开一个工作区");
+                return;
+            }
+            const rootPath = workspaceFolders[0].uri.fsPath;
+            const filePath = path.join(rootPath, errorItem.file);
+            const fileUri = vscode.Uri.file(filePath);
+
+            try {
+                const doc = await vscode.workspace.openTextDocument(fileUri);
+                const editor = await vscode.window.showTextDocument(doc);
+                const line = errorItem.line - 1; // VSCode lines are 0-based
+                const range = new vscode.Range(line, 0, line, 100); // Select till column 100 to highlight
+                editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+                editor.selection = new vscode.Selection(range.start, range.end);
+            } catch (e) {
+                vscode.window.showErrorMessage(`无法打开文件: ${filePath}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('lpc.errorTree.copyError', async (errorItem: any) => {
+            if (!errorItem || !errorItem.fullError) {
+                vscode.window.showErrorMessage('无法复制错误信息：错误项无效');
+                return;
+            }
+            
+            try {
+                // 构建完整的错误信息
+                const errorInfo = `文件: ${errorItem.file}\n行号: ${errorItem.line}\n错误类型: ${errorItem.type === 'compile' ? '编译错误' : '运行时错误'}\n错误信息: ${errorItem.fullError}`;
+                
+                // 复制到剪贴板
+                await vscode.env.clipboard.writeText(errorInfo);
+                vscode.window.showInformationMessage('错误信息已复制到剪贴板');
+            } catch (error) {
+                vscode.window.showErrorMessage('复制错误信息失败');
+            }
+        })
+    );
+
     // 注册批量编译命令
     let compileFolderCommand = vscode.commands.registerCommand('lpc.compileFolder', async (uri?: vscode.Uri) => {
         let targetFolder: string;
 
         if (uri) {
-            // 如果是从右键菜单调用，使用选中的文件夹
             targetFolder = uri.fsPath;
         } else {
-            // 如果是从命令面板调用，让用户选择工作区
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders) {
                 vscode.window.showErrorMessage('请先打开一个工作区');
@@ -125,11 +246,9 @@ export function activate(context: vscode.ExtensionContext) {
                 uri: folder.uri
             }));
 
-            // 如果只有一个工作区文件夹，直接使用它
             if (folders.length === 1) {
                 targetFolder = folders[0].uri.fsPath;
             } else {
-                // 如果有多个工作区文件夹，让用户选择
                 const selected = await vscode.window.showQuickPick(folders, {
                     placeHolder: '选择要编译的文件夹'
                 });
@@ -141,7 +260,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }
 
-        await compiler.compileFolder(targetFolder);
+        await new LPCCompiler(new LPCConfigManager(context)).compileFolder(targetFolder);
     });
     context.subscriptions.push(compileFolderCommand);
 
@@ -182,7 +301,6 @@ export function activate(context: vscode.ExtensionContext) {
         parser.removeErrorListeners();
         parser.addErrorListener(debugListener);
 
-        // 解析
         parser.sourceFile();
 
         const output = vscode.window.createOutputChannel('LPC Parse Debug');
@@ -211,7 +329,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.languages.registerCompletionItemProvider(
             'lpc',
             completionProvider,
-            '.', '->', '#' // 触发补全的字符
+            '.', '->', '#'
         )
     );
 
@@ -305,6 +423,47 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.languages.registerRenameProvider('lpc', new LPCRenameProvider())
     );
 
+    // --- Start Driver Button ---
+    const startDriverCommandId = 'lpc.startDriver';
+    let driverStatusBarItem: vscode.StatusBarItem;
+
+    // Create status bar item
+    driverStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+    driverStatusBarItem.command = startDriverCommandId;
+    driverStatusBarItem.text = `$(play) 启动驱动`;
+    driverStatusBarItem.tooltip = "启动 MUD 驱动程序";
+    driverStatusBarItem.show();
+    context.subscriptions.push(driverStatusBarItem);
+
+    // Register command
+    const startDriverCommandHandler = () => {
+        const config = vscode.workspace.getConfiguration('lpc');
+        const driverCommand = config.get<string>('driver.command');
+
+        if (!driverCommand) {
+            vscode.window.showWarningMessage('未配置驱动启动命令。请在设置中配置 `lpc.driver.command`。', '打开设置').then(selection => {
+                if (selection === '打开设置') {
+                    vscode.commands.executeCommand('workbench.action.openSettings', 'lpc.driver.command');
+                }
+            });
+            return;
+        }
+
+        let cwd: string | undefined;
+
+        if (path.isAbsolute(driverCommand)) {
+            cwd = path.dirname(driverCommand);
+        } else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            cwd = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        }
+
+        const terminal = vscode.window.createTerminal({ name: `MUD Driver`, cwd });
+        terminal.sendText(driverCommand);
+        terminal.show();
+    };
+
+    context.subscriptions.push(vscode.commands.registerCommand(startDriverCommandId, startDriverCommandHandler));
+
     // 注册性能监控命令
     context.subscriptions.push(
         vscode.commands.registerCommand('lpc.showPerformanceStats', () => {
@@ -319,10 +478,17 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage('LPC 解析缓存已清理');
         })
     );
+
+    // 监听配置变化
+    vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('lpc.errorViewer.servers')) {
+            errorTreeProvider.refresh();
+        }
+    });
 }
 
 // 停用扩展时调用
 export function deactivate() {
     // 清理解析缓存资源
     disposeParseCache();
-} 
+}

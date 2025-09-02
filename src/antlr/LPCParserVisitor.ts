@@ -70,6 +70,7 @@ import { ContinueStatementContext } from "./LPCParser";
 import { ReturnStatementContext } from "./LPCParser";
 import { ClosureExprContext } from "./LPCParser";
 import { InheritStatementContext } from "./LPCParser";
+import { IncludeStatementContext } from "./LPCParser";
 import { MacroInvokeContext } from "./LPCParser";
 import { PrototypeStatementContext } from "./LPCParser";
 import { MappingLiteralContext } from "./LPCParser";
@@ -572,6 +573,13 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitInheritStatement?: (ctx: InheritStatementContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.includeStatement`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitIncludeStatement?: (ctx: IncludeStatementContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.macroInvoke`.
