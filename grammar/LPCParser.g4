@@ -10,6 +10,8 @@ sourceFile
 statement
     :   functionDef
     |   variableDecl ';'
+    |   structDef
+    |   classDef
     |   macroInvoke
     |   ifStatement
     |   whileStatement
@@ -50,6 +52,22 @@ parameter
     |   STAR* Identifier ELLIPSIS?                    // a
     ;
 
+structDef
+    :   KW_STRUCT Identifier LBRACE structMemberList? RBRACE
+    ;
+
+classDef
+    :   KW_CLASS Identifier LBRACE structMemberList? RBRACE
+    ;
+
+structMemberList
+    :   structMember+
+    ;
+
+structMember
+    :   typeSpec STAR* Identifier ';'
+    ;
+
 typeSpec
     :   KW_INT
     |   KW_FLOAT
@@ -61,6 +79,8 @@ typeSpec
     |   KW_BUFFER
     |   KW_VOID
     |   KW_STRUCT
+    |   KW_CLASS
+    |   KW_CLASS Identifier  // 支持 class item 这样的语法
     |   Identifier ('*')*
     ;
 
@@ -148,6 +168,8 @@ castType
     |   KW_BUFFER
     |   KW_VOID
     |   KW_STRUCT
+    |   KW_CLASS
+    |   KW_CLASS Identifier  // 支持 class item 这样的类型转换
     ;
 
 postfixExpression
@@ -168,6 +190,7 @@ primary
     |   stringConcat                                  # stringConcatenation
     |   closureExpr                                   # closurePrimary
     |   mappingLiteral                                # mappingLiteralExpr
+    |   newExpression                                 # newExpressionPrimary
     |   KW_FUNCTION LPAREN parameterList? RPAREN block      # anonFunction
     |   Identifier                                    # identifierPrimary
     |   INTEGER                                       # integerPrimary
@@ -263,6 +286,18 @@ mappingLiteral : LPAREN LBRACK mappingPairList? RBRACK RPAREN ;
 
 mappingPairList : mappingPair (COMMA mappingPair)* (COMMA)? ;
 mappingPair : expression COLON expression ;
+
+newExpression
+    :   KW_NEW LPAREN ( typeSpec | expression ) (COMMA structInitializerList)? RPAREN
+    ;
+
+structInitializerList
+    :   structInitializer (COMMA structInitializer)*
+    ;
+
+structInitializer
+    :   Identifier COLON expression
+    ;
 
 sliceExpr
     :   LT expression                               # tailIndexOnly

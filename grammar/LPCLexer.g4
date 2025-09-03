@@ -65,7 +65,7 @@ DIRECTIVE : '#' ~[\r\n]* ( '\\' '\r'? '\n' ~[\r\n]* )* '\r'? '\n'? -> channel(HI
 IF:'if'; ELSE:'else'; FOR:'for'; WHILE:'while'; DO:'do'; SWITCH:'switch'; CASE:'case';
 DEFAULT:'default'; BREAK:'break'; CONTINUE:'continue'; RETURN:'return'; FOREACH:'foreach';
 INHERIT:'inherit'; INCLUDE:'include'; CATCH:'catch'; REF:'ref'; IN:'in';
-KW_INT:'int'; KW_FLOAT:'float'; KW_STRING:'string'; KW_OBJECT:'object'; KW_MIXED:'mixed'; KW_MAPPING:'mapping'; KW_FUNCTION:'function'; KW_BUFFER:'buffer'; KW_VOID:'void'; KW_STRUCT:'struct';
+KW_INT:'int'; KW_FLOAT:'float'; KW_STRING:'string'; KW_OBJECT:'object'; KW_MIXED:'mixed'; KW_MAPPING:'mapping'; KW_FUNCTION:'function'; KW_BUFFER:'buffer'; KW_VOID:'void'; KW_STRUCT:'struct'; KW_CLASS:'class'; KW_NEW:'new';
 
 // ---------- 操作符 / 标点 ----------
 ELLIPSIS:'...'; RANGE_OP:'..'; ARROW:'->'; DOT:'.'; INC:'++'; DEC:'--';

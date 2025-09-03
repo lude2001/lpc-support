@@ -7,6 +7,7 @@ import { ScopeIdentifierContext } from "./LPCParser";
 import { StringConcatenationContext } from "./LPCParser";
 import { ClosurePrimaryContext } from "./LPCParser";
 import { MappingLiteralExprContext } from "./LPCParser";
+import { NewExpressionPrimaryContext } from "./LPCParser";
 import { AnonFunctionContext } from "./LPCParser";
 import { IdentifierPrimaryContext } from "./LPCParser";
 import { IntegerPrimaryContext } from "./LPCParser";
@@ -28,6 +29,10 @@ import { VariableDeclContext } from "./LPCParser";
 import { VariableDeclaratorContext } from "./LPCParser";
 import { ParameterListContext } from "./LPCParser";
 import { ParameterContext } from "./LPCParser";
+import { StructDefContext } from "./LPCParser";
+import { ClassDefContext } from "./LPCParser";
+import { StructMemberListContext } from "./LPCParser";
+import { StructMemberContext } from "./LPCParser";
 import { TypeSpecContext } from "./LPCParser";
 import { BlockContext } from "./LPCParser";
 import { ExprStatementContext } from "./LPCParser";
@@ -76,6 +81,9 @@ import { PrototypeStatementContext } from "./LPCParser";
 import { MappingLiteralContext } from "./LPCParser";
 import { MappingPairListContext } from "./LPCParser";
 import { MappingPairContext } from "./LPCParser";
+import { NewExpressionContext } from "./LPCParser";
+import { StructInitializerListContext } from "./LPCParser";
+import { StructInitializerContext } from "./LPCParser";
 import { SliceExprContext } from "./LPCParser";
 
 
@@ -118,6 +126,14 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitMappingLiteralExpr?: (ctx: MappingLiteralExprContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by the `newExpressionPrimary`
+	 * labeled alternative in `LPCParser.primary`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitNewExpressionPrimary?: (ctx: NewExpressionPrimaryContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `anonFunction`
@@ -279,6 +295,34 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitParameter?: (ctx: ParameterContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.structDef`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitStructDef?: (ctx: StructDefContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.classDef`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitClassDef?: (ctx: ClassDefContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.structMemberList`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitStructMemberList?: (ctx: StructMemberListContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.structMember`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitStructMember?: (ctx: StructMemberContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.typeSpec`.
@@ -615,6 +659,27 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitMappingPair?: (ctx: MappingPairContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.newExpression`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitNewExpression?: (ctx: NewExpressionContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.structInitializerList`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitStructInitializerList?: (ctx: StructInitializerListContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.structInitializer`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitStructInitializer?: (ctx: StructInitializerContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.sliceExpr`.
