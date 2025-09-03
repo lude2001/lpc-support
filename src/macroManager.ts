@@ -18,11 +18,14 @@ export class MacroManager {
 
     private async loadIncludePath() {
         const config = vscode.workspace.getConfiguration('lpc');
-        this.includePath = config.get<string>('includePath');
+        const configPath = config.get<string>('includePath');
         
-        if (!this.includePath && vscode.workspace.workspaceFolders?.[0]) {
+        if (!configPath && vscode.workspace.workspaceFolders?.[0]) {
             // 默认使用工作区根目录下的 include 文件夹
             this.includePath = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, 'include');
+        } else if (configPath && vscode.workspace.workspaceFolders?.[0]) {
+            // 支持相对于项目根目录的路径
+            this.includePath = this.resolveProjectPath(vscode.workspace.workspaceFolders[0].uri.fsPath, configPath);
         }
 
         console.log(`MacroManager: 配置的包含路径: ${this.includePath || '未配置'}`);
@@ -269,5 +272,19 @@ export class MacroManager {
         
         content.isTrusted = true;
         return content;
+    }
+
+    /**
+     * 解析项目相对路径
+     * 支持相对于项目根目录的路径配置
+     */
+    private resolveProjectPath(workspaceRoot: string, configPath: string): string {
+        if (path.isAbsolute(configPath)) {
+            // 绝对路径直接返回
+            return configPath;
+        } else {
+            // 相对路径，相对于项目根目录
+            return path.join(workspaceRoot, configPath);
+        }
     }
 } 

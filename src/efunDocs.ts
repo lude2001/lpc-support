@@ -250,11 +250,19 @@ export class EfunDocsManager {
 
     private async loadSimulatedEfuns(): Promise<void> {
         const config = vscode.workspace.getConfiguration();
-        const simulatedEfunsPath = config.get<string>(EfunDocsManager.SIMULATED_EFUNS_PATH_CONFIG);
+        const configPath = config.get<string>(EfunDocsManager.SIMULATED_EFUNS_PATH_CONFIG);
         
-        if (!simulatedEfunsPath) {
+        if (!configPath) {
             return;
         }
+
+        // 支持项目相对路径
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            return;
+        }
+
+        const simulatedEfunsPath = this.resolveProjectPath(workspaceFolder.uri.fsPath, configPath);
 
         try {
             const files = await vscode.workspace.findFiles(
@@ -712,5 +720,19 @@ export class EfunDocsManager {
         }
 
         return includeFiles;
+    }
+
+    /**
+     * 解析项目相对路径
+     * 支持相对于项目根目录的路径配置
+     */
+    private resolveProjectPath(workspaceRoot: string, configPath: string): string {
+        if (path.isAbsolute(configPath)) {
+            // 绝对路径直接返回
+            return configPath;
+        } else {
+            // 相对路径，相对于项目根目录
+            return path.join(workspaceRoot, configPath);
+        }
     }
 }

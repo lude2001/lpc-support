@@ -52,6 +52,12 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         position: vscode.Position,
         token: vscode.CancellationToken
     ): Promise<vscode.Location | vscode.Location[] | undefined> {
+        // 首先检查是否是include语句中的文件名
+        const includeResult = await this.handleIncludeDefinition(document, position);
+        if (includeResult) {
+            return includeResult;
+        }
+
         const wordRange = document.getWordRangeAtPosition(position);
         if (!wordRange) {
             return undefined;
@@ -143,7 +149,116 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         return undefined;
     }
 
+    /**
+     * 处理include语句中的文件跳转
+     */
+    private async handleIncludeDefinition(
+        document: vscode.TextDocument,
+        position: vscode.Position
+    ): Promise<vscode.Location | undefined> {
+        const line = document.lineAt(position.line);
+        const lineText = line.text;
+        
+        // 检查是否是include语句
+        const includeRegex = /^#?include\s+[<"]([^>"]+)[>"](?:\s*\/\/.*)?$/;
+        const match = lineText.trim().match(includeRegex);
+        
+        if (!match) {
+            return undefined;
+        }
+        
+        const includePath = match[1];
+        
+        // 检查光标是否在文件名范围内
+        const quoteStart = lineText.indexOf(includePath) - 1; // 包含引号或尖括号
+        const quoteEnd = quoteStart + includePath.length + 2; // 包含两个引号或尖括号
+        const cursorChar = position.character;
+        
+        // 允许点击整个包含文件名部分（包括引号/尖括号）
+        if (cursorChar < quoteStart || cursorChar > quoteEnd) {
+            return undefined;
+        }
+        
+        // 解析include路径
+        return await this.resolveIncludePath(document, includePath, lineText.includes('<'));
+    }
 
+    /**
+     * 解析include路径并返回文件位置
+     */
+    private async resolveIncludePath(
+        document: vscode.TextDocument,
+        includePath: string,
+        isGlobalInclude: boolean
+    ): Promise<vscode.Location | undefined> {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+        if (!workspaceFolder) {
+            return undefined;
+        }
+
+        let targetPath: string;
+        
+        if (isGlobalInclude) {
+            // #include <command.h> - 全局包含路径
+            const config = vscode.workspace.getConfiguration('lpc');
+            let globalIncludePath = config.get<string>('includePath');
+            
+            if (!globalIncludePath) {
+                // 默认使用工作区根目录下的 include 文件夹
+                globalIncludePath = path.join(workspaceFolder.uri.fsPath, 'include');
+            } else {
+                // 支持相对于项目根目录的路径
+                globalIncludePath = this.resolveProjectPath(workspaceFolder.uri.fsPath, globalIncludePath);
+            }
+            
+            // 确保includePath有.h扩展名
+            let fileName = includePath;
+            if (!fileName.endsWith('.h')) {
+                fileName += '.h';
+            }
+            
+            // 构建全局路径
+            targetPath = path.join(globalIncludePath, fileName);
+        } else {
+            // include "path.h" - 相对路径或绝对路径
+            let fileName = includePath;
+            if (!fileName.endsWith('.h')) {
+                fileName += '.h';
+            }
+            
+            if (path.isAbsolute(fileName)) {
+                // 绝对路径，相对于工作区根目录
+                const relativePath = fileName.startsWith('/') ? fileName.substring(1) : fileName;
+                targetPath = path.join(workspaceFolder.uri.fsPath, relativePath);
+            } else {
+                // 相对路径，相对于当前文件所在目录
+                const currentDir = path.dirname(document.uri.fsPath);
+                targetPath = path.resolve(currentDir, fileName);
+            }
+        }
+        
+        // 检查文件是否存在
+        if (fs.existsSync(targetPath)) {
+            const fileUri = vscode.Uri.file(targetPath);
+            return new vscode.Location(fileUri, new vscode.Position(0, 0));
+        }
+        
+        return undefined;
+    }
+
+    /**
+     * 解析项目相对路径
+     * 支持相对于项目根目录的路径配置
+     */
+    private resolveProjectPath(workspaceRoot: string, configPath: string): string {
+        if (path.isAbsolute(configPath)) {
+            // 绝对路径直接返回
+            return configPath;
+        } else {
+            // 相对路径，相对于项目根目录
+            return path.join(workspaceRoot, configPath);
+        }
+    }
 
     /**
      * 现代化AST分析：基于语法树的对象访问检测
@@ -606,8 +721,14 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
 
     private async findInSimulatedEfuns(word: string): Promise<vscode.Location | undefined> {
         const config = vscode.workspace.getConfiguration();
-        const simulatedEfunsPath = config.get<string>('lpc.simulatedEfunsPath');
-        if (!simulatedEfunsPath) return undefined;
+        const configPath = config.get<string>('lpc.simulatedEfunsPath');
+        if (!configPath) return undefined;
+
+        // 支持项目相对路径
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) return undefined;
+
+        const simulatedEfunsPath = this.resolveProjectPath(workspaceFolder.uri.fsPath, configPath);
 
         const files = await vscode.workspace.findFiles(
             new vscode.RelativePattern(simulatedEfunsPath, '**/*.{c,h}')
