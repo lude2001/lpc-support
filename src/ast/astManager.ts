@@ -3,7 +3,7 @@ import { CharStreams, CommonTokenStream } from 'antlr4ts';
 import { ParseTree } from 'antlr4ts/tree/ParseTree';
 import { LPCLexer } from '../antlr/LPCLexer';
 import { LPCParser, SourceFileContext } from '../antlr/LPCParser';
-import { SymbolTable } from './symbolTable';
+import { SymbolTable, SymbolType } from './symbolTable';
 import { CompletionVisitor } from './completionVisitor';
 
 export interface ParseResult {
@@ -144,7 +144,7 @@ export class ASTManager {
             }
 
             // 为函数添加参数片段
-            if (symbol.type === 'function' && symbol.parameters) {
+            if (symbol.type === SymbolType.FUNCTION && symbol.parameters) {
                 const paramSnippet = symbol.parameters
                     .map((param, index) => `\${${index + 1}:${param.name}}`)
                     .join(', ');
@@ -190,7 +190,7 @@ export class ASTManager {
         const result = this.parseDocument(document);
         const functionSymbol = result.symbolTable.findSymbol(functionName);
         
-        if (functionSymbol && functionSymbol.type === 'function') {
+        if (functionSymbol && functionSymbol.type === SymbolType.FUNCTION) {
             return new vscode.Location(document.uri, functionSymbol.range);
         }
         
@@ -245,14 +245,14 @@ export class ASTManager {
         return result.parseErrors;
     }
 
-    private getCompletionItemKind(symbolType: string): vscode.CompletionItemKind {
+    private getCompletionItemKind(symbolType: SymbolType): vscode.CompletionItemKind {
         switch (symbolType) {
-            case 'function': return vscode.CompletionItemKind.Function;
-            case 'variable': return vscode.CompletionItemKind.Variable;
-            case 'parameter': return vscode.CompletionItemKind.Variable;
-            case 'struct': return vscode.CompletionItemKind.Struct;
-            case 'class': return vscode.CompletionItemKind.Class;
-            case 'member': return vscode.CompletionItemKind.Field;
+            case SymbolType.FUNCTION: return vscode.CompletionItemKind.Function;
+            case SymbolType.VARIABLE: return vscode.CompletionItemKind.Variable;
+            case SymbolType.PARAMETER: return vscode.CompletionItemKind.Variable;
+            case SymbolType.STRUCT: return vscode.CompletionItemKind.Struct;
+            case SymbolType.CLASS: return vscode.CompletionItemKind.Class;
+            case SymbolType.MEMBER: return vscode.CompletionItemKind.Field;
             default: return vscode.CompletionItemKind.Text;
         }
     }

@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EfunDocsManager } from './efunDocs';
 import { MacroManager } from './macroManager';
-import { SimpleASTManager } from './ast/simpleAstManager';
+import { ASTManager } from './ast/astManager';
 import { SymbolType } from './ast/symbolTable';
 
 // 创建输出通道
@@ -15,13 +15,13 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
     private keywords = ['new', 'catch', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue', 'return', 'foreach', 'inherit', 'include'];
     private efunDocsManager: EfunDocsManager;
     private macroManager: MacroManager;
-    private astManager: SimpleASTManager;
+    private astManager: ASTManager;
     private staticItems: vscode.CompletionItem[];
 
     constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager) {
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
-        this.astManager = SimpleASTManager.getInstance();
+        this.astManager = ASTManager.getInstance();
 
         // 预构造静态补全项
         this.staticItems = [];
@@ -264,7 +264,8 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         
         try {
             // 使用AST解析当前文档
-            const symbolTable = this.astManager.parseDocument(document);
+            const parseResult = this.astManager.parseDocument(document);
+            const symbolTable = parseResult.symbolTable;
             const functions = symbolTable.getSymbolsByType(SymbolType.FUNCTION);
             const variables = symbolTable.getSymbolsByType(SymbolType.VARIABLE);
             const structs = symbolTable.getSymbolsByType(SymbolType.STRUCT);

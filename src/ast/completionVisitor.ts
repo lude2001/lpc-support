@@ -10,7 +10,12 @@ import {
     VariableDeclContext,
     TypeSpecContext,
     ParameterContext,
-    BlockContext
+    BlockContext,
+    StatementContext,
+    StructDefContext,
+    ClassDefContext,
+    StructMemberListContext,
+    StructMemberContext
 } from '../antlr/LPCParser';
 
 import { SymbolTable, Symbol, SymbolType, TypeResolver } from './symbolTable';
@@ -41,6 +46,52 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
             }
         } catch (error) {
             // 忽略语句解析错误
+        }
+        
+        return null;
+    }
+
+    // 访问语句 - 这是关键的缺失方法
+    visitStatement(ctx: StatementContext): any {
+        try {
+            // 检查是否是函数定义
+            const functionDef = ctx.functionDef ? ctx.functionDef() : null;
+            if (functionDef) {
+                return this.visitFunctionDef(functionDef);
+            }
+
+            // 检查是否是变量声明
+            const variableDecl = ctx.variableDecl ? ctx.variableDecl() : null;
+            if (variableDecl) {
+                return this.visitVariableDecl(variableDecl);
+            }
+
+            // 检查是否是结构体定义
+            const structDef = ctx.structDef ? ctx.structDef() : null;
+            if (structDef) {
+                return this.visitStructDef(structDef);
+            }
+
+            // 检查是否是类定义
+            const classDef = ctx.classDef ? ctx.classDef() : null;
+            if (classDef) {
+                return this.visitClassDef(classDef);
+            }
+
+            // 检查是否是代码块
+            const block = ctx.block ? ctx.block() : null;
+            if (block) {
+                return this.visitBlock(block);
+            }
+
+            // 对于其他类型的语句，继续递归访问子节点
+            if (ctx.children) {
+                ctx.children.forEach(child => this.visit(child));
+            }
+            
+        } catch (error) {
+            // 忽略语句解析错误，但记录日志
+            console.debug('Error visiting statement:', error);
         }
         
         return null;
@@ -192,29 +243,123 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
         return null;
     }
 
-    // 访问结构体定义 - 暂时禁用，等待ANTLR重新生成
-    // visitStructDef(ctx: any): any {
-    //     // 实现将在ANTLR重新生成后添加
-    //     return null;
-    // }
+    // 访问结构体定义
+    visitStructDef(ctx: StructDefContext): any {
+        const structName = ctx.Identifier()?.text;
+        if (!structName) return null;
 
-    // 访问类定义 - 暂时禁用，等待ANTLR重新生成  
-    // visitClassDef(ctx: any): any {
-    //     // 实现将在ANTLR重新生成后添加
-    //     return null;
-    // }
+        const range = this.getRange(ctx);
+        
+        // 创建结构体符号
+        const structSymbol: Symbol = {
+            name: structName,
+            type: SymbolType.STRUCT,
+            dataType: structName,
+            range: range,
+            scope: this.symbolTable.getCurrentScope(),
+            members: [],
+            definition: this.getTextFromContext(ctx)
+        };
 
-    // 访问结构体成员列表 - 暂时禁用，等待ANTLR重新生成
-    // visitStructMemberList(ctx: any, parentSymbol: Symbol): any {
-    //     // 实现将在ANTLR重新生成后添加
-    //     return null;
-    // }
+        // 添加到符号表
+        this.symbolTable.addSymbol(structSymbol);
 
-    // 访问结构体成员 - 暂时禁用，等待ANTLR重新生成
-    // visitStructMember(ctx: any, parentSymbol: Symbol): any {
-    //     // 实现将在ANTLR重新生成后添加
-    //     return null;
-    // }
+        // 进入结构体作用域
+        const structScope = this.symbolTable.enterScope(`struct:${structName}`, range);
+
+        // 处理结构体成员
+        const memberList = ctx.structMemberList();
+        if (memberList) {
+            this.visitStructMemberList(memberList, structSymbol);
+        }
+
+        // 退出结构体作用域
+        this.symbolTable.exitScope();
+
+        return null;
+    }
+
+    // 访问类定义
+    visitClassDef(ctx: ClassDefContext): any {
+        const className = ctx.Identifier()?.text;
+        if (!className) return null;
+
+        const range = this.getRange(ctx);
+        
+        // 创建类符号
+        const classSymbol: Symbol = {
+            name: className,
+            type: SymbolType.CLASS,
+            dataType: className,
+            range: range,
+            scope: this.symbolTable.getCurrentScope(),
+            members: [],
+            definition: this.getTextFromContext(ctx)
+        };
+
+        // 添加到符号表
+        this.symbolTable.addSymbol(classSymbol);
+
+        // 进入类作用域
+        const classScope = this.symbolTable.enterScope(`class:${className}`, range);
+
+        // 处理类成员 (与结构体成员处理相同)
+        const memberList = ctx.structMemberList();
+        if (memberList) {
+            this.visitStructMemberList(memberList, classSymbol);
+        }
+
+        // 退出类作用域
+        this.symbolTable.exitScope();
+
+        return null;
+    }
+
+    // 访问结构体成员列表
+    visitStructMemberList(ctx: StructMemberListContext, parentSymbol: Symbol): any {
+        try {
+            const members = ctx.structMember ? ctx.structMember() : [];
+            if (Array.isArray(members)) {
+                members.forEach((member: any) => {
+                    this.visitStructMember(member, parentSymbol);
+                });
+            }
+        } catch (error) {
+            console.debug('Error visiting struct member list:', error);
+        }
+        return null;
+    }
+
+    // 访问结构体成员
+    visitStructMember(ctx: StructMemberContext, parentSymbol: Symbol): any {
+        const typeSpec = ctx.typeSpec();
+        if (!typeSpec) return null;
+
+        const dataType = this.extractTypeFromContext(typeSpec);
+        const identifier = ctx.Identifier();
+        
+        if (identifier) {
+            const memberName = identifier.text;
+            const memberSymbol: Symbol = {
+                name: memberName,
+                type: SymbolType.MEMBER,
+                dataType: dataType,
+                range: this.getRange(ctx),
+                scope: this.symbolTable.getCurrentScope(),
+                definition: this.getTextFromContext(ctx)
+            };
+
+            // 添加到父符号的成员列表
+            if (parentSymbol.members) {
+                parentSymbol.members.push(memberSymbol);
+            }
+
+            // 也添加到符号表中
+            this.symbolTable.addSymbol(memberSymbol);
+        }
+
+        return null;
+    }
 
     // 访问代码块
     visitBlock(ctx: BlockContext): any {
