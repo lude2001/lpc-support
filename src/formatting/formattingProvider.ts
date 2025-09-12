@@ -44,6 +44,14 @@ export class LPCFormattingProvider implements
             
             const result = this.formatter.formatDocument(text, formattingOptions);
             
+            // 🚨 安全检查：验证格式化结果防止数据破坏
+            const safetyCheck = this.validateFormattedResult(text, result.text);
+            if (!safetyCheck.isValid) {
+                console.error('格式化结果验证失败:', safetyCheck.reason);
+                vscode.window.showErrorMessage(`格式化被阻止: ${safetyCheck.reason}`);
+                return [];
+            }
+            
             if (result.text !== text) {
                 // 返回替换整个文档的编辑
                 const lastLine = document.lineAt(document.lineCount - 1);
@@ -182,5 +190,70 @@ export class LPCFormattingProvider implements
             // 性能和安全选项
             maxNodeCount: config.get('maxNodeCount', DEFAULT_FORMATTING_OPTIONS.maxNodeCount) // 最大节点访问数量
         };
+    }
+
+    /**
+     * 🚨 安全检查：验证格式化结果，防止数据破坏
+     * 这是P0级安全措施，防止格式化器将代码压缩成单行或造成其他破坏
+     */
+    private validateFormattedResult(original: string, formatted: string): {
+        isValid: boolean;
+        reason?: string;
+    } {
+        // 检查1: 格式化结果不能为空
+        if (!formatted || formatted.trim().length === 0) {
+            return {
+                isValid: false,
+                reason: '格式化结果为空，可能导致代码丢失'
+            };
+        }
+
+        // 检查2: 行数不能大幅减少（防止代码被压缩成单行）
+        const originalLines = original.split('\n').length;
+        const formattedLines = formatted.split('\n').length;
+        const lineReductionRatio = (originalLines - formattedLines) / originalLines;
+        
+        if (lineReductionRatio > 0.8) { // 行数减少超过80%
+            return {
+                isValid: false,
+                reason: `格式化导致行数大幅减少 (${originalLines} -> ${formattedLines}行，减少${(lineReductionRatio * 100).toFixed(1)}%)，可能是灾难性压缩`
+            };
+        }
+
+        // 检查3: 检测单行代码异常（原本多行的代码不应该变成单行）
+        if (originalLines > 10 && formattedLines <= 3) {
+            return {
+                isValid: false,
+                reason: `检测到代码被异常压缩：从${originalLines}行压缩到${formattedLines}行`
+            };
+        }
+
+        // 检查4: 基本语法结构完整性（括号匹配）
+        const originalBraceCount = (original.match(/[{}]/g) || []).length;
+        const formattedBraceCount = (formatted.match(/[{}]/g) || []).length;
+        
+        if (originalBraceCount !== formattedBraceCount) {
+            return {
+                isValid: false,
+                reason: `格式化后括号数量不匹配 (原始:${originalBraceCount}, 格式化:${formattedBraceCount})`
+            };
+        }
+
+        // 检查5: 关键字符不应该大量丢失
+        const criticalChars = [';', '(', ')', '[', ']', '{', '}'];
+        for (const char of criticalChars) {
+            const originalCount = (original.match(new RegExp('\\' + char, 'g')) || []).length;
+            const formattedCount = (formatted.match(new RegExp('\\' + char, 'g')) || []).length;
+            const loss = originalCount > 0 ? (originalCount - formattedCount) / originalCount : 0;
+            
+            if (loss > 0.2) { // 某个关键字符丢失超过20%
+                return {
+                    isValid: false,
+                    reason: `关键字符 '${char}' 大量丢失 (${originalCount} -> ${formattedCount})`
+                };
+            }
+        }
+
+        return { isValid: true };
     }
 }

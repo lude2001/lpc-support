@@ -3,26 +3,16 @@
  * 验证重构后的核心模块是否正常工作
  */
 
-import { CommonTokenStream } from 'antlr4ts';
 import { ErrorCollector, IndentManager, TokenUtils, LineBreakManager, FormattingCore, FormattingContext } from '../core';
 import { DEFAULT_FORMATTING_OPTIONS } from '../types';
-
-// Mock CommonTokenStream for testing
-class MockTokenStream extends CommonTokenStream {
-    constructor() {
-        super(null as any);
-    }
-    
-    get size(): number { return 0; }
-    get(index: number): any { return null; }
-}
+import { MockTokenStream } from '../../../tests/helpers/TestHelpers';
 
 describe('Core Modules', () => {
     let mockTokenStream: MockTokenStream;
     let options = DEFAULT_FORMATTING_OPTIONS;
 
     beforeEach(() => {
-        mockTokenStream = new MockTokenStream();
+        mockTokenStream = new MockTokenStream([]);
     });
 
     describe('ErrorCollector', () => {
@@ -110,14 +100,14 @@ describe('Core Modules', () => {
             expect(tokenUtils.getTokenBetween(null, null)).toBeUndefined();
             expect(tokenUtils.getTokenText(undefined)).toBe('');
             expect(tokenUtils.isTokenType(undefined, 1)).toBe(false);
-            expect(tokenUtils.getTokenStreamSize()).toBe(0);
+            expect(tokenUtils.getTokenStreamSize()).toBe(1); // EOF token
         });
 
         test('should validate token indices', () => {
             const tokenUtils = new TokenUtils(mockTokenStream);
             
             expect(tokenUtils.isValidTokenIndex(-1)).toBe(false);
-            expect(tokenUtils.isValidTokenIndex(0)).toBe(false); // Empty stream
+            expect(tokenUtils.isValidTokenIndex(0)).toBe(true); // EOF token at index 0
             expect(tokenUtils.safeGetToken(-1)).toBeUndefined();
         });
     });

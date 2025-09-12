@@ -1,8 +1,57 @@
+# Node.js dependencies
 node_modules
+
+# VS Code extension build outputs
 out
-*.vsix
-src/antlr/LPCLexer.interp
-dist/extension.js
-dist/extension.js.map
-src/antlr/LPCParser.interp
 dist
+*.vsix
+
+# ANTLR generated files
+src/antlr/LPCLexer.interp
+src/antlr/LPCParser.interp
+src/antlr/*.tokens
+
+# Test outputs and coverage
+coverage/
+test/output/
+tests/reports/
+*.coverage
+*.lcov
+
+# Temporary and log files
+*.log
+*.tmp
+*.temp
+
+# IDE and system files
+.DS_Store
+Thumbs.db
+
+# Test and debug files
+test-*.js
+analyze-*.js
+check-*.js
+comprehensive-*.js
+final-*.js
+simple-*.js
+verify-*.js
+*-test.js
+*-verification*.js
+*-fixes*.js
+*-formatting*.js
+*-direct*.js
+
+# Report files
+*-report.md
+*-summary.md
+*-verification*.md
+*REPORT*.md
+*SUMMARY*.md
+*verification*.json
+*-report.json
+
+# Test input/output files
+test-input.*
+test-output*
+*-formatted.c
+*-comparison*.txt
