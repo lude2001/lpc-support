@@ -44,11 +44,15 @@
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "^20.x",
+    "@vscode/test-electron": "^2.3.8",
     "antlr4ts-cli": "^0.5.0-alpha.4",
     "cross-env": "^7.0.3",
     "esbuild": "^0.25.5",
     "esbuild-node-externals": "^1.18.0",
+    "jest": "^29.7.0",
+    "jest-environment-node": "^29.7.0",
     "rimraf": "^5.0.10",
+    "ts-jest": "^29.1.1",
     "typescript": "^5.0.0"
   },
   "contributes": {
@@ -424,6 +428,13 @@
           "maximum": 200,
           "description": "异步处理时的批次大小，较小的值可以提高响应性但可能降低总体性能"
         },
+        "lpc.performance.maxFormatFileSize": {
+          "type": "number",
+          "default": 1000000,
+          "minimum": 100000,
+          "maximum": 10000000,
+          "description": "格式化文件的最大大小限制（字符数），超过此限制的文件将跳过格式化"
+        },
         "lpc.glm4.apiKey": {
           "type": "string",
           "default": "",
@@ -493,6 +504,130 @@
             },
             "required": ["name", "id"]
           }
+        },
+        "lpc.formatting.indentSize": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "缩进大小（空格数）"
+        },
+        "lpc.formatting.insertFinalNewline": {
+          "type": "boolean",
+          "default": true,
+          "description": "在文件末尾插入换行符"
+        },
+        "lpc.formatting.trimTrailingWhitespace": {
+          "type": "boolean",
+          "default": true,
+          "description": "删除行尾空白字符"
+        },
+        "lpc.formatting.maxLineLength": {
+          "type": "number",
+          "default": 100,
+          "minimum": 60,
+          "maximum": 200,
+          "description": "最大行长度，超过此长度将自动换行"
+        },
+        "lpc.formatting.bracesOnNewLine": {
+          "type": "boolean",
+          "default": false,
+          "description": "大括号是否另起新行（Allman 风格）"
+        },
+        "lpc.formatting.spaceBeforeOpenParen": {
+          "type": "boolean",
+          "default": false,
+          "description": "控制结构左括号前是否插入空格"
+        },
+        "lpc.formatting.spaceAroundOperators": {
+          "type": "boolean",
+          "default": true,
+          "description": "运算符前后是否插入空格"
+        },
+        "lpc.formatting.spaceAfterComma": {
+          "type": "boolean",
+          "default": true,
+          "description": "逗号后是否插入空格"
+        },
+        "lpc.formatting.maxEmptyLines": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 10,
+          "description": "连续空行的最大保留数量"
+        },
+        "lpc.formatting.insertSpaceAfterKeywords": {
+          "type": "boolean",
+          "default": true,
+          "description": "关键字后是否插入空格"
+        },
+        "lpc.formatting.includeStatementSorting": {
+          "type": "string",
+          "enum": ["none", "alphabetical", "system-first"],
+          "default": "system-first",
+          "description": "include 语句的排序方式",
+          "enumDescriptions": [
+            "不排序",
+            "按字母顺序排序",
+            "系统包含优先，然后按字母顺序"
+          ]
+        },
+        "lpc.formatting.macroDefinitionAlignment": {
+          "type": "string",
+          "enum": ["none", "column"],
+          "default": "column",
+          "description": "宏定义的对齐方式",
+          "enumDescriptions": [
+            "不对齐",
+            "列对齐"
+          ]
+        },
+        "lpc.formatting.inheritanceStatementStyle": {
+          "type": "string",
+          "enum": ["single-line", "multi-line", "auto"],
+          "default": "auto",
+          "description": "继承语句的格式化风格",
+          "enumDescriptions": [
+            "单行格式",
+            "多行格式",
+            "自动选择"
+          ]
+        },
+        "lpc.formatting.mappingLiteralFormat": {
+          "type": "string",
+          "enum": ["compact", "expanded", "auto"],
+          "default": "auto",
+          "description": "映射字面量的格式化风格",
+          "enumDescriptions": [
+            "紧凑格式",
+            "展开格式",
+            "自动选择"
+          ]
+        },
+        "lpc.formatting.arrayLiteralWrapThreshold": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "数组字面量换行阈值（元素数量）"
+        },
+        "lpc.formatting.functionModifierOrder": {
+          "type": "array",
+          "default": ["public", "protected", "private", "static", "virtual", "nomask"],
+          "description": "函数修饰符的排序顺序",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lpc.formatting.switchCaseAlignment": {
+          "type": "string",
+          "enum": ["switch", "indent"],
+          "default": "indent",
+          "description": "switch case 的对齐方式",
+          "enumDescriptions": [
+            "与 switch 关键字对齐",
+            "相对于 switch 缩进"
+          ]
         }
       }
     },
@@ -569,7 +704,14 @@
     "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPCLexer.g4 grammar/LPCParser.g4",
     "package": "npm run clean && npm run build && vsce package",
     "clean": "rimraf dist out",
-    "analyze": "cross-env NODE_ENV=development npm run build -- --analyze"
+    "analyze": "cross-env NODE_ENV=development npm run build -- --analyze",
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:e2e": "jest --testPathPattern=e2e",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:performance": "jest --testPathPattern=performance"
   },
   "license": "MIT",
   "icon": "icon.png",

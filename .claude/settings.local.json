@@ -3,7 +3,12 @@
     "allow": [
       "WebFetch(domain:github.com)",
       "WebSearch",
-      "WebFetch(domain:marketplace.visualstudio.com)"
+      "WebFetch(domain:marketplace.visualstudio.com)",
+      "Bash(npm run compile:*)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
     ],
     "deny": [],
     "ask": []

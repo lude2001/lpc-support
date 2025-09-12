@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "../out/tests",
+    "types": ["jest", "node", "@types/vscode"],
+    "lib": ["ES2020", "DOM"]
+  },
+  "include": [
+    "**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
