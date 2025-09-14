@@ -125,6 +125,11 @@ export class LPCFormatterImpl implements LPCFormatter {
             // 步骤6: 格式化处理
             const formatResult = this.performFormatting(text, parseResult, options);
             diagnostics.push(...formatResult.diagnostics);
+            
+            // 步骤6.5: 后处理 - 缩进标准化和空格优化
+            const postProcessedResult = this.postProcessFormatting(formatResult.text, options);
+            formatResult.text = postProcessedResult.text;
+            diagnostics.push(...postProcessedResult.diagnostics);
 
             // 步骤7: 质量检查
             const qualityCheck = this.validateFormattedResult(text, formatResult.text);
@@ -1236,6 +1241,111 @@ export class LPCFormatterImpl implements LPCFormatter {
     }
 
     /**
+     * 改进的缩进检测和修复方法
+     * 直接对文本的每一行进行缩进修复
+     */
+    private standardizeAllIndentation(text: string, options: LPCFormattingOptions): string {
+        const lines = text.split('\n');
+        const indentSize = options.indentSize;
+        const formattedLines: string[] = [];
+        let contextIndentLevel = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmedLine = line.trim();
+            
+            if (trimmedLine === '') {
+                formattedLines.push('');
+                continue;
+            }
+
+            // 计算预期缩进级别
+            const expectedIndent = this.calculateExpectedIndent(lines, i, contextIndentLevel, indentSize);
+            
+            // 生成正确的缩进字符串
+            const correctIndent = this.createIndent(expectedIndent, options);
+            
+            // 重构行
+            formattedLines.push(correctIndent + trimmedLine);
+            
+            // 更新上下文缩进级别（用于下一行的计算）
+            contextIndentLevel = this.updateContextIndentLevel(trimmedLine, expectedIndent / indentSize);
+        }
+
+        return formattedLines.join('\n');
+    }
+
+    /**
+     * 计算预期的缩进级别
+     */
+    private calculateExpectedIndent(lines: string[], currentLineIndex: number, contextIndentLevel: number, indentSize: number): number {
+        const currentLine = lines[currentLineIndex].trim();
+        
+        // 特殊情况处理
+        if (currentLine.startsWith('}') || currentLine.startsWith('])')) {
+            // 关闭括号应该与对应的开放括号对齐
+            return Math.max(0, (contextIndentLevel - 1) * indentSize);
+        }
+        
+        // 映射数组特殊处理
+        if (currentLine.startsWith('([')) {
+            // 映射数组元素的开始，相对父级缩进
+            return contextIndentLevel * indentSize;
+        }
+        
+        // 映射数组内部的内容
+        if (this.isInsideMappingArray(lines, currentLineIndex)) {
+            // 检查是否是键值对的第一个属性
+            if (currentLine.startsWith('"') && currentLine.includes('":')) {
+                return (contextIndentLevel + 1) * indentSize;
+            } else {
+                // 继续的属性行
+                return (contextIndentLevel + 2) * indentSize;
+            }
+        }
+        
+        return contextIndentLevel * indentSize;
+    }
+
+    /**
+     * 判断是否在映射数组内部
+     */
+    private isInsideMappingArray(lines: string[], currentLineIndex: number): boolean {
+        let depth = 0;
+        
+        // 向上搜索，找到最近的映射数组结构
+        for (let i = currentLineIndex - 1; i >= 0; i--) {
+            const line = lines[i].trim();
+            if (line.includes('])') || line.includes('})')) {
+                depth--;
+            }
+            if (line.includes('({') || line.includes('([')) {
+                depth++;
+                if (depth > 0 && line.includes('([')) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * 更新上下文缩进级别
+     */
+    private updateContextIndentLevel(line: string, currentLevel: number): number {
+        let newLevel = currentLevel;
+        
+        // 计算开放括号和关闭括号的数量
+        const openBraces = (line.match(/[{\(\[]/g) || []).length;
+        const closeBraces = (line.match(/[}\)\]]/g) || []).length;
+        
+        newLevel += openBraces - closeBraces;
+        
+        return Math.max(0, newLevel);
+    }
+
+    /**
      * 改进的映射数组格式化
      * 为映射数组提供更好的格式化支持
      */
@@ -1459,5 +1569,108 @@ export class LPCFormatterImpl implements LPCFormatter {
         }
         
         return false;
+    }
+
+    /**
+     * 后处理格式化结果
+     * 进行缩进标准化和空格优化
+     */
+    private postProcessFormatting(
+        text: string,
+        options: LPCFormattingOptions
+    ): {
+        text: string;
+        diagnostics: vscode.Diagnostic[];
+    } {
+        const diagnostics: vscode.Diagnostic[] = [];
+        let processedText = text;
+        
+        try {
+            // 1. 缩进标准化
+            const indentFixedText = this.standardizeAllIndentation(processedText, options);
+            if (indentFixedText !== processedText) {
+                diagnostics.push(this.createDiagnostic(
+                    'info',
+                    '已修复非标准缩进',
+                    new vscode.Range(0, 0, 0, 0),
+                    'INDENT_STANDARDIZED'
+                ));
+                processedText = indentFixedText;
+            }
+            
+            // 2. 运算符空格优化
+            const operatorFixedText = this.fixOperatorSpacing(processedText, options);
+            if (operatorFixedText !== processedText) {
+                diagnostics.push(this.createDiagnostic(
+                    'info',
+                    '已修复运算符空格',
+                    new vscode.Range(0, 0, 0, 0),
+                    'OPERATOR_SPACING_FIXED'
+                ));
+                processedText = operatorFixedText;
+            }
+            
+            // 3. 逗号空格优化
+            const commaFixedText = this.fixCommaSpacing(processedText, options);
+            if (commaFixedText !== processedText) {
+                diagnostics.push(this.createDiagnostic(
+                    'info',
+                    '已修复逗号空格',
+                    new vscode.Range(0, 0, 0, 0),
+                    'COMMA_SPACING_FIXED'
+                ));
+                processedText = commaFixedText;
+            }
+            
+        } catch (error) {
+            diagnostics.push(this.createDiagnostic(
+                'warning',
+                `后处理格式化遇到问题: ${error instanceof Error ? error.message : '未知错误'}`,
+                new vscode.Range(0, 0, 0, 0),
+                'POST_PROCESS_WARNING'
+            ));
+        }
+        
+        return {
+            text: processedText,
+            diagnostics
+        };
+    }
+
+    /**
+     * 修复运算符周围的空格
+     */
+    private fixOperatorSpacing(text: string, options: LPCFormattingOptions): string {
+        if (!options.spaceAroundOperators) {
+            return text;
+        }
+        
+        let result = text;
+        
+        // 修复赋值运算符
+        result = result.replace(/([^\s=!<>])=([^=])/g, '$1 = $2');
+        result = result.replace(/([^\s])\+=([^\s])/g, '$1 += $2');
+        result = result.replace(/([^\s])-=([^\s])/g, '$1 -= $2');
+        
+        // 修复比较运算符
+        result = result.replace(/([^\s<>])([<>]=?)([^\s])/g, '$1 $2 $3');
+        result = result.replace(/([^\s=!])([=!]=)([^\s])/g, '$1 $2 $3');
+        
+        // 修复冒号空格（仅在键值对中）
+        result = result.replace(/"\s*([^"]+)"\s*:\s*/g, '"$1" : ');
+        
+        return result;
+    }
+
+    /**
+     * 修复逗号后的空格
+     */
+    private fixCommaSpacing(text: string, options: LPCFormattingOptions): string {
+        if (!options.spaceAfterComma) {
+            return text;
+        }
+        
+        // 逗号后添加空格（但不在行尾）
+        return text.replace(/,(?!\s|$)/g, ', ');
     }
 }

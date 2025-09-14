@@ -91,9 +91,9 @@ export class LiteralFormatter implements ILiteralFormatter {
                                 const keyExpr = this.visitNode(pair.expression(0));   // 键表达式
                                 const valueExpr = this.visitNode(pair.expression(1)); // 值表达式
                                 
-                                // 组装键值对，冒号前后的空格根据配置决定
+                                // 组装键值对，使用格式化核心的方法
                                 result += keyExpr;
-                                result += (options as any).spaceAroundOperators ? ' : ' : ':';
+                                result += this.context.core.formatColon();
                                 
                                 // 特别处理值表达式：如果值是复杂表达式（如数组、映射），适当处理格式
                                 if (valueExpr.includes('\n')) {
@@ -133,13 +133,13 @@ export class LiteralFormatter implements ILiteralFormatter {
                                 const valueExpr = this.visitNode(pair.expression(1));
                                 
                                 result += keyExpr;
-                                result += (options as any).spaceAroundOperators ? ' : ' : ':';
+                                result += this.context.core.formatColon();
                                 result += valueExpr;
                             }
                             
-                            // 为非最后一个键值对添加逗号，根据配置决定是否添加空格
+                            // 为非最后一个键值对添加逗号，使用格式化核心的方法
                             if (i < pairs.length - 1) {
-                                result += options.spaceAfterComma ? ', ' : ',';
+                                result += this.context.core.formatComma();
                             }
                         }
                     }
@@ -245,9 +245,9 @@ export class LiteralFormatter implements ILiteralFormatter {
                             const exprResult = this.visitNode(expr);
                             result += exprResult;
                             
-                            // 只在非最后一个元素后添加逗号，根据配置决定是否添加空格
+                            // 只在非最后一个元素后添加逗号，使用格式化核心的方法
                             if (i < expressions.length - 1) {
-                                result += options.spaceAfterComma ? ', ' : ',';
+                                result += this.context.core.formatComma();
                             }
                         }
                     }

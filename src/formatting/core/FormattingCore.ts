@@ -37,10 +37,19 @@ export class FormattingCore implements IFormattingCore {
      * @returns 格式化后的运算符（包含空格）
      */
     formatOperator(operator: string, isAssignment: boolean = false): string {
+        // 获取配置选项，使用合理的默认值
+        const options = this.options as any;
+        
         if (isAssignment) {
-            return this.options.spaceAroundAssignmentOperators ? ` ${operator} ` : operator;
+            // 赋值运算符空格处理
+            const useSpace = options.spaceAroundAssignmentOperators !== false && 
+                            (options.spaceAroundAssignmentOperators || options.spaceAroundOperators);
+            return useSpace ? ` ${operator} ` : operator;
         } else {
-            return this.options.spaceAroundBinaryOperators ? ` ${operator} ` : operator;
+            // 二元运算符空格处理
+            const useSpace = options.spaceAroundBinaryOperators !== false && 
+                            (options.spaceAroundBinaryOperators || options.spaceAroundOperators);
+            return useSpace ? ` ${operator} ` : operator;
         }
     }
 
@@ -118,6 +127,26 @@ export class FormattingCore implements IFormattingCore {
     }
 
     /**
+     * 格式化逗号（确保逗号后有适当空格）
+     * @param addSpace 是否强制添加空格，默认使用配置
+     * @returns 格式化后的逗号字符串
+     */
+    formatComma(addSpace?: boolean): string {
+        const shouldAddSpace = addSpace !== undefined ? addSpace : this.options.spaceAfterComma;
+        return shouldAddSpace ? ', ' : ',';
+    }
+
+    /**
+     * 格式化冒号（确保冒号周围有适当空格）
+     * @returns 格式化后的冒号字符串
+     */
+    formatColon(): string {
+        const options = this.options as any;
+        const useSpace = options.spaceAroundOperators !== false;
+        return useSpace ? ' : ' : ':';
+    }
+
+    /**
      * 格式化函数参数列表
      * @param params 参数数组
      * @param formatter 参数格式化函数
@@ -128,7 +157,7 @@ export class FormattingCore implements IFormattingCore {
             return '';
         }
 
-        return params.map(formatter).join(this.options.spaceAfterComma ? ', ' : ',');
+        return params.map(formatter).join(this.formatComma());
     }
 
     /**
@@ -142,7 +171,7 @@ export class FormattingCore implements IFormattingCore {
             return '';
         }
 
-        return expressions.map(formatter).join(this.options.spaceAfterComma ? ', ' : ',');
+        return expressions.map(formatter).join(this.formatComma());
     }
 
     /**
