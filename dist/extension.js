@@ -64682,6 +64682,13 @@ var init_IndentManager = __esm({
         this.indentLevel = 0;
       }
       /**
+       * 获取当前缩进字符串
+       * @returns 当前缩进字符串
+       */
+      getCurrentIndent() {
+        return this.getIndent();
+      }
+      /**
        * 获取当前配置的缩进字符
        * @returns 单个缩进级别对应的字符串
        */
@@ -64757,6 +64764,7 @@ var init_FormattingCore = __esm({
         return this.options;
       }
       /**
+       * *** 修复5: 改进运算符格式化，正确处理箭头操作符和复合赋值运算符 ***
        * 格式化运算符
        * @param operator 运算符字符串
        * @param isAssignment 是否为赋值运算符，默认为false
@@ -64764,6 +64772,13 @@ var init_FormattingCore = __esm({
        */
       formatOperator(operator, isAssignment = false) {
         const options = this.options;
+        if (operator === "->" || operator === "." || operator === "::") {
+          return operator;
+        }
+        if (operator.endsWith("=") && operator.length > 1) {
+          const useSpace = options.spaceAroundAssignmentOperators !== false && (options.spaceAroundAssignmentOperators || options.spaceAroundOperators);
+          return useSpace ? ` ${operator} ` : operator;
+        }
         if (isAssignment) {
           const useSpace = options.spaceAroundAssignmentOperators !== false && (options.spaceAroundAssignmentOperators || options.spaceAroundOperators);
           return useSpace ? ` ${operator} ` : operator;
@@ -64922,6 +64937,9 @@ var init_FormattingCore = __esm({
        * @returns 是否应该添加空格
        */
       shouldAddSpaceAroundOperator(operator) {
+        if (operator === "->" || operator === "." || operator === "::") {
+          return false;
+        }
         const unaryOperators = ["++", "--", "!", "~", "+", "-"];
         if (unaryOperators.includes(operator)) {
           return false;
@@ -90458,7 +90476,6 @@ var ExpressionFormatter = class {
   }
   /**
    * 安全执行格式化操作
-   * 提供统一的错误处理和回退机制
    */
   safeExecute(operation, errorMessage, fallback) {
     try {
@@ -90474,30 +90491,24 @@ var ExpressionFormatter = class {
     }
   }
   /**
+   * *** 修复6: 改进赋值表达式格式化，正确处理复合赋值运算符 ***
    * 格式化赋值表达式
-   * 处理各种赋值操作符：=, +=, -=, *=, /=, %=, |=, &=
+   * 处理所有类型的赋值运算符（=, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=）
    */
   formatAssignmentExpression(ctx) {
     return this.safeExecute(
       () => {
-        const conditionalExpr = ctx.conditionalExpression();
-        const rightExpr = ctx.expression();
-        if (!rightExpr) {
-          return this.visitNode(conditionalExpr);
+        const logicalOrExprs = this.getLogicalOrExpressions(ctx);
+        if (logicalOrExprs.length === 1) {
+          return this.visitNode(logicalOrExprs[0]);
         }
-        let result = "";
-        result += this.visitNode(conditionalExpr);
-        let operator = "=";
-        if (ctx.ASSIGN()) operator = "=";
-        else if (ctx.PLUS_ASSIGN()) operator = "+=";
-        else if (ctx.MINUS_ASSIGN()) operator = "-=";
-        else if (ctx.STAR_ASSIGN()) operator = "*=";
-        else if (ctx.DIV_ASSIGN()) operator = "/=";
-        else if (ctx.PERCENT_ASSIGN()) operator = "%=";
-        else if (ctx.BIT_OR_ASSIGN()) operator = "|=";
-        else if (ctx.BIT_AND_ASSIGN()) operator = "&=";
-        result += this.context.core.formatOperator(operator, true);
-        result += this.visitNode(rightExpr);
+        let result = this.visitNode(logicalOrExprs[0]);
+        for (let i = 1; i < logicalOrExprs.length; i++) {
+          const token = this.context.tokenUtils.getTokenBetween(logicalOrExprs[i - 1], logicalOrExprs[i]);
+          const operator = this.context.tokenUtils.getTokenText(token) || "=";
+          result += this.context.core.formatOperator(operator, true);
+          result += this.visitNode(logicalOrExprs[i]);
+        }
         return result;
       },
       "\u683C\u5F0F\u5316\u8D4B\u503C\u8868\u8FBE\u5F0F",
@@ -90505,8 +90516,8 @@ var ExpressionFormatter = class {
     ) || ctx.text || "";
   }
   /**
-   * 格式化加法和减法表达式
-   * 处理加号(+)和减号(-)运算符
+   * 格式化加法表达式
+   * 处理加法(+)和减法(-)运算符
    */
   formatAdditiveExpression(ctx) {
     return this.safeExecute(
@@ -90529,8 +90540,8 @@ var ExpressionFormatter = class {
     ) || ctx.text || "";
   }
   /**
-   * 格式化乘法、除法和取模表达式
-   * 处理乘号(*)、除号(/)和取模(%)运算符
+   * 格式化乘法表达式
+   * 处理乘法(*)、除法(/)和模运算(%)运算符
    */
   formatMultiplicativeExpression(ctx) {
     return this.safeExecute(
@@ -90559,26 +90570,26 @@ var ExpressionFormatter = class {
   formatEqualityExpression(ctx) {
     return this.safeExecute(
       () => {
-        const relExprs = ctx.relationalExpression();
-        if (relExprs.length === 1) {
-          return this.visitNode(relExprs[0]);
+        const relationalExprs = ctx.relationalExpression();
+        if (relationalExprs.length === 1) {
+          return this.visitNode(relationalExprs[0]);
         }
-        let result = this.visitNode(relExprs[0]);
-        for (let i = 1; i < relExprs.length; i++) {
-          const token = this.context.tokenUtils.getTokenBetween(relExprs[i - 1], relExprs[i]);
+        let result = this.visitNode(relationalExprs[0]);
+        for (let i = 1; i < relationalExprs.length; i++) {
+          const token = this.context.tokenUtils.getTokenBetween(relationalExprs[i - 1], relationalExprs[i]);
           const operator = this.context.tokenUtils.getTokenText(token) || "==";
           result += this.context.core.formatOperator(operator, false);
-          result += this.visitNode(relExprs[i]);
+          result += this.visitNode(relationalExprs[i]);
         }
         return result;
       },
-      "\u683C\u5F0F\u5316\u76F8\u7B49\u8868\u8FBE\u5F0F",
+      "\u683C\u5F0F\u5316\u76F8\u7B49\u6027\u8868\u8FBE\u5F0F",
       ctx.text
     ) || ctx.text || "";
   }
   /**
    * 格式化关系表达式
-   * 处理小于(<)、大于(>)、小于等于(<=)、大于等于(>=)运算符
+   * 处理比较运算符 (<, >, <=, >=)
    */
   formatRelationalExpression(ctx) {
     return this.safeExecute(
@@ -90645,68 +90656,68 @@ var ExpressionFormatter = class {
     ) || ctx.text || "";
   }
   /**
-   * 格式化按位与表达式
-   * 处理按位与(&)运算符
+   * 格式化位与表达式
+   * 处理位与(&)运算符
    */
   formatBitwiseAndExpression(ctx) {
     return this.safeExecute(
       () => {
-        const equalityExprs = ctx.equalityExpression();
-        if (equalityExprs.length === 1) {
-          return this.visitNode(equalityExprs[0]);
-        }
-        let result = this.visitNode(equalityExprs[0]);
-        for (let i = 1; i < equalityExprs.length; i++) {
-          result += this.context.core.formatOperator("&", false);
-          result += this.visitNode(equalityExprs[i]);
-        }
-        return result;
-      },
-      "\u683C\u5F0F\u5316\u6309\u4F4D\u4E0E\u8868\u8FBE\u5F0F",
-      ctx.text
-    ) || ctx.text || "";
-  }
-  /**
-   * 格式化按位或表达式
-   * 处理按位或(|)运算符
-   */
-  formatBitwiseOrExpression(ctx) {
-    return this.safeExecute(
-      () => {
-        const bitwiseXorExprs = ctx.bitwiseXorExpression();
+        const bitwiseXorExprs = this.getEqualityExpressions(ctx);
         if (bitwiseXorExprs.length === 1) {
           return this.visitNode(bitwiseXorExprs[0]);
         }
         let result = this.visitNode(bitwiseXorExprs[0]);
         for (let i = 1; i < bitwiseXorExprs.length; i++) {
-          result += this.context.core.formatOperator("|", false);
+          result += this.context.core.formatOperator("&", false);
           result += this.visitNode(bitwiseXorExprs[i]);
         }
         return result;
       },
-      "\u683C\u5F0F\u5316\u6309\u4F4D\u6216\u8868\u8FBE\u5F0F",
+      "\u683C\u5F0F\u5316\u4F4D\u4E0E\u8868\u8FBE\u5F0F",
       ctx.text
     ) || ctx.text || "";
   }
   /**
-   * 格式化按位异或表达式
-   * 处理按位异或(^)运算符
+   * 格式化位或表达式
+   * 处理位或(|)运算符
    */
-  formatBitwiseXorExpression(ctx) {
+  formatBitwiseOrExpression(ctx) {
     return this.safeExecute(
       () => {
-        const bitwiseAndExprs = ctx.bitwiseAndExpression();
+        const bitwiseAndExprs = this.getBitwiseAndExpressions(ctx);
         if (bitwiseAndExprs.length === 1) {
           return this.visitNode(bitwiseAndExprs[0]);
         }
         let result = this.visitNode(bitwiseAndExprs[0]);
         for (let i = 1; i < bitwiseAndExprs.length; i++) {
-          result += this.context.core.formatOperator("^", false);
+          result += this.context.core.formatOperator("|", false);
           result += this.visitNode(bitwiseAndExprs[i]);
         }
         return result;
       },
-      "\u683C\u5F0F\u5316\u6309\u4F4D\u5F02\u6216\u8868\u8FBE\u5F0F",
+      "\u683C\u5F0F\u5316\u4F4D\u6216\u8868\u8FBE\u5F0F",
+      ctx.text
+    ) || ctx.text || "";
+  }
+  /**
+   * 格式化位异或表达式
+   * 处理位异或(^)运算符
+   */
+  formatBitwiseXorExpression(ctx) {
+    return this.safeExecute(
+      () => {
+        const equalityExprs = this.getEqualityExpressions(ctx);
+        if (equalityExprs.length === 1) {
+          return this.visitNode(equalityExprs[0]);
+        }
+        let result = this.visitNode(equalityExprs[0]);
+        for (let i = 1; i < equalityExprs.length; i++) {
+          result += this.context.core.formatOperator("^", false);
+          result += this.visitNode(equalityExprs[i]);
+        }
+        return result;
+      },
+      "\u683C\u5F0F\u5316\u4F4D\u5F02\u6216\u8868\u8FBE\u5F0F",
       ctx.text
     ) || ctx.text || "";
   }
@@ -90735,6 +90746,39 @@ var ExpressionFormatter = class {
     ) || ctx.text || "";
   }
   /**
+   * *** 修复7: 改进后缀表达式格式化，正确处理箭头操作符 ***
+   * 格式化后缀表达式
+   * 处理成员访问 (->)、点访问 (.)、作用域访问 (::)、函数调用、数组访问等
+   */
+  formatPostfixExpression(ctx) {
+    return this.safeExecute(
+      () => {
+        let result = "";
+        const children2 = ctx.children;
+        if (!children2 || children2.length === 0) {
+          return ctx.text || "";
+        }
+        for (let i = 0; i < children2.length; i++) {
+          const child = children2[i];
+          if (child.payload && typeof child.payload.text === "string") {
+            const text3 = child.payload.text;
+            if (text3 === "->" || text3 === "." || text3 === "::") {
+              result += text3;
+              continue;
+            }
+            result += text3;
+          } else {
+            result += this.visitNode(child);
+          }
+        }
+        return result;
+      },
+      "\u683C\u5F0F\u5316\u540E\u7F00\u8868\u8FBE\u5F0F",
+      ctx.text
+    ) || ctx.text || "";
+  }
+  /**
+   * *** 修复8: 改进通用表达式格式化，智能处理子节点 ***
    * 格式化通用表达式
    * 这是表达式层次的入口点，处理各种表达式类型
    */
@@ -90742,7 +90786,23 @@ var ExpressionFormatter = class {
     return this.safeExecute(
       () => {
         if (ctx.children && ctx.children.length > 0) {
-          return ctx.children.map((child) => this.visitNode(child)).join("");
+          let result = "";
+          for (let i = 0; i < ctx.children.length; i++) {
+            const child = ctx.children[i];
+            if (child.payload && typeof child.payload.text === "string") {
+              const text3 = child.payload.text;
+              if (text3 === "->" || text3 === "." || text3 === "::") {
+                result += text3;
+              } else if (text3.match(/^[+\-*/=<>!&|^%]/) && text3.length > 1) {
+                result += this.context.core.formatOperator(text3, text3.includes("="));
+              } else {
+                result += text3;
+              }
+            } else {
+              result += this.visitNode(child);
+            }
+          }
+          return result;
         }
         return ctx.text || "";
       },
@@ -90753,7 +90813,7 @@ var ExpressionFormatter = class {
   /**
    * 格式化表达式列表
    * 用于函数调用参数、数组元素等场合
-   * 
+   *
    * 支持自动换行决策：
    * - 基于表达式数量
    * - 基于预估行长度
@@ -90775,9 +90835,8 @@ var ExpressionFormatter = class {
           result += "\n";
           this.context.indentManager.increaseIndent();
           for (let i = 0; i < expressions.length; i++) {
-            const expr = expressions[i];
             result += this.context.indentManager.getIndent();
-            const exprResult = this.visitNode(expr);
+            const exprResult = this.visitNode(expressions[i]);
             if (exprResult.includes("\n")) {
               const lines = exprResult.split("\n");
               result += lines[0];
@@ -90819,6 +90878,66 @@ var ExpressionFormatter = class {
   visitNode(node) {
     if (!node) return "";
     return this.visitor.visit(node);
+  }
+  /**
+   * 安全获取逻辑或表达式列表
+   */
+  getLogicalOrExpressions(ctx) {
+    try {
+      if (ctx.logicalOrExpression && typeof ctx.logicalOrExpression === "function") {
+        const result = ctx.logicalOrExpression();
+        return Array.isArray(result) ? result : [result];
+      }
+      return [];
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6\u903B\u8F91\u6216\u8868\u8FBE\u5F0F\u5931\u8D25: ${error}`);
+      return [];
+    }
+  }
+  /**
+   * 安全获取位异或表达式列表
+   */
+  getBitwiseXorExpressions(ctx) {
+    try {
+      if (ctx.bitwiseXorExpression && typeof ctx.bitwiseXorExpression === "function") {
+        const result = ctx.bitwiseXorExpression();
+        return Array.isArray(result) ? result : [result];
+      }
+      return [];
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6\u4F4D\u5F02\u6216\u8868\u8FBE\u5F0F\u5931\u8D25: ${error}`);
+      return [];
+    }
+  }
+  /**
+   * 安全获取位与表达式列表
+   */
+  getBitwiseAndExpressions(ctx) {
+    try {
+      if (ctx.bitwiseAndExpression && typeof ctx.bitwiseAndExpression === "function") {
+        const result = ctx.bitwiseAndExpression();
+        return Array.isArray(result) ? result : [result];
+      }
+      return [];
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6\u4F4D\u4E0E\u8868\u8FBE\u5F0F\u5931\u8D25: ${error}`);
+      return [];
+    }
+  }
+  /**
+   * 安全获取相等表达式列表
+   */
+  getEqualityExpressions(ctx) {
+    try {
+      if (ctx.equalityExpression && typeof ctx.equalityExpression === "function") {
+        const result = ctx.equalityExpression();
+        return Array.isArray(result) ? result : [result];
+      }
+      return [];
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6\u76F8\u7B49\u8868\u8FBE\u5F0F\u5931\u8D25: ${error}`);
+      return [];
+    }
   }
 };
 
@@ -91118,18 +91237,43 @@ var StatementFormatter = class {
     ) || ctx.text || "";
   }
   /**
+   * *** 修复9: 改进跳转语句格式化，避免重复分号 ***
    * 格式化break语句
    */
   formatBreakStatement(ctx) {
-    return "break;";
+    return this.safeExecute(
+      () => {
+        const originalText = ctx.text || "";
+        if (originalText.endsWith(";")) {
+          return "break;";
+        } else {
+          return "break;";
+        }
+      },
+      "\u683C\u5F0F\u5316break\u8BED\u53E5",
+      "break;"
+    ) || "break;";
   }
   /**
+   * *** 修复9: 改进跳转语句格式化，避免重复分号 ***
    * 格式化continue语句
    */
   formatContinueStatement(ctx) {
-    return "continue;";
+    return this.safeExecute(
+      () => {
+        const originalText = ctx.text || "";
+        if (originalText.endsWith(";")) {
+          return "continue;";
+        } else {
+          return "continue;";
+        }
+      },
+      "\u683C\u5F0F\u5316continue\u8BED\u53E5",
+      "continue;"
+    ) || "continue;";
   }
   /**
+   * *** 修复9: 改进跳转语句格式化，避免重复分号 ***
    * 格式化return语句
    * 处理可选的返回表达式
    */
@@ -91141,15 +91285,22 @@ var StatementFormatter = class {
         if (expr) {
           result += " " + this.visitNode(expr);
         }
-        return result + ";";
+        const originalText = ctx.text || "";
+        if (!originalText.endsWith(";")) {
+          result += ";";
+        } else if (!result.endsWith(";")) {
+          result += ";";
+        }
+        return result;
       },
       "\u683C\u5F0F\u5316return\u8BED\u53E5",
       ctx.text
     ) || ctx.text || "";
   }
   /**
+   * *** 修复10: 改进表达式语句格式化，避免重复分号 ***
    * 格式化表达式语句
-   * 确保分号紧跟表达式，不会被移到下一行
+   * 确保分号紧跟表达式，不会被移到下一行，同时避免重复分号
    */
   formatExprStatement(ctx) {
     return this.safeExecute(
@@ -91159,7 +91310,10 @@ var StatementFormatter = class {
         if (expr) {
           result = this.visitNode(expr);
         }
-        return result + ";";
+        if (!result.endsWith(";")) {
+          result += ";";
+        }
+        return result;
       },
       "\u683C\u5F0F\u5316\u8868\u8FBE\u5F0F\u8BED\u53E5",
       ctx.text
@@ -91423,7 +91577,30 @@ var DeclarationFormatter = class {
         if (ctx.typeSpec && ctx.typeSpec()) {
           const typeSpec = ctx.typeSpec();
           if (typeSpec) {
-            result += this.visitNode(typeSpec) + " ";
+            result += this.visitNode(typeSpec);
+          }
+        }
+        if (ctx.STAR && ctx.STAR()) {
+          const stars = ctx.STAR();
+          for (const star of stars) {
+            switch (options.starSpacePosition) {
+              case "before":
+                result += " *";
+                break;
+              case "after":
+                result += "*";
+                break;
+              case "both":
+                result += " * ";
+                break;
+              default:
+                result += "*";
+            }
+          }
+        }
+        if (ctx.typeSpec && ctx.typeSpec() || ctx.STAR && ctx.STAR()) {
+          if (!result.endsWith(" ")) {
+            result += " ";
           }
         }
         if (ctx.Identifier && ctx.Identifier()) {
@@ -91457,96 +91634,63 @@ var DeclarationFormatter = class {
   }
   /**
    * 格式化变量声明
-   * 处理类型和变量声明符列表
+   * 处理类型、星号、变量名和初始值
    */
   formatVariableDecl(ctx) {
     return this.safeExecute(
       () => {
         let result = "";
         const options = this.context.core.getOptions();
-        const typeSpec = ctx.typeSpec();
-        if (typeSpec) {
-          result += this.visitNode(typeSpec) + " ";
+        if (ctx.typeSpec && ctx.typeSpec()) {
+          result += this.visitNode(ctx.typeSpec());
         }
-        const declarators = ctx.variableDeclarator();
-        for (let i = 0; i < declarators.length; i++) {
-          if (i > 0) {
-            result += options.spaceAfterComma ? ", " : ",";
+        const starTokens = this.getStarTokens(ctx);
+        for (const star of starTokens) {
+          switch (options.starSpacePosition) {
+            case "before":
+              result += " *";
+              break;
+            case "after":
+              result += "*";
+              break;
+            case "both":
+              result += " * ";
+              break;
+            default:
+              result += " *";
           }
-          result += this.visitNode(declarators[i]);
         }
-        return result + ";";
+        if (ctx.typeSpec && ctx.typeSpec()) {
+          if (!result.endsWith(" ")) {
+            result += " ";
+          }
+        }
+        const identifier = this.getIdentifierToken(ctx);
+        if (identifier) {
+          result += identifier;
+        }
+        const assignExpr = this.getAssignmentExpression(ctx);
+        if (assignExpr) {
+          result += this.context.core.formatOperator("=", true);
+          result += this.visitNode(assignExpr);
+        }
+        return result;
       },
       "\u683C\u5F0F\u5316\u53D8\u91CF\u58F0\u660E",
       ctx.text
     ) || ctx.text || "";
   }
   /**
-   * 格式化变量声明符
-   * 处理变量名前的星号（数组标记）和初始化表达式
-   * 
-   * 支持的格式：
-   * - var          (简单变量)
-   * - *var         (一级指针/数组)
-   * - **var        (二级指针/数组)
-   * - var = expr   (带初始化)
-   * - *var = expr  (数组带初始化)
-   */
-  formatVariableDeclarator(ctx) {
-    return this.safeExecute(
-      () => {
-        let result = "";
-        const options = this.context.core.getOptions();
-        if (ctx.STAR && ctx.STAR()) {
-          const stars = ctx.STAR();
-          for (const star of stars) {
-            switch (options.starSpacePosition) {
-              case "before":
-                result += " *";
-                break;
-              case "after":
-                result += "*";
-                break;
-              case "both":
-                result += " * ";
-                break;
-              default:
-                result += "*";
-            }
-          }
-        }
-        if (ctx.Identifier && ctx.Identifier()) {
-          const identifier = ctx.Identifier().text;
-          if (ctx.STAR && ctx.STAR() && options.starSpacePosition === "after") {
-            result += identifier;
-          } else if (ctx.STAR && ctx.STAR() && options.starSpacePosition !== "both") {
-            result += " " + identifier;
-          } else {
-            result += identifier;
-          }
-        }
-        if (ctx.expression && ctx.expression()) {
-          result += options.spaceAroundAssignmentOperators ? " = " : "=";
-          result += this.visitNode(ctx.expression());
-        }
-        return result;
-      },
-      "\u683C\u5F0F\u5316\u53D8\u91CF\u58F0\u660E\u7B26",
-      ctx.text
-    ) || ctx.text || "";
-  }
-  /**
-   * 格式化单个参数
-   * 处理参数类型、修饰符、参数名和默认值
+   * 格式化参数
+   * 处理参数类型、星号和参数名
    */
   formatParameter(ctx) {
     return this.safeExecute(
       () => {
         let result = "";
         const options = this.context.core.getOptions();
-        const typeSpec = ctx.typeSpec();
-        if (typeSpec) {
-          result += this.visitNode(typeSpec);
+        if (ctx.typeSpec && ctx.typeSpec()) {
+          result += this.visitNode(ctx.typeSpec());
         }
         if (ctx.STAR && ctx.STAR()) {
           const stars = ctx.STAR();
@@ -91562,20 +91706,21 @@ var DeclarationFormatter = class {
                 result += " * ";
                 break;
               default:
-                result += "*";
+                result += " *";
             }
           }
         }
-        const identifierNode = ctx.Identifier();
-        if (identifierNode) {
-          const identifier = identifierNode.text;
-          if (result !== "" && !result.endsWith(" ") && !result.endsWith("*")) {
-            result += " ";
-          } else if (result.endsWith("*") && options.starSpacePosition === "after") {
-          } else if (result.endsWith("*")) {
+        if (ctx.typeSpec && ctx.typeSpec()) {
+          if (!result.endsWith(" ")) {
             result += " ";
           }
-          result += identifier;
+        }
+        const paramName = this.getIdentifierToken(ctx);
+        if (paramName) {
+          result += paramName;
+        }
+        if (ctx.ELLIPSIS && ctx.ELLIPSIS()) {
+          result += "...";
         }
         return result;
       },
@@ -91585,36 +91730,19 @@ var DeclarationFormatter = class {
   }
   /**
    * 格式化参数列表
-   * 支持自动换行和适当的缩进
+   * 处理多个参数及其分隔符
    */
   formatParameterList(ctx) {
     return this.safeExecute(
       () => {
-        let result = "";
         const options = this.context.core.getOptions();
-        const params = ctx.parameter();
-        const shouldWrapParams = params.length > 3 || this.context.lineBreakManager.estimateLineLength(
-          params.map((p) => this.visitNode(p)).join(", ")
-        ) > options.maxLineLength;
-        if (shouldWrapParams) {
-          result += "\n";
-          this.context.indentManager.increaseIndent();
-          for (let i = 0; i < params.length; i++) {
-            result += this.getIndent() + this.visitNode(params[i]);
-            if (i < params.length - 1) {
-              result += ",";
-            }
-            result += "\n";
+        const params = ctx.parameter ? ctx.parameter() : [];
+        let result = "";
+        for (let i = 0; i < params.length; i++) {
+          if (i > 0) {
+            result += options.spaceAfterComma ? ", " : ",";
           }
-          this.context.indentManager.decreaseIndent();
-          result += this.getIndent();
-        } else {
-          for (let i = 0; i < params.length; i++) {
-            result += this.visitNode(params[i]);
-            if (i < params.length - 1) {
-              result += options.spaceAfterComma ? ", " : ",";
-            }
-          }
+          result += this.visitNode(params[i]);
         }
         return result;
       },
@@ -91623,18 +91751,19 @@ var DeclarationFormatter = class {
     ) || ctx.text || "";
   }
   /**
+   * *** 修复4: 改进类型规范格式化，正确处理指针类型 ***
    * 格式化类型规范
    * 处理基础类型和复合类型（如 mapping, int *, mapping * 等）
    * 支持 spaceAfterTypeBeforeStar 配置选项
+   *
+   * @param ctx 类型规范上下文
+   * @returns 格式化后的类型字符串
    */
   formatTypeSpec(ctx) {
     return this.safeExecute(
       () => {
         let typeText = ctx.text || "";
-        const options = this.context.core.getOptions();
-        if (options.spaceAfterTypeBeforeStar && typeText.includes("*")) {
-          typeText = typeText.replace(/(\w)(\*+)/g, "$1 $2");
-        }
+        typeText = typeText.replace(/\s+/g, " ").trim();
         return typeText;
       },
       "\u683C\u5F0F\u5316\u7C7B\u578B\u89C4\u8303",
@@ -91643,7 +91772,6 @@ var DeclarationFormatter = class {
   }
   /**
    * 格式化结构定义
-   * 处理结构名和成员列表
    */
   formatStructDef(ctx) {
     return this.safeExecute(
@@ -91654,17 +91782,19 @@ var DeclarationFormatter = class {
           result += ctx.Identifier().text;
         }
         if (options.bracesOnNewLine) {
-          result += "\n" + this.getIndent() + "{\n";
+          result += "\n" + this.getIndent() + "{";
         } else {
-          result += " {\n";
+          result += " {";
         }
-        this.context.indentManager.increaseIndent();
-        const memberList = ctx.structMemberList();
-        if (memberList) {
-          result += this.visitNode(memberList);
+        if (ctx.structMemberList && ctx.structMemberList()) {
+          const memberList = this.visitNode(ctx.structMemberList());
+          if (memberList) {
+            result += "\n" + this.context.indentManager.increaseIndent();
+            result += memberList;
+            result += "\n" + this.context.indentManager.decreaseIndent();
+          }
         }
-        this.context.indentManager.decreaseIndent();
-        result += this.getIndent() + "}";
+        result += "}";
         return result;
       },
       "\u683C\u5F0F\u5316\u7ED3\u6784\u5B9A\u4E49",
@@ -91673,7 +91803,6 @@ var DeclarationFormatter = class {
   }
   /**
    * 格式化类定义
-   * 处理类名和成员列表
    */
   formatClassDef(ctx) {
     return this.safeExecute(
@@ -91683,18 +91812,28 @@ var DeclarationFormatter = class {
         if (ctx.Identifier && ctx.Identifier()) {
           result += ctx.Identifier().text;
         }
+        const inheritanceList = this.getInheritanceList(ctx);
+        if (inheritanceList) {
+          result += " : ";
+          result += this.visitNode(inheritanceList);
+        }
         if (options.bracesOnNewLine) {
-          result += "\n" + this.getIndent() + "{\n";
+          result += "\n" + this.getIndent() + "{";
         } else {
-          result += " {\n";
+          result += " {";
         }
-        this.context.indentManager.increaseIndent();
-        const memberList = ctx.structMemberList();
+        const memberList = this.getClassMemberList(ctx);
         if (memberList) {
-          result += this.visitNode(memberList);
+          const formattedMemberList = this.visitNode(memberList);
+          if (formattedMemberList) {
+            result += "\n";
+            this.context.indentManager.increaseIndent();
+            result += this.context.indentManager.getCurrentIndent() + formattedMemberList;
+            this.context.indentManager.decreaseIndent();
+            result += "\n" + this.context.indentManager.getCurrentIndent();
+          }
         }
-        this.context.indentManager.decreaseIndent();
-        result += this.getIndent() + "}";
+        result += "}";
         return result;
       },
       "\u683C\u5F0F\u5316\u7C7B\u5B9A\u4E49",
@@ -91703,7 +91842,6 @@ var DeclarationFormatter = class {
   }
   /**
    * 格式化结构成员
-   * 处理成员类型、指针标记和成员名
    */
   formatStructMember(ctx) {
     return this.safeExecute(
@@ -91713,13 +91851,21 @@ var DeclarationFormatter = class {
           result += this.visitNode(ctx.typeSpec());
         }
         if (ctx.STAR && ctx.STAR()) {
-          for (const star of ctx.STAR()) {
-            result += "*";
+          const stars = ctx.STAR();
+          for (const star of stars) {
+            result += " *";
           }
         }
-        result += " ";
+        if (ctx.typeSpec && ctx.typeSpec()) {
+          if (!result.endsWith(" ")) {
+            result += " ";
+          }
+        }
         if (ctx.Identifier && ctx.Identifier()) {
           result += ctx.Identifier().text;
+        }
+        if (this.hasBrackets(ctx)) {
+          result += "[]";
         }
         return result + ";";
       },
@@ -91729,15 +91875,18 @@ var DeclarationFormatter = class {
   }
   /**
    * 格式化结构成员列表
-   * 处理所有结构成员的格式化和缩进
    */
   formatStructMemberList(ctx) {
     return this.safeExecute(
       () => {
+        const members = ctx.structMember ? ctx.structMember() : [];
         let result = "";
-        const members = ctx.structMember();
-        for (const member of members) {
-          result += this.getIndent() + this.visitNode(member) + "\n";
+        for (let i = 0; i < members.length; i++) {
+          if (i > 0) {
+            result += "\n";
+          }
+          result += this.context.indentManager.getCurrentIndent();
+          result += this.visitNode(members[i]);
         }
         return result;
       },
@@ -91746,60 +91895,192 @@ var DeclarationFormatter = class {
     ) || ctx.text || "";
   }
   /**
-   * 格式化include语句
-   * 处理包含路径表达式
+   * 格式化包含语句
    */
   formatIncludeStatement(ctx) {
     return this.safeExecute(
       () => {
         let result = "#include ";
-        const expr = ctx.expression();
-        if (expr) {
-          result += this.visitNode(expr);
+        const stringLiteral = this.getStringLiteral(ctx);
+        if (stringLiteral) {
+          result += stringLiteral;
         }
         return result;
       },
-      "\u683C\u5F0F\u5316include\u8BED\u53E5",
+      "\u683C\u5F0F\u5316\u5305\u542B\u8BED\u53E5",
       ctx.text
     ) || ctx.text || "";
   }
   /**
-   * 格式化inherit语句
-   * 处理继承路径表达式
+   * 格式化继承语句
    */
   formatInheritStatement(ctx) {
     return this.safeExecute(
       () => {
         let result = "inherit ";
-        const expr = ctx.expression();
-        if (expr) {
-          result += this.visitNode(expr);
+        const inheritValue = this.getInheritValue(ctx);
+        if (inheritValue) {
+          result += inheritValue;
         }
-        return result + ";";
+        return result;
       },
-      "\u683C\u5F0F\u5316inherit\u8BED\u53E5",
+      "\u683C\u5F0F\u5316\u7EE7\u627F\u8BED\u53E5",
       ctx.text
     ) || ctx.text || "";
   }
+  // === 辅助方法 ===
   /**
-   * 辅助方法：提取函数修饰符
+   * 访问子节点
+   */
+  visitNode(node) {
+    return this.visitor.visit ? this.visitor.visit(node) || "" : "";
+  }
+  /**
+   * 获取当前缩进
+   */
+  getIndent() {
+    return this.context.indentManager.getCurrentIndent();
+  }
+  /**
+   * 提取函数修饰符
+   * @param ctx 函数定义上下文
+   * @returns 修饰符数组
    */
   extractModifiers(ctx) {
     const modifiers = [];
     return modifiers;
   }
   /**
-   * 辅助方法：获取当前缩进
+   * 安全获取STAR tokens
    */
-  getIndent() {
-    return this.context.indentManager.getIndent();
+  getStarTokens(ctx) {
+    try {
+      if (ctx.STAR) {
+        if (typeof ctx.STAR === "function") {
+          const stars = ctx.STAR();
+          return Array.isArray(stars) ? stars.map(() => "*") : ["*"];
+        }
+      }
+      return [];
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6STAR tokens\u5931\u8D25: ${error}`);
+      return [];
+    }
   }
   /**
-   * 辅助方法：访问节点
+   * 安全获取Identifier
    */
-  visitNode(node) {
-    if (!node) return "";
-    return this.visitor.visit(node);
+  getIdentifierToken(ctx) {
+    try {
+      if (ctx.Identifier) {
+        if (typeof ctx.Identifier === "function") {
+          const identifier = ctx.Identifier();
+          return identifier ? identifier.text || identifier.getText ? identifier.getText() : "" : null;
+        }
+      }
+      if (ctx.children) {
+        for (const child of ctx.children) {
+          if (child.symbol && child.symbol.text) {
+            return child.symbol.text;
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6Identifier\u5931\u8D25: ${error}`);
+      return null;
+    }
+  }
+  /**
+   * 安全获取赋值表达式
+   */
+  getAssignmentExpression(ctx) {
+    try {
+      if (ctx.assignmentExpression && typeof ctx.assignmentExpression === "function") {
+        return ctx.assignmentExpression();
+      }
+      return null;
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6\u8D4B\u503C\u8868\u8FBE\u5F0F\u5931\u8D25: ${error}`);
+      return null;
+    }
+  }
+  /**
+   * 安全获取继承列表
+   */
+  getInheritanceList(ctx) {
+    try {
+      if (ctx.inheritanceList && typeof ctx.inheritanceList === "function") {
+        return ctx.inheritanceList();
+      }
+      return null;
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6\u7EE7\u627F\u5217\u8868\u5931\u8D25: ${error}`);
+      return null;
+    }
+  }
+  /**
+   * 安全获取类成员列表
+   */
+  getClassMemberList(ctx) {
+    try {
+      if (ctx.classMemberList && typeof ctx.classMemberList === "function") {
+        return ctx.classMemberList();
+      }
+      return null;
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6\u7C7B\u6210\u5458\u5217\u8868\u5931\u8D25: ${error}`);
+      return null;
+    }
+  }
+  /**
+   * 安全检查是否有方括号
+   */
+  hasBrackets(ctx) {
+    try {
+      return ctx.LBRACK && ctx.RBRACK || ctx.getChild && ctx.getChild(0) && ctx.getChild(0).symbol && ctx.getChild(0).symbol.text === "[";
+    } catch (error) {
+      this.context.errorCollector.addError(`\u68C0\u67E5\u65B9\u62EC\u53F7\u5931\u8D25: ${error}`);
+      return false;
+    }
+  }
+  /**
+   * 安全获取字符串字面量
+   */
+  getStringLiteral(ctx) {
+    try {
+      if (ctx.STRING_LITERAL && typeof ctx.STRING_LITERAL === "function") {
+        const literal = ctx.STRING_LITERAL();
+        return literal ? literal.text : null;
+      }
+      if (ctx.ANGLE_STRING_LITERAL && typeof ctx.ANGLE_STRING_LITERAL === "function") {
+        const literal = ctx.ANGLE_STRING_LITERAL();
+        return literal ? literal.text : null;
+      }
+      return null;
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6\u5B57\u7B26\u4E32\u5B57\u9762\u91CF\u5931\u8D25: ${error}`);
+      return null;
+    }
+  }
+  /**
+   * 安全获取inherit值
+   */
+  getInheritValue(ctx) {
+    try {
+      const stringLiteral = this.getStringLiteral(ctx);
+      if (stringLiteral) {
+        return stringLiteral;
+      }
+      const identifier = this.getIdentifierToken(ctx);
+      if (identifier) {
+        return identifier;
+      }
+      return null;
+    } catch (error) {
+      this.context.errorCollector.addError(`\u83B7\u53D6inherit\u503C\u5931\u8D25: ${error}`);
+      return null;
+    }
   }
 };
 
@@ -91913,6 +92194,7 @@ var ExtendedFormattingContext = class _ExtendedFormattingContext extends Formatt
    */
   constructor(tokenStream, options) {
     super(tokenStream, options);
+    this.options = options;
   }
   /**
    * 设置节点访问器
@@ -92168,41 +92450,7 @@ var FormattingVisitor = class extends import_AbstractParseTreeVisitor2.AbstractP
     }
   }
   visitFunctionDef(ctx) {
-    let result = "";
-    const modifiers = this.extractModifiers(ctx);
-    if (modifiers.length > 0) {
-      result += this.context.core.formatModifiers(modifiers) + " ";
-    }
-    if (ctx.typeSpec && ctx.typeSpec()) {
-      const typeSpec = ctx.typeSpec();
-      if (typeSpec) {
-        result += this.visit(typeSpec) + " ";
-      }
-    }
-    if (ctx.Identifier && ctx.Identifier()) {
-      result += ctx.Identifier().text;
-    }
-    result += "(";
-    const paramList = ctx.parameterList();
-    if (paramList) {
-      const params = paramList.parameter ? paramList.parameter() : [];
-      for (let i = 0; i < params.length; i++) {
-        if (i > 0) {
-          result += this.context.core.getOptions().spaceAfterComma ? ", " : ",";
-        }
-        result += this.visit(params[i]);
-      }
-    }
-    result += ")";
-    if (ctx.block && ctx.block()) {
-      if (this.context.core.getOptions().bracesOnNewLine) {
-        result += "\n" + this.getIndent();
-      } else {
-        result += this.context.core.getOptions().spaceBeforeOpenParen ? " " : "";
-      }
-      result += this.visit(ctx.block());
-    }
-    return result + "\n";
+    return this.context.declarationFormatter.formatFunctionDef(ctx);
   }
   /**
    * 格式化代码块（委托给专用格式化器）
@@ -92219,11 +92467,7 @@ var FormattingVisitor = class extends import_AbstractParseTreeVisitor2.AbstractP
    * @returns 格式化后的类型字符串
    */
   visitTypeSpec(ctx) {
-    let typeText = ctx.text || "";
-    if (this.context.core.getOptions().spaceAfterTypeBeforeStar && typeText.includes("*")) {
-      typeText = typeText.replace(/(\w)(\*+)/g, "$1 $2");
-    }
-    return typeText;
+    return this.context.declarationFormatter.formatTypeSpec(ctx);
   }
   visitVariableDecl(ctx) {
     let result = "";
@@ -92252,7 +92496,7 @@ var FormattingVisitor = class extends import_AbstractParseTreeVisitor2.AbstractP
    * - *var = expr  (数组带初始化)
    */
   visitVariableDeclarator(ctx) {
-    return this.context.declarationFormatter.formatVariableDeclarator(ctx);
+    return this.context.declarationFormatter.formatVariableDecl(ctx);
   }
   visitIncludeStatement(ctx) {
     return this.context.declarationFormatter.formatIncludeStatement(ctx);
@@ -94115,8 +94359,8 @@ var DEFAULT_FORMATTING_OPTIONS = {
   // 新增的格式化选项默认值
   arrayOfMappingFormat: "auto",
   // 映射数组智能格式化
-  spaceAfterTypeBeforeStar: false,
-  // 类型名和星号间不加空格：mapping*
+  spaceAfterTypeBeforeStar: true,
+  // 类型名和星号间加空格：mapping *
   starSpacePosition: "after",
   // 星号紧跟类型名：mapping*arr
   nestedStructureIndent: 4,

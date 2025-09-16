@@ -157,6 +157,14 @@ export class IndentManager implements IIndentManager {
     }
 
     /**
+     * 获取当前缩进字符串
+     * @returns 当前缩进字符串
+     */
+    getCurrentIndent(): string {
+        return this.getIndent();
+    }
+
+    /**
      * 获取当前配置的缩进字符
      * @returns 单个缩进级别对应的字符串
      */

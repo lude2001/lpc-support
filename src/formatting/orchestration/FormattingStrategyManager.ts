@@ -15,7 +15,7 @@ import {
 } from './types';
 import { CompactStrategy } from './strategies/CompactStrategy';
 import { StandardStrategy } from './strategies/StandardStrategy';
-// import { DebugStrategy } from './strategies/DebugStrategy'; // TODO: 需要实现该模块
+import { DebugStrategy } from './strategies/DebugStrategy';
 
 export class FormattingStrategyManager {
     private readonly strategies = new Map<FormattingStrategyType, IFormattingStrategy>();
@@ -32,7 +32,7 @@ export class FormattingStrategyManager {
         // 注册内置策略
         this.strategies.set(FormattingStrategyType.COMPACT, new CompactStrategy());
         this.strategies.set(FormattingStrategyType.STANDARD, new StandardStrategy());
-        // this.strategies.set(FormattingStrategyType.DEBUG, new DebugStrategy()); // TODO: 实现 DebugStrategy 后再启用
+        this.strategies.set(FormattingStrategyType.DEBUG, new DebugStrategy());
     }
 
     /**

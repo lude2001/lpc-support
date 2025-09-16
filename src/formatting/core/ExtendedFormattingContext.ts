@@ -20,13 +20,16 @@ import {
  * - 提供格式化器之间的协调机制
  */
 export class ExtendedFormattingContext extends FormattingContext implements IExtendedFormattingContext {
+    // 格式化选项
+    public readonly options: LPCFormattingOptions;
+
     // 专用格式化器实例（懒加载）
     private _expressionFormatter?: ExpressionFormatter;
     private _statementFormatter?: StatementFormatter;
     private _literalFormatter?: LiteralFormatter;
     private _declarationFormatter?: DeclarationFormatter;
     private _blockFormatter?: BlockFormatter;
-    
+
     // 节点访问器引用
     private _nodeVisitor?: INodeVisitor;
 
@@ -37,6 +40,7 @@ export class ExtendedFormattingContext extends FormattingContext implements IExt
      */
     constructor(tokenStream: CommonTokenStream, options: LPCFormattingOptions) {
         super(tokenStream, options);
+        this.options = options;
     }
     
     /**

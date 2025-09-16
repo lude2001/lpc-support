@@ -5,7 +5,7 @@
 
 import { ErrorCollector, IndentManager, TokenUtils, LineBreakManager, FormattingCore, FormattingContext } from '../core';
 import { DEFAULT_FORMATTING_OPTIONS } from '../types';
-import { MockTokenStream } from '../../../tests/helpers/TestHelpers';
+import { MockTokenStream } from '../../test-helpers/TestHelpers';
 
 describe('Core Modules', () => {
     let mockTokenStream: MockTokenStream;

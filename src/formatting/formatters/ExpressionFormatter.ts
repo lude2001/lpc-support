@@ -11,7 +11,9 @@ import {
     BitwiseXorExpressionContext,
     ShiftExpressionContext,
     ExpressionContext,
-    ExpressionListContext
+    ExpressionListContext,
+    PostfixExpressionContext,
+    PrimaryContext
 } from '../../antlr/LPCParser';
 
 import { IExpressionFormatter, IFormattingContext, INodeVisitor } from '../types/interfaces';
@@ -19,13 +21,14 @@ import { IExpressionFormatter, IFormattingContext, INodeVisitor } from '../types
 /**
  * 表达式格式化器
  * 专门处理各种表达式的格式化逻辑
- * 
+ *
  * 包含以下表达式类型：
  * - 赋值表达式 (=, +=, -=, etc.)
  * - 算数表达式 (+, -, *, /, %)
  * - 比较表达式 (==, !=, <, >, <=, >=)
  * - 逻辑表达式 (&&, ||)
  * - 位运算表达式 (&, |, ^, <<, >>)
+ * - 后缀表达式（包含箭头操作符）
  * - 表达式列表
  */
 export class ExpressionFormatter implements IExpressionFormatter {
@@ -39,7 +42,6 @@ export class ExpressionFormatter implements IExpressionFormatter {
 
     /**
      * 安全执行格式化操作
-     * 提供统一的错误处理和回退机制
      */
     safeExecute<T>(operation: () => T, errorMessage: string, fallback?: T): T | undefined {
         try {
@@ -56,43 +58,32 @@ export class ExpressionFormatter implements IExpressionFormatter {
     }
 
     /**
+     * *** 修复6: 改进赋值表达式格式化，正确处理复合赋值运算符 ***
      * 格式化赋值表达式
-     * 处理各种赋值操作符：=, +=, -=, *=, /=, %=, |=, &=
+     * 处理所有类型的赋值运算符（=, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=）
      */
     formatAssignmentExpression(ctx: AssignmentExpressionContext): string {
         return this.safeExecute(
             () => {
-                // 处理简单表达式（没有赋值操作符）
-                const conditionalExpr = ctx.conditionalExpression();
-                const rightExpr = ctx.expression();
-                
-                if (!rightExpr) {
-                    // 没有赋值操作，直接返回条件表达式
-                    return this.visitNode(conditionalExpr);
+                // 处理简单表达式（只有一个逻辑或表达式）
+                const logicalOrExprs = this.getLogicalOrExpressions(ctx);
+                if (logicalOrExprs.length === 1) {
+                    return this.visitNode(logicalOrExprs[0]);
                 }
 
-                // 处理赋值表达式
-                let result = '';
-                
-                // 左侧表达式
-                result += this.visitNode(conditionalExpr);
+                // 处理赋值运算
+                let result = this.visitNode(logicalOrExprs[0]);
 
-                // 获取赋值操作符
-                let operator = '='; // 默认赋值操作符
-                if (ctx.ASSIGN()) operator = '=';
-                else if (ctx.PLUS_ASSIGN()) operator = '+=';
-                else if (ctx.MINUS_ASSIGN()) operator = '-=';
-                else if (ctx.STAR_ASSIGN()) operator = '*=';
-                else if (ctx.DIV_ASSIGN()) operator = '/=';
-                else if (ctx.PERCENT_ASSIGN()) operator = '%=';
-                else if (ctx.BIT_OR_ASSIGN()) operator = '|=';
-                else if (ctx.BIT_AND_ASSIGN()) operator = '&=';
+                for (let i = 1; i < logicalOrExprs.length; i++) {
+                    // 获取赋值运算符
+                    const token = this.context.tokenUtils.getTokenBetween(logicalOrExprs[i-1], logicalOrExprs[i]);
+                    const operator = this.context.tokenUtils.getTokenText(token) || '='; // 默认为 =
 
-                // 添加赋值操作符和空格
-                result += this.context.core.formatOperator(operator, true);
-
-                // 右侧表达式
-                result += this.visitNode(rightExpr);
+                    // *** 修复：确保复合赋值运算符作为整体处理 ***
+                    // 使用formatOperator方法，标记为赋值运算符
+                    result += this.context.core.formatOperator(operator, true);
+                    result += this.visitNode(logicalOrExprs[i]);
+                }
 
                 return result;
             },
@@ -102,8 +93,8 @@ export class ExpressionFormatter implements IExpressionFormatter {
     }
 
     /**
-     * 格式化加法和减法表达式
-     * 处理加号(+)和减号(-)运算符
+     * 格式化加法表达式
+     * 处理加法(+)和减法(-)运算符
      */
     formatAdditiveExpression(ctx: AdditiveExpressionContext): string {
         return this.safeExecute(
@@ -116,12 +107,12 @@ export class ExpressionFormatter implements IExpressionFormatter {
 
                 // 处理二元运算
                 let result = this.visitNode(multExprs[0]);
-                
+
                 for (let i = 1; i < multExprs.length; i++) {
-                    // 获取运算符（+ 或 -）
+                    // 获取加减法运算符（+ 或 -）
                     const token = this.context.tokenUtils.getTokenBetween(multExprs[i-1], multExprs[i]);
                     const operator = this.context.tokenUtils.getTokenText(token) || '+'; // 默认为 +
-                    
+
                     // 根据配置添加空格
                     result += this.context.core.formatOperator(operator, false);
                     result += this.visitNode(multExprs[i]);
@@ -135,8 +126,8 @@ export class ExpressionFormatter implements IExpressionFormatter {
     }
 
     /**
-     * 格式化乘法、除法和取模表达式
-     * 处理乘号(*)、除号(/)和取模(%)运算符
+     * 格式化乘法表达式
+     * 处理乘法(*)、除法(/)和模运算(%)运算符
      */
     formatMultiplicativeExpression(ctx: MultiplicativeExpressionContext): string {
         return this.safeExecute(
@@ -149,12 +140,12 @@ export class ExpressionFormatter implements IExpressionFormatter {
 
                 // 处理二元运算
                 let result = this.visitNode(unaryExprs[0]);
-                
+
                 for (let i = 1; i < unaryExprs.length; i++) {
-                    // 获取运算符（*, /, %）
+                    // 获取乘除法运算符（*, /, %）
                     const token = this.context.tokenUtils.getTokenBetween(unaryExprs[i-1], unaryExprs[i]);
                     const operator = this.context.tokenUtils.getTokenText(token) || '*'; // 默认为 *
-                    
+
                     // 根据配置添加空格
                     result += this.context.core.formatOperator(operator, false);
                     result += this.visitNode(unaryExprs[i]);
@@ -175,34 +166,34 @@ export class ExpressionFormatter implements IExpressionFormatter {
         return this.safeExecute(
             () => {
                 // 处理简单表达式（只有一个关系表达式）
-                const relExprs = ctx.relationalExpression();
-                if (relExprs.length === 1) {
-                    return this.visitNode(relExprs[0]);
+                const relationalExprs = ctx.relationalExpression();
+                if (relationalExprs.length === 1) {
+                    return this.visitNode(relationalExprs[0]);
                 }
 
                 // 处理二元运算
-                let result = this.visitNode(relExprs[0]);
-                
-                for (let i = 1; i < relExprs.length; i++) {
-                    // 获取运算符（== 或 !=）
-                    const token = this.context.tokenUtils.getTokenBetween(relExprs[i-1], relExprs[i]);
+                let result = this.visitNode(relationalExprs[0]);
+
+                for (let i = 1; i < relationalExprs.length; i++) {
+                    // 获取相等性运算符（== 或 !=）
+                    const token = this.context.tokenUtils.getTokenBetween(relationalExprs[i-1], relationalExprs[i]);
                     const operator = this.context.tokenUtils.getTokenText(token) || '=='; // 默认为 ==
-                    
+
                     // 根据配置添加空格
                     result += this.context.core.formatOperator(operator, false);
-                    result += this.visitNode(relExprs[i]);
+                    result += this.visitNode(relationalExprs[i]);
                 }
 
                 return result;
             },
-            '格式化相等表达式',
+            '格式化相等性表达式',
             ctx.text
         ) || ctx.text || '';
     }
 
     /**
      * 格式化关系表达式
-     * 处理小于(<)、大于(>)、小于等于(<=)、大于等于(>=)运算符
+     * 处理比较运算符 (<, >, <=, >=)
      */
     formatRelationalExpression(ctx: RelationalExpressionContext): string {
         return this.safeExecute(
@@ -215,12 +206,12 @@ export class ExpressionFormatter implements IExpressionFormatter {
 
                 // 处理二元运算
                 let result = this.visitNode(shiftExprs[0]);
-                
+
                 for (let i = 1; i < shiftExprs.length; i++) {
-                    // 获取运算符（<, >, <=, >=）
+                    // 获取关系运算符（<, >, <=, >=）
                     const token = this.context.tokenUtils.getTokenBetween(shiftExprs[i-1], shiftExprs[i]);
                     const operator = this.context.tokenUtils.getTokenText(token) || '<'; // 默认为 <
-                    
+
                     // 根据配置添加空格
                     result += this.context.core.formatOperator(operator, false);
                     result += this.visitNode(shiftExprs[i]);
@@ -240,7 +231,7 @@ export class ExpressionFormatter implements IExpressionFormatter {
     formatLogicalAndExpression(ctx: LogicalAndExpressionContext): string {
         return this.safeExecute(
             () => {
-                // 处理简单表达式（只有一个按位或表达式）
+                // 处理简单表达式（只有一个位或表达式）
                 const bitwiseOrExprs = ctx.bitwiseOrExpression();
                 if (bitwiseOrExprs.length === 1) {
                     return this.visitNode(bitwiseOrExprs[0]);
@@ -248,9 +239,9 @@ export class ExpressionFormatter implements IExpressionFormatter {
 
                 // 处理二元运算
                 let result = this.visitNode(bitwiseOrExprs[0]);
-                
+
                 for (let i = 1; i < bitwiseOrExprs.length; i++) {
-                    // 逻辑与操作符
+                    // 逻辑与运算符总是 &&
                     result += this.context.core.formatOperator('&&', false);
                     result += this.visitNode(bitwiseOrExprs[i]);
                 }
@@ -277,9 +268,9 @@ export class ExpressionFormatter implements IExpressionFormatter {
 
                 // 处理二元运算
                 let result = this.visitNode(logicalAndExprs[0]);
-                
+
                 for (let i = 1; i < logicalAndExprs.length; i++) {
-                    // 逻辑或操作符
+                    // 逻辑或运算符总是 ||
                     result += this.context.core.formatOperator('||', false);
                     result += this.visitNode(logicalAndExprs[i]);
                 }
@@ -292,88 +283,88 @@ export class ExpressionFormatter implements IExpressionFormatter {
     }
 
     /**
-     * 格式化按位与表达式
-     * 处理按位与(&)运算符
+     * 格式化位与表达式
+     * 处理位与(&)运算符
      */
     formatBitwiseAndExpression(ctx: BitwiseAndExpressionContext): string {
         return this.safeExecute(
             () => {
                 // 处理简单表达式（只有一个相等表达式）
-                const equalityExprs = ctx.equalityExpression();
-                if (equalityExprs.length === 1) {
-                    return this.visitNode(equalityExprs[0]);
-                }
-
-                // 处理二元运算
-                let result = this.visitNode(equalityExprs[0]);
-                
-                for (let i = 1; i < equalityExprs.length; i++) {
-                    // 按位与操作符
-                    result += this.context.core.formatOperator('&', false);
-                    result += this.visitNode(equalityExprs[i]);
-                }
-
-                return result;
-            },
-            '格式化按位与表达式',
-            ctx.text
-        ) || ctx.text || '';
-    }
-
-    /**
-     * 格式化按位或表达式
-     * 处理按位或(|)运算符
-     */
-    formatBitwiseOrExpression(ctx: BitwiseOrExpressionContext): string {
-        return this.safeExecute(
-            () => {
-                // 处理简单表达式（只有一个按位异或表达式）
-                const bitwiseXorExprs = ctx.bitwiseXorExpression();
+                const bitwiseXorExprs = this.getEqualityExpressions(ctx);
                 if (bitwiseXorExprs.length === 1) {
                     return this.visitNode(bitwiseXorExprs[0]);
                 }
 
                 // 处理二元运算
                 let result = this.visitNode(bitwiseXorExprs[0]);
-                
+
                 for (let i = 1; i < bitwiseXorExprs.length; i++) {
-                    // 按位或操作符
-                    result += this.context.core.formatOperator('|', false);
+                    // 位与运算符总是 &
+                    result += this.context.core.formatOperator('&', false);
                     result += this.visitNode(bitwiseXorExprs[i]);
                 }
 
                 return result;
             },
-            '格式化按位或表达式',
+            '格式化位与表达式',
             ctx.text
         ) || ctx.text || '';
     }
 
     /**
-     * 格式化按位异或表达式
-     * 处理按位异或(^)运算符
+     * 格式化位或表达式
+     * 处理位或(|)运算符
      */
-    formatBitwiseXorExpression(ctx: BitwiseXorExpressionContext): string {
+    formatBitwiseOrExpression(ctx: BitwiseOrExpressionContext): string {
         return this.safeExecute(
             () => {
-                // 处理简单表达式（只有一个按位与表达式）
-                const bitwiseAndExprs = ctx.bitwiseAndExpression();
+                // 处理简单表达式（只有一个位与表达式）
+                const bitwiseAndExprs = this.getBitwiseAndExpressions(ctx);
                 if (bitwiseAndExprs.length === 1) {
                     return this.visitNode(bitwiseAndExprs[0]);
                 }
 
                 // 处理二元运算
                 let result = this.visitNode(bitwiseAndExprs[0]);
-                
+
                 for (let i = 1; i < bitwiseAndExprs.length; i++) {
-                    // 按位异或操作符
-                    result += this.context.core.formatOperator('^', false);
+                    // 位或运算符总是 |
+                    result += this.context.core.formatOperator('|', false);
                     result += this.visitNode(bitwiseAndExprs[i]);
                 }
 
                 return result;
             },
-            '格式化按位异或表达式',
+            '格式化位或表达式',
+            ctx.text
+        ) || ctx.text || '';
+    }
+
+    /**
+     * 格式化位异或表达式
+     * 处理位异或(^)运算符
+     */
+    formatBitwiseXorExpression(ctx: BitwiseXorExpressionContext): string {
+        return this.safeExecute(
+            () => {
+                // 处理简单表达式（只有一个相等性表达式）
+                const equalityExprs = this.getEqualityExpressions(ctx);
+                if (equalityExprs.length === 1) {
+                    return this.visitNode(equalityExprs[0]);
+                }
+
+                // 处理二元运算
+                let result = this.visitNode(equalityExprs[0]);
+
+                for (let i = 1; i < equalityExprs.length; i++) {
+                    // 位异或运算符总是 ^
+                    result += this.context.core.formatOperator('^', false);
+                    result += this.visitNode(equalityExprs[i]);
+                }
+
+                return result;
+            },
+            '格式化位异或表达式',
             ctx.text
         ) || ctx.text || '';
     }
@@ -393,12 +384,12 @@ export class ExpressionFormatter implements IExpressionFormatter {
 
                 // 处理二元运算
                 let result = this.visitNode(additiveExprs[0]);
-                
+
                 for (let i = 1; i < additiveExprs.length; i++) {
                     // 获取移位运算符（<< 或 >>）
                     const token = this.context.tokenUtils.getTokenBetween(additiveExprs[i-1], additiveExprs[i]);
                     const operator = this.context.tokenUtils.getTokenText(token) || '<<'; // 默认为 <<
-                    
+
                     // 根据配置添加空格
                     result += this.context.core.formatOperator(operator, false);
                     result += this.visitNode(additiveExprs[i]);
@@ -412,17 +403,88 @@ export class ExpressionFormatter implements IExpressionFormatter {
     }
 
     /**
+     * *** 修复7: 改进后缀表达式格式化，正确处理箭头操作符 ***
+     * 格式化后缀表达式
+     * 处理成员访问 (->)、点访问 (.)、作用域访问 (::)、函数调用、数组访问等
+     */
+    formatPostfixExpression(ctx: PostfixExpressionContext): string {
+        return this.safeExecute(
+            () => {
+                // 开始处理主表达式
+                let result = '';
+                const children = ctx.children;
+                if (!children || children.length === 0) {
+                    return ctx.text || '';
+                }
+
+                // 遍历所有子节点，逐一处理
+                for (let i = 0; i < children.length; i++) {
+                    const child = children[i];
+
+                    // 如果是terminal节点，检查是否为特殊操作符
+                    if (child.payload && typeof child.payload.text === 'string') {
+                        const text = child.payload.text;
+
+                        // *** 修复：箭头操作符、点操作符和作用域操作符不加空格 ***
+                        if (text === '->' || text === '.' || text === '::') {
+                            result += text; // 直接添加，不加空格
+                            continue;
+                        }
+
+                        // 其他terminal节点正常处理
+                        result += text;
+                    } else {
+                        // 非terminal节点，递归访问
+                        result += this.visitNode(child);
+                    }
+                }
+
+                return result;
+            },
+            '格式化后缀表达式',
+            ctx.text
+        ) || ctx.text || '';
+    }
+
+    /**
+     * *** 修复8: 改进通用表达式格式化，智能处理子节点 ***
      * 格式化通用表达式
      * 这是表达式层次的入口点，处理各种表达式类型
      */
     formatExpression(ctx: ExpressionContext): string {
         return this.safeExecute(
             () => {
-                // 如果有子表达式，直接访问
+                // 如果有子表达式，智能处理每个子节点
                 if (ctx.children && ctx.children.length > 0) {
-                    return ctx.children.map(child => this.visitNode(child)).join('');
+                    let result = '';
+
+                    for (let i = 0; i < ctx.children.length; i++) {
+                        const child = ctx.children[i];
+
+                        // 检查是否为terminal节点
+                        if (child.payload && typeof child.payload.text === 'string') {
+                            const text = child.payload.text;
+
+                            // *** 修复：特殊处理关键操作符 ***
+                            if (text === '->' || text === '.' || text === '::') {
+                                // 成员访问操作符：不加空格
+                                result += text;
+                            } else if (text.match(/^[+\-*/=<>!&|^%]/) && text.length > 1) {
+                                // 复合运算符：使用formatOperator处理
+                                result += this.context.core.formatOperator(text, text.includes('='));
+                            } else {
+                                // 其他terminal节点：正常添加
+                                result += text;
+                            }
+                        } else {
+                            // 非terminal节点：递归访问
+                            result += this.visitNode(child);
+                        }
+                    }
+
+                    return result;
                 }
-                
+
                 // 否则返回文本内容
                 return ctx.text || '';
             },
@@ -434,7 +496,7 @@ export class ExpressionFormatter implements IExpressionFormatter {
     /**
      * 格式化表达式列表
      * 用于函数调用参数、数组元素等场合
-     * 
+     *
      * 支持自动换行决策：
      * - 基于表达式数量
      * - 基于预估行长度
@@ -445,7 +507,7 @@ export class ExpressionFormatter implements IExpressionFormatter {
             () => {
                 let result = '';
                 const expressions = ctx.expression();
-                
+
                 if (expressions.length === 0) {
                     return result;
                 }
@@ -453,7 +515,7 @@ export class ExpressionFormatter implements IExpressionFormatter {
                 const options = this.context.core.getOptions();
 
                 // 检查是否需要换行（基于表达式数量和预估长度）
-                const shouldWrap = expressions.length > 4 || 
+                const shouldWrap = expressions.length > 4 ||
                     this.context.lineBreakManager.estimateLineLength(
                         expressions.map(expr => this.visitNode(expr)).join(', ')
                     ) > options.maxLineLength;
@@ -462,13 +524,12 @@ export class ExpressionFormatter implements IExpressionFormatter {
                     // 多行格式
                     result += '\n';
                     this.context.indentManager.increaseIndent();
-                    
+
                     for (let i = 0; i < expressions.length; i++) {
-                        const expr = expressions[i];
                         result += this.context.indentManager.getIndent();
-                        
-                        const exprResult = this.visitNode(expr);
-                        
+
+                        const exprResult = this.visitNode(expressions[i]);
+
                         // 处理多行表达式
                         if (exprResult.includes('\n')) {
                             const lines = exprResult.split('\n');
@@ -483,13 +544,13 @@ export class ExpressionFormatter implements IExpressionFormatter {
                         } else {
                             result += exprResult;
                         }
-                        
+
                         if (i < expressions.length - 1) {
                             result += ',';
                         }
                         result += '\n';
                     }
-                    
+
                     this.context.indentManager.decreaseIndent();
                     result += this.context.indentManager.getIndent();
                 } else {
@@ -516,5 +577,69 @@ export class ExpressionFormatter implements IExpressionFormatter {
     private visitNode(node: any): string {
         if (!node) return '';
         return this.visitor.visit(node);
+    }
+
+    /**
+     * 安全获取逻辑或表达式列表
+     */
+    private getLogicalOrExpressions(ctx: any): any[] {
+        try {
+            if (ctx.logicalOrExpression && typeof ctx.logicalOrExpression === 'function') {
+                const result = ctx.logicalOrExpression();
+                return Array.isArray(result) ? result : [result];
+            }
+            return [];
+        } catch (error) {
+            this.context.errorCollector.addError(`获取逻辑或表达式失败: ${error}`);
+            return [];
+        }
+    }
+
+    /**
+     * 安全获取位异或表达式列表
+     */
+    private getBitwiseXorExpressions(ctx: any): any[] {
+        try {
+            if (ctx.bitwiseXorExpression && typeof ctx.bitwiseXorExpression === 'function') {
+                const result = ctx.bitwiseXorExpression();
+                return Array.isArray(result) ? result : [result];
+            }
+            return [];
+        } catch (error) {
+            this.context.errorCollector.addError(`获取位异或表达式失败: ${error}`);
+            return [];
+        }
+    }
+
+    /**
+     * 安全获取位与表达式列表
+     */
+    private getBitwiseAndExpressions(ctx: any): any[] {
+        try {
+            if (ctx.bitwiseAndExpression && typeof ctx.bitwiseAndExpression === 'function') {
+                const result = ctx.bitwiseAndExpression();
+                return Array.isArray(result) ? result : [result];
+            }
+            return [];
+        } catch (error) {
+            this.context.errorCollector.addError(`获取位与表达式失败: ${error}`);
+            return [];
+        }
+    }
+
+    /**
+     * 安全获取相等表达式列表
+     */
+    private getEqualityExpressions(ctx: any): any[] {
+        try {
+            if (ctx.equalityExpression && typeof ctx.equalityExpression === 'function') {
+                const result = ctx.equalityExpression();
+                return Array.isArray(result) ? result : [result];
+            }
+            return [];
+        } catch (error) {
+            this.context.errorCollector.addError(`获取相等表达式失败: ${error}`);
+            return [];
+        }
     }
 }

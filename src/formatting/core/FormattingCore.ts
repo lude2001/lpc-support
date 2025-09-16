@@ -31,6 +31,7 @@ export class FormattingCore implements IFormattingCore {
     }
 
     /**
+     * *** 修复5: 改进运算符格式化，正确处理箭头操作符和复合赋值运算符 ***
      * 格式化运算符
      * @param operator 运算符字符串
      * @param isAssignment 是否为赋值运算符，默认为false
@@ -39,15 +40,28 @@ export class FormattingCore implements IFormattingCore {
     formatOperator(operator: string, isAssignment: boolean = false): string {
         // 获取配置选项，使用合理的默认值
         const options = this.options as any;
-        
+
+        // 特殊处理：箭头操作符和成员访问符不应该有空格
+        if (operator === '->' || operator === '.' || operator === '::') {
+            return operator; // 直接返回，不添加空格
+        }
+
+        // 特殊处理：复合赋值运算符（+=, -=, *=, /=, etc.）
+        if (operator.endsWith('=') && operator.length > 1) {
+            // 复合赋值运算符，确保作为一个整体处理
+            const useSpace = options.spaceAroundAssignmentOperators !== false &&
+                            (options.spaceAroundAssignmentOperators || options.spaceAroundOperators);
+            return useSpace ? ` ${operator} ` : operator;
+        }
+
         if (isAssignment) {
-            // 赋值运算符空格处理
-            const useSpace = options.spaceAroundAssignmentOperators !== false && 
+            // 单纯赋值运算符空格处理
+            const useSpace = options.spaceAroundAssignmentOperators !== false &&
                             (options.spaceAroundAssignmentOperators || options.spaceAroundOperators);
             return useSpace ? ` ${operator} ` : operator;
         } else {
             // 二元运算符空格处理
-            const useSpace = options.spaceAroundBinaryOperators !== false && 
+            const useSpace = options.spaceAroundBinaryOperators !== false &&
                             (options.spaceAroundBinaryOperators || options.spaceAroundOperators);
             return useSpace ? ` ${operator} ` : operator;
         }
@@ -228,6 +242,11 @@ export class FormattingCore implements IFormattingCore {
      * @returns 是否应该添加空格
      */
     shouldAddSpaceAroundOperator(operator: string): boolean {
+        // 箭头操作符和成员访问符不需要空格
+        if (operator === '->' || operator === '.' || operator === '::') {
+            return false;
+        }
+
         // 一元操作符通常不需要空格
         const unaryOperators = ['++', '--', '!', '~', '+', '-'];
         if (unaryOperators.includes(operator)) {
@@ -268,7 +287,7 @@ export class FormattingCore implements IFormattingCore {
         }
 
         const stars = '*'.repeat(starCount);
-        
+
         switch (this.options.starSpacePosition) {
             case 'before':
                 return ` ${stars}`;

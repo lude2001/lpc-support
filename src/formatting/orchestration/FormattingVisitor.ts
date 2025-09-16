@@ -19,6 +19,13 @@ export class FormattingVisitor extends AbstractParseTreeVisitor<string> implemen
     private readonly router: FormattingRouter;
     private nodeCount = 0;
 
+    // 路由统计
+    private routingStats = {
+        totalRoutingAttempts: 0,
+        successfulRoutings: 0,
+        failedRoutings: 0
+    };
+
     constructor(context: IExtendedFormattingContext, router: FormattingRouter) {
         super();
         this.context = context;
@@ -60,14 +67,19 @@ export class FormattingVisitor extends AbstractParseTreeVisitor<string> implemen
             return this.visitTerminal(node);
         }
 
+        // 更新路由统计
+        this.routingStats.totalRoutingAttempts++;
+
         // 使用路由器查找对应的格式化器和方法
         const routeResult = this.router.route(node, this.context);
-        
+
         if (routeResult) {
+            this.routingStats.successfulRoutings++;
             return this.invokeFormatter(node, routeResult.formatterType, routeResult.methodName);
         }
 
         // 如果没有找到对应的路由，使用默认处理
+        this.routingStats.failedRoutings++;
         return this.visitDefault(node);
     }
 
@@ -257,7 +269,7 @@ export class FormattingVisitor extends AbstractParseTreeVisitor<string> implemen
         return {
             nodesVisited: this.nodeCount,
             errorsEncountered: this.context.errorCollector.getErrorCount(),
-            routingSuccessRate: 0 // TODO: 实现路由成功率统计
+            routingSuccessRate: this.calculateRoutingSuccessRate()
         };
     }
 
@@ -295,5 +307,49 @@ export class FormattingVisitor extends AbstractParseTreeVisitor<string> implemen
         // TODO: 实现节点后处理逻辑
         // 如：缓存结果、更新统计、验证输出等
         return result;
+    }
+
+    /**
+     * 计算路由成功率
+     * @returns 路由成功率（0-1）
+     */
+    private calculateRoutingSuccessRate(): number {
+        if (this.routingStats.totalRoutingAttempts === 0) {
+            return 0;
+        }
+        return this.routingStats.successfulRoutings / this.routingStats.totalRoutingAttempts;
+    }
+
+    /**
+     * 获取详细路由统计
+     * @returns 详细路由统计信息
+     */
+    public getDetailedRoutingStats(): {
+        totalAttempts: number;
+        successful: number;
+        failed: number;
+        successRate: number;
+        failureRate: number;
+    } {
+        const successRate = this.calculateRoutingSuccessRate();
+        return {
+            totalAttempts: this.routingStats.totalRoutingAttempts,
+            successful: this.routingStats.successfulRoutings,
+            failed: this.routingStats.failedRoutings,
+            successRate,
+            failureRate: 1 - successRate
+        };
+    }
+
+    /**
+     * 重置访问统计
+     */
+    public resetStats(): void {
+        this.nodeCount = 0;
+        this.routingStats = {
+            totalRoutingAttempts: 0,
+            successfulRoutings: 0,
+            failedRoutings: 0
+        };
     }
 }

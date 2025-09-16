@@ -24,7 +24,7 @@ import {
 import { IExtendedFormattingContext } from '../types/interfaces';
 import { FormattingStrategyManager } from './FormattingStrategyManager';
 import { FormattingRouter } from './FormattingRouter';
-// import { FormattingValidator } from './FormattingValidator'; // TODO: 需要实现该模块
+import { FormattingValidator } from '../validation/FormattingValidator';
 import { PerformanceMonitor } from './PerformanceMonitor';
 import { FormattingCache } from './FormattingCache';
 import { FormattingVisitor } from './FormattingVisitor';
@@ -32,7 +32,7 @@ import { FormattingVisitor } from './FormattingVisitor';
 export class FormattingOrchestrator {
     private readonly strategyManager: FormattingStrategyManager;
     private readonly router: FormattingRouter;
-    // private readonly validator: FormattingValidator; // TODO: 需要实现该模块
+    private readonly validator: FormattingValidator;
     private readonly performanceMonitor: IPerformanceMonitor;
     private readonly cache: IFormattingCache;
     private readonly config: IOrchestratorConfig;
@@ -41,7 +41,11 @@ export class FormattingOrchestrator {
         this.config = config;
         this.strategyManager = new FormattingStrategyManager();
         this.router = new FormattingRouter();
-        // this.validator = new FormattingValidator(); // TODO: 需要实现该模块
+        this.validator = new FormattingValidator({
+            strictMode: config.strictValidation || false,
+            maxErrors: config.maxValidationErrors || 10,
+            minQualityScore: config.minQualityScore || 70
+        });
         
         // 根据配置决定是否启用性能监控和缓存
         this.performanceMonitor = config.enablePerformanceMonitoring 
@@ -88,7 +92,7 @@ export class FormattingOrchestrator {
             const result = await this.executeFormatting(request, context, strategy);
 
             // 5. 验证结果
-            await this.validateResult(result);
+            await this.validateResult(result, request, context);
 
             // 6. 缓存结果
             this.cacheResult(cacheKey, result);
@@ -116,10 +120,10 @@ export class FormattingOrchestrator {
             throw new Error('Invalid formatting request: missing text or parseTree');
         }
 
-        // TODO: 实现 FormattingValidator 后再启用
-        // if (!this.validator.validateParseTree(request.parseTree)) {
-        //     throw new Error('Invalid parse tree structure');
-        // }
+        // 验证语法树结构
+        if (!this.validator.validateParseTree(request.parseTree)) {
+            throw new Error('Invalid parse tree structure');
+        }
 
         if (request.text.length > this.config.maxNodeCount * 100) { // 粗略估算
             throw new Error('File too large for formatting');
@@ -241,15 +245,27 @@ export class FormattingOrchestrator {
     /**
      * 验证格式化结果
      */
-    private async validateResult(result: IFormattingResult): Promise<void> {
+    private async validateResult(result: IFormattingResult, request: IFormattingRequest, context: IExtendedFormattingContext): Promise<void> {
         if (!result.success) {
             throw new Error('Formatting failed with errors: ' + result.errors.join(', '));
         }
 
-        // TODO: 实现 FormattingValidator 后再启用
-        // if (!this.validator.validateFormattedText(result.formattedText)) {
-        //     throw new Error('Formatted text validation failed');
-        // }
+        // 验证格式化结果
+        const validationResult = this.validator.validateFormattedText(
+            result.formattedText,
+            request.text,
+            request.parseTree,
+            context
+        );
+
+        if (!validationResult.passed) {
+            const errorMessages = validationResult.messages.slice(0, 3); // 只显示前3个错误
+            throw new Error(`Formatted text validation failed: ${errorMessages.join('; ')}`);
+        }
+
+        // 将验证统计信息合并到结果中
+        result.stats.validationScore = validationResult.qualityScore;
+        result.stats.validationErrors = validationResult.stats.issuesFound;
     }
 
     /**

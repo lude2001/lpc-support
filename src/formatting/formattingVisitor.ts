@@ -119,52 +119,7 @@ export class FormattingVisitor extends AbstractParseTreeVisitor<string> implemen
     }
 
     visitFunctionDef(ctx: FunctionDefContext): string {
-        let result = '';
-        
-        // 处理函数修饰符
-        const modifiers = this.extractModifiers(ctx);
-        if (modifiers.length > 0) {
-            result += this.context.core.formatModifiers(modifiers) + ' ';
-        }
-
-        // 处理返回类型
-        if (ctx.typeSpec && ctx.typeSpec()) {
-            const typeSpec = ctx.typeSpec();
-            if (typeSpec) {
-                result += this.visit(typeSpec) + ' ';
-            }
-        }
-
-        // 处理函数名
-        if (ctx.Identifier && ctx.Identifier()) {
-            result += ctx.Identifier().text;
-        }
-
-        // 处理参数列表
-        result += '(';
-        const paramList = ctx.parameterList();
-        if (paramList) {
-            const params = paramList.parameter ? paramList.parameter() : [];
-            for (let i = 0; i < params.length; i++) {
-                if (i > 0) {
-                    result += this.context.core.getOptions().spaceAfterComma ? ', ' : ',';
-                }
-                result += this.visit(params[i]);
-            }
-        }
-        result += ')';
-
-        // 处理函数体
-        if (ctx.block && ctx.block()) {
-            if (this.context.core.getOptions().bracesOnNewLine) {
-                result += '\n' + this.getIndent();
-            } else {
-                result += this.context.core.getOptions().spaceBeforeOpenParen ? ' ' : '';
-            }
-            result += this.visit(ctx.block());
-        }
-
-        return result + '\n';
+        return this.context.declarationFormatter.formatFunctionDef(ctx);
     }
 
     /**
@@ -183,17 +138,7 @@ export class FormattingVisitor extends AbstractParseTreeVisitor<string> implemen
      * @returns 格式化后的类型字符串
      */
     visitTypeSpec(ctx: TypeSpecContext): string {
-        // 获取类型文本
-        let typeText = ctx.text || '';
-        
-        // 检查是否需要在类型名和星号之间添加空格
-        // 这主要处理语法中直接包含星号的情况，如 "mapping*" -> "mapping *"
-        if (this.context.core.getOptions().spaceAfterTypeBeforeStar && typeText.includes('*')) {
-            // 将类型名和星号分离，并在中间添加空格
-            typeText = typeText.replace(/(\w)(\*+)/g, '$1 $2');
-        }
-        
-        return typeText;
+        return this.context.declarationFormatter.formatTypeSpec(ctx);
     }
 
     visitVariableDecl(ctx: VariableDeclContext): string {
@@ -229,7 +174,7 @@ export class FormattingVisitor extends AbstractParseTreeVisitor<string> implemen
      * - *var = expr  (数组带初始化)
      */
     visitVariableDeclarator(ctx: any): string {
-        return this.context.declarationFormatter.formatVariableDeclarator(ctx);
+        return this.context.declarationFormatter.formatVariableDecl(ctx);
     }
 
     visitIncludeStatement(ctx: IncludeStatementContext): string {

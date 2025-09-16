@@ -58,6 +58,10 @@ export interface FormattingStats {
     formattersUsed: number;
     /** 修复的错误数量 */
     errorsFixed: number;
+    /** 验证质量评分 */
+    validationScore?: number;
+    /** 验证错误数量 */
+    validationErrors?: number;
 }
 
 /**
@@ -254,4 +258,10 @@ export interface IOrchestratorConfig {
     timeout: number;
     /** 事件处理器 */
     events?: IFormattingEvents;
+    /** 是否启用严格验证 */
+    strictValidation?: boolean;
+    /** 最大验证错误数量 */
+    maxValidationErrors?: number;
+    /** 最小质量评分要求 */
+    minQualityScore?: number;
 }

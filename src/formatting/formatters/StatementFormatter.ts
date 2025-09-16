@@ -17,7 +17,7 @@ import { IStatementFormatter, IFormattingContext, INodeVisitor } from '../types/
 /**
  * 语句格式化器
  * 专门处理各种语句的格式化逻辑
- * 
+ *
  * 包含以下语句类型：
  * - 控制流语句 (if, while, for, do-while, foreach, switch)
  * - 跳转语句 (break, continue, return)
@@ -60,17 +60,17 @@ export class StatementFormatter implements IStatementFormatter {
             () => {
                 let result = 'if';
                 const options = this.context.core.getOptions();
-                
+
                 if (options.spaceBeforeOpenParen) {
                     result += ' ';
                 }
 
                 result += '(';
-                
+
                 if (ctx.expression && ctx.expression()) {
                     result += this.visitNode(ctx.expression());
                 }
-                
+
                 result += ')';
 
                 // 处理if体
@@ -118,17 +118,17 @@ export class StatementFormatter implements IStatementFormatter {
             () => {
                 let result = 'while';
                 const options = this.context.core.getOptions();
-                
+
                 if (options.spaceBeforeOpenParen) {
                     result += ' ';
                 }
 
                 result += '(';
-                
+
                 if (ctx.expression && ctx.expression()) {
                     result += this.visitNode(ctx.expression());
                 }
-                
+
                 result += ')';
 
                 // 处理while体
@@ -160,33 +160,33 @@ export class StatementFormatter implements IStatementFormatter {
             () => {
                 let result = 'for';
                 const options = this.context.core.getOptions();
-                
+
                 if (options.spaceBeforeOpenParen) {
                     result += ' ';
                 }
 
                 result += '(';
-                
+
                 // 处理for初始化部分
                 const forInit = ctx.forInit();
                 if (forInit) {
                     result += this.visitNode(forInit);
                 }
                 result += ';';
-                
+
                 // 处理条件表达式
                 const condition = ctx.expression();
                 if (condition) {
                     result += ' ' + this.visitNode(condition);
                 }
                 result += ';';
-                
+
                 // 处理表达式列表
                 const exprList = ctx.expressionList();
                 if (exprList) {
                     result += ' ' + this.visitNode(exprList);
                 }
-                
+
                 result += ')';
 
                 // 处理for体
@@ -218,7 +218,7 @@ export class StatementFormatter implements IStatementFormatter {
             () => {
                 let result = 'do';
                 const options = this.context.core.getOptions();
-                
+
                 // 处理do体
                 if (ctx.statement && ctx.statement()) {
                     if (this.isBlock(ctx.statement())) {
@@ -234,18 +234,18 @@ export class StatementFormatter implements IStatementFormatter {
                 }
 
                 result += 'while';
-                
+
                 if (options.spaceBeforeOpenParen) {
                     result += ' ';
                 }
 
                 result += '(';
-                
+
                 const condition = ctx.expression();
                 if (condition) {
                     result += this.visitNode(condition);
                 }
-                
+
                 result += ');';
 
                 return result;
@@ -264,26 +264,26 @@ export class StatementFormatter implements IStatementFormatter {
             () => {
                 let result = 'foreach';
                 const options = this.context.core.getOptions();
-                
+
                 if (options.spaceBeforeOpenParen) {
                     result += ' ';
                 }
 
                 result += '(';
-                
+
                 // 处理foreach初始化
                 const foreachInit = ctx.foreachInit();
                 if (foreachInit) {
                     result += this.visitNode(foreachInit);
                 }
-                
+
                 result += ' in ';
-                
+
                 const expr = ctx.expression();
                 if (expr) {
                     result += this.visitNode(expr);
                 }
-                
+
                 result += ')';
 
                 // 处理foreach体
@@ -315,18 +315,18 @@ export class StatementFormatter implements IStatementFormatter {
             () => {
                 let result = 'switch';
                 const options = this.context.core.getOptions();
-                
+
                 if (options.spaceBeforeOpenParen) {
                     result += ' ';
                 }
 
                 result += '(';
-                
+
                 const expr = ctx.expression();
                 if (expr) {
                     result += this.visitNode(expr);
                 }
-                
+
                 result += ')';
 
                 if (options.bracesOnNewLine) {
@@ -362,7 +362,7 @@ export class StatementFormatter implements IStatementFormatter {
             () => {
                 let result = '';
                 const options = this.context.core.getOptions();
-                
+
                 // 处理case标签
                 const labels = ctx.switchLabelWithColon ? ctx.switchLabelWithColon() : [];
                 for (const label of labels) {
@@ -374,7 +374,7 @@ export class StatementFormatter implements IStatementFormatter {
                         result += this.getIndent() + this.visitNode(label) + '\n';
                     }
                 }
-                
+
                 // 处理case对应的语句
                 this.context.indentManager.increaseIndent();
                 const statements = ctx.statement ? ctx.statement() : [];
@@ -385,7 +385,7 @@ export class StatementFormatter implements IStatementFormatter {
                     }
                 }
                 this.context.indentManager.decreaseIndent();
-                
+
                 return result;
             },
             '格式化switch节',
@@ -394,20 +394,47 @@ export class StatementFormatter implements IStatementFormatter {
     }
 
     /**
+     * *** 修复9: 改进跳转语句格式化，避免重复分号 ***
      * 格式化break语句
      */
     formatBreakStatement(ctx: BreakStatementContext): string {
-        return 'break;';
+        return this.safeExecute(
+            () => {
+                // 检查原始文本是否已经包含分号
+                const originalText = ctx.text || '';
+                if (originalText.endsWith(';')) {
+                    return 'break;';
+                } else {
+                    return 'break;';
+                }
+            },
+            '格式化break语句',
+            'break;'
+        ) || 'break;';
     }
 
     /**
+     * *** 修复9: 改进跳转语句格式化，避免重复分号 ***
      * 格式化continue语句
      */
     formatContinueStatement(ctx: ContinueStatementContext): string {
-        return 'continue;';
+        return this.safeExecute(
+            () => {
+                // 检查原始文本是否已经包含分号
+                const originalText = ctx.text || '';
+                if (originalText.endsWith(';')) {
+                    return 'continue;';
+                } else {
+                    return 'continue;';
+                }
+            },
+            '格式化continue语句',
+            'continue;'
+        ) || 'continue;';
     }
 
     /**
+     * *** 修复9: 改进跳转语句格式化，避免重复分号 ***
      * 格式化return语句
      * 处理可选的返回表达式
      */
@@ -415,13 +442,21 @@ export class StatementFormatter implements IStatementFormatter {
         return this.safeExecute(
             () => {
                 let result = 'return';
-                
+
                 const expr = ctx.expression();
                 if (expr) {
                     result += ' ' + this.visitNode(expr);
                 }
-                
-                return result + ';';
+
+                // 检查原始文本是否已经包含分号
+                const originalText = ctx.text || '';
+                if (!originalText.endsWith(';')) {
+                    result += ';';
+                } else if (!result.endsWith(';')) {
+                    result += ';';
+                }
+
+                return result;
             },
             '格式化return语句',
             ctx.text
@@ -429,20 +464,27 @@ export class StatementFormatter implements IStatementFormatter {
     }
 
     /**
+     * *** 修复10: 改进表达式语句格式化，避免重复分号 ***
      * 格式化表达式语句
-     * 确保分号紧跟表达式，不会被移到下一行
+     * 确保分号紧跟表达式，不会被移到下一行，同时避免重复分号
      */
     formatExprStatement(ctx: ExprStatementContext): string {
         return this.safeExecute(
             () => {
                 let result = '';
-                
+
                 const expr = ctx.expression();
                 if (expr) {
                     result = this.visitNode(expr);
                 }
-                
-                return result + ';';
+
+                // *** 修复：避免重复分号 ***
+                // 检查结果是否已经以分号结尾
+                if (!result.endsWith(';')) {
+                    result += ';';
+                }
+
+                return result;
             },
             '格式化表达式语句',
             ctx.text

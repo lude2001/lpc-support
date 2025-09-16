@@ -68,6 +68,12 @@ export interface IIndentManager {
     getIndent(level?: number): string;
 
     /**
+     * 获取当前缩进字符串
+     * @returns 当前缩进字符串
+     */
+    getCurrentIndent(): string;
+
+    /**
      * 计算指定上下文的缩进级别
      * @param context 上下文类型
      * @returns 计算后的缩进级别
@@ -186,6 +192,19 @@ export interface IFormattingCore {
      * @returns 格式化后的修饰符字符串
      */
     formatModifiers(modifiers: string[]): string;
+
+    /**
+     * 格式化逗号
+     * @param addSpace 是否在逗号后添加空格，默认使用配置
+     * @returns 格式化后的逗号字符串
+     */
+    formatComma(addSpace?: boolean): string;
+
+    /**
+     * 格式化冒号
+     * @returns 格式化后的冒号字符串
+     */
+    formatColon(): string;
 }
 
 /**
@@ -447,8 +466,9 @@ export interface IDeclarationFormatter extends ISpecializedFormatter {
     
     /**
      * 格式化变量声明符
+     * @deprecated 该方法已被 formatVariableDecl 替代
      */
-    formatVariableDeclarator(ctx: any): string;
+    formatVariableDeclarator?(ctx: any): string;
     
     /**
      * 格式化参数
@@ -512,6 +532,8 @@ export interface IBlockFormatter extends ISpecializedFormatter {
  * 包含所有专用格式化器
  */
 export interface IExtendedFormattingContext extends IFormattingContext {
+    /** 格式化选项 */
+    options: LPCFormattingOptions;
     /** 表达式格式化器 */
     expressionFormatter?: IExpressionFormatter;
     /** 语句格式化器 */

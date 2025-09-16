@@ -231,7 +231,7 @@ export const DEFAULT_FORMATTING_OPTIONS: LPCFormattingOptions = {
     
     // 新增的格式化选项默认值
     arrayOfMappingFormat: 'auto',               // 映射数组智能格式化
-    spaceAfterTypeBeforeStar: false,            // 类型名和星号间不加空格：mapping*
+    spaceAfterTypeBeforeStar: true,             // 类型名和星号间加空格：mapping *
     starSpacePosition: 'after',                 // 星号紧跟类型名：mapping*arr
     nestedStructureIndent: 4,                   // 嵌套结构额外缩进4空格
     

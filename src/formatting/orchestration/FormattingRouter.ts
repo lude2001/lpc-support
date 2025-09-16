@@ -17,6 +17,21 @@ export class FormattingRouter {
     private readonly routeCache = new Map<string, string>(); // 路由结果缓存
     private readonly dependencyGraph = new Map<string, string[]>(); // 依赖关系图
 
+    // 缓存统计
+    private cacheStats = {
+        totalRequests: 0,
+        cacheHits: 0,
+        cacheMisses: 0
+    };
+
+    // 路由统计
+    private routingStats = {
+        totalRoutes: 0,
+        successfulRoutes: 0,
+        failedRoutes: 0,
+        routeUsageCount: new Map<string, number>()
+    };
+
     constructor() {
         this.initializeRoutes();
     }
@@ -448,27 +463,37 @@ export class FormattingRouter {
      * @returns 路由结果或null
      */
     public route(
-        node: ParseTree, 
+        node: ParseTree,
         context: IExtendedFormattingContext
     ): { formatterType: string; methodName: string } | null {
         const nodeType = this.getNodeType(node);
-        
+
+        // 更新统计
+        this.cacheStats.totalRequests++;
+        this.routingStats.totalRoutes++;
+
         // 检查缓存
         const cacheKey = this.generateRouteCacheKey(nodeType, context);
         const cached = this.routeCache.get(cacheKey);
         if (cached) {
+            this.cacheStats.cacheHits++;
             const [formatterType, methodName] = cached.split('.');
+            this.updateRouteUsageStats(nodeType, true);
             return { formatterType, methodName };
         }
+
+        this.cacheStats.cacheMisses++;
 
         // 查找路由
         const route = this.routeMap.get(nodeType);
         if (!route) {
+            this.routingStats.failedRoutes++;
             return null;
         }
 
         // 检查条件（如果有）
         if (route.condition && !route.condition(node, context)) {
+            this.routingStats.failedRoutes++;
             return null;
         }
 
@@ -479,6 +504,10 @@ export class FormattingRouter {
 
         // 缓存结果
         this.routeCache.set(cacheKey, `${result.formatterType}.${result.methodName}`);
+
+        // 更新成功统计
+        this.routingStats.successfulRoutes++;
+        this.updateRouteUsageStats(nodeType, false);
 
         return result;
     }
@@ -608,7 +637,7 @@ export class FormattingRouter {
         return {
             totalRoutes,
             cacheSize,
-            cacheHitRate: 0, // TODO: 实现实际的命中率统计
+            cacheHitRate: this.calculateCacheHitRate(),
             avgEstimatedCost
         };
     }
@@ -641,5 +670,89 @@ export class FormattingRouter {
             this.clearRouteCache(nodeType);
         }
         return removed;
+    }
+
+    /**
+     * 计算缓存命中率
+     * @returns 缓存命中率（0-1）
+     */
+    private calculateCacheHitRate(): number {
+        if (this.cacheStats.totalRequests === 0) {
+            return 0;
+        }
+        return this.cacheStats.cacheHits / this.cacheStats.totalRequests;
+    }
+
+    /**
+     * 更新路由使用统计
+     * @param nodeType 节点类型
+     * @param fromCache 是否来自缓存
+     */
+    private updateRouteUsageStats(nodeType: string, fromCache: boolean): void {
+        const currentCount = this.routingStats.routeUsageCount.get(nodeType) || 0;
+        this.routingStats.routeUsageCount.set(nodeType, currentCount + 1);
+    }
+
+    /**
+     * 获取详细统计信息
+     * @returns 详细统计信息
+     */
+    public getDetailedStats(): {
+        cache: {
+            totalRequests: number;
+            hits: number;
+            misses: number;
+            hitRate: number;
+            size: number;
+        };
+        routing: {
+            totalRoutes: number;
+            successfulRoutes: number;
+            failedRoutes: number;
+            successRate: number;
+            mostUsedRoutes: Array<{ nodeType: string; count: number }>;
+        };
+    } {
+        const mostUsedRoutes = Array.from(this.routingStats.routeUsageCount.entries())
+            .map(([nodeType, count]) => ({ nodeType, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        return {
+            cache: {
+                totalRequests: this.cacheStats.totalRequests,
+                hits: this.cacheStats.cacheHits,
+                misses: this.cacheStats.cacheMisses,
+                hitRate: this.calculateCacheHitRate(),
+                size: this.routeCache.size
+            },
+            routing: {
+                totalRoutes: this.routingStats.totalRoutes,
+                successfulRoutes: this.routingStats.successfulRoutes,
+                failedRoutes: this.routingStats.failedRoutes,
+                successRate: this.routingStats.totalRoutes > 0
+                    ? this.routingStats.successfulRoutes / this.routingStats.totalRoutes
+                    : 0,
+                mostUsedRoutes
+            }
+        };
+    }
+
+    /**
+     * 重置统计信息
+     */
+    public resetStats(): void {
+        this.cacheStats = {
+            totalRequests: 0,
+            cacheHits: 0,
+            cacheMisses: 0
+        };
+
+        this.routingStats = {
+            totalRoutes: 0,
+            successfulRoutes: 0,
+            failedRoutes: 0,
+            routeUsageCount: new Map<string, number>()
+        };
     }
 }
