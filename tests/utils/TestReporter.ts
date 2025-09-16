@@ -178,7 +178,7 @@ export class TestReporter {
     <div class="container">
         <div class="header">
             <h1>LPC Support 测试报告</h1>
-            <div class="subtitle">FormattingVisitor.ts 重构 - 阶段4：优化和集成测试</div>
+            <div class="subtitle">LPC Support 扩展测试报告</div>
             <div class="subtitle">生成时间: ${new Date().toLocaleString('zh-CN')}</div>
         </div>
         
@@ -320,7 +320,7 @@ export class TestReporter {
         
         return `# LPC Support 测试报告
 
-## FormattingVisitor.ts 重构 - 阶段4：优化和集成测试
+## LPC Support 扩展测试报告
 
 **生成时间**: ${new Date().toLocaleString('zh-CN')}
 

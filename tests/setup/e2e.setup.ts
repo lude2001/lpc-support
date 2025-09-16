@@ -48,15 +48,6 @@ beforeAll(async () => {
                 get: jest.fn((key: string, defaultValue?: any) => {
                     const fullKey = section ? `${section}.${key}` : key;
                     const configs: any = {
-                        'lpc.formatting.indentSize': 4,
-                        'lpc.formatting.insertFinalNewline': true,
-                        'lpc.formatting.trimTrailingWhitespace': true,
-                        'lpc.formatting.maxLineLength': 100,
-                        'lpc.formatting.bracesOnNewLine': false,
-                        'lpc.formatting.spaceBeforeOpenParen': false,
-                        'lpc.formatting.spaceAroundOperators': true,
-                        'lpc.formatting.spaceAfterComma': true,
-                        'lpc.formatting.maxEmptyLines': 2
                     };
                     return configs[fullKey] ?? defaultValue;
                 }),

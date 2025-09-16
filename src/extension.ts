@@ -20,7 +20,6 @@ import { LPCSemanticTokensProvider, LPCSemanticTokensLegend } from './semanticTo
 import { LPCSymbolProvider } from './symbolProvider';
 import { LPCReferenceProvider } from './referenceProvider';
 import { LPCRenameProvider } from './renameProvider';
-import { LPCFormattingProvider } from './formatting';
 import { disposeParseCache, getParserCacheStats, clearParseCache } from './parseCache';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -424,20 +423,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.languages.registerRenameProvider('lpc', new LPCRenameProvider())
     );
 
-    // 注册格式化提供程序
-    const formattingProvider = new LPCFormattingProvider();
-    context.subscriptions.push(
-        // 文档格式化
-        vscode.languages.registerDocumentFormattingEditProvider('lpc', formattingProvider)
-    );
-    context.subscriptions.push(
-        // 范围格式化
-        vscode.languages.registerDocumentRangeFormattingEditProvider('lpc', formattingProvider)
-    );
-    context.subscriptions.push(
-        // 输入时格式化
-        vscode.languages.registerOnTypeFormattingEditProvider('lpc', formattingProvider, '}', ';', ')')
-    );
+
 
     // --- Start Driver Button ---
     const startDriverCommandId = 'lpc.startDriver';

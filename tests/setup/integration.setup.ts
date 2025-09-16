@@ -28,9 +28,6 @@ beforeAll(() => {
                 get: jest.fn((key, defaultValue) => {
                     // 返回合理的默认配置
                     const configs: any = {
-                        'lpc.formatting.indentSize': 4,
-                        'lpc.formatting.bracesOnNewLine': false,
-                        'lpc.formatting.spaceAroundOperators': true
                     };
                     return configs[key] || defaultValue;
                 }),
