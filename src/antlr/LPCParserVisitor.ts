@@ -10,6 +10,7 @@ import { MappingLiteralExprContext } from "./LPCParser";
 import { NewExpressionPrimaryContext } from "./LPCParser";
 import { AnonFunctionContext } from "./LPCParser";
 import { IdentifierPrimaryContext } from "./LPCParser";
+import { ParameterPlaceholderContext } from "./LPCParser";
 import { IntegerPrimaryContext } from "./LPCParser";
 import { FloatPrimaryContext } from "./LPCParser";
 import { StringPrimaryContext } from "./LPCParser";
@@ -150,6 +151,14 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitIdentifierPrimary?: (ctx: IdentifierPrimaryContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by the `parameterPlaceholder`
+	 * labeled alternative in `LPCParser.primary`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitParameterPlaceholder?: (ctx: ParameterPlaceholderContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `integerPrimary`

@@ -83,5 +83,9 @@ BIT_OR_ASSIGN:'|='; BIT_AND_ASSIGN:'&=';
 // ---------- 修饰符 ----------
 MODIFIER : 'private' | 'public' | 'protected' | 'varargs' | 'nosave' | 'static' | 'nomask';
 
-// ---------- 标识符 ----------
+// ---------- 标识符和特殊标记 ----------
+// LPC函数指针中的参数占位符 ($1, $2, ...)
+PARAMETER_PLACEHOLDER : '$' [0-9]+ ;
+
+// 标识符
 Identifier : [a-zA-Z_][a-zA-Z_0-9]* ;

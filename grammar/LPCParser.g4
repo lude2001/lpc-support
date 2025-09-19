@@ -193,6 +193,7 @@ primary
     |   newExpression                                 # newExpressionPrimary
     |   KW_FUNCTION LPAREN parameterList? RPAREN block      # anonFunction
     |   Identifier                                    # identifierPrimary
+    |   PARAMETER_PLACEHOLDER                         # parameterPlaceholder
     |   INTEGER                                       # integerPrimary
     |   FLOAT                                         # floatPrimary
     |   STRING_LITERAL                                # stringPrimary

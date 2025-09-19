@@ -1,0 +1,50 @@
+// LPC 格式化测试文件
+
+inherit   "/lib/base";
+
+int    global_var=  5;
+string  *array_var;
+mapping test_mapping;
+
+// 函数定义测试
+void create(){
+if(true){
+printf("Hello World");
+}
+}
+
+// 函数指针测试
+void test_function_pointer(){
+function fp=(:function_name:);
+call_out(fp,5);
+}
+
+// 数组和映射测试
+void test_collections(){
+array_var=({"item1","item2","item3"});
+test_mapping=(["key1":"value1","key2":"value2"]);
+}
+
+// 控制结构测试
+void test_control_structures(){
+for(int i=0;i<10;i++){
+if(i%2==0){
+printf("%d is even\n",i);
+}else{
+printf("%d is odd\n",i);
+}
+}
+
+while(global_var>0){
+global_var--;
+}
+
+switch(global_var){
+case 0:
+printf("Zero");
+break;
+default:
+printf("Other");
+break;
+}
+}
