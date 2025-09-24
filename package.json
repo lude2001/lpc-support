@@ -226,7 +226,7 @@
         "command": "lpc.errorTree.copyError",
         "title": "复制错误信息",
         "icon": "$(copy)"
-      },
+      }
     ],
     "menus": {
       "view/title": [
@@ -309,7 +309,7 @@
           "when": "resourceLangId == lpc",
           "command": "lpc.generateJavadoc",
           "group": "LPC"
-        },
+        }
       ],
       "explorer/context": [
         {
@@ -344,7 +344,8 @@
         {
           "id": "lpcErrorTree",
           "name": "错误诊断中心",
-          "type": "tree"
+          "type": "tree",
+          "icon": "$(error)"
         }
       ]
     },
@@ -495,212 +496,11 @@
                 "description": "模型描述"
               }
             },
-            "required": ["name", "id"]
+            "required": [
+              "name",
+              "id"
+            ]
           }
-        },
-        "lpc.formatting.indentSize": {
-          "type": "number",
-          "default": 4,
-          "minimum": 1,
-          "maximum": 16,
-          "description": "缩进大小（空格数或制表符数）"
-        },
-        "lpc.formatting.useSpaces": {
-          "type": "boolean",
-          "default": true,
-          "description": "使用空格而非制表符缩进"
-        },
-        "lpc.formatting.insertFinalNewline": {
-          "type": "boolean",
-          "default": true,
-          "description": "在文件末尾插入换行符"
-        },
-        "lpc.formatting.trimTrailingWhitespace": {
-          "type": "boolean",
-          "default": true,
-          "description": "移除行尾的空白字符"
-        },
-        "lpc.formatting.maxLineLength": {
-          "type": "number",
-          "default": 120,
-          "minimum": 40,
-          "maximum": 300,
-          "description": "最大行长度"
-        },
-        "lpc.formatting.spaceAroundOperators": {
-          "type": "boolean",
-          "default": true,
-          "description": "在操作符周围添加空格"
-        },
-        "lpc.formatting.spaceAfterComma": {
-          "type": "boolean",
-          "default": true,
-          "description": "在逗号后添加空格"
-        },
-        "lpc.formatting.spaceAfterSemicolon": {
-          "type": "boolean",
-          "default": true,
-          "description": "在分号后添加空格（仅适用于for循环）"
-        },
-        "lpc.formatting.spaceBeforeOpenParen": {
-          "type": "boolean",
-          "default": false,
-          "description": "在左括号前添加空格"
-        },
-        "lpc.formatting.spaceInsideParentheses": {
-          "type": "boolean",
-          "default": false,
-          "description": "在括号内添加空格"
-        },
-        "lpc.formatting.spaceInsideBraces": {
-          "type": "boolean",
-          "default": true,
-          "description": "在花括号内添加空格"
-        },
-        "lpc.formatting.spaceInsideBrackets": {
-          "type": "boolean",
-          "default": false,
-          "description": "在方括号内添加空格"
-        },
-        "lpc.formatting.alignParameters": {
-          "type": "boolean",
-          "default": true,
-          "description": "对齐函数参数"
-        },
-        "lpc.formatting.alignArguments": {
-          "type": "boolean",
-          "default": false,
-          "description": "对齐函数调用参数"
-        },
-        "lpc.formatting.newlineBeforeOpenBrace": {
-          "type": "boolean",
-          "default": false,
-          "description": "在左花括号前换行"
-        },
-        "lpc.formatting.newlineAfterOpenBrace": {
-          "type": "boolean",
-          "default": true,
-          "description": "在左花括号后换行"
-        },
-        "lpc.formatting.newlineBeforeCloseBrace": {
-          "type": "boolean",
-          "default": true,
-          "description": "在右花括号前换行"
-        },
-        "lpc.formatting.formatFunctionPointers": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化LPC函数指针语法"
-        },
-        "lpc.formatting.formatMappings": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化LPC映射语法"
-        },
-        "lpc.formatting.formatArrays": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化LPC数组语法"
-        },
-        "lpc.formatting.preserveComments": {
-          "type": "boolean",
-          "default": true,
-          "description": "保持注释格式"
-        },
-        "lpc.formatting.functionCallStyle": {
-          "type": "string",
-          "enum": ["compact", "expanded"],
-          "default": "compact",
-          "description": "函数调用格式风格"
-        },
-        "lpc.formatting.functionDefStyle": {
-          "type": "string",
-          "enum": ["compact", "expanded"],
-          "default": "expanded",
-          "description": "函数定义格式风格"
-        },
-        "lpc.formatting.controlStructureStyle": {
-          "type": "string",
-          "enum": ["compact", "expanded"],
-          "default": "compact",
-          "description": "控制结构格式风格"
-        },
-        "lpc.formatting.enableIncrementalFormatting": {
-          "type": "boolean",
-          "default": true,
-          "description": "启用增量格式化（仅格式化变更的部分）"
-        },
-        "lpc.formatting.enableParallelProcessing": {
-          "type": "boolean",
-          "default": false,
-          "description": "启用并行处理（实验性功能）"
-        },
-        "lpc.formatting.maxFormatTime": {
-          "type": "number",
-          "default": 5000,
-          "minimum": 1000,
-          "maximum": 30000,
-          "description": "最大格式化时间（毫秒）"
-        },
-        "lpc.formatting.spaceAfterKeywords": {
-          "type": "boolean",
-          "default": true,
-          "description": "在关键字（foreach、if、while等）后添加空格"
-        },
-        "lpc.formatting.spaceBeforeOpenBrace": {
-          "type": "boolean",
-          "default": true,
-          "description": "在左大括号前添加空格"
-        },
-        "lpc.formatting.spaceAfterCast": {
-          "type": "boolean",
-          "default": true,
-          "description": "在类型转换后添加空格"
-        },
-        "lpc.formatting.formatSwitchRanges": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化switch范围匹配语法（case x..y:）"
-        },
-        "lpc.formatting.formatForeachRef": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化foreach ref语法"
-        },
-        "lpc.formatting.formatAnonymousFunctions": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化匿名函数"
-        },
-        "lpc.formatting.formatExpressionPointers": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化表达式函数指针（(: expression :)）"
-        },
-        "lpc.formatting.formatVarargs": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化变长参数函数（void test(mixed *x...)）"
-        },
-        "lpc.formatting.formatDefaultParameters": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化默认参数语法"
-        },
-        "lpc.formatting.formatRangeOperations": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化范围操作语法（str[start..end]）"
-        },
-        "lpc.formatting.formatNewExpressions": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化new表达式"
-        },
-        "lpc.formatting.formatCastExpressions": {
-          "type": "boolean",
-          "default": true,
-          "description": "格式化类型转换表达式"
         }
       }
     },
@@ -719,7 +519,7 @@
         "command": "lpc.compileFile",
         "key": "ctrl+f5",
         "when": "editorTextFocus && editorLangId == 'lpc'"
-      },
+      }
     ],
     "semanticTokenTypes": [
       {
