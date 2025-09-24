@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/steering/product.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-09-24T13:50:04.727Z",
+      "trigger": "initial",
+      "approvalId": "approval_1758721804717_lo0lnazjp",
+      "approvalTitle": "LPC Support Product Overview Document"
+    }
+  ]
+}

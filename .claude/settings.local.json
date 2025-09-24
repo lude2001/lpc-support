@@ -15,7 +15,10 @@
       "Bash(echo:*)",
       "Bash(cmd /c:*)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "mcp__spec-workflow__approvals",
+      "mcp__spec-workflow__spec-status",
+      "mcp__spec-workflow__steering-guide"
     ],
     "deny": [],
     "ask": []

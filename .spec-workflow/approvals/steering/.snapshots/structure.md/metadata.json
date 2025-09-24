@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/steering/structure.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-09-24T13:55:03.622Z",
+      "trigger": "initial",
+      "approvalId": "approval_1758722103611_bqezoexct",
+      "approvalTitle": "LPC Support Project Structure Document"
+    }
+  ]
+}

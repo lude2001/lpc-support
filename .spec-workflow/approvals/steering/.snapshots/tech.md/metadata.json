@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/steering/tech.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-09-24T13:52:10.746Z",
+      "trigger": "initial",
+      "approvalId": "approval_1758721930741_zewha5epf",
+      "approvalTitle": "LPC Support Technology Stack Document"
+    }
+  ]
+}
