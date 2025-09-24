@@ -71,7 +71,7 @@ KW_INT:'int'; KW_FLOAT:'float'; KW_STRING:'string'; KW_OBJECT:'object'; KW_MIXED
 ELLIPSIS:'...'; RANGE_OP:'..'; ARROW:'->'; DOT:'.'; INC:'++'; DEC:'--';
 PLUS_ASSIGN:'+='; MINUS_ASSIGN:'-='; STAR_ASSIGN:'*='; DIV_ASSIGN:'/='; PERCENT_ASSIGN:'%=';
 PLUS:'+'; MINUS:'-'; STAR:'*'; DIV:'/'; PERCENT:'%'; SCOPE:'::';
-SEMI:';'; COMMA:','; LPAREN:'(' ; RPAREN:')'; LBRACE:'{' ; RBRACE:'}'; LBRACK:'[' ; RBRACK:']'; QUESTION:'?'; COLON:':';
+SEMI:';'; COMMA:','; LPAREN:'(' ; RPAREN:')'; LBRACE:'{' ; RBRACE:'}'; LBRACK:'[' ; RBRACK:']'; QUESTION:'?'; COLON:':'; DOLLAR:'$';
 
 GT:'>'; LT:'<'; GE:'>='; LE:'<='; EQ:'=='; NE:'!='; ASSIGN:'='; NOT:'!'; AND:'&&'; OR:'||';
 

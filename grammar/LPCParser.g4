@@ -192,6 +192,7 @@ primary
     |   mappingLiteral                                # mappingLiteralExpr
     |   newExpression                                 # newExpressionPrimary
     |   KW_FUNCTION LPAREN parameterList? RPAREN block      # anonFunction
+    |   DOLLAR LPAREN expression RPAREN              # dollarCallExpr
     |   Identifier                                    # identifierPrimary
     |   PARAMETER_PLACEHOLDER                         # parameterPlaceholder
     |   INTEGER                                       # integerPrimary

@@ -9,6 +9,7 @@ import { ClosurePrimaryContext } from "./LPCParser";
 import { MappingLiteralExprContext } from "./LPCParser";
 import { NewExpressionPrimaryContext } from "./LPCParser";
 import { AnonFunctionContext } from "./LPCParser";
+import { DollarCallExprContext } from "./LPCParser";
 import { IdentifierPrimaryContext } from "./LPCParser";
 import { ParameterPlaceholderContext } from "./LPCParser";
 import { IntegerPrimaryContext } from "./LPCParser";
@@ -143,6 +144,14 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitAnonFunction?: (ctx: AnonFunctionContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by the `dollarCallExpr`
+	 * labeled alternative in `LPCParser.primary`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitDollarCallExpr?: (ctx: DollarCallExprContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `identifierPrimary`
