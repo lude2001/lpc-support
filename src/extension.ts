@@ -22,13 +22,6 @@ import { LPCReferenceProvider } from './referenceProvider';
 import { LPCRenameProvider } from './renameProvider';
 import { disposeParseCache, getParserCacheStats, clearParseCache } from './parseCache';
 
-// 导入格式化功能
-import { FormattingController } from './formatting/controller/FormattingController';
-import { DocumentFormattingProvider } from './formatting/providers/DocumentFormattingProvider';
-import { RangeFormattingProvider } from './formatting/providers/RangeFormattingProvider';
-
-// 全局格式化控制器实例
-let globalFormattingController: FormattingController | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     // 初始化诊断功能
@@ -431,94 +424,6 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.languages.registerRenameProvider('lpc', new LPCRenameProvider())
     );
 
-    // 初始化格式化功能
-    globalFormattingController = new FormattingController();
-    const formattingController = globalFormattingController;
-
-    // 注册文档格式化提供程序
-    context.subscriptions.push(
-        vscode.languages.registerDocumentFormattingEditProvider(
-            'lpc',
-            new DocumentFormattingProvider(formattingController)
-        )
-    );
-
-    // 注册范围格式化提供程序
-    context.subscriptions.push(
-        vscode.languages.registerDocumentRangeFormattingEditProvider(
-            'lpc',
-            new RangeFormattingProvider(formattingController)
-        )
-    );
-
-    // 注册格式化相关命令
-    context.subscriptions.push(
-        vscode.commands.registerCommand('lpc.formatting.formatDocument', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (editor && editor.document.languageId === 'lpc') {
-                await vscode.commands.executeCommand('editor.action.formatDocument');
-            } else {
-                vscode.window.showWarningMessage('请在LPC文件中使用此命令');
-            }
-        }),
-
-        vscode.commands.registerCommand('lpc.formatting.formatSelection', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (editor && editor.document.languageId === 'lpc') {
-                await vscode.commands.executeCommand('editor.action.formatSelection');
-            } else {
-                vscode.window.showWarningMessage('请在LPC文件中使用此命令');
-            }
-        }),
-
-        vscode.commands.registerCommand('lpc.formatting.showStats', () => {
-            const cacheStats = formattingController.getCacheStats();
-            const perfStats = formattingController.getPerformanceStats();
-            const diagnostics = formattingController.getDiagnostics();
-
-            const message = [
-                'LPC 格式化统计信息:',
-                '',
-                '缓存统计:',
-                `  大小: ${cacheStats.main.size}`,
-                `  命中率: ${(cacheStats.main.hitRate * 100).toFixed(1)}%`,
-                `  内存使用: ${(cacheStats.main.memoryUsage / 1024 / 1024).toFixed(1)}MB`,
-                '',
-                '性能统计:',
-                `  总操作数: ${perfStats.totalOperations}`,
-                `  平均时间: ${perfStats.averageFormatTime.toFixed(2)}ms`,
-                `  成功率: ${((perfStats.totalOperations - (perfStats.totalOperations - perfStats.successfulOperations)) / perfStats.totalOperations * 100).toFixed(1)}%`,
-                '',
-                '系统状态:',
-                `  ${diagnostics.controller}`,
-                `  ${diagnostics.rules}`,
-                `  ${diagnostics.cache}`
-            ].join('\n');
-
-            vscode.window.showInformationMessage(message, { modal: true });
-        }),
-
-        vscode.commands.registerCommand('lpc.formatting.clearCache', () => {
-            formattingController.clearCache();
-            vscode.window.showInformationMessage('LPC 格式化缓存已清理');
-        }),
-
-        vscode.commands.registerCommand('lpc.formatting.resetStats', () => {
-            formattingController.resetPerformanceStats();
-            vscode.window.showInformationMessage('LPC 格式化性能统计已重置');
-        }),
-
-        vscode.commands.registerCommand('lpc.formatting.generateReport', () => {
-            const report = formattingController.generatePerformanceReport();
-            const output = vscode.window.createOutputChannel('LPC 格式化报告');
-            output.clear();
-            output.appendLine(report);
-            output.show();
-        })
-    );
-
-    // 将格式化控制器添加到清理列表
-    context.subscriptions.push(formattingController);
 
 
 
@@ -588,12 +493,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 // 停用扩展时调用
 export function deactivate() {
-    // 清理格式化控制器资源
-    if (globalFormattingController) {
-        globalFormattingController.dispose();
-        globalFormattingController = undefined;
-    }
-
     // 清理解析缓存资源
     disposeParseCache();
 }

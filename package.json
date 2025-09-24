@@ -227,36 +227,6 @@
         "title": "复制错误信息",
         "icon": "$(copy)"
       },
-      {
-        "command": "lpc.formatting.formatDocument",
-        "title": "格式化LPC文档",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.formatting.formatSelection",
-        "title": "格式化LPC选中区域",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.formatting.showStats",
-        "title": "显示格式化统计",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.formatting.clearCache",
-        "title": "清理格式化缓存",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.formatting.resetStats",
-        "title": "重置格式化统计",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.formatting.generateReport",
-        "title": "生成格式化报告",
-        "category": "LPC"
-      }
     ],
     "menus": {
       "view/title": [
@@ -340,21 +310,6 @@
           "command": "lpc.generateJavadoc",
           "group": "LPC"
         },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.formatting.formatDocument",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.formatting.formatSelection",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.formatting.showStats",
-          "group": "LPC"
-        }
       ],
       "explorer/context": [
         {
@@ -765,16 +720,6 @@
         "key": "ctrl+f5",
         "when": "editorTextFocus && editorLangId == 'lpc'"
       },
-      {
-        "command": "lpc.formatting.formatDocument",
-        "key": "shift+alt+f",
-        "when": "editorTextFocus && !editorReadonly && editorLangId == 'lpc'"
-      },
-      {
-        "command": "lpc.formatting.formatSelection",
-        "key": "ctrl+k ctrl+f",
-        "when": "editorHasSelection && editorTextFocus && !editorReadonly && editorLangId == 'lpc'"
-      }
     ],
     "semanticTokenTypes": [
       {
@@ -839,11 +784,7 @@
     "test:e2e": "jest --testPathPattern=e2e",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
-    "test:performance": "jest --testPathPattern=performance",
-    "test-formatter": "ts-node standalone-formatter.ts",
-    "test-formatter:builtin": "ts-node standalone-formatter.ts --builtin",
-    "test-formatter:all": "ts-node standalone-formatter.ts --all",
-    "test-formatter:dir": "ts-node standalone-formatter.ts --dir"
+    "test:performance": "jest --testPathPattern=performance"
   },
   "license": "MIT",
   "icon": "icon.png",

@@ -4,8 +4,6 @@
  */
 
 import * as vscode from 'vscode';
-import { FormattingConfig } from '../../src/formatting/config/FormattingConfig';
-import { DEFAULT_FORMATTING_CONFIG } from '../../src/formatting/config/DefaultConfig';
 
 export class TestHelper {
     /**
@@ -94,15 +92,6 @@ export class TestHelper {
         );
     }
     
-    /**
-     * 创建测试用的格式化配置
-     */
-    static createTestConfig(overrides: Partial<FormattingConfig> = {}): FormattingConfig {
-        return {
-            ...DEFAULT_FORMATTING_CONFIG,
-            ...overrides
-        };
-    }
     
     /**
      * 等待条件满足
@@ -252,45 +241,6 @@ ${functions.join('')}`;
         return code;
     }
     
-    /**
-     * 验证格式化结果
-     */
-    static validateFormattedCode(original: string, formatted: string): {
-        isValid: boolean;
-        issues: string[];
-    } {
-        const issues: string[] = [];
-        
-        // 基本验证：格式化后的代码不应该为空
-        if (!formatted || formatted.trim().length === 0) {
-            if (original.trim().length > 0) {
-                issues.push('格式化后代码为空');
-            }
-        }
-        
-        // 验证基本结构保持不变
-        const originalTokens = this.extractTokens(original);
-        const formattedTokens = this.extractTokens(formatted);
-        
-        if (originalTokens.length !== formattedTokens.length) {
-            issues.push('格式化后令牌数量发生变化');
-        }
-        
-        // 验证关键字保持不变
-        const keywords = ['void', 'int', 'string', 'mixed', 'mapping', 'inherit', 'if', 'else', 'for', 'while', 'switch', 'case', 'break', 'return'];
-        for (const keyword of keywords) {
-            const originalCount = (original.match(new RegExp(`\\b${keyword}\\b`, 'g')) || []).length;
-            const formattedCount = (formatted.match(new RegExp(`\\b${keyword}\\b`, 'g')) || []).length;
-            if (originalCount !== formattedCount) {
-                issues.push(`关键字 '${keyword}' 数量发生变化`);
-            }
-        }
-        
-        return {
-            isValid: issues.length === 0,
-            issues
-        };
-    }
     
     /**
      * 提取代码令牌（简化版）

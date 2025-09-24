@@ -1,5 +1,5 @@
 /**
- * Jest 配置文件 - LPC格式化器测试套件
+ * Jest 配置文件 - LPC扩展测试套件
  * 配置全面的测试环境，支持单元测试、集成测试和性能测试
  */
 
@@ -51,11 +51,12 @@ module.exports = {
 
     // 测试覆盖率配置
     collectCoverageFrom: [
-        'src/formatting/**/*.ts',
-        '!src/formatting/**/*.d.ts',
-        '!src/formatting/test/**/*',
-        '!src/formatting/**/index.ts',
-        '!src/formatting/**/*.interface.ts'
+        'src/**/*.ts',
+        '!src/**/*.d.ts',
+        '!src/test/**/*',
+        '!src/**/index.ts',
+        '!src/**/*.interface.ts',
+        '!src/antlr/**/*'
     ],
 
     // 覆盖率报告格式

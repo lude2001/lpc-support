@@ -48,7 +48,6 @@ beforeAll(() => {
             activeTextEditor: null
         },
         languages: {
-            registerDocumentFormattingProvider: jest.fn(),
             getDiagnostics: jest.fn(() => [])
         }
     };

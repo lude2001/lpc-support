@@ -13,7 +13,9 @@
       "Bash(npm test:*)",
       "Bash(cat:*)",
       "Bash(echo:*)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

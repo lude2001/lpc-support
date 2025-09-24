@@ -74,14 +74,7 @@ const mockVSCode = {
     workspace: {
         getConfiguration: jest.fn(() => ({
             get: jest.fn((key: string, defaultValue?: any) => {
-                const configMap: any = {
-                    'lpc.formatting.indentSize': 4,
-                    'lpc.formatting.useSpaces': true,
-                    'lpc.formatting.spaceAroundOperators': true,
-                    'lpc.formatting.spaceAfterComma': true,
-                    'lpc.formatting.maxLineLength': 120
-                };
-                return configMap[key] !== undefined ? configMap[key] : defaultValue;
+                return defaultValue;
             }),
             update: jest.fn(),
             has: jest.fn(() => true),
@@ -114,8 +107,6 @@ const mockVSCode = {
         registerCompletionItemProvider: jest.fn(() => ({ dispose: jest.fn() })),
         registerHoverProvider: jest.fn(() => ({ dispose: jest.fn() })),
         registerDefinitionProvider: jest.fn(() => ({ dispose: jest.fn() })),
-        registerDocumentFormattingProvider: jest.fn(() => ({ dispose: jest.fn() })),
-        registerDocumentRangeFormattingProvider: jest.fn(() => ({ dispose: jest.fn() }))
     },
     
     commands: {

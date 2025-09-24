@@ -157,16 +157,6 @@ export const MockVSCode = {
         getConfiguration: jest.fn().mockReturnValue({
             get: jest.fn((key: string, defaultValue?: any) => {
                 // 返回默认值或预设值
-                if (key.startsWith('lpc.formatting.')) {
-                    const configMap: any = {
-                        'lpc.formatting.indentSize': 4,
-                        'lpc.formatting.useSpaces': true,
-                        'lpc.formatting.spaceAroundOperators': true,
-                        'lpc.formatting.spaceAfterComma': true,
-                        'lpc.formatting.maxLineLength': 120
-                    };
-                    return configMap[key] !== undefined ? configMap[key] : defaultValue;
-                }
                 return defaultValue;
             }),
             update: jest.fn().mockResolvedValue(undefined),
@@ -201,8 +191,6 @@ export const MockVSCode = {
         registerCompletionItemProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
         registerHoverProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
         registerDefinitionProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
-        registerDocumentFormattingProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
-        registerDocumentRangeFormattingProvider: jest.fn().mockReturnValue({ dispose: jest.fn() })
     },
     
     // 命令

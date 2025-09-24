@@ -22,7 +22,7 @@ class TestRunner {
      * 运行所有测试套件
      */
     async runAllTests(): Promise<void> {
-        console.log('🚀 开始执行LPC格式化器完整测试套件...');
+        console.log('🚀 开始执行LPC扩展完整测试套件...');
         console.log('='.repeat(60));
         
         try {
@@ -55,12 +55,7 @@ class TestRunner {
         
         const unitTestSuites = [
             {
-                name: 'FormattingController 单元测试',
-                testCount: 25,
-                category: 'unit'
-            },
-            {
-                name: 'LPC语法格式化测试',
+                name: '语法解析器测试',
                 testCount: 35,
                 category: 'unit'
             },
@@ -270,7 +265,7 @@ class TestRunner {
                 errorHandling: 92.1
             },
             performance: {
-                averageFormatTime: totalDuration / totalTests,
+                averageParseTime: totalDuration / totalTests,
                 memoryEfficiency: 88.5,
                 cacheHitRate: 76.2
             },

@@ -106,10 +106,6 @@ beforeAll(async () => {
             })
         },
         languages: {
-            registerDocumentFormattingProvider: jest.fn((selector, provider) => ({
-                dispose: jest.fn()
-            })),
-            registerDocumentRangeFormattingProvider: jest.fn(),
             createDiagnosticCollection: jest.fn(() => ({
                 set: jest.fn(),
                 delete: jest.fn(),
