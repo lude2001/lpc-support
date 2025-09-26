@@ -7,6 +7,7 @@ export class LPCCodeActionProvider implements vscode.CodeActionProvider {
     public static readonly unusedParamDiagnosticCode = 'unusedParam';
     public static readonly unusedGlobalVarDiagnosticCode = 'unusedGlobalVar';
     public static readonly applyReturnMismatchDiagnosticCode = 'applyReturnMismatch';
+    public static readonly localVariablePositionCode = 'localVariableDeclarationPosition';
 
     private static commandsRegistered = false;
 
@@ -94,6 +95,21 @@ export class LPCCodeActionProvider implements vscode.CodeActionProvider {
                 const fixReturnTypeAction = this.createFixApplyReturnTypeAction(document, diagnostic);
                 if (fixReturnTypeAction) {
                     actions.push(fixReturnTypeAction);
+                }
+            }
+
+            // === 局部变量定义位置错误 ===
+            if (diagCode === LPCCodeActionProvider.localVariablePositionCode) {
+                // 移动变量到当前代码块开头
+                const moveToBlockStartAction = this.createMoveVariableToBlockStartAction(document, diagnostic);
+                if (moveToBlockStartAction) {
+                    actions.push(moveToBlockStartAction);
+                }
+
+                // 移动变量到函数开头
+                const moveToFunctionStartAction = this.createMoveVariableToFunctionStartAction(document, diagnostic);
+                if (moveToFunctionStartAction) {
+                    actions.push(moveToFunctionStartAction);
                 }
             }
         }
@@ -472,6 +488,199 @@ export class LPCCodeActionProvider implements vscode.CodeActionProvider {
             }
             return indent + line;
         }).join('\n');
+    }
+
+    /**
+     * 创建将变量移动到当前代码块开头的快速修复动作
+     */
+    private createMoveVariableToBlockStartAction(
+        document: vscode.TextDocument,
+        diagnostic: vscode.Diagnostic
+    ): vscode.CodeAction | undefined {
+        const action = new vscode.CodeAction(
+            '移动变量声明到当前代码块开头',
+            vscode.CodeActionKind.QuickFix
+        );
+
+        const edit = new vscode.WorkspaceEdit();
+        const variableLine = document.lineAt(diagnostic.range.start.line);
+        const variableText = variableLine.text.trim();
+
+        // 找到包含这个变量声明的代码块的开头
+        const blockStartLine = this.findBlockStart(document, diagnostic.range.start.line);
+        if (blockStartLine === -1) {
+            return undefined;
+        }
+
+        // 获取代码块开头的缩进
+        const blockStartLineObj = document.lineAt(blockStartLine);
+        const blockIndent = this.getLineIndentation(document, blockStartLine);
+
+        // 找到代码块开头后的第一个可执行位置（跳过已有的变量声明）
+        let insertLine = blockStartLine + 1;
+        while (insertLine < document.lineCount) {
+            const line = document.lineAt(insertLine);
+            const lineText = line.text.trim();
+
+            // 跳过空行和注释
+            if (lineText === '' || lineText.startsWith('//') || lineText.startsWith('/*')) {
+                insertLine++;
+                continue;
+            }
+
+            // 如果是变量声明，继续跳过
+            if (this.isVariableDeclaration(lineText)) {
+                insertLine++;
+                continue;
+            }
+
+            // 找到第一个非变量声明的位置
+            break;
+        }
+
+        // 格式化变量声明（保持适当缩进）
+        const indentedVariableText = blockIndent + '    ' + variableText;
+
+        // 删除原来的变量声明行
+        edit.delete(document.uri, variableLine.rangeIncludingLineBreak);
+
+        // 在代码块开头插入变量声明
+        const insertPosition = new vscode.Position(insertLine, 0);
+        edit.insert(document.uri, insertPosition, indentedVariableText + '\n');
+
+        action.edit = edit;
+        action.diagnostics = [diagnostic];
+        action.isPreferred = true;
+
+        return action;
+    }
+
+    /**
+     * 创建将变量移动到函数开头的快速修复动作
+     */
+    private createMoveVariableToFunctionStartAction(
+        document: vscode.TextDocument,
+        diagnostic: vscode.Diagnostic
+    ): vscode.CodeAction | undefined {
+        const action = new vscode.CodeAction(
+            '移动变量声明到函数开头',
+            vscode.CodeActionKind.QuickFix
+        );
+
+        const edit = new vscode.WorkspaceEdit();
+        const variableLine = document.lineAt(diagnostic.range.start.line);
+        const variableText = variableLine.text.trim();
+
+        // 找到包含这个变量声明的函数开头
+        const functionStartLine = this.findFunctionStart(document, diagnostic.range.start.line);
+        if (functionStartLine === -1) {
+            return undefined;
+        }
+
+        // 找到函数体的开始位置（{后的第一行）
+        let functionBodyStart = functionStartLine;
+        for (let line = functionStartLine; line < document.lineCount; line++) {
+            if (document.lineAt(line).text.includes('{')) {
+                functionBodyStart = line + 1;
+                break;
+            }
+        }
+
+        // 找到函数体中第一个非变量声明的位置
+        let insertLine = functionBodyStart;
+        while (insertLine < document.lineCount) {
+            const line = document.lineAt(insertLine);
+            const lineText = line.text.trim();
+
+            // 跳过空行和注释
+            if (lineText === '' || lineText.startsWith('//') || lineText.startsWith('/*')) {
+                insertLine++;
+                continue;
+            }
+
+            // 如果是变量声明，继续跳过
+            if (this.isVariableDeclaration(lineText)) {
+                insertLine++;
+                continue;
+            }
+
+            // 找到第一个非变量声明的位置
+            break;
+        }
+
+        // 获取函数体的缩进
+        const functionIndent = this.getLineIndentation(document, functionBodyStart) || '    ';
+        const indentedVariableText = functionIndent + variableText;
+
+        // 删除原来的变量声明行
+        edit.delete(document.uri, variableLine.rangeIncludingLineBreak);
+
+        // 在函数开头插入变量声明
+        const insertPosition = new vscode.Position(insertLine, 0);
+        edit.insert(document.uri, insertPosition, indentedVariableText + '\n');
+
+        action.edit = edit;
+        action.diagnostics = [diagnostic];
+
+        return action;
+    }
+
+    /**
+     * 找到包含指定行的代码块的开始行号
+     */
+    private findBlockStart(document: vscode.TextDocument, lineNumber: number): number {
+        let braceCount = 0;
+        let foundOpenBrace = false;
+
+        // 从当前行向上查找，找到对应的开放大括号
+        for (let line = lineNumber; line >= 0; line--) {
+            const lineText = document.lineAt(line).text;
+
+            // 从右到左计算大括号
+            for (let i = lineText.length - 1; i >= 0; i--) {
+                const char = lineText[i];
+                if (char === '}') {
+                    braceCount++;
+                } else if (char === '{') {
+                    if (braceCount === 0) {
+                        foundOpenBrace = true;
+                        return line;
+                    }
+                    braceCount--;
+                }
+            }
+
+            if (foundOpenBrace) {
+                break;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * 找到包含指定行的函数的开始行号
+     */
+    private findFunctionStart(document: vscode.TextDocument, lineNumber: number): number {
+        // 向上查找函数定义的开始
+        for (let line = lineNumber; line >= 0; line--) {
+            const lineText = document.lineAt(line).text.trim();
+
+            // 匹配函数定义的模式：type functionName(parameters) 或 functionName(parameters)
+            if (/^(?:(?:public|private|protected|static|nosave|varargs)\s+)*(?:int|string|object|mixed|void|float|mapping|status)\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\)/.test(lineText)) {
+                return line;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * 判断一行文本是否是变量声明
+     */
+    private isVariableDeclaration(lineText: string): boolean {
+        // 匹配变量声明的模式
+        return /^\s*(?:(?:public|private|protected|static|nosave)\s+)*(?:int|string|object|mixed|void|float|mapping|status)\s+[a-zA-Z_][a-zA-Z0-9_*\s,]*;/.test(lineText);
     }
 }
 
