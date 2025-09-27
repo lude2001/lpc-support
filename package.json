@@ -386,11 +386,6 @@
             }
           }
         },
-        "lpc.enableApplyReturnCheck": {
-          "type": "boolean",
-          "default": true,
-          "description": "启用 apply 函数返回类型匹配检查"
-        },
         "lpc.enableUnusedGlobalVarCheck": {
           "type": "boolean",
           "default": true,

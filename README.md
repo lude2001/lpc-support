@@ -122,7 +122,6 @@ code --install-extension ludexiang.lpc-support
 |--------|------|--------|------|
 | `lpc.includePath` | string | `""` | LPC include 目录路径（支持相对路径） |
 | `lpc.simulatedEfunsPath` | string | `""` | 模拟函数库路径（支持相对路径） |
-| `lpc.enableApplyReturnCheck` | boolean | `true` | 启用 apply 函数返回类型检查 |
 | `lpc.enableUnusedGlobalVarCheck` | boolean | `true` | 启用未使用全局变量检查 |
 
 ### 性能配置

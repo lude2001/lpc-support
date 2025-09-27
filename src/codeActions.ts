@@ -6,7 +6,6 @@ export class LPCCodeActionProvider implements vscode.CodeActionProvider {
     public static readonly unusedVarDiagnosticCode = 'unusedVar';
     public static readonly unusedParamDiagnosticCode = 'unusedParam';
     public static readonly unusedGlobalVarDiagnosticCode = 'unusedGlobalVar';
-    public static readonly applyReturnMismatchDiagnosticCode = 'applyReturnMismatch';
     public static readonly localVariablePositionCode = 'localVariableDeclarationPosition';
 
     private static commandsRegistered = false;
@@ -90,13 +89,6 @@ export class LPCCodeActionProvider implements vscode.CodeActionProvider {
                 }
             }
 
-            // === apply 返回类型不匹配 ===
-            if (diagCode === LPCCodeActionProvider.applyReturnMismatchDiagnosticCode) {
-                const fixReturnTypeAction = this.createFixApplyReturnTypeAction(document, diagnostic);
-                if (fixReturnTypeAction) {
-                    actions.push(fixReturnTypeAction);
-                }
-            }
 
             // === 局部变量定义位置错误 ===
             if (diagCode === LPCCodeActionProvider.localVariablePositionCode) {
@@ -299,36 +291,6 @@ export class LPCCodeActionProvider implements vscode.CodeActionProvider {
         return name.replace(/_([a-zA-Z])/g, (_, g1: string) => g1.toUpperCase());
     }
 
-    /**
-     * 针对 apply 返回类型不匹配, 将返回类型修正为期望值。
-     */
-    private createFixApplyReturnTypeAction(
-        document: vscode.TextDocument,
-        diagnostic: vscode.Diagnostic
-    ): vscode.CodeAction | undefined {
-        const msg = diagnostic.message;
-        const match = /返回类型应为 '([^']+)'，当前为 '([^']+)'/.exec(msg);
-        if (!match) return;
-        const [, expected, actual] = match;
-
-        // 函数定义所在行
-        const line = document.lineAt(diagnostic.range.start.line);
-        const lineText = line.text;
-
-        // 尝试在当前行替换类型
-        const typePattern = new RegExp(`\\b${actual}\\b`);
-        if (!typePattern.test(lineText)) return;
-
-        const newText = lineText.replace(typePattern, expected);
-
-        const edit = new vscode.WorkspaceEdit();
-        edit.replace(document.uri, line.range, newText);
-
-        const action = new vscode.CodeAction('修正返回类型为 ' + expected, vscode.CodeActionKind.QuickFix);
-        action.edit = edit;
-        action.diagnostics = [diagnostic];
-        return action;
-    }
 
     /**
      * 生成Javadoc注释的命令处理函数

@@ -12,7 +12,6 @@ import { FileNamingCollector } from './collectors/FileNamingCollector';
 import { UnusedVariableCollector } from './collectors/UnusedVariableCollector';
 // import { UnusedParameterCollector } from './collectors/UnusedParameterCollector'; // 已移除：取消函数参数使用情况检查
 import { GlobalVariableCollector } from './collectors/GlobalVariableCollector';
-import { ApplyFunctionReturnCollector } from './collectors/ApplyFunctionReturnCollector';
 import { LocalVariableDeclarationCollector } from './collectors/LocalVariableDeclarationCollector';
 import { Debouncer, Throttler } from './utils/debounce';
 
@@ -118,7 +117,6 @@ export class LPCDiagnostics {
             new UnusedVariableCollector(),
             // new UnusedParameterCollector(), // 已移除：取消函数参数使用情况检查
             new GlobalVariableCollector(),
-            new ApplyFunctionReturnCollector(),
             new LocalVariableDeclarationCollector(),
         ];
 

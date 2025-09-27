@@ -149,7 +149,6 @@ enum DiagnosticType {
 ```
 collectors/
 ├── UnusedVariableCollector.ts      # 未使用变量收集
-├── ApplyFunctionReturnCollector.ts # Apply 函数返回值收集
 ├── GlobalVariableCollector.ts      # 全局变量收集
 ├── LocalVariableDeclarationCollector.ts # 局部变量声明收集
 ├── StringLiteralCollector.ts       # 字符串字面量收集
@@ -455,7 +454,6 @@ interface GLM4Request {
 #### 诊断配置
 ```json
 {
-    "lpc.enableApplyReturnCheck": true,
     "lpc.enableUnusedParameterCheck": true,
     "lpc.enableUnusedGlobalVarCheck": true
 }
