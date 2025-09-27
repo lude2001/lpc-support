@@ -1,9 +1,0 @@
-// 测试修复的问题案例
-inherit"/std/object";
-
-void test_function() {
-    string *arr=({"item1","item2","item3"});
-    function calc=(:$1+$2:);
-    if(x>0)write("positive");else write("non-positive");
-    mapping data=(["key1":"value1","key2":"value2"]);
-}
