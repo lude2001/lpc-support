@@ -12,7 +12,7 @@ export class EnhancedASTTestRunner {
     constructor() {
         this.astManager = ASTManager.getInstance();
         // 创建一个简化的补全提供者用于测试
-        const efunDocs = new EfunDocsManager();
+        const efunDocs = new EfunDocsManager({} as vscode.ExtensionContext);
         const macroManager = new MacroManager();
         this.completionProvider = new LPCCompletionItemProvider(efunDocs, macroManager);
     }

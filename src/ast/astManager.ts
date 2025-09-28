@@ -3,7 +3,7 @@ import { CharStreams, CommonTokenStream } from 'antlr4ts';
 import { ParseTree } from 'antlr4ts/tree/ParseTree';
 import { LPCLexer } from '../antlr/LPCLexer';
 import { LPCParser, SourceFileContext } from '../antlr/LPCParser';
-import { SymbolTable, SymbolType } from './symbolTable';
+import { SymbolTable, SymbolType, Symbol as LPCSymbol } from './symbolTable';
 import { CompletionVisitor } from './completionVisitor';
 
 export interface ParseResult {
@@ -241,7 +241,7 @@ export class ASTManager {
                 // 为函数类型成员添加调用片段
                 if (member.dataType === 'function' && member.parameters) {
                     const paramSnippet = member.parameters
-                        .map((param, paramIndex) => `\${${paramIndex + 1}:${param.name}}`)
+                        .map((param: any, paramIndex: number) => `\${${paramIndex + 1}:${param.name}}`)
                         .join(', ');
                     item.insertText = new vscode.SnippetString(`${member.name}(${paramSnippet})`);
                     item.kind = vscode.CompletionItemKind.Method;
@@ -272,8 +272,8 @@ export class ASTManager {
     }
 
     // 获取包含继承关系的所有成员
-    private getAllMembersWithInheritance(structSymbol: Symbol, symbolTable: SymbolTable): Symbol[] {
-        const allMembers: Symbol[] = [];
+    private getAllMembersWithInheritance(structSymbol: LPCSymbol, symbolTable: SymbolTable): LPCSymbol[] {
+        const allMembers: LPCSymbol[] = [];
         const processedTypes = new Set<string>();
 
         this.collectMembersRecursively(structSymbol, symbolTable, allMembers, processedTypes);
@@ -283,9 +283,9 @@ export class ASTManager {
 
     // 递归收集成员，包括继承的成员
     private collectMembersRecursively(
-        structSymbol: Symbol,
+        structSymbol: LPCSymbol,
         symbolTable: SymbolTable,
-        allMembers: Symbol[],
+        allMembers: LPCSymbol[],
         processedTypes: Set<string>
     ): void {
         if (processedTypes.has(structSymbol.name)) {
