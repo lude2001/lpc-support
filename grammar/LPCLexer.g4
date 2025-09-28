@@ -9,13 +9,14 @@ lexer grammar LPCLexer;
 fragment NL : '\r'? '\n';
 
 // ---------- 数字 ----------
-INTEGER : HexLiteral | OctLiteral | DecimalLiteral ;
+INTEGER : HexLiteral | OctLiteral | BinLiteral | DecimalLiteral ;
 FLOAT   : FloatLiteral ;
 
 fragment DecimalLiteral : '0' | [1-9] [0-9_]* ;
 fragment FloatLiteral   : [0-9]+ '.' [0-9]+ | '.' [0-9]+ ;
-fragment HexLiteral     : '0' [xX] [0-9a-fA-F]+ ;
-fragment OctLiteral     : '0' [0-7]+ ;
+fragment HexLiteral     : '0' [xX] [0-9a-fA-F_]+ ;
+fragment OctLiteral     : '0' [0-7_]+ ;
+fragment BinLiteral     : '0' [bB] [01_]+ ;
 
 // ---------- 字符 / 字符串 ----------
 CHAR_LITERAL    : '\'' ( '\\' . | ~['\\] ) '\'' ;
@@ -30,6 +31,15 @@ HEREDOC_START
             this.heredocTag = this.text.substring(1).trim();
             this.type = LPCLexer.STRING_LITERAL;
             this.pushMode(LPCLexer.LPC_HEREDOC);
+        }
+    ;
+
+// ---------- Array Delimiter ----------
+ARRAY_DELIMITER_START
+    :   '@@' HEREDOC_TAG NL
+        {
+            this.heredocTag = this.text.substring(2).trim();
+            this.pushMode(LPCLexer.LPC_ARRAY_DELIMITER);
         }
     ;
 
@@ -48,6 +58,23 @@ HEREDOC_END
     ;
 
 HEREDOC_CHARS
+    :   . -> more
+    ;
+
+mode LPC_ARRAY_DELIMITER;
+
+ARRAY_DELIMITER_END
+    :   HEREDOC_TAG ';' [ \t]*
+        {
+            if (this.text.replace(';', '').trim() === this.heredocTag) {
+                this.popMode();
+            } else {
+                this.more();
+            }
+        }
+    ;
+
+ARRAY_DELIMITER_CHARS
     :   . -> more
     ;
 

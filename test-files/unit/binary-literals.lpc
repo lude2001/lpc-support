@@ -1,0 +1,62 @@
+// 二进制字面量测试用例
+// 本文件测试新增的二进制字面量语法支持
+
+int test_binary_literals() {
+    // 基础二进制字面量
+    int a = 0b1010;        // 十进制 10
+    int b = 0B1111;        // 十进制 15，大写前缀
+    int c = 0b0;           // 零值
+    int d = 0b1;           // 单位值
+
+    // 带下划线分隔符的二进制字面量
+    int e = 0b1010_1111;   // 十进制 175
+    int f = 0b1111_0000_1111_0000;  // 复杂分隔符
+    int g = 0b1010_1010_1010_1010;  // 模式重复
+
+    // 长二进制字面量
+    int h = 0b1111111111111111111111111111111; // 31位最大值
+    int i = 0b1000000000000000000000000000000; // 31位最小正值
+
+    // 在表达式中使用
+    int result = 0b1010 + 0b0101;  // 位运算常用场景
+    int mask = 0b1111_0000 & 0b1010_1010;
+
+    return a + b + c + d + e + f + g + h + i + result + mask;
+}
+
+// 测试二进制字面量在不同上下文中的使用
+void test_binary_in_contexts() {
+    // 数组中使用
+    int* binary_array = ({ 0b1010, 0b1100, 0b1001 });
+
+    // Switch语句中使用
+    switch(0b1010) {
+        case 0b1000..0b1111:
+            write("在范围内");
+            break;
+        case 0b0001:
+            write("特定值");
+            break;
+    }
+
+    // 函数调用参数
+    some_function(0b1010, 0b1100_1010);
+
+    // 位运算操作
+    int result = (0b1111_0000 << 4) | 0b0000_1111;
+}
+
+// 边界条件测试
+void test_binary_edge_cases() {
+    // 最小值
+    int min_val = 0b0;
+
+    // 不同长度
+    int one_bit = 0b1;
+    int four_bits = 0b1111;
+    int eight_bits = 0b1111_1111;
+    int sixteen_bits = 0b1111_1111_1111_1111;
+
+    // 混合使用
+    int mixed = 0xFF + 0b1010 + 077 + 42;
+}

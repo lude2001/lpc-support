@@ -128,27 +128,55 @@ export class ASTManager {
         // 获取当前作用域中的所有符号
         const symbols = result.symbolTable.getSymbolsInScope(position);
         
-        // 转换为补全项
+        // 转换为补全项，优化排序和展示
         symbols.forEach(symbol => {
             const item = new vscode.CompletionItem(symbol.name, this.getCompletionItemKind(symbol.type));
             item.detail = `${symbol.type}: ${symbol.dataType}`;
-            
+
+            // 设置排序优先级
+            switch (symbol.type) {
+                case SymbolType.FUNCTION:
+                    item.sortText = `1_${symbol.name}`; // 函数优先
+                    break;
+                case SymbolType.VARIABLE:
+                case SymbolType.PARAMETER:
+                    item.sortText = `2_${symbol.name}`; // 变量其次
+                    break;
+                case SymbolType.STRUCT:
+                case SymbolType.CLASS:
+                    item.sortText = `3_${symbol.name}`; // 类型定义再次
+                    break;
+                default:
+                    item.sortText = `4_${symbol.name}`; // 其他最后
+            }
+
             if (symbol.documentation) {
                 item.documentation = new vscode.MarkdownString(symbol.documentation);
             }
-            
+
             if (symbol.definition) {
                 const markdown = new vscode.MarkdownString();
                 markdown.appendCodeblock(symbol.definition, 'lpc');
                 item.documentation = markdown;
             }
 
-            // 为函数添加参数片段
+            // 为函数添加参数片段和增强的详细信息
             if (symbol.type === SymbolType.FUNCTION && symbol.parameters) {
                 const paramSnippet = symbol.parameters
                     .map((param, index) => `\${${index + 1}:${param.name}}`)
                     .join(', ');
                 item.insertText = new vscode.SnippetString(`${symbol.name}(${paramSnippet})`);
+
+                // 增强函数的详细信息显示
+                const paramInfo = symbol.parameters
+                    .map(param => `${param.dataType} ${param.name}`)
+                    .join(', ');
+                item.detail = `${symbol.dataType} ${symbol.name}(${paramInfo})`;
+            }
+
+            // 为结构体成员访问添加特殊处理
+            if (symbol.type === SymbolType.MEMBER) {
+                item.detail = `成员: ${symbol.dataType} ${symbol.name}`;
             }
 
             completionItems.push(item);
@@ -157,32 +185,122 @@ export class ASTManager {
         return completionItems;
     }
 
-    // 获取结构体成员补全
+    // 获取结构体成员补全 - 增强版本，支持继承链和更精确的类型解析
     public getStructMemberCompletions(
-        document: vscode.TextDocument, 
-        position: vscode.Position, 
+        document: vscode.TextDocument,
+        position: vscode.Position,
         variableName: string
     ): vscode.CompletionItem[] {
         const result = this.parseDocument(document);
         const completionItems: vscode.CompletionItem[] = [];
 
-        // 查找变量的类型
-        const variableSymbol = result.symbolTable.findSymbol(variableName, position);
-        if (!variableSymbol) return completionItems;
+        try {
+            // 查找变量的类型
+            const variableSymbol = result.symbolTable.findSymbol(variableName, position);
+            if (!variableSymbol) {
+                console.debug(`Variable ${variableName} not found in symbol table`);
+                return completionItems;
+            }
 
-        // 查找结构体定义
-        const structSymbol = result.symbolTable.findStructDefinition(variableSymbol.dataType);
-        if (!structSymbol || !structSymbol.members) return completionItems;
+            // 解析变量类型，支持复杂类型
+            const resolvedType = this.resolveComplexType(variableSymbol.dataType, result.symbolTable);
 
-        // 转换成员为补全项
-        structSymbol.members.forEach(member => {
-            const item = new vscode.CompletionItem(member.name, vscode.CompletionItemKind.Field);
-            item.detail = `${member.dataType} ${member.name}`;
-            item.documentation = `结构体成员: ${member.dataType} 类型的 ${member.name}`;
-            completionItems.push(item);
-        });
+            // 查找结构体或类定义
+            const structSymbol = result.symbolTable.findStructDefinition(resolvedType);
+            if (!structSymbol) {
+                console.debug(`Struct/Class definition for type ${resolvedType} not found`);
+                return completionItems;
+            }
+
+            // 获取所有成员，包括继承的成员
+            const allMembers = this.getAllMembersWithInheritance(structSymbol, result.symbolTable);
+
+            // 转换成员为补全项
+            allMembers.forEach((member, index) => {
+                const item = new vscode.CompletionItem(member.name, vscode.CompletionItemKind.Field);
+                item.detail = `${member.dataType} ${member.name}`;
+                item.sortText = `${index.toString().padStart(3, '0')}_${member.name}`;
+
+                // 创建丰富的文档
+                const markdown = new vscode.MarkdownString();
+                markdown.appendCodeblock(`${member.dataType} ${member.name}`, 'lpc');
+
+                if (member.documentation) {
+                    markdown.appendMarkdown(`\n\n${member.documentation}`);
+                } else {
+                    markdown.appendMarkdown(`\n\n结构体成员: ${member.dataType} 类型的 ${member.name}`);
+                }
+
+                // 如果成员来自继承的结构体，添加源信息
+                if (member.scope && member.scope.name !== structSymbol.name) {
+                    markdown.appendMarkdown(`\n\n*继承自: ${member.scope.name}*`);
+                }
+
+                item.documentation = markdown;
+
+                // 为函数类型成员添加调用片段
+                if (member.dataType === 'function' && member.parameters) {
+                    const paramSnippet = member.parameters
+                        .map((param, paramIndex) => `\${${paramIndex + 1}:${param.name}}`)
+                        .join(', ');
+                    item.insertText = new vscode.SnippetString(`${member.name}(${paramSnippet})`);
+                    item.kind = vscode.CompletionItemKind.Method;
+                }
+
+                completionItems.push(item);
+            });
+
+        } catch (error) {
+            console.error('Error getting struct member completions:', error);
+        }
 
         return completionItems;
+    }
+
+    // 解析复杂类型（支持指针、数组等）
+    private resolveComplexType(dataType: string, symbolTable: SymbolTable): string {
+        // 去除指针标记
+        let cleanType = dataType.replace(/\s*\*+\s*$/, '');
+
+        // 去除数组标记
+        cleanType = cleanType.replace(/\s*\[\s*\]\s*$/, '');
+
+        // 去除修饰符
+        cleanType = cleanType.replace(/^(private|protected|public|static|const)\s+/, '');
+
+        return cleanType.trim();
+    }
+
+    // 获取包含继承关系的所有成员
+    private getAllMembersWithInheritance(structSymbol: Symbol, symbolTable: SymbolTable): Symbol[] {
+        const allMembers: Symbol[] = [];
+        const processedTypes = new Set<string>();
+
+        this.collectMembersRecursively(structSymbol, symbolTable, allMembers, processedTypes);
+
+        return allMembers;
+    }
+
+    // 递归收集成员，包括继承的成员
+    private collectMembersRecursively(
+        structSymbol: Symbol,
+        symbolTable: SymbolTable,
+        allMembers: Symbol[],
+        processedTypes: Set<string>
+    ): void {
+        if (processedTypes.has(structSymbol.name)) {
+            return; // 避免循环继承
+        }
+
+        processedTypes.add(structSymbol.name);
+
+        // 添加当前结构体的成员
+        if (structSymbol.members) {
+            allMembers.push(...structSymbol.members);
+        }
+
+        // TODO: 这里可以扩展以支持基于inherit语句的继承关系
+        // 目前主要关注结构体内部的成员定义
     }
 
     // 获取函数定义位置
@@ -253,6 +371,7 @@ export class ASTManager {
             case SymbolType.STRUCT: return vscode.CompletionItemKind.Struct;
             case SymbolType.CLASS: return vscode.CompletionItemKind.Class;
             case SymbolType.MEMBER: return vscode.CompletionItemKind.Field;
+            case SymbolType.INHERIT: return vscode.CompletionItemKind.Module;
             default: return vscode.CompletionItemKind.Text;
         }
     }

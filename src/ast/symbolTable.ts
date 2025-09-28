@@ -7,7 +7,8 @@ export enum SymbolType {
     STRUCT = 'struct',
     CLASS = 'class',
     PARAMETER = 'parameter',
-    MEMBER = 'member'
+    MEMBER = 'member',
+    INHERIT = 'inherit'
 }
 
 export interface Symbol {
@@ -170,6 +171,22 @@ export class SymbolTable {
     // 获取当前作用域
     getCurrentScope(): Scope {
         return this.currentScope;
+    }
+
+    // 获取所有继承的文件路径
+    getInheritedFiles(): string[] {
+        const inheritSymbols = this.getSymbolsByType(SymbolType.INHERIT);
+        return inheritSymbols.map(symbol => symbol.name);
+    }
+
+    // 检查是否继承了指定文件
+    isInheriting(filePath: string): boolean {
+        const inheritedFiles = this.getInheritedFiles();
+        return inheritedFiles.some(inherited =>
+            inherited === filePath ||
+            inherited.endsWith('/' + filePath) ||
+            filePath.endsWith('/' + inherited)
+        );
     }
 }
 

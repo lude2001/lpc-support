@@ -1,0 +1,141 @@
+// 函数指针语法测试用例
+// 本文件测试增强的函数指针语法
+
+// 基础闭包表达式测试
+function test_basic_closures() {
+    // 传统闭包语法
+    function basic_closure = (: $1 + $2 :);
+    function simple_expr = (: time() :);
+    function empty_closure = (: :);
+
+    // 新增：变量引用闭包
+    string var_name = "test_variable";
+    function var_closure = (: $var_name :);
+
+    // 新增：动态变量引用
+    function dynamic_closure = (: $(var_name) :);
+    function complex_dynamic = (: $("prefix_" + var_name) :);
+
+    return ({ basic_closure, simple_expr, empty_closure, var_closure, dynamic_closure });
+}
+
+// 测试函数指针在不同上下文中的使用
+void test_closure_contexts() {
+    string* names = ({ "alice", "bob", "charlie" });
+
+    // 在map中使用闭包
+    string* upper_names = map(names, (: upper_case($1) :));
+
+    // 在filter中使用闭包
+    string* long_names = filter(names, (: strlen($1) > 4 :));
+
+    // 使用变量引用的闭包
+    int min_length = 5;
+    string* filtered = filter(names, (: strlen($1) > $min_length :));
+
+    // 动态变量引用
+    string property = "name";
+    mixed* values = map(names, (: $(property) :));
+}
+
+// 测试复杂的函数指针表达式
+mixed test_complex_closures() {
+    object* objects = ({ load_object("/std/user"), load_object("/std/room") });
+
+    // 复杂表达式闭包
+    function complex = (: $1->query_name() + " in " + $1->environment()->query_name() :);
+
+    // 嵌套函数调用的闭包
+    function nested = (: sprintf("%s: %d", $1->query_name(), $1->query_level()) :);
+
+    // 使用动态属性访问
+    string method = "query_name";
+    function dynamic_method = (: call_other($1, $(method)) :);
+
+    // 条件表达式闭包
+    function conditional = (: $1->query_level() > 10 ? "high" : "low" :);
+
+    return map(objects, complex);
+}
+
+// 测试函数指针作为参数传递
+void test_closure_parameters() {
+    // 定义一个接受函数指针的函数
+    mixed apply_to_list(mixed* list, function fn) {
+        return map(list, fn);
+    }
+
+    int* numbers = ({ 1, 2, 3, 4, 5 });
+
+    // 使用不同类型的闭包
+    mixed* squared = apply_to_list(numbers, (: $1 * $1 :));
+    mixed* doubled = apply_to_list(numbers, (: $1 * 2 :));
+
+    // 使用变量引用闭包
+    int multiplier = 3;
+    mixed* tripled = apply_to_list(numbers, (: $1 * $multiplier :));
+
+    // 使用动态闭包
+    string operation = "square";
+    function dynamic_op;
+
+    switch(operation) {
+        case "square":
+            dynamic_op = (: $1 * $1 :);
+            break;
+        case "double":
+            dynamic_op = (: $1 * 2 :);
+            break;
+        default:
+            dynamic_op = (: $1 :);
+    }
+
+    mixed* result = apply_to_list(numbers, dynamic_op);
+}
+
+// 测试递归函数指针
+void test_recursive_closures() {
+    // 递归计算阶乘的闭包
+    function factorial;
+    factorial = (: $1 <= 1 ? 1 : $1 * call_other(this_object(), "apply", factorial, $1 - 1) :);
+
+    // 使用递归闭包
+    int result = evaluate(factorial, 5);  // 应该返回 120
+}
+
+// 测试闭包的作用域
+void test_closure_scope() {
+    int outer_var = 42;
+
+    void inner_function() {
+        int inner_var = 24;
+
+        // 引用外部变量
+        function outer_ref = (: $outer_var + $1 :);
+
+        // 引用内部变量
+        function inner_ref = (: $inner_var + $1 :);
+
+        // 动态引用
+        string var_name = "outer_var";
+        function dynamic_ref = (: $(var_name) + $1 :);
+    }
+
+    inner_function();
+}
+
+// 边界条件和错误情况测试
+void test_closure_edge_cases() {
+    // 空变量名（应该产生错误）
+    // function empty_var = (: $ :);  // 语法错误
+
+    // 复杂的动态表达式
+    string base = "test";
+    int index = 1;
+    function complex_dynamic = (: $(base + "_" + index) :);
+
+    // 嵌套动态引用
+    string inner_var = "value";
+    string outer_var = "inner_var";
+    function nested_dynamic = (: $($(outer_var)) :);  // 可能的语法扩展
+}

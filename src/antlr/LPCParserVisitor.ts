@@ -7,6 +7,7 @@ import { ScopeIdentifierContext } from "./LPCParser";
 import { StringConcatenationContext } from "./LPCParser";
 import { ClosurePrimaryContext } from "./LPCParser";
 import { MappingLiteralExprContext } from "./LPCParser";
+import { ArrayDelimiterExprContext } from "./LPCParser";
 import { NewExpressionPrimaryContext } from "./LPCParser";
 import { AnonFunctionContext } from "./LPCParser";
 import { DollarCallExprContext } from "./LPCParser";
@@ -65,6 +66,7 @@ import { DoWhileStatementContext } from "./LPCParser";
 import { ForStatementContext } from "./LPCParser";
 import { ForInitContext } from "./LPCParser";
 import { ExpressionListContext } from "./LPCParser";
+import { SpreadElementContext } from "./LPCParser";
 import { ForeachStatementContext } from "./LPCParser";
 import { ForeachInitContext } from "./LPCParser";
 import { ForeachVarContext } from "./LPCParser";
@@ -87,6 +89,9 @@ import { NewExpressionContext } from "./LPCParser";
 import { StructInitializerListContext } from "./LPCParser";
 import { StructInitializerContext } from "./LPCParser";
 import { SliceExprContext } from "./LPCParser";
+import { ArrayDelimiterLiteralContext } from "./LPCParser";
+import { ArrayDelimiterContentContext } from "./LPCParser";
+import { ArrayDelimiterElementContext } from "./LPCParser";
 
 
 /**
@@ -128,6 +133,14 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitMappingLiteralExpr?: (ctx: MappingLiteralExprContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by the `arrayDelimiterExpr`
+	 * labeled alternative in `LPCParser.primary`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitArrayDelimiterExpr?: (ctx: ArrayDelimiterExprContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `newExpressionPrimary`
@@ -553,6 +566,13 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	visitExpressionList?: (ctx: ExpressionListContext) => Result;
 
 	/**
+	 * Visit a parse tree produced by `LPCParser.spreadElement`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitSpreadElement?: (ctx: SpreadElementContext) => Result;
+
+	/**
 	 * Visit a parse tree produced by `LPCParser.foreachStatement`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -705,5 +725,26 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitSliceExpr?: (ctx: SliceExprContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.arrayDelimiterLiteral`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitArrayDelimiterLiteral?: (ctx: ArrayDelimiterLiteralContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.arrayDelimiterContent`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitArrayDelimiterContent?: (ctx: ArrayDelimiterContentContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.arrayDelimiterElement`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitArrayDelimiterElement?: (ctx: ArrayDelimiterElementContext) => Result;
 }
 

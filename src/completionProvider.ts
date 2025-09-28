@@ -127,22 +127,217 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         }
     }
 
-    // 添加结构体成员访问补全
+    // 添加结构体成员访问补全 - 增强版本，支持更复杂的表达式
     private addStructMemberCompletions(
         document: vscode.TextDocument,
         position: vscode.Position,
         linePrefix: string,
         completionItems: vscode.CompletionItem[]
     ): void {
-        // 提取变量名 (-> 前的标识符)
-        const match = linePrefix.match(/(\w+)\s*->\s*$/);
-        if (!match) return;
+        try {
+            // 支持更复杂的表达式模式和链式访问
+            const patterns = [
+                /(\w+)\s*->\s*$/, // 简单变量: var->
+                /(\w+)\s*\[\s*\w*\s*\]\s*->\s*$/, // 数组元素: var[index]->
+                /(\w+)\s*\(\s*[^)]*\s*\)\s*->\s*$/, // 函数调用: func()->
+                /(\w+)(\s*->\s*\w+)+\s*->\s*$/, // 链式调用: var->member1->member2->
+                /(\w+)\s*\[\s*["']\w*["']\s*\]\s*->\s*$/, // 映射访问: mapping["key"]->
+                /this_object\(\s*\)\s*->\s*$/, // this_object()->
+                /previous_object\(\s*\)\s*->\s*$/ // previous_object()->
+            ];
 
-        const variableName = match[1];
-        
-        // 使用AST获取结构体成员补全
-        const structMembers = this.astManager.getStructMemberCompletions(document, position, variableName);
-        completionItems.push(...structMembers);
+            let expressionChain: string[] = [];
+            let matchedPattern: string | null = null;
+
+            // 尝试匹配各种模式
+            for (const pattern of patterns) {
+                const match = linePrefix.match(pattern);
+                if (match) {
+                    matchedPattern = pattern.source;
+
+                    // 解析表达式链
+                    if (pattern.source.includes('->.*->')) {
+                        // 链式访问：解析完整的访问链
+                        const chainMatch = linePrefix.match(/(\w+(?:\s*->\s*\w+)*)\s*->\s*$/);
+                        if (chainMatch) {
+                            expressionChain = chainMatch[1].split('->').map(part => part.trim());
+                        }
+                    } else {
+                        // 简单访问
+                        expressionChain = [match[1]];
+                    }
+                    break;
+                }
+            }
+
+            if (expressionChain.length === 0) {
+                console.debug('No valid expression chain found in line prefix:', linePrefix);
+                return;
+            }
+
+            // 获取结构体成员补全
+            let structMembers: vscode.CompletionItem[] = [];
+
+            if (expressionChain.length === 1) {
+                // 简单访问：直接获取变量的成员
+                const variableName = expressionChain[0];
+                structMembers = this.astManager.getStructMemberCompletions(document, position, variableName);
+            } else {
+                // 链式访问：需要类型推断
+                structMembers = this.getChainedMemberCompletions(document, position, expressionChain);
+            }
+
+            // 为成员添加上下文信息
+            structMembers.forEach(item => {
+                // 添加来源信息
+                const sourceInfo = expressionChain.join('->');
+                if (item.detail && !item.detail.includes('来自')) {
+                    item.detail = `来自 ${sourceInfo}: ${item.detail}`;
+                }
+
+                // 为结构体成员设置特殊的排序
+                if (!item.sortText) {
+                    item.sortText = `0_${item.label}`; // 结构体成员优先显示
+                }
+
+                // 为链式访问添加特殊标记
+                if (expressionChain.length > 1) {
+                    const currentDoc = item.documentation as vscode.MarkdownString;
+                    if (currentDoc) {
+                        currentDoc.appendMarkdown(`\n\n*通过链式访问: ${sourceInfo}*`);
+                    } else {
+                        item.documentation = new vscode.MarkdownString(`*通过链式访问: ${sourceInfo}*`);
+                    }
+                }
+            });
+
+            completionItems.push(...structMembers);
+
+        } catch (error) {
+            console.error('Error adding struct member completions:', error);
+        }
+    }
+
+    // 获取链式成员补全 - 支持复杂的类型推断
+    private getChainedMemberCompletions(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        expressionChain: string[]
+    ): vscode.CompletionItem[] {
+        try {
+            const parseResult = this.astManager.parseDocument(document);
+            const typeResolver = parseResult.visitor.getTypeResolver();
+
+            // 从第一个变量开始，逐步推断每一级的类型
+            let currentType = this.getInitialType(expressionChain[0], parseResult, position);
+
+            if (!currentType) {
+                console.debug(`Cannot resolve initial type for ${expressionChain[0]}`);
+                return [];
+            }
+
+            // 遍历访问链，推断每一级的类型
+            for (let i = 1; i < expressionChain.length; i++) {
+                const memberName = expressionChain[i];
+                const newType = this.resolveMemberType(currentType, memberName, parseResult);
+
+                if (!newType) {
+                    console.debug(`Cannot resolve member type for ${memberName} in ${currentType}`);
+                    return [];
+                }
+
+                currentType = newType;
+            }
+
+            // 获取最终类型的成员补全
+            const structSymbol = parseResult.symbolTable.findStructDefinition(currentType);
+            if (!structSymbol || !structSymbol.members) {
+                console.debug(`No struct definition found for final type: ${currentType}`);
+                return [];
+            }
+
+            // 转换成员为补全项
+            return this.convertMembersToCompletionItems(structSymbol.members, expressionChain);
+
+        } catch (error) {
+            console.error('Error in chained member completion:', error);
+            return [];
+        }
+    }
+
+    // 获取初始类型（处理特殊函数调用）
+    private getInitialType(initialExpression: string, parseResult: any, position: vscode.Position): string | null {
+        // 处理特殊的内置函数
+        if (initialExpression === 'this_object()') {
+            return 'object'; // 返回当前对象类型
+        }
+
+        if (initialExpression === 'previous_object()') {
+            return 'object'; // 返回调用对象类型
+        }
+
+        // 查找普通变量的类型
+        const symbol = parseResult.symbolTable.findSymbol(initialExpression, position);
+        if (symbol) {
+            return this.cleanTypeName(symbol.dataType);
+        }
+
+        return null;
+    }
+
+    // 解析成员类型
+    private resolveMemberType(parentType: string, memberName: string, parseResult: any): string | null {
+        const structSymbol = parseResult.symbolTable.findStructDefinition(parentType);
+        if (!structSymbol || !structSymbol.members) {
+            return null;
+        }
+
+        const member = structSymbol.members.find((m: any) => m.name === memberName);
+        if (member) {
+            return this.cleanTypeName(member.dataType);
+        }
+
+        return null;
+    }
+
+    // 清理类型名称（去除修饰符和指针）
+    private cleanTypeName(typeName: string): string {
+        return typeName
+            .replace(/^(private|protected|public|static|const)\s+/, '')
+            .replace(/\s*\*+\s*$/, '')
+            .replace(/\s*\[\s*\]\s*$/, '')
+            .trim();
+    }
+
+    // 转换成员为补全项
+    private convertMembersToCompletionItems(members: any[], expressionChain: string[]): vscode.CompletionItem[] {
+        return members.map((member, index) => {
+            const item = new vscode.CompletionItem(member.name, vscode.CompletionItemKind.Field);
+            item.detail = `${member.dataType} ${member.name}`;
+            item.sortText = `${index.toString().padStart(3, '0')}_${member.name}`;
+
+            // 创建详细文档
+            const markdown = new vscode.MarkdownString();
+            markdown.appendCodeblock(`${member.dataType} ${member.name}`, 'lpc');
+            markdown.appendMarkdown(`\n\n通过链式访问获得: ${expressionChain.join(' -> ')}`);
+
+            if (member.documentation) {
+                markdown.appendMarkdown(`\n\n${member.documentation}`);
+            }
+
+            item.documentation = markdown;
+
+            // 为函数类型添加调用片段
+            if (member.dataType.includes('function') && member.parameters) {
+                const paramSnippet = member.parameters
+                    .map((param: any, paramIndex: number) => `\${${paramIndex + 1}:${param.name}}`)
+                    .join(', ');
+                item.insertText = new vscode.SnippetString(`${member.name}(${paramSnippet})`);
+                item.kind = vscode.CompletionItemKind.Method;
+            }
+
+            return item;
+        });
     }
 
     // 添加继承函数补全
@@ -159,15 +354,78 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
         }
     }
 
-    // 简化的继承函数解析
+    // 基于AST的继承函数解析 - 替换正则表达式实现
     private async parseInheritedFunctions(
+        document: vscode.TextDocument,
+        completionItems: vscode.CompletionItem[]
+    ): Promise<void> {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+        if (!workspaceFolder) return;
+
+        try {
+            // 使用AST获取继承信息
+            const parseResult = this.astManager.parseDocument(document);
+            const inheritedFiles = parseResult.symbolTable.getInheritedFiles();
+            const processedFiles = new Set<string>();
+
+            for (const inheritedFile of inheritedFiles) {
+                let normalizedFile = inheritedFile;
+                if (!normalizedFile.endsWith('.c')) {
+                    normalizedFile += '.c';
+                }
+
+                // 构建文件路径
+                const possiblePaths = [
+                    path.join(path.dirname(document.uri.fsPath), normalizedFile),
+                    path.join(workspaceFolder.uri.fsPath, normalizedFile),
+                    // 支持相对路径和绝对路径
+                    path.resolve(workspaceFolder.uri.fsPath, normalizedFile)
+                ];
+
+                for (const filePath of possiblePaths) {
+                    if (fs.existsSync(filePath) && !processedFiles.has(filePath)) {
+                        processedFiles.add(filePath);
+                        try {
+                            const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
+
+                            // 使用AST解析继承文件的函数
+                            const inheritedCompletions = this.astManager.getCompletionItems(inheritedDoc, new vscode.Position(0, 0));
+
+                            // 标记为继承函数并添加到补全列表
+                            inheritedCompletions.forEach(item => {
+                                if (item.kind === vscode.CompletionItemKind.Function) {
+                                    const inheritedItem = new vscode.CompletionItem(item.label as string, item.kind);
+                                    inheritedItem.detail = `继承自 ${path.basename(filePath)}: ${item.detail}`;
+                                    inheritedItem.documentation = item.documentation;
+                                    inheritedItem.insertText = item.insertText;
+                                    // 为继承函数设置特殊排序优先级
+                                    inheritedItem.sortText = `2_${item.label}`; // 继承函数排在本地函数之后
+                                    completionItems.push(inheritedItem);
+                                }
+                            });
+                        } catch (error) {
+                            console.error(`Error processing inherited file ${filePath}:`, error);
+                        }
+                        break;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error parsing inherited functions with AST:', error);
+            // 如果AST解析失败，fallback到原有实现
+            await this.fallbackParseInheritedFunctions(document, completionItems);
+        }
+    }
+
+    // 备用继承解析方法（在AST解析失败时使用）
+    private async fallbackParseInheritedFunctions(
         document: vscode.TextDocument,
         completionItems: vscode.CompletionItem[]
     ): Promise<void> {
         const text = document.getText();
         const inheritRegex = /inherit\s+["']([^"']+)["']/g;
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-        
+
         if (!workspaceFolder) return;
 
         let match;
@@ -179,7 +437,6 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
                 inheritedFile += '.c';
             }
 
-            // 构建文件路径
             const possiblePaths = [
                 path.join(path.dirname(document.uri.fsPath), inheritedFile),
                 path.join(workspaceFolder.uri.fsPath, inheritedFile)
@@ -190,15 +447,12 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
                     processedFiles.add(filePath);
                     try {
                         const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
-                        
-                        // 使用AST解析继承文件的函数
                         const inheritedCompletions = this.astManager.getCompletionItems(inheritedDoc, new vscode.Position(0, 0));
-                        
-                        // 标记为继承函数并添加到补全列表
+
                         inheritedCompletions.forEach(item => {
                             if (item.kind === vscode.CompletionItemKind.Function) {
                                 const inheritedItem = new vscode.CompletionItem(item.label as string, item.kind);
-                                inheritedItem.detail = `继承自 ${path.basename(filePath)}: ${item.detail}`;
+                                inheritedItem.detail = `继承自 ${path.basename(filePath)} (fallback): ${item.detail}`;
                                 inheritedItem.documentation = item.documentation;
                                 inheritedItem.insertText = item.insertText;
                                 completionItems.push(inheritedItem);

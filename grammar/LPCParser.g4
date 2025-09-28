@@ -190,6 +190,7 @@ primary
     |   stringConcat                                  # stringConcatenation
     |   closureExpr                                   # closurePrimary
     |   mappingLiteral                                # mappingLiteralExpr
+    |   arrayDelimiterLiteral                         # arrayDelimiterExpr
     |   newExpression                                 # newExpressionPrimary
     |   KW_FUNCTION LPAREN parameterList? RPAREN block      # anonFunction
     |   DOLLAR LPAREN expression RPAREN              # dollarCallExpr
@@ -236,7 +237,12 @@ forInit
     ;
 
 expressionList
-    :   expression (COMMA expression)* (COMMA)?
+    :   spreadElement (COMMA spreadElement)* (COMMA)?
+    ;
+
+spreadElement
+    :   ELLIPSIS assignmentExpression    // ...array
+    |   assignmentExpression             // normal element
     ;
 
 foreachStatement
@@ -266,15 +272,19 @@ switchLabelWithColon
     ;
 
 switchLabel
-    :   expression (RANGE_OP expression)?
-    |   RANGE_OP expression
+    :   expression (RANGE_OP expression?)?      // x, x..y, x..
+    |   RANGE_OP expression                     // ..y
     ;
 
 breakStatement : BREAK ';' ;
 continueStatement : CONTINUE ';' ;
 returnStatement : RETURN expression? SEMI ;
 
-closureExpr : LPAREN COLON expression? COLON RPAREN ;
+closureExpr
+    : LPAREN COLON expression? COLON RPAREN                    // (: expr :)
+    | LPAREN COLON DOLLAR Identifier COLON RPAREN             // (: $var :)
+    | LPAREN COLON DOLLAR LPAREN expression RPAREN COLON RPAREN  // (: $(expr) :)
+    ;
 
 inheritStatement : INHERIT expression SEMI ;
 
@@ -307,4 +317,20 @@ sliceExpr
     |   RANGE_OP LT? expression?                    # openRange
     |   expression                                  # singleIndex
     |   LT expression RANGE_OP LT? expression?      # tailHeadRange
+    ;
+
+arrayDelimiterLiteral
+    :   ARRAY_DELIMITER_START arrayDelimiterContent? ARRAY_DELIMITER_END
+    ;
+
+arrayDelimiterContent
+    :   arrayDelimiterElement+
+    ;
+
+arrayDelimiterElement
+    :   STRING_LITERAL
+    |   INTEGER
+    |   FLOAT
+    |   CHAR_LITERAL
+    |   Identifier
     ;

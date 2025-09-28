@@ -1,0 +1,83 @@
+// 右索引运算符测试用例
+// 本文件测试右索引运算符 array[<n] 语法
+
+mixed test_right_indexing() {
+    string* arr = ({ "first", "second", "third", "fourth", "last" });
+    int* numbers = ({ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
+
+    // 基础右索引访问
+    mixed last_element = arr[<1];      // "last" - 最后一个元素
+    mixed second_last = arr[<2];       // "fourth" - 倒数第二个
+    mixed third_last = arr[<3];        // "third" - 倒数第三个
+
+    // 右索引范围操作
+    mixed last_two = arr[<2..<1];      // ({ "fourth", "last" }) - 最后两个
+    mixed last_three = arr[<3..<1];    // ({ "third", "fourth", "last" }) - 最后三个
+
+    // 混合索引范围
+    mixed mixed_range1 = arr[1..<2];   // ({ "second", "third", "fourth" }) - 从第2个到倒数第2个
+    mixed mixed_range2 = arr[0..<1];   // ({ "first", "second", "third", "fourth" }) - 从第1个到倒数第1个
+
+    // 开放右索引范围
+    mixed from_right = arr[<3..];      // ({ "third", "fourth", "last" }) - 从倒数第3个到末尾
+    mixed to_right = arr[..<2];        // ({ "first", "second", "third", "fourth" }) - 从开始到倒数第2个
+
+    // 复杂表达式中的右索引
+    int last_number = numbers[<(2+1)]; // 使用表达式作为右索引
+
+    return ({
+        last_element,
+        second_last,
+        third_last,
+        last_two,
+        last_three,
+        mixed_range1,
+        mixed_range2,
+        from_right,
+        to_right,
+        last_number
+    });
+}
+
+// 测试字符串的右索引
+string test_string_right_indexing() {
+    string text = "Hello World";
+
+    // 字符串右索引
+    string last_char = text[<1..];     // "d"
+    string last_two = text[<2..];      // "ld"
+    string without_last = text[..<1];  // "Hello Worl"
+
+    return last_char + last_two + without_last;
+}
+
+// 测试嵌套数组的右索引
+mixed test_nested_right_indexing() {
+    mixed* nested = ({
+        ({ 1, 2, 3 }),
+        ({ "a", "b", "c" }),
+        ({ 4.5, 5.5, 6.5 })
+    });
+
+    // 多维右索引
+    mixed last_array = nested[<1];        // ({ 4.5, 5.5, 6.5 })
+    mixed last_of_last = nested[<1][<1];  // 6.5
+    mixed complex = nested[<2][1..<1];    // ({ "b", "c" })
+
+    return ({ last_array, last_of_last, complex });
+}
+
+// 错误边界测试
+void test_right_index_boundaries() {
+    string* small_arr = ({ "only" });
+
+    // 边界情况
+    mixed only_element = small_arr[<1];    // "only"
+
+    // 空数组处理（会在运行时出错，但语法应该正确）
+    string* empty = ({});
+    // mixed error_case = empty[<1];  // 运行时错误，但语法正确
+
+    // 超出范围（运行时错误，但语法正确）
+    // mixed out_of_range = small_arr[<5];
+}

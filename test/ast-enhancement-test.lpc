@@ -1,0 +1,83 @@
+// LPC Support AST Enhancement Test File
+// 测试增强的AST功能
+
+inherit "/lib/std/room";
+
+// 结构体定义测试
+struct PlayerInfo {
+    string name;
+    int level;
+    float experience;
+    mapping skills;
+    object weapon;
+};
+
+struct WeaponData {
+    string weapon_name;
+    int damage;
+    PlayerInfo* owners;
+};
+
+// 函数定义测试
+int create_player(string player_name, int start_level) {
+    PlayerInfo player;
+
+    // 局部变量赋值测试
+    player = new(PlayerInfo);
+    player->name = player_name;
+    player->level = start_level;
+
+    // 类型推断测试
+    string message = "Player created: " + player_name;
+    int result = 1;
+
+    // 链式访问测试
+    if (player->weapon) {
+        player->weapon->weapon_name = "Default Sword";
+    }
+
+    // Foreach循环测试
+    string *skill_list = ({ "sword", "magic", "stealth" });
+    foreach (string skill in skill_list) {
+        player->skills[skill] = 1;
+    }
+
+    // 映射遍历测试
+    foreach (string key, int value in player->skills) {
+        write(sprintf("Skill %s: level %d\n", key, value));
+    }
+
+    return result;
+}
+
+// 继承函数测试
+void init() {
+    ::init();
+    set_short("测试房间");
+}
+
+void create() {
+    ::create();
+
+    // 对象方法调用测试
+    this_object()->set("property", "value");
+    previous_object()->query("data");
+}
+
+// 复杂表达式测试
+mixed test_complex_expressions() {
+    PlayerInfo *players = ({});
+    WeaponData weapon_data;
+
+    // 复杂的成员访问
+    weapon_data->owners[0]->weapon->weapon_name = "Excalibur";
+
+    // sscanf测试
+    string input = "player 25 100.5";
+    string name;
+    int level;
+    float exp;
+    sscanf(input, "%s %d %f", name, level, exp);
+
+    return ({ name, level, exp });
+}

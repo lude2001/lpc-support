@@ -1,0 +1,154 @@
+// 数组延展语法测试用例
+// 本文件测试数组延展语法 (...array) 参数解包
+
+// 基础数组延展测试
+void test_basic_spread() {
+    int* numbers = ({ 1, 2, 3, 4, 5 });
+    string* words = ({ "hello", "world", "test" });
+
+    // 在函数调用中使用延展语法
+    int sum_result = sum_function(...numbers);  // 等价于 sum_function(1, 2, 3, 4, 5)
+
+    // 字符串函数中的延展
+    string joined = sprintf("%s %s %s", ...words);  // 等价于 sprintf("%s %s %s", "hello", "world", "test")
+}
+
+// 测试多个延展参数
+void test_multiple_spreads() {
+    int* first_group = ({ 1, 2, 3 });
+    int* second_group = ({ 4, 5, 6 });
+    int* third_group = ({ 7, 8, 9 });
+
+    // 多个数组延展
+    mixed result = combine_arrays(...first_group, ...second_group, ...third_group);
+
+    // 混合普通参数和延展参数
+    mixed mixed_result = process_data(42, ...first_group, "separator", ...second_group);
+}
+
+// 测试数组字面量中的延展
+mixed* test_array_literal_spread() {
+    int* base_numbers = ({ 2, 3, 4 });
+    string* base_words = ({ "middle", "center" });
+
+    // 在数组字面量中使用延展
+    int* extended_numbers = ({ 1, ...base_numbers, 5, 6 });
+    // 结果: ({ 1, 2, 3, 4, 5, 6 })
+
+    string* extended_words = ({ "start", ...base_words, "end" });
+    // 结果: ({ "start", "middle", "center", "end" })
+
+    // 复杂的数组组合
+    mixed* complex = ({
+        0,
+        ...({ 1, 2 }),
+        "separator",
+        ...base_words,
+        100
+    });
+
+    return ({ extended_numbers, extended_words, complex });
+}
+
+// 测试函数定义中的延展参数
+void test_function_with_spread(int first, ...int* rest) {
+    printf("First: %d\n", first);
+    printf("Rest: %O\n", rest);
+
+    // 在函数内部再次使用延展
+    if(sizeof(rest) > 0) {
+        other_function(...rest);
+    }
+}
+
+// 测试可变参数函数
+mixed sum_function(mixed ...args) {
+    mixed total = 0;
+
+    for(int i = 0; i < sizeof(args); i++) {
+        if(intp(args[i])) {
+            total += args[i];
+        }
+    }
+
+    return total;
+}
+
+// 测试对象方法调用中的延展
+void test_object_method_spread() {
+    object target = this_object();
+    mixed* arguments = ({ "arg1", 42, 3.14 });
+
+    // 对象方法调用中的延展
+    mixed result = target->some_method(...arguments);
+
+    // call_other 中的延展
+    mixed call_result = call_other(target, "some_method", ...arguments);
+}
+
+// 测试嵌套函数调用中的延展
+void test_nested_spread() {
+    int* inner_array = ({ 1, 2, 3 });
+    int* outer_array = ({ 4, 5, 6 });
+
+    // 嵌套函数调用
+    mixed result = outer_function(
+        inner_function(...inner_array),
+        ...outer_array,
+        final_function(...({ 7, 8, 9 }))
+    );
+}
+
+// 测试条件性延展
+void test_conditional_spread(int condition) {
+    int* base_args = ({ 1, 2, 3 });
+    int* extra_args = ({ 4, 5, 6 });
+
+    // 条件性使用延展
+    mixed result;
+    if(condition) {
+        result = process_function(...base_args, ...extra_args);
+    } else {
+        result = process_function(...base_args);
+    }
+
+    // 三元运算符中的延展（复杂情况）
+    mixed ternary_result = condition ?
+        function_a(...base_args) :
+        function_b(...extra_args);
+}
+
+// 测试空数组的延展
+void test_empty_array_spread() {
+    int* empty_array = ({});
+    int* normal_array = ({ 1, 2, 3 });
+
+    // 空数组延展应该不产生任何参数
+    mixed result1 = test_function(...empty_array);  // 等价于 test_function()
+    mixed result2 = test_function(...normal_array, ...empty_array);  // 等价于 test_function(1, 2, 3)
+}
+
+// 测试映射中的延展（可能的扩展语法）
+void test_mapping_spread() {
+    mapping base_map = ([ "a": 1, "b": 2 ]);
+    mapping extension = ([ "c": 3, "d": 4 ]);
+
+    // 映射延展（可能的未来语法）
+    // mapping combined = ([ ...base_map, ...extension ]);
+}
+
+// 边界条件和错误测试
+void test_spread_edge_cases() {
+    // 大数组延展
+    int* large_array = allocate(1000);
+    for(int i = 0; i < 1000; i++) {
+        large_array[i] = i;
+    }
+
+    // 测试大数组的延展性能
+    mixed large_result = process_large_data(...large_array);
+
+    // 多维数组的延展
+    mixed* multi_dim = ({ ({ 1, 2 }), ({ 3, 4 }), ({ 5, 6 }) });
+    // mixed flattened = flatten_function(...multi_dim);  // 仅延展第一层
+}

@@ -1,0 +1,151 @@
+// Switch范围匹配测试用例
+// 本文件测试增强的switch范围匹配语法
+
+string test_switch_ranges(int value) {
+    switch(value) {
+        // 完整范围匹配
+        case 1..5:
+            return "small range (1-5)";
+
+        case 10..20:
+            return "medium range (10-20)";
+
+        // 开放起始范围
+        case ..0:
+            return "negative or zero (..0)";
+
+        case ..-10:
+            return "very negative (..-10)";
+
+        // 开放结束范围
+        case 100..:
+            return "large numbers (100..)";
+
+        case 1000..:
+            return "very large (1000..)";
+
+        // 单值匹配（传统语法）
+        case 42:
+            return "answer to everything";
+
+        case 99:
+            return "almost hundred";
+
+        // 默认情况
+        default:
+            return "other values";
+    }
+}
+
+// 测试字符范围匹配
+string test_char_switch(int ascii_code) {
+    switch(ascii_code) {
+        case 65..90:
+            return "uppercase letter";
+
+        case 97..122:
+            return "lowercase letter";
+
+        case 48..57:
+            return "digit";
+
+        case ..31:
+            return "control character";
+
+        case 127..:
+            return "extended ASCII";
+
+        default:
+            return "printable symbol";
+    }
+}
+
+// 测试复杂范围组合
+string test_complex_ranges(int score) {
+    string grade;
+
+    switch(score) {
+        case 90..:
+            grade = "A";
+            break;
+
+        case 80..89:
+            grade = "B";
+            break;
+
+        case 70..79:
+            grade = "C";
+            break;
+
+        case 60..69:
+            grade = "D";
+            break;
+
+        case ..59:
+            grade = "F";
+            break;
+
+        default:
+            grade = "Invalid";
+    }
+
+    return sprintf("Score %d: Grade %s", score, grade);
+}
+
+// 测试嵌套switch中的范围
+string test_nested_switch_ranges(int category, int value) {
+    switch(category) {
+        case 1:
+            switch(value) {
+                case ..10:
+                    return "Category 1, Low";
+                case 11..50:
+                    return "Category 1, Medium";
+                case 51..:
+                    return "Category 1, High";
+            }
+            break;
+
+        case 2:
+            switch(value) {
+                case ..25:
+                    return "Category 2, Low";
+                case 26..:
+                    return "Category 2, High";
+            }
+            break;
+
+        default:
+            return "Unknown category";
+    }
+}
+
+// 测试二进制值的范围匹配
+string test_binary_ranges(int flags) {
+    switch(flags) {
+        case 0b0000..0b0011:
+            return "Low flags (0-3)";
+
+        case 0b0100..0b0111:
+            return "Medium flags (4-7)";
+
+        case 0b1000..:
+            return "High flags (8+)";
+
+        case 0b0000:
+            return "No flags";
+
+        default:
+            return "Unknown flag pattern";
+    }
+}
+
+// 边界条件测试
+void test_range_boundaries() {
+    int test_values[] = ({ -100, -1, 0, 1, 50, 99, 100, 999, 1000, 9999 });
+
+    for(int i = 0; i < sizeof(test_values); i++) {
+        string result = test_switch_ranges(test_values[i]);
+        printf("Value %d: %s\n", test_values[i], result);
+    }
+}
