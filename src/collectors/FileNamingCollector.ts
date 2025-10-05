@@ -1,11 +1,14 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ParsedDoc } from '../parseCache';
+import { IDiagnosticCollector } from '../diagnostics/types';
 
 /**
  * 检查文件命名规范 (扩展名及文件名规则)
  */
-export class FileNamingCollector {
+export class FileNamingCollector implements IDiagnosticCollector {
+    public readonly name = 'FileNamingCollector';
+
     collect(document: vscode.TextDocument, _parsed: ParsedDoc): vscode.Diagnostic[] {
         const diagnostics: vscode.Diagnostic[] = [];
         const fileName = path.basename(document.fileName);
@@ -41,4 +44,4 @@ export class FileNamingCollector {
 
         return diagnostics;
     }
-} 
+}

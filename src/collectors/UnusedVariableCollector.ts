@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ParsedDoc } from '../parseCache';
+import { IDiagnosticCollector } from '../diagnostics/types';
 import { LPCParser, FunctionDefContext, VariableDeclContext } from '../antlr/LPCParser';
 import { LPCLexer } from '../antlr/LPCLexer';
 import { CommonTokenStream, Token } from 'antlr4ts';
@@ -8,7 +9,9 @@ import { CommonTokenStream, Token } from 'antlr4ts';
  * 使用 ANTLR 语法树检测局部未使用变量。
  * 当前实现仅处理函数体内由 variableDecl 声明的局部变量。
  */
-export class UnusedVariableCollector {
+export class UnusedVariableCollector implements IDiagnosticCollector {
+    public readonly name = 'UnusedVariableCollector';
+
     collect(document: vscode.TextDocument, parsed: ParsedDoc): vscode.Diagnostic[] {
         const diagnostics: vscode.Diagnostic[] = [];
         const { tree, tokens } = parsed;
@@ -103,4 +106,4 @@ export class UnusedVariableCollector {
             diagnostics.push(diagnostic);
         }
     }
-} 
+}

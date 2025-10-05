@@ -18,8 +18,8 @@ module.exports = {
         '**/tests/**/*.test.ts'
     ],
 
-    // 模块名称映射 - 正确的选项名是moduleNameMapping
-    moduleNameMapping: {
+    // 模块名称映射 - 修正为正确的选项名 moduleNameMapper
+    moduleNameMapper: {
         '^vscode$': '<rootDir>/tests/mocks/MockVSCode.ts'
     },
 
@@ -45,9 +45,9 @@ module.exports = {
     // 文件扩展名解析
     moduleFileExtensions: ['ts', 'js', 'json'],
 
-    // 设置文件
-    setupFiles: ['<rootDir>/tests/setup/jest.setup.ts'],
-    setupFilesAfterEnv: ['<rootDir>/tests/setup/global.setup.ts'],
+    // 设置文件 - 暂时禁用以避免vscode导入问题
+    // setupFiles: ['<rootDir>/tests/setup/jest.setup.ts'],
+    // setupFilesAfterEnv: ['<rootDir>/tests/setup/global.setup.ts'],
 
     // 测试覆盖率配置
     collectCoverageFrom: [

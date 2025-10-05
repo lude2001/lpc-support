@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ParsedDoc } from '../parseCache';
+import { IDiagnosticCollector } from '../diagnostics/types';
 import { FunctionDefContext, VariableDeclContext, SourceFileContext, VariableDeclaratorContext } from '../antlr/LPCParser';
 import { LPCLexer } from '../antlr/LPCLexer';
 
@@ -7,7 +8,9 @@ import { LPCLexer } from '../antlr/LPCLexer';
  * 检测全局变量是否未使用。
  * 规则：源文件顶层 (非函数内部) 的 variableDecl 声明的变量若未在其他位置被引用，则给出提示。
  */
-export class GlobalVariableCollector {
+export class GlobalVariableCollector implements IDiagnosticCollector {
+    public readonly name = 'GlobalVariableCollector';
+
     collect(document: vscode.TextDocument, parsed: ParsedDoc): vscode.Diagnostic[] {
         const cfg = vscode.workspace.getConfiguration('lpc');
         if (cfg.get<boolean>('enableUnusedGlobalVarCheck') === false) {
@@ -81,4 +84,4 @@ export class GlobalVariableCollector {
             }
         }
     }
-} 
+}

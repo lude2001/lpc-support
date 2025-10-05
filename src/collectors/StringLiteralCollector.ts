@@ -1,10 +1,13 @@
 import * as vscode from 'vscode';
 import { ParsedDoc } from '../parseCache';
+import { IDiagnosticCollector } from '../diagnostics/types';
 
 /**
  * 检查 LPC 多行字符串语法问题
  */
-export class StringLiteralCollector {
+export class StringLiteralCollector implements IDiagnosticCollector {
+    public readonly name = 'StringLiteralCollector';
+
     collect(document: vscode.TextDocument, _parsed: ParsedDoc): vscode.Diagnostic[] {
         const diagnostics: vscode.Diagnostic[] = [];
         const text = document.getText();
@@ -25,4 +28,4 @@ export class StringLiteralCollector {
         }
         return diagnostics;
     }
-} 
+}

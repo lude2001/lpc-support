@@ -3,21 +3,27 @@
  * 统一处理JavaDoc格式的注释，避免重复实现
  */
 export class JavaDocProcessor {
+    // 常见的LPC类型关键字
+    private static readonly LPC_TYPES = new Set([
+        'void', 'int', 'string', 'object', 'mixed', 'mapping', 'function',
+        'float', 'status', 'varargs', 'closure'
+    ]);
+
     /**
      * 处理JavaDoc注释，返回HTML格式
      */
     public static processToHtml(comment: string): string {
         if (!comment) return '';
-        
+
         // 移除注释标记，保留原始行结构
         let processed = comment
             .replace(/^\/\*\*\s*/, '')  // 移除开头的 /**
             .replace(/\s*\*\/$/, '')    // 移除结尾的 */
             .replace(/^\s*\*\s?/gm, '') // 移除每行开头的 * 和空格
             .trim();
-        
+
         let lines = processed.split('\n').map(line => line.trim());
-        
+
         let html = '';
         let currentSection = '';
         let brief = '';
@@ -27,7 +33,7 @@ export class JavaDocProcessor {
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            
+
             if (line.startsWith('@brief')) {
                 brief = line.replace('@brief', '').trim();
                 currentSection = '';
@@ -47,16 +53,22 @@ export class JavaDocProcessor {
                     html += '<h4>参数</h4><ul class="param-list">';
                     paramStarted = true;
                 }
-                const paramMatch = line.match(/@param\s+(\w+)\s+(\w+)\s+(.*)/);
-                if (paramMatch) {
-                    const [, type, name, desc] = paramMatch;
+
+                // 解析@param: 支持 "@param type name description" 和 "@param name description"
+                const paramText = line.replace('@param', '').trim();
+                const parts = paramText.split(/\s+/);
+
+                if (parts.length >= 3 && this.LPC_TYPES.has(parts[0])) {
+                    // 格式: @param type name description
+                    const type = parts[0];
+                    const name = parts[1];
+                    const desc = parts.slice(2).join(' ');
                     html += `<li><strong>${this.escapeHtml(type)}</strong> <code>${this.escapeHtml(name)}</code>: ${this.escapeHtml(desc)}</li>`;
-                } else {
-                    // 兼容旧格式 @param name description
-                    const simpleMatch = line.match(/@param\s+(\S+)\s+(.*)/);
-                    if (simpleMatch) {
-                        html += `<li><code>${this.escapeHtml(simpleMatch[1])}</code>: ${this.escapeHtml(simpleMatch[2])}</li>`;
-                    }
+                } else if (parts.length >= 2) {
+                    // 格式: @param name description (无类型)
+                    const name = parts[0];
+                    const desc = parts.slice(1).join(' ');
+                    html += `<li><code>${this.escapeHtml(name)}</code>: ${this.escapeHtml(desc)}</li>`;
                 }
             } else if (line.startsWith('@return')) {
                 // 结束参数列表
@@ -66,12 +78,19 @@ export class JavaDocProcessor {
                 }
                 currentSection = '';
                 html += '<h4>返回值</h4>';
-                const returnMatch = line.match(/@return\s+(\w+)\s+(.*)/);
-                if (returnMatch) {
-                    const [, type, desc] = returnMatch;
+
+                // 解析@return: 支持 "@return type description" 和 "@return description"
+                const returnText = line.replace('@return', '').trim();
+                const parts = returnText.split(/\s+/);
+
+                if (parts.length >= 2 && this.LPC_TYPES.has(parts[0])) {
+                    // 格式: @return type description
+                    const type = parts[0];
+                    const desc = parts.slice(1).join(' ');
                     html += `<p><strong>${this.escapeHtml(type)}</strong> ${this.escapeHtml(desc)}</p>`;
                 } else {
-                    html += '<p>' + this.escapeHtml(line.replace('@return', '').trim()) + '</p>';
+                    // 格式: @return description (无类型)
+                    html += '<p>' + this.escapeHtml(returnText) + '</p>';
                 }
             } else if (line.startsWith('@example')) {
                 // 结束参数列表
@@ -87,8 +106,8 @@ export class JavaDocProcessor {
                 }
             } else if (currentSection === 'example') {
                 if (line.startsWith('@')) {
-                    // 结束示例部分
-                    html += exampleContent.join('\n') + '</code></pre>';
+                    // 结束示例部分 - 转义内容
+                    html += this.escapeHtml(exampleContent.join('\n')) + '</code></pre>';
                     exampleContent = [];
                     currentSection = '';
                     // 重新处理这一行
@@ -116,7 +135,7 @@ export class JavaDocProcessor {
 
         // 处理未结束的部分
         if (currentSection === 'example' && exampleContent.length > 0) {
-            html += exampleContent.join('\n') + '</code></pre>';
+            html += this.escapeHtml(exampleContent.join('\n')) + '</code></pre>';
         }
         if (paramStarted) {
             html += '</ul>';
@@ -140,7 +159,7 @@ export class JavaDocProcessor {
      */
     public static processToMarkdown(comment: string): string {
         if (!comment) return '';
-        
+
         // 移除注释标记和多余的空格
         let lines = comment
             .replace(/\/\*\*|\*\/|\*/g, '')

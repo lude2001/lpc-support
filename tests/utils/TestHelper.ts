@@ -3,15 +3,24 @@
  * 提供创建Mock对象和测试数据的工具函数
  */
 
-import * as vscode from 'vscode';
+// 注意：这里不直接导入vscode，而是使用类型注解和动态访问
+// 因为在测试环境中vscode会被mock
+type TextDocument = any;
+type Position = any;
+type Range = any;
+type Uri = any;
+type EndOfLine = any;
 
 export class TestHelper {
     /**
      * 创建Mock文档对象
      */
-    static createMockDocument(content: string, languageId = 'lpc', fileName = 'test.c'): vscode.TextDocument {
+    static createMockDocument(content: string, languageId = 'lpc', fileName = 'test.c'): TextDocument {
         const lines = content.split('\n');
-        
+
+        // 动态获取mock的vscode模块
+        const vscode = require('vscode');
+
         return {
             fileName,
             languageId,
@@ -21,8 +30,8 @@ export class TestHelper {
             isDirty: false,
             isClosed: false,
             eol: vscode.EndOfLine.LF,
-            
-            getText: (range?: vscode.Range) => {
+
+            getText: (range?: Range) => {
                 if (!range) {
                     return content;
                 }
@@ -32,7 +41,7 @@ export class TestHelper {
                     range.end.character
                 );
             },
-            
+
             lineAt: (line: number) => ({
                 lineNumber: line,
                 text: lines[line] || '',
@@ -41,12 +50,12 @@ export class TestHelper {
                 firstNonWhitespaceCharacterIndex: (lines[line] || '').search(/\S/),
                 isEmptyOrWhitespace: !/\S/.test(lines[line] || '')
             }),
-            
+
             positionAt: (offset: number) => {
                 let line = 0;
                 let character = offset;
                 let currentOffset = 0;
-                
+
                 for (let i = 0; i < lines.length; i++) {
                     const lineLength = lines[i].length + 1; // +1 for newline
                     if (currentOffset + lineLength > offset) {
@@ -56,43 +65,45 @@ export class TestHelper {
                     }
                     currentOffset += lineLength;
                 }
-                
+
                 return new vscode.Position(line, character);
             },
-            
-            offsetAt: (position: vscode.Position) => {
+
+            offsetAt: (position: Position) => {
                 let offset = 0;
                 for (let i = 0; i < position.line && i < lines.length; i++) {
                     offset += lines[i].length + 1; // +1 for newline
                 }
                 return offset + position.character;
             },
-            
+
             save: () => Promise.resolve(true),
-            
-            validateRange: (range: vscode.Range) => range,
-            validatePosition: (position: vscode.Position) => position
-        } as vscode.TextDocument;
+
+            validateRange: (range: Range) => range,
+            validatePosition: (position: Position) => position
+        };
     }
-    
+
     /**
      * 创建Mock位置对象
      */
-    static createMockPosition(line: number, character: number): vscode.Position {
+    static createMockPosition(line: number, character: number): Position {
+        const vscode = require('vscode');
         return new vscode.Position(line, character);
     }
-    
+
     /**
      * 创建Mock范围对象
      */
-    static createMockRange(startLine: number, startChar: number, endLine: number, endChar: number): vscode.Range {
+    static createMockRange(startLine: number, startChar: number, endLine: number, endChar: number): Range {
+        const vscode = require('vscode');
         return new vscode.Range(
             new vscode.Position(startLine, startChar),
             new vscode.Position(endLine, endChar)
         );
     }
-    
-    
+
+
     /**
      * 等待条件满足
      */
@@ -109,7 +120,7 @@ export class TestHelper {
             throw new Error(`Condition not met within ${timeout}ms`);
         }
     }
-    
+
     /**
      * 创建大型测试文件内容
      */
@@ -133,7 +144,7 @@ void test_function_${i}() {
 
 ${functions.join('')}`;
     }
-    
+
     /**
      * 创建带有特定LPC语法的测试代码
      */
@@ -149,11 +160,11 @@ ${functions.join('')}`;
         hasErrors?: boolean;
     } = {}): string {
         let code = '';
-        
+
         if (options.hasInherit) {
             code += 'inherit "/std/object";\n\n';
         }
-        
+
         if (options.hasFunctions) {
             code += `void create() {
     ::create();
@@ -162,19 +173,19 @@ ${functions.join('')}`;
 
 `;
         }
-        
+
         if (options.hasArrays) {
             code += `mixed *test_array = ({ "item1", "item2", "item3" });
 
 `;
         }
-        
+
         if (options.hasMappings) {
             code += `mapping test_mapping = ([ "key1": "value1", "key2": "value2" ]);
 
 `;
         }
-        
+
         if (options.hasFunctionPointers) {
             code += `void test_function_pointer() {
     function f = (: test_function :);
@@ -183,7 +194,7 @@ ${functions.join('')}`;
 
 `;
         }
-        
+
         if (options.hasAnonymousFunctions) {
             code += `void test_anonymous() {
     function f = function(int x) { return x * 2; };
@@ -192,7 +203,7 @@ ${functions.join('')}`;
 
 `;
         }
-        
+
         if (options.hasForEach) {
             code += `void test_foreach() {
     mixed *array = ({ 1, 2, 3, 4, 5 });
@@ -206,7 +217,7 @@ ${functions.join('')}`;
 
 `;
         }
-        
+
         if (options.hasSwitchRanges) {
             code += `void test_switch_ranges(int x) {
     switch (x) {
@@ -227,7 +238,7 @@ ${functions.join('')}`;
 
 `;
         }
-        
+
         if (options.hasErrors) {
             code += `void syntax_error() {
     // 缺失分号的语法错误
@@ -237,11 +248,11 @@ ${functions.join('')}`;
 
 `;
         }
-        
+
         return code;
     }
-    
-    
+
+
     /**
      * 提取代码令牌（简化版）
      */
@@ -254,7 +265,7 @@ ${functions.join('')}`;
             .split(/\s+/)
             .filter(token => token.length > 0);
     }
-    
+
     /**
      * 创建性能测试数据
      */
@@ -275,7 +286,7 @@ ${functions.join('')}`;
 }
 
 `;
-        
+
         return {
             small: 'inherit OBJECT;\n\n' + baseFunction,
             medium: 'inherit OBJECT;\n\n' + baseFunction.repeat(20),

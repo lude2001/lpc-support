@@ -1,14 +1,18 @@
 import * as vscode from 'vscode';
 import { VariableDeclContext, BlockContext, FunctionDefContext, StatementContext, SourceFileContext, IfStatementContext, WhileStatementContext, ForStatementContext, DoWhileStatementContext, ForeachStatementContext, SwitchStatementContext } from '../antlr/LPCParser';
 import { getParsed } from '../parseCache';
+import { IDiagnosticCollector } from '../diagnostics/types';
+import { ParsedDoc } from '../parseCache';
 
-export class LocalVariableDeclarationCollector {
+export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
+    public readonly name = 'LocalVariableDeclarationCollector';
+
     private diagnostics: vscode.Diagnostic[] = [];
     private document!: vscode.TextDocument;
 
     constructor() {}
 
-    collect(doc: vscode.TextDocument, parsed: ReturnType<typeof getParsed>): vscode.Diagnostic[] {
+    collect(doc: vscode.TextDocument, parsed: ParsedDoc): vscode.Diagnostic[] {
         this.diagnostics = [];
         this.document = doc;
 
@@ -146,4 +150,4 @@ export class LocalVariableDeclarationCollector {
         }
         return false;
     }
-} 
+}

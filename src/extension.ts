@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { LPCDiagnostics } from './diagnostics';
+import { DiagnosticsOrchestrator } from './diagnostics';  // 更新导入
 import { LPCCodeActionProvider } from './codeActions';
 import { LPCCompletionItemProvider } from './completionProvider';
 import { LPCConfigManager } from './config';
@@ -24,9 +24,9 @@ import { disposeParseCache, getParserCacheStats, clearParseCache } from './parse
 
 
 export function activate(context: vscode.ExtensionContext) {
-    // 初始化诊断功能
+    // 初始化诊断功能 - 使用新的协调器
     const macroManager = new MacroManager();
-    const diagnostics = new LPCDiagnostics(context, macroManager);
+    const diagnostics = new DiagnosticsOrchestrator(context, macroManager);
 
     // 初始化 Efun 文档管理器
     const efunDocsManager = new EfunDocsManager(context);
@@ -214,11 +214,11 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage('无法复制错误信息：错误项无效');
                 return;
             }
-            
+
             try {
                 // 构建完整的错误信息
                 const errorInfo = `文件: ${errorItem.file}\n行号: ${errorItem.line}\n错误类型: ${errorItem.type === 'compile' ? '编译错误' : '运行时错误'}\n错误信息: ${errorItem.fullError}`;
-                
+
                 // 复制到剪贴板
                 await vscode.env.clipboard.writeText(errorInfo);
                 vscode.window.showInformationMessage('错误信息已复制到剪贴板');
