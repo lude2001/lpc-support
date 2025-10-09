@@ -226,7 +226,8 @@
             color: var(--vscode-secondary);
         }
 
-        .goto-def-btn {
+        .goto-def-btn,
+        .generate-doc-btn {
             padding: 4px 8px;
             background: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
@@ -235,10 +236,21 @@
             cursor: pointer;
             font-size: 11px;
             transition: background 0.2s ease;
+            margin-left: 4px;
         }
 
-        .goto-def-btn:hover {
+        .goto-def-btn:hover,
+        .generate-doc-btn:hover {
             background: var(--vscode-button-hoverBackground);
+        }
+
+        .generate-doc-btn {
+            background: var(--vscode-button-background);
+            opacity: 0.8;
+        }
+
+        .generate-doc-btn:hover {
+            opacity: 1;
         }
 
         .function-definition,

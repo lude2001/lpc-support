@@ -189,15 +189,21 @@
     function showFunctionDoc(functionData) {
         const docArea = document.getElementById('doc-content');
         if (!docArea) return;
-        
+
         const { name, definition, source, comment, filePath, line } = functionData;
-        
+
+        // 判断是否为当前文件的函数
+        const isCurrentFile = source === '当前文件';
+
         let html = `
             <div class="function-header">
                 <h3>${FunctionUtils.escapeHtml(name)}</h3>
                 <div class="function-meta">
                     <span class="source">来源: ${FunctionUtils.escapeHtml(source)}</span>
-                    ${filePath ? `<button class="goto-def-btn" data-file="${FunctionUtils.escapeHtml(filePath)}" data-line="${line}">跳转到定义</button>` : ''}
+                    <div>
+                        ${filePath ? `<button class="goto-def-btn" data-file="${FunctionUtils.escapeHtml(filePath)}" data-line="${line}">跳转到定义</button>` : ''}
+                        ${isCurrentFile && filePath ? `<button class="generate-doc-btn" data-file="${FunctionUtils.escapeHtml(filePath)}" data-line="${line}" data-name="${FunctionUtils.escapeHtml(name)}">生成注释</button>` : ''}
+                    </div>
                 </div>
             </div>
             <div class="function-definition">
@@ -205,7 +211,7 @@
                 <pre><code>${FunctionUtils.escapeHtml(definition)}</code></pre>
             </div>
         `;
-        
+
         if (comment && comment.trim()) {
             // 使用统一的JavaDoc注释处理逻辑
             const processedComment = processJavaDocComment(comment);
@@ -223,9 +229,9 @@
                 </div>
             `;
         }
-        
+
         docArea.innerHTML = html;
-        
+
         // 绑定跳转按钮事件
         const gotoBtn = docArea.querySelector('.goto-def-btn');
         if (gotoBtn) {
@@ -236,6 +242,22 @@
                     command: 'gotoDefinition',
                     filePath: file,
                     line: line
+                });
+            });
+        }
+
+        // 绑定生成注释按钮事件
+        const generateDocBtn = docArea.querySelector('.generate-doc-btn');
+        if (generateDocBtn) {
+            generateDocBtn.addEventListener('click', () => {
+                const file = generateDocBtn.getAttribute('data-file');
+                const line = parseInt(generateDocBtn.getAttribute('data-line'));
+                const name = generateDocBtn.getAttribute('data-name');
+                vscode.postMessage({
+                    command: 'generateJavadoc',
+                    filePath: file,
+                    line: line,
+                    functionName: name
                 });
             });
         }

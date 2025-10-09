@@ -79,6 +79,9 @@ export class FunctionDocPanel {
                     case 'gotoDefinition':
                         this.gotoDefinition(message.filePath, message.line);
                         return;
+                    case 'generateJavadoc':
+                        this.generateJavadocForFunction(message.filePath, message.line, message.functionName);
+                        return;
                 }
             },
             null,
@@ -558,6 +561,36 @@ export class FunctionDocPanel {
                 editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
             });
         });
+    }
+
+    /**
+     * 为指定函数生成 Javadoc 注释
+     */
+    private async generateJavadocForFunction(filePath: string, line: number, functionName: string) {
+        try {
+            // 打开文档
+            const document = await vscode.workspace.openTextDocument(filePath);
+
+            // 显示文档并激活编辑器
+            const editor = await vscode.window.showTextDocument(document, {preview: false});
+
+            // 将光标定位到函数位置
+            const position = new vscode.Position(line, 0);
+            editor.selection = new vscode.Selection(position, position);
+            editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+
+            // 触发生成 Javadoc 注释命令
+            await vscode.commands.executeCommand('lpc.generateJavadoc');
+
+            // 延迟后刷新面板以显示新生成的注释
+            setTimeout(async () => {
+                await this.update(document);
+            }, 1000);
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            vscode.window.showErrorMessage(`生成注释失败: ${errorMessage}`);
+        }
     }
 
     /**
