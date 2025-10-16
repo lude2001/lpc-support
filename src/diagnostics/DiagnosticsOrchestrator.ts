@@ -17,7 +17,7 @@ import { LocalVariableDeclarationCollector } from '../collectors/LocalVariableDe
 // 导入新的收集器
 import { ObjectAccessCollector } from './collectors/ObjectAccessCollector';
 import { MacroUsageCollector } from './collectors/MacroUsageCollector';
-import { FunctionCallCollector } from './collectors/FunctionCallCollector';
+// FunctionCallCollector已移除 - AST解析器已能检测所有语法错误
 
 /**
  * LPC配置接口
@@ -88,7 +88,7 @@ export class DiagnosticsOrchestrator {
             // 新的收集器
             new ObjectAccessCollector(this.macroManager),
             new MacroUsageCollector(this.macroManager),
-            new FunctionCallCollector(),
+            // FunctionCallCollector已移除 - 使用AST解析器检测语法错误,避免误报
         ];
     }
 
