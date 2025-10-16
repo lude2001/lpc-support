@@ -18,7 +18,8 @@
       "Bash(findstr:*)",
       "mcp__spec-workflow__approvals",
       "mcp__spec-workflow__spec-status",
-      "mcp__spec-workflow__steering-guide"
+      "mcp__spec-workflow__steering-guide",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

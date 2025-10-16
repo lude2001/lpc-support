@@ -269,38 +269,49 @@ export class FunctionDocPanel {
         const content = document.getText();
         const includeFiles: string[] = [];
         const includeRegex = /^\s*#?include\s+["<]([^\s">]+)[">]/gm;
-        
+
         let match;
         while ((match = includeRegex.exec(content)) !== null) {
             let includePath = match[1];
-            
-            // 如果没有扩展名，默认添加 .h
+
+            // 如果没有扩展名,默认添加 .h
             if (!path.extname(includePath)) {
                 includePath += '.h';
             }
-            
-            let fullPath: string;
-            
-            // 处理绝对路径和相对路径
-            if (path.isAbsolute(includePath)) {
-                fullPath = includePath;
+
+            // 构建可能的文件路径
+            const possiblePaths: string[] = [];
+
+            if (includePath.startsWith('/')) {
+                // LPC 绝对路径:移除开头的/,然后从工作区根目录开始查找
+                const relativePath = includePath.slice(1);
+                possiblePaths.push(
+                    path.join(workspaceFolder.uri.fsPath, relativePath),
+                    path.join(workspaceFolder.uri.fsPath, relativePath.replace(/\.h$/, ''))
+                );
             } else {
-                // 相对于当前文件的路径
+                // 相对路径:先相对于当前文件查找,再从工作区根目录查找
                 const currentDir = path.dirname(document.uri.fsPath);
-                fullPath = path.resolve(currentDir, includePath);
-                
-                // 如果文件不存在，尝试相对于工作区根目录
-                if (!fs.existsSync(fullPath)) {
-                    fullPath = path.resolve(workspaceFolder.uri.fsPath, includePath);
+                possiblePaths.push(
+                    path.join(currentDir, includePath),
+                    path.join(currentDir, includePath.replace(/\.h$/, '')),
+                    path.join(workspaceFolder.uri.fsPath, includePath),
+                    path.join(workspaceFolder.uri.fsPath, includePath.replace(/\.h$/, ''))
+                );
+            }
+
+            // 去重路径
+            const uniquePaths = [...new Set(possiblePaths)];
+
+            // 查找第一个存在的文件
+            for (const filePath of uniquePaths) {
+                if (fs.existsSync(filePath)) {
+                    includeFiles.push(filePath);
+                    break; // 找到文件后立即停止,避免重复添加
                 }
             }
-            
-            // 检查文件是否存在
-            if (fs.existsSync(fullPath)) {
-                includeFiles.push(fullPath);
-            }
         }
-        
+
         return includeFiles;
     }
 

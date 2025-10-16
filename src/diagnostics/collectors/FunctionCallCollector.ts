@@ -50,7 +50,8 @@ export class FunctionCallCollector implements IDiagnosticCollector {
             const char = text[currentPos];
 
             if (inString) {
-                if (char === stringChar && text[currentPos - 1] !== '\\') {
+                // 检查是否是字符串结束引号（需要正确处理转义）
+                if (char === stringChar && !this.isEscaped(text, currentPos)) {
                     inString = false;
                 }
             } else {
@@ -70,6 +71,26 @@ export class FunctionCallCollector implements IDiagnosticCollector {
         }
 
         return { found: false };
+    }
+
+    /**
+     * 检查指定位置的字符是否被转义
+     * 通过向前计数连续的反斜杠数量来判断
+     */
+    private isEscaped(text: string, pos: number): boolean {
+        if (pos === 0) return false;
+
+        let backslashCount = 0;
+        let checkPos = pos - 1;
+
+        // 向前计数连续的反斜杠
+        while (checkPos >= 0 && text[checkPos] === '\\') {
+            backslashCount++;
+            checkPos--;
+        }
+
+        // 奇数个反斜杠表示当前字符被转义
+        return backslashCount % 2 === 1;
     }
 
     /**

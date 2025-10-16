@@ -299,8 +299,41 @@ export class ASTManager {
             allMembers.push(...structSymbol.members);
         }
 
-        // TODO: 这里可以扩展以支持基于inherit语句的继承关系
-        // 目前主要关注结构体内部的成员定义
+        // 处理基于inherit语句的继承关系
+        // 查找当前文档中的所有inherit语句
+        const inheritedFiles = symbolTable.getInheritedFiles();
+
+        // 对于每个继承的文件，尝试查找匹配的结构体或类定义
+        for (const inheritedFile of inheritedFiles) {
+            // 从继承的文件路径中提取可能的类型名
+            // 例如: /std/object -> object, /base/creature -> creature
+            const possibleTypeName = this.extractTypeNameFromPath(inheritedFile);
+
+            // 尝试查找该类型的定义
+            const inheritedSymbol = symbolTable.findStructDefinition(possibleTypeName);
+            if (inheritedSymbol && inheritedSymbol.name !== structSymbol.name) {
+                // 递归收集继承类型的成员
+                this.collectMembersRecursively(inheritedSymbol, symbolTable, allMembers, processedTypes);
+            }
+        }
+
+        // 检查当前结构体是否有显式的基类声明(如果语法支持)
+        // 这部分留待未来扩展，当LPC语法规则中有明确的基类引用时
+    }
+
+    // 从文件路径提取类型名
+    private extractTypeNameFromPath(filePath: string): string {
+        // 移除文件扩展名
+        let typeName = filePath.replace(/\.(c|h)$/i, '');
+
+        // 获取文件名部分(移除路径)
+        const parts = typeName.split('/');
+        typeName = parts[parts.length - 1];
+
+        // 移除前导下划线
+        typeName = typeName.replace(/^_+/, '');
+
+        return typeName;
     }
 
     // 获取函数定义位置
@@ -318,27 +351,81 @@ export class ASTManager {
     // 获取悬停信息
     public getHoverInfo(document: vscode.TextDocument, position: vscode.Position): vscode.Hover | undefined {
         const result = this.parseDocument(document);
-        
+
         // 这里需要根据位置找到对应的符号
         // 简化实现，实际需要更复杂的位置匹配逻辑
         const symbols = result.symbolTable.getSymbolsInScope(position);
-        
+
         if (symbols.length > 0) {
             const symbol = symbols[0];
             const markdown = new vscode.MarkdownString();
-            
+            markdown.isTrusted = true;
+            markdown.supportHtml = true;
+
+            // 定义/签名
             if (symbol.definition) {
-                markdown.appendCodeblock(symbol.definition, 'lpc');
+                markdown.appendMarkdown(`\`\`\`lpc\n${symbol.definition}\n\`\`\`\n\n`);
             }
-            
+
+            // 符号类型标签
+            const typeLabel = this.getSymbolTypeLabel(symbol.type);
+            if (symbol.scope && symbol.scope.name) {
+                markdown.appendMarkdown(`<sub>${typeLabel} · ${symbol.scope.name}</sub>\n\n`);
+            } else {
+                markdown.appendMarkdown(`<sub>${typeLabel}</sub>\n\n`);
+            }
+
+            markdown.appendMarkdown(`---\n\n`);
+
+            // 文档注释
             if (symbol.documentation) {
-                markdown.appendMarkdown('\n\n' + symbol.documentation);
+                markdown.appendMarkdown(symbol.documentation + '\n\n');
             }
-            
+
+            // 类型信息
+            if (symbol.dataType && symbol.type !== SymbolType.FUNCTION) {
+                markdown.appendMarkdown(`**Type:** \`${symbol.dataType}\`\n\n`);
+            }
+
+            // 函数参数信息 - 使用表格
+            if (symbol.type === SymbolType.FUNCTION && symbol.parameters && symbol.parameters.length > 0) {
+                markdown.appendMarkdown(`#### Parameters\n\n`);
+                markdown.appendMarkdown(`| Name | Type |\n`);
+                markdown.appendMarkdown(`|------|------|\n`);
+                symbol.parameters.forEach((param: any) => {
+                    markdown.appendMarkdown(`| \`${param.name}\` | \`${param.dataType}\` |\n`);
+                });
+                markdown.appendMarkdown(`\n`);
+            }
+
             return new vscode.Hover(markdown);
         }
-        
+
         return undefined;
+    }
+
+    /**
+     * 获取符号类型的文本标签
+     */
+    private getSymbolTypeLabel(symbolType: SymbolType): string {
+        switch (symbolType) {
+            case SymbolType.FUNCTION:
+                return 'Function';
+            case SymbolType.VARIABLE:
+                return 'Variable';
+            case SymbolType.PARAMETER:
+                return 'Parameter';
+            case SymbolType.STRUCT:
+                return 'Struct';
+            case SymbolType.CLASS:
+                return 'Class';
+            case SymbolType.MEMBER:
+                return 'Member';
+            case SymbolType.INHERIT:
+                return 'Inherit';
+            default:
+                return 'Symbol';
+        }
     }
 
     // 清除指定文档的缓存

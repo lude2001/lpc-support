@@ -22,6 +22,7 @@ export class TestHelper {
             lineCount: lines.length,
             isDirty: false,
             isClosed: false,
+            isUntitled: false,
             eol: vscode.EndOfLine.LF,
 
             getText: (range?: vscode.Range) => {
@@ -73,8 +74,25 @@ export class TestHelper {
             save: () => Promise.resolve(true),
 
             validateRange: (range: vscode.Range) => range,
-            validatePosition: (position: vscode.Position) => position
-        } as vscode.TextDocument;
+            validatePosition: (position: vscode.Position) => position,
+
+            getWordRangeAtPosition: (position: vscode.Position, regex?: RegExp) => {
+                const line = lines[position.line] || '';
+                const wordRegex = regex || /[a-zA-Z_][a-zA-Z0-9_]*/;
+                const matches = line.matchAll(new RegExp(wordRegex, 'g'));
+                for (const match of matches) {
+                    const start = match.index!;
+                    const end = start + match[0].length;
+                    if (position.character >= start && position.character <= end) {
+                        return new vscode.Range(
+                            new vscode.Position(position.line, start),
+                            new vscode.Position(position.line, end)
+                        );
+                    }
+                }
+                return undefined;
+            }
+        } as unknown as vscode.TextDocument;
     }
 
     /**

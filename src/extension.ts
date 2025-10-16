@@ -10,6 +10,7 @@ import { LPCDefinitionProvider } from './definitionProvider';
 import { EfunDocsManager } from './efunDocs';
 import { FunctionDocPanel } from './functionDocPanel';
 import { ErrorTreeDataProvider, ErrorServerConfig } from './errorTreeDataProvider';
+import { LPCFoldingRangeProvider } from './foldingProvider';
 
 import { getParseTreeString } from './parser/ParseTreePrinter';
 import { DebugErrorListener } from './parser/DebugErrorListener';
@@ -422,6 +423,14 @@ export function activate(context: vscode.ExtensionContext) {
     // 注册重命名提供程序
     context.subscriptions.push(
         vscode.languages.registerRenameProvider('lpc', new LPCRenameProvider())
+    );
+
+    // 注册折叠提供程序
+    context.subscriptions.push(
+        vscode.languages.registerFoldingRangeProvider(
+            { language: 'lpc' },
+            new LPCFoldingRangeProvider()
+        )
     );
 
 

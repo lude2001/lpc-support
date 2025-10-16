@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from '../macroManager';
-import { getParsed } from '../parseCache';
+import { getParsed, deleteDocumentCache } from '../parseCache';
 import { Debouncer } from '../utils/debounce';
 import { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './types';
 import { VariableAnalyzer, VariableInfo } from './analyzers/VariableAnalyzer';
@@ -116,6 +116,16 @@ export class DiagnosticsOrchestrator {
             vscode.workspace.onDidOpenTextDocument(this.analyzeDocument.bind(this))
         );
 
+        // 注册文档关闭事件
+        context.subscriptions.push(
+            vscode.workspace.onDidCloseTextDocument(this.onDidCloseTextDocument.bind(this))
+        );
+
+        // 注册文件删除事件
+        context.subscriptions.push(
+            vscode.workspace.onDidDeleteFiles(this.onDidDeleteFiles.bind(this))
+        );
+
         // 注册悬停提供器
         context.subscriptions.push(
             vscode.languages.registerHoverProvider('lpc', {
@@ -155,6 +165,38 @@ export class DiagnosticsOrchestrator {
                 debounceDelay
             );
             debouncedAnalyze();
+        }
+    }
+
+    /**
+     * 文档关闭事件处理
+     */
+    private onDidCloseTextDocument(document: vscode.TextDocument): void {
+        if (document.languageId === 'lpc') {
+            const documentKey = document.uri.toString();
+            // 清理缓存的分析状态
+            this.isAnalyzing.delete(documentKey);
+            this.lastAnalysisVersion.delete(documentKey);
+            // 清理解析缓存
+            deleteDocumentCache(document.uri);
+        }
+    }
+
+    /**
+     * 文件删除事件处理
+     */
+    private onDidDeleteFiles(event: vscode.FileDeleteEvent): void {
+        for (const uri of event.files) {
+            // 清理该文件的诊断信息
+            this.diagnosticCollection.delete(uri);
+
+            // 清理缓存的分析状态
+            const documentKey = uri.toString();
+            this.isAnalyzing.delete(documentKey);
+            this.lastAnalysisVersion.delete(documentKey);
+
+            // 清理解析缓存
+            deleteDocumentCache(uri);
         }
     }
 

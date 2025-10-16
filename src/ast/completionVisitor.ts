@@ -686,17 +686,71 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
             const range = this.getRange(ctx);
             const foreachScope = this.symbolTable.enterScope('foreach', range);
 
-            // TODO: 提取foreach迭代变量并添加到作用域
-            // foreach语句的具体实现需要根据ANTLR语法规则来处理
+            // 提取foreach迭代变量并添加到作用域
+            const foreachInit = ctx.foreachInit();
+            if (foreachInit) {
+                this.visitForeachInit(foreachInit);
+            }
+
+            // 访问集合表达式
+            const expression = ctx.expression();
+            if (expression) {
+                this.visit(expression);
+            }
 
             // 访问语句体
-            if (ctx.children) {
-                ctx.children.forEach(child => this.visit(child));
+            const statement = ctx.statement();
+            if (statement) {
+                this.visit(statement);
             }
 
             this.symbolTable.exitScope();
         } catch (error) {
             console.debug('Error visiting foreach statement:', error);
+        }
+        return null;
+    }
+
+    // 访问foreach初始化部分
+    visitForeachInit(ctx: any): any {
+        try {
+            const foreachVars = ctx.foreachVar ? ctx.foreachVar() : [];
+            const arrayForeachVars = Array.isArray(foreachVars) ? foreachVars : [foreachVars];
+
+            arrayForeachVars.forEach((foreachVar: any) => {
+                if (foreachVar) {
+                    this.visitForeachVar(foreachVar);
+                }
+            });
+        } catch (error) {
+            console.debug('Error visiting foreach init:', error);
+        }
+        return null;
+    }
+
+    // 访问foreach变量
+    visitForeachVar(ctx: any): any {
+        try {
+            const identifier = ctx.Identifier();
+            if (!identifier) return null;
+
+            const varName = identifier.text;
+            const typeSpec = ctx.typeSpec();
+            const dataType = typeSpec ? this.extractTypeFromContext(typeSpec) : 'mixed';
+
+            const varSymbol: Symbol = {
+                name: varName,
+                type: SymbolType.VARIABLE,
+                dataType: dataType,
+                range: this.getRange(ctx),
+                scope: this.symbolTable.getCurrentScope(),
+                definition: this.getTextFromContext(ctx),
+                documentation: `foreach迭代变量 (类型: ${dataType})`
+            };
+
+            this.symbolTable.addSymbol(varSymbol);
+        } catch (error) {
+            console.debug('Error visiting foreach var:', error);
         }
         return null;
     }

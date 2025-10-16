@@ -599,34 +599,90 @@ export class EfunDocsManager {
 
     private createHoverContent(doc: EfunDoc): vscode.Hover {
         const content = new vscode.MarkdownString();
-        content.appendMarkdown(`# ${doc.name}\n\n`);
-        
-        if (doc.category) {
-            content.appendMarkdown(`**分类**: ${doc.category}\n\n`);
-        }
-        
+        content.isTrusted = true;
+        content.supportHtml = true;
+
+        // 函数签名
         if (doc.syntax) {
-            content.appendMarkdown(`**语法**:\n\`\`\`lpc\n${doc.syntax}\n\`\`\`\n\n`);
-        }
-        
-        if (doc.description) {
-            content.appendMarkdown(`**描述**:\n${doc.description}\n\n`);
-        }
-        
-        if (doc.returnValue) {
-            content.appendMarkdown(`**返回值**:\n${doc.returnValue}\n\n`);
-        }
-        
-        if (doc.details) {
-            content.appendMarkdown(`**细节**:\n${doc.details}\n\n`);
+            content.appendMarkdown(`\`\`\`lpc\n${doc.syntax}\n\`\`\`\n\n`);
         }
 
-        if (doc.note) {
-            content.appendMarkdown(`**其他说明**:\n${doc.note}\n\n`);
+        // 分类标签 - 使用小型标签样式
+        if (doc.category) {
+            content.appendMarkdown(`<sub>${doc.category}</sub>\n\n`);
         }
-        
+
+        content.appendMarkdown(`---\n\n`);
+
+        // 描述
+        if (doc.description) {
+            // 移除旧的"参数:"部分标记
+            const descLines = doc.description.split('\n');
+            const mainDesc: string[] = [];
+            const params: string[] = [];
+            let inParams = false;
+
+            for (const line of descLines) {
+                if (line.trim() === '参数:') {
+                    inParams = true;
+                    continue;
+                }
+                if (inParams) {
+                    params.push(line);
+                } else if (line.trim()) {
+                    mainDesc.push(line);
+                }
+            }
+
+            if (mainDesc.length > 0) {
+                content.appendMarkdown(`${mainDesc.join('\n')}\n\n`);
+            }
+
+            // 参数表格
+            if (params.length > 0) {
+                content.appendMarkdown(`#### Parameters\n\n`);
+                content.appendMarkdown(`| Name | Type | Description |\n`);
+                content.appendMarkdown(`|------|------|-------------|\n`);
+
+                params.forEach(param => {
+                    const cleaned = param.trim();
+                    if (cleaned) {
+                        // 解析参数格式: "type name: description" 或 "name: description"
+                        const match = cleaned.match(/^(?:(\w+)\s+)?`?(\w+)`?\s*:\s*(.+)$/);
+                        if (match) {
+                            const [, type, name, desc] = match;
+                            if (type) {
+                                content.appendMarkdown(`| \`${name}\` | \`${type}\` | ${desc} |\n`);
+                            } else {
+                                content.appendMarkdown(`| \`${name}\` | | ${desc} |\n`);
+                            }
+                        } else {
+                            content.appendMarkdown(`| ${cleaned} | | |\n`);
+                        }
+                    }
+                });
+                content.appendMarkdown(`\n`);
+            }
+        }
+
+        // 返回值
+        if (doc.returnValue) {
+            content.appendMarkdown(`#### Returns\n\n${doc.returnValue}\n\n`);
+        }
+
+        // 详细说明
+        if (doc.details) {
+            content.appendMarkdown(`#### Details\n\n${doc.details}\n\n`);
+        }
+
+        // 其他说明
+        if (doc.note) {
+            content.appendMarkdown(`> **Note**  \n> ${doc.note.replace(/\n/g, '\n> ')}\n\n`);
+        }
+
+        // 相关函数
         if (doc.reference && doc.reference.length > 0) {
-            content.appendMarkdown(`**参考**:\n${doc.reference.join(', ')}\n`);
+            content.appendMarkdown(`**See also:** ${doc.reference.map(ref => `\`${ref}\``).join(', ')}\n`);
         }
 
         return new vscode.Hover(content);

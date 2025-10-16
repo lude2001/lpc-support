@@ -92,6 +92,18 @@ class EnhancedParseCache {
         }
     }
 
+    /**
+     * 公开的删除方法，用于删除指定文档的缓存
+     */
+    deleteDocument(uri: vscode.Uri): boolean {
+        const key = uri.toString();
+        const existed = this.cache.has(key);
+        if (existed) {
+            this.delete(key);
+        }
+        return existed;
+    }
+
     get(document: vscode.TextDocument): ParsedDoc | undefined {
         const key = document.uri.toString();
         const existing = this.cache.get(key);
@@ -187,6 +199,11 @@ export function getParsed(document: vscode.TextDocument): ParsedDoc {
 // 导出缓存实例用于清理
 export function clearParseCache(): void {
     enhancedCache.clear();
+}
+
+// 删除特定文档的缓存
+export function deleteDocumentCache(uri: vscode.Uri): boolean {
+    return enhancedCache.deleteDocument(uri);
 }
 
 export function getParserCacheStats(): { size: number; memory: number } {
