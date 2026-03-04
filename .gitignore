@@ -55,3 +55,4 @@ test-input.*
 test-output*
 *-formatted.c
 *-comparison*.txt
+.spec-workflow
