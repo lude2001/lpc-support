@@ -134,6 +134,19 @@ export class Range {
     }
 }
 
+export class Diagnostic {
+    public code?: string | number;
+    public source?: string;
+    public relatedInformation?: any[];
+    public tags?: any[];
+
+    constructor(
+        public range: Range,
+        public message: string,
+        public severity: DiagnosticSeverity = DiagnosticSeverity.Error
+    ) {}
+}
+
 export const TextEdit = {
     replace: (range: Range, newText: string) => ({
         range,

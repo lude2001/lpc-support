@@ -1,2 +1,13 @@
 # Set default behavior to automatically normalize line endings.
 * text=auto
+
+# Exclude development-only files from git archive exports.
+src/**/__tests__/ export-ignore
+tests/ export-ignore
+test/ export-ignore
+.spec-workflow/ export-ignore
+.claude/ export-ignore
+
+# Exclude generated/debug artifacts from archive exports.
+dist/*.map export-ignore
+src/antlr/*.interp export-ignore

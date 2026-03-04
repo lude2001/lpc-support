@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "ludexiang",
   "author": {
     "name": "ludexiang",
@@ -391,6 +391,11 @@
           "default": true,
           "description": "启用未使用的全局变量检查"
         },
+        "lpc.enforceLocalVariableDeclarationAtBlockStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用“局部变量定义必须在可执行语句或代码块开头”的检查。FluffOS 新版本通常不需要此限制。"
+        },
         "lpc.performance.debounceDelay": {
           "type": "number",
           "default": 300,
@@ -589,6 +594,8 @@
     "snippets/**",
     "media/**",
     "language-configuration.json",
-    "config/**"
+    "config/**",
+    "icon.png",
+    "LICENSE"
   ]
 }

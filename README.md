@@ -41,7 +41,8 @@
 ```json
 {
   "lpc.includePath": "include",
-  "lpc.simulatedEfunsPath": "lib/simul_efun"
+  "lpc.simulatedEfunsPath": "lib/simul_efun",
+  "lpc.enforceLocalVariableDeclarationAtBlockStart": false
 }
 ```
 
@@ -73,6 +74,7 @@
 - `lpc.includePath`：Include 目录路径（支持相对路径）
 - `lpc.simulatedEfunsPath`：模拟函数库路径
 - `lpc.enableUnusedGlobalVarCheck`：启用全局变量检查（默认 true）
+- `lpc.enforceLocalVariableDeclarationAtBlockStart`：启用“局部变量需在代码块开头声明”检查（默认 false）
 
 ### 性能配置
 - `lpc.performance.debounceDelay`：诊断防抖延迟（默认 300ms）
@@ -102,6 +104,7 @@ FluffOS 服务器需实现 HTTP 接口：`POST /update_file`
 - **编译失败**：验证服务器地址和 HTTP 接口
 - **补全不工作**：确认文件扩展名（.c/.h/.lpc/.i）
 - **导航问题**：验证路径，尝试清理缓存（`LPC: 清理缓存`）
+- **局部变量位置提示与 FluffOS 不一致**：关闭 `lpc.enforceLocalVariableDeclarationAtBlockStart`（新版本 FluffOS 建议保持默认 false）
 
 ## 🤝 致谢
 

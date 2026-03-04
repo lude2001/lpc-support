@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { VariableDeclContext, BlockContext, FunctionDefContext, StatementContext, SourceFileContext, IfStatementContext, WhileStatementContext, ForStatementContext, DoWhileStatementContext, ForeachStatementContext, SwitchStatementContext } from '../antlr/LPCParser';
-import { getParsed } from '../parseCache';
+import { VariableDeclContext, BlockContext, StatementContext, SourceFileContext } from '../antlr/LPCParser';
 import { IDiagnosticCollector } from '../diagnostics/types';
 import { ParsedDoc } from '../parseCache';
 
 export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
     public readonly name = 'LocalVariableDeclarationCollector';
+    private static readonly ruleConfigKey = 'enforceLocalVariableDeclarationAtBlockStart';
 
     private diagnostics: vscode.Diagnostic[] = [];
     private document!: vscode.TextDocument;
@@ -15,6 +15,11 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
     collect(doc: vscode.TextDocument, parsed: ParsedDoc): vscode.Diagnostic[] {
         this.diagnostics = [];
         this.document = doc;
+
+        // FluffOS 新版本允许在代码块任意位置声明局部变量；该规则改为可配置。
+        if (!this.isRuleEnabled()) {
+            return this.diagnostics;
+        }
 
         const sourceFile = parsed.tree as SourceFileContext;
         // Traverse the source file
@@ -27,6 +32,11 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
         });
 
         return this.diagnostics;
+    }
+
+    private isRuleEnabled(): boolean {
+        const config = vscode.workspace.getConfiguration('lpc');
+        return config.get<boolean>(LocalVariableDeclarationCollector.ruleConfigKey, false);
     }
 
     private processBlock(block: BlockContext) {
