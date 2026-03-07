@@ -4,39 +4,77 @@
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/ludexiang.lpc-support?color=success)](https://marketplace.visualstudio.com/items?itemName=ludexiang.lpc-support)
 [![License](https://img.shields.io/github/license/lude2001/lpc-support?color=orange)](https://github.com/lude2001/lpc-support/blob/main/LICENSE)
 
-专业的 LPC (LPMud Creation Language) 语言开发工具，基于 ANTLR4 语法分析架构，为 FluffOS MUD 开发提供完整的 IDE 支持。
+LPC Support 是一个面向 VS Code 的 LPC / FluffOS 开发扩展，覆盖日常开发中常用的编辑、导航、诊断、函数文档和编译能力。
 
-## ✨ 核心特性
+当前版本基于 ANTLR4 语法解析和 AST 分析实现，重点支持 FluffOS 项目中的 `.c`、`.h`、`.lpc`、`.i` 文件。
 
-### 🎯 语言支持
-- **ANTLR4 语法分析**：完整的 LPC 语法解析和 AST 级代码理解
-- **智能补全**：函数、变量、宏定义的上下文感知提示
-- **定义跳转**：跨文件函数定义查找，支持 inherit/include 导航
-- **语义高亮**：精确的语法着色
+## 主要能力
 
-### ⚡ FluffOS 集成
-- **远程编译**：一键编译到服务器，实时错误诊断
-- **多服务器管理**：支持多环境配置和快速切换
-- **Apply 函数验证**：驱动规范兼容性检查
+### 语言支持
 
-### 🧠 代码分析
-- **变量检测**：未使用变量和全局变量优化建议
-- **继承链分析**：深度面向对象结构分析
-- **宏定义支持**：自动扫描和智能补全
+- LPC 语法高亮
+- 语义标记
+- 文档大纲
+- 代码折叠
+- 代码片段
 
-### 📚 文档与 AI
-- **内置 Efun 文档**：FluffOS 函数中文文档库
-- **JavaDoc 解析**：模拟函数库文档支持
-- **AI 代码生成**：GLM-4 集成，自动生成注释
+### 补全与文档
 
-## 🚀 快速开始
+- 关键字、类型、修饰符补全
+- 标准 efun 补全和悬停文档
+- 模拟函数库文档解析与补全
+- 当前文件、继承文件、include 文件中的函数文档悬停
+- 结构体成员补全和链式成员访问补全
+- 函数文档面板
 
-### 安装
-1. VS Code 扩展市场搜索 "LPC Support"
-2. 点击安装
-3. 或命令行：`code --install-extension ludexiang.lpc-support`
+### 跳转与重构
 
-### 基础配置
+- 跳转到函数定义
+- 跳转到变量声明
+- 跳转到宏定义
+- include 文件跳转
+- 引用查找
+- 当前文件范围内的符号重命名
+
+### 诊断与分析
+
+- ANTLR 语法错误诊断
+- 未使用局部变量检查
+- 未使用参数检查
+- 未使用全局变量检查
+- 局部变量声明位置检查
+- 宏使用检查
+- 对象访问相关检查
+- 继承关系扫描
+- 文件夹批量扫描
+- 变量列表查看
+- 解析缓存和性能统计
+
+### 编译与运行辅助
+
+- 编译当前 LPC 文件
+- 批量编译目录中的 `.c` 文件
+- FluffOS 编译服务器管理
+- 错误诊断中心视图
+- 本地驱动启动命令入口
+
+### 注释生成
+
+- 函数签名解析
+- Javadoc 风格注释生成
+- 支持通过 GLM-4 生成注释内容
+
+## 安装
+
+可以通过以下方式安装：
+
+1. 在 VS Code 扩展市场搜索 `LPC Support`
+2. 命令行安装：`code --install-extension ludexiang.lpc-support`
+3. 使用本地 `.vsix` 文件安装
+
+## 快速开始
+
+建议先配置 include 路径和模拟函数库路径：
 
 ```json
 {
@@ -46,67 +84,221 @@
 }
 ```
 
-支持项目相对路径或绝对路径。
+说明：
 
-### 服务器配置
-`Ctrl+Shift+P` → `LPC: 管理服务器` → 添加服务器地址
+- `lpc.includePath` 用于 `#include <...>` 路径解析和宏扫描
+- `lpc.simulatedEfunsPath` 用于加载本地模拟函数库文档
+- `lpc.enforceLocalVariableDeclarationAtBlockStart` 默认建议保持 `false`，以兼容较新的 FluffOS 代码风格
 
-## 📖 主要功能
+如果需要远程编译，再通过命令面板配置编译服务器。
 
-### 快捷键
-- `Ctrl+F5`：编译当前文件
+## 常用命令
+
+扩展注册了以下主要命令：
+
+- 启动 MUD 驱动
+- 检查未使用的变量
+- 显示所有 LPC 变量
+- 扫描文件夹中未使用的变量
+- 编译 LPC 文件
+- 批量编译 LPC 文件
+- 管理编译服务器
+- 配置宏定义目录
+- 配置模拟函数库目录
+- efun 文档设置
+- 扫描继承关系
+- 显示函数文档面板
+- 显示性能统计
+- 清理解析缓存
+- 生成 Javadoc 注释
+
+此外还提供错误树相关命令，包括刷新、清空错误、切换服务器和复制错误信息。
+
+## 编辑器行为
+
+### 补全
+
+补全数据主要来自以下几类来源：
+
+- LPC 关键字、类型和修饰符
+- 标准 efun 离线文档
+- 模拟函数库扫描结果
+- 当前文件 AST
+- 继承文件中的函数
+- 结构体成员和对象常用方法
+- 预处理指令片段
+
+### 悬停
+
+悬停文档的优先级大致如下：
+
+1. 当前文件函数文档
+2. 继承文件函数文档
+3. include 文件函数文档
+4. 模拟函数库文档
+5. 标准 efun 文档
+
+标准 efun 文档以扩展内置离线数据为主，缺失项会按需回退到 `mud.wiki`。
+
+### 定义跳转
+
+定义跳转支持：
+
+- 当前文件函数和变量
+- 继承文件函数
+- include 头文件
+- 宏定义
+- 模拟函数库函数
+- `OBJECT->method`、宏路径和字符串路径形式的跨文件方法解析
+
+### 重命名与快速修复
+
+扩展提供：
+
+- 当前文件标识符重命名
+- 未使用变量删除
+- 未使用变量注释
+- 将变量标记为全局变量
+- 蛇形 / 驼峰重命名建议
+- 将局部变量声明移动到代码块或函数开头
+
+## 函数文档系统
+
+函数文档系统由两部分组成：
+
+- 标准 efun 文档：内置离线数据，发布时随扩展打包
+- 模拟函数库文档：从本地目录中的 `.c` / `.h` 文件和 Javadoc 注释解析生成
+
+文档展示位置包括：
+
+- 补全文档
+- 编辑器悬停
+- 函数文档面板
+
+函数文档面板会读取当前文件、继承文件和 include 文件中的函数定义，并支持跳转到定义或直接触发 Javadoc 生成。
+
+## 诊断与错误查看
+
+扩展内部包含两类与错误相关的能力：
+
+- 编辑器内静态诊断
+- 远程错误诊断中心
+
+静态诊断依赖本地解析结果，覆盖语法错误、变量问题和部分语义问题。
+
+错误诊断中心会从远程 FluffOS 服务拉取编译错误和运行时错误，并在 Activity Bar 的 LPC 视图中展示。
+
+## 编译服务器与接口
+
+编译和错误查看依赖服务端接口。
+
+### 编译接口
+
+编译当前文件时使用：
+
+- `POST /update_code/update_file`
+
+请求体中会携带基于工作区相对路径转换得到的 MUD 路径。
+
+### 错误诊断中心接口
+
+错误树会访问：
+
+- `GET /error_info/get_compile_errors`
+- `GET /error_info/get_runtime_errors`
+- `GET /error_info/clear_all_errors`
+
+如果你的服务端接口命名不同，需要自行做兼容适配。
+
+## 配置项
+
+### 基础路径
+
+- `lpc.driver.command`
+- `lpc.includePath`
+- `lpc.simulatedEfunsPath`
+
+### 诊断
+
+- `lpc.enableUnusedGlobalVarCheck`
+- `lpc.enforceLocalVariableDeclarationAtBlockStart`
+
+### 错误诊断中心
+
+- `lpc.errorViewer.servers`
+
+### 性能
+
+- `lpc.performance.debounceDelay`
+- `lpc.performance.maxCacheSize`
+- `lpc.performance.maxCacheMemory`
+- `lpc.performance.enableAsyncDiagnostics`
+- `lpc.performance.batchSize`
+
+### Javadoc / GLM-4
+
+- `lpc.javadoc.enableAutoGeneration`
+- `lpc.glm4.apiKey`
+- `lpc.glm4.model`
+- `lpc.glm4.allowCustomModel`
+- `lpc.glm4.baseUrl`
+- `lpc.glm4.timeout`
+- `lpc.glm4.alwaysShowModelSelector`
+- `lpc.glm4.rememberLastModel`
+- `lpc.glm4.lastSelectedModel`
+- `lpc.glm4.customModels`
+
+## 快捷键
+
+- `Ctrl+/`：行注释
+- `Shift+Alt+A`：块注释
+- `Ctrl+F5`：编译当前 LPC 文件
 - `F12`：跳转到定义
 - `Alt+F12`：查看定义
 
-### Include 导航
-- `#include <lib.h>`：全局路径（使用 includePath 配置）
-- `include "path/file.h"`：相对路径
-点击文件名即可跳转。
+## Javadoc 注释格式
 
-### 代码补全
-- Efun 和自定义函数提示
-- 变量和宏定义补全
-- 跨文件 inherit/include 支持
+扩展识别的注释标签包括：
 
-## ⚙️ 配置项
+- `@brief`
+- `@details`
+- `@param`
+- `@return`
+- `@note`
 
-### 核心配置
-- `lpc.includePath`：Include 目录路径（支持相对路径）
-- `lpc.simulatedEfunsPath`：模拟函数库路径
-- `lpc.enableUnusedGlobalVarCheck`：启用全局变量检查（默认 true）
-- `lpc.enforceLocalVariableDeclarationAtBlockStart`：启用“局部变量需在代码块开头声明”检查（默认 false）
-
-### 性能配置
-- `lpc.performance.debounceDelay`：诊断防抖延迟（默认 300ms）
-- `lpc.performance.maxCacheSize`：最大缓存文档数（默认 50）
-
-### AI 配置
-- `lpc.glm4.apiKey`：GLM-4 API 密钥
-- `lpc.javadoc.enableAutoGeneration`：启用自动 JavaDoc 生成
-
-## 🛠️ 服务器集成
-
-FluffOS 服务器需实现 HTTP 接口：`POST /update_file`
-
-## 📝 JavaDoc 格式
+示例：
 
 ```c
 /**
  * @brief 函数简要说明
  * @param type name 参数说明
  * @return type 返回值说明
+ * @note 补充说明
  */
 ```
 
-## 🔧 常见问题
+## 调试与辅助命令
 
-- **宏定义无法识别**：检查 `lpc.includePath` 配置
-- **编译失败**：验证服务器地址和 HTTP 接口
-- **补全不工作**：确认文件扩展名（.c/.h/.lpc/.i）
-- **导航问题**：验证路径，尝试清理缓存（`LPC: 清理缓存`）
-- **局部变量位置提示与 FluffOS 不一致**：关闭 `lpc.enforceLocalVariableDeclarationAtBlockStart`（新版本 FluffOS 建议保持默认 false）
+扩展还包含一些更偏调试和排查用途的命令：
 
-## 🤝 致谢
+- 显示 LPC 解析树
+- 解析错误详情
+- 显示性能统计
+- 清理解析缓存
+
+这些命令更适合在语法兼容、性能问题或规则误报排查时使用。
+
+## 常见问题
+
+- 宏定义无法识别：检查 `lpc.includePath`
+- 模拟函数库文档未生效：检查 `lpc.simulatedEfunsPath`
+- 标准 efun 文档缺项：扩展会优先用内置文档，缺失时才按需回退查询 `mud.wiki`
+- 编译失败：检查服务器地址、接口路径和服务端返回内容
+- 错误诊断中心为空：检查 `lpc.errorViewer.servers` 配置和服务端错误接口是否可用
+- 跳转或补全不准确：先尝试重新打开文件或执行“清理解析缓存”
+- 局部变量位置提示与 FluffOS 代码习惯不一致：将 `lpc.enforceLocalVariableDeclarationAtBlockStart` 保持为默认 `false`
+
+## 致谢
 
 **核心开发**
 - @ludexiang - 项目创始人与主要开发者
@@ -118,16 +310,13 @@ FluffOS 服务器需实现 HTTP 接口：`POST /update_file`
 **捐赠支持**
 感谢涅槃、如月、血河车、店小二、旋转、缘分、幽若、顾青衣、天煞孤星、小桀骜、楚千秋、任翱翔、夏晨、穿穿的光、活着的僵尸等朋友的支持。
 
-## 🔗 链接
+## 链接
 
-- [GitHub](https://github.com/lude2001/lpc-support) | [问题反馈](https://github.com/lude2001/lpc-support/issues)
+- [GitHub](https://github.com/lude2001/lpc-support)
+- [问题反馈](https://github.com/lude2001/lpc-support/issues)
 - [VS Code 市场](https://marketplace.visualstudio.com/items?itemName=ludexiang.lpc-support)
 - [FluffOS 文档](https://www.fluffos.info)
 
-## 📄 许可证
+## 许可证
 
 MIT License
-
----
-
-**让 LPC 开发更简单！**
