@@ -570,7 +570,7 @@
     "watch": "cross-env NODE_ENV=development node esbuild.mjs --watch",
     "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPCLexer.g4 grammar/LPCParser.g4",
     "generate-efun-docs": "node scripts/generate-efun-docs.mjs",
-    "package": "npm run clean && npm run build && vsce package",
+    "package": "npm run clean && npm run build && npx @vscode/vsce package",
     "clean": "rimraf dist out",
     "analyze": "cross-env NODE_ENV=development npm run build -- --analyze",
     "test": "jest",
