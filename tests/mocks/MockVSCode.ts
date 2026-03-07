@@ -197,6 +197,34 @@ export enum ViewColumn {
     Nine = 9
 }
 
+export enum CompletionItemKind {
+    Text = 0,
+    Method = 1,
+    Function = 2,
+    Constructor = 3,
+    Field = 4,
+    Variable = 5,
+    Class = 6,
+    Interface = 7,
+    Module = 8,
+    Property = 9,
+    Unit = 10,
+    Value = 11,
+    Enum = 12,
+    Keyword = 13,
+    Snippet = 14,
+    Color = 15,
+    File = 16,
+    Reference = 17,
+    Folder = 18,
+    EnumMember = 19,
+    Constant = 20,
+    Struct = 21,
+    Event = 22,
+    Operator = 23,
+    TypeParameter = 24
+}
+
 export enum FileType {
     Unknown = 0,
     File = 1,
@@ -210,6 +238,52 @@ export enum ProgressLocation {
     Notification = 15
 }
 
+export class MarkdownString {
+    public value: string;
+    public isTrusted = false;
+    public supportHtml = false;
+
+    constructor(value = '') {
+        this.value = value;
+    }
+
+    appendMarkdown(markdown: string): MarkdownString {
+        this.value += markdown;
+        return this;
+    }
+
+    appendCodeblock(code: string, language = ''): MarkdownString {
+        this.value += `\`\`\`${language}\n${code}\n\`\`\`\n`;
+        return this;
+    }
+}
+
+export class Hover {
+    constructor(public contents: MarkdownString | MarkdownString[]) {}
+}
+
+export class SnippetString {
+    constructor(public value: string) {}
+}
+
+export class CompletionItem {
+    public detail?: string;
+    public documentation?: MarkdownString | string;
+    public insertText?: string | SnippetString;
+
+    constructor(
+        public label: string,
+        public kind?: CompletionItemKind
+    ) {}
+}
+
+export class RelativePattern {
+    constructor(
+        public baseUri: string,
+        public pattern: string
+    ) {}
+}
+
 // 窗口管理
 export const window = {
     showInformationMessage: jest.fn().mockResolvedValue(undefined),
@@ -217,8 +291,15 @@ export const window = {
     showErrorMessage: jest.fn().mockResolvedValue(undefined),
     showQuickPick: jest.fn().mockResolvedValue(undefined),
     showInputBox: jest.fn().mockResolvedValue(undefined),
+    showOpenDialog: jest.fn().mockResolvedValue(undefined),
     showTextDocument: jest.fn().mockResolvedValue(undefined),
     createTextEditorDecorationType: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    createOutputChannel: jest.fn().mockReturnValue({
+        appendLine: jest.fn(),
+        clear: jest.fn(),
+        show: jest.fn(),
+        dispose: jest.fn()
+    }),
     activeTextEditor: undefined,
     onDidChangeActiveTextEditor: jest.fn().mockReturnValue({ dispose: jest.fn() })
 };
@@ -245,6 +326,10 @@ export const workspace = {
     onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     onDidOpenTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     onDidCloseTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    findFiles: jest.fn().mockResolvedValue([]),
+    fs: {
+        readFile: jest.fn().mockResolvedValue(Buffer.from(''))
+    },
     openTextDocument: jest.fn().mockResolvedValue(undefined),
     workspaceFolders: [],
     rootPath: undefined,
@@ -263,6 +348,7 @@ export const languages = {
     registerCompletionItemProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     registerHoverProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     registerDefinitionProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    registerDocumentSemanticTokensProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
 };
 
 // 命令

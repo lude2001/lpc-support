@@ -59,31 +59,35 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider 
 
         // 添加Efun补全
         this.efunDocsManager.getAllFunctions().forEach(fn => {
+            const doc = this.efunDocsManager.getStandardDoc(fn);
             const item = new vscode.CompletionItem(fn, vscode.CompletionItemKind.Function);
-            item.detail = `LPC Efun: ${fn}`;
+            item.detail = doc?.returnType
+                ? `LPC Efun: ${doc.returnType} ${fn}`
+                : `LPC Efun: ${fn}`;
             item.insertText = new vscode.SnippetString(`${fn}($1)`);
-            
-            // 延迟文档加载
-            this.efunDocsManager.getEfunDoc(fn).then(doc => {
-                if (doc) {
-                    const md = new vscode.MarkdownString();
-                    if (doc.syntax) md.appendCodeblock(doc.syntax, 'lpc');
-                    if (doc.description) md.appendMarkdown(doc.description);
-                    item.documentation = md;
-                }
-            });
+
+            if (doc) {
+                const md = new vscode.MarkdownString();
+                if (doc.syntax) md.appendCodeblock(doc.syntax, 'lpc');
+                if (doc.returnType) md.appendMarkdown(`**Return Type:** \`${doc.returnType}\`\n\n`);
+                if (doc.description) md.appendMarkdown(doc.description);
+                item.documentation = md;
+            }
             this.staticItems.push(item);
         });
 
         // 添加模拟函数补全
         this.efunDocsManager.getAllSimulatedFunctions().forEach(fn => {
-            const item = new vscode.CompletionItem(fn, vscode.CompletionItemKind.Function);
-            item.detail = `模拟函数库: ${fn}`;
-            item.insertText = new vscode.SnippetString(`${fn}($1)`);
             const doc = this.efunDocsManager.getSimulatedDoc(fn);
+            const item = new vscode.CompletionItem(fn, vscode.CompletionItemKind.Function);
+            item.detail = doc?.returnType
+                ? `模拟函数库: ${doc.returnType} ${fn}`
+                : `模拟函数库: ${fn}`;
+            item.insertText = new vscode.SnippetString(`${fn}($1)`);
             if (doc) {
                 const md = new vscode.MarkdownString();
                 if (doc.syntax) md.appendCodeblock(doc.syntax, 'lpc');
+                if (doc.returnType) md.appendMarkdown(`**Return Type:** \`${doc.returnType}\`\n\n`);
                 if (doc.description) md.appendMarkdown(doc.description);
                 item.documentation = md;
             }

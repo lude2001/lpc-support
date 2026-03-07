@@ -35,17 +35,16 @@
   "main": "./dist/extension.js",
   "activationEvents": [],
   "dependencies": {
-    "@types/cheerio": "^0.22.35",
     "@types/vscode": "^1.95.0",
     "antlr4ts": "^0.5.0-alpha.4",
-    "axios": "^1.12.1",
-    "cheerio": "^1.0.0-rc.12"
+    "axios": "^1.13.6"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "^20.x",
     "@vscode/test-electron": "^2.3.8",
     "antlr4ts-cli": "^0.5.0-alpha.4",
+    "cheerio": "^1.2.0",
     "cross-env": "^7.0.3",
     "esbuild": "^0.25.5",
     "esbuild-node-externals": "^1.18.0",
@@ -142,11 +141,6 @@
       {
         "command": "lpc.configureMacroPath",
         "title": "配置宏定义目录",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.updateEfunDocs",
-        "title": "更新 Efun 文档",
         "category": "LPC"
       },
       {
@@ -575,6 +569,7 @@
     "build:dev": "cross-env NODE_ENV=development npm run build",
     "watch": "cross-env NODE_ENV=development node esbuild.mjs --watch",
     "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPCLexer.g4 grammar/LPCParser.g4",
+    "generate-efun-docs": "node scripts/generate-efun-docs.mjs",
     "package": "npm run clean && npm run build && vsce package",
     "clean": "rimraf dist out",
     "analyze": "cross-env NODE_ENV=development npm run build -- --analyze",

@@ -37,13 +37,8 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('lpc.efunDocsSettings', async () => {
             const items = [
                 {
-                    label: "更新 Efun 文档",
-                    description: "从在线文档更新 Efun 函数文档",
-                    command: 'lpc.updateEfunDocs'
-                },
-                {
                     label: "配置模拟函数库目录",
-                    description: "设置模拟函数库的目录路径",
+                    description: "设置本地模拟函数库的目录路径",
                     command: 'lpc.configureSimulatedEfuns'
                 }
             ];
