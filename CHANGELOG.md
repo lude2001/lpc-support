@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-03-07
+
+### 📝 发布整理
+
+- 更新扩展图标，使用新的 `LPC` 图标样式。
+- 重写 `README.md`，补充当前实际功能、命令、配置和服务端接口说明。
+- 修复 VSIX 打包流程，改为使用 `npx @vscode/vsce package`，并移除与 `package.json.files` 冲突的 `.vscodeignore`。
+
 ## [0.2.2] - 2026-03-07
 
 ### ✨ Efun 文档离线化
