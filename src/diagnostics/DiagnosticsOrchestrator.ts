@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from '../macroManager';
+import { ASTManager } from '../ast/astManager';
 import { getParsed, deleteDocumentCache } from '../parseCache';
 import { Debouncer } from '../utils/debounce';
 import { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './types';
@@ -35,6 +36,7 @@ interface LPCConfig {
 export class DiagnosticsOrchestrator {
     private diagnosticCollection: vscode.DiagnosticCollection;
     private macroManager: MacroManager;
+    private astManager: ASTManager;
     private collectors: IDiagnosticCollector[];
     private variableAnalyzer: VariableAnalyzer;
 
@@ -49,6 +51,7 @@ export class DiagnosticsOrchestrator {
 
     constructor(context: vscode.ExtensionContext, macroManager: MacroManager) {
         this.macroManager = macroManager;
+        this.astManager = ASTManager.getInstance();
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
         context.subscriptions.push(this.diagnosticCollection);
 
@@ -179,6 +182,7 @@ export class DiagnosticsOrchestrator {
             this.lastAnalysisVersion.delete(documentKey);
             // 清理解析缓存
             deleteDocumentCache(document.uri);
+            this.astManager.clearCache(document.uri.toString());
         }
     }
 
@@ -197,6 +201,7 @@ export class DiagnosticsOrchestrator {
 
             // 清理解析缓存
             deleteDocumentCache(uri);
+            this.astManager.clearCache(uri.toString());
         }
     }
 
@@ -261,6 +266,7 @@ export class DiagnosticsOrchestrator {
     private async collectDiagnostics(document: vscode.TextDocument): Promise<vscode.Diagnostic[]> {
         const diagnostics: vscode.Diagnostic[] = [];
         const parsed = getParsed(document);
+        const snapshot = this.astManager.getSnapshot(document);
 
         // 执行所有收集器
         for (const collector of this.collectors) {
@@ -274,8 +280,7 @@ export class DiagnosticsOrchestrator {
 
         // 收集语法错误
         try {
-            const { diagnostics: parseDiags } = getParsed(document);
-            diagnostics.push(...parseDiags);
+            diagnostics.push(...snapshot.parseDiagnostics);
         } catch (err) {
             if (err instanceof Error) {
                 vscode.window.showErrorMessage(`解析 LPC 失败: ${err.message}`);
@@ -294,6 +299,7 @@ export class DiagnosticsOrchestrator {
     ): Promise<vscode.Diagnostic[]> {
         const diagnostics: vscode.Diagnostic[] = [];
         const parsed = getParsed(document);
+        const snapshot = this.astManager.getSnapshot(document);
 
         const config = vscode.workspace.getConfiguration('lpc.performance');
         const batchSize = options.batchSize || config.get<number>('batchSize', 3);
@@ -329,8 +335,7 @@ export class DiagnosticsOrchestrator {
 
         // 收集语法错误
         try {
-            const { diagnostics: parseDiags } = getParsed(document);
-            diagnostics.push(...parseDiags);
+            diagnostics.push(...snapshot.parseDiagnostics);
         } catch (err) {
             if (err instanceof Error) {
                 vscode.window.showErrorMessage(`解析 LPC 失败: ${err.message}`);

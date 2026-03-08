@@ -1,555 +1,520 @@
-import * as vscode from 'vscode';
-import * as path from 'path';
 import * as fs from 'fs';
-import { EfunDocsManager } from './efunDocs';
-import { MacroManager } from './macroManager';
+import * as vscode from 'vscode';
 import { ASTManager } from './ast/astManager';
+import { MacroManager } from './macroManager';
+import { EfunDoc, EfunDocsManager } from './efunDocs';
+import { CompletionContextAnalyzer } from './completion/completionContextAnalyzer';
+import { CompletionInstrumentation } from './completion/completionInstrumentation';
+import { CompletionQueryEngine } from './completion/completionQueryEngine';
+import { InheritanceResolver } from './completion/inheritanceResolver';
+import { ProjectSymbolIndex } from './completion/projectSymbolIndex';
+import { CompletionCandidate, CompletionCandidateSourceType, CompletionQueryResult, FunctionSummary, TypeDefinitionSummary } from './completion/types';
+import { normalizeLpcType } from './ast/typeNormalization';
 import { SymbolType } from './ast/symbolTable';
 
-// 创建输出通道
 const inheritanceChannel = vscode.window.createOutputChannel('LPC Inheritance');
 
-export class LPCCompletionItemProvider implements vscode.CompletionItemProvider {
-    private types = ['void', 'int', 'string', 'object', 'mapping', 'mixed', 'float', 'buffer', 'struct', 'class'];
-    private modifiers = ['private', 'protected', 'public', 'static', 'nomask', 'varargs'];
-    private keywords = ['new', 'catch', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue', 'return', 'foreach', 'inherit', 'include'];
-    private efunDocsManager: EfunDocsManager;
-    private macroManager: MacroManager;
-    private astManager: ASTManager;
-    private staticItems: vscode.CompletionItem[];
+interface CompletionItemData {
+    candidate: CompletionCandidate;
+    context: CompletionQueryResult['context'];
+    documentUri: string;
+    documentVersion: number;
+    resolved?: boolean;
+}
 
-    constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager) {
+export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<vscode.CompletionItem> {
+    private readonly efunDocsManager: EfunDocsManager;
+    private readonly macroManager: MacroManager;
+    private readonly astManager: ASTManager;
+    private readonly projectSymbolIndex: ProjectSymbolIndex;
+    private readonly queryEngine: CompletionQueryEngine;
+    private readonly instrumentation: CompletionInstrumentation;
+
+    constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager, instrumentation?: CompletionInstrumentation) {
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
         this.astManager = ASTManager.getInstance();
-
-        // 预构造静态补全项
-        this.staticItems = [];
-        this.initializeStaticItems();
-    }
-
-    private initializeStaticItems(): void {
-        // 添加类型补全
-        this.types.forEach(type => {
-            const item = new vscode.CompletionItem(type, vscode.CompletionItemKind.TypeParameter);
-            item.detail = `LPC 类型: ${type}`;
-            this.staticItems.push(item);
-        });
-
-        // 添加修饰符补全
-        this.modifiers.forEach(mod => {
-            const item = new vscode.CompletionItem(mod, vscode.CompletionItemKind.Keyword);
-            item.detail = `LPC 修饰符: ${mod}`;
-            this.staticItems.push(item);
-        });
-
-        // 添加关键字补全
-        this.keywords.forEach(kw => {
-            const item = new vscode.CompletionItem(kw, vscode.CompletionItemKind.Keyword);
-            item.detail = `LPC 关键字: ${kw}`;
-            
-            // 为new关键字添加特殊的snippet
-            if (kw === 'new') {
-                item.insertText = new vscode.SnippetString('new(${1:struct_type}${2:, ${3:field1}: ${4:value1}${5:, ${6:field2}: ${7:value2}}})');
-                item.detail = 'LPC new 表达式 - 创建结构体实例';
-                item.documentation = new vscode.MarkdownString('创建结构体或类的实例\n\n**语法:**\n```lpc\nnew(struct_type, field1: value1, field2: value2, ...)\n```');
+        this.instrumentation = instrumentation || new CompletionInstrumentation();
+        this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
+        this.queryEngine = new CompletionQueryEngine({
+            snapshotProvider: this.astManager,
+            projectSymbolIndex: this.projectSymbolIndex,
+            contextAnalyzer: new CompletionContextAnalyzer(),
+            macroManager: this.macroManager,
+            efunProvider: {
+                getAllFunctions: () => this.efunDocsManager.getAllFunctions(),
+                getAllSimulatedFunctions: () => this.efunDocsManager.getAllSimulatedFunctions()
             }
-            this.staticItems.push(item);
-        });
-
-        // 添加Efun补全
-        this.efunDocsManager.getAllFunctions().forEach(fn => {
-            const doc = this.efunDocsManager.getStandardDoc(fn);
-            const item = new vscode.CompletionItem(fn, vscode.CompletionItemKind.Function);
-            item.detail = doc?.returnType
-                ? `LPC Efun: ${doc.returnType} ${fn}`
-                : `LPC Efun: ${fn}`;
-            item.insertText = new vscode.SnippetString(`${fn}($1)`);
-
-            if (doc) {
-                const md = new vscode.MarkdownString();
-                if (doc.syntax) md.appendCodeblock(doc.syntax, 'lpc');
-                if (doc.returnType) md.appendMarkdown(`**Return Type:** \`${doc.returnType}\`\n\n`);
-                if (doc.description) md.appendMarkdown(doc.description);
-                item.documentation = md;
-            }
-            this.staticItems.push(item);
-        });
-
-        // 添加模拟函数补全
-        this.efunDocsManager.getAllSimulatedFunctions().forEach(fn => {
-            const doc = this.efunDocsManager.getSimulatedDoc(fn);
-            const item = new vscode.CompletionItem(fn, vscode.CompletionItemKind.Function);
-            item.detail = doc?.returnType
-                ? `模拟函数库: ${doc.returnType} ${fn}`
-                : `模拟函数库: ${fn}`;
-            item.insertText = new vscode.SnippetString(`${fn}($1)`);
-            if (doc) {
-                const md = new vscode.MarkdownString();
-                if (doc.syntax) md.appendCodeblock(doc.syntax, 'lpc');
-                if (doc.returnType) md.appendMarkdown(`**Return Type:** \`${doc.returnType}\`\n\n`);
-                if (doc.description) md.appendMarkdown(doc.description);
-                item.documentation = md;
-            }
-            this.staticItems.push(item);
         });
     }
 
-    async provideCompletionItems(
+    public provideCompletionItems(
         document: vscode.TextDocument,
         position: vscode.Position,
         token: vscode.CancellationToken,
         context: vscode.CompletionContext
-    ): Promise<vscode.CompletionItem[] | vscode.CompletionList> {
-        const linePrefix = document.lineAt(position).text.substr(0, position.character);
-        const completionItems: vscode.CompletionItem[] = [...this.staticItems];
+    ): vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem> {
+        const trace = this.instrumentation.startRequest({
+            documentUri: document.uri.toString(),
+            documentVersion: document.version,
+            triggerKind: context.triggerKind,
+            triggerCharacter: context.triggerCharacter
+        });
 
         try {
-            // 使用AST获取基于作用域的补全
-            const astCompletions = this.astManager.getCompletionItems(document, position);
-            completionItems.push(...astCompletions);
+            this.warmInheritedIndex(document);
 
-            // 添加继承函数补全
-            await this.addInheritedFunctionCompletions(document, completionItems);
-
-            // 处理特定上下文的补全
-            if (linePrefix.endsWith('->')) {
-                // 结构体成员访问补全
-                this.addStructMemberCompletions(document, position, linePrefix, completionItems);
-                // 对象方法补全
-                this.addObjectMethodCompletions(completionItems);
-            } else if (linePrefix.match(/^\s*#/)) {
-                // 预处理指令补全
-                this.addPreprocessorCompletions(completionItems);
+            const result = this.queryEngine.query(document, position, context, token, trace);
+            if (token.isCancellationRequested) {
+                trace.complete(result.context.kind, 0);
+                return [];
             }
 
-            return completionItems;
-
+            const candidates = this.appendInheritedFallbackCandidates(document, result);
+            const items = candidates.map(candidate => this.createCompletionItem(candidate, result, document));
+            trace.complete(result.context.kind, items.length);
+            return items;
         } catch (error) {
             console.error('Error providing completions:', error);
-            return completionItems; // 返回基本补全项
-        }
-    }
-
-    // 添加结构体成员访问补全 - 增强版本，支持更复杂的表达式
-    private addStructMemberCompletions(
-        document: vscode.TextDocument,
-        position: vscode.Position,
-        linePrefix: string,
-        completionItems: vscode.CompletionItem[]
-    ): void {
-        try {
-            // 支持更复杂的表达式模式和链式访问
-            const patterns = [
-                /(\w+)\s*->\s*$/, // 简单变量: var->
-                /(\w+)\s*\[\s*\w*\s*\]\s*->\s*$/, // 数组元素: var[index]->
-                /(\w+)\s*\(\s*[^)]*\s*\)\s*->\s*$/, // 函数调用: func()->
-                /(\w+)(\s*->\s*\w+)+\s*->\s*$/, // 链式调用: var->member1->member2->
-                /(\w+)\s*\[\s*["']\w*["']\s*\]\s*->\s*$/, // 映射访问: mapping["key"]->
-                /this_object\(\s*\)\s*->\s*$/, // this_object()->
-                /previous_object\(\s*\)\s*->\s*$/ // previous_object()->
-            ];
-
-            let expressionChain: string[] = [];
-            let matchedPattern: string | null = null;
-
-            // 尝试匹配各种模式
-            for (const pattern of patterns) {
-                const match = linePrefix.match(pattern);
-                if (match) {
-                    matchedPattern = pattern.source;
-
-                    // 解析表达式链
-                    if (pattern.source.includes('->.*->')) {
-                        // 链式访问：解析完整的访问链
-                        const chainMatch = linePrefix.match(/(\w+(?:\s*->\s*\w+)*)\s*->\s*$/);
-                        if (chainMatch) {
-                            expressionChain = chainMatch[1].split('->').map(part => part.trim());
-                        }
-                    } else {
-                        // 简单访问
-                        expressionChain = [match[1]];
-                    }
-                    break;
-                }
-            }
-
-            if (expressionChain.length === 0) {
-                console.debug('No valid expression chain found in line prefix:', linePrefix);
-                return;
-            }
-
-            // 获取结构体成员补全
-            let structMembers: vscode.CompletionItem[] = [];
-
-            if (expressionChain.length === 1) {
-                // 简单访问：直接获取变量的成员
-                const variableName = expressionChain[0];
-                structMembers = this.astManager.getStructMemberCompletions(document, position, variableName);
-            } else {
-                // 链式访问：需要类型推断
-                structMembers = this.getChainedMemberCompletions(document, position, expressionChain);
-            }
-
-            // 为成员添加上下文信息
-            structMembers.forEach(item => {
-                // 添加来源信息
-                const sourceInfo = expressionChain.join('->');
-                if (item.detail && !item.detail.includes('来自')) {
-                    item.detail = `来自 ${sourceInfo}: ${item.detail}`;
-                }
-
-                // 为结构体成员设置特殊的排序
-                if (!item.sortText) {
-                    item.sortText = `0_${item.label}`; // 结构体成员优先显示
-                }
-
-                // 为链式访问添加特殊标记
-                if (expressionChain.length > 1) {
-                    const currentDoc = item.documentation as vscode.MarkdownString;
-                    if (currentDoc) {
-                        currentDoc.appendMarkdown(`\n\n*通过链式访问: ${sourceInfo}*`);
-                    } else {
-                        item.documentation = new vscode.MarkdownString(`*通过链式访问: ${sourceInfo}*`);
-                    }
-                }
-            });
-
-            completionItems.push(...structMembers);
-
-        } catch (error) {
-            console.error('Error adding struct member completions:', error);
-        }
-    }
-
-    // 获取链式成员补全 - 支持复杂的类型推断
-    private getChainedMemberCompletions(
-        document: vscode.TextDocument,
-        position: vscode.Position,
-        expressionChain: string[]
-    ): vscode.CompletionItem[] {
-        try {
-            const parseResult = this.astManager.parseDocument(document);
-            const typeResolver = parseResult.visitor.getTypeResolver();
-
-            // 从第一个变量开始，逐步推断每一级的类型
-            let currentType = this.getInitialType(expressionChain[0], parseResult, position);
-
-            if (!currentType) {
-                console.debug(`Cannot resolve initial type for ${expressionChain[0]}`);
-                return [];
-            }
-
-            // 遍历访问链，推断每一级的类型
-            for (let i = 1; i < expressionChain.length; i++) {
-                const memberName = expressionChain[i];
-                const newType = this.resolveMemberType(currentType, memberName, parseResult);
-
-                if (!newType) {
-                    console.debug(`Cannot resolve member type for ${memberName} in ${currentType}`);
-                    return [];
-                }
-
-                currentType = newType;
-            }
-
-            // 获取最终类型的成员补全
-            const structSymbol = parseResult.symbolTable.findStructDefinition(currentType);
-            if (!structSymbol || !structSymbol.members) {
-                console.debug(`No struct definition found for final type: ${currentType}`);
-                return [];
-            }
-
-            // 转换成员为补全项
-            return this.convertMembersToCompletionItems(structSymbol.members, expressionChain);
-
-        } catch (error) {
-            console.error('Error in chained member completion:', error);
+            trace.complete('identifier', 0);
             return [];
         }
     }
 
-    // 获取初始类型（处理特殊函数调用）
-    private getInitialType(initialExpression: string, parseResult: any, position: vscode.Position): string | null {
-        // 处理特殊的内置函数
-        if (initialExpression === 'this_object()') {
-            return 'object'; // 返回当前对象类型
-        }
-
-        if (initialExpression === 'previous_object()') {
-            return 'object'; // 返回调用对象类型
-        }
-
-        // 查找普通变量的类型
-        const symbol = parseResult.symbolTable.findSymbol(initialExpression, position);
-        if (symbol) {
-            return this.cleanTypeName(symbol.dataType);
-        }
-
-        return null;
-    }
-
-    // 解析成员类型
-    private resolveMemberType(parentType: string, memberName: string, parseResult: any): string | null {
-        const structSymbol = parseResult.symbolTable.findStructDefinition(parentType);
-        if (!structSymbol || !structSymbol.members) {
-            return null;
-        }
-
-        const member = structSymbol.members.find((m: any) => m.name === memberName);
-        if (member) {
-            return this.cleanTypeName(member.dataType);
-        }
-
-        return null;
-    }
-
-    // 清理类型名称（去除修饰符和指针）
-    private cleanTypeName(typeName: string): string {
-        return typeName
-            .replace(/^(private|protected|public|static|const)\s+/, '')
-            .replace(/\s*\*+\s*$/, '')
-            .replace(/\s*\[\s*\]\s*$/, '')
-            .trim();
-    }
-
-    // 转换成员为补全项
-    private convertMembersToCompletionItems(members: any[], expressionChain: string[]): vscode.CompletionItem[] {
-        return members.map((member, index) => {
-            const item = new vscode.CompletionItem(member.name, vscode.CompletionItemKind.Field);
-            item.detail = `${member.dataType} ${member.name}`;
-            item.sortText = `${index.toString().padStart(3, '0')}_${member.name}`;
-
-            // 创建详细文档
-            const markdown = new vscode.MarkdownString();
-            markdown.appendCodeblock(`${member.dataType} ${member.name}`, 'lpc');
-            markdown.appendMarkdown(`\n\n通过链式访问获得: ${expressionChain.join(' -> ')}`);
-
-            if (member.documentation) {
-                markdown.appendMarkdown(`\n\n${member.documentation}`);
-            }
-
-            item.documentation = markdown;
-
-            // 为函数类型添加调用片段
-            if (member.dataType.includes('function') && member.parameters) {
-                const paramSnippet = member.parameters
-                    .map((param: any, paramIndex: number) => `\${${paramIndex + 1}:${param.name}}`)
-                    .join(', ');
-                item.insertText = new vscode.SnippetString(`${member.name}(${paramSnippet})`);
-                item.kind = vscode.CompletionItemKind.Method;
-            }
-
+    public async resolveCompletionItem(
+        item: vscode.CompletionItem,
+        token: vscode.CancellationToken
+    ): Promise<vscode.CompletionItem> {
+        if (token.isCancellationRequested) {
             return item;
+        }
+
+        const data = (item as vscode.CompletionItem & { data?: CompletionItemData }).data;
+        if (!data || data.resolved) {
+            return item;
+        }
+
+        const trace = this.instrumentation.startRequest({
+            documentUri: data.documentUri,
+            documentVersion: data.documentVersion
         });
-    }
+        const candidate = data.candidate;
 
-    // 添加继承函数补全
-    private async addInheritedFunctionCompletions(
-        document: vscode.TextDocument,
-        completionItems: vscode.CompletionItem[]
-    ): Promise<void> {
-        try {
-            // 这里可以扩展为基于AST的继承解析
-            // 目前保持简化的继承处理
-            await this.parseInheritedFunctions(document, completionItems);
-        } catch (error) {
-            console.error('Error adding inherited functions:', error);
-        }
-    }
-
-    // 基于AST的继承函数解析 - 替换正则表达式实现
-    private async parseInheritedFunctions(
-        document: vscode.TextDocument,
-        completionItems: vscode.CompletionItem[]
-    ): Promise<void> {
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-        if (!workspaceFolder) return;
-
-        try {
-            // 使用AST获取继承信息
-            const parseResult = this.astManager.parseDocument(document);
-            const inheritedFiles = parseResult.symbolTable.getInheritedFiles();
-            const processedFiles = new Set<string>();
-
-            for (const inheritedFile of inheritedFiles) {
-                let normalizedFile = inheritedFile;
-                if (!normalizedFile.endsWith('.c')) {
-                    normalizedFile += '.c';
-                }
-
-                // 构建文件路径
-                const possiblePaths = [
-                    path.join(path.dirname(document.uri.fsPath), normalizedFile),
-                    path.join(workspaceFolder.uri.fsPath, normalizedFile),
-                    // 支持相对路径和绝对路径
-                    path.resolve(workspaceFolder.uri.fsPath, normalizedFile)
-                ];
-
-                for (const filePath of possiblePaths) {
-                    if (fs.existsSync(filePath) && !processedFiles.has(filePath)) {
-                        processedFiles.add(filePath);
-                        try {
-                            const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
-
-                            // 使用AST解析继承文件的函数
-                            const inheritedCompletions = this.astManager.getCompletionItems(inheritedDoc, new vscode.Position(0, 0));
-
-                            // 标记为继承函数并添加到补全列表
-                            inheritedCompletions.forEach(item => {
-                                if (item.kind === vscode.CompletionItemKind.Function) {
-                                    const inheritedItem = new vscode.CompletionItem(item.label as string, item.kind);
-                                    inheritedItem.detail = `继承自 ${path.basename(filePath)}: ${item.detail}`;
-                                    inheritedItem.documentation = item.documentation;
-                                    inheritedItem.insertText = item.insertText;
-                                    // 为继承函数设置特殊排序优先级
-                                    inheritedItem.sortText = `2_${item.label}`; // 继承函数排在本地函数之后
-                                    completionItems.push(inheritedItem);
-                                }
-                            });
-                        } catch (error) {
-                            console.error(`Error processing inherited file ${filePath}:`, error);
-                        }
-                        break;
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error parsing inherited functions with AST:', error);
-            // 如果AST解析失败，fallback到原有实现
-            await this.fallbackParseInheritedFunctions(document, completionItems);
-        }
-    }
-
-    // 备用继承解析方法（在AST解析失败时使用）
-    private async fallbackParseInheritedFunctions(
-        document: vscode.TextDocument,
-        completionItems: vscode.CompletionItem[]
-    ): Promise<void> {
-        const text = document.getText();
-        const inheritRegex = /inherit\s+["']([^"']+)["']/g;
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-
-        if (!workspaceFolder) return;
-
-        let match;
-        const processedFiles = new Set<string>();
-
-        while ((match = inheritRegex.exec(text)) !== null) {
-            let inheritedFile = match[1];
-            if (!inheritedFile.endsWith('.c')) {
-                inheritedFile += '.c';
+        await trace.measureAsync('item-resolve', async () => {
+            if (candidate.insertText) {
+                item.insertText = new vscode.SnippetString(candidate.insertText);
             }
 
-            const possiblePaths = [
-                path.join(path.dirname(document.uri.fsPath), inheritedFile),
-                path.join(workspaceFolder.uri.fsPath, inheritedFile)
-            ];
-
-            for (const filePath of possiblePaths) {
-                if (fs.existsSync(filePath) && !processedFiles.has(filePath)) {
-                    processedFiles.add(filePath);
-                    try {
-                        const inheritedDoc = await vscode.workspace.openTextDocument(filePath);
-                        const inheritedCompletions = this.astManager.getCompletionItems(inheritedDoc, new vscode.Position(0, 0));
-
-                        inheritedCompletions.forEach(item => {
-                            if (item.kind === vscode.CompletionItemKind.Function) {
-                                const inheritedItem = new vscode.CompletionItem(item.label as string, item.kind);
-                                inheritedItem.detail = `继承自 ${path.basename(filePath)} (fallback): ${item.detail}`;
-                                inheritedItem.documentation = item.documentation;
-                                inheritedItem.insertText = item.insertText;
-                                completionItems.push(inheritedItem);
-                            }
-                        });
-                    } catch (error) {
-                        console.error(`Error processing inherited file ${filePath}:`, error);
-                    }
+            switch (candidate.metadata.sourceType) {
+                case 'efun':
+                    this.applyEfunDocumentation(item, this.efunDocsManager.getStandardDoc(candidate.label));
                     break;
-                }
+                case 'simul-efun':
+                    this.applyEfunDocumentation(item, this.efunDocsManager.getSimulatedDoc(candidate.label));
+                    break;
+                case 'macro':
+                    this.applyMacroDocumentation(item, candidate.label);
+                    break;
+                case 'local':
+                case 'inherited':
+                case 'struct-member':
+                    this.applyStructuredDocumentation(item, candidate);
+                    break;
+                case 'keyword':
+                default:
+                    this.applyKeywordDocumentation(item, candidate);
+                    break;
             }
-        }
+        }, { candidateCount: 1 });
+
+        data.resolved = true;
+        trace.complete(data.context.kind, 1);
+        return item;
     }
 
-    private addObjectMethodCompletions(completionItems: vscode.CompletionItem[]): void {
-        const commonMethods = [
-            { name: 'query', snippet: 'query(${1:prop})', detail: '查询属性值' },
-            { name: 'set', snippet: 'set(${1:prop}, ${2:value})', detail: '设置属性值' },
-            { name: 'add', snippet: 'add(${1:prop}, ${2:value})', detail: '添加属性值' },
-            { name: 'delete', snippet: 'delete(${1:prop})', detail: '删除属性' }
-        ];
-
-        commonMethods.forEach(method => {
-            const item = new vscode.CompletionItem(method.name, vscode.CompletionItemKind.Method);
-            item.detail = method.detail;
-            item.insertText = new vscode.SnippetString(method.snippet);
-            completionItems.push(item);
+    public handleDocumentChange(document: vscode.TextDocument): void {
+        this.astManager.scheduleSnapshotRefresh(document, (snapshot) => {
+            this.projectSymbolIndex.updateFromSnapshot(snapshot);
         });
     }
-
-    private addPreprocessorCompletions(completionItems: vscode.CompletionItem[]): void {
-        const preprocessors = [
-            { name: 'include', snippet: 'include <${1:file}>', detail: '包含头文件' },
-            { name: 'define', snippet: 'define ${1:MACRO} ${2:value}', detail: '定义宏' },
-            { name: 'ifdef', snippet: 'ifdef ${1:MACRO}\n\t${2}\n#endif', detail: '条件编译' },
-            { name: 'ifndef', snippet: 'ifndef ${1:MACRO}\n\t${2}\n#endif', detail: '条件编译' },
-            { name: 'endif', snippet: 'endif', detail: '结束条件编译' }
-        ];
-
-        preprocessors.forEach(prep => {
-            const item = new vscode.CompletionItem(prep.name, vscode.CompletionItemKind.Keyword);
-            item.detail = prep.detail;
-            item.insertText = new vscode.SnippetString(prep.snippet);
-            completionItems.push(item);
-        });
-    }
-
-    // 清除缓存的公共方法
     public clearCache(document?: vscode.TextDocument): void {
         if (document) {
             this.astManager.clearCache(document.uri.toString());
-        } else {
-            this.astManager.clearAllCache();
+            this.projectSymbolIndex.removeFile(document.uri.toString());
+            return;
+        }
+
+        this.astManager.clearAllCache();
+        this.projectSymbolIndex.clear();
+    }
+
+    public getInstrumentation(): CompletionInstrumentation {
+        return this.instrumentation;
+    }
+    private appendInheritedFallbackCandidates(
+        document: vscode.TextDocument,
+        result: CompletionQueryResult
+    ): CompletionCandidate[] {
+        if (result.context.kind !== 'identifier' && result.context.kind !== 'type-position') {
+            return result.candidates;
+        }
+
+        const snapshot = this.astManager.getBestAvailableSnapshot(document);
+        this.projectSymbolIndex.updateFromSnapshot(snapshot);
+        this.indexMissingInheritedSnapshots(snapshot.uri, new Set<string>([snapshot.uri]));
+
+        const inheritedSymbols = this.projectSymbolIndex.getInheritedSymbols(snapshot.uri);
+        if (inheritedSymbols.functions.length === 0 && inheritedSymbols.types.length === 0) {
+            return result.candidates;
+        }
+
+        const normalizedPrefix = result.context.currentWord.toLowerCase();
+        const existingLabels = new Set(result.candidates.map(candidate => candidate.label));
+        const merged = [...result.candidates];
+
+        for (const func of inheritedSymbols.functions) {
+            if (existingLabels.has(func.name)) {
+                continue;
+            }
+            if (normalizedPrefix && !func.name.toLowerCase().startsWith(normalizedPrefix)) {
+                continue;
+            }
+
+            existingLabels.add(func.name);
+            merged.push({
+                key: `inherited-function:${func.sourceUri}:${func.name}`,
+                label: func.name,
+                kind: vscode.CompletionItemKind.Function,
+                detail: `${normalizeLpcType(func.returnType)} ${func.name}`,
+                sortGroup: 'inherited',
+                metadata: {
+                    sourceUri: func.sourceUri,
+                    sourceType: 'inherited',
+                    documentationRef: func.name
+                }
+            });
+        }
+
+        for (const typeDefinition of inheritedSymbols.types) {
+            if (existingLabels.has(typeDefinition.name)) {
+                continue;
+            }
+            if (normalizedPrefix && !typeDefinition.name.toLowerCase().startsWith(normalizedPrefix)) {
+                continue;
+            }
+
+            existingLabels.add(typeDefinition.name);
+            merged.push({
+                key: `type:${typeDefinition.sourceUri}:${typeDefinition.name}`,
+                label: typeDefinition.name,
+                kind: typeDefinition.kind === 'class'
+                    ? vscode.CompletionItemKind.Class
+                    : vscode.CompletionItemKind.Struct,
+                detail: `${typeDefinition.kind} ${typeDefinition.name}`,
+                sortGroup: 'inherited',
+                metadata: {
+                    sourceUri: typeDefinition.sourceUri,
+                    sourceType: 'inherited'
+                }
+            });
+        }
+
+        return merged;
+    }
+
+    private warmInheritedIndex(document: vscode.TextDocument): void {
+        const snapshot = this.astManager.getBestAvailableSnapshot(document);
+        this.projectSymbolIndex.updateFromSnapshot(snapshot);
+        this.indexMissingInheritedSnapshots(snapshot.uri, new Set<string>([snapshot.uri]));
+    }
+
+    private indexMissingInheritedSnapshots(sourceUri: string, visited: Set<string>): void {
+        const targets = this.projectSymbolIndex.getResolvedInheritTargets(sourceUri);
+
+        for (const target of targets) {
+            if (!target.resolvedUri || visited.has(target.resolvedUri)) {
+                continue;
+            }
+
+            visited.add(target.resolvedUri);
+
+            if (!this.projectSymbolIndex.getRecord(target.resolvedUri)) {
+                const inheritedSnapshot = this.loadSnapshotFromUri(target.resolvedUri);
+                if (inheritedSnapshot) {
+                    this.projectSymbolIndex.updateFromSnapshot(inheritedSnapshot);
+                }
+            }
+
+            if (this.projectSymbolIndex.getRecord(target.resolvedUri)) {
+                this.indexMissingInheritedSnapshots(target.resolvedUri, visited);
+            }
         }
     }
 
-    // 手动扫描继承的公共方法（用于命令）
+    private loadSnapshotFromUri(uri: string) {
+        try {
+            const document = this.getOpenDocument(uri) || this.createReadonlyDocumentFromUri(uri);
+            if (!document) {
+                return undefined;
+            }
+
+            return this.astManager.getSnapshot(document, false);
+        } catch (error) {
+            inheritanceChannel.appendLine(`Failed to index inherited file ${uri}: ${error}`);
+            return undefined;
+        }
+    }
+
+    private getOpenDocument(uri: string): vscode.TextDocument | undefined {
+        const openDocuments = ((vscode.workspace as typeof vscode.workspace) as typeof vscode.workspace & {
+            textDocuments?: vscode.TextDocument[];
+        }).textDocuments || [];
+
+        return openDocuments.find(document => document.uri.toString() === uri);
+    }
+
+    private normalizeFilePath(filePath: string): string {
+        return filePath.replace(/^\/+([A-Za-z]:\/)/, '$1');
+    }
+
+    private createReadonlyDocumentFromUri(uri: string): vscode.TextDocument | undefined {
+        const filePath = this.normalizeFilePath(vscode.Uri.parse(uri).fsPath);
+        if (!fs.existsSync(filePath)) {
+            return undefined;
+        }
+
+        const content = fs.readFileSync(filePath, 'utf8');
+        const version = Math.max(1, Math.trunc(fs.statSync(filePath).mtimeMs));
+        return this.createReadonlyDocument(filePath, content, version);
+    }
+
+    private createReadonlyDocument(fileName: string, content: string, version: number): vscode.TextDocument {
+        const lines = content.split(/\r?\n/);
+        const lineStarts = [0];
+
+        for (let index = 0; index < content.length; index += 1) {
+            if (content[index] === '\n') {
+                lineStarts.push(index + 1);
+            }
+        }
+
+        const offsetAt = (position: vscode.Position): number => {
+            const lineStart = lineStarts[position.line] ?? content.length;
+            return Math.min(lineStart + position.character, content.length);
+        };
+
+        const positionAt = (offset: number): vscode.Position => {
+            let line = 0;
+            for (let index = 0; index < lineStarts.length; index += 1) {
+                if (lineStarts[index] <= offset) {
+                    line = index;
+                } else {
+                    break;
+                }
+            }
+
+            return new vscode.Position(line, offset - lineStarts[line]);
+        };
+
+        return {
+            uri: vscode.Uri.file(fileName),
+            fileName,
+            languageId: 'lpc',
+            version,
+            lineCount: lines.length,
+            getText: (range?: vscode.Range) => {
+                if (!range) {
+                    return content;
+                }
+
+                return content.slice(offsetAt(range.start), offsetAt(range.end));
+            },
+            lineAt: (lineOrPosition: number | vscode.Position) => {
+                const line = typeof lineOrPosition === 'number' ? lineOrPosition : lineOrPosition.line;
+                return { text: lines[line] ?? '' };
+            },
+            positionAt,
+            offsetAt
+        } as vscode.TextDocument;
+    }
+
     public async scanInheritance(document: vscode.TextDocument): Promise<void> {
         inheritanceChannel.clear();
         inheritanceChannel.show(true);
         inheritanceChannel.appendLine(`正在分析文件: ${document.fileName}`);
-        inheritanceChannel.appendLine('使用基于AST的解析...');
-        
+
         try {
-            // 使用AST解析当前文档
-            const parseResult = this.astManager.parseDocument(document);
-            const symbolTable = parseResult.symbolTable;
-            const functions = symbolTable.getSymbolsByType(SymbolType.FUNCTION);
-            const variables = symbolTable.getSymbolsByType(SymbolType.VARIABLE);
-            const structs = symbolTable.getSymbolsByType(SymbolType.STRUCT);
-            
+            const snapshot = this.astManager.getSnapshot(document, false);
+            this.projectSymbolIndex.updateFromSnapshot(snapshot);
+            this.indexMissingInheritedSnapshots(snapshot.uri, new Set<string>([snapshot.uri]));
+
+            const inheritedSymbols = this.projectSymbolIndex.getInheritedSymbols(document.uri.toString());
             inheritanceChannel.appendLine(`解析完成:`);
-            inheritanceChannel.appendLine(`  - 发现 ${functions.length} 个函数`);
-            inheritanceChannel.appendLine(`  - 发现 ${variables.length} 个变量`);
-            inheritanceChannel.appendLine(`  - 发现 ${structs.length} 个结构体/类`);
-            
-            // 列出函数
-            if (functions.length > 0) {
-                inheritanceChannel.appendLine(`\n函数列表:`);
-                functions.forEach(func => {
-                    inheritanceChannel.appendLine(`  - ${func.dataType} ${func.name}()`);
+            inheritanceChannel.appendLine(`  - 当前文件导出函数: ${snapshot.exportedFunctions.length}`);
+            inheritanceChannel.appendLine(`  - 当前文件类型定义: ${snapshot.typeDefinitions.length}`);
+            inheritanceChannel.appendLine(`  - 继承链长度: ${inheritedSymbols.chain.length}`);
+
+            if (snapshot.inheritStatements.length > 0) {
+                inheritanceChannel.appendLine(`\ninherit 列表:`);
+                snapshot.inheritStatements.forEach(statement => {
+                    inheritanceChannel.appendLine(`  - ${statement.value} (${statement.expressionKind})`);
                 });
             }
-            
-            // 列出结构体
-            if (structs.length > 0) {
-                inheritanceChannel.appendLine(`\n结构体/类列表:`);
-                structs.forEach(struct => {
-                    inheritanceChannel.appendLine(`  - ${struct.name} (${struct.members?.length || 0} 个成员)`);
+
+            if (inheritedSymbols.functions.length > 0) {
+                inheritanceChannel.appendLine(`\n继承函数:`);
+                inheritedSymbols.functions.forEach(func => {
+                    inheritanceChannel.appendLine(`  - ${normalizeLpcType(func.returnType)} ${func.name}()`);
+                });
+            }
+
+            if (inheritedSymbols.unresolvedTargets.length > 0) {
+                inheritanceChannel.appendLine(`\n未解析继承目标:`);
+                inheritedSymbols.unresolvedTargets.forEach(target => {
+                    inheritanceChannel.appendLine(`  - ${target.rawValue}`);
                 });
             }
         } catch (error) {
             inheritanceChannel.appendLine(`错误: ${error}`);
         }
+    }
+
+    private createCompletionItem(candidate: CompletionCandidate, result: CompletionQueryResult, document: vscode.TextDocument): vscode.CompletionItem {
+        const item = new vscode.CompletionItem(candidate.label, candidate.kind);
+        item.detail = candidate.detail;
+        item.sortText = `${this.getSortPrefix(candidate.sortGroup)}_${candidate.label}`;
+        (item as vscode.CompletionItem & { data?: CompletionItemData }).data = {
+            candidate,
+            context: result.context,
+            documentUri: document.uri.toString(),
+            documentVersion: document.version,
+            resolved: false
+        };
+
+        return item;
+    }
+
+    private getSortPrefix(group: CompletionCandidate['sortGroup']): string {
+        switch (group) {
+            case 'scope': return '0';
+            case 'type-member': return '1';
+            case 'inherited': return '2';
+            case 'builtin': return '3';
+            case 'keyword': return '4';
+            default: return '9';
+        }
+    }
+
+    private applyEfunDocumentation(item: vscode.CompletionItem, doc?: EfunDoc): void {
+        if (!doc) {
+            return;
+        }
+
+        const markdown = new vscode.MarkdownString();
+        if (doc.syntax) {
+            markdown.appendCodeblock(doc.syntax, 'lpc');
+        }
+        if (doc.returnType) {
+            markdown.appendMarkdown(`**Return Type:** \`${doc.returnType}\`\n\n`);
+        }
+        if (doc.description) {
+            markdown.appendMarkdown(doc.description);
+        }
+        if (doc.example) {
+            markdown.appendMarkdown(`\n\n**Example**\n`);
+            markdown.appendCodeblock(doc.example, 'lpc');
+        }
+
+        item.documentation = markdown;
+        item.detail = doc.returnType ? `${doc.returnType} ${item.label}` : item.detail;
+        item.insertText = new vscode.SnippetString(`${item.label}($1)`);
+    }
+
+    private applyMacroDocumentation(item: vscode.CompletionItem, macroName: string): void {
+        const macro = this.macroManager.getMacro(macroName);
+        if (!macro) {
+            return;
+        }
+
+        item.documentation = this.macroManager.getMacroHoverContent(macro);
+    }
+
+    private applyStructuredDocumentation(item: vscode.CompletionItem, candidate: CompletionCandidate): void {
+        const markdown = new vscode.MarkdownString();
+        const record = candidate.metadata.sourceUri ? this.projectSymbolIndex.getRecord(candidate.metadata.sourceUri) : undefined;
+        const symbol = candidate.metadata.symbol;
+
+        if (symbol?.definition) {
+            markdown.appendCodeblock(symbol.definition, 'lpc');
+        } else {
+            markdown.appendCodeblock(candidate.detail, 'lpc');
+        }
+
+        if (symbol?.documentation) {
+            markdown.appendMarkdown(`\n\n${symbol.documentation}`);
+        }
+
+        if (candidate.metadata.sourceType === 'inherited' && candidate.metadata.sourceUri) {
+            markdown.appendMarkdown(`\n\n*Inherited from* \`${vscode.Uri.parse(candidate.metadata.sourceUri).fsPath}\``);
+        }
+
+        if (candidate.metadata.sourceType === 'struct-member' && candidate.metadata.sourceUri) {
+            const member = this.findMemberDefinition(candidate.label, record?.typeDefinitions || []);
+            if (member?.definition) {
+                markdown.appendMarkdown(`\n\n**Member Definition**`);
+                markdown.appendCodeblock(member.definition, 'lpc');
+            }
+        }
+
+        item.documentation = markdown;
+
+        if (symbol?.type === SymbolType.FUNCTION && symbol.parameters && symbol.parameters.length > 0) {
+            item.insertText = new vscode.SnippetString(this.buildFunctionSnippet(symbol.name, symbol.parameters.map(parameter => parameter.name)));
+        }
+
+        if (candidate.metadata.sourceType === 'inherited') {
+            const inheritedFunction = record?.exportedFunctions.find(func => func.name === candidate.label);
+            if (inheritedFunction) {
+                item.insertText = new vscode.SnippetString(
+                    this.buildFunctionSnippet(inheritedFunction.name, inheritedFunction.parameters.map(parameter => parameter.name))
+                );
+            }
+        }
+    }
+
+    private applyKeywordDocumentation(item: vscode.CompletionItem, candidate: CompletionCandidate): void {
+        const markdown = new vscode.MarkdownString();
+        markdown.appendCodeblock(candidate.label, 'lpc');
+        markdown.appendMarkdown(`\n\n${candidate.detail}`);
+        item.documentation = markdown;
+
+        if (candidate.label === 'new') {
+            item.insertText = new vscode.SnippetString('new(${1:struct_type}${2:, ${3:field1}: ${4:value1}})');
+        }
+    }
+
+    private buildFunctionSnippet(name: string, parameterNames: string[]): string {
+        if (parameterNames.length === 0) {
+            return `${name}()`;
+        }
+
+        const params = parameterNames
+            .map((parameterName, index) => `\${${index + 1}:${parameterName}}`)
+            .join(', ');
+        return `${name}(${params})`;
+    }
+
+    private findMemberDefinition(
+        memberName: string,
+        definitions: TypeDefinitionSummary[]
+    ): TypeDefinitionSummary['members'][number] | undefined {
+        for (const definition of definitions) {
+            const member = definition.members.find(candidate => candidate.name === memberName);
+            if (member) {
+                return member;
+            }
+        }
+
+        return undefined;
     }
 }

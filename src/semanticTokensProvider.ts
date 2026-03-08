@@ -1,10 +1,13 @@
-import * as vscode from 'vscode';
-import { CharStreams, CommonTokenStream } from 'antlr4ts';
-import { LPCLexer } from './antlr/LPCLexer';
-import * as path from 'path';
 import * as fs from 'fs';
+import { Token } from 'antlr4ts';
+import * as vscode from 'vscode';
+import { LPCLexer } from './antlr/LPCLexer';
+import { ASTManager } from './ast/astManager';
+import { SymbolType } from './ast/symbolTable';
+import { DocumentSemanticSnapshot } from './completion/types';
+import { getParsed } from './parseCache';
+import * as path from 'path';
 
-// 定义语义 token 类型列表（顺序即索引）
 const tokenTypes = [
     'keyword',
     'type',
@@ -21,9 +24,20 @@ const tokenTypes = [
 
 const tokenModifiers: string[] = [];
 
-export const LPCSemanticTokensLegend = new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
+const TOKEN_TYPE_INDEX = {
+    keyword: tokenTypes.indexOf('keyword'),
+    type: tokenTypes.indexOf('type'),
+    variable: tokenTypes.indexOf('variable'),
+    function: tokenTypes.indexOf('function'),
+    property: tokenTypes.indexOf('property'),
+    macro: tokenTypes.indexOf('macro'),
+    builtin: tokenTypes.indexOf('builtin'),
+    number: tokenTypes.indexOf('number'),
+    string: tokenTypes.indexOf('string'),
+    comment: tokenTypes.indexOf('comment'),
+    operator: tokenTypes.indexOf('operator')
+};
 
-// —— 关键字、类型关键字集合 —— //
 const KEYWORDS = new Set([
     'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break',
     'continue', 'return', 'foreach', 'inherit', 'in'
@@ -34,142 +48,199 @@ const TYPE_KEYWORDS = new Set([
     'buffer', 'void', 'struct'
 ]);
 
-// 将 LPCLexer token type 映射到 semantic token type 索引
+const TYPE_TOKENS = new Set<number>([
+    LPCLexer.KW_INT,
+    LPCLexer.KW_FLOAT,
+    LPCLexer.KW_STRING,
+    LPCLexer.KW_OBJECT,
+    LPCLexer.KW_MIXED,
+    LPCLexer.KW_MAPPING,
+    LPCLexer.KW_FUNCTION,
+    LPCLexer.KW_BUFFER,
+    LPCLexer.KW_VOID,
+    LPCLexer.KW_STRUCT
+]);
+
 const TOKEN_TYPE_MAP: Record<number, number> = {
-    // —— 直接列举 lexer 中的显式符号 ——
-    [LPCLexer.STRING_LITERAL]: tokenTypes.indexOf('string'),
-    [LPCLexer.CHAR_LITERAL]: tokenTypes.indexOf('string'),
-    [LPCLexer.INTEGER]: tokenTypes.indexOf('number'),
-    [LPCLexer.FLOAT]: tokenTypes.indexOf('number'),
-    [LPCLexer.LINE_COMMENT]: tokenTypes.indexOf('comment'),
-    [LPCLexer.BLOCK_COMMENT]: tokenTypes.indexOf('comment'),
-    [LPCLexer.PLUS]: tokenTypes.indexOf('operator'),
-    [LPCLexer.MINUS]: tokenTypes.indexOf('operator'),
-    [LPCLexer.STAR]: tokenTypes.indexOf('operator'),
-    [LPCLexer.DIV]: tokenTypes.indexOf('operator'),
-    [LPCLexer.PERCENT]: tokenTypes.indexOf('operator'),
-    [LPCLexer.ASSIGN]: tokenTypes.indexOf('operator'),
-    [LPCLexer.GT]: tokenTypes.indexOf('operator'),
-    [LPCLexer.LT]: tokenTypes.indexOf('operator'),
-    [LPCLexer.GE]: tokenTypes.indexOf('operator'),
-    [LPCLexer.LE]: tokenTypes.indexOf('operator'),
-    [LPCLexer.EQ]: tokenTypes.indexOf('operator'),
-    [LPCLexer.NE]: tokenTypes.indexOf('operator'),
-    [LPCLexer.AND]: tokenTypes.indexOf('operator'),
-    [LPCLexer.OR]: tokenTypes.indexOf('operator'),
-    [LPCLexer.NOT]: tokenTypes.indexOf('operator'),
-    [LPCLexer.BIT_AND]: tokenTypes.indexOf('operator'),
-    [LPCLexer.BIT_OR]: tokenTypes.indexOf('operator'),
-    [LPCLexer.BIT_XOR]: tokenTypes.indexOf('operator'),
-    [LPCLexer.BIT_NOT]: tokenTypes.indexOf('operator'),
-    [LPCLexer.SHIFT_LEFT]: tokenTypes.indexOf('operator'),
-    [LPCLexer.SHIFT_RIGHT]: tokenTypes.indexOf('operator'),
+    [LPCLexer.STRING_LITERAL]: TOKEN_TYPE_INDEX.string,
+    [LPCLexer.CHAR_LITERAL]: TOKEN_TYPE_INDEX.string,
+    [LPCLexer.INTEGER]: TOKEN_TYPE_INDEX.number,
+    [LPCLexer.FLOAT]: TOKEN_TYPE_INDEX.number,
+    [LPCLexer.LINE_COMMENT]: TOKEN_TYPE_INDEX.comment,
+    [LPCLexer.BLOCK_COMMENT]: TOKEN_TYPE_INDEX.comment,
+    [LPCLexer.PLUS]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.MINUS]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.STAR]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.DIV]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.PERCENT]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.ASSIGN]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.GT]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.LT]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.GE]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.LE]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.EQ]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.NE]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.AND]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.OR]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.NOT]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.BIT_AND]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.BIT_OR]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.BIT_XOR]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.BIT_NOT]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.SHIFT_LEFT]: TOKEN_TYPE_INDEX.operator,
+    [LPCLexer.SHIFT_RIGHT]: TOKEN_TYPE_INDEX.operator,
 };
 
-// 读取 efun 名单（只在首次加载时执行）
 let EFUNS = new Set<string>();
+
 try {
     const configPath = path.join(__dirname, '..', 'config', 'lpc-config.json');
     const raw = fs.readFileSync(configPath, 'utf-8');
     const data = JSON.parse(raw);
+
     if (data && data.efuns) {
         EFUNS = new Set(Object.keys(data.efuns));
     }
 } catch {}
 
+export const LPCSemanticTokensLegend = new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
+
 export class LPCSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider {
-    async provideDocumentSemanticTokens(
+    private readonly astManager = ASTManager.getInstance();
+
+    public async provideDocumentSemanticTokens(
         document: vscode.TextDocument,
         _token: vscode.CancellationToken
     ): Promise<vscode.SemanticTokens> {
-        const text = document.getText();
-        const input = CharStreams.fromString(text);
-        const lexer = new LPCLexer(input);
-        const tokenStream = new CommonTokenStream(lexer);
-        tokenStream.fill();
-        const tokens = tokenStream.getTokens();
+        const analysis = this.astManager.parseDocument(document);
+        const parsed = analysis.parsed || getParsed(document);
+        parsed.tokens.fill();
 
         const builder = new vscode.SemanticTokensBuilder(LPCSemanticTokensLegend);
+        const tokens = parsed.tokens.getTokens();
 
-        for (let idx = 0; idx < tokens.length; idx++) {
-            const tok = tokens[idx];
-            if (tok.channel !== LPCLexer.DEFAULT_TOKEN_CHANNEL) {
-                continue; // 跳过隐藏 channel（注释、空白等已由显式 token 捕获）
+        for (let index = 0; index < tokens.length; index++) {
+            const token = tokens[index];
+            if (token.channel !== LPCLexer.DEFAULT_TOKEN_CHANNEL) {
+                continue;
             }
 
-            let tokenTypeIdx: number | undefined = TOKEN_TYPE_MAP[tok.type];
-
-            // Identifier 需根据单词再判断是否关键字/类型/变量
-            if (tok.type === LPCLexer.Identifier) {
-                const rawText = tok.text ?? '';
-                const lower = rawText.toLowerCase();
-
-                // 宏：全部大写并包含下划线或数字
-                if (/^[A-Z_][A-Z0-9_]*$/.test(rawText)) {
-                    tokenTypeIdx = tokenTypes.indexOf('macro');
-                } else if (EFUNS.has(rawText)) {
-                    tokenTypeIdx = tokenTypes.indexOf('builtin');
-                } else if (KEYWORDS.has(lower)) {
-                    tokenTypeIdx = tokenTypes.indexOf('keyword');
-                } else if (TYPE_KEYWORDS.has(lower)) {
-                    tokenTypeIdx = tokenTypes.indexOf('type');
-                } else {
-                    // 进一步通过上下文判断 function/property
-                    let classified = false;
-                    // 查找上一/下一个默认 channel token
-                    let prevIdx = idx - 1;
-                    let prevTok;
-                    while (prevIdx >= 0) {
-                        prevTok = tokens[prevIdx];
-                        if (prevTok.channel === LPCLexer.DEFAULT_TOKEN_CHANNEL) break;
-                        prevIdx--;
-                    }
-                    let nextIdx = idx + 1;
-                    let nextTok;
-                    while (nextIdx < tokens.length) {
-                        nextTok = tokens[nextIdx];
-                        if (nextTok.channel === LPCLexer.DEFAULT_TOKEN_CHANNEL) break;
-                        nextIdx++;
-                    }
-                    if (prevTok && (prevTok.type === LPCLexer.ARROW || prevTok.type === LPCLexer.DOT)) {
-                        tokenTypeIdx = tokenTypes.indexOf('property');
-                        classified = true;
-                    } else if (nextTok && nextTok.type === LPCLexer.LPAREN) {
-                        tokenTypeIdx = tokenTypes.indexOf('function');
-                        classified = true;
-                    }
-                    if (!classified) {
-                        tokenTypeIdx = tokenTypes.indexOf('variable');
-                    }
-                }
+            const tokenType = this.classifyToken(token, index, tokens, analysis.snapshot);
+            if (tokenType === undefined || tokenType < 0) {
+                continue;
             }
 
-            // 类型关键字显式 token
-            const TYPE_TOKENS = [
-                LPCLexer.KW_INT, LPCLexer.KW_FLOAT, LPCLexer.KW_STRING, LPCLexer.KW_OBJECT,
-                LPCLexer.KW_MIXED, LPCLexer.KW_MAPPING, LPCLexer.KW_FUNCTION, LPCLexer.KW_BUFFER,
-                LPCLexer.KW_VOID, LPCLexer.KW_STRUCT
-            ];
-
-            if (TYPE_TOKENS.includes(tok.type)) {
-                tokenTypeIdx = tokenTypes.indexOf('type');
-            } else if (tok.type >= LPCLexer.IF && tok.type <= LPCLexer.IN) {
-                // 显式关键字枚举区间
-                tokenTypeIdx = tokenTypes.indexOf('keyword');
+            const length = (token.text ?? '').length;
+            if (length === 0) {
+                continue;
             }
 
-            if (tokenTypeIdx === undefined || tokenTypeIdx < 0) {
-                continue; // 未映射 token
-            }
-
-            const line = tok.line - 1; // VS Code lines 从0开始
-            const char = tok.charPositionInLine;
-            const length = (tok.text ?? '').length;
-            if (length === 0) continue;
-
-            builder.push(line, char, length, tokenTypeIdx, 0);
+            builder.push(token.line - 1, token.charPositionInLine, length, tokenType, 0);
         }
 
         return builder.build();
     }
-} 
+
+    private classifyToken(
+        token: Token,
+        tokenIndex: number,
+        tokens: Token[],
+        snapshot: DocumentSemanticSnapshot
+    ): number | undefined {
+        if (token.type === LPCLexer.Identifier) {
+            return this.classifyIdentifier(token, tokenIndex, tokens, snapshot);
+        }
+
+        if (TYPE_TOKENS.has(token.type)) {
+            return TOKEN_TYPE_INDEX.type;
+        }
+
+        if (token.type >= LPCLexer.IF && token.type <= LPCLexer.IN) {
+            return TOKEN_TYPE_INDEX.keyword;
+        }
+
+        return TOKEN_TYPE_MAP[token.type];
+    }
+
+    private classifyIdentifier(
+        token: Token,
+        tokenIndex: number,
+        tokens: Token[],
+        snapshot: DocumentSemanticSnapshot
+    ): number {
+        const text = token.text ?? '';
+        const lowerText = text.toLowerCase();
+
+        if (/^[A-Z_][A-Z0-9_]*$/.test(text)) {
+            return TOKEN_TYPE_INDEX.macro;
+        }
+
+        if (EFUNS.has(text)) {
+            return TOKEN_TYPE_INDEX.builtin;
+        }
+
+        if (KEYWORDS.has(lowerText)) {
+            return TOKEN_TYPE_INDEX.keyword;
+        }
+
+        if (TYPE_KEYWORDS.has(lowerText)) {
+            return TOKEN_TYPE_INDEX.type;
+        }
+
+        const symbol = snapshot.symbolTable.findSymbol(
+            text,
+            new vscode.Position(token.line - 1, token.charPositionInLine)
+        );
+        if (symbol) {
+            return this.getTokenTypeFromSymbol(symbol.type);
+        }
+
+        return this.getContextualIdentifierType(tokenIndex, tokens);
+    }
+
+    private getContextualIdentifierType(tokenIndex: number, tokens: Token[]): number {
+        const previousToken = this.findAdjacentDefaultToken(tokens, tokenIndex, -1);
+        if (previousToken && (previousToken.type === LPCLexer.ARROW || previousToken.type === LPCLexer.DOT)) {
+            return TOKEN_TYPE_INDEX.property;
+        }
+
+        const nextToken = this.findAdjacentDefaultToken(tokens, tokenIndex, 1);
+        if (nextToken && nextToken.type === LPCLexer.LPAREN) {
+            return TOKEN_TYPE_INDEX.function;
+        }
+
+        return TOKEN_TYPE_INDEX.variable;
+    }
+
+    private findAdjacentDefaultToken(tokens: Token[], tokenIndex: number, direction: -1 | 1): Token | undefined {
+        for (
+            let currentIndex = tokenIndex + direction;
+            currentIndex >= 0 && currentIndex < tokens.length;
+            currentIndex += direction
+        ) {
+            const token = tokens[currentIndex];
+            if (token.channel === LPCLexer.DEFAULT_TOKEN_CHANNEL) {
+                return token;
+            }
+        }
+
+        return undefined;
+    }
+
+    private getTokenTypeFromSymbol(symbolType: SymbolType): number {
+        switch (symbolType) {
+            case SymbolType.FUNCTION:
+                return TOKEN_TYPE_INDEX.function;
+            case SymbolType.STRUCT:
+            case SymbolType.CLASS:
+                return TOKEN_TYPE_INDEX.type;
+            case SymbolType.MEMBER:
+                return TOKEN_TYPE_INDEX.property;
+            case SymbolType.PARAMETER:
+            case SymbolType.VARIABLE:
+            case SymbolType.INHERIT:
+            default:
+                return TOKEN_TYPE_INDEX.variable;
+        }
+    }
+}

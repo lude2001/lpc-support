@@ -22,6 +22,7 @@ import { LPCSymbolProvider } from './symbolProvider';
 import { LPCReferenceProvider } from './referenceProvider';
 import { LPCRenameProvider } from './renameProvider';
 import { disposeParseCache, getParserCacheStats, clearParseCache } from './parseCache';
+import { CompletionInstrumentation } from './completion/completionInstrumentation';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -31,6 +32,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     // 初始化 Efun 文档管理器
     const efunDocsManager = new EfunDocsManager(context);
+    const completionInstrumentation = new CompletionInstrumentation();
+    context.subscriptions.push(completionInstrumentation);
 
     // 注册 efun 文档设置命令
     context.subscriptions.push(
@@ -321,12 +324,12 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(debugParseCmd);
 
     // 初始化代码补全提供程序
-    const completionProvider = new LPCCompletionItemProvider(efunDocsManager, macroManager);
+    const completionProvider = new LPCCompletionItemProvider(efunDocsManager, macroManager, completionInstrumentation);
     context.subscriptions.push(
         vscode.languages.registerCompletionItemProvider(
             'lpc',
             completionProvider,
-            '.', '->', '#'
+            '>', '#'
         )
     );
 
@@ -334,7 +337,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.workspace.onDidChangeTextDocument(event => {
             if (event.document.languageId === 'lpc') {
-                completionProvider.clearCache(event.document);
+                completionProvider.handleDocumentChange(event.document);
             }
         })
     );
@@ -476,14 +479,14 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('lpc.showPerformanceStats', () => {
             const stats = getParserCacheStats();
-            const memoryMB = (stats.memory / 1024 / 1024).toFixed(2);
-            vscode.window.showInformationMessage(
-                `LPC 性能统计: 缓存文档 ${stats.size} 个, 内存使用 ${memoryMB} MB`
-            );
+            completionInstrumentation.showReport(stats);
+            vscode.window.showInformationMessage(completionInstrumentation.formatSummary(stats));
         }),
         vscode.commands.registerCommand('lpc.clearCache', () => {
             clearParseCache();
-            vscode.window.showInformationMessage('LPC 解析缓存已清理');
+            completionProvider.clearCache();
+            completionInstrumentation.clear();
+            vscode.window.showInformationMessage('LPC 解析与补全缓存已清理');
         })
     );
 

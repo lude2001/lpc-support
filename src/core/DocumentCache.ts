@@ -239,27 +239,33 @@ export class DocumentCache<T> {
      */
     private setupAutoInvalidation(): void {
         // 监听文档变化
-        this.disposables.push(
-            vscode.workspace.onDidChangeTextDocument((event) => {
-                this.invalidateDocument(event.document.uri);
-            })
-        );
+        if (typeof vscode.workspace.onDidChangeTextDocument === 'function') {
+            this.disposables.push(
+                vscode.workspace.onDidChangeTextDocument((event) => {
+                    this.invalidateDocument(event.document.uri);
+                })
+            );
+        }
 
         // 监听文档保存（某些场景需要在保存时重新解析）
-        this.disposables.push(
-            vscode.workspace.onDidSaveTextDocument((document) => {
-                this.invalidateDocument(document.uri);
-            })
-        );
+        if (typeof vscode.workspace.onDidSaveTextDocument === 'function') {
+            this.disposables.push(
+                vscode.workspace.onDidSaveTextDocument((document) => {
+                    this.invalidateDocument(document.uri);
+                })
+            );
+        }
 
         // 监听文档删除
-        this.disposables.push(
-            vscode.workspace.onDidDeleteFiles((event) => {
-                event.files.forEach(uri => {
-                    this.invalidateDocument(uri);
-                });
-            })
-        );
+        if (typeof vscode.workspace.onDidDeleteFiles === 'function') {
+            this.disposables.push(
+                vscode.workspace.onDidDeleteFiles((event) => {
+                    event.files.forEach(uri => {
+                        this.invalidateDocument(uri);
+                    });
+                })
+            );
+        }
     }
 
     /**

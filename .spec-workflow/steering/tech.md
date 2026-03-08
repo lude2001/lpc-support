@@ -1,217 +1,243 @@
-# Technology Stack: LPC Support Extension
+# Technology Stack
 
 ## Project Type
 
-**VS Code Language Extension** - 专业的集成开发环境扩展，为LPC编程语言提供现代化的开发工具支持，包括语法分析、智能补全、错误诊断、远程编译等完整IDE功能。
+本项目是一个 **VS Code 桌面扩展**，不是独立的语言服务器、Web 应用或 CLI 工具。
+
+它运行在 VS Code Extension Host 中，围绕 LPC / FluffOS 的编辑器能力提供以下技术功能：
+
+- 语法解析与 AST 分析
+- 补全、跳转、引用、重命名、语义高亮、折叠、大纲等编辑器 Provider
+- 静态诊断与远程错误查看
+- 与 FluffOS 服务端接口和 GLM-4 API 的可选集成
 
 ## Core Technologies
 
 ### Primary Language(s)
-- **Language**: TypeScript 5.0+ (严格模式)
-- **Runtime**: Node.js (VS Code Extension Host环境)
-- **Build Tools**:
-  - esbuild (高性能打包编译)
-  - TypeScript Compiler (类型检查)
-  - antlr4ts-cli (语法解析器生成)
+
+- **Language**: TypeScript
+- **Compiler target**: ES2020
+- **Runtime**: Node.js in VS Code Extension Host
+- **Package manager**: npm
+- **Language-specific tools**:
+  - `typescript`
+  - `esbuild`
+  - `antlr4ts`
+  - `antlr4ts-cli`
 
 ### Key Dependencies/Libraries
 
-#### 核心框架依赖
-- **@types/vscode ^1.95.0**: VS Code扩展API类型定义
-- **vscode Engine ^1.80.0**: VS Code扩展运行时最低版本要求
-
-#### 语法解析引擎
-- **antlr4ts ^0.5.0-alpha.4**: ANTLR4 TypeScript运行时，提供专业语法解析能力
-- **antlr4ts-cli ^0.5.0-alpha.4**: ANTLR4语法生成器，从.g4文件生成TypeScript解析器
-
-#### 网络与数据处理
-- **axios ^1.12.1**: HTTP客户端，用于FluffOS服务器通信和在线文档获取
-- **cheerio ^1.0.0-rc.12**: 服务器端DOM解析，用于在线文档内容提取和处理
-
-#### 开发与测试工具
-- **jest ^29.7.0**: 单元测试框架
-- **ts-jest ^29.1.1**: Jest的TypeScript支持
-- **@vscode/test-electron ^2.3.8**: VS Code扩展集成测试框架
+- **VS Code Extension API / `@types/vscode`**: 扩展宿主 API 与类型定义
+- **`antlr4ts`**: LPC 词法和语法解析运行时
+- **`antlr4ts-cli`**: 从 `grammar/*.g4` 生成 `src/antlr/*`
+- **`axios`**: 远程编译、错误树、GLM-4、在线文档回退查询的 HTTP 客户端
+- **`cheerio`**: 已作为开发依赖存在，主要用于文档生成脚本与 HTML 处理
+- **`jest` + `ts-jest`**: 单元测试与集成测试
+- **`@vscode/test-electron`**: VS Code 扩展测试支持
+- **`rimraf`**: 构建产物清理
+- **`cross-env`**: 跨平台设置构建环境变量
 
 ### Application Architecture
 
-**Language Server Protocol (LSP) 风格架构** + **Provider模式**：
+项目采用 **单扩展进程 + Provider 模式 + 解析缓存 + 模块化服务** 的架构，而不是独立 LSP 进程。
 
-- **Extension Host**: VS Code扩展主进程，负责生命周期管理和API注册
-- **Provider Pattern**: 各功能模块实现VS Code标准Provider接口
-- **AST-Driven Architecture**: 基于ANTLR4语法树的深度语言理解
-- **Event-Driven**: 响应VS Code编辑器事件和用户交互
-- **Modular Plugin System**: 功能模块化，支持独立开发和测试
+- **Entry point**: `src/extension.ts` 统一注册命令、Provider 和视图
+- **Provider layer**: completion / definition / reference / rename / semantic tokens / symbols / folding / code actions
+- **Language analysis layer**:
+  - `src/antlr/` 生成解析器
+  - `src/parseCache.ts` 提供解析缓存
+  - `src/ast/` 提供 AST、符号表和补全辅助
+- **Diagnostics layer**:
+  - `src/diagnostics/DiagnosticsOrchestrator.ts` 统一调度诊断
+  - `src/collectors/` 与 `src/diagnostics/collectors/` 承载规则实现
+- **Workflow integration layer**:
+  - `src/compiler.ts` 负责远程编译
+  - `src/errorTreeDataProvider.ts` 负责错误树
+  - `src/efunDocs.ts` 负责 efun / simulated efun 文档
+  - `src/functionDocPanel.ts` 负责函数文档面板
+- **Utility/config layer**:
+  - `src/config.ts`
+  - `src/utils/`
+  - `config/*.json`
 
 ### Data Storage
-- **Primary Storage**:
-  - VS Code Settings (用户配置持久化)
-  - 文件系统缓存 (AST解析结果缓存)
-  - 内存缓存 (符号表、解析树)
-- **Caching Strategy**:
-  - 解析结果LRU缓存 (提升大文件性能)
-  - 符号索引增量更新
-  - 配置热更新机制
-- **Data Formats**:
-  - JSON (配置文件、文档数据)
-  - ANTLR4 ParseTree (语法树)
-  - VS Code TextEdit (代码修改指令)
+
+- **Primary storage**
+  - VS Code settings：用户配置项，例如 `lpc.includePath`、`lpc.simulatedEfunsPath`、`lpc.glm4.*`
+  - Extension global storage：`src/config.ts` 使用 `context.globalStoragePath` 保存编译服务器配置
+  - Repository config files：`config/lpc-config.json`、`config/efun-docs.json`
+- **Caching**
+  - 内存中的解析缓存，带容量、TTL 和清理机制
+  - 文档级补全缓存和继承解析缓存
+- **Data formats**
+  - JSON：配置、文档数据、服务器配置
+  - ANTLR Parse Tree：语法树
+  - VS Code `Diagnostic` / `CompletionItem` / `Hover` / `TextEdit`
+  - HTML / Markdown：函数文档与 Webview 展示
 
 ### External Integrations
 
-#### FluffOS MUD服务器集成
-- **Protocol**: HTTP/HTTPS RESTful API
-- **Authentication**: 基于Token或Basic Auth的服务器认证
-- **功能**: 远程编译、错误诊断、文件同步
+- **FluffOS compile server**
+  - `POST /update_code/update_file`
+  - 用于编译当前文件和批量编译
+- **FluffOS error viewer endpoints**
+  - `GET /error_info/get_compile_errors`
+  - `GET /error_info/get_runtime_errors`
+  - `GET /error_info/clear_all_errors`
+- **Mud Wiki**
+  - 当内置 efun 文档缺失时，按需回退查询 `https://mud.wiki`
+- **GLM-4 API**
+  - 用于生成 Javadoc 风格注释
+  - 通过 `lpc.glm4.apiKey`、`lpc.glm4.baseUrl`、`lpc.glm4.model` 等配置驱动
 
-#### 在线文档服务
-- **APIs**: FluffOS官方文档API、GitHub Raw API
-- **Protocol**: HTTPS GET请求
-- **数据格式**: HTML解析、Markdown处理
+### Monitoring & Dashboard Technologies (if applicable)
 
-#### AI服务集成
-- **GLM-4 API**: 智能代码注释生成
-- **Authentication**: API Key认证
-- **Protocol**: HTTPS POST (JSON payload)
+本项目当前没有独立的 Web dashboard。
+
+“可见性”主要来自 VS Code 内部能力：
+
+- Output Channel
+- Tree View (`lpcErrorTree`)
+- Webview Panel（函数文档）
+- 编辑器内 Diagnostic / Hover / Completion 等原生 UI
 
 ## Development Environment
 
 ### Build & Development Tools
-- **Build System**:
-  - npm scripts (任务编排)
-  - esbuild (快速打包，支持增量编译)
-  - TypeScript compiler (类型检查)
-- **Package Management**: npm (Node.js标准包管理器)
-- **Development Workflow**:
-  - Watch模式开发 (文件变更自动重编译)
-  - VS Code Extension Development Host (调试环境)
-  - 热重载支持 (开发时扩展自动重载)
+
+- **Build system**:
+  - `npm run build`
+  - `npm run generate-parser`
+  - `node esbuild.mjs`
+- **Bundling**:
+  - esbuild 将 `src/extension.ts` 打包到 `dist/extension.js`
+  - 构建后复制 `src/templates/functionDocPanel.html` 和 `src/templates/functionDocPanel.js` 到 `dist/templates/`
+- **Development workflow**:
+  - `npm run watch` 用于开发时持续构建
+  - 使用 VS Code Extension Development Host 调试扩展
 
 ### Code Quality Tools
-- **Static Analysis**:
-  - TypeScript严格模式 (完整类型检查)
-  - ESLint规则 (代码风格和质量检查)
-- **Testing Framework**:
-  - Jest (单元测试)
-  - VS Code Test Runner (集成测试)
-  - Coverage报告 (测试覆盖率)
-- **Documentation**:
-  - TSDoc注释 (API文档生成)
-  - README.md (用户文档)
-  - CHANGELOG.md (版本更新记录)
+
+- **Static analysis**
+  - TypeScript 编译检查
+  - `tsconfig.json` 启用 `strict: true`
+- **Formatting**
+  - 当前仓库没有已配置的 ESLint / Prettier / biome / dprint
+  - 风格约束主要依赖现有代码风格、TypeScript 编译器和评审约定
+- **Testing framework**
+  - Jest
+  - ts-jest
+  - VS Code mock (`tests/mocks/MockVSCode.ts`)
+- **Documentation**
+  - `README.md`
+  - `CHANGELOG.md`
+  - `.spec-workflow/steering/*`
+  - `项目文档/`
 
 ### Version Control & Collaboration
-- **VCS**: Git
-- **Branching Strategy**: GitHub Flow (feature branches + main)
-- **Code Review Process**:
-  - Pull Request工作流
-  - 自动化CI检查 (测试、构建、类型检查)
-  - Code Review必需审批
 
-### Extension Development Specifics
-- **Debug Configuration**: VS Code launch.json配置
-- **Extension Packaging**: vsce (Visual Studio Code Extension manager)
-- **Market Distribution**: VS Code Marketplace自动发布
-- **Version Management**: 语义化版本控制 (semantic versioning)
+- **VCS**: Git
+- **Repository host**: GitHub（由 `package.json` 中的 repository / bugs / homepage 可见）
+- **Branching / review**
+  - 仓库中未显式定义正式 branching strategy 文档
+  - 当前可确认的是 Conventional Commits 风格和基于 Pull Request 的协作预期
+- **Automation**
+  - 当前仓库未看到 `.github/` 工作流目录，因此不要假设已经存在 CI/CD
+
+### Dashboard Development (if applicable)
+
+不适用。当前产品没有独立 dashboard 子系统。
 
 ## Deployment & Distribution
 
-### Target Platform(s)
-- **Primary**: VS Code Desktop (Windows, macOS, Linux)
-- **Secondary**: VS Code Web (有限功能支持)
-- **Architecture Support**: x64, ARM64 (跟随VS Code支持)
-
-### Distribution Method
-- **主要渠道**: VS Code Marketplace (官方扩展商店)
-- **安装方式**:
-  - GUI: VS Code扩展面板搜索安装
-  - CLI: `code --install-extension ludexiang.lpc-support`
-  - 手动: .vsix文件本地安装
-
-### Installation Requirements
-- **必需**: VS Code 1.80.0或更高版本
-- **推荐**: Node.js 16+ (用于开发和高级功能)
-- **可选**: FluffOS MUD服务器 (远程编译功能)
-
-### Update Mechanism
-- **自动更新**: VS Code扩展自动更新机制
-- **版本策略**: 主版本.次版本.补丁版本
-- **发布频率**: 月度功能更新 + 及时bug修复
+- **Target platform(s)**
+  - VS Code Desktop
+  - 依赖 Node 侧扩展宿主，因此当前定位不是纯 Web 扩展
+- **Distribution method**
+  - VS Code Marketplace
+  - `.vsix` 打包分发
+- **Packaging**
+  - `npm run package` 构建并通过 `vsce` 打包
+- **Installation requirements**
+  - VS Code `^1.80.0`
+- **Update mechanism**
+  - 通过 VS Code 扩展更新机制和重新安装 `.vsix`
 
 ## Technical Requirements & Constraints
 
 ### Performance Requirements
-- **启动时间**: 扩展激活时间 < 2秒
-- **响应时间**:
-  - 代码补全响应 < 100ms
-  - 语法高亮更新 < 50ms
-  - 错误诊断更新 < 500ms
-- **内存使用**:
-  - 基础功能 < 50MB
-  - 大型项目缓存 < 200MB
-- **文件处理**: 支持10MB+的大型LPC文件
+
+- 编辑器补全、跳转和悬停必须保持可交互，不应因为常规文件解析明显卡住编辑
+- 诊断应在文档变更后快速刷新，但通过防抖和批处理控制开销
+- 解析缓存需要限制条目数、内存占用和存活时间
+- 大型 MUD 项目是重要目标场景，因此跨文件扫描必须优先考虑缓存和增量行为
 
 ### Compatibility Requirements
-- **VS Code版本**: 1.80.0+ (保持向前兼容)
-- **Node.js版本**: 16+ (Extension Host要求)
-- **操作系统**: Windows 10+, macOS 10.15+, Linux (主流发行版)
-- **LPC方言支持**: FluffOS (主要), LDMudlib (计划), MudOS (兼容)
+
+- **VS Code**: `^1.80.0`
+- **Node target in bundle**: `node16`
+- **TypeScript output target**: `ES2020`
+- **Language scope**
+  - 当前主要面向 FluffOS 风格 LPC
+  - 其他 LPC 方言可兼容部分语法，但不是当前 steering 中承诺的正式支持范围
 
 ### Security & Compliance
-- **数据隐私**:
-  - 用户代码不上传至第三方服务
-  - 配置数据本地存储
-  - 远程编译仅传输必要代码片段
-- **Network Security**:
-  - HTTPS强制加密通信
-  - 服务器证书验证
-  - 用户Token安全存储
+
+- **Secrets handling**
+  - GLM-4 API Key 通过 VS Code 配置保存
+  - 当前实现没有专门的密钥保险库抽象
+- **Network exposure**
+  - 远程编译、错误接口和在线文档抓取都依赖网络
+  - 所有网络能力都应视为可选增强，不能阻塞本地基础语言功能
+- **Trust model**
+  - 扩展默认信任用户配置的服务器地址和文档来源
+  - 对返回内容的健壮性处理仍需继续加强
 
 ### Scalability & Reliability
-- **项目规模**: 支持1000+文件的大型MUD项目
-- **并发处理**: 多文件并行解析和分析
-- **错误恢复**: 语法错误不影响其他功能正常运行
-- **缓存策略**: 智能缓存管理，避免内存泄漏
+
+- 当前架构适合单工作区、单扩展宿主内的中小到较大 LPC 项目
+- 对超大工程的可靠性主要依赖缓存、批处理和避免重复解析
+- 因为没有独立 worker / language server 进程，重型分析仍可能影响扩展宿主响应
+- 远程接口不可用时，本地语言能力应尽可能继续工作
 
 ## Technical Decisions & Rationale
 
 ### Decision Log
 
-1. **ANTLR4 vs 正则表达式语法分析**
-   - **选择**: ANTLR4语法解析器
-   - **理由**: 提供精确的语法树，支持复杂语言特性分析，可扩展性强
-   - **权衡**: 增加了复杂度但获得了专业级语言支持能力
+1. **ANTLR4 parser instead of regex-only language support**
+   - 选择原因：需要比 TextMate 语法高亮更深的语义理解，支撑 AST、符号表、诊断和复杂补全
+   - 代价：生成代码和语法维护成本更高
 
-2. **TypeScript严格模式**
-   - **选择**: 启用strict模式
-   - **理由**: 确保类型安全，减少运行时错误，提升代码质量
-   - **权衡**: 开发时间略增但长期维护成本显著降低
+2. **Single extension-host architecture instead of separate LSP server**
+   - 选择原因：实现成本更低，直接接入 VS Code Provider API，适合当前项目规模
+   - 代价：重型分析和缓存都在扩展宿主中完成，隔离性和并发能力有限
 
-3. **esbuild vs Webpack打包**
-   - **选择**: esbuild作为主要打包工具
-   - **理由**: 编译速度快10-100倍，配置简单，满足扩展打包需求
-   - **权衡**: 生态相对较新但性能优势明显
+3. **esbuild as the bundler**
+   - 选择原因：配置简单、构建速度快，足以覆盖当前扩展打包需求
+   - 代价：需要手动处理模板文件复制等构建后动作
 
-4. **Provider模式架构**
-   - **选择**: 采用VS Code标准Provider接口
-   - **理由**: 与VS Code生态完美集成，功能模块化，便于测试和维护
-   - **权衡**: 需要理解VS Code API但获得了标准化的扩展架构
+4. **In-memory parse cache with TTL / size limits**
+   - 选择原因：降低重复解析成本，提升编辑时反馈速度
+   - 代价：缓存失效和一致性管理更复杂
 
-5. **缓存策略设计**
-   - **选择**: 多层缓存 (内存+文件系统)
-   - **理由**: 平衡性能和资源消耗，支持大型项目
-   - **权衡**: 缓存管理复杂度增加但用户体验显著提升
+5. **Provider-oriented module split**
+   - 选择原因：贴合 VS Code 扩展模型，能按功能增量扩展
+   - 代价：跨 Provider 的共享能力需要通过额外服务层维护，容易形成重复逻辑
+
+6. **Local docs first, remote docs as fallback**
+   - 选择原因：保证离线和低延迟体验，减少外部依赖
+   - 代价：内置文档需要额外维护，远程回退解析也存在不确定性
+
+7. **Remote compilation as HTTP integration rather than embedded runtime**
+   - 选择原因：符合 LPC / FluffOS 项目常见部署方式，避免在扩展中承载驱动逻辑
+   - 代价：接口约定依赖项目后端，兼容性和错误处理需要持续适配
 
 ## Known Limitations
 
-- **WebAssembly支持**: ANTLR4 TypeScript版本尚不支持WASM，无法在VS Code Web版本中完整运行
-- **多线程解析**: 受Node.js单线程限制，超大项目解析可能阻塞UI线程
-- **内存优化**: 大型项目的符号表和AST缓存可能占用较多内存
-- **方言兼容性**: 目前主要针对FluffOS，其他LPC方言支持有待完善
-- **离线功能**: 部分功能（在线文档、AI助手）需要网络连接
-
-### 技术债务和改进计划
-- **性能优化**: 计划引入Worker线程处理大文件解析
-- **内存管理**: 实现更智能的缓存淘汰策略
-- **Web支持**: 探索ANTLR4 Web版本或替代方案
-- **多语言支持**: 扩展支持更多LPC方言和相关语言
+- 当前不是独立 Language Server，复杂分析可能影响扩展宿主性能
+- `src/antlr/` 为生成文件，语法调整成本较高，调试门槛也较高
+- 文档、编译、错误树都依赖外部接口或外部站点时，健壮性受网络影响
+- 当前没有正式配置的 lint / format 工具链，代码风格依赖人工维持
+- 当前没有可见的 CI 工作流，不应假设测试和打包在远端自动执行
+- Provider、AST、文档解析之间存在一定耦合，后续继续扩展时需要警惕重复逻辑和隐式依赖
+- 目前对 FluffOS 之外的 LPC 方言支持仍属机会性兼容，不应在产品层面过度承诺

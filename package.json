@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "ludexiang",
   "author": {
     "name": "ludexiang",
@@ -410,6 +410,18 @@
           "minimum": 1000000,
           "maximum": 50000000,
           "description": "解析缓存的最大内存使用量（字符数）"
+        },
+        "lpc.performance.enableMonitoring": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用解析缓存与补全链路的轻量性能监控"
+        },
+        "lpc.performance.completionMetricHistorySize": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "maximum": 200,
+          "description": "保留最近补全性能样本的数量，用于开发者诊断输出"
         },
         "lpc.performance.enableAsyncDiagnostics": {
           "type": "boolean",

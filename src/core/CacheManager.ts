@@ -406,6 +406,11 @@ export class CacheManager<T> {
         this.cleanupTimer = setInterval(() => {
             this.cleanup();
         }, this.config.cleanupInterval);
+
+        // 允许短生命周期进程在没有其他任务时正常退出，例如 Jest 单测。
+        if (typeof this.cleanupTimer.unref === 'function') {
+            this.cleanupTimer.unref();
+        }
     }
 
     private updateStats(): void {

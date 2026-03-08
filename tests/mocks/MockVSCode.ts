@@ -225,6 +225,12 @@ export enum CompletionItemKind {
     TypeParameter = 24
 }
 
+export enum CompletionTriggerKind {
+    Invoke = 0,
+    TriggerCharacter = 1,
+    TriggerForIncompleteCompletions = 2
+}
+
 export enum FileType {
     Unknown = 0,
     File = 1,
@@ -270,11 +276,34 @@ export class CompletionItem {
     public detail?: string;
     public documentation?: MarkdownString | string;
     public insertText?: string | SnippetString;
+    public sortText?: string;
+    public data?: any;
 
     constructor(
         public label: string,
         public kind?: CompletionItemKind
     ) {}
+}
+
+export class SemanticTokensLegend {
+    constructor(
+        public tokenTypes: string[],
+        public tokenModifiers: string[]
+    ) {}
+}
+
+export class SemanticTokensBuilder {
+    private data: Array<{ line: number; char: number; length: number; tokenType: number; tokenModifiers: number }> = [];
+
+    constructor(public legend?: SemanticTokensLegend) {}
+
+    push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void {
+        this.data.push({ line, char, length, tokenType, tokenModifiers });
+    }
+
+    build(): { data: Array<{ line: number; char: number; length: number; tokenType: number; tokenModifiers: number }> } {
+        return { data: this.data };
+    }
 }
 
 export class RelativePattern {
@@ -326,6 +355,7 @@ export const workspace = {
     onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     onDidOpenTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     onDidCloseTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    onDidDeleteFiles: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     findFiles: jest.fn().mockResolvedValue([]),
     fs: {
         readFile: jest.fn().mockResolvedValue(Buffer.from(''))

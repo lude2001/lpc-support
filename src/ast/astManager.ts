@@ -1,23 +1,31 @@
 import * as vscode from 'vscode';
-import { CharStreams, CommonTokenStream } from 'antlr4ts';
-import { ParseTree } from 'antlr4ts/tree/ParseTree';
-import { LPCLexer } from '../antlr/LPCLexer';
-import { LPCParser, SourceFileContext } from '../antlr/LPCParser';
+import { SourceFileContext } from '../antlr/LPCParser';
+import { clearParseCache, deleteDocumentCache, ParsedDoc } from '../parseCache';
 import { SymbolTable, SymbolType, Symbol as LPCSymbol } from './symbolTable';
 import { CompletionVisitor } from './completionVisitor';
+import { DocumentSemanticSnapshot } from '../completion/types';
+import { getTypeLookupName, normalizeLpcType } from './typeNormalization';
+import {
+    DocumentSemanticAnalysis,
+    DocumentSemanticSnapshotService
+} from '../completion/documentSemanticSnapshotService';
 
 export interface ParseResult {
     ast: SourceFileContext;
     symbolTable: SymbolTable;
     visitor: CompletionVisitor;
     parseErrors: vscode.Diagnostic[];
+    parsed?: ParsedDoc;
+    snapshot: DocumentSemanticSnapshot;
 }
 
 export class ASTManager {
-    private parseCache: Map<string, ParseResult> = new Map();
     private static instance: ASTManager;
+    private readonly snapshotService: DocumentSemanticSnapshotService;
 
-    private constructor() {}
+    private constructor() {
+        this.snapshotService = DocumentSemanticSnapshotService.getInstance();
+    }
 
     public static getInstance(): ASTManager {
         if (!ASTManager.instance) {
@@ -28,90 +36,8 @@ export class ASTManager {
 
     // 解析文档并构建AST和符号表
     public parseDocument(document: vscode.TextDocument, useCache: boolean = true): ParseResult {
-        const cacheKey = `${document.uri.toString()}_${document.version}`;
-        
-        // 检查缓存
-        if (useCache && this.parseCache.has(cacheKey)) {
-            return this.parseCache.get(cacheKey)!;
-        }
-
-        const text = document.getText();
-        const parseErrors: vscode.Diagnostic[] = [];
-
-        try {
-            // 创建词法分析器
-            const inputStream = CharStreams.fromString(text);
-            const lexer = new LPCLexer(inputStream);
-            
-            // 创建语法分析器
-            const tokenStream = new CommonTokenStream(lexer);
-            const parser = new LPCParser(tokenStream);
-            
-            // 添加错误监听器
-            parser.removeErrorListeners();
-            parser.addErrorListener({
-                syntaxError: (recognizer, offendingSymbol, line, charPositionInLine, msg, e) => {
-                    const diagnostic = new vscode.Diagnostic(
-                        new vscode.Range(line - 1, charPositionInLine, line - 1, charPositionInLine + 1),
-                        msg,
-                        vscode.DiagnosticSeverity.Error
-                    );
-                    parseErrors.push(diagnostic);
-                }
-            });
-
-            // 解析源文件
-            const ast = parser.sourceFile();
-
-            // 创建符号表
-            const symbolTable = new SymbolTable(document.uri.toString());
-            
-            // 创建并运行访问者
-            const visitor = new CompletionVisitor(symbolTable, document);
-            visitor.visit(ast);
-
-            const result: ParseResult = {
-                ast,
-                symbolTable,
-                visitor,
-                parseErrors
-            };
-
-            // 更新缓存
-            if (useCache) {
-                this.parseCache.set(cacheKey, result);
-                
-                // 限制缓存大小
-                if (this.parseCache.size > 50) {
-                    const firstKey = this.parseCache.keys().next().value;
-                    if (firstKey) {
-                        this.parseCache.delete(firstKey);
-                    }
-                }
-            }
-
-            return result;
-
-        } catch (error) {
-            console.error('Failed to parse document:', error);
-            
-            // 返回空的解析结果
-            const symbolTable = new SymbolTable(document.uri.toString());
-            const visitor = new CompletionVisitor(symbolTable, document);
-            
-            return {
-                ast: {} as SourceFileContext,
-                symbolTable,
-                visitor,
-                parseErrors: [
-                    new vscode.Diagnostic(
-                        new vscode.Range(0, 0, 0, 1),
-                        `Parse error: ${error}`,
-                        vscode.DiagnosticSeverity.Error
-                    )
-                ]
-            };
-        }
+        const analysis = this.snapshotService.getAnalysis(document, useCache);
+        return this.toParseResult(analysis);
     }
 
     // 获取指定位置的符号信息
@@ -131,7 +57,7 @@ export class ASTManager {
         // 转换为补全项，优化排序和展示
         symbols.forEach(symbol => {
             const item = new vscode.CompletionItem(symbol.name, this.getCompletionItemKind(symbol.type));
-            item.detail = `${symbol.type}: ${symbol.dataType}`;
+            item.detail = `${symbol.type}: ${normalizeLpcType(symbol.dataType)}`;
 
             // 设置排序优先级
             switch (symbol.type) {
@@ -171,12 +97,12 @@ export class ASTManager {
                 const paramInfo = symbol.parameters
                     .map(param => `${param.dataType} ${param.name}`)
                     .join(', ');
-                item.detail = `${symbol.dataType} ${symbol.name}(${paramInfo})`;
+                item.detail = `${normalizeLpcType(symbol.dataType)} ${symbol.name}(${paramInfo})`;
             }
 
             // 为结构体成员访问添加特殊处理
             if (symbol.type === SymbolType.MEMBER) {
-                item.detail = `成员: ${symbol.dataType} ${symbol.name}`;
+                item.detail = `成员: ${normalizeLpcType(symbol.dataType)} ${symbol.name}`;
             }
 
             completionItems.push(item);
@@ -203,7 +129,7 @@ export class ASTManager {
             }
 
             // 解析变量类型，支持复杂类型
-            const resolvedType = this.resolveComplexType(variableSymbol.dataType, result.symbolTable);
+            const resolvedType = this.resolveComplexType(variableSymbol.dataType);
 
             // 查找结构体或类定义
             const structSymbol = result.symbolTable.findStructDefinition(resolvedType);
@@ -218,17 +144,17 @@ export class ASTManager {
             // 转换成员为补全项
             allMembers.forEach((member, index) => {
                 const item = new vscode.CompletionItem(member.name, vscode.CompletionItemKind.Field);
-                item.detail = `${member.dataType} ${member.name}`;
+                item.detail = `${normalizeLpcType(member.dataType)} ${member.name}`;
                 item.sortText = `${index.toString().padStart(3, '0')}_${member.name}`;
 
                 // 创建丰富的文档
                 const markdown = new vscode.MarkdownString();
-                markdown.appendCodeblock(`${member.dataType} ${member.name}`, 'lpc');
+                markdown.appendCodeblock(`${normalizeLpcType(member.dataType)} ${member.name}`, 'lpc');
 
                 if (member.documentation) {
                     markdown.appendMarkdown(`\n\n${member.documentation}`);
                 } else {
-                    markdown.appendMarkdown(`\n\n结构体成员: ${member.dataType} 类型的 ${member.name}`);
+                    markdown.appendMarkdown(`\n\n结构体成员: ${normalizeLpcType(member.dataType)} 类型的 ${member.name}`);
                 }
 
                 // 如果成员来自继承的结构体，添加源信息
@@ -239,7 +165,7 @@ export class ASTManager {
                 item.documentation = markdown;
 
                 // 为函数类型成员添加调用片段
-                if (member.dataType === 'function' && member.parameters) {
+                if (getTypeLookupName(member.dataType) === 'function' && member.parameters) {
                     const paramSnippet = member.parameters
                         .map((param: any, paramIndex: number) => `\${${paramIndex + 1}:${param.name}}`)
                         .join(', ');
@@ -258,17 +184,8 @@ export class ASTManager {
     }
 
     // 解析复杂类型（支持指针、数组等）
-    private resolveComplexType(dataType: string, symbolTable: SymbolTable): string {
-        // 去除指针标记
-        let cleanType = dataType.replace(/\s*\*+\s*$/, '');
-
-        // 去除数组标记
-        cleanType = cleanType.replace(/\s*\[\s*\]\s*$/, '');
-
-        // 去除修饰符
-        cleanType = cleanType.replace(/^(private|protected|public|static|const)\s+/, '');
-
-        return cleanType.trim();
+    private resolveComplexType(dataType: string): string {
+        return getTypeLookupName(dataType);
     }
 
     // 获取包含继承关系的所有成员
@@ -430,24 +347,44 @@ export class ASTManager {
 
     // 清除指定文档的缓存
     public clearCache(documentUri: string): void {
-        const keysToRemove: string[] = [];
-        for (const key of this.parseCache.keys()) {
-            if (key.startsWith(documentUri)) {
-                keysToRemove.push(key);
-            }
-        }
-        keysToRemove.forEach(key => this.parseCache.delete(key));
+        const uri = vscode.Uri.parse(documentUri);
+        this.snapshotService.invalidate(uri);
+        deleteDocumentCache(uri);
     }
 
     // 清除所有缓存
     public clearAllCache(): void {
-        this.parseCache.clear();
+        this.snapshotService.clear();
+        clearParseCache();
     }
 
     // 获取诊断信息
     public getDiagnostics(document: vscode.TextDocument): vscode.Diagnostic[] {
         const result = this.parseDocument(document);
         return result.parseErrors;
+    }
+
+    public getSnapshot(document: vscode.TextDocument, useCache: boolean = true): DocumentSemanticSnapshot {
+        return this.snapshotService.getSnapshot(document, useCache);
+    }
+
+    public getBestAvailableSnapshot(document: vscode.TextDocument): DocumentSemanticSnapshot {
+        return this.snapshotService.getBestAvailableSnapshot(document);
+    }
+
+    public scheduleSnapshotRefresh(
+        document: vscode.TextDocument,
+        onReady?: (snapshot: DocumentSemanticSnapshot) => void
+    ): void {
+        this.snapshotService.scheduleRefresh(document, onReady);
+    }
+
+    public hasSnapshot(document: vscode.TextDocument): boolean {
+        return this.snapshotService.hasSnapshot(document);
+    }
+
+    public hasFreshSnapshot(document: vscode.TextDocument): boolean {
+        return this.snapshotService.hasFreshSnapshot(document);
     }
 
     private getCompletionItemKind(symbolType: SymbolType): vscode.CompletionItemKind {
@@ -461,5 +398,16 @@ export class ASTManager {
             case SymbolType.INHERIT: return vscode.CompletionItemKind.Module;
             default: return vscode.CompletionItemKind.Text;
         }
+    }
+
+    private toParseResult(analysis: DocumentSemanticAnalysis): ParseResult {
+        return {
+            ast: analysis.ast,
+            symbolTable: analysis.symbolTable,
+            visitor: analysis.visitor,
+            parseErrors: analysis.parseErrors,
+            parsed: analysis.parsed,
+            snapshot: analysis.snapshot
+        };
     }
 }
