@@ -14,13 +14,24 @@ function createDocument(fileName: string, content: string, version = 1): vscode.
         }
     }
 
+    const offsetAt = (position: vscode.Position): number => {
+        const lineStart = lineStarts[position.line] ?? content.length;
+        return Math.min(lineStart + position.character, content.length);
+    };
+
     return {
         uri: vscode.Uri.file(fileName),
         fileName,
         languageId: 'lpc',
         version,
         lineCount: lines.length,
-        getText: jest.fn(() => content),
+        getText: jest.fn((range?: vscode.Range) => {
+            if (!range) {
+                return content;
+            }
+
+            return content.slice(offsetAt(range.start), offsetAt(range.end));
+        }),
         lineAt: jest.fn((lineOrPosition: number | vscode.Position) => {
             const line = typeof lineOrPosition === 'number' ? lineOrPosition : lineOrPosition.line;
             return { text: lines[line] ?? '' };
@@ -36,7 +47,8 @@ function createDocument(fileName: string, content: string, version = 1): vscode.
             }
 
             return new vscode.Position(line, offset - lineStarts[line]);
-        })
+        }),
+        offsetAt: jest.fn((position: vscode.Position) => offsetAt(position))
     } as unknown as vscode.TextDocument;
 }
 
@@ -212,6 +224,37 @@ describe('LPCCompletionItemProvider', () => {
 
         expect((resolved.documentation as vscode.MarkdownString).value).toContain('local_call');
         expect((resolved.insertText as vscode.SnippetString).value).toBe('local_call(${1:message})');
+    });
+
+    test('renders variable documentation for the selected declarator only', async () => {
+        const content = [
+            'void demo() {',
+            '    string name, exp, file, *msg;',
+            '    ex',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'main.c'), content);
+
+        const result = await provider.provideCompletionItems(
+            document,
+            new vscode.Position(2, '    ex'.length),
+            { isCancellationRequested: false } as vscode.CancellationToken,
+            {} as vscode.CompletionContext
+        ) as vscode.CompletionItem[];
+
+        const expItem = result.find(item => item.label === 'exp');
+        expect(expItem).toBeDefined();
+        expect(expItem?.detail).toBe('string exp');
+
+        const resolved = await provider.resolveCompletionItem!(
+            expItem!,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        const documentation = (resolved.documentation as vscode.MarkdownString).value;
+        expect(documentation).toContain('string exp;');
+        expect(documentation).not.toContain('string name, exp, file, *msg;');
+        expect(documentation).not.toContain('stringname,exp,file,*msg');
     });
 
     test('records staged metrics for completion queries', async () => {

@@ -21,6 +21,7 @@ import {
     StructMemberContext,
     StructMemberListContext,
     TypeSpecContext,
+    VariableDeclaratorContext,
     VariableDeclContext,
     WhileStatementContext
 } from '../antlr/LPCParser';
@@ -226,7 +227,7 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
                 selectionRange: this.getTerminalRange(identifier),
                 scope: this.symbolTable.getCurrentScope(),
                 modifiers,
-                definition: this.getTextFromContext(ctx)
+                definition: this.buildVariableDefinition(ctx, declarator)
             };
 
             this.symbolTable.addSymbol(variableSymbol);
@@ -657,7 +658,27 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
     }
 
     private getTextFromContext(ctx: ParseTree): string {
+        const range = this.getRange(ctx);
+        const documentText = this.document.getText(range);
+
+        if (documentText) {
+            return documentText;
+        }
+
         return (ctx as { text?: string }).text || '';
+    }
+
+    private buildVariableDefinition(ctx: VariableDeclContext, declarator: VariableDeclaratorContext): string {
+        const modifiers = (ctx.MODIFIER?.() || []).map(modifier => modifier.text).join(' ');
+        const typeText = this.getTextFromContext(ctx.typeSpec()!).trim();
+        const declaratorText = this.getTextFromContext(declarator).trim();
+        const prefix = [modifiers, typeText].filter(Boolean).join(' ');
+
+        if (!prefix) {
+            return declaratorText ? `${declaratorText};` : '';
+        }
+
+        return declaratorText ? `${prefix} ${declaratorText};` : `${prefix};`;
     }
 
     private extractDirectiveValue(expression: ExpressionContext): string | null {
