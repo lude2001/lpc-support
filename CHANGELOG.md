@@ -2,7 +2,7 @@
 
 所有 LPC Support 扩展的重要变更都会记录在此文件中。
 
-## [Unreleased]
+## [Changelog]
 
 ## [0.2.4] - 2026-03-09
 
