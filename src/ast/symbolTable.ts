@@ -16,6 +16,7 @@ export interface Symbol {
     type: SymbolType;
     dataType: string;
     range: vscode.Range;
+    selectionRange?: vscode.Range;
     scope: Scope;
     documentation?: string;
     definition?: string;

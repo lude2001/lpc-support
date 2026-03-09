@@ -91,7 +91,19 @@ export class Position {
 }
 
 export class Range {
-    constructor(public start: Position, public end: Position) {}
+    public start: Position;
+    public end: Position;
+
+    constructor(start: Position | number, end: Position | number, endLine?: number, endCharacter?: number) {
+        if (start instanceof Position && end instanceof Position) {
+            this.start = start;
+            this.end = end;
+            return;
+        }
+
+        this.start = new Position(start as number, end as number);
+        this.end = new Position(endLine ?? start as number, endCharacter ?? end as number);
+    }
 
     get isEmpty(): boolean {
         return this.start.isEqual(this.end);
@@ -131,6 +143,25 @@ export class Range {
             start || this.start,
             end || this.end
         );
+    }
+}
+
+export class Location {
+    constructor(public uri: Uri, public range: Range) {}
+}
+
+export class WorkspaceEdit {
+    private readonly replacements = new Map<string, Array<{ range: Range; newText: string }>>();
+
+    replace(uri: Uri, range: Range, newText: string): void {
+        const key = uri.toString();
+        const existing = this.replacements.get(key) || [];
+        existing.push({ range, newText });
+        this.replacements.set(key, existing);
+    }
+
+    entries(): Array<[Uri, Array<{ range: Range; newText: string }>]> {
+        return Array.from(this.replacements.entries()).map(([key, edits]) => [Uri.parse(key), edits]);
     }
 }
 

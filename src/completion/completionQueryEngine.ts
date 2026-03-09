@@ -263,7 +263,7 @@ export class CompletionQueryEngine {
             : undefined;
 
         if (definition) {
-            candidates.push(...definition.members.map(member => ({
+            candidates.push(...definition.members.map((member): CompletionCandidate => ({
                 key: `member:${definition.sourceUri}:${definition.name}:${member.name}`,
                 label: member.name,
                 kind: member.parameters && member.parameters.length > 0

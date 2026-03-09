@@ -12,7 +12,6 @@ export type { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult
 // 收集器
 export { ObjectAccessCollector } from './collectors/ObjectAccessCollector';
 export { MacroUsageCollector } from './collectors/MacroUsageCollector';
-export { FunctionCallCollector } from './collectors/FunctionCallCollector';
 
 // 分析器
 export type { VariableInfo } from './analyzers/VariableAnalyzer';

@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import { getParsed } from './parseCache';
-import { LPCLexer } from './antlr/LPCLexer';
+import { resolveSymbolReferences } from './symbolReferenceResolver';
 
 export class LPCRenameProvider implements vscode.RenameProvider {
     async prepareRename(
@@ -8,8 +7,7 @@ export class LPCRenameProvider implements vscode.RenameProvider {
         position: vscode.Position,
         _token: vscode.CancellationToken
     ): Promise<vscode.Range | undefined> {
-        const wordRange = document.getWordRangeAtPosition(position);
-        return wordRange; // allow rename if have word
+        return resolveSymbolReferences(document, position)?.wordRange;
     }
 
     async provideRenameEdits(
@@ -19,20 +17,11 @@ export class LPCRenameProvider implements vscode.RenameProvider {
         _token: vscode.CancellationToken
     ): Promise<vscode.WorkspaceEdit> {
         const edit = new vscode.WorkspaceEdit();
-        const wordRange = document.getWordRangeAtPosition(position);
-        if (!wordRange) return edit;
-        const oldName = document.getText(wordRange);
+        const references = resolveSymbolReferences(document, position);
+        if (!references) return edit;
 
-        const { tokens: tokenStream } = getParsed(document);
-
-        for (const tok of tokenStream.getTokens()) {
-            if (tok.channel !== LPCLexer.DEFAULT_TOKEN_CHANNEL) continue;
-            if (tok.type === LPCLexer.STRING_LITERAL || tok.type === LPCLexer.LINE_COMMENT || tok.type === LPCLexer.BLOCK_COMMENT) continue;
-            if (tok.type === LPCLexer.Identifier && tok.text === oldName) {
-                const start = document.positionAt(tok.startIndex);
-                const end = document.positionAt(tok.stopIndex + 1);
-                edit.replace(document.uri, new vscode.Range(start, end), newName);
-            }
+        for (const match of references.matches) {
+            edit.replace(document.uri, match.range, newName);
         }
         return edit;
     }

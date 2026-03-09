@@ -134,6 +134,7 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
                 ? this.extractDeclaredType(ctx.typeSpec()!, this.getPointerCount(ctx))
                 : 'void',
             range,
+            selectionRange: this.getTerminalRange(ctx.Identifier()),
             scope: this.symbolTable.getCurrentScope(),
             modifiers: (ctx.MODIFIER?.() || []).map(modifier => modifier.text),
             parameters: [],
@@ -187,6 +188,7 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
                 ? this.extractDeclaredType(ctx.typeSpec()!, this.getPointerCount(ctx))
                 : 'mixed',
             range: this.getRange(ctx),
+            selectionRange: this.getTerminalRange(identifier),
             scope: this.symbolTable.getCurrentScope(),
             definition: this.getTextFromContext(ctx)
         };
@@ -221,6 +223,7 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
                 type: SymbolType.VARIABLE,
                 dataType: composeLpcType(baseType, this.getPointerCount(declarator)),
                 range: this.getRange(declarator),
+                selectionRange: this.getTerminalRange(identifier),
                 scope: this.symbolTable.getCurrentScope(),
                 modifiers,
                 definition: this.getTextFromContext(ctx)
@@ -244,6 +247,7 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
             type: SymbolType.STRUCT,
             dataType: structName,
             range,
+            selectionRange: this.getTerminalRange(ctx.Identifier()),
             scope: this.symbolTable.getCurrentScope(),
             members: [],
             definition: this.getTextFromContext(ctx)
@@ -273,6 +277,7 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
             type: SymbolType.CLASS,
             dataType: className,
             range,
+            selectionRange: this.getTerminalRange(ctx.Identifier()),
             scope: this.symbolTable.getCurrentScope(),
             members: [],
             definition: this.getTextFromContext(ctx)
@@ -314,6 +319,7 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
             type: SymbolType.MEMBER,
             dataType: this.extractDeclaredType(typeSpec, this.getPointerCount(ctx)),
             range: this.getRange(ctx),
+            selectionRange: this.getTerminalRange(identifier),
             scope: this.symbolTable.getCurrentScope(),
             definition: this.getTextFromContext(ctx)
         };
@@ -471,6 +477,7 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
                         ? this.extractDeclaredType(foreachVar.typeSpec()!, this.getPointerCount(foreachVar))
                         : 'mixed',
                     range: this.getRange(foreachVar),
+                    selectionRange: this.getTerminalRange(identifier),
                     scope: this.symbolTable.getCurrentScope(),
                     definition: this.getTextFromContext(foreachVar),
                     documentation: 'foreach 迭代变量'
@@ -603,6 +610,23 @@ export class CompletionVisitor extends AbstractParseTreeVisitor<any> {
             console.debug('Error getting range from context:', error);
             return this.getDefaultRange();
         }
+    }
+
+    private getTerminalRange(node: TerminalNode | undefined): vscode.Range | undefined {
+        if (!node?.symbol) {
+            return undefined;
+        }
+
+        const start = new vscode.Position(
+            Math.max(0, node.symbol.line - 1),
+            Math.max(0, node.symbol.charPositionInLine)
+        );
+        const end = new vscode.Position(
+            Math.max(0, node.symbol.line - 1),
+            Math.max(0, node.symbol.charPositionInLine + (node.text?.length ?? 1))
+        );
+
+        return new vscode.Range(start, end);
     }
 
     private inferRangeFromDocument(ctx: ParseTree): vscode.Range {

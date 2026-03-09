@@ -29,11 +29,15 @@ export class TestHelper {
                 if (!range) {
                     return content;
                 }
-                // 简化的范围文本提取
-                return content.substring(
-                    range.start.character,
-                    range.end.character
-                );
+
+                const startOffset = lines
+                    .slice(0, range.start.line)
+                    .reduce((total, line) => total + line.length + 1, 0) + range.start.character;
+                const endOffset = lines
+                    .slice(0, range.end.line)
+                    .reduce((total, line) => total + line.length + 1, 0) + range.end.character;
+
+                return content.substring(startOffset, endOffset);
             },
 
             lineAt: (line: number) => ({
