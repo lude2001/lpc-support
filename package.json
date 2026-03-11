@@ -423,6 +423,13 @@
           "maximum": 200,
           "description": "保留最近补全性能样本的数量，用于开发者诊断输出"
         },
+        "lpc.format.indentSize": {
+          "type": "number",
+          "default": 4,
+          "minimum": 2,
+          "maximum": 8,
+          "description": "LPC formatter indentation size"
+        },
         "lpc.performance.enableAsyncDiagnostics": {
           "type": "boolean",
           "default": true,

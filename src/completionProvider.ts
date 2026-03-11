@@ -32,6 +32,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
     private readonly projectSymbolIndex: ProjectSymbolIndex;
     private readonly queryEngine: CompletionQueryEngine;
     private readonly instrumentation: CompletionInstrumentation;
+    private readonly staticItems: vscode.CompletionItem[];
 
     constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager, instrumentation?: CompletionInstrumentation) {
         this.efunDocsManager = efunDocsManager;
@@ -49,6 +50,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
                 getAllSimulatedFunctions: () => this.efunDocsManager.getAllSimulatedFunctions()
             }
         });
+        this.staticItems = this.buildStaticItems();
     }
 
     public provideCompletionItems(
@@ -420,6 +422,14 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
         };
 
         return item;
+    }
+
+    private buildStaticItems(): vscode.CompletionItem[] {
+        return this.efunDocsManager.getAllFunctions().map((name) => {
+            const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
+            this.applyEfunDocumentation(item, this.efunDocsManager.getStandardDoc(name));
+            return item;
+        });
     }
 
     private getSortPrefix(group: CompletionCandidate['sortGroup']): string {

@@ -76,7 +76,7 @@
 - Modify: `package.json`
 - Modify: `tests/mocks/MockVSCode.ts`
 
-- [ ] **Step 1: 写失败测试，确认扩展会注册文档格式化与选区格式化 Provider**
+- [x] **Step 1: 写失败测试，确认扩展会注册文档格式化与选区格式化 Provider**
 
 ```ts
 import * as vscode from 'vscode';
@@ -96,12 +96,12 @@ test('activate 注册 LPC 文档与选区格式化 provider', () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run: `npx jest src/__tests__/formatterProvider.test.ts --runInBand`
 Expected: FAIL，提示 mock 中未定义注册方法或扩展入口未注册 formatter
 
-- [ ] **Step 3: 在 mock、配置读取和扩展入口中补齐最小注册链路**
+- [x] **Step 3: 在 mock、配置读取和扩展入口中补齐最小注册链路**
 
 ```ts
 // tests/mocks/MockVSCode.ts
@@ -116,7 +116,7 @@ context.subscriptions.push(
 );
 ```
 
-- [ ] **Step 4: 在 `package.json` 中加入最小配置项骨架**
+- [x] **Step 4: 在 `package.json` 中加入最小配置项骨架**
 
 ```json
 "lpc.format.indentSize": {
@@ -128,7 +128,7 @@ context.subscriptions.push(
 }
 ```
 
-- [ ] **Step 5: 重新运行测试并确认通过**
+- [x] **Step 5: 重新运行测试并确认通过**
 
 Run: `npx jest src/__tests__/formatterProvider.test.ts --runInBand`
 Expected: PASS
@@ -148,7 +148,7 @@ git commit -m "feat(formatter): register formatter providers"
 - Create: `src/__tests__/formattingService.test.ts`
 - Create: `src/__tests__/rangeFormatting.test.ts`
 
-- [ ] **Step 1: 写失败测试，覆盖语法错误拒绝和非完整选区拒绝**
+- [x] **Step 1: 写失败测试，覆盖语法错误拒绝和非完整选区拒绝**
 
 ```ts
 test('有语法错误时拒绝整文格式化', async () => {
@@ -166,12 +166,12 @@ test('选区不覆盖完整节点时拒绝格式化', async () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run: `npx jest src/__tests__/formattingService.test.ts src/__tests__/rangeFormatting.test.ts --runInBand`
 Expected: FAIL，提示 `FormattingService` / `findFormatTarget` 缺失
 
-- [ ] **Step 3: 实现最小拒绝逻辑**
+- [x] **Step 3: 实现最小拒绝逻辑**
 
 ```ts
 if (parsed.diagnostics.length > 0) {
@@ -183,13 +183,13 @@ if (!target) {
 }
 ```
 
-- [ ] **Step 4: 让服务层暂时返回“原文替换 edit”，只打通链路**
+- [x] **Step 4: 让服务层暂时返回“原文替换 edit”，只打通链路**
 
 ```ts
 return [vscode.TextEdit.replace(fullRange, document.getText(fullRange))];
 ```
 
-- [ ] **Step 5: 重新运行测试并确认通过**
+- [x] **Step 5: 重新运行测试并确认通过**
 
 Run: `npx jest src/__tests__/formattingService.test.ts src/__tests__/rangeFormatting.test.ts --runInBand`
 Expected: PASS
@@ -213,7 +213,7 @@ git commit -m "feat(formatter): add safe formatter entry conditions"
 - Create: `src/__tests__/formatPrinter.test.ts`
 - Modify: `src/formatter/FormattingService.ts`
 
-- [ ] **Step 1: 写失败测试，覆盖函数、`if/else`、循环、匿名函数的 Allman 布局**
+- [x] **Step 1: 写失败测试，覆盖函数、`if/else`、循环、匿名函数的 Allman 布局**
 
 ```ts
 test('普通函数与控制流按 Allman 输出', () => {
@@ -239,12 +239,12 @@ test('匿名函数按小型 Allman 函数输出', () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run: `npx jest src/__tests__/formatPrinter.test.ts --runInBand`
 Expected: FAIL，输出仍为原文或 printer 缺失
 
-- [ ] **Step 3: 构建最小中间模型，只覆盖函数、块、控制流、匿名函数**
+- [x] **Step 3: 构建最小中间模型，只覆盖函数、块、控制流、匿名函数**
 
 ```ts
 export interface FormatNode {
@@ -254,7 +254,7 @@ export interface FormatNode {
 }
 ```
 
-- [ ] **Step 4: 在 printer 中实现 Allman 和基础空格标准化**
+- [x] **Step 4: 在 printer 中实现 Allman 和基础空格标准化**
 
 ```ts
 printBlock(header: string, children: FormatNode[]): string {
@@ -262,7 +262,7 @@ printBlock(header: string, children: FormatNode[]): string {
 }
 ```
 
-- [ ] **Step 5: 重新运行测试并确认通过**
+- [x] **Step 5: 重新运行测试并确认通过**
 
 Run: `npx jest src/__tests__/formatPrinter.test.ts src/__tests__/formattingService.test.ts --runInBand`
 Expected: PASS
@@ -283,7 +283,7 @@ git commit -m "feat(formatter): print core LPC blocks in Allman style"
 - Modify: `src/__tests__/formatPrinter.test.ts`
 - Create: `src/__tests__/formatterIntegration.test.ts`
 
-- [ ] **Step 1: 写失败测试，覆盖 `mapping`、二维数组、嵌套 `mapping`、`new(..., field : value)`**
+- [x] **Step 1: 写失败测试，覆盖 `mapping`、二维数组、嵌套 `mapping`、`new(..., field : value)`**
 
 ```ts
 test('mapping 与二维数组强制块状展开且不加尾随逗号', () => {
@@ -302,18 +302,18 @@ test('new(..., field : value) 按结构化数据块布局', () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run: `npx jest src/__tests__/formatPrinter.test.ts src/__tests__/formatterIntegration.test.ts --runInBand`
 Expected: FAIL，结构化数据仍保持单行或尾随逗号规则错误
 
-- [ ] **Step 3: 为结构化数据增加专用节点和 printer 分支**
+- [x] **Step 3: 为结构化数据增加专用节点和 printer 分支**
 
 ```ts
 kind: 'mapping' | 'array' | 'struct-init' | 'class-init' | 'new-init'
 ```
 
-- [ ] **Step 4: 实现递归块状展开**
+- [x] **Step 4: 实现递归块状展开**
 
 ```ts
 printCollection(items: FormatNode[]): string {
@@ -321,7 +321,7 @@ printCollection(items: FormatNode[]): string {
 }
 ```
 
-- [ ] **Step 5: 重新运行测试并确认通过**
+- [x] **Step 5: 重新运行测试并确认通过**
 
 Run: `npx jest src/__tests__/formatPrinter.test.ts src/__tests__/formatterIntegration.test.ts --runInBand`
 Expected: PASS
@@ -340,7 +340,7 @@ git commit -m "feat(formatter): format structured LPC data blocks"
 - Modify: `src/formatter/printer/FormatPrinter.ts`
 - Modify: `src/__tests__/formatterIntegration.test.ts`
 
-- [ ] **Step 1: 写失败测试，覆盖 `struct/class` 定义、`case 1..5` 和 `foreach (ref mixed item in arr)`**
+- [x] **Step 1: 写失败测试，覆盖 `struct/class` 定义、`case 1..5` 和 `foreach (ref mixed item in arr)`**
 
 ```ts
 test('struct 与 class 定义按成员逐行布局', () => {
@@ -357,12 +357,12 @@ test('foreach ref 保持类型顺序和关键字位置', () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run: `npx jest src/__tests__/formatterIntegration.test.ts --runInBand`
 Expected: FAIL，`struct/class` 或 `switch/foreach` 输出不符合预期
 
-- [ ] **Step 3: 实现对应 builder / printer 分支**
+- [x] **Step 3: 实现对应 builder / printer 分支**
 
 ```ts
 // struct/class member printing
@@ -370,7 +370,7 @@ Expected: FAIL，`struct/class` 或 `switch/foreach` 输出不符合预期
 // foreach formatter preserves ref before type/name
 ```
 
-- [ ] **Step 4: 重新运行测试并确认通过**
+- [x] **Step 4: 重新运行测试并确认通过**
 
 Run: `npx jest src/__tests__/formatterIntegration.test.ts --runInBand`
 Expected: PASS
@@ -392,7 +392,7 @@ git commit -m "feat(formatter): support lpc structural syntax cases"
 - Modify: `src/formatter/model/FormatModelBuilder.ts`
 - Modify: `src/formatter/printer/FormatPrinter.ts`
 
-- [ ] **Step 1: 写失败测试，覆盖行尾注释提升、函数前注释跟随、Javadoc `*` 对齐**
+- [x] **Step 1: 写失败测试，覆盖行尾注释提升、函数前注释跟随、Javadoc `*` 对齐**
 
 ```ts
 test('多行展开时将行尾注释提升成独立注释', () => {
@@ -413,12 +413,12 @@ test('Javadoc 只规范化星号对齐', () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run: `npx jest src/__tests__/commentFormatting.test.ts --runInBand`
 Expected: FAIL，注释仍然停留在原位置或 Javadoc 未对齐
 
-- [ ] **Step 3: 基于 `TokenTriviaIndex` 实现注释归属**
+- [x] **Step 3: 基于 `TokenTriviaIndex` 实现注释归属**
 
 ```ts
 // 函数/块前注释附着到下一个节点
@@ -426,7 +426,7 @@ Expected: FAIL，注释仍然停留在原位置或 Javadoc 未对齐
 // 结构化数据内部注释保守处理
 ```
 
-- [ ] **Step 4: 重新运行测试并确认通过**
+- [x] **Step 4: 重新运行测试并确认通过**
 
 Run: `npx jest src/__tests__/commentFormatting.test.ts src/__tests__/tokenTriviaIndex.test.ts --runInBand`
 Expected: PASS
@@ -448,7 +448,7 @@ git commit -m "feat(formatter): preserve and normalize comment ownership"
 - Modify: `src/formatter/model/FormatModelBuilder.ts`
 - Modify: `src/formatter/FormattingService.ts`
 
-- [ ] **Step 1: 写失败测试，覆盖简单宏、复杂多行宏保守处理、`@TAG` / `@@TAG` 结束行列 0 约束**
+- [x] **Step 1: 写失败测试，覆盖简单宏、复杂多行宏保守处理、`@TAG` / `@@TAG` 结束行列 0 约束**
 
 ```ts
 test('简单宏允许规范空格', () => {
@@ -468,19 +468,19 @@ test('heredoc 正文不动且结束行保持列 0', () => {
 });
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run: `npx jest src/__tests__/macroFormatting.test.ts src/__tests__/heredocFormatting.test.ts --runInBand`
 Expected: FAIL，宏分类或 heredoc 守卫缺失
 
-- [ ] **Step 3: 实现宏安全分类与 heredoc 守卫**
+- [x] **Step 3: 实现宏安全分类与 heredoc 守卫**
 
 ```ts
 export function classifyMacro(text: string): 'safe' | 'unsafe' { ... }
 export function canSafelyFormatDelimitedText(node: FormatTarget): boolean { ... }
 ```
 
-- [ ] **Step 4: 对局部选中 heredoc / array delimiter 正文的情况直接拒绝**
+- [x] **Step 4: 对局部选中 heredoc / array delimiter 正文的情况直接拒绝**
 
 ```ts
 if (target.kind === 'heredoc-body' || target.kind === 'array-delimiter-body') {
@@ -488,7 +488,7 @@ if (target.kind === 'heredoc-body' || target.kind === 'array-delimiter-body') {
 }
 ```
 
-- [ ] **Step 5: 重新运行测试并确认通过**
+- [x] **Step 5: 重新运行测试并确认通过**
 
 Run: `npx jest src/__tests__/macroFormatting.test.ts src/__tests__/heredocFormatting.test.ts src/__tests__/rangeFormatting.test.ts --runInBand`
 Expected: PASS
@@ -507,7 +507,7 @@ git commit -m "feat(formatter): guard macros and delimited text blocks"
 - Modify: `CHANGELOG.md`
 - Modify: `src/__tests__/formatterIntegration.test.ts`
 
-- [ ] **Step 1: 补一个端到端回归测试，覆盖整文格式化、选区格式化、语法错误拒绝**
+- [x] **Step 1: 补一个端到端回归测试，覆盖整文格式化、选区格式化、语法错误拒绝**
 
 ```ts
 test('formatter 端到端行为符合首版约束', async () => {
@@ -517,12 +517,12 @@ test('formatter 端到端行为符合首版约束', async () => {
 });
 ```
 
-- [ ] **Step 2: 运行集成测试并修正缺口**
+- [x] **Step 2: 运行集成测试并修正缺口**
 
 Run: `npx jest src/__tests__/formatterIntegration.test.ts --runInBand`
 Expected: FAIL 后补齐，最终 PASS
 
-- [ ] **Step 3: 更新 README 和 CHANGELOG**
+- [x] **Step 3: 更新 README 和 CHANGELOG**
 
 ```md
 - 新增 LPC 文档格式化和选区格式化
@@ -530,7 +530,7 @@ Expected: FAIL 后补齐，最终 PASS
 - heredoc / array delimiter / 复杂宏采用保守安全策略
 ```
 
-- [ ] **Step 4: 跑最终验证**
+- [x] **Step 4: 跑最终验证**
 
 Run: `npx jest src/__tests__/formatterProvider.test.ts src/__tests__/formattingService.test.ts src/__tests__/formatPrinter.test.ts src/__tests__/rangeFormatting.test.ts src/__tests__/commentFormatting.test.ts src/__tests__/macroFormatting.test.ts src/__tests__/heredocFormatting.test.ts src/__tests__/formatterIntegration.test.ts --runInBand`
 Expected: PASS

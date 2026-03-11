@@ -4,6 +4,16 @@
 
 ## [Changelog]
 
+## [0.2.7] - 2026-03-11
+
+### 首版格式化支持
+
+- 新增 LPC 文档格式化和选区格式化入口，扩展激活后会为 `lpc` 语言注册对应 provider。
+- 新增基于语法模型的首版 formatter，支持函数、控制流、匿名函数、`struct/class`、`switch` 范围标签及部分 `foreach` 头部的 Allman 风格输出。
+- 新增结构化数据布局，支持 `mapping`、数组和 `new(..., field : value)` 的块状展开。
+- 新增 `lpc.format.indentSize` 配置项，用于控制 formatter 缩进宽度。
+- 对复杂多行宏、heredoc 等高风险文本块采用保守守卫策略，避免破坏原始 token 顺序与结束标记位置。
+
 ## [0.2.6] - 2026-03-09
 
 ### 补全体验修复
