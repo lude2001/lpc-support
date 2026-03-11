@@ -2,13 +2,48 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
-import { DocumentSemanticSnapshot } from '../completion/types';
 import { SymbolTable } from '../ast/symbolTable';
+import { SemanticSnapshot } from '../semantic/semanticSnapshot';
+import { createSyntaxDocument, SyntaxKind } from '../syntax/types';
 
-function createSnapshot(uri: string): DocumentSemanticSnapshot {
+function createSnapshot(uriPath: string): SemanticSnapshot {
+    const uri = vscode.Uri.file(uriPath).toString();
+
     return {
-        uri: vscode.Uri.file(uri).toString(),
+        uri,
         version: 1,
+        syntax: createSyntaxDocument({
+            parsed: {
+                uri,
+                version: 1,
+                text: '',
+                tokenStream: {} as any,
+                tokens: {} as any,
+                allTokens: [],
+                visibleTokens: [],
+                hiddenTokens: [],
+                tokenTriviaIndex: {} as any,
+                tree: {} as any,
+                diagnostics: [],
+                createdAt: Date.now(),
+                lastAccessed: Date.now(),
+                parseTimeMs: 0,
+                parseTime: 0,
+                size: 0,
+                layoutTriviaSource: 'lexer-hidden-channel'
+            },
+            root: {
+                kind: SyntaxKind.SourceFile,
+                category: 'document',
+                range: new vscode.Range(0, 0, 0, 0),
+                tokenRange: { start: 0, end: 0 },
+                children: [],
+                leadingTrivia: [],
+                trailingTrivia: [],
+                isMissing: false,
+                isOpaque: false
+            }
+        }),
         parseDiagnostics: [],
         exportedFunctions: [],
         localScopes: [],
@@ -16,7 +51,7 @@ function createSnapshot(uri: string): DocumentSemanticSnapshot {
         inheritStatements: [],
         includeStatements: [],
         macroReferences: [],
-        symbolTable: new SymbolTable(vscode.Uri.file(uri).toString()),
+        symbolTable: new SymbolTable(uri),
         createdAt: Date.now()
     };
 }

@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
-import { ParsedDoc } from '../../parseCache';
-import { IDiagnosticCollector } from '../types';
+import { DiagnosticContext, IDiagnosticCollector } from '../types';
 import { MacroManager } from '../../macroManager';
+import { ParsedDocument } from '../../parser/types';
+import { SyntaxKind, SyntaxNode } from '../../syntax/types';
+
+const VALID_OBJECT_NAME_PATTERN = /^[A-Z][A-Z0-9_]*(?:_D)?$/;
+const MACRO_OBJECT_NAME_PATTERN = /^[A-Z][A-Z0-9_]*_D$/;
+const MACRO_CANDIDATE_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
  * 对象访问检查收集器
@@ -10,70 +15,49 @@ import { MacroManager } from '../../macroManager';
 export class ObjectAccessCollector implements IDiagnosticCollector {
     public readonly name = 'ObjectAccessCollector';
 
-    // 预编译的正则表达式
-    private readonly objectAccessRegex = /\b([A-Z_][A-Z0-9_]*)\s*(->|\.)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\()?/g;
-    private readonly macroDefRegex = /\b([A-Z_][A-Z0-9_]*)\b/;
-
     constructor(private macroManager?: MacroManager) {}
 
-    async collect(document: vscode.TextDocument, _parsed: ParsedDoc): Promise<vscode.Diagnostic[]> {
-        const diagnostics: vscode.Diagnostic[] = [];
-        const text = document.getText();
+    async collect(
+        _document: vscode.TextDocument,
+        _parsed: ParsedDocument,
+        context?: DiagnosticContext
+    ): Promise<vscode.Diagnostic[]> {
+        const syntax = context?.syntax;
+        if (!syntax) {
+            return [];
+        }
 
         // 获取配置
         const config = vscode.workspace.getConfiguration('lpc.performance');
         const batchSize = config.get<number>('batchSize', 50);
-
-        // 收集所有匹配项
-        const matches: Array<{
-            fullMatch: string;
-            object: string;
-            accessor: string;
-            member: string;
-            isFunction: boolean;
-            startPos: number;
-            endPos: number;
-        }> = [];
-
-        this.objectAccessRegex.lastIndex = 0;
-        let match: RegExpExecArray | null;
-
-        while ((match = this.objectAccessRegex.exec(text)) !== null) {
-            const [fullMatch, object, accessor, member, isFunction] = match;
-            matches.push({
-                fullMatch,
-                object,
-                accessor,
-                member,
-                isFunction: isFunction !== undefined,
-                startPos: match.index,
-                endPos: match.index + fullMatch.length
-            });
-        }
+        const memberAccesses = syntax.nodes.filter((node) => node.kind === SyntaxKind.MemberAccessExpression);
+        const diagnostics: vscode.Diagnostic[] = [];
 
         // 分批处理匹配项
         let processedCount = 0;
-        for (const matchInfo of matches) {
-            const { object, accessor, member, isFunction, startPos, endPos } = matchInfo;
+        for (const memberAccess of memberAccesses) {
+            const receiver = this.extractReceiver(memberAccess);
+            if (!receiver) {
+                continue;
+            }
 
             // 检查宏定义
-            if (/^[A-Z][A-Z0-9_]*_D$/.test(object)) {
-                await this.checkMacroUsage(object, startPos, document, diagnostics);
+            if (receiver.isMacroObject) {
+                await this.checkMacroUsage(receiver.objectExpression);
                 continue;
             }
 
             // 检查对象命名规范
-            if (!/^[A-Z][A-Z0-9_]*(?:_D)?$/.test(object)) {
+            if (!receiver.isMacroCandidate) {
+                continue;
+            }
+
+            if (!VALID_OBJECT_NAME_PATTERN.test(receiver.objectExpression)) {
                 diagnostics.push(this.createDiagnostic(
-                    this.getRange(document, startPos, object.length),
+                    receiver.range,
                     '对象名应该使用大写字母和下划线，例如: USER_OB',
                     vscode.DiagnosticSeverity.Warning
                 ));
-            }
-
-            // 检查函数调用
-            if (isFunction) {
-                this.checkFunctionCall(text, startPos, endPos, document, diagnostics);
             }
 
             processedCount++;
@@ -89,97 +73,23 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
     /**
      * 检查宏使用
      */
-    private async checkMacroUsage(
-        object: string,
-        startPos: number,
-        document: vscode.TextDocument,
-        diagnostics: vscode.Diagnostic[]
-    ): Promise<void> {
+    private async checkMacroUsage(objectName: string): Promise<void> {
         if (!this.macroManager) {
             return;
         }
 
-        const macro = this.macroManager.getMacro(object);
-        const canResolveMacro = await this.macroManager.canResolveMacro(object);
+        this.macroManager.getMacro(objectName);
+        await this.macroManager.canResolveMacro(objectName);
 
         // 只对真正未定义的宏显示警告
         // 对于已定义的宏，不添加任何诊断信息，保持问题面板清洁
     }
 
     /**
-     * 检查函数调用的括号闭合
-     */
-    private checkFunctionCall(
-        text: string,
-        startPos: number,
-        endPos: number,
-        document: vscode.TextDocument,
-        diagnostics: vscode.Diagnostic[]
-    ): void {
-        let bracketCount = 1;
-        let currentPos = endPos;
-        let foundClosing = false;
-        let inString = false;
-        let stringChar = '';
-
-        while (currentPos < text.length) {
-            const char = text[currentPos];
-            if (inString) {
-                // 检查是否是字符串结束引号（需要正确处理转义）
-                if (char === stringChar && !this.isEscaped(text, currentPos)) {
-                    inString = false;
-                }
-            } else {
-                if (char === '"' || char === '\'') {
-                    inString = true;
-                    stringChar = char;
-                } else if (char === '(') {
-                    bracketCount++;
-                } else if (char === ')') {
-                    bracketCount--;
-                    if (bracketCount === 0) {
-                        foundClosing = true;
-                        break;
-                    }
-                }
-            }
-            currentPos++;
-        }
-
-        if (!foundClosing) {
-            diagnostics.push(this.createDiagnostic(
-                this.getRange(document, startPos, endPos - startPos),
-                '函数调用缺少闭合的括号',
-                vscode.DiagnosticSeverity.Error
-            ));
-        }
-    }
-
-    /**
-     * 检查指定位置的字符是否被转义
-     * 通过向前计数连续的反斜杠数量来判断
-     */
-    private isEscaped(text: string, pos: number): boolean {
-        if (pos === 0) return false;
-
-        let backslashCount = 0;
-        let checkPos = pos - 1;
-
-        // 向前计数连续的反斜杠
-        while (checkPos >= 0 && text[checkPos] === '\\') {
-            backslashCount++;
-            checkPos--;
-        }
-
-        // 奇数个反斜杠表示当前字符被转义
-        return backslashCount % 2 === 1;
-    }
-
-    /**
      * 让出主线程
      */
     private async yieldToMainThread(): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, 0));
+        return new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
 
     /**
@@ -198,17 +108,33 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
         return diagnostic;
     }
 
-    /**
-     * 获取范围对象
-     */
-    private getRange(
-        document: vscode.TextDocument,
-        startPos: number,
-        length: number
-    ): vscode.Range {
-        return new vscode.Range(
-            document.positionAt(startPos),
-            document.positionAt(startPos + length)
-        );
+    private extractReceiver(node: SyntaxNode): {
+        objectExpression: string;
+        isMacroObject: boolean;
+        isMacroCandidate: boolean;
+        range: vscode.Range;
+    } | undefined {
+        if (node.kind !== SyntaxKind.MemberAccessExpression || node.children.length < 2) {
+            return undefined;
+        }
+
+        let receiver = node.children[0];
+        while (receiver.kind === SyntaxKind.ParenthesizedExpression && receiver.children[0]) {
+            receiver = receiver.children[0];
+        }
+
+        if (receiver.kind !== SyntaxKind.Identifier || !receiver.name) {
+            return undefined;
+        }
+
+        const objectExpression = receiver.name;
+        const isMacroCandidate = MACRO_CANDIDATE_PATTERN.test(objectExpression);
+
+        return {
+            objectExpression,
+            isMacroObject: MACRO_OBJECT_NAME_PATTERN.test(objectExpression),
+            isMacroCandidate,
+            range: receiver.range
+        };
     }
 }

@@ -97,7 +97,7 @@ describe('LPCCompletionItemProvider', () => {
 
     test('indexes inherited files on demand without request-time editor I/O', async () => {
         const baseContent = 'int inherited_call() { return 1; }';
-        const childContent = 'inherit "/lib/base";\ninhe';
+        const childContent = 'inherit "/lib/base";\ninherited_call();';
         fs.writeFileSync(path.join(fixtureRoot, 'lib', 'base.c'), baseContent, 'utf8');
         const childDocument = createDocument(path.join(fixtureRoot, 'main.c'), childContent);
 
@@ -148,10 +148,10 @@ describe('LPCCompletionItemProvider', () => {
             'void demo() {',
             '    object ob;',
             '    mixed *arr;',
-            '    ob->',
-            '    this_object()->',
-            '    foo()->',
-            '    arr[0]->',
+            '    ob->query();',
+            '    this_object()->query();',
+            '    foo()->query();',
+            '    arr[0]->query();',
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'main.c'), content);
@@ -202,7 +202,7 @@ describe('LPCCompletionItemProvider', () => {
             '    return 1;',
             '}',
             '',
-            'loca'
+            'local_call();'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'main.c'), content);
 
@@ -230,7 +230,7 @@ describe('LPCCompletionItemProvider', () => {
         const content = [
             'void demo() {',
             '    string name, exp, file, *msg;',
-            '    ex',
+            '    exp;',
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'main.c'), content);
@@ -263,7 +263,7 @@ describe('LPCCompletionItemProvider', () => {
             '    return 1;',
             '}',
             '',
-            'loca'
+            'local_call();'
         ].join('\n');
 
         const document = createDocument(path.join(fixtureRoot, 'main.c'), content);
@@ -331,11 +331,11 @@ describe('LPCCompletionItemProvider', () => {
 
         const typeDocument = createDocument(
             path.join(fixtureRoot, 'types.c'),
-            ['class Payload {', '    int hp;', '}', '', 'class '].join('\n')
+            ['class Payload {', '    int hp;', '}', '', 'void demo() {', '    class Payload value;', '}'].join('\n')
         );
         const typeResult = await provider.provideCompletionItems(
             typeDocument,
-            new vscode.Position(4, 'class '.length),
+            new vscode.Position(5, '    class '.length),
             { isCancellationRequested: false } as vscode.CancellationToken,
             {} as vscode.CompletionContext
         ) as vscode.CompletionItem[];

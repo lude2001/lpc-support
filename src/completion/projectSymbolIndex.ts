@@ -1,6 +1,6 @@
 import { getTypeLookupName } from '../ast/typeNormalization';
+import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import {
-    DocumentSemanticSnapshot,
     FileSymbolRecord,
     FunctionSummary,
     InheritedSymbolSet,
@@ -8,6 +8,18 @@ import {
     TypeDefinitionSummary
 } from './types';
 import { InheritanceIndexView, InheritanceResolver } from './inheritanceResolver';
+
+type ProjectSemanticSnapshot = Pick<
+    SemanticSnapshot,
+    | 'uri'
+    | 'version'
+    | 'exportedFunctions'
+    | 'typeDefinitions'
+    | 'inheritStatements'
+    | 'includeStatements'
+    | 'macroReferences'
+    | 'createdAt'
+>;
 
 export class ProjectSymbolIndex implements InheritanceIndexView {
     private readonly inheritanceResolver: InheritanceResolver;
@@ -20,7 +32,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
         this.inheritanceResolver.attachIndex(this);
     }
 
-    public updateFromSnapshot(snapshot: DocumentSemanticSnapshot): void {
+    public updateFromSemanticSnapshot(snapshot: ProjectSemanticSnapshot): void {
         const existingRecord = this.records.get(snapshot.uri);
         if (existingRecord && existingRecord.version >= snapshot.version) {
             return;
@@ -60,6 +72,10 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
 
         this.resolvedTargets.set(snapshot.uri, resolvedTargets.map(target => ({ ...target })));
         this.rebuildTypeLookup();
+    }
+
+    public updateFromSnapshot(snapshot: ProjectSemanticSnapshot): void {
+        this.updateFromSemanticSnapshot(snapshot);
     }
 
     public removeFile(uri: string): void {

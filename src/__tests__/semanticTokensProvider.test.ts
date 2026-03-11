@@ -1,5 +1,4 @@
 ﻿import * as vscode from 'vscode';
-import * as parseCache from '../parseCache';
 import { ASTManager } from '../ast/astManager';
 import { LPCSemanticTokensProvider } from '../semanticTokensProvider';
 
@@ -45,7 +44,7 @@ describe('LPCSemanticTokensProvider', () => {
         jest.restoreAllMocks();
     });
 
-    test('reuses parse cache tokens and snapshot symbol table for identifier classification', async () => {
+    test('reuses ASTManager analysis outputs for identifier classification', async () => {
         const document = createDocument([
             'class Payload {',
             '    int hp;',
@@ -57,7 +56,6 @@ describe('LPCSemanticTokensProvider', () => {
             '}'
         ].join('\n'));
 
-        const getParsedSpy = jest.spyOn(parseCache, 'getParsed');
         const parseDocumentSpy = jest.spyOn(ASTManager.getInstance(), 'parseDocument');
 
         const provider = new LPCSemanticTokensProvider();
@@ -66,7 +64,6 @@ describe('LPCSemanticTokensProvider', () => {
             { isCancellationRequested: false } as vscode.CancellationToken
         ) as any;
 
-        expect(getParsedSpy).toHaveBeenCalledTimes(1);
         expect(parseDocumentSpy).toHaveBeenCalledTimes(1);
         expect(Array.isArray(result.data)).toBe(true);
         expect(result.data.length).toBeGreaterThan(0);

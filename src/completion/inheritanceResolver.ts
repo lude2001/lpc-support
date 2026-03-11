@@ -2,13 +2,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { MacroManager } from '../macroManager';
-import { DocumentSemanticSnapshot, ResolvedInheritTarget } from './types';
+import { SemanticSnapshot } from '../semantic/semanticSnapshot';
+import { ResolvedInheritTarget } from './types';
 
 export interface InheritanceIndexView {
     getResolvedInheritTargets(uri: string): ResolvedInheritTarget[];
 }
 
 type MacroLookup = Pick<MacroManager, 'getMacro' | 'getIncludePath'>;
+type InheritanceSnapshot = Pick<SemanticSnapshot, 'uri' | 'inheritStatements'>;
 
 export class InheritanceResolver {
     private readonly macroManager?: MacroLookup;
@@ -24,7 +26,7 @@ export class InheritanceResolver {
         this.indexView = indexView;
     }
 
-    public resolveInheritTargets(snapshot: DocumentSemanticSnapshot): ResolvedInheritTarget[] {
+    public resolveInheritTargets(snapshot: InheritanceSnapshot): ResolvedInheritTarget[] {
         return snapshot.inheritStatements.map(statement => {
             const resolvedPath = this.resolveDirectivePath(snapshot.uri, statement.value, statement.expressionKind);
 

@@ -9,6 +9,7 @@ import { CompletionQueryEngine } from './completion/completionQueryEngine';
 import { InheritanceResolver } from './completion/inheritanceResolver';
 import { ProjectSymbolIndex } from './completion/projectSymbolIndex';
 import { CompletionCandidate, CompletionCandidateSourceType, CompletionQueryResult, FunctionSummary, TypeDefinitionSummary } from './completion/types';
+import { SemanticSnapshot } from './semantic/semanticSnapshot';
 import { normalizeLpcType } from './ast/typeNormalization';
 import { SymbolType } from './ast/symbolTable';
 
@@ -22,6 +23,8 @@ interface CompletionItemData {
     resolved?: boolean;
 }
 
+type IndexSnapshot = SemanticSnapshot | ReturnType<ASTManager['getSnapshot']>;
+
 export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<vscode.CompletionItem> {
     private readonly efunDocsManager: EfunDocsManager;
     private readonly macroManager: MacroManager;
@@ -34,7 +37,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
         this.astManager = ASTManager.getInstance();
-        this.instrumentation = instrumentation || new CompletionInstrumentation();
+        this.instrumentation = instrumentation ?? new CompletionInstrumentation();
         this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
         this.queryEngine = new CompletionQueryEngine({
             snapshotProvider: this.astManager,
@@ -133,10 +136,11 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
     }
 
     public handleDocumentChange(document: vscode.TextDocument): void {
-        this.astManager.scheduleSnapshotRefresh(document, (snapshot) => {
-            this.projectSymbolIndex.updateFromSnapshot(snapshot);
+        this.astManager.scheduleSnapshotRefresh(document, () => {
+            this.projectSymbolIndex.updateFromSnapshot(this.getBestAvailableIndexSnapshot(document));
         });
     }
+
     public clearCache(document?: vscode.TextDocument): void {
         if (document) {
             this.astManager.clearCache(document.uri.toString());
@@ -160,8 +164,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
         }
 
         const snapshot = this.astManager.getBestAvailableSnapshot(document);
-        this.projectSymbolIndex.updateFromSnapshot(snapshot);
-        this.indexMissingInheritedSnapshots(snapshot.uri, new Set<string>([snapshot.uri]));
+        const indexSnapshot = this.refreshInheritedIndex(document);
 
         const inheritedSymbols = this.projectSymbolIndex.getInheritedSymbols(snapshot.uri);
         if (inheritedSymbols.functions.length === 0 && inheritedSymbols.types.length === 0) {
@@ -223,9 +226,14 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
     }
 
     private warmInheritedIndex(document: vscode.TextDocument): void {
-        const snapshot = this.astManager.getBestAvailableSnapshot(document);
-        this.projectSymbolIndex.updateFromSnapshot(snapshot);
-        this.indexMissingInheritedSnapshots(snapshot.uri, new Set<string>([snapshot.uri]));
+        this.refreshInheritedIndex(document);
+    }
+
+    private refreshInheritedIndex(document: vscode.TextDocument): IndexSnapshot {
+        const indexSnapshot = this.getBestAvailableIndexSnapshot(document);
+        this.projectSymbolIndex.updateFromSnapshot(indexSnapshot);
+        this.indexMissingInheritedSnapshots(indexSnapshot.uri, new Set<string>([indexSnapshot.uri]));
+        return indexSnapshot;
     }
 
     private indexMissingInheritedSnapshots(sourceUri: string, visited: Set<string>): void {
@@ -251,14 +259,14 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
         }
     }
 
-    private loadSnapshotFromUri(uri: string) {
+    private loadSnapshotFromUri(uri: string): IndexSnapshot | undefined {
         try {
-            const document = this.getOpenDocument(uri) || this.createReadonlyDocumentFromUri(uri);
+            const document = this.getDocumentForUri(uri);
             if (!document) {
                 return undefined;
             }
 
-            return this.astManager.getSnapshot(document, false);
+            return this.getIndexSnapshot(document, false);
         } catch (error) {
             inheritanceChannel.appendLine(`Failed to index inherited file ${uri}: ${error}`);
             return undefined;
@@ -344,7 +352,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
         inheritanceChannel.appendLine(`正在分析文件: ${document.fileName}`);
 
         try {
-            const snapshot = this.astManager.getSnapshot(document, false);
+            const snapshot = this.getIndexSnapshot(document, false);
             this.projectSymbolIndex.updateFromSnapshot(snapshot);
             this.indexMissingInheritedSnapshots(snapshot.uri, new Set<string>([snapshot.uri]));
 
@@ -376,6 +384,26 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
             }
         } catch (error) {
             inheritanceChannel.appendLine(`错误: ${error}`);
+        }
+    }
+
+    private getDocumentForUri(uri: string): vscode.TextDocument | undefined {
+        return this.getOpenDocument(uri) || this.createReadonlyDocumentFromUri(uri);
+    }
+
+    private getBestAvailableIndexSnapshot(document: vscode.TextDocument): IndexSnapshot {
+        return this.getIndexSnapshot(document, true);
+    }
+
+    private getIndexSnapshot(document: vscode.TextDocument, bestAvailable: boolean): IndexSnapshot {
+        try {
+            return bestAvailable
+                ? this.astManager.getBestAvailableSemanticSnapshot(document)
+                : this.astManager.getSemanticSnapshot(document, false);
+        } catch {
+            return bestAvailable
+                ? this.astManager.getBestAvailableSnapshot(document)
+                : this.astManager.getSnapshot(document, false);
         }
     }
 

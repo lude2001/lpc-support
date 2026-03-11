@@ -96,4 +96,20 @@ describe('ASTManager compound type lookup', () => {
 
         jest.useRealTimers();
     });
+
+    test('exposes semantic snapshots as the canonical analysis output', () => {
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'int query_hp() {',
+            '    return 100;',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/semantic-snapshot.c', 1);
+        const semantic = ASTManager.getInstance().getSemanticSnapshot(document, false);
+
+        expect(semantic.syntax.uri).toBe(document.uri.toString());
+        expect(semantic.exportedFunctions.map(item => item.name)).toEqual(['query_hp']);
+        expect(semantic.inheritStatements.map(item => item.value)).toEqual(['/std/room']);
+    });
 });

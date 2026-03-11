@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { ParsedDoc } from '../parseCache';
 import { IDiagnosticCollector } from '../diagnostics/types';
 import { FunctionDefContext, VariableDeclContext, SourceFileContext, VariableDeclaratorContext } from '../antlr/LPCParser';
 import { LPCLexer } from '../antlr/LPCLexer';
+import { ParsedDocument } from '../parser/types';
 
 /**
  * 检测全局变量是否未使用。
@@ -11,7 +11,7 @@ import { LPCLexer } from '../antlr/LPCLexer';
 export class GlobalVariableCollector implements IDiagnosticCollector {
     public readonly name = 'GlobalVariableCollector';
 
-    collect(document: vscode.TextDocument, parsed: ParsedDoc): vscode.Diagnostic[] {
+    collect(document: vscode.TextDocument, parsed: ParsedDocument): vscode.Diagnostic[] {
         const cfg = vscode.workspace.getConfiguration('lpc');
         if (cfg.get<boolean>('enableUnusedGlobalVarCheck') === false) {
             return [];

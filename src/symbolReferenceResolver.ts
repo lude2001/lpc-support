@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { LPCLexer } from './antlr/LPCLexer';
 import { ASTManager } from './ast/astManager';
 import { Scope, Symbol as LPCSymbol, SymbolTable, SymbolType } from './ast/symbolTable';
-import { getParsed } from './parseCache';
 
 export interface SymbolReferenceMatch {
     symbol: LPCSymbol;
@@ -30,14 +29,19 @@ export function resolveSymbolReferences(
         return undefined;
     }
 
-    const symbolTable = ASTManager.getInstance().parseDocument(document).symbolTable;
+    const analysis = ASTManager.getInstance().parseDocument(document);
+    const symbolTable = analysis.symbolTable;
     const targetSymbol = resolveVisibleSymbol(symbolTable, symbolName, position);
     if (!targetSymbol) {
         return undefined;
     }
 
     const declarationRange = getDeclarationRange(targetSymbol);
-    const { tokens: tokenStream } = getParsed(document);
+    const tokenStream = analysis.parsed?.tokens;
+    if (!tokenStream) {
+        return undefined;
+    }
+
     const matches: SymbolReferenceMatch[] = [];
 
     for (const token of tokenStream.getTokens()) {

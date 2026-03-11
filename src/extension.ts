@@ -21,8 +21,12 @@ import { LPCSemanticTokensProvider, LPCSemanticTokensLegend } from './semanticTo
 import { LPCSymbolProvider } from './symbolProvider';
 import { LPCReferenceProvider } from './referenceProvider';
 import { LPCRenameProvider } from './renameProvider';
-import { disposeParseCache, getParserCacheStats, clearParseCache } from './parseCache';
 import { CompletionInstrumentation } from './completion/completionInstrumentation';
+import {
+    clearGlobalParsedDocumentService,
+    disposeGlobalParsedDocumentService,
+    getGlobalParsedDocumentService
+} from './parser/ParsedDocumentService';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -478,12 +482,12 @@ export function activate(context: vscode.ExtensionContext) {
     // 注册性能监控命令
     context.subscriptions.push(
         vscode.commands.registerCommand('lpc.showPerformanceStats', () => {
-            const stats = getParserCacheStats();
+            const stats = getGlobalParsedDocumentService().getStats();
             completionInstrumentation.showReport(stats);
             vscode.window.showInformationMessage(completionInstrumentation.formatSummary(stats));
         }),
         vscode.commands.registerCommand('lpc.clearCache', () => {
-            clearParseCache();
+            clearGlobalParsedDocumentService();
             completionProvider.clearCache();
             completionInstrumentation.clear();
             vscode.window.showInformationMessage('LPC 解析与补全缓存已清理');
@@ -501,5 +505,5 @@ export function activate(context: vscode.ExtensionContext) {
 // 停用扩展时调用
 export function deactivate() {
     // 清理解析缓存资源
-    disposeParseCache();
+    disposeGlobalParsedDocumentService();
 }

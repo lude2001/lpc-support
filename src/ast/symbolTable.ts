@@ -72,9 +72,9 @@ export class SymbolTable {
     }
 
     // 添加符号到当前作用域
-    addSymbol(symbol: Symbol): void {
-        symbol.scope = this.currentScope;
-        this.currentScope.symbols.set(symbol.name, symbol);
+    addSymbol(symbol: Symbol, scope: Scope = this.currentScope): void {
+        symbol.scope = scope;
+        scope.symbols.set(symbol.name, symbol);
     }
 
     // 在作用域链中查找符号
@@ -132,6 +132,20 @@ export class SymbolTable {
     getSymbolsByType(symbolType: SymbolType, position?: vscode.Position): Symbol[] {
         const allSymbols = position ? this.getSymbolsInScope(position) : Array.from(this.globalScope.symbols.values());
         return allSymbols.filter(symbol => symbol.type === symbolType);
+    }
+
+    // 获取符号表中的所有符号（按作用域树遍历）
+    getAllSymbols(): Symbol[] {
+        const symbols: Symbol[] = [];
+        const queue: Scope[] = [this.globalScope];
+
+        while (queue.length > 0) {
+            const currentScope = queue.shift()!;
+            symbols.push(...currentScope.symbols.values());
+            queue.push(...currentScope.children);
+        }
+
+        return symbols;
     }
 
     // 查找结构体定义

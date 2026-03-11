@@ -3,10 +3,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from '../macroManager';
 import { ASTManager } from '../ast/astManager';
-import { getParsed, deleteDocumentCache } from '../parseCache';
+import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { Debouncer } from '../utils/debounce';
-import { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './types';
+import { DiagnosticContext, IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './types';
 import { VariableAnalyzer, VariableInfo } from './analyzers/VariableAnalyzer';
+import { ParsedDocument } from '../parser/types';
 
 // 导入现有的收集器
 import { StringLiteralCollector } from '../collectors/StringLiteralCollector';
@@ -181,7 +182,7 @@ export class DiagnosticsOrchestrator {
             this.isAnalyzing.delete(documentKey);
             this.lastAnalysisVersion.delete(documentKey);
             // 清理解析缓存
-            deleteDocumentCache(document.uri);
+            getGlobalParsedDocumentService().invalidate(document.uri);
             this.astManager.clearCache(document.uri.toString());
         }
     }
@@ -200,7 +201,7 @@ export class DiagnosticsOrchestrator {
             this.lastAnalysisVersion.delete(documentKey);
 
             // 清理解析缓存
-            deleteDocumentCache(uri);
+            getGlobalParsedDocumentService().invalidate(uri);
             this.astManager.clearCache(uri.toString());
         }
     }
@@ -265,13 +266,20 @@ export class DiagnosticsOrchestrator {
      */
     private async collectDiagnostics(document: vscode.TextDocument): Promise<vscode.Diagnostic[]> {
         const diagnostics: vscode.Diagnostic[] = [];
-        const parsed = getParsed(document);
-        const snapshot = this.astManager.getSnapshot(document);
+        const analysis = this.astManager.parseDocument(document);
+        const parsed = analysis.parsed;
+        const snapshot = analysis.snapshot;
+
+        if (!parsed) {
+            return [...snapshot.parseDiagnostics];
+        }
+
+        const diagnosticContext = this.createDiagnosticContext(parsed, analysis);
 
         // 执行所有收集器
         for (const collector of this.collectors) {
             try {
-                const result = await collector.collect(document, parsed);
+                const result = await collector.collect(document, parsed, diagnosticContext);
                 diagnostics.push(...result);
             } catch (error) {
                 console.error(`收集器 ${collector.name} 执行失败:`, error);
@@ -298,11 +306,17 @@ export class DiagnosticsOrchestrator {
         options: DiagnosticCollectionOptions = {}
     ): Promise<vscode.Diagnostic[]> {
         const diagnostics: vscode.Diagnostic[] = [];
-        const parsed = getParsed(document);
-        const snapshot = this.astManager.getSnapshot(document);
+        const analysis = this.astManager.parseDocument(document);
+        const parsed = analysis.parsed;
+        const snapshot = analysis.snapshot;
+
+        if (!parsed) {
+            return [...snapshot.parseDiagnostics];
+        }
 
         const config = vscode.workspace.getConfiguration('lpc.performance');
         const batchSize = options.batchSize || config.get<number>('batchSize', 3);
+        const diagnosticContext = this.createDiagnosticContext(parsed, analysis);
 
         // 分批处理收集器
         for (let i = 0; i < this.collectors.length; i += batchSize) {
@@ -313,7 +327,7 @@ export class DiagnosticsOrchestrator {
                 batch.map(async (collector) => {
                     await this.yieldToMainThread();
                     const startTime = Date.now();
-                    const result = await collector.collect(document, parsed);
+                    const result = await collector.collect(document, parsed, diagnosticContext);
                     const duration = Date.now() - startTime;
 
                     return {
@@ -565,6 +579,17 @@ export class DiagnosticsOrchestrator {
 
         await walk(folderPath);
         return files;
+    }
+
+    private createDiagnosticContext(
+        parsed: ParsedDocument,
+        analysis: { syntax?: DiagnosticContext['syntax']; semantic?: DiagnosticContext['semantic'] }
+    ): DiagnosticContext {
+        return {
+            parsed,
+            syntax: analysis.syntax,
+            semantic: analysis.semantic
+        };
     }
 
     /**

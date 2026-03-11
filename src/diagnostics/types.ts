@@ -1,5 +1,13 @@
 import * as vscode from 'vscode';
-import { ParsedDoc } from '../parseCache';
+import { ParsedDocument } from '../parser/types';
+import { SemanticSnapshot } from '../semantic/semanticSnapshot';
+import { SyntaxDocument } from '../syntax/types';
+
+export interface DiagnosticContext {
+    parsed: ParsedDocument;
+    syntax?: SyntaxDocument;
+    semantic?: SemanticSnapshot;
+}
 
 /**
  * 诊断收集器接口
@@ -17,7 +25,11 @@ export interface IDiagnosticCollector {
      * @param parsed 解析后的文档结构
      * @returns 诊断信息数组
      */
-    collect(document: vscode.TextDocument, parsed: ParsedDoc): vscode.Diagnostic[] | Promise<vscode.Diagnostic[]>;
+    collect(
+        document: vscode.TextDocument,
+        parsed: ParsedDocument,
+        context?: DiagnosticContext
+    ): vscode.Diagnostic[] | Promise<vscode.Diagnostic[]>;
 }
 
 /**

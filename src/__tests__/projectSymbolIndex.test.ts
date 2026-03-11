@@ -2,12 +2,48 @@ import * as vscode from 'vscode';
 import { SymbolTable } from '../ast/symbolTable';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../completion/projectSymbolIndex';
-import { DocumentSemanticSnapshot } from '../completion/types';
+import { SemanticSnapshot } from '../semantic/semanticSnapshot';
+import { createSyntaxDocument, SyntaxKind } from '../syntax/types';
 
-function createSnapshot(uriPath: string): DocumentSemanticSnapshot {
+function createSnapshot(uriPath: string): SemanticSnapshot {
+    const uri = vscode.Uri.file(uriPath).toString();
+    const symbolTable = new SymbolTable(uri);
+
     return {
-        uri: vscode.Uri.file(uriPath).toString(),
+        uri,
         version: 1,
+        syntax: createSyntaxDocument({
+            parsed: {
+                uri,
+                version: 1,
+                text: '',
+                tokenStream: {} as any,
+                tokens: {} as any,
+                allTokens: [],
+                visibleTokens: [],
+                hiddenTokens: [],
+                tokenTriviaIndex: {} as any,
+                tree: {} as any,
+                diagnostics: [],
+                createdAt: Date.now(),
+                lastAccessed: Date.now(),
+                parseTimeMs: 0,
+                parseTime: 0,
+                size: 0,
+                layoutTriviaSource: 'lexer-hidden-channel'
+            },
+            root: {
+                kind: SyntaxKind.SourceFile,
+                category: 'document',
+                range: new vscode.Range(0, 0, 0, 0),
+                tokenRange: { start: 0, end: 0 },
+                children: [],
+                leadingTrivia: [],
+                trailingTrivia: [],
+                isMissing: false,
+                isOpaque: false
+            }
+        }),
         parseDiagnostics: [],
         exportedFunctions: [],
         localScopes: [],
@@ -15,7 +51,7 @@ function createSnapshot(uriPath: string): DocumentSemanticSnapshot {
         inheritStatements: [],
         includeStatements: [],
         macroReferences: [],
-        symbolTable: new SymbolTable(vscode.Uri.file(uriPath).toString()),
+        symbolTable,
         createdAt: Date.now()
     };
 }
@@ -56,7 +92,7 @@ describe('ProjectSymbolIndex', () => {
 
         const resolver = new InheritanceResolver(undefined, ['/']);
         jest.spyOn(resolver, 'resolveInheritTargets')
-            .mockImplementation((snapshot: DocumentSemanticSnapshot) => snapshot.inheritStatements.map(statement => ({
+            .mockImplementation((snapshot: Pick<SemanticSnapshot, 'uri' | 'inheritStatements'>) => snapshot.inheritStatements.map(statement => ({
                 rawValue: statement.value,
                 expressionKind: statement.expressionKind,
                 sourceUri: snapshot.uri,
