@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { VariableDeclContext, BlockContext, StatementContext, SourceFileContext } from '../antlr/LPCParser';
 import { IDiagnosticCollector } from '../diagnostics/types';
-import { ParsedDoc } from '../parseCache';
+import { ParsedDocument } from '../parser/types';
 
 export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
     public readonly name = 'LocalVariableDeclarationCollector';
@@ -12,7 +12,7 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
 
     constructor() {}
 
-    collect(doc: vscode.TextDocument, parsed: ParsedDoc): vscode.Diagnostic[] {
+    collect(doc: vscode.TextDocument, parsed: ParsedDocument): vscode.Diagnostic[] {
         this.diagnostics = [];
         this.document = doc;
 

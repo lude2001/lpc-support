@@ -3,8 +3,17 @@ import { LPCLexer } from '../antlr/LPCLexer';
 import { LPCParser } from '../antlr/LPCParser';
 
 /**
- * 使用 ANTLR 生成的词法、语法解析器将 LPC 代码解析为 ParseTree。
- * 如果语法不完整或出现错误，ANTLR 会抛出异常，调用方可捕获进行诊断。
+ * LEGACY DEBUG-ONLY PARSER ENTRY
+ *
+ * Allowed:
+ * - Parse-tree debugging helpers such as `ParseTreePrinter`.
+ *
+ * Forbidden:
+ * - Production providers or caches importing this utility instead of `ParsedDocumentService`.
+ * - Adding alternative parser behavior that diverges from the main parser service.
+ *
+ * Removal phase:
+ * - Delete after debug tooling is migrated to reuse ParsedDocumentService output.
  */
 export function parseLPC(code: string) {
   const input = CharStreams.fromString(code);

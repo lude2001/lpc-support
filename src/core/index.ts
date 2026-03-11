@@ -29,17 +29,3 @@ export {
     DocumentCache
 } from './DocumentCache';
 
-// AST解析缓存
-export type {
-    ParsedDoc,
-    ParseCacheConfig
-} from './ParseCache';
-
-export {
-    ParseCache,
-    getGlobalParseCache,
-    getParsed,
-    clearParseCache,
-    getParserCacheStats,
-    disposeParseCache
-} from './ParseCache';

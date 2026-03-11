@@ -5,7 +5,6 @@ import { LPCLexer } from './antlr/LPCLexer';
 import { ASTManager } from './ast/astManager';
 import { SymbolType } from './ast/symbolTable';
 import { DocumentSemanticSnapshot } from './completion/types';
-import { getParsed } from './parseCache';
 import * as path from 'path';
 
 const tokenTypes = [
@@ -113,10 +112,13 @@ export class LPCSemanticTokensProvider implements vscode.DocumentSemanticTokensP
         _token: vscode.CancellationToken
     ): Promise<vscode.SemanticTokens> {
         const analysis = this.astManager.parseDocument(document);
-        const parsed = analysis.parsed || getParsed(document);
-        parsed.tokens.fill();
-
+        const parsed = analysis.parsed;
         const builder = new vscode.SemanticTokensBuilder(LPCSemanticTokensLegend);
+        if (!parsed) {
+            return builder.build();
+        }
+
+        parsed.tokens.fill();
         const tokens = parsed.tokens.getTokens();
 
         for (let index = 0; index < tokens.length; index++) {

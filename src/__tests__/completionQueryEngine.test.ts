@@ -79,8 +79,8 @@ describe('CompletionQueryEngine', () => {
             '',
             'void demo() {',
             '    class Payload payload;',
-            '    payload->h',
-            '    inhe',
+            '    payload->hp;',
+            '    inherited_call();',
             '}'
         ].join('\n');
 
@@ -102,7 +102,7 @@ describe('CompletionQueryEngine', () => {
             }
         });
 
-        projectSymbolIndex.updateFromSnapshot(astManager.getSnapshot(baseDocument, false));
+        projectSymbolIndex.updateFromSemanticSnapshot(astManager.getSemanticSnapshot(baseDocument, false));
 
         const memberResult = engine.query(
             childDocument,
@@ -133,10 +133,10 @@ describe('CompletionQueryEngine', () => {
             'void demo() {',
             '    object ob;',
             '    mixed *arr;',
-            '    ob->',
-            '    this_object()->',
-            '    foo()->',
-            '    arr[0]->',
+            '    ob->query();',
+            '    this_object()->query();',
+            '    foo()->query();',
+            '    arr[0]->query();',
             '}'
         ].join('\n');
 
@@ -186,8 +186,8 @@ describe('CompletionQueryEngine', () => {
             } as any
         });
 
-        projectSymbolIndex.updateFromSnapshot({
-            ...astManager.getSnapshot(childDocument, false),
+        projectSymbolIndex.updateFromSemanticSnapshot({
+            ...astManager.getSemanticSnapshot(childDocument, false),
             uri: vscode.Uri.file(path.join(root, 'lib', 'base.c')).toString(),
             inheritStatements: [],
             exportedFunctions: [],

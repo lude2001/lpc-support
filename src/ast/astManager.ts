@@ -1,21 +1,27 @@
 import * as vscode from 'vscode';
 import { SourceFileContext } from '../antlr/LPCParser';
-import { clearParseCache, deleteDocumentCache, ParsedDoc } from '../parseCache';
+import {
+    clearGlobalParsedDocumentService,
+    getGlobalParsedDocumentService
+} from '../parser/ParsedDocumentService';
 import { SymbolTable, SymbolType, Symbol as LPCSymbol } from './symbolTable';
-import { CompletionVisitor } from './completionVisitor';
 import { DocumentSemanticSnapshot } from '../completion/types';
 import { getTypeLookupName, normalizeLpcType } from './typeNormalization';
 import {
     DocumentSemanticAnalysis,
     DocumentSemanticSnapshotService
 } from '../completion/documentSemanticSnapshotService';
+import { SemanticSnapshot } from '../semantic/semanticSnapshot';
+import { SyntaxDocument } from '../syntax/types';
+import { ParsedDocument as ParsedDoc } from '../parser/types';
 
 export interface ParseResult {
     ast: SourceFileContext;
     symbolTable: SymbolTable;
-    visitor: CompletionVisitor;
     parseErrors: vscode.Diagnostic[];
     parsed?: ParsedDoc;
+    syntax?: SyntaxDocument;
+    semantic?: SemanticSnapshot;
     snapshot: DocumentSemanticSnapshot;
 }
 
@@ -349,13 +355,13 @@ export class ASTManager {
     public clearCache(documentUri: string): void {
         const uri = vscode.Uri.parse(documentUri);
         this.snapshotService.invalidate(uri);
-        deleteDocumentCache(uri);
+        getGlobalParsedDocumentService().invalidate(uri);
     }
 
     // 清除所有缓存
     public clearAllCache(): void {
         this.snapshotService.clear();
-        clearParseCache();
+        clearGlobalParsedDocumentService();
     }
 
     // 获取诊断信息
@@ -370,6 +376,14 @@ export class ASTManager {
 
     public getBestAvailableSnapshot(document: vscode.TextDocument): DocumentSemanticSnapshot {
         return this.snapshotService.getBestAvailableSnapshot(document);
+    }
+
+    public getSemanticSnapshot(document: vscode.TextDocument, useCache: boolean = true): SemanticSnapshot {
+        return this.snapshotService.getSemanticSnapshot(document, useCache);
+    }
+
+    public getBestAvailableSemanticSnapshot(document: vscode.TextDocument): SemanticSnapshot {
+        return this.snapshotService.getBestAvailableSemanticSnapshot(document);
     }
 
     public scheduleSnapshotRefresh(
@@ -400,13 +414,19 @@ export class ASTManager {
         }
     }
 
+    public getSyntaxDocument(document: vscode.TextDocument, useCache: boolean = true): SyntaxDocument | undefined {
+        const analysis = this.snapshotService.getAnalysis(document, useCache);
+        return analysis.syntax;
+    }
+
     private toParseResult(analysis: DocumentSemanticAnalysis): ParseResult {
         return {
             ast: analysis.ast,
             symbolTable: analysis.symbolTable,
-            visitor: analysis.visitor,
             parseErrors: analysis.parseErrors,
             parsed: analysis.parsed,
+            syntax: analysis.syntax,
+            semantic: analysis.semantic,
             snapshot: analysis.snapshot
         };
     }

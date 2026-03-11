@@ -1,43 +1,58 @@
 import * as vscode from 'vscode';
-import { getParsed } from './parseCache';
-import { FunctionDefContext } from './antlr/LPCParser';
+import { ASTManager } from './ast/astManager';
+import { TypeDefinitionSummary } from './completion/types';
 
 export class LPCSymbolProvider implements vscode.DocumentSymbolProvider {
+    private readonly astManager = ASTManager.getInstance();
+
     public provideDocumentSymbols(
         document: vscode.TextDocument,
         _token: vscode.CancellationToken
     ): vscode.ProviderResult<vscode.DocumentSymbol[]> {
-        const { tree } = getParsed(document);
-
         const symbols: vscode.DocumentSymbol[] = [];
+        const snapshot = this.astManager.getBestAvailableSnapshot(document);
 
-        for (const stmt of tree.statement()) {
-            const funcCtx: FunctionDefContext | undefined = stmt.functionDef();
-            if (!funcCtx) continue;
+        for (const typeDefinition of snapshot.typeDefinitions) {
+            symbols.push(this.createTypeSymbol(typeDefinition));
+        }
 
-            const idToken = funcCtx.Identifier().symbol;
-            const funcName = idToken.text || 'function';
-            const returnType = funcCtx.typeSpec()?.text || '';
-
-            const start = document.positionAt(funcCtx.start.startIndex);
-            const end = document.positionAt(funcCtx.stop!.stopIndex + 1);
-            const nameStart = document.positionAt(idToken.startIndex);
-            const nameEnd = document.positionAt(idToken.stopIndex + 1);
-
-            const fullRange = new vscode.Range(start, end);
-            const nameRange = new vscode.Range(nameStart, nameEnd);
-
+        for (const func of snapshot.exportedFunctions) {
             symbols.push(
                 new vscode.DocumentSymbol(
-                    funcName,
-                    returnType,
+                    func.name,
+                    func.returnType,
                     vscode.SymbolKind.Function,
-                    fullRange,
-                    nameRange
+                    func.range,
+                    func.range
                 )
             );
         }
 
         return symbols;
     }
-} 
+
+    private createTypeSymbol(typeDefinition: TypeDefinitionSummary): vscode.DocumentSymbol {
+        const kind = typeDefinition.kind === 'class'
+            ? vscode.SymbolKind.Class
+            : vscode.SymbolKind.Struct;
+        const symbol = new vscode.DocumentSymbol(
+            typeDefinition.name,
+            typeDefinition.kind,
+            kind,
+            typeDefinition.range,
+            typeDefinition.range
+        );
+
+        symbol.children = typeDefinition.members.map((member) => new vscode.DocumentSymbol(
+            member.name,
+            member.dataType,
+            member.parameters && member.parameters.length > 0
+                ? vscode.SymbolKind.Method
+                : vscode.SymbolKind.Field,
+            member.range,
+            member.range
+        ));
+
+        return symbol;
+    }
+}

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { ParsedDoc } from '../parseCache';
 import { IDiagnosticCollector } from '../diagnostics/types';
+import { ParsedDocument } from '../parser/types';
 
 /**
  * 检查文件命名规范 (扩展名及文件名规则)
@@ -9,7 +9,7 @@ import { IDiagnosticCollector } from '../diagnostics/types';
 export class FileNamingCollector implements IDiagnosticCollector {
     public readonly name = 'FileNamingCollector';
 
-    collect(document: vscode.TextDocument, _parsed: ParsedDoc): vscode.Diagnostic[] {
+    collect(document: vscode.TextDocument, _parsed: ParsedDocument): vscode.Diagnostic[] {
         const diagnostics: vscode.Diagnostic[] = [];
         const fileName = path.basename(document.fileName);
         const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));

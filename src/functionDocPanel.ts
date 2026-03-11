@@ -6,7 +6,7 @@ import { FunctionInfo } from './types/functionInfo';
 import { LPCFunctionParser } from './functionParser';
 import { JavaDocProcessor } from './utils/javaDocProcessor';
 import { FunctionUtils } from './utils/functionUtils';
-import { getParsed } from './parseCache';
+import { getGlobalParsedDocumentService } from './parser/ParsedDocumentService';
 
 /**
  * 函数文档面板类
@@ -155,7 +155,7 @@ export class FunctionDocPanel {
         const text = document.getText();
         
         // —— AST 方式收集 inherit ——
-        const { tree } = getParsed(document);
+        const { tree } = getGlobalParsedDocumentService().get(document);
         const inherits: Array<{file: string, source: string}> = [];
 
         const collect = (ctx: any) => {

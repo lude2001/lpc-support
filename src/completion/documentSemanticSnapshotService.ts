@@ -1,23 +1,31 @@
 import * as vscode from 'vscode';
 import { SourceFileContext } from '../antlr/LPCParser';
-import { CompletionVisitor } from '../ast/completionVisitor';
-import { Symbol, SymbolTable, SymbolType } from '../ast/symbolTable';
-import { getParsed, ParsedDoc } from '../parseCache';
+import { SymbolTable } from '../ast/symbolTable';
+import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
+import { ParsedDocument as ParsedDoc } from '../parser/types';
+import { SemanticModelBuilder } from '../semantic/SemanticModelBuilder';
+import { SemanticSnapshot, toDocumentSemanticSnapshot } from '../semantic/semanticSnapshot';
+import { SyntaxBuilder } from '../syntax/SyntaxBuilder';
+import { SyntaxDocument } from '../syntax/types';
 import {
     DocumentSemanticSnapshot,
-    FunctionSummary,
-    ScopeSummary,
-    SnapshotStats,
-    TypeDefinitionSummary
+    SnapshotStats
 } from './types';
 
 export interface DocumentSemanticAnalysis {
     ast: SourceFileContext;
     symbolTable: SymbolTable;
-    visitor: CompletionVisitor;
     parseErrors: vscode.Diagnostic[];
     parsed?: ParsedDoc;
+    syntax?: SyntaxDocument;
+    semantic?: SemanticSnapshot;
     snapshot: DocumentSemanticSnapshot;
+}
+
+export interface CompleteDocumentSemanticAnalysis extends DocumentSemanticAnalysis {
+    parsed: ParsedDoc;
+    syntax: SyntaxDocument;
+    semantic: SemanticSnapshot;
 }
 
 export class DocumentSemanticSnapshotService {
@@ -89,8 +97,44 @@ export class DocumentSemanticSnapshotService {
         return this.getAnalysis(document, useCache).snapshot;
     }
 
+    public getSemanticAnalysis(
+        document: vscode.TextDocument,
+        useCache: boolean = true
+    ): CompleteDocumentSemanticAnalysis {
+        const analysis = this.getAnalysis(document, useCache);
+        if (!analysis.parsed || !analysis.syntax || !analysis.semantic) {
+            throw new Error(`Semantic analysis is unavailable for ${document.uri.toString()}`);
+        }
+
+        return analysis as CompleteDocumentSemanticAnalysis;
+    }
+
+    public getSemanticSnapshot(
+        document: vscode.TextDocument,
+        useCache: boolean = true
+    ): SemanticSnapshot {
+        return this.getSemanticAnalysis(document, useCache).semantic;
+    }
+
     public getBestAvailableSnapshot(document: vscode.TextDocument): DocumentSemanticSnapshot {
         return this.getBestAvailableAnalysis(document).snapshot;
+    }
+
+    public getBestAvailableSemanticSnapshot(document: vscode.TextDocument): SemanticSnapshot {
+        const cached = this.getCachedAnalysis(document);
+        if (!cached) {
+            return this.getSemanticSnapshot(document, false);
+        }
+
+        if (cached.snapshot.version !== document.version) {
+            this.scheduleRefresh(document);
+        }
+
+        if (cached.semantic) {
+            return cached.semantic;
+        }
+
+        return this.getSemanticSnapshot(document, false);
     }
 
     public hasSnapshot(document: vscode.TextDocument): boolean {
@@ -226,138 +270,85 @@ export class DocumentSemanticSnapshotService {
     }
 
     private createAnalysis(document: vscode.TextDocument): DocumentSemanticAnalysis {
+        let parsed: ParsedDoc | undefined;
+        let syntax: SyntaxDocument | undefined;
+
         try {
-            const parsed = getParsed(document);
+            parsed = getGlobalParsedDocumentService().get(document);
             const ast = parsed.tree as SourceFileContext;
-            const symbolTable = new SymbolTable(document.uri.toString());
-            const visitor = new CompletionVisitor(symbolTable, document);
-            visitor.visit(ast);
             const parseErrors = parsed.diagnostics.slice();
+            syntax = new SyntaxBuilder(parsed).build();
+            const semantic = new SemanticModelBuilder().build(syntax);
+            const snapshot = toDocumentSemanticSnapshot(semantic);
 
             return {
                 ast,
-                symbolTable,
-                visitor,
+                symbolTable: semantic.symbolTable,
                 parseErrors,
                 parsed,
-                snapshot: this.buildSnapshot(document, symbolTable, visitor, parseErrors)
+                syntax,
+                semantic,
+                snapshot
             };
         } catch (error) {
             console.error('Failed to build document semantic snapshot:', error);
-
-            const symbolTable = new SymbolTable(document.uri.toString());
-            const visitor = new CompletionVisitor(symbolTable, document);
-            const parseErrors: vscode.Diagnostic[] = [];
-            const emptyAst = {} as SourceFileContext;
-
-            return {
-                ast: emptyAst,
-                symbolTable,
-                visitor,
-                parseErrors,
-                snapshot: this.buildSnapshot(document, symbolTable, visitor, parseErrors)
-            };
+            return this.createFallbackAnalysis(document, error, parsed, syntax);
         }
     }
 
-    private buildSnapshot(
+    private createFallbackAnalysis(
         document: vscode.TextDocument,
-        symbolTable: SymbolTable,
-        visitor: CompletionVisitor,
-        parseErrors: vscode.Diagnostic[]
-    ): DocumentSemanticSnapshot {
-        return {
+        error: unknown,
+        parsed?: ParsedDoc,
+        syntax?: SyntaxDocument
+    ): DocumentSemanticAnalysis {
+        const ast = {} as SourceFileContext;
+        const symbolTable = new SymbolTable(document.uri.toString());
+        const parseErrors = [
+            new vscode.Diagnostic(
+                new vscode.Range(0, 0, 0, 1),
+                `Semantic snapshot error: ${error instanceof Error ? error.message : String(error)}`,
+                vscode.DiagnosticSeverity.Error
+            )
+        ];
+        const semantic = syntax
+            ? {
+                uri: document.uri.toString(),
+                version: document.version,
+                syntax,
+                parseDiagnostics: parseErrors,
+                exportedFunctions: [],
+                localScopes: [],
+                typeDefinitions: [],
+                inheritStatements: [],
+                includeStatements: [],
+                macroReferences: [],
+                symbolTable,
+                createdAt: Date.now()
+            }
+            : undefined;
+        const snapshot: DocumentSemanticSnapshot = {
             uri: document.uri.toString(),
             version: document.version,
             parseDiagnostics: parseErrors,
-            exportedFunctions: symbolTable
-                .getSymbolsByType(SymbolType.FUNCTION)
-                .map(symbol => this.toFunctionSummary(document.uri.toString(), symbol)),
-            localScopes: this.collectScopeSummaries(symbolTable.getGlobalScope()),
-            typeDefinitions: this.collectTypeDefinitions(document.uri.toString(), symbolTable),
-            inheritStatements: visitor.getInheritStatements(),
-            includeStatements: visitor.getIncludeStatements(),
+            exportedFunctions: [],
+            localScopes: [],
+            typeDefinitions: [],
+            inheritStatements: [],
+            includeStatements: [],
             macroReferences: [],
             symbolTable,
             createdAt: Date.now()
         };
-    }
 
-    private collectScopeSummaries(rootScope: import('../ast/symbolTable').Scope): ScopeSummary[] {
-        const summaries: ScopeSummary[] = [];
-        const queue = [rootScope];
-
-        while (queue.length > 0) {
-            const currentScope = queue.shift()!;
-            summaries.push({
-                name: currentScope.name,
-                range: currentScope.range,
-                symbolNames: Array.from(currentScope.symbols.keys()),
-                childScopes: currentScope.children.map(child => child.name),
-                parentScopeName: currentScope.parent?.name
-            });
-
-            queue.push(...currentScope.children);
-        }
-
-        return summaries;
-    }
-
-    private collectTypeDefinitions(documentUri: string, symbolTable: SymbolTable): TypeDefinitionSummary[] {
-        const structDefinitions = symbolTable
-            .getSymbolsByType(SymbolType.STRUCT)
-            .map(symbol => this.toTypeDefinitionSummary(documentUri, symbol, 'struct'));
-        const classDefinitions = symbolTable
-            .getSymbolsByType(SymbolType.CLASS)
-            .map(symbol => this.toTypeDefinitionSummary(documentUri, symbol, 'class'));
-
-        return [...structDefinitions, ...classDefinitions];
-    }
-
-    private toFunctionSummary(documentUri: string, symbol: Symbol): FunctionSummary {
         return {
-            name: symbol.name,
-            returnType: symbol.dataType,
-            parameters: (symbol.parameters || []).map(parameter => ({
-                name: parameter.name,
-                dataType: parameter.dataType,
-                range: parameter.range,
-                documentation: parameter.documentation
-            })),
-            modifiers: symbol.modifiers || [],
-            sourceUri: documentUri,
-            range: symbol.range,
-            origin: 'local',
-            documentation: symbol.documentation,
-            definition: symbol.definition
-        };
-    }
-
-    private toTypeDefinitionSummary(
-        documentUri: string,
-        symbol: Symbol,
-        kind: TypeDefinitionSummary['kind']
-    ): TypeDefinitionSummary {
-        return {
-            name: symbol.name,
-            kind,
-            members: (symbol.members || []).map(member => ({
-                name: member.name,
-                dataType: member.dataType,
-                range: member.range,
-                documentation: member.documentation,
-                definition: member.definition,
-                parameters: member.parameters?.map(parameter => ({
-                    name: parameter.name,
-                    dataType: parameter.dataType,
-                    range: parameter.range,
-                    documentation: parameter.documentation
-                })),
-                sourceScopeName: member.scope?.name
-            })),
-            sourceUri: documentUri,
-            range: symbol.range,
-            definition: symbol.definition
+            ast,
+            symbolTable,
+            parseErrors,
+            parsed,
+            syntax,
+            semantic,
+            snapshot
         };
     }
 }

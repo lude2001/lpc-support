@@ -19,7 +19,10 @@
       "mcp__spec-workflow__approvals",
       "mcp__spec-workflow__spec-status",
       "mcp__spec-workflow__steering-guide",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__spec-workflow-mcp__spec-status"
     ],
     "deny": [],
     "ask": []

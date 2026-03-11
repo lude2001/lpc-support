@@ -81,7 +81,7 @@ ARRAY_DELIMITER_CHARS
 mode DEFAULT_MODE;
 
 // ---------- 空白 / 注释 ----------
-WS            : [ \t\r\n\u000C]+ -> skip ;
+WS            : [ \t\r\n\u000C]+ -> channel(HIDDEN);
 LINE_COMMENT  : '//' ~[\r\n]* -> channel(HIDDEN);
 BLOCK_COMMENT : '/*' .*? '*/' -> channel(HIDDEN);
 

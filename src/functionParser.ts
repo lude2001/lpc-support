@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { getParsed } from './parseCache';
 import { FunctionDefContext } from './antlr/LPCParser';
 import { FunctionInfo } from './types/functionInfo';
+import { getGlobalParsedDocumentService } from './parser/ParsedDocumentService';
 
 export class LPCFunctionParser {
     /**
@@ -15,7 +15,7 @@ export class LPCFunctionParser {
 
         // 使用AST解析选中的文本
         try {
-            const { tree } = getParsed(document);
+            const { tree } = getGlobalParsedDocumentService().get(document);
             const startOffset = document.offsetAt(selection.start);
             const endOffset = document.offsetAt(selection.end);
             
@@ -36,7 +36,7 @@ export class LPCFunctionParser {
      */
     public static parseFunctionFromCursor(document: vscode.TextDocument, position: vscode.Position): FunctionInfo | null {
         try {
-            const { tree } = getParsed(document);
+            const { tree } = getGlobalParsedDocumentService().get(document);
             const offset = document.offsetAt(position);
             
             // 查找包含光标位置的函数定义
@@ -98,7 +98,7 @@ export class LPCFunctionParser {
         const lines = text.split('\n');
         
         try {
-            const { tree } = getParsed(document);
+            const { tree } = getGlobalParsedDocumentService().get(document);
             
             const visit = (ctx: any) => {
                 if (ctx instanceof FunctionDefContext) {

@@ -67,7 +67,7 @@ describe('Completion engine regression coverage', () => {
         const basePath = path.join(root, 'lib', 'base.c');
         const childPath = path.join(root, 'room.c');
         const baseContent = 'int inherited_call() { return 1; }';
-        const childContent = ['inherit BASE_D;', '', 'inhe'].join('\n');
+        const childContent = ['inherit BASE_D;', '', 'inherited_call();'].join('\n');
 
         fs.writeFileSync(basePath, baseContent, 'utf8');
         fs.writeFileSync(childPath, childContent, 'utf8');
@@ -85,7 +85,7 @@ describe('Completion engine regression coverage', () => {
 
         const baseDocument = createDocument(basePath, baseContent);
         const childDocument = createDocument(childPath, childContent);
-        projectSymbolIndex.updateFromSnapshot(astManager.getSnapshot(baseDocument, false));
+        projectSymbolIndex.updateFromSemanticSnapshot(astManager.getSemanticSnapshot(baseDocument, false));
 
         const result = engine.query(
             childDocument,
