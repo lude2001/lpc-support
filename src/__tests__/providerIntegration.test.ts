@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
 import { LPCCompletionItemProvider } from '../completionProvider';
+import { LPCDefinitionProvider } from '../definitionProvider';
 import * as parseCache from '../parseCache';
 import { LPCSemanticTokensProvider } from '../semanticTokensProvider';
 
@@ -176,5 +177,50 @@ describe('provider integration regression', () => {
 
         expect(Array.isArray(diagnostics)).toBe(true);
         expect(legacyGetParsedSpy).not.toHaveBeenCalled();
+    });
+
+    test('definition requests use a version-matching semantic snapshot after edits', async () => {
+        const provider = new LPCDefinitionProvider(macroManager as any, efunDocsManager as any);
+        const fileName = path.join(fixtureRoot, 'definition.c');
+        const initialDocument = createDocument(
+            fileName,
+            [
+                'int first_call() {',
+                '    return 1;',
+                '}',
+                '',
+                'void demo() {',
+                '    first_call();',
+                '}'
+            ].join('\n'),
+            1
+        );
+
+        ASTManager.getInstance().getSemanticSnapshot(initialDocument, false);
+
+        const updatedDocument = createDocument(
+            fileName,
+            [
+                'int renamed_call() {',
+                '    return 2;',
+                '}',
+                '',
+                'void demo() {',
+                '    renamed_call();',
+                '}'
+            ].join('\n'),
+            2
+        );
+
+        const definition = await provider.provideDefinition(
+            updatedDocument,
+            new vscode.Position(5, 8),
+            { isCancellationRequested: false } as vscode.CancellationToken
+        ) as any;
+
+        expect(definition).toBeDefined();
+        expect(definition.uri.fsPath).toBe(updatedDocument.uri.fsPath);
+        expect(definition.range.line).toBe(0);
+        expect(updatedDocument.lineAt(definition.range.line).text).toContain('renamed_call');
     });
 });

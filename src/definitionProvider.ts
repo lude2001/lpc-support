@@ -499,9 +499,7 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     }
 
     private getSemanticSnapshot(document: vscode.TextDocument, useCache: boolean = true): SemanticSnapshot {
-        return useCache
-            ? this.astManager.getBestAvailableSemanticSnapshot(document)
-            : this.astManager.getSemanticSnapshot(document, false);
+        return this.astManager.getSemanticSnapshot(document, useCache);
     }
 
     private getSyntaxDocument(document: vscode.TextDocument, useCache: boolean = true): SyntaxDocument | undefined {

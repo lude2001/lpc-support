@@ -126,4 +126,21 @@ describe('SemanticModelBuilder', () => {
         expect(snapshot.symbolTable.findSymbol('i', new vscode.Position(1, 18))?.dataType).toBe('int');
         expect(snapshot.symbolTable.findSymbol('inner', new vscode.Position(2, 12))?.dataType).toBe('int');
     });
+
+    test('keeps implementation definitions ahead of trailing prototypes in the same scope', () => {
+        const source = [
+            'int demo() {',
+            '    return 1;',
+            '}',
+            '',
+            'int demo();'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/prototype-precedence.c');
+        const parsed = getParsed(document);
+        const syntax = new SyntaxBuilder(parsed).build();
+        const snapshot = new SemanticModelBuilder().build(syntax);
+
+        expect(snapshot.exportedFunctions.map((item) => item.name)).toEqual(['demo']);
+        expect(snapshot.symbolTable.findSymbol('demo')?.range.start.line).toBe(0);
+    });
 });

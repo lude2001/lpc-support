@@ -125,6 +125,12 @@ export class SemanticModelBuilder {
             return;
         }
 
+        const hasBody = this.hasFunctionBody(node);
+        const existingSymbol = this.symbolTable.getCurrentScope().symbols.get(functionName);
+        if (!hasBody && existingSymbol?.type === SymbolType.FUNCTION) {
+            return;
+        }
+
         const identifier = this.findFirstChild(node, SyntaxKind.Identifier);
         const typeReference = this.findFirstChild(node, SyntaxKind.TypeReference);
         const modifierList = this.findFirstChild(node, SyntaxKind.ModifierList);
@@ -142,6 +148,10 @@ export class SemanticModelBuilder {
         };
 
         this.symbolTable.addSymbol(functionSymbol);
+
+        if (!hasBody) {
+            return;
+        }
 
         this.withScope(`function:${functionName}`, node.range, () => {
             for (const child of node.children) {
@@ -619,6 +629,10 @@ export class SemanticModelBuilder {
         return typeof pointerCount === 'number' && Number.isFinite(pointerCount) && pointerCount > 0
             ? pointerCount
             : 0;
+    }
+
+    private hasFunctionBody(node: SyntaxNode): boolean {
+        return node.metadata?.hasBody === true || this.findFirstChild(node, SyntaxKind.Block) !== undefined;
     }
 
     private findFirstChild(node: SyntaxNode, kind: SyntaxKind): SyntaxNode | undefined {
