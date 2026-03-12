@@ -34,6 +34,7 @@ export function detectDelimitedTextBodyRange(document: vscode.TextDocument, rang
 export interface DelimitedTextBlockMask {
     placeholder: string;
     original: string;
+    trailingWhitespace: string;
 }
 
 export function maskDelimitedTextBlocks(text: string): { maskedText: string; blocks: DelimitedTextBlockMask[] } {
@@ -59,7 +60,8 @@ export function maskDelimitedTextBlocks(text: string): { maskedText: string; blo
             original: text.slice(
                 lineStarts[opener.line] + openerMatch.index,
                 lineStarts[closing.line] + closing.delimiterEnd
-            )
+            ),
+            trailingWhitespace: lines[closing.line].slice(closing.delimiterEnd).match(/^\s+/)?.[0] ?? ''
         });
         replacements.push({
             start: lineStarts[opener.line] + openerMatch.index,
@@ -80,9 +82,14 @@ export function maskDelimitedTextBlocks(text: string): { maskedText: string; blo
 }
 
 export function restoreDelimitedTextBlocks(text: string, blocks: DelimitedTextBlockMask[]): string {
-    return blocks.reduce((current, block) => (
-        current.replace(new RegExp(`"${block.placeholder}"`, 'g'), block.original)
-    ), text);
+    return blocks.reduce((current, block) => {
+        const guardedPlaceholder = new RegExp(`"${block.placeholder}"(?=\\S)`, 'g');
+        const plainPlaceholder = new RegExp(`"${block.placeholder}"`, 'g');
+
+        return current
+            .replace(guardedPlaceholder, `${block.original}${block.trailingWhitespace}`)
+            .replace(plainPlaceholder, block.original);
+    }, text);
 }
 
 function getDelimitedTextOpeners(lines: string[]): Array<{ line: number; tag: string }> {

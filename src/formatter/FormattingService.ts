@@ -122,20 +122,20 @@ export class FormattingService {
             return [];
         }
 
-        const syntheticDocument = this.createSyntheticDocument(
+        const wrappedSnippet = this.wrapSnippetInSyntheticBlock(snippet.dedentedText);
+        const formattedWrapper = this.formatSyntheticSource(
             document,
-            snippet.dedentedText,
+            wrappedSnippet,
             `range-${range.start.line}-${range.start.character}-${range.end.line}-${range.end.character}`
         );
-        const parsed = getGlobalParsedDocumentService().get(syntheticDocument);
-        if (parsed.diagnostics.length > 0 || !this.canBuildFormatModel(parsed)) {
+        if (!formattedWrapper) {
             return [];
         }
 
-        const formattedText = this.reindentSnippet(
-            new FormatPrinter(getFormatterConfig()).print(new FormatModelBuilder(parsed).build()),
-            snippet.baseIndent
-        );
+        const formattedText = this.extractAndReindentWrappedBody(formattedWrapper, snippet.baseIndent);
+        if (formattedText === null) {
+            return [];
+        }
 
         return [vscode.TextEdit.replace(range, formattedText)];
     }
@@ -149,14 +149,14 @@ export class FormattingService {
             return null;
         }
 
-        const nonEmptyLines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
-        if (nonEmptyLines.length === 0) {
+        const lines = text.split(/\r?\n/);
+        const firstNonEmptyLine = lines.find((line) => line.trim().length > 0);
+        if (!firstNonEmptyLine) {
             return null;
         }
 
-        const baseIndent = this.findCommonIndent(nonEmptyLines);
-        const dedentedText = text
-            .split(/\r?\n/)
+        const baseIndent = firstNonEmptyLine.match(/^[ \t]*/)?.[0] ?? '';
+        const dedentedText = lines
             .map((line) => line.startsWith(baseIndent) ? line.slice(baseIndent.length) : line)
             .join('\n')
             .trim();
@@ -164,26 +164,48 @@ export class FormattingService {
         return dedentedText ? { dedentedText, baseIndent } : null;
     }
 
-    private findCommonIndent(lines: string[]): string {
-        const indents = lines.map((line) => line.match(/^[ \t]*/)?.[0] ?? '');
-        return indents.reduce((prefix, current) => {
-            let length = 0;
-            while (length < prefix.length && length < current.length && prefix[length] === current[length]) {
-                length += 1;
-            }
-
-            return prefix.slice(0, length);
-        });
+    private wrapSnippetInSyntheticBlock(text: string): string {
+        return `void __lpc_range_wrapper__()\n{\n${text}\n}`;
     }
 
-    private reindentSnippet(text: string, baseIndent: string): string {
-        if (!baseIndent) {
-            return text;
+    private formatSyntheticSource(document: vscode.TextDocument, source: string, cacheKey: string): string | null {
+        const maskedSource = maskDelimitedTextBlocks(source);
+        const formattingDocument = this.createSyntheticDocument(document, maskedSource.maskedText, cacheKey);
+        const parsed = getGlobalParsedDocumentService().get(formattingDocument);
+        if (parsed.diagnostics.length > 0 || !this.canBuildFormatModel(parsed)) {
+            return null;
         }
 
-        return text
+        return restoreDelimitedTextBlocks(
+            applyCommentFormatting(
+                source,
+                new FormatPrinter(getFormatterConfig()).print(new FormatModelBuilder(parsed).build())
+            ),
+            maskedSource.blocks
+        );
+    }
+
+    private extractAndReindentWrappedBody(formattedWrapper: string, baseIndent: string): string | null {
+        const bodyStart = formattedWrapper.indexOf('{\n');
+        const bodyEnd = formattedWrapper.lastIndexOf('\n}');
+        if (bodyStart < 0 || bodyEnd < 0 || bodyEnd <= bodyStart + 2) {
+            return null;
+        }
+
+        return formattedWrapper
+            .slice(bodyStart + 2, bodyEnd)
             .split('\n')
-            .map((line) => line.length > 0 ? `${baseIndent}${line}` : line)
+            .map((line) => {
+                if (!line.length) {
+                    return line;
+                }
+
+                if (line.startsWith('    ')) {
+                    return `${baseIndent}${line.slice(4)}`;
+                }
+
+                return line;
+            })
             .join('\n');
     }
 

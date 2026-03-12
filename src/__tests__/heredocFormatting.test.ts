@@ -34,7 +34,7 @@ describe('heredoc formatting', () => {
         const source = 'void test(){set("long", @TEXT\nhello\nTEXT );}';
         const output = await format(source);
 
-        expect(output).toContain('@TEXT\nhello\nTEXT');
+        expect(output).toContain('@TEXT\nhello\nTEXT );');
         expect(output).not.toContain('@TEXT\n);');
         expect(output).toContain('set("long",');
     });
@@ -50,7 +50,7 @@ describe('heredoc formatting', () => {
         const edits = await service.formatDocument(document);
         const output = edits[0]?.newText ?? source;
 
-        expect(output).toContain('@TEXT\nhello\nTEXT');
+        expect(output).toContain('@TEXT\nhello\nTEXT );');
         expect(output).not.toContain('@TEXT\n);');
     });
 });

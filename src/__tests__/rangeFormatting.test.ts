@@ -110,4 +110,30 @@ describe('FormattingService range formatting', () => {
         expect(edits[0].newText).toContain('"west" : __DIR__"majiu"');
         expect(edits[0].newText).toContain('"southwest" : __DIR__"xiyuan"');
     });
+
+    test('多条语句选区在 fallback 中保持 block 语义并保留 heredoc 正文', async () => {
+        const service = new FormattingService();
+        const source = [
+            'void create()',
+            '{',
+            '\tset("short", "北大街");',
+            '\t set("long", @LONG',
+            '你走在一条繁忙的街道上，看着操着南腔北调的人们行色',
+            '匆匆，许多人都往南边走去，那里有一个热闹的亭子。西南面',
+            '是一家戏园子，不时传来叫好声，来自各地的人们进进出出。',
+            '在东面是一个客店。西面是一个马厩。',
+            'LONG );',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-heredoc-snippet.c');
+        const range = new vscode.Range(2, 0, 8, 7);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(edits[0].newText).toContain('set("short", "北大街");\n\tset("long", @LONG');
+        expect(edits[0].newText).toContain('你走在一条繁忙的街道上');
+        expect(edits[0].newText).toContain('\nLONG );');
+        expect(edits[0].newText).not.toContain('set("short", "北大街");\n\n\tset("long"');
+        expect(edits[0].newText).not.toContain('@LONG\n\t);');
+    });
 });
