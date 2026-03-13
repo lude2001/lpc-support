@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { applyCommentFormatting, normalizeLeadingCommentBlock } from './comments/commentFormatter';
 import { getFormatterConfig } from './config';
-import { maskDelimitedTextBlocks, restoreDelimitedTextBlocks } from './heredoc/heredocGuard';
+import { containsDelimitedTextBlock, maskDelimitedTextBlocks, restoreDelimitedTextBlocks } from './heredoc/heredocGuard';
 import { FormatModelBuilder } from './model/FormatModelBuilder';
 import { classifyMacro, formatMacro } from './macro/macroFormatter';
 import { FormatPrinter } from './printer/FormatPrinter';
@@ -72,6 +72,14 @@ export class FormattingService {
 
         if (!target.node) {
             return [this.createPassthroughEdit(document, target)];
+        }
+
+        const targetSource = document.getText(target.range);
+        if (containsDelimitedTextBlock(targetSource)) {
+            const formattedTarget = this.tryFormatDelimitedTarget(document, target, targetSource);
+            if (formattedTarget) {
+                return [vscode.TextEdit.replace(target.range, formattedTarget)];
+            }
         }
 
         const builder = new FormatModelBuilder(parsed);
@@ -166,6 +174,25 @@ export class FormattingService {
 
     private wrapSnippetInSyntheticBlock(text: string): string {
         return `void __lpc_range_wrapper__()\n{\n${text}\n}`;
+    }
+
+    private tryFormatDelimitedTarget(document: vscode.TextDocument, target: FormatTarget, source: string): string | null {
+        const baseCacheKey = `range-target-${target.range.start.line}-${target.range.start.character}-${target.range.end.line}-${target.range.end.character}`;
+        const directFormat = this.formatSyntheticSource(document, source, `${baseCacheKey}-direct`);
+        if (directFormat) {
+            return directFormat;
+        }
+
+        const wrappedFormat = this.formatSyntheticSource(
+            document,
+            this.wrapSnippetInSyntheticBlock(source),
+            `${baseCacheKey}-wrapped`
+        );
+        if (!wrappedFormat) {
+            return null;
+        }
+
+        return this.extractAndReindentWrappedBody(wrappedFormat, '');
     }
 
     private formatSyntheticSource(document: vscode.TextDocument, source: string, cacheKey: string): string | null {

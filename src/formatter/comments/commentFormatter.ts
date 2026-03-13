@@ -2,7 +2,18 @@ export function applyCommentFormatting(source: string, formatted: string): strin
     let result = formatted;
     const leadingComment = extractLeadingComment(source);
     if (leadingComment) {
-        result = `${normalizeLeadingComment(leadingComment)}\n${result.trimStart()}`;
+        const normalizedLeadingComment = canonicalizeLeadingComment(normalizeLeadingComment(leadingComment));
+        const trimmedResult = result.trimStart();
+        const existingLeadingComment = extractLeadingComment(trimmedResult);
+        const normalizedExistingLeadingComment = existingLeadingComment
+            ? canonicalizeLeadingComment(normalizeLeadingComment(existingLeadingComment))
+            : null;
+
+        if (normalizedExistingLeadingComment !== normalizedLeadingComment) {
+            result = `${normalizeLeadingComment(leadingComment)}\n${trimmedResult}`;
+        } else {
+            result = trimmedResult;
+        }
     }
 
     const trailingComment = extractTrailingLineComment(source);
@@ -67,4 +78,12 @@ function normalizeLeadingComment(comment: string): string {
 
 export function normalizeLeadingCommentBlock(comment: string): string {
     return normalizeLeadingComment(comment);
+}
+
+function canonicalizeLeadingComment(comment: string): string {
+    return comment
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .replace(/[ \t]+$/gm, '')
+        .trim();
 }

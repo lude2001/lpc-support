@@ -1,4 +1,5 @@
 import { FormatterConfigSnapshot } from '../types';
+import { normalizeLeadingCommentBlock } from '../comments/commentFormatter';
 import { FormatNode } from '../model/formatNodes';
 import { PrintContext } from './PrintContext';
 import { SyntaxKind } from '../../syntax/types';
@@ -11,7 +12,8 @@ export class FormatPrinter {
     }
 
     private printNode(node: FormatNode, context: PrintContext): string {
-        switch (node.syntaxKind) {
+        const rendered = (() => {
+            switch (node.syntaxKind) {
             case SyntaxKind.SourceFile:
                 return this.printSourceFile(node, context);
             case SyntaxKind.FunctionDeclaration:
@@ -50,7 +52,14 @@ export class FormatPrinter {
                 return '';
             default:
                 return this.printDefaultNode(node, context);
+            }
+        })();
+
+        if (node.syntaxKind === SyntaxKind.SourceFile) {
+            return rendered;
         }
+
+        return this.attachPreservableTrivia(node, rendered);
     }
 
     private printSourceFile(node: FormatNode, context: PrintContext): string {
@@ -232,15 +241,30 @@ export class FormatPrinter {
 
     private printBlock(node: FormatNode, context: PrintContext): string {
         const nestedContext = context.nested();
-        const lines = node.children.map((child) => this.printNode(child, nestedContext)).filter(Boolean);
+        const parts: string[] = [];
+        let previousRenderedNode: FormatNode | undefined;
 
-        if (lines.length === 0) {
+        for (const child of node.children) {
+            const rendered = this.printNode(child, nestedContext);
+            if (!rendered) {
+                continue;
+            }
+
+            if (parts.length > 0) {
+                parts.push(this.needsBlankLineBetweenBlockNodes(previousRenderedNode, child) ? '\n\n' : '\n');
+            }
+
+            parts.push(rendered);
+            previousRenderedNode = child;
+        }
+
+        if (parts.length === 0) {
             return `${context.indent()}{\n${context.indent()}}`;
         }
 
         return [
             `${context.indent()}{`,
-            lines.join('\n'),
+            parts.join(''),
             `${context.indent()}}`
         ].join('\n');
     }
@@ -559,6 +583,42 @@ export class FormatPrinter {
         return node.syntaxKind === SyntaxKind.FunctionDeclaration
             && !node.children.some((child) => child.syntaxKind === SyntaxKind.Block);
     }
+
+    private attachPreservableTrivia(node: FormatNode, rendered: string): string {
+        const leadingDirectives = extractPreservableTrivia(node.leadingTrivia);
+        let result = rendered;
+
+        if (leadingDirectives.length > 0) {
+            const separator = leadingDirectives.some((entry) => entry.startsWith('#')) ? '\n\n' : '\n';
+            result = result
+                ? `${leadingDirectives.join('\n')}${separator}${result}`
+                : leadingDirectives.join('\n');
+        }
+
+        return result;
+    }
+
+    private needsBlankLineBetweenBlockNodes(
+        previous: FormatNode | undefined,
+        current: FormatNode
+    ): boolean {
+        if (!previous) {
+            return false;
+        }
+
+        const previousGroup = classifyBlockSpacingGroup(previous);
+        const currentGroup = classifyBlockSpacingGroup(current);
+
+        if (previousGroup === 'declaration' && currentGroup !== 'declaration') {
+            return true;
+        }
+
+        if (previousGroup === 'control' && currentGroup === 'control') {
+            return previous.syntaxKind !== current.syntaxKind;
+        }
+
+        return previousGroup === 'control' || currentGroup === 'control';
+    }
 }
 
 function normalizeInlineText(text: string): string {
@@ -665,4 +725,41 @@ function trimLeadingIndent(text: string, indent: string): string {
     }
 
     return `${text.slice(indent.length)}`;
+}
+
+function extractPreservableTrivia(trivia: readonly string[]): string[] {
+    return trivia
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .flatMap((entry) => {
+            if (/^#/.test(entry)) {
+                return [entry];
+            }
+
+            if (/^\/\//.test(entry)) {
+                return [entry];
+            }
+
+            if (/^\/\*/.test(entry)) {
+                return [normalizeLeadingCommentBlock(entry)];
+            }
+
+            return [];
+        });
+}
+
+function classifyBlockSpacingGroup(node: FormatNode): 'declaration' | 'control' | 'other' {
+    switch (node.syntaxKind) {
+        case SyntaxKind.VariableDeclaration:
+            return 'declaration';
+        case SyntaxKind.IfStatement:
+        case SyntaxKind.SwitchStatement:
+        case SyntaxKind.WhileStatement:
+        case SyntaxKind.DoWhileStatement:
+        case SyntaxKind.ForStatement:
+        case SyntaxKind.ForeachStatement:
+            return 'control';
+        default:
+            return 'other';
+    }
 }

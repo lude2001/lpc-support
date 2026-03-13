@@ -136,4 +136,24 @@ describe('FormattingService range formatting', () => {
         expect(edits[0].newText).not.toContain('set("short", "北大街");\n\n\tset("long"');
         expect(edits[0].newText).not.toContain('@LONG\n\t);');
     });
+
+    test('包含 return heredoc 的完整函数选区保留正文', async () => {
+        const service = new FormattingService();
+        const source = [
+            'string help(object me)',
+            '{',
+            '    return @TEXT',
+            'line one',
+            'line two',
+            'TEXT;',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-return-heredoc.c');
+        const range = new vscode.Range(0, 0, 6, 1);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(edits[0].newText).toContain('return @TEXT\nline one\nline two\nTEXT;');
+        expect(edits[0].newText).not.toContain('return @TEXT\n;');
+    });
 });

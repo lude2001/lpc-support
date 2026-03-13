@@ -53,4 +53,12 @@ describe('heredoc formatting', () => {
         expect(output).toContain('@TEXT\nhello\nTEXT );');
         expect(output).not.toContain('@TEXT\n);');
     });
+
+    test('return heredoc 在整文格式化中保留正文', async () => {
+        const source = 'string help(object me){return @TEXT\nline one\nline two\nTEXT;}';
+        const output = await format(source);
+
+        expect(output).toContain('return @TEXT\nline one\nline two\nTEXT;');
+        expect(output).not.toContain('return @TEXT\n;');
+    });
 });

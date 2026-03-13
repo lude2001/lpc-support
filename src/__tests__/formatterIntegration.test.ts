@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { FormattingService } from '../formatter/FormattingService';
 import { clearGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { TestHelper } from './utils/TestHelper';
@@ -84,5 +86,120 @@ describe('formatter integration', () => {
         expect(output).toContain('"/d/city/npc/wujiang" : 1');
         expect(output).not.toContain('( : look_gaoshi : )');
         expect(output).not.toContain('" / d / city / npc / wujiang"');
+    });
+
+    test('真实房间文件的顶部行注释不会重复打印', async () => {
+        const source = [
+            '// Room: /d/suzhou/beimen.c',
+            '// Date: May 31, 98  Java',
+            '',
+            'inherit ROOM;',
+            '',
+            'void create(){}'
+        ].join('\n');
+        const output = await format(source);
+
+        expect(output.match(/\/\/ Room: \/d\/suzhou\/beimen\.c/g) ?? []).toHaveLength(1);
+        expect(output.match(/\/\/ Date: May 31, 98  Java/g) ?? []).toHaveLength(1);
+    });
+
+    test('带原型和 heredoc 的真实房间文件头注释不会重复打印', async () => {
+        const source = [
+            '// Room: /d/suzhou/beimen.c',
+            '// Date: May 31, 98  Java',
+            '',
+            'inherit ROOM;',
+            '',
+            'string look_gaoshi();',
+            'void create()',
+            '{',
+            '\tset("short", "北门");',
+            '\tset("long", @LONG',
+            '这是苏州府的北城门。出门远远可见西面的虎丘山。放眼',
+            '望去尽是绿的田，翠的草和清清的小河。门边官兵身后贴着一',
+            '份告示。南北一条笔直的官道。',
+            'LONG );',
+            '\tset("outdoors", "suzhou");',
+            '\tsetup();',
+            '}',
+            '',
+            'string look_gaoshi()',
+            '{',
+            '\treturn FINGER_D->get_killer() + "\\n苏州知府\\n冯正东\\n";',
+            '}'
+        ].join('\n');
+        const output = await format(source);
+
+        expect(output.match(/\/\/ Room: \/d\/suzhou\/beimen\.c/g) ?? []).toHaveLength(1);
+        expect(output.match(/\/\/ Date: May 31, 98  Java/g) ?? []).toHaveLength(1);
+    });
+
+    test('磁盘上的 beimen.c 顶部行注释不会重复打印', async () => {
+        const source = fs.readFileSync(
+            path.resolve(__dirname, '../../test/lpc_code/beimen.c'),
+            'utf8'
+        );
+        const output = await format(source);
+
+        expect(output.match(/\/\/ Room: \/d\/suzhou\/beimen\.c/g) ?? []).toHaveLength(1);
+        expect(output.match(/\/\/ Date: May 31, 98  Java/g) ?? []).toHaveLength(1);
+    });
+
+    test('真实命令文件保留 include 指令与行尾注释', async () => {
+        const source = fs.readFileSync(
+            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
+            'utf8'
+        );
+        const output = await format(source);
+
+        expect(output).toContain('#include "zhenyi/shengming.h"    // 函数声明');
+        expect(output).toContain('#include "zhenyi/interface.h"    // 界面显示');
+        expect(output).toContain('#include "zhenyi/scheme.h"       // 方案管理功能');
+        expect(output.match(/#include "zhenyi\/shengming\.h"/g) ?? []).toHaveLength(1);
+        expect(output.match(/#include "zhenyi\/interface\.h"/g) ?? []).toHaveLength(1);
+    });
+
+    test('真实命令文件保留函数前的 Javadoc 注释块', async () => {
+        const source = fs.readFileSync(
+            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
+            'utf8'
+        );
+        const output = await format(source);
+
+        expect(output).toContain('* @brief 武圣真意系统主指令');
+        expect(output).toContain('* @param string arg 参数，格式：功能名 [附加参数]');
+        expect(output).toContain('int main(object me, string arg)');
+        expect(output.match(/\* @brief 武圣真意系统主指令/g) ?? []).toHaveLength(1);
+    });
+
+    test('真实命令文件的顶部注释块不会重复打印', async () => {
+        const source = fs.readFileSync(
+            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
+            'utf8'
+        );
+        const output = await format(source);
+
+        expect(output.match(/\* @brief 武圣真意系统用户指令/g) ?? []).toHaveLength(1);
+    });
+
+    test('真实命令文件在 include 块与函数定义之间保留空行', async () => {
+        const source = fs.readFileSync(
+            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
+            'utf8'
+        );
+        const output = await format(source);
+
+        expect(output).toContain('#include "zhenyi/scheme.h"       // 方案管理功能\n\nvoid create()');
+    });
+
+    test('真实命令文件在声明段、if 链和 switch 之间插入空行', async () => {
+        const source = fs.readFileSync(
+            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
+            'utf8'
+        );
+        const output = await format(source);
+
+        expect(output).toContain('int p1, p2;\n\n    if (!me)');
+        expect(output).toContain('return delete_scheme_execute(me, param1);\n\n    switch (arg)');
     });
 });

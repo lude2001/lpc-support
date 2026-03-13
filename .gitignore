@@ -56,3 +56,4 @@ test-output*
 *-formatted.c
 *-comparison*.txt
 .spec-workflow
+test/lpc_code/

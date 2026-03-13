@@ -96,13 +96,27 @@ function getDelimitedTextOpeners(lines: string[]): Array<{ line: number; tag: st
     const openers: Array<{ line: number; tag: string }> = [];
 
     for (let index = 0; index < lines.length; index += 1) {
-        const openerMatch = lines[index].match(/(?:^|[=,(]\s*)@\@?([A-Za-z_][A-Za-z0-9_]*)\b/);
-        if (openerMatch) {
-            openers.push({ line: index, tag: openerMatch[1] });
+        const matcher = /@\@?([A-Za-z_][A-Za-z0-9_]*)\b/g;
+        let openerMatch: RegExpExecArray | null;
+
+        while ((openerMatch = matcher.exec(lines[index])) !== null) {
+            if (isDelimitedTextOpenerPrefix(lines[index].slice(0, openerMatch.index))) {
+                openers.push({ line: index, tag: openerMatch[1] });
+                break;
+            }
         }
     }
 
     return openers;
+}
+
+function isDelimitedTextOpenerPrefix(prefix: string): boolean {
+    const trimmedPrefix = prefix.trimEnd();
+    if (!trimmedPrefix) {
+        return true;
+    }
+
+    return /(?:[=,(\[?:]|\breturn)$/.test(trimmedPrefix);
 }
 
 function buildLineStarts(text: string): number[] {
