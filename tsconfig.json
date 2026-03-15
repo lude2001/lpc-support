@@ -20,7 +20,8 @@
         ".vscode-test",
         "tests/**/*",
         "test-formatter.ts",
-        "*.test.ts",
-        "*.spec.ts"
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "src/**/__tests__/**/*"
     ]
 }
