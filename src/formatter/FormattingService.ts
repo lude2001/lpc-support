@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
-import { applyCommentFormatting, normalizeLeadingCommentBlock } from './comments/commentFormatter';
+import { applyCommentFormatting } from './comments/commentFormatter';
 import { getFormatterConfig } from './config';
 import { containsDelimitedTextBlock, maskDelimitedTextBlocks, restoreDelimitedTextBlocks } from './heredoc/heredocGuard';
 import { FormatModelBuilder } from './model/FormatModelBuilder';
@@ -12,9 +12,10 @@ import { FormatTarget } from './types';
 export class FormattingService {
     public async formatDocument(document: vscode.TextDocument): Promise<vscode.TextEdit[]> {
         const source = document.getText();
+        const lineEnding = this.detectLineEnding(source);
         if (this.isStandaloneDefineMacro(source)) {
             const macroText = classifyMacro(source) === 'safe' ? formatMacro(source) : source;
-            return this.replaceWholeDocument(document, macroText);
+            return this.replaceWholeDocument(document, this.normalizeLineEndings(macroText, lineEnding));
         }
 
         const maskedSource = maskDelimitedTextBlocks(source);
@@ -22,29 +23,36 @@ export class FormattingService {
             ? this.createSyntheticDocument(document, maskedSource.maskedText)
             : document;
 
-        const parsed = getGlobalParsedDocumentService().get(formattingDocument);
+        const parsed = this.getParsedForFormatting(
+            formattingDocument,
+            maskedSource.maskedText,
+            'document'
+        );
         if (parsed.diagnostics.length > 0) {
-            const fallbackText = this.tryConservativeTextFallback(source);
-            if (fallbackText) {
-                return this.replaceWholeDocument(document, fallbackText);
-            }
-
             return [];
         }
         if (!this.canBuildFormatModel(parsed)) {
             return this.replaceWholeDocument(document, document.getText());
         }
 
-        const formattedText = restoreDelimitedTextBlocks(
-            this.renderFormattedSource(source, parsed),
-            maskedSource.blocks
+        const formattedText = this.normalizeLineEndings(
+            restoreDelimitedTextBlocks(
+                this.renderFormattedSource(source, parsed),
+                maskedSource.blocks
+            ),
+            lineEnding
         );
 
         return this.replaceWholeDocument(document, formattedText);
     }
 
     public async formatRange(document: vscode.TextDocument, range: vscode.Range): Promise<vscode.TextEdit[]> {
-        const parsed = getGlobalParsedDocumentService().get(document);
+        const lineEnding = this.detectLineEnding(document.getText());
+        const parsed = this.getParsedForFormatting(
+            document,
+            document.getText(),
+            `range-${range.start.line}-${range.start.character}-${range.end.line}-${range.end.character}`
+        );
         if (parsed.diagnostics.length > 0) {
             return [];
         }
@@ -66,15 +74,22 @@ export class FormattingService {
         if (containsDelimitedTextBlock(targetSource)) {
             const formattedTarget = this.tryFormatDelimitedTarget(document, target, targetSource);
             if (formattedTarget) {
-                return [vscode.TextEdit.replace(target.range, formattedTarget)];
+                return [vscode.TextEdit.replace(target.range, this.normalizeLineEndings(formattedTarget, lineEnding))];
             }
 
             return [this.createPassthroughEdit(document, target)];
         }
 
-        const formattedText = this.renderSyntaxNode(
-            parsed,
-            target.node as Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0]
+        const formattedText = this.normalizeLineEndings(
+            this.reindentRangeReplacement(
+                document,
+                target.range,
+                this.renderSyntaxNode(
+                    parsed,
+                    target.node as Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0]
+                )
+            ),
+            lineEnding
         );
 
         return [vscode.TextEdit.replace(target.range, formattedText)];
@@ -109,19 +124,6 @@ export class FormattingService {
         );
     }
 
-    private tryConservativeTextFallback(source: string): string | null {
-        const leadingJavadoc = source.match(/^\s*(\/\*\*[\s\S]*?\*\/)([\s\S]*)$/);
-        if (leadingJavadoc) {
-            return `${normalizeLeadingCommentBlock(leadingJavadoc[1])}${leadingJavadoc[2]}`;
-        }
-
-        if (!source.includes('foreach(ref ')) {
-            return null;
-        }
-
-        return source.replace(/foreach\s*\(\s*ref\s+/g, 'foreach (ref ');
-    }
-
     private async trySnippetRangeFallback(document: vscode.TextDocument, range: vscode.Range): Promise<vscode.TextEdit[]> {
         const snippet = this.prepareSnippetRange(document, range);
         if (!snippet) {
@@ -143,7 +145,21 @@ export class FormattingService {
             return [];
         }
 
-        return [vscode.TextEdit.replace(range, formattedText)];
+        return [vscode.TextEdit.replace(range, this.normalizeLineEndings(formattedText, this.detectLineEnding(document.getText())))];
+    }
+
+    private getParsedForFormatting(
+        document: vscode.TextDocument,
+        source: string,
+        cacheKey: string
+    ): ReturnType<ReturnType<typeof getGlobalParsedDocumentService>['get']> {
+        const parsed = getGlobalParsedDocumentService().get(document);
+        if (parsed.diagnostics.length === 0) {
+            return parsed;
+        }
+
+        const recoveredParsed = this.tryRecoverForeachRefParsed(document, source, parsed.diagnostics, cacheKey);
+        return recoveredParsed ?? parsed;
     }
 
     private prepareSnippetRange(
@@ -270,6 +286,66 @@ export class FormattingService {
         return trimmedSource.startsWith('#define') && !/[\r\n]/.test(trimmedSource);
     }
 
+    private tryRecoverForeachRefParsed(
+        document: vscode.TextDocument,
+        source: string,
+        diagnostics: ReadonlyArray<{ message: string }>,
+        cacheKey: string
+    ): ReturnType<ReturnType<typeof getGlobalParsedDocumentService>['get']> | null {
+        if (!this.hasOnlyKnownForeachRefDiagnostics(source, diagnostics)) {
+            return null;
+        }
+
+        const recoveredSource = rewriteForeachRefBindingsForParsing(source);
+        if (recoveredSource === source) {
+            return null;
+        }
+
+        const recoveredDocument = this.createSyntheticDocument(document, recoveredSource, `foreach-ref-${cacheKey}`);
+        const recoveredParsed = getGlobalParsedDocumentService().get(recoveredDocument);
+        return recoveredParsed.diagnostics.length === 0
+            ? recoveredParsed
+            : null;
+    }
+
+    private hasOnlyKnownForeachRefDiagnostics(
+        source: string,
+        diagnostics: ReadonlyArray<{ message: string }>
+    ): boolean {
+        return diagnostics.length > 0
+            && /\bforeach\s*\(\s*ref\b/.test(source)
+            && diagnostics.every((diagnostic) => (
+                diagnostic.message.includes("extraneous input 'ref' expecting")
+            ));
+    }
+
+    private reindentRangeReplacement(document: vscode.TextDocument, range: vscode.Range, text: string): string {
+        if (!text.includes('\n')) {
+            return text;
+        }
+
+        const lineIndent = document.lineAt(range.start.line).text
+            .slice(0, range.start.character)
+            .match(/^[ \t]*/)?.[0] ?? '';
+        if (!lineIndent) {
+            return text;
+        }
+
+        const [firstLine, ...restLines] = text.split('\n');
+        return [
+            firstLine,
+            ...restLines.map((line) => line.length > 0 ? `${lineIndent}${line}` : line)
+        ].join('\n');
+    }
+
+    private detectLineEnding(text: string): string {
+        return text.includes('\r\n') ? '\r\n' : '\n';
+    }
+
+    private normalizeLineEndings(text: string, lineEnding: string): string {
+        return text.replace(/\r\n|\r|\n/g, lineEnding);
+    }
+
     private createSyntheticDocument(document: vscode.TextDocument, text: string, cacheKey = 'masked-document'): vscode.TextDocument {
         const lines = text.split(/\r?\n/);
         const lineStarts = [0];
@@ -315,4 +391,74 @@ export class FormattingService {
             offsetAt
         };
     }
+}
+
+function rewriteForeachRefBindingsForParsing(source: string): string {
+    let rewritten = source;
+    let cursor = 0;
+
+    while (cursor < rewritten.length) {
+        const foreachIndex = rewritten.indexOf('foreach', cursor);
+        if (foreachIndex === -1) {
+            break;
+        }
+
+        const openParenIndex = rewritten.indexOf('(', foreachIndex);
+        if (openParenIndex === -1) {
+            break;
+        }
+
+        const closeParenIndex = findClosingParenIndex(rewritten, openParenIndex);
+        if (closeParenIndex === -1) {
+            break;
+        }
+
+        const header = rewritten.slice(openParenIndex + 1, closeParenIndex);
+        const keywordMatch = header.match(/\bin\b/);
+        if (!keywordMatch || keywordMatch.index === undefined) {
+            cursor = closeParenIndex + 1;
+            continue;
+        }
+
+        const bindings = header.slice(0, keywordMatch.index);
+        const rewrittenBindings = bindings
+            .split(',')
+            .map((binding) => rewriteForeachBindingForParsing(binding))
+            .join(',');
+
+        if (rewrittenBindings !== bindings) {
+            rewritten = `${rewritten.slice(0, openParenIndex + 1)}${rewrittenBindings}${rewritten.slice(openParenIndex + 1 + bindings.length)}`;
+        }
+
+        cursor = closeParenIndex + 1;
+    }
+
+    return rewritten;
+}
+
+function rewriteForeachBindingForParsing(binding: string): string {
+    const match = binding.match(/^(\s*)ref(\s+)([A-Za-z_][A-Za-z0-9_]*)(\s*(?:\*+\s*)*)(\s+[A-Za-z_][A-Za-z0-9_]*\s*)$/);
+    if (!match) {
+        return binding;
+    }
+
+    const [, leadingWhitespace, whitespaceAfterRef, typeName, pointerSegment, identifierSegment] = match;
+    return `${leadingWhitespace}${typeName}${whitespaceAfterRef}ref${pointerSegment}${identifierSegment}`;
+}
+
+function findClosingParenIndex(text: string, openParenIndex: number): number {
+    let depth = 0;
+
+    for (let index = openParenIndex; index < text.length; index += 1) {
+        if (text[index] === '(') {
+            depth += 1;
+        } else if (text[index] === ')') {
+            depth -= 1;
+            if (depth === 0) {
+                return index;
+            }
+        }
+    }
+
+    return -1;
 }

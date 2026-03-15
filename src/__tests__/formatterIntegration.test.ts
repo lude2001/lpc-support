@@ -25,11 +25,15 @@ function countMatches(text: string, pattern: RegExp): number {
     return text.match(pattern)?.length ?? 0;
 }
 
+function normalizeLineEndings(text: string): string {
+    return text.replace(/\r\n/g, '\n');
+}
+
 describe('formatter integration', () => {
     test('仅包含 include 指令的文件不会被格式化清空', async () => {
         const source = '#include "/sys/test.h"\n';
 
-        await expect(format(source)).resolves.toBe('#include "/sys/test.h"');
+        await expect(format(source)).resolves.toBe(source);
     });
 
     test('函数原型保留结尾分号', async () => {
@@ -65,6 +69,23 @@ describe('formatter integration', () => {
         await expect(format('void test(){foreach(ref mixed item in arr){foo(item);}}')).resolves.toContain('foreach (ref mixed item in arr)');
     });
 
+    test('仅有 foreach(ref) 误报时仍会继续格式化整文', async () => {
+        const source = 'void test(){foreach(ref mixed item in arr){if(x){foo(item);}}}';
+
+        await expect(format(source)).resolves.toBe([
+            'void test()',
+            '{',
+            '    foreach (ref mixed item in arr)',
+            '    {',
+            '        if (x)',
+            '        {',
+            '            foo(item);',
+            '        }',
+            '    }',
+            '}'
+        ].join('\n'));
+    });
+
     test('define 开头但包含正常 LPC 代码的文件仍会继续格式化后续代码', async () => {
         const source = '#define FOO 1\nvoid create(){if(x){foo();}}';
         const output = await format(source);
@@ -72,6 +93,22 @@ describe('formatter integration', () => {
         expect(output).toContain('#define FOO 1');
         expect(output).toContain('void create()');
         expect(output).toContain('if (x)');
+    });
+
+    test('带 foreach(ref) 且存在其他语法错误的文件不会触发 fallback 改写', async () => {
+        clearGlobalParsedDocumentService();
+        const service = new FormattingService();
+        const invalidDocument = TestHelper.createMockDocument([
+            'void test()',
+            '{',
+            '    foreach(ref mixed item in arr) {',
+            '        foo(item);',
+            '    }',
+            '    int x = ;',
+            '}'
+        ].join('\n'), 'lpc', 'invalid-foreach-fallback.c');
+
+        await expect(service.formatDocument(invalidDocument)).resolves.toEqual([]);
     });
 
     test('formatter 端到端行为符合首版约束', async () => {
@@ -83,6 +120,34 @@ describe('formatter integration', () => {
         await expect(service.formatDocument(validDocument)).resolves.toHaveLength(1);
         await expect(service.formatRange(validDocument, new vscode.Range(0, 0, 0, validDocument.getText().length))).resolves.toHaveLength(1);
         await expect(service.formatDocument(invalidDocument)).resolves.toEqual([]);
+    });
+
+    test('语法错误文件即使带前置 Javadoc 也会拒绝整文格式化', async () => {
+        clearGlobalParsedDocumentService();
+        const service = new FormattingService();
+        const invalidDocument = TestHelper.createMockDocument([
+            '/**',
+            '* demo',
+            '*/',
+            'void broken(){',
+            'int x = ;',
+            '}'
+        ].join('\n'), 'lpc', 'invalid-javadoc-format.c');
+
+        await expect(service.formatDocument(invalidDocument)).resolves.toEqual([]);
+    });
+
+    test('格式化会保留原文件尾部换行', async () => {
+        await expect(format('void test(){}\n')).resolves.toBe([
+            'void test()',
+            '{',
+            '}',
+            ''
+        ].join('\n'));
+    });
+
+    test('CRLF 文件格式化后保留原始换行符', async () => {
+        await expect(format('void test(){}\r\n')).resolves.toBe('void test()\r\n{\r\n}\r\n');
     });
 
     test('真实房间文件片段不会压扁 heredoc、closure 和路径字符串', async () => {
@@ -197,14 +262,14 @@ describe('formatter integration', () => {
 
     test('真实命令文件在 include 块与函数定义之间保留空行', async () => {
         const source = readFixture('wusheng_zhenyi.c');
-        const output = await format(source);
+        const output = normalizeLineEndings(await format(source));
 
         expect(output).toContain('#include "zhenyi/scheme.h"       // 方案管理功能\n\nvoid create()');
     });
 
     test('真实命令文件在声明段、if 链和 switch 之间插入空行', async () => {
         const source = readFixture('wusheng_zhenyi.c');
-        const output = await format(source);
+        const output = normalizeLineEndings(await format(source));
 
         expect(output).toContain('int p1, p2;\n\n    if (!me)');
         expect(output).toContain('return delete_scheme_execute(me, param1);\n\n    switch (arg)');

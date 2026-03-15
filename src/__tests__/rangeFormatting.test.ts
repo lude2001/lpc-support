@@ -6,6 +6,14 @@ import * as rangeResolver from '../formatter/range/findFormatTarget';
 import { workspace } from '../../tests/mocks/MockVSCode';
 import { TestHelper } from './utils/TestHelper';
 
+function applyEdit(document: ReturnType<typeof TestHelper.createMockDocument>, edit: vscode.TextEdit): string {
+    const source = document.getText();
+    const startOffset = document.offsetAt(edit.range.start);
+    const endOffset = document.offsetAt(edit.range.end);
+
+    return `${source.slice(0, startOffset)}${edit.newText}${source.slice(endOffset)}`;
+}
+
 describe('FormattingService range formatting', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -84,6 +92,23 @@ describe('FormattingService range formatting', () => {
 
         expect(edits).toHaveLength(1);
         expect(edits[0].newText).toContain('if (x)');
+    });
+
+    test('整行选区包含行尾注释时不会退回 snippet 格式化', async () => {
+        const service = new FormattingService();
+        const source = [
+            'void test()',
+            '{',
+            '    foo(); // keep',
+            '    bar();',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-inline-comment.c');
+        const range = new vscode.Range(2, 0, 3, 0);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(applyEdit(document, edits[0])).toBe(source);
     });
 
     test('多行 mapping 语句的真实选区仍能格式化', async () => {
@@ -202,5 +227,61 @@ describe('FormattingService range formatting', () => {
         expect(edits[0].newText).toContain('  if (x)\n  {');
         expect(edits[0].newText).toContain('\n    foo();');
         expect(edits[0].newText).not.toContain('\n      foo();');
+
+        (workspace.getConfiguration as jest.Mock).mockReturnValue(originalGetConfiguration);
+    });
+
+    test('块内 if 语句选区格式化后保持原始缩进层级', async () => {
+        const service = new FormattingService();
+        const source = [
+            'void test()',
+            '{',
+            '    if(x){foo();}',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-nested-if.c');
+        const range = new vscode.Range(2, 4, 2, 17);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(applyEdit(document, edits[0])).toBe([
+            'void test()',
+            '{',
+            '    if (x)',
+            '    {',
+            '        foo();',
+            '    }',
+            '}'
+        ].join('\n'));
+    });
+
+    test('仅有 foreach(ref) 误报时选区格式化仍可工作', async () => {
+        const service = new FormattingService();
+        const source = [
+            'void test()',
+            '{',
+            '    foreach(ref mixed item in arr) {',
+            '        foo(item);',
+            '    }',
+            '    if(x){bar();}',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-foreach-ref.c');
+        const range = new vscode.Range(5, 4, 5, 17);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(applyEdit(document, edits[0])).toBe([
+            'void test()',
+            '{',
+            '    foreach(ref mixed item in arr) {',
+            '        foo(item);',
+            '    }',
+            '    if (x)',
+            '    {',
+            '        bar();',
+            '    }',
+            '}'
+        ].join('\n'));
     });
 });
