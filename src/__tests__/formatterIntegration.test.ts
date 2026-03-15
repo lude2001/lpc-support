@@ -2,8 +2,10 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { FormattingService } from '../formatter/FormattingService';
-import { clearGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
+import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { TestHelper } from './utils/TestHelper';
+
+const FIXTURE_ROOT = path.resolve(__dirname, '../../test/lpc_code');
 
 async function format(source: string): Promise<string> {
     clearGlobalParsedDocumentService();
@@ -13,6 +15,14 @@ async function format(source: string): Promise<string> {
     const edits = await service.formatDocument(document);
 
     return edits[0]?.newText ?? source;
+}
+
+function readFixture(name: string): string {
+    return fs.readFileSync(path.join(FIXTURE_ROOT, name), 'utf8');
+}
+
+function countMatches(text: string, pattern: RegExp): number {
+    return text.match(pattern)?.length ?? 0;
 }
 
 describe('formatter integration', () => {
@@ -135,71 +145,169 @@ describe('formatter integration', () => {
     });
 
     test('磁盘上的 beimen.c 顶部行注释不会重复打印', async () => {
-        const source = fs.readFileSync(
-            path.resolve(__dirname, '../../test/lpc_code/beimen.c'),
-            'utf8'
-        );
+        const source = readFixture('beimen.c');
         const output = await format(source);
 
-        expect(output.match(/\/\/ Room: \/d\/suzhou\/beimen\.c/g) ?? []).toHaveLength(1);
-        expect(output.match(/\/\/ Date: May 31, 98  Java/g) ?? []).toHaveLength(1);
+        expect(countMatches(output, /\/\/ Room: \/d\/suzhou\/beimen\.c/g)).toBe(1);
+        expect(countMatches(output, /\/\/ Date: May 31, 98  Java/g)).toBe(1);
     });
 
     test('真实命令文件保留 include 指令与行尾注释', async () => {
-        const source = fs.readFileSync(
-            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
-            'utf8'
-        );
+        const source = readFixture('wusheng_zhenyi.c');
         const output = await format(source);
 
         expect(output).toContain('#include "zhenyi/shengming.h"    // 函数声明');
         expect(output).toContain('#include "zhenyi/interface.h"    // 界面显示');
         expect(output).toContain('#include "zhenyi/scheme.h"       // 方案管理功能');
-        expect(output.match(/#include "zhenyi\/shengming\.h"/g) ?? []).toHaveLength(1);
-        expect(output.match(/#include "zhenyi\/interface\.h"/g) ?? []).toHaveLength(1);
+        expect(countMatches(output, /#include "zhenyi\/shengming\.h"/g)).toBe(1);
+        expect(countMatches(output, /#include "zhenyi\/interface\.h"/g)).toBe(1);
     });
 
     test('真实命令文件保留函数前的 Javadoc 注释块', async () => {
-        const source = fs.readFileSync(
-            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
-            'utf8'
-        );
+        const source = readFixture('wusheng_zhenyi.c');
         const output = await format(source);
 
         expect(output).toContain('* @brief 武圣真意系统主指令');
         expect(output).toContain('* @param string arg 参数，格式：功能名 [附加参数]');
         expect(output).toContain('int main(object me, string arg)');
-        expect(output.match(/\* @brief 武圣真意系统主指令/g) ?? []).toHaveLength(1);
+        expect(countMatches(output, /\* @brief 武圣真意系统主指令/g)).toBe(1);
     });
 
     test('真实命令文件的顶部注释块不会重复打印', async () => {
-        const source = fs.readFileSync(
-            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
-            'utf8'
-        );
+        const source = readFixture('wusheng_zhenyi.c');
         const output = await format(source);
 
-        expect(output.match(/\* @brief 武圣真意系统用户指令/g) ?? []).toHaveLength(1);
+        expect(countMatches(output, /\* @brief 武圣真意系统用户指令/g)).toBe(1);
     });
 
     test('真实命令文件在 include 块与函数定义之间保留空行', async () => {
-        const source = fs.readFileSync(
-            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
-            'utf8'
-        );
+        const source = readFixture('wusheng_zhenyi.c');
         const output = await format(source);
 
         expect(output).toContain('#include "zhenyi/scheme.h"       // 方案管理功能\n\nvoid create()');
     });
 
     test('真实命令文件在声明段、if 链和 switch 之间插入空行', async () => {
-        const source = fs.readFileSync(
-            path.resolve(__dirname, '../../test/lpc_code/wusheng_zhenyi.c'),
-            'utf8'
-        );
+        const source = readFixture('wusheng_zhenyi.c');
         const output = await format(source);
 
         expect(output).toContain('int p1, p2;\n\n    if (!me)');
         expect(output).toContain('return delete_scheme_execute(me, param1);\n\n    switch (arg)');
+    });
+
+    test('真实 meridiand 文件保留指针返回类型与指针变量声明', async () => {
+        const source = readFixture('meridiand.c');
+        const output = await format(source);
+
+        expect(output).toContain('string *query_xue(string arg)');
+        expect(output).toContain('string *completed = ({');
+        expect(output).toContain('string *strin;');
+    });
+
+    test('真实 meridiand 文件保留 for 循环结构和循环内注释', async () => {
+        const source = readFixture('meridiand.c');
+        const output = await format(source);
+
+        expect(output).toContain('for (i = 0; i < size; i++)');
+        expect(output).toContain('    //不是一个数字类型，conti');
+        expect(output).toContain('        if (!intp(me->query("meridian/" + strin[i])))');
+    });
+
+    test('真实 meridiand 文件保留字符串拼接中的格式占位符', async () => {
+        const source = readFixture('meridiand.c');
+        const output = await format(source);
+
+        expect(output).toContain('感觉%s经脉已尽数贯通');
+        expect(output).toContain('增加%d点。');
+        expect(output).not.toContain('% s');
+        expect(output).not.toContain('% d');
+    });
+
+    test('真实 meridiand 文件保持 else if 链紧凑', async () => {
+        const source = readFixture('meridiand.c');
+        const output = await format(source);
+
+        expect(output).toContain('else if (name == "带脉" || name == "奇经总脉")');
+        expect(output).toContain('else if (name == "阳维脉")');
+    });
+
+    test('真实 meridiand 文件在赋值与 return 中不注入结构化值前导缩进', async () => {
+        const source = readFixture('meridiand.c');
+        const output = await format(source);
+
+        expect(output).toContain('completed += ({');
+        expect(output).not.toContain('completed +=             ({');
+        expect(output).not.toContain('return         ({');
+    });
+
+    test('真实 meridiand 文件保留 closure 参数列表的紧凑逗号间距', async () => {
+        const source = readFixture('meridiand.c');
+        const output = await format(source);
+
+        expect(output).toContain('(: call_other, me, "force_me", "beat " + name + " with " + dname :)');
+        expect(output).not.toContain('call_other , me , "force_me"');
+    });
+
+    test('真实 json 文件保留 switch case 中的字符与字符串字面量', async () => {
+        const source = readFixture('json.c');
+        const output = await format(source);
+
+        expect(output).toContain("case '-':");
+        expect(output).toContain("case '+':");
+        expect(output).toContain('case ",":');
+        expect(output).toContain('case ":":');
+        expect(output).not.toContain("case ' - ':");
+        expect(output).not.toContain("case ' + ':");
+        expect(output).not.toContain('case ", ":');
+        expect(output).not.toContain('case " : ":');
+    });
+
+    test('真实 json 文件保留带尾限定符的切片表达式', async () => {
+        const source = readFixture('json.c');
+        const output = await format(source);
+
+        expect(output).toContain('result = result[0..<1] + "\\n" + make_indent_spaces(indent_str, --indent) + char;');
+        expect(output).not.toContain('result = result[0..1]');
+    });
+
+    test('真实 json 文件保留文件尾部的注释块且不会搬到文件头', async () => {
+        const source = readFixture('json.c');
+        const output = await format(source);
+
+        expect(output.startsWith('// }')).toBe(false);
+        expect(output).toContain('// //bean 转 json');
+        expect(output.trimEnd().endsWith('// }')).toBe(true);
+    });
+
+    test('真实 json 文件格式化后不会新增解析诊断', async () => {
+        const source = readFixture('json.c');
+        const output = await format(source);
+
+        clearGlobalParsedDocumentService();
+        const sourceDocument = TestHelper.createMockDocument(source, 'lpc', 'json-source.c');
+        const outputDocument = TestHelper.createMockDocument(output, 'lpc', 'json-output.c');
+        const parser = getGlobalParsedDocumentService();
+        const sourceDiagnostics = parser.get(sourceDocument).diagnostics;
+        const outputDiagnostics = parser.get(outputDocument).diagnostics;
+
+        expect(outputDiagnostics.length).toBeLessThanOrEqual(sourceDiagnostics.length);
+    });
+
+    test('真实 json 文件保留复杂 for 头部结构', async () => {
+        const source = readFixture('json.c');
+        const output = await format(source);
+
+        expect(output).toContain('for (i = start, j = strlen(token); i < j; i++)');
+        expect(output).toContain('for (; ; )');
+        expect(output).not.toContain('for (i = start , j = strlen(token); i < j; i++)');
+    });
+
+    test('真实 json 文件保留反斜杠与引号敏感字面量', async () => {
+        const source = readFixture('json.c');
+        const output = await format(source);
+
+        expect(output).toContain("case '\\\\':");
+        expect(output).toContain('value = replace_string(value, "\\\\", "\\\\\\\\");');
+        expect(output).toContain('if (char == "\\"" && json_str[i - 1..i - 1] != "\\\\")');
     });
 });

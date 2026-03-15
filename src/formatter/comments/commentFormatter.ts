@@ -1,27 +1,7 @@
 export function applyCommentFormatting(source: string, formatted: string): string {
-    let result = formatted;
-    const leadingComment = extractLeadingComment(source);
-    if (leadingComment) {
-        const normalizedLeadingComment = canonicalizeLeadingComment(normalizeLeadingComment(leadingComment));
-        const trimmedResult = result.trimStart();
-        const existingLeadingComment = extractLeadingComment(trimmedResult);
-        const normalizedExistingLeadingComment = existingLeadingComment
-            ? canonicalizeLeadingComment(normalizeLeadingComment(existingLeadingComment))
-            : null;
-
-        if (normalizedExistingLeadingComment !== normalizedLeadingComment) {
-            result = `${normalizeLeadingComment(leadingComment)}\n${trimmedResult}`;
-        } else {
-            result = trimmedResult;
-        }
-    }
-
-    const trailingComment = extractTrailingLineComment(source);
-    if (trailingComment && result.includes('\n') && !result.startsWith(trailingComment)) {
-        result = `${trailingComment}\n${result}`;
-    }
-
-    return result;
+    let result = ensureLeadingComment(source, formatted);
+    result = preserveSingleLineTrailingComment(source, result);
+    return preserveTrailingCommentBlock(source, result);
 }
 
 function extractLeadingComment(source: string): string | null {
@@ -44,6 +24,45 @@ function extractTrailingLineComment(source: string): string | null {
     return beforeComment.includes('\n') || beforeComment.length > 0
         ? match[0].trimEnd()
         : null;
+}
+
+function extractTrailingLineCommentBlock(source: string): string | null {
+    const normalizedSource = normalizeLineEndings(source);
+    const lines = normalizedSource.split('\n');
+    const trailingLines: string[] = [];
+    let sawCommentLine = false;
+
+    for (let index = lines.length - 1; index >= 0; index--) {
+        const line = lines[index];
+        const trimmedLine = line.trim();
+
+        if (trimmedLine.startsWith('//')) {
+            trailingLines.unshift(line);
+            sawCommentLine = true;
+            continue;
+        }
+
+        if (trimmedLine === '' && sawCommentLine) {
+            trailingLines.unshift(line);
+            continue;
+        }
+
+        break;
+    }
+
+    if (!sawCommentLine) {
+        return null;
+    }
+
+    const beforeComment = lines
+        .slice(0, lines.length - trailingLines.length)
+        .join('\n')
+        .trimEnd();
+    if (beforeComment.length === 0) {
+        return null;
+    }
+
+    return trailingLines.join('\n').trimEnd();
 }
 
 function normalizeLeadingComment(comment: string): string {
@@ -81,9 +100,64 @@ export function normalizeLeadingCommentBlock(comment: string): string {
 }
 
 function canonicalizeLeadingComment(comment: string): string {
-    return comment
-        .replace(/\r\n/g, '\n')
-        .replace(/\r/g, '\n')
+    return normalizeLineEndings(comment)
         .replace(/[ \t]+$/gm, '')
         .trim();
+}
+
+function isSingleLineSource(source: string): boolean {
+    return !/[\r\n]/.test(source);
+}
+
+function endsWithNormalizedBlock(result: string, block: string): boolean {
+    return canonicalizeLeadingComment(result).endsWith(canonicalizeLeadingComment(block));
+}
+
+function ensureLeadingComment(source: string, formatted: string): string {
+    const leadingComment = extractLeadingComment(source);
+    if (!leadingComment) {
+        return formatted;
+    }
+
+    const normalizedLeadingComment = normalizeCommentForComparison(leadingComment);
+    const trimmedResult = formatted.trimStart();
+    const existingLeadingComment = extractLeadingComment(trimmedResult);
+    const normalizedExistingLeadingComment = existingLeadingComment
+        ? normalizeCommentForComparison(existingLeadingComment)
+        : null;
+
+    if (normalizedExistingLeadingComment === normalizedLeadingComment) {
+        return trimmedResult;
+    }
+
+    return `${normalizeLeadingComment(leadingComment)}\n${trimmedResult}`;
+}
+
+function preserveSingleLineTrailingComment(source: string, formatted: string): string {
+    const trailingComment = extractTrailingLineComment(source);
+    if (!trailingComment || !isSingleLineSource(source) || !formatted.includes('\n') || formatted.startsWith(trailingComment)) {
+        return formatted;
+    }
+
+    return `${trailingComment}\n${formatted}`;
+}
+
+function preserveTrailingCommentBlock(source: string, formatted: string): string {
+    const trailingCommentBlock = extractTrailingLineCommentBlock(source);
+    if (!trailingCommentBlock || endsWithNormalizedBlock(formatted, trailingCommentBlock)) {
+        return formatted;
+    }
+
+    const trimmedResult = formatted.trimEnd();
+    return trimmedResult.length > 0
+        ? `${trimmedResult}\n\n${trailingCommentBlock}`
+        : trailingCommentBlock;
+}
+
+function normalizeCommentForComparison(comment: string): string {
+    return canonicalizeLeadingComment(normalizeLeadingComment(comment));
+}
+
+function normalizeLineEndings(text: string): string {
+    return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }

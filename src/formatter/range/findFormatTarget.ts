@@ -8,7 +8,7 @@ import { FormatTarget } from '../types';
 export function findFormatTarget(
     document: vscode.TextDocument,
     range: vscode.Range,
-    _parsed: ParsedDocument
+    parsed: ParsedDocument
 ): FormatTarget | null {
     if (range.isEmpty) {
         return null;
@@ -19,17 +19,18 @@ export function findFormatTarget(
         return null;
     }
 
-    if (detectDelimitedTextBodyRange(document, range) || detectDelimitedTextBodyRange(document, normalizedRange)) {
+    if (isDelimitedTextSelection(document, range, normalizedRange)) {
         return {
             kind: 'heredoc-body',
             range: normalizedRange
         };
     }
 
-    const syntax = new SyntaxBuilder(_parsed).build();
-    const candidateNodes = syntax.nodes.filter((node) => node.kind !== 'SourceFile');
-    const exactNode = candidateNodes.find((node) => rangesEqual(node.range, normalizedRange))
-        ?? findTextEquivalentNode(document, normalizedRange, candidateNodes);
+    const candidateNodes = new SyntaxBuilder(parsed)
+        .build()
+        .nodes
+        .filter((node) => node.kind !== 'SourceFile');
+    const exactNode = findMatchingNode(document, normalizedRange, candidateNodes);
 
     if (!exactNode) {
         return null;
@@ -40,6 +41,24 @@ export function findFormatTarget(
         range: exactNode.range,
         node: exactNode
     };
+}
+
+function isDelimitedTextSelection(
+    document: vscode.TextDocument,
+    originalRange: vscode.Range,
+    normalizedRange: vscode.Range
+): boolean {
+    return detectDelimitedTextBodyRange(document, originalRange)
+        || detectDelimitedTextBodyRange(document, normalizedRange);
+}
+
+function findMatchingNode(
+    document: vscode.TextDocument,
+    normalizedRange: vscode.Range,
+    candidateNodes: SyntaxNode[]
+): SyntaxNode | undefined {
+    return candidateNodes.find((node) => rangesEqual(node.range, normalizedRange))
+        ?? findTextEquivalentNode(document, normalizedRange, candidateNodes);
 }
 
 function trimWhitespaceRange(document: vscode.TextDocument, range: vscode.Range): vscode.Range | null {
@@ -78,7 +97,7 @@ function rangesEqual(left: vscode.Range, right: vscode.Range): boolean {
 }
 
 function rangesOverlap(left: vscode.Range, right: vscode.Range): boolean {
-    return comparePositions(left.end, right.start) >= 0 && comparePositions(right.end, left.start) >= 0;
+    return comparePositions(left.end, right.start) > 0 && comparePositions(right.end, left.start) > 0;
 }
 
 function positionsEqual(left: vscode.Position, right: vscode.Position): boolean {

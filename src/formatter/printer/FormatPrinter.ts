@@ -12,48 +12,75 @@ export class FormatPrinter {
     }
 
     private printNode(node: FormatNode, context: PrintContext): string {
-        const rendered = (() => {
-            switch (node.syntaxKind) {
-            case SyntaxKind.SourceFile:
-                return this.printSourceFile(node, context);
-            case SyntaxKind.FunctionDeclaration:
-                return this.printFunctionDeclaration(node, context);
-            case SyntaxKind.Block:
-                return this.printBlock(node, context);
-            case SyntaxKind.IfStatement:
-                return this.printIfStatement(node, context);
-            case SyntaxKind.ExpressionStatement:
-                return this.printExpressionStatement(node, context);
-            case SyntaxKind.ReturnStatement:
-                return this.printReturnStatement(node, context);
-            case SyntaxKind.VariableDeclaration:
-                return this.printVariableDeclaration(node, context);
-            case SyntaxKind.StructDeclaration:
-                return this.printStructLike(node, context, 'struct');
-            case SyntaxKind.ClassDeclaration:
-                return this.printStructLike(node, context, 'class');
-            case SyntaxKind.FieldDeclaration:
-                return this.printFieldDeclaration(node, context);
-            case SyntaxKind.SwitchStatement:
-                return this.printSwitchStatement(node, context);
-            case SyntaxKind.CaseClause:
-                return this.printSwitchClause(node, context);
-            case SyntaxKind.DefaultClause:
-                return this.printDefaultClause(node, context);
-            case SyntaxKind.ForeachStatement:
-                return this.printForeachStatement(node, context);
-            case SyntaxKind.MappingLiteralExpression:
-                return this.printMappingLiteral(node, context);
-            case SyntaxKind.ArrayLiteralExpression:
-                return this.printArrayLiteral(node, context);
-            case SyntaxKind.NewExpression:
-                return this.printNewExpression(node, context);
-            case SyntaxKind.Missing:
-                return '';
-            default:
-                return this.printDefaultNode(node, context);
-            }
-        })();
+        let rendered: string;
+        switch (node.syntaxKind) {
+        case SyntaxKind.SourceFile:
+            rendered = this.printSourceFile(node, context);
+            break;
+        case SyntaxKind.FunctionDeclaration:
+            rendered = this.printFunctionDeclaration(node, context);
+            break;
+        case SyntaxKind.Block:
+            rendered = this.printBlock(node, context);
+            break;
+        case SyntaxKind.IfStatement:
+            rendered = this.printIfStatement(node, context);
+            break;
+        case SyntaxKind.WhileStatement:
+            rendered = this.printWhileStatement(node, context);
+            break;
+        case SyntaxKind.DoWhileStatement:
+            rendered = this.printDoWhileStatement(node, context);
+            break;
+        case SyntaxKind.ForStatement:
+            rendered = this.printForStatement(node, context);
+            break;
+        case SyntaxKind.ExpressionStatement:
+            rendered = this.printExpressionStatement(node, context);
+            break;
+        case SyntaxKind.ReturnStatement:
+            rendered = this.printReturnStatement(node, context);
+            break;
+        case SyntaxKind.VariableDeclaration:
+            rendered = this.printVariableDeclaration(node, context);
+            break;
+        case SyntaxKind.StructDeclaration:
+            rendered = this.printStructLike(node, context, 'struct');
+            break;
+        case SyntaxKind.ClassDeclaration:
+            rendered = this.printStructLike(node, context, 'class');
+            break;
+        case SyntaxKind.FieldDeclaration:
+            rendered = this.printFieldDeclaration(node, context);
+            break;
+        case SyntaxKind.SwitchStatement:
+            rendered = this.printSwitchStatement(node, context);
+            break;
+        case SyntaxKind.CaseClause:
+            rendered = this.printSwitchClause(node, context);
+            break;
+        case SyntaxKind.DefaultClause:
+            rendered = this.printDefaultClause(node, context);
+            break;
+        case SyntaxKind.ForeachStatement:
+            rendered = this.printForeachStatement(node, context);
+            break;
+        case SyntaxKind.MappingLiteralExpression:
+            rendered = this.printMappingLiteral(node, context);
+            break;
+        case SyntaxKind.ArrayLiteralExpression:
+            rendered = this.printArrayLiteral(node, context);
+            break;
+        case SyntaxKind.NewExpression:
+            rendered = this.printNewExpression(node, context);
+            break;
+        case SyntaxKind.Missing:
+            rendered = '';
+            break;
+        default:
+            rendered = this.printDefaultNode(node, context);
+            break;
+        }
 
         if (node.syntaxKind === SyntaxKind.SourceFile) {
             return rendered;
@@ -89,11 +116,13 @@ export class FormatPrinter {
         const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
         const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
         const parameters = node.children.find((child) => child.syntaxKind === SyntaxKind.ParameterList);
+        const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
+        const renderedIdentifier = `${pointerPrefix}${identifier?.name ?? normalizeInlineText(identifier?.text ?? '')}`;
 
         const header = [
             modifier ? normalizeInlineText(modifier.text) : '',
             typeReference ? normalizeInlineText(typeReference.text) : '',
-            identifier?.name ?? normalizeInlineText(identifier?.text ?? '')
+            renderedIdentifier
         ].filter(Boolean).join(' ');
 
         const declaration = `${context.indent()}${header}(${this.printParameterList(parameters)})`;
@@ -137,9 +166,10 @@ export class FormatPrinter {
     private printFieldDeclaration(node: FormatNode, context: PrintContext): string {
         const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
         const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
+        const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
         const fieldText = [
             typeReference ? normalizeInlineText(typeReference.text) : '',
-            identifier?.name ?? normalizeInlineText(identifier?.text ?? '')
+            `${pointerPrefix}${identifier?.name ?? normalizeInlineText(identifier?.text ?? '')}`
         ].filter(Boolean).join(' ');
 
         return `${context.indent()}${fieldText};`;
@@ -148,7 +178,8 @@ export class FormatPrinter {
     private printVariableDeclarator(node: FormatNode, context: PrintContext): string {
         const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
         const initializer = node.children.find((child) => child.syntaxKind !== SyntaxKind.Identifier);
-        const name = identifier?.name ?? normalizeInlineText(identifier?.text ?? node.text);
+        const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
+        const name = `${pointerPrefix}${identifier?.name ?? normalizeInlineText(identifier?.text ?? node.text)}`;
 
         if (!initializer) {
             return name;
@@ -172,11 +203,72 @@ export class FormatPrinter {
         ];
 
         if (elseStatement) {
-            parts.push(`${context.indent()}else`);
-            parts.push(this.printAttachedStatement(elseStatement, context));
+            if (elseStatement.syntaxKind === SyntaxKind.IfStatement) {
+                const renderedElseIf = this.printIfStatement(elseStatement, context);
+                const [firstLine, ...restLines] = renderedElseIf.split('\n');
+                parts.push(`${context.indent()}else ${firstLine.trimStart()}`);
+                parts.push(...restLines);
+            } else {
+                parts.push(`${context.indent()}else`);
+                parts.push(this.printAttachedStatement(elseStatement, context));
+            }
         }
 
         return parts.join('\n');
+    }
+
+    private printWhileStatement(node: FormatNode, context: PrintContext): string {
+        const [condition, body] = node.children;
+
+        return [
+            `${context.indent()}while (${condition ? this.renderExpression(condition, context) : ''})`,
+            this.printAttachedStatement(body, context)
+        ].join('\n');
+    }
+
+    private printDoWhileStatement(node: FormatNode, context: PrintContext): string {
+        const [body, condition] = node.children;
+
+        return [
+            `${context.indent()}do`,
+            this.printAttachedStatement(body, context),
+            `${context.indent()}while (${condition ? this.renderExpression(condition, context) : ''});`
+        ].join('\n');
+    }
+
+    private printForStatement(node: FormatNode, context: PrintContext): string {
+        const body = node.children[node.children.length - 1];
+        const headerParts = node.children.slice(0, -1);
+        let initializer: FormatNode | undefined;
+        let condition: FormatNode | undefined;
+        let increment: FormatNode | undefined;
+
+        if (headerParts.length === 3) {
+            [initializer, condition, increment] = headerParts;
+        } else if (headerParts.length === 2) {
+            if (this.isForInitializerNode(headerParts[0])) {
+                [initializer, condition] = headerParts;
+            } else {
+                [condition, increment] = headerParts;
+            }
+        } else if (headerParts.length === 1) {
+            if (this.isForInitializerNode(headerParts[0])) {
+                [initializer] = headerParts;
+            } else {
+                [condition] = headerParts;
+            }
+        }
+
+        const header = [
+            this.renderForClause(initializer, context),
+            condition ? this.renderExpression(condition, context) : '',
+            this.renderForClause(increment, context)
+        ];
+
+        return [
+            `${context.indent()}for (${header.join('; ')})`,
+            this.printAttachedStatement(body, context)
+        ].join('\n');
     }
 
     private printSwitchStatement(node: FormatNode, context: PrintContext): string {
@@ -197,8 +289,8 @@ export class FormatPrinter {
         const statements = node.children.slice(expressionCount);
         const hasRange = Boolean(node.metadata?.hasRange);
         const label = hasRange && expressions.length >= 2
-            ? `case ${normalizeInlineText(expressions[0].text)}..${normalizeInlineText(expressions[1].text)}:`
-            : `case ${expressions.map((expression) => normalizeInlineText(expression.text)).join(', ')}:`;
+            ? `case ${this.renderExpression(expressions[0], context)}..${this.renderExpression(expressions[1], context)}:`
+            : `case ${expressions.map((expression) => this.renderExpression(expression, context)).join(', ')}:`;
 
         return [
             `${context.indent()}${label}`,
@@ -279,7 +371,7 @@ export class FormatPrinter {
 
     private printExpressionStatement(node: FormatNode, context: PrintContext): string {
         const expression = node.children[0];
-        const rendered = expression ? this.renderExpression(expression, context) : normalizeInlineText(node.text);
+        const rendered = expression ? this.renderInlineExpression(expression, context) : normalizeInlineText(node.text);
         return appendToLastLine(`${context.indent()}${rendered}`, ';');
     }
 
@@ -289,7 +381,7 @@ export class FormatPrinter {
             return `${context.indent()}return;`;
         }
 
-        return appendToLastLine(`${context.indent()}return ${this.renderExpression(expression, context)}`, ';');
+        return appendToLastLine(`${context.indent()}return ${this.renderInlineExpression(expression, context)}`, ';');
     }
 
     private printParameterList(node: FormatNode | undefined): string {
@@ -297,11 +389,11 @@ export class FormatPrinter {
             return '';
         }
 
-        return node.children.map((child) => normalizeInlineText(child.text)).join(', ');
+        return node.children.map((child) => this.renderParameterDeclaration(child)).join(', ');
     }
 
     private renderStructuredValue(node: FormatNode, context: PrintContext): string {
-        return this.renderExpression(node, context);
+        return this.renderInlineExpression(node, context);
     }
 
     private printMappingLiteral(node: FormatNode, context: PrintContext): string {
@@ -435,13 +527,22 @@ export class FormatPrinter {
 
     private renderUnaryExpression(node: FormatNode, context: PrintContext): string {
         const operator = typeof node.metadata?.operator === 'string' ? node.metadata.operator : '';
-        const operand = node.children[0];
+        const operand = node.children[node.children.length - 1];
         if (!operand) {
             return normalizeInlineText(node.text);
         }
 
-        if (!operator || operator === 'cast') {
+        if (!operator) {
             return normalizeInlineText(node.text);
+        }
+
+        if (operator === 'cast') {
+            const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
+            if (!typeReference || operand === typeReference) {
+                return normalizeInlineText(node.text);
+            }
+
+            return `(${normalizeInlineText(typeReference.text)})${this.renderExpression(operand, context)}`;
         }
 
         return `${operator}${this.renderExpression(operand, context)}`;
@@ -450,8 +551,16 @@ export class FormatPrinter {
     private renderBinaryExpression(node: FormatNode, context: PrintContext): string {
         const [left, right] = node.children;
         const operator = typeof node.metadata?.operator === 'string' ? node.metadata.operator : '';
-        if (!left || !right || !operator || operator === 'concat') {
+        if (!left || !right || !operator) {
             return normalizeInlineText(node.text);
+        }
+
+        if (operator === 'concat') {
+            return `${this.renderExpression(left, context)}${this.renderExpression(right, context)}`;
+        }
+
+        if (operator === ',') {
+            return `${this.renderExpression(left, context)}, ${this.renderExpression(right, context)}`;
         }
 
         return `${this.renderExpression(left, context)} ${operator} ${this.renderExpression(right, context)}`;
@@ -464,7 +573,7 @@ export class FormatPrinter {
             return normalizeInlineText(node.text);
         }
 
-        return `${this.renderExpression(left, context)} ${operator} ${this.renderExpression(right, context)}`;
+        return `${this.renderInlineExpression(left, context)} ${operator} ${this.renderInlineExpression(right, context)}`;
     }
 
     private renderConditionalExpression(node: FormatNode, context: PrintContext): string {
@@ -474,11 +583,11 @@ export class FormatPrinter {
         }
 
         return [
-            this.renderExpression(condition, context),
+            this.renderInlineExpression(condition, context),
             '?',
-            this.renderExpression(whenTrue, context),
+            this.renderInlineExpression(whenTrue, context),
             ':',
-            this.renderExpression(whenFalse, context)
+            this.renderInlineExpression(whenFalse, context)
         ].join(' ');
     }
 
@@ -527,7 +636,7 @@ export class FormatPrinter {
 
     private renderClosureExpression(node: FormatNode, context: PrintContext): string {
         if (node.children[0]) {
-            return `(: ${this.renderExpression(node.children[0], context)} :)`;
+            return `(: ${normalizeClosureBody(this.renderInlineExpression(node.children[0], context))} :)`;
         }
 
         const identifier = typeof node.metadata?.identifier === 'string' ? node.metadata.identifier : '';
@@ -540,32 +649,78 @@ export class FormatPrinter {
 
     private renderExpressionList(node: FormatNode, context: PrintContext): string {
         const hasRange = Boolean(node.metadata?.hasRange);
+        const rangeOperator = Boolean(node.metadata?.hasTailQualifier) ? '..<' : '..';
         if (!hasRange) {
             return node.children.map((child) => this.renderExpression(child, context)).join(', ');
         }
 
         const [start, end] = node.children;
         if (start && end) {
-            return `${this.renderExpression(start, context)}..${this.renderExpression(end, context)}`;
+            return `${this.renderExpression(start, context)}${rangeOperator}${this.renderExpression(end, context)}`;
         }
         if (start) {
-            return `${this.renderExpression(start, context)}..`;
+            return `${this.renderExpression(start, context)}${rangeOperator}`;
         }
         if (end) {
-            return `..${this.renderExpression(end, context)}`;
+            return `${rangeOperator}${this.renderExpression(end, context)}`;
         }
 
-        return '..';
+        return rangeOperator;
     }
 
     private renderForeachBinding(node: FormatNode): string {
         const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
         const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
         const prefix = node.metadata?.isReference ? 'ref ' : '';
+        const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
         return [
             `${prefix}${typeReference ? normalizeInlineText(typeReference.text) : ''}`.trim(),
-            identifier ? this.renderIdentifier(identifier) : ''
+            identifier ? `${pointerPrefix}${this.renderIdentifier(identifier)}` : ''
         ].filter(Boolean).join(' ');
+    }
+
+    private renderParameterDeclaration(node: FormatNode): string {
+        if (node.syntaxKind !== SyntaxKind.ParameterDeclaration) {
+            return normalizeInlineText(node.text);
+        }
+
+        const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
+        const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
+        const isReference = Boolean(node.metadata?.isReference);
+        const isVariadic = Boolean(node.metadata?.isVariadic);
+        const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
+        const typeText = typeReference ? normalizeInlineText(typeReference.text) : '';
+        const name = identifier ? `${pointerPrefix}${this.renderIdentifier(identifier)}` : '';
+        const prefix = isReference ? 'ref ' : '';
+
+        return [
+            `${prefix}${typeText}`.trim(),
+            name,
+            isVariadic ? '...' : ''
+        ].filter(Boolean).join(' ');
+    }
+
+    private renderInlineExpression(node: FormatNode, context: PrintContext): string {
+        return trimLeadingIndent(this.renderExpression(node, context), context.indent());
+    }
+
+    private isForInitializerNode(node: FormatNode): boolean {
+        return node.syntaxKind === SyntaxKind.VariableDeclaration || node.syntaxKind === SyntaxKind.ExpressionList;
+    }
+
+    private renderForClause(node: FormatNode | undefined, context: PrintContext): string {
+        if (!node) {
+            return '';
+        }
+
+        if (node.syntaxKind === SyntaxKind.VariableDeclaration) {
+            const rendered = this.printVariableDeclaration(node, context);
+            return rendered.startsWith(context.indent())
+                ? rendered.slice(context.indent().length, -1)
+                : rendered.slice(0, -1);
+        }
+
+        return this.renderExpression(node, context);
     }
 
     private needsBlankLineBetweenTopLevelNodes(
@@ -590,9 +745,10 @@ export class FormatPrinter {
 
         if (leadingDirectives.length > 0) {
             const separator = leadingDirectives.some((entry) => entry.startsWith('#')) ? '\n\n' : '\n';
+            const indent = rendered.match(/^[ \t]*/)?.[0] ?? '';
             result = result
-                ? `${leadingDirectives.join('\n')}${separator}${result}`
-                : leadingDirectives.join('\n');
+                ? `${leadingDirectives.map((entry) => indentTrivia(entry, indent)).join('\n')}${separator}${result}`
+                : leadingDirectives.map((entry) => indentTrivia(entry, indent)).join('\n');
         }
 
         return result;
@@ -698,6 +854,10 @@ function appendToLastLine(text: string, suffix: string): string {
     return `${text.slice(0, lastNewline + 1)}${text.slice(lastNewline + 1)}${suffix}`;
 }
 
+function repeatPointer(count: number): string {
+    return count > 0 ? '*'.repeat(count) : '';
+}
+
 function trimTrailingWhitespace(text: string): string {
     return text.replace(/[ \t]+$/gm, '');
 }
@@ -746,6 +906,21 @@ function extractPreservableTrivia(trivia: readonly string[]): string[] {
 
             return [];
         });
+}
+
+function indentTrivia(entry: string, indent: string): string {
+    if (!indent || entry.startsWith('#')) {
+        return entry;
+    }
+
+    return entry
+        .split('\n')
+        .map((line) => line.length > 0 ? `${indent}${line}` : line)
+        .join('\n');
+}
+
+function normalizeClosureBody(text: string): string {
+    return text.replace(/\s*,\s*/g, ', ');
 }
 
 function classifyBlockSpacingGroup(node: FormatNode): 'declaration' | 'control' | 'other' {

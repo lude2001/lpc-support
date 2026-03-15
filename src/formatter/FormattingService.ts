@@ -11,14 +11,10 @@ import { FormatTarget } from './types';
 
 export class FormattingService {
     public async formatDocument(document: vscode.TextDocument): Promise<vscode.TextEdit[]> {
-        const fullRange = new vscode.Range(
-            new vscode.Position(0, 0),
-            document.positionAt(document.getText().length)
-        );
         const source = document.getText();
         if (source.trimStart().startsWith('#define')) {
             const macroText = classifyMacro(source) === 'safe' ? formatMacro(source) : source;
-            return [vscode.TextEdit.replace(fullRange, macroText)];
+            return this.replaceWholeDocument(document, macroText);
         }
 
         const maskedSource = maskDelimitedTextBlocks(source);
@@ -30,25 +26,21 @@ export class FormattingService {
         if (parsed.diagnostics.length > 0) {
             const fallbackText = this.tryConservativeTextFallback(source);
             if (fallbackText) {
-                return [vscode.TextEdit.replace(fullRange, fallbackText)];
+                return this.replaceWholeDocument(document, fallbackText);
             }
 
             return [];
         }
         if (!this.canBuildFormatModel(parsed)) {
-            return [vscode.TextEdit.replace(fullRange, document.getText())];
+            return this.replaceWholeDocument(document, document.getText());
         }
 
-        const model = new FormatModelBuilder(parsed).build();
         const formattedText = restoreDelimitedTextBlocks(
-            applyCommentFormatting(
-                source,
-                new FormatPrinter(getFormatterConfig()).print(model)
-            ),
+            this.renderFormattedSource(source, parsed),
             maskedSource.blocks
         );
 
-        return [vscode.TextEdit.replace(fullRange, formattedText)];
+        return this.replaceWholeDocument(document, formattedText);
     }
 
     public async formatRange(document: vscode.TextDocument, range: vscode.Range): Promise<vscode.TextEdit[]> {
@@ -66,11 +58,7 @@ export class FormattingService {
             return [];
         }
 
-        if (!this.canBuildFormatModel(parsed)) {
-            return [this.createPassthroughEdit(document, target)];
-        }
-
-        if (!target.node) {
+        if (!this.canBuildFormatModel(parsed) || !target.node) {
             return [this.createPassthroughEdit(document, target)];
         }
 
@@ -80,11 +68,13 @@ export class FormattingService {
             if (formattedTarget) {
                 return [vscode.TextEdit.replace(target.range, formattedTarget)];
             }
+
+            return [this.createPassthroughEdit(document, target)];
         }
 
-        const builder = new FormatModelBuilder(parsed);
-        const formattedText = new FormatPrinter(getFormatterConfig()).print(
-            builder.buildFromSyntaxNode(target.node as Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0])
+        const formattedText = this.renderSyntaxNode(
+            parsed,
+            target.node as Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0]
         );
 
         return [vscode.TextEdit.replace(target.range, formattedText)];
@@ -92,6 +82,14 @@ export class FormattingService {
 
     private createPassthroughEdit(document: vscode.TextDocument, target: FormatTarget): vscode.TextEdit {
         return vscode.TextEdit.replace(target.range, document.getText(target.range));
+    }
+
+    private replaceWholeDocument(document: vscode.TextDocument, text: string): vscode.TextEdit[] {
+        const fullRange = new vscode.Range(
+            new vscode.Position(0, 0),
+            document.positionAt(document.getText().length)
+        );
+        return [vscode.TextEdit.replace(fullRange, text)];
     }
 
     private canBuildFormatModel(parsed: unknown): parsed is {
@@ -204,12 +202,42 @@ export class FormattingService {
         }
 
         return restoreDelimitedTextBlocks(
-            applyCommentFormatting(
-                source,
-                new FormatPrinter(getFormatterConfig()).print(new FormatModelBuilder(parsed).build())
-            ),
+            this.renderFormattedSource(source, parsed),
             maskedSource.blocks
         );
+    }
+
+    private renderFormattedSource(
+        source: string,
+        parsed: {
+            text: string;
+            tree: unknown;
+            visibleTokens: unknown[];
+            hiddenTokens: unknown[];
+            allTokens: unknown[];
+        }
+    ): string {
+        return applyCommentFormatting(
+            source,
+            this.createPrinter().print(new FormatModelBuilder(parsed).build())
+        );
+    }
+
+    private renderSyntaxNode(
+        parsed: {
+            text: string;
+            tree: unknown;
+            visibleTokens: unknown[];
+            hiddenTokens: unknown[];
+            allTokens: unknown[];
+        },
+        node: Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0]
+    ): string {
+        return this.createPrinter().print(new FormatModelBuilder(parsed).buildFromSyntaxNode(node));
+    }
+
+    private createPrinter(): FormatPrinter {
+        return new FormatPrinter(getFormatterConfig());
     }
 
     private extractAndReindentWrappedBody(formattedWrapper: string, baseIndent: string): string | null {

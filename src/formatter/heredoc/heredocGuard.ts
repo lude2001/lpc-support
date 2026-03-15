@@ -23,8 +23,8 @@ export function detectDelimitedTextBodyRange(document: vscode.TextDocument, rang
 
     for (const opener of getDelimitedTextOpeners(lines)) {
         const closing = findDelimitedTextClosing(lines, opener);
-        if (closing) {
-            return range.start.line > opener.line && range.end.line < closing.line;
+        if (closing && range.start.line > opener.line && range.end.line < closing.line) {
+            return true;
         }
     }
 
@@ -34,7 +34,8 @@ export function detectDelimitedTextBodyRange(document: vscode.TextDocument, rang
 export interface DelimitedTextBlockMask {
     placeholder: string;
     original: string;
-    trailingWhitespace: string;
+    syntacticSuffix: string;
+    trailingCommentSuffix: string;
 }
 
 export function maskDelimitedTextBlocks(text: string): { maskedText: string; blocks: DelimitedTextBlockMask[] } {
@@ -44,8 +45,8 @@ export function maskDelimitedTextBlocks(text: string): { maskedText: string; blo
     const replacements: Array<{ start: number; end: number; replacement: string }> = [];
 
     for (const opener of getDelimitedTextOpeners(lines)) {
-        const openerMatch = lines[opener.line].match(/@\@?[A-Za-z_][A-Za-z0-9_]*\b/);
-        if (!openerMatch || openerMatch.index === undefined) {
+        const openerMatch = findDelimitedTextOpenerMatch(lines[opener.line], (match) => match.tag === opener.tag);
+        if (!openerMatch) {
             continue;
         }
 
@@ -54,6 +55,8 @@ export function maskDelimitedTextBlocks(text: string): { maskedText: string; blo
             continue;
         }
 
+        const suffix = lines[closing.line].slice(closing.delimiterEnd);
+        const { syntacticSuffix, trailingCommentSuffix } = splitDelimitedTextClosingSuffix(suffix);
         const placeholder = `__LPC_DELIMITED_TEXT_${blocks.length}__`;
         blocks.push({
             placeholder,
@@ -61,7 +64,8 @@ export function maskDelimitedTextBlocks(text: string): { maskedText: string; blo
                 lineStarts[opener.line] + openerMatch.index,
                 lineStarts[closing.line] + closing.delimiterEnd
             ),
-            trailingWhitespace: lines[closing.line].slice(closing.delimiterEnd).match(/^\s+/)?.[0] ?? ''
+            syntacticSuffix,
+            trailingCommentSuffix
         });
         replacements.push({
             start: lineStarts[opener.line] + openerMatch.index,
@@ -83,31 +87,69 @@ export function maskDelimitedTextBlocks(text: string): { maskedText: string; blo
 
 export function restoreDelimitedTextBlocks(text: string, blocks: DelimitedTextBlockMask[]): string {
     return blocks.reduce((current, block) => {
-        const guardedPlaceholder = new RegExp(`"${block.placeholder}"(?=\\S)`, 'g');
-        const plainPlaceholder = new RegExp(`"${block.placeholder}"`, 'g');
+        if (!shouldRestoreDelimitedTextSuffix(block)) {
+            const plainPlaceholder = new RegExp(`"${block.placeholder}"`, 'g');
+            return current.replace(plainPlaceholder, block.original);
+        }
 
-        return current
-            .replace(guardedPlaceholder, `${block.original}${block.trailingWhitespace}`)
-            .replace(plainPlaceholder, block.original);
+        const placeholderWithSuffix = new RegExp(
+            `"${block.placeholder}"${toFlexibleWhitespacePattern(block.syntacticSuffix)}`,
+            'g'
+        );
+
+        return current.replace(
+            placeholderWithSuffix,
+            `${block.original}${block.syntacticSuffix}${block.trailingCommentSuffix}`
+        );
     }, text);
+}
+
+function shouldRestoreDelimitedTextSuffix(block: DelimitedTextBlockMask): boolean {
+    return block.trailingCommentSuffix.length > 0
+        || block.syntacticSuffix !== ''
+        || /\s/.test(block.syntacticSuffix);
 }
 
 function getDelimitedTextOpeners(lines: string[]): Array<{ line: number; tag: string }> {
     const openers: Array<{ line: number; tag: string }> = [];
 
     for (let index = 0; index < lines.length; index += 1) {
-        const matcher = /@\@?([A-Za-z_][A-Za-z0-9_]*)\b/g;
-        let openerMatch: RegExpExecArray | null;
-
-        while ((openerMatch = matcher.exec(lines[index])) !== null) {
-            if (isDelimitedTextOpenerPrefix(lines[index].slice(0, openerMatch.index))) {
-                openers.push({ line: index, tag: openerMatch[1] });
-                break;
-            }
+        const openerMatch = findDelimitedTextOpenerMatch(
+            lines[index],
+            (match) => isDelimitedTextOpenerPrefix(lines[index].slice(0, match.index))
+        );
+        if (!openerMatch) {
+            continue;
         }
+
+        openers.push({ line: index, tag: openerMatch.tag });
     }
 
     return openers;
+}
+
+function findDelimitedTextOpenerMatch(
+    line: string,
+    predicate: (match: { index: number; tag: string }) => boolean = () => true
+): { index: number; tag: string } | null {
+    const matcher = /@\@?([A-Za-z_][A-Za-z0-9_]*)\b/g;
+    let openerMatch: RegExpExecArray | null;
+
+    while ((openerMatch = matcher.exec(line)) !== null) {
+        if (openerMatch.index === undefined) {
+            continue;
+        }
+
+        const match = {
+            index: openerMatch.index,
+            tag: openerMatch[1]
+        };
+        if (predicate(match)) {
+            return match;
+        }
+    }
+
+    return null;
 }
 
 function isDelimitedTextOpenerPrefix(prefix: string): boolean {
@@ -116,7 +158,11 @@ function isDelimitedTextOpenerPrefix(prefix: string): boolean {
         return true;
     }
 
-    return /(?:[=,(\[?:]|\breturn)$/.test(trimmedPrefix);
+    if (isCommentOnlyPrefix(trimmedPrefix)) {
+        return false;
+    }
+
+    return /(?:\b(?:return|case|throw)|[=,({\[]|(?:\+\+|--|&&|\|\||<<|>>|->|[?:+\-*/%!~&|^<>]))$/.test(trimmedPrefix);
 }
 
 function buildLineStarts(text: string): number[] {
@@ -139,7 +185,7 @@ function findDelimitedTextClosing(
 
     for (let closingIndex = opener.line + 1; closingIndex < lines.length; closingIndex += 1) {
         const match = lines[closingIndex].match(matcher);
-        if (!match) {
+        if (!match || !isDelimitedTextClosingSuffix(lines[closingIndex].slice(match[0].length))) {
             continue;
         }
 
@@ -154,4 +200,45 @@ function findDelimitedTextClosing(
 
 function escapeRegExp(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isDelimitedTextClosingSuffix(suffix: string): boolean {
+    return /^\s*(?:[)\],;}]+\s*)?(?:(?:\/\/.*)|(?:\/\*.*\*\/\s*))?$/.test(suffix);
+}
+
+function splitDelimitedTextClosingSuffix(suffix: string): {
+    syntacticSuffix: string;
+    trailingCommentSuffix: string;
+} {
+    const commentMatch = suffix.match(/(\s*(?:\/\/.*|\/\*.*\*\/\s*))$/);
+    const syntacticSuffix = commentMatch && commentMatch.index !== undefined
+        ? suffix.slice(0, commentMatch.index)
+        : suffix;
+    const trailingCommentSuffix = commentMatch ? commentMatch[1] : '';
+
+    return {
+        syntacticSuffix: trimTrailingStructuralBraces(syntacticSuffix),
+        trailingCommentSuffix
+    };
+}
+
+function toFlexibleWhitespacePattern(text: string): string {
+    return text
+        .split(/(\s+)/)
+        .filter((part) => part.length > 0)
+        .map((part) => /^\s+$/.test(part) ? '\\s*' : escapeRegExp(part))
+        .join('');
+}
+
+function trimTrailingStructuralBraces(suffix: string): string {
+    const trailingBraceMatch = suffix.match(/^(.*?[;)\],])(\s*}+\s*)$/);
+    if (!trailingBraceMatch) {
+        return suffix;
+    }
+
+    return trailingBraceMatch[1];
+}
+
+function isCommentOnlyPrefix(prefix: string): boolean {
+    return /^\s*(?:\/\/|\/\*+|\*)/.test(prefix);
 }

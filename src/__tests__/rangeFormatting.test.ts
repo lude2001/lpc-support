@@ -156,4 +156,23 @@ describe('FormattingService range formatting', () => {
         expect(edits[0].newText).toContain('return @TEXT\nline one\nline two\nTEXT;');
         expect(edits[0].newText).not.toContain('return @TEXT\n;');
     });
+
+    test('包含 heredoc 的完整节点在安全格式化失败时保持原文', async () => {
+        const service = new FormattingService();
+        const source = [
+            'string test()',
+            '{',
+            '    return "prefix" + @TEXT',
+            'TEXT should stay body text',
+            'line two',
+            'TEXT;',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-heredoc-failsafe.c');
+        const range = new vscode.Range(0, 0, 6, 1);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(edits[0].newText).toBe(source);
+    });
 });

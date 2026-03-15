@@ -58,4 +58,12 @@ describe('formatter printer', () => {
         expect(output).not.toContain('= =');
         expect(output).not.toContain('+ =');
     });
+
+    test('强制类型转换前缀不影响成员访问箭头间距', async () => {
+        const source = 'void test(){if((int)me -> query_skill("force",1)<20){return;}}';
+        const output = await format(source);
+
+        expect(output).toContain('if ((int)me->query_skill("force", 1) < 20)');
+        expect(output).not.toContain('me -> query_skill');
+    });
 });
