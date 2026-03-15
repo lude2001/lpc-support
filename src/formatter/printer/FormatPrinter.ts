@@ -8,7 +8,9 @@ export class FormatPrinter {
     constructor(private readonly config: FormatterConfigSnapshot) {}
 
     public print(root: FormatNode): string {
-        return trimTrailingWhitespace(this.printNode(root, new PrintContext(this.config.indentSize))).trim();
+        const rendered = trimTrailingWhitespace(this.printNode(root, new PrintContext(this.config.indentSize))).trim();
+
+        return shouldPreserveTerminalNewline(root.text) ? `${rendered}\n` : rendered;
     }
 
     private printNode(node: FormatNode, context: PrintContext): string {
@@ -1021,4 +1023,8 @@ function classifyBlockSpacingGroup(node: FormatNode): 'declaration' | 'control' 
         default:
             return 'other';
     }
+}
+
+function shouldPreserveTerminalNewline(text: string): boolean {
+    return /\r?\n$/.test(text);
 }
