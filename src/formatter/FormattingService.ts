@@ -12,7 +12,7 @@ import { FormatTarget } from './types';
 export class FormattingService {
     public async formatDocument(document: vscode.TextDocument): Promise<vscode.TextEdit[]> {
         const source = document.getText();
-        if (source.trimStart().startsWith('#define')) {
+        if (this.isStandaloneDefineMacro(source)) {
             const macroText = classifyMacro(source) === 'safe' ? formatMacro(source) : source;
             return this.replaceWholeDocument(document, macroText);
         }
@@ -241,6 +241,7 @@ export class FormattingService {
     }
 
     private extractAndReindentWrappedBody(formattedWrapper: string, baseIndent: string): string | null {
+        const syntheticIndent = ' '.repeat(getFormatterConfig().indentSize);
         const bodyStart = formattedWrapper.indexOf('{\n');
         const bodyEnd = formattedWrapper.lastIndexOf('\n}');
         if (bodyStart < 0 || bodyEnd < 0 || bodyEnd <= bodyStart + 2) {
@@ -255,13 +256,18 @@ export class FormattingService {
                     return line;
                 }
 
-                if (line.startsWith('    ')) {
-                    return `${baseIndent}${line.slice(4)}`;
+                if (syntheticIndent.length > 0 && line.startsWith(syntheticIndent)) {
+                    return `${baseIndent}${line.slice(syntheticIndent.length)}`;
                 }
 
                 return line;
             })
             .join('\n');
+    }
+
+    private isStandaloneDefineMacro(source: string): boolean {
+        const trimmedSource = source.trim();
+        return trimmedSource.startsWith('#define') && !/[\r\n]/.test(trimmedSource);
     }
 
     private createSyntheticDocument(document: vscode.TextDocument, text: string, cacheKey = 'masked-document'): vscode.TextDocument {

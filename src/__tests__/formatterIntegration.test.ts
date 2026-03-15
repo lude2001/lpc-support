@@ -26,6 +26,12 @@ function countMatches(text: string, pattern: RegExp): number {
 }
 
 describe('formatter integration', () => {
+    test('仅包含 include 指令的文件不会被格式化清空', async () => {
+        const source = '#include "/sys/test.h"\n';
+
+        await expect(format(source)).resolves.toBe('#include "/sys/test.h"');
+    });
+
     test('函数原型保留结尾分号', async () => {
         await expect(format('string look_gaoshi();')).resolves.toBe('string look_gaoshi();');
     });
@@ -57,6 +63,15 @@ describe('formatter integration', () => {
 
     test('foreach ref 保持类型顺序和关键字位置', async () => {
         await expect(format('void test(){foreach(ref mixed item in arr){foo(item);}}')).resolves.toContain('foreach (ref mixed item in arr)');
+    });
+
+    test('define 开头但包含正常 LPC 代码的文件仍会继续格式化后续代码', async () => {
+        const source = '#define FOO 1\nvoid create(){if(x){foo();}}';
+        const output = await format(source);
+
+        expect(output).toContain('#define FOO 1');
+        expect(output).toContain('void create()');
+        expect(output).toContain('if (x)');
     });
 
     test('formatter 端到端行为符合首版约束', async () => {

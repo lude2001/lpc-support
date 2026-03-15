@@ -3,6 +3,7 @@ import { FormattingService } from '../formatter/FormattingService';
 import * as parsedDocumentModule from '../parser/ParsedDocumentService';
 import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import * as rangeResolver from '../formatter/range/findFormatTarget';
+import { workspace } from '../../tests/mocks/MockVSCode';
 import { TestHelper } from './utils/TestHelper';
 
 describe('FormattingService range formatting', () => {
@@ -174,5 +175,32 @@ describe('FormattingService range formatting', () => {
 
         expect(edits).toHaveLength(1);
         expect(edits[0].newText).toBe(source);
+    });
+
+    test('fallback range formatting 会遵守 indentSize 配置', async () => {
+        const originalGetConfiguration = workspace.getConfiguration();
+        (workspace.getConfiguration as jest.Mock).mockReturnValue({
+            ...originalGetConfiguration,
+            get: jest.fn((key: string, defaultValue?: unknown) => (
+                key === 'lpc.format.indentSize' ? 2 : defaultValue
+            ))
+        });
+
+        const service = new FormattingService();
+        const source = [
+            'void create()',
+            '{',
+            '  if(x){foo();}',
+            '  bar();',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-indent-two.c');
+        const range = new vscode.Range(2, 0, 3, 8);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(edits[0].newText).toContain('  if (x)\n  {');
+        expect(edits[0].newText).toContain('\n    foo();');
+        expect(edits[0].newText).not.toContain('\n      foo();');
     });
 });

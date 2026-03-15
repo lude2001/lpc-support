@@ -86,6 +86,10 @@ export class FormatPrinter {
             return rendered;
         }
 
+        if (!rendered) {
+            return this.renderStandaloneTrivia(node, context);
+        }
+
         return this.attachPreservableTrivia(node, rendered);
     }
 
@@ -107,7 +111,10 @@ export class FormatPrinter {
             previousRenderedNode = child;
         }
 
-        return parts.join('');
+        const renderedBody = parts.join('');
+        return !renderedBody
+            ? this.attachSourceFileTrivia(node, '')
+            : renderedBody;
     }
 
     private printFunctionDeclaration(node: FormatNode, context: PrintContext): string {
@@ -749,6 +756,83 @@ export class FormatPrinter {
             result = result
                 ? `${leadingDirectives.map((entry) => indentTrivia(entry, indent)).join('\n')}${separator}${result}`
                 : leadingDirectives.map((entry) => indentTrivia(entry, indent)).join('\n');
+        }
+
+        return this.attachTrailingTrivia(result, node.trailingTrivia, rendered.match(/^[ \t]*/)?.[0] ?? '');
+    }
+
+    private attachSourceFileTrivia(node: FormatNode, rendered: string): string {
+        const segments: string[] = [];
+        const leading = extractPreservableTrivia(node.leadingTrivia);
+        const trailing = extractPreservableTrivia(node.trailingTrivia);
+
+        if (leading.length > 0) {
+            segments.push(leading.join('\n'));
+        }
+
+        if (rendered) {
+            segments.push(rendered);
+        }
+
+        if (trailing.length > 0) {
+            segments.push(trailing.join('\n'));
+        }
+
+        return segments.join('\n\n');
+    }
+
+    private renderStandaloneTrivia(node: FormatNode, context: PrintContext): string {
+        const entries = [
+            ...extractPreservableTrivia(node.leadingTrivia),
+            ...extractPreservableTrivia(node.trailingTrivia)
+        ];
+
+        if (entries.length === 0) {
+            return '';
+        }
+
+        return entries
+            .map((entry) => indentTrivia(entry, context.indent()))
+            .join('\n');
+    }
+
+    private attachTrailingTrivia(rendered: string, trailingTrivia: readonly string[], indent: string): string {
+        if (!rendered) {
+            return rendered;
+        }
+
+        let result = rendered;
+        let pendingInlineSpace = false;
+
+        for (const entry of trailingTrivia) {
+            if (!entry) {
+                continue;
+            }
+
+            if (/^[ \t]+$/.test(entry)) {
+                pendingInlineSpace = true;
+                continue;
+            }
+
+            if (/^\r?\n$/.test(entry)) {
+                break;
+            }
+
+            const trimmedEntry = entry.trim();
+            if (!trimmedEntry) {
+                continue;
+            }
+
+            if (!/^(#|\/\/|\/\*)/.test(trimmedEntry)) {
+                continue;
+            }
+
+            const normalizedEntry = /^\/\*/.test(trimmedEntry)
+                ? normalizeLeadingCommentBlock(trimmedEntry)
+                : trimmedEntry;
+
+            result = `${result}${pendingInlineSpace ? ' ' : ''}${indentTrivia(normalizedEntry, indent)}`;
+            pendingInlineSpace = false;
         }
 
         return result;

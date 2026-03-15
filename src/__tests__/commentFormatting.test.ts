@@ -59,4 +59,12 @@ describe('comment formatting', () => {
         expect(output).toContain('// line one\n\n// line two\n// }');
         expect(output.trimEnd().endsWith('// line one\n\n// line two\n// }')).toBe(true);
     });
+
+    test('块末尾语句上的尾随注释会被保留', async () => {
+        const source = 'void test(){foo(); // keep\n}';
+        const output = await format(source);
+
+        expect(output).toContain('// keep');
+        expect(output).toContain('\n}');
+    });
 });
