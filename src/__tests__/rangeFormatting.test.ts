@@ -5,6 +5,10 @@ import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from
 import * as rangeResolver from '../formatter/range/findFormatTarget';
 import { workspace } from '../../tests/mocks/MockVSCode';
 import { TestHelper } from './utils/TestHelper';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const FIXTURE_ROOT = path.resolve(__dirname, '../../test/lpc_code');
 
 function applyEdit(document: ReturnType<typeof TestHelper.createMockDocument>, edit: vscode.TextEdit): string {
     const source = document.getText();
@@ -12,6 +16,10 @@ function applyEdit(document: ReturnType<typeof TestHelper.createMockDocument>, e
     const endOffset = document.offsetAt(edit.range.end);
 
     return `${source.slice(0, startOffset)}${edit.newText}${source.slice(endOffset)}`;
+}
+
+function readFixture(name: string): string {
+    return fs.readFileSync(path.join(FIXTURE_ROOT, name), 'utf8');
 }
 
 describe('FormattingService range formatting', () => {
@@ -135,6 +143,59 @@ describe('FormattingService range formatting', () => {
         expect(edits).toHaveLength(1);
         expect(edits[0].newText).toContain('"west" : __DIR__"majiu"');
         expect(edits[0].newText).toContain('"southwest" : __DIR__"xiyuan"');
+    });
+
+    test('多行 mapping 选区格式化与整文一致地保留条目前注释和紧凑数组值', async () => {
+        const service = new FormattingService();
+        const source = [
+            'void create()',
+            '{',
+            '    mapping data = ([',
+            '        // keep these names',
+            '        // keep first 25 entries',
+            '        "foot" : ({ "a", "b" }),',
+            '        "hand" : ({ "c", "d" })',
+            '    ]);',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-mapping-comments.c');
+        const range = new vscode.Range(2, 4, 7, 7);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(edits[0].newText).toContain('// keep these names');
+        expect(edits[0].newText).toContain('// keep first 25 entries');
+        expect(edits[0].newText).toContain('"foot" : ({ "a", "b" })');
+        expect(edits[0].newText).toContain('"hand" : ({ "c", "d" })');
+        expect(edits[0].newText).not.toContain('"foot" : ({\n');
+    });
+
+    test('真实 meridiand 的足三阳经选区格式化保留说明注释和紧凑数组值', async () => {
+        const service = new FormattingService();
+        const source = readFixture('meridiand.c');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-meridiand-foot.c');
+        const range = new vscode.Range(18, 0, 20, document.lineAt(20).text.length);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(edits[0].newText).toContain('//瞳子髎、听会、上关、颔厌');
+        expect(edits[0].newText).toContain('//保留前25个穴位');
+        expect(edits[0].newText).toContain('"足三阳经" : ({ "瞳子髎", "听会", "上关", "颔厌"');
+        expect(edits[0].newText).not.toContain('"足三阳经" : ({\n');
+    });
+
+    test('真实 meridiand 的 mapping 选区格式化不会把文件头注释混进结果', async () => {
+        const service = new FormattingService();
+        const source = readFixture('meridiand.c');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'range-meridiand-mapping.c');
+        const range = new vscode.Range(9, 0, 22, document.lineAt(22).text.length);
+        const edits = await service.formatRange(document, range);
+
+        expect(edits).toHaveLength(1);
+        expect(edits[0].newText).toContain('mapping xuewei = ([');
+        expect(edits[0].newText).not.toContain('//meridiand.c');
+        expect(edits[0].newText).not.toContain('meridian/belt');
+        expect(edits[0].newText).not.toContain('//by luoyun 2016.6.27');
     });
 
     test('多条语句选区在 fallback 中保持 block 语义并保留 heredoc 正文', async () => {

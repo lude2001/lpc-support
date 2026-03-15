@@ -31,9 +31,9 @@ export function findFormatTarget(
         .nodes;
     const candidateNodes = syntaxNodes
         .filter((node) => node.kind !== 'SourceFile');
-    const exactNode = findMatchingNode(document, normalizedRange, candidateNodes);
+    const exactMatch = findMatchingNode(document, normalizedRange, candidateNodes);
 
-    if (!exactNode) {
+    if (!exactMatch) {
         const punctuatedNode = findNodeWithTrailingMissingTokens(document, normalizedRange, candidateNodes);
         if (!punctuatedNode) {
             return null;
@@ -48,8 +48,8 @@ export function findFormatTarget(
 
     return {
         kind: 'node',
-        range: exactNode.range,
-        node: exactNode
+        range: exactMatch.range,
+        node: exactMatch.node
     };
 }
 
@@ -66,8 +66,16 @@ function findMatchingNode(
     document: vscode.TextDocument,
     normalizedRange: vscode.Range,
     candidateNodes: SyntaxNode[]
-): SyntaxNode | undefined {
-    return candidateNodes.find((node) => rangesEqual(node.range, normalizedRange))
+): { node: SyntaxNode; range: vscode.Range } | undefined {
+    const exactNode = candidateNodes.find((node) => rangesEqual(node.range, normalizedRange));
+    if (exactNode) {
+        return {
+            node: exactNode,
+            range: exactNode.range
+        };
+    }
+
+    return findNodeWithLeadingTrivia(document, normalizedRange, candidateNodes)
         ?? findTextEquivalentNode(document, normalizedRange, candidateNodes);
 }
 
@@ -93,30 +101,79 @@ function findTextEquivalentNode(
     document: vscode.TextDocument,
     normalizedRange: vscode.Range,
     nodes: SyntaxNode[]
-): SyntaxNode | undefined {
-    const selectedText = document.getText(normalizedRange).trim();
+): { node: SyntaxNode; range: vscode.Range } | undefined {
+    const selectedText = normalizeComparableSelection(document.getText(normalizedRange).trim());
     const commentStrippedSelection = stripTrailingInlineComment(selectedText);
     const exactTextNode = nodes
         .filter((node) => rangesOverlap(node.range, normalizedRange))
-        .filter((node) => document.getText(node.range).trim() === selectedText)
+        .filter((node) => normalizeComparableSelection(document.getText(node.range).trim()) === selectedText)
         .sort((left, right) => rangeLength(left.range) - rangeLength(right.range))[0];
 
     if (exactTextNode) {
-        return exactTextNode;
+        return {
+            node: exactTextNode,
+            range: exactTextNode.range
+        };
     }
 
     if (!commentStrippedSelection || commentStrippedSelection === selectedText) {
         return undefined;
     }
 
-    return nodes
+    const commentStrippedNode = nodes
         .filter((node) => rangeContains(normalizedRange, node.range))
-        .filter((node) => document.getText(node.range).trim() === commentStrippedSelection)
+        .filter((node) => normalizeComparableSelection(document.getText(node.range).trim()) === commentStrippedSelection)
         .sort((left, right) => rangeLength(left.range) - rangeLength(right.range))[0];
+
+    return commentStrippedNode
+        ? {
+            node: commentStrippedNode,
+            range: commentStrippedNode.range
+        }
+        : undefined;
+}
+
+function findNodeWithLeadingTrivia(
+    document: vscode.TextDocument,
+    normalizedRange: vscode.Range,
+    nodes: SyntaxNode[]
+): { node: SyntaxNode; range: vscode.Range } | undefined {
+    const selectedText = normalizeComparableSelection(document.getText(normalizedRange).trim());
+
+    return nodes
+        .map((node) => ({
+            node,
+            range: getNodeSelectableRange(node)
+        }))
+        .filter((candidate) => !rangesEqual(candidate.range, candidate.node.range))
+        .filter((candidate) => rangesEqual(candidate.range, normalizedRange)
+            || normalizeComparableSelection(document.getText(candidate.range).trim()) === selectedText)
+        .sort((left, right) => rangeLength(left.range) - rangeLength(right.range))[0];
+}
+
+function getNodeSelectableRange(node: SyntaxNode): vscode.Range {
+    const firstPreservableLeadingTrivia = node.leadingTrivia.find((trivia) => isPreservableTrivia(trivia.kind));
+    if (!firstPreservableLeadingTrivia) {
+        return node.range;
+    }
+
+    return new vscode.Range(firstPreservableLeadingTrivia.range.start, node.range.end);
+}
+
+function isPreservableTrivia(kind: string): boolean {
+    return kind === 'line-comment' || kind === 'block-comment' || kind === 'directive';
 }
 
 function stripTrailingInlineComment(text: string): string {
     return text.replace(/\s*(?:\/\/.*|\/\*.*\*\/)\s*$/, '').trimEnd();
+}
+
+function normalizeComparableSelection(text: string): string {
+    return stripTrailingListSeparator(stripTrailingInlineComment(text));
+}
+
+function stripTrailingListSeparator(text: string): string {
+    return text.replace(/\s*,\s*$/, '').trimEnd();
 }
 
 function findNodeWithTrailingMissingTokens(

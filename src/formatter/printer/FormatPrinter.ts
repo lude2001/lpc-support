@@ -67,6 +67,9 @@ export class FormatPrinter {
         case SyntaxKind.ForeachStatement:
             rendered = this.printForeachStatement(node, context);
             break;
+        case SyntaxKind.MappingEntry:
+            rendered = this.printMappingEntry(node, context);
+            break;
         case SyntaxKind.MappingLiteralExpression:
             rendered = this.printMappingLiteral(node, context);
             break;

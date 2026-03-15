@@ -86,7 +86,8 @@ export class FormattingService {
                 target.range,
                 this.renderSyntaxNode(
                     parsed,
-                    target.node as Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0]
+                    target.node as Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0],
+                    target.range
                 )
             ),
             lineEnding
@@ -247,9 +248,36 @@ export class FormattingService {
             hiddenTokens: unknown[];
             allTokens: unknown[];
         },
-        node: Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0]
+        node: Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0],
+        range: vscode.Range
     ): string {
-        return this.createPrinter().print(new FormatModelBuilder(parsed).buildFromSyntaxNode(node));
+        return this.createPrinter().print(
+            new FormatModelBuilder(parsed).buildFromSyntaxNode(this.limitRootTriviaToRange(node, range))
+        );
+    }
+
+    private limitRootTriviaToRange<T extends {
+        leadingTrivia: readonly { range: vscode.Range }[];
+        trailingTrivia: readonly { range: vscode.Range }[];
+    }>(node: T, range: vscode.Range): T {
+        return {
+            ...node,
+            leadingTrivia: node.leadingTrivia.filter((trivia) => this.rangesOverlapOrTouch(trivia.range, range)),
+            trailingTrivia: node.trailingTrivia.filter((trivia) => this.rangesOverlapOrTouch(trivia.range, range))
+        };
+    }
+
+    private rangesOverlapOrTouch(left: vscode.Range, right: vscode.Range): boolean {
+        return this.comparePositions(left.end, right.start) >= 0
+            && this.comparePositions(right.end, left.start) >= 0;
+    }
+
+    private comparePositions(left: vscode.Position, right: vscode.Position): number {
+        if (left.line !== right.line) {
+            return left.line - right.line;
+        }
+
+        return left.character - right.character;
     }
 
     private createPrinter(): FormatPrinter {
