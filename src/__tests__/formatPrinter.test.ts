@@ -37,14 +37,43 @@ describe('formatter printer', () => {
         await expect(format(source)).resolves.toContain('function(int x)\n{');
     });
 
-    test('mapping 与二维数组强制块状展开且不加尾随逗号', async () => {
+    test('mapping 条目逐行展开但简单数组值保持紧凑', async () => {
         const source = 'mapping data = ([ "name":"sword", "actions":({ "slash", "parry" }) ]);';
         const output = await format(source);
 
-        expect(output).toContain('mapping data = ([');
-        expect(output).toContain('    "name" : "sword"');
-        expect(output).toContain('    "actions" : ({');
-        expect(output).not.toContain(',\n]);');
+        expect(output).toBe([
+            'mapping data = ([',
+            '    "name" : "sword",',
+            '    "actions" : ({ "slash", "parry" })',
+            ']);'
+        ].join('\n'));
+    });
+
+    test('数组内部带注释时保持块状布局并保留注释', async () => {
+        const source = 'mixed data = ({ "slash", /* keep */ "parry" });';
+        const output = await format(source);
+
+        expect(output).toContain('mixed data = ({');
+        expect(output).toContain('/* keep */');
+        expect(output).toContain('"slash"');
+        expect(output).toContain('"parry"');
+        expect(output).not.toContain('mixed data = ({ "slash", "parry" });');
+    });
+
+    test('mapping 条目前的行注释会保留在对应条目前', async () => {
+        const source = [
+            'mapping data = ([',
+            '    // keep these names',
+            '    // keep first 25 entries',
+            '    "foot" : ({ "a", "b" })',
+            ']);'
+        ].join('\n');
+        const output = await format(source);
+
+        expect(output).toContain('// keep these names');
+        expect(output).toContain('// keep first 25 entries');
+        expect(output).toContain('"foot" : ({ "a", "b" })');
+        expect(output).toContain('// keep first 25 entries\n    "foot" : ({ "a", "b" })');
     });
 
     test('多字符运算符保持为合法 token', async () => {

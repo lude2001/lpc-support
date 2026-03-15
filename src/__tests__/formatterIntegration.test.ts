@@ -320,6 +320,26 @@ describe('formatter integration', () => {
         expect(output).not.toContain('return         ({');
     });
 
+    test('真实 meridiand 文件的经脉 mapping 保持逐项布局且穴位数组不被逐行打散', async () => {
+        const source = readFixture('meridiand.c');
+        const output = normalizeLineEndings(await format(source));
+
+        expect(output).toContain('mapping xuewei = ([\n');
+        expect(output).toContain('"带脉" : ({ "带脉", "五枢", "维", "天冲"');
+        expect(output).toContain('"冲脉" : ({ "会阴", "阴交", "气冲", "横骨"');
+        expect(output).not.toContain('"带脉" : ({\n');
+        expect(output).not.toContain('"冲脉" : ({\n');
+    });
+
+    test('真实 meridiand 文件保留足三阳经前的说明注释', async () => {
+        const source = readFixture('meridiand.c');
+        const output = normalizeLineEndings(await format(source));
+
+        expect(output).toContain('//瞳子髎、听会、上关、颔厌、悬颅、悬厘、曲鬓、率谷、天冲、浮白、头窍阴、完骨、本神、阳白、头临泣、目窗、正营、承灵、脑空、风池、肩井、渊液、辄筋、日月、京门、带脉、五枢、维道、居髎、环跳、风市、中渎、膝阳关、阳陵泉、阳交、外丘、光明、阳辅、悬钟、丘墟、足临泣、地五会、侠溪、足窍阴');
+        expect(output).toContain('//保留前25个穴位');
+        expect(output).toContain('//保留前25个穴位\n    "足三阳经" : ({ "瞳子髎", "听会", "上关", "颔厌"');
+    });
+
     test('真实 meridiand 文件保留 closure 参数列表的紧凑逗号间距', async () => {
         const source = readFixture('meridiand.c');
         const output = await format(source);

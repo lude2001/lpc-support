@@ -402,16 +402,66 @@ export class FormatPrinter {
     }
 
     private renderStructuredValue(node: FormatNode, context: PrintContext): string {
+        const compactArray = this.tryRenderCompactArrayLiteral(node, context);
+        if (compactArray) {
+            return compactArray;
+        }
+
         return this.renderInlineExpression(node, context);
+    }
+
+    private tryRenderCompactArrayLiteral(node: FormatNode, context: PrintContext): string | undefined {
+        if (node.syntaxKind !== SyntaxKind.ArrayLiteralExpression || !this.canRenderCompactArrayLiteral(node, context)) {
+            return undefined;
+        }
+
+        const items = this.getArrayItems(node);
+        if (items.length === 0) {
+            return '({})';
+        }
+
+        return `({ ${items.map((item) => this.renderInlineExpression(item, context)).join(', ')} })`;
+    }
+
+    private canRenderCompactArrayLiteral(node: FormatNode, context: PrintContext): boolean {
+        if (hasPreservableTrivia(node) || containsCommentSyntax(node.text)) {
+            return false;
+        }
+
+        return this.getArrayItems(node).every((item) => this.canRenderCompactArrayItem(item, context));
+    }
+
+    private canRenderCompactArrayItem(node: FormatNode, context: PrintContext): boolean {
+        if (hasPreservableTrivia(node) || containsCommentSyntax(node.text)) {
+            return false;
+        }
+
+        switch (node.syntaxKind) {
+        case SyntaxKind.ArrayLiteralExpression:
+        case SyntaxKind.MappingLiteralExpression:
+        case SyntaxKind.NewExpression:
+        case SyntaxKind.AnonymousFunctionExpression:
+            return false;
+        default:
+            return !this.renderInlineExpression(node, context).includes('\n');
+        }
+    }
+
+    private getArrayItems(node: FormatNode): readonly FormatNode[] {
+        return node.children.find((child) => child.syntaxKind === SyntaxKind.ExpressionList)?.children ?? [];
     }
 
     private printMappingLiteral(node: FormatNode, context: PrintContext): string {
         const nestedContext = context.nested();
         const lines = node.children
             .filter((child) => child.syntaxKind === SyntaxKind.MappingEntry)
-            .map((child) => this.printMappingEntry(child, nestedContext));
+            .map((child) => this.printMappingEntryLine(child, nestedContext));
 
         return this.wrapCollection('([', lines, '])', context);
+    }
+
+    private printMappingEntryLine(node: FormatNode, context: PrintContext): string {
+        return this.attachPreservableTrivia(node, this.printMappingEntry(node, context));
     }
 
     private printMappingEntry(node: FormatNode, context: PrintContext): string {
@@ -422,13 +472,17 @@ export class FormatPrinter {
 
     private printArrayLiteral(node: FormatNode, context: PrintContext): string {
         const nestedContext = context.nested();
-        const items = node.children.find((child) => child.syntaxKind === SyntaxKind.ExpressionList)?.children ?? [];
-        const lines = items.map((item) => {
-            const rendered = this.renderStructuredValue(item, nestedContext);
-            return rendered.includes('\n') ? rendered : `${nestedContext.indent()}${rendered}`;
-        });
+        const items = this.getArrayItems(node);
+        const lines = items.map((item) => this.printArrayItem(item, nestedContext));
 
         return this.wrapCollection('({', lines, '})', context);
+    }
+
+    private printArrayItem(node: FormatNode, context: PrintContext): string {
+        const rendered = this.renderStructuredValue(node, context);
+        const base = rendered.includes('\n') ? rendered : `${context.indent()}${rendered}`;
+
+        return this.attachPreservableTrivia(node, base);
     }
 
     private printNewExpression(node: FormatNode, context: PrintContext): string {
@@ -992,6 +1046,15 @@ function extractPreservableTrivia(trivia: readonly string[]): string[] {
 
             return [];
         });
+}
+
+function hasPreservableTrivia(node: FormatNode): boolean {
+    return extractPreservableTrivia(node.leadingTrivia).length > 0
+        || extractPreservableTrivia(node.trailingTrivia).length > 0;
+}
+
+function containsCommentSyntax(text: string): boolean {
+    return /\/\*|\/\//.test(text);
 }
 
 function indentTrivia(entry: string, indent: string): string {
