@@ -195,6 +195,12 @@ export const TextEdit = {
     })
 };
 
+export class Selection extends Range {
+    constructor(anchor: Position, active: Position) {
+        super(anchor, active);
+    }
+}
+
 // 枚举
 export enum EndOfLine {
     LF = 1,
@@ -274,6 +280,22 @@ export enum ProgressLocation {
     Window = 10,
     Notification = 15
 }
+
+export enum StatusBarAlignment {
+    Left = 1,
+    Right = 2
+}
+
+export enum TextEditorRevealType {
+    Default = 0,
+    InCenter = 1,
+    InCenterIfOutsideViewport = 2,
+    AtTop = 3
+}
+
+export const CodeActionKind = {
+    QuickFix: 'quickfix'
+};
 
 export class MarkdownString {
     public value: string;
@@ -360,6 +382,20 @@ export const window = {
         show: jest.fn(),
         dispose: jest.fn()
     }),
+    createTreeView: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    createStatusBarItem: jest.fn().mockReturnValue({
+        show: jest.fn(),
+        hide: jest.fn(),
+        dispose: jest.fn(),
+        text: '',
+        tooltip: '',
+        command: undefined
+    }),
+    createTerminal: jest.fn().mockReturnValue({
+        sendText: jest.fn(),
+        show: jest.fn(),
+        dispose: jest.fn()
+    }),
     activeTextEditor: undefined,
     onDidChangeActiveTextEditor: jest.fn().mockReturnValue({ dispose: jest.fn() })
 };
@@ -406,16 +442,29 @@ export const languages = {
         dispose: jest.fn()
     }),
     getDiagnostics: jest.fn().mockReturnValue([]),
+    registerCodeActionsProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     registerCompletionItemProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     registerHoverProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     registerDefinitionProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     registerDocumentSemanticTokensProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    registerDocumentFormattingEditProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    registerDocumentRangeFormattingEditProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    registerDocumentSymbolProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    registerReferenceProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    registerRenameProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+    registerFoldingRangeProvider: jest.fn().mockReturnValue({ dispose: jest.fn() }),
 };
 
 // 命令
 export const commands = {
     registerCommand: jest.fn().mockReturnValue({ dispose: jest.fn() }),
     executeCommand: jest.fn().mockResolvedValue(undefined)
+};
+
+export const env = {
+    clipboard: {
+        writeText: jest.fn().mockResolvedValue(undefined)
+    }
 };
 
 // 事件

@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "publisher": "ludexiang",
   "author": {
     "name": "ludexiang",
@@ -422,6 +422,13 @@
           "minimum": 5,
           "maximum": 200,
           "description": "保留最近补全性能样本的数量，用于开发者诊断输出"
+        },
+        "lpc.format.indentSize": {
+          "type": "number",
+          "default": 4,
+          "minimum": 2,
+          "maximum": 8,
+          "description": "LPC formatter indentation size"
         },
         "lpc.performance.enableAsyncDiagnostics": {
           "type": "boolean",

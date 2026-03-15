@@ -22,6 +22,7 @@ import { LPCSymbolProvider } from './symbolProvider';
 import { LPCReferenceProvider } from './referenceProvider';
 import { LPCRenameProvider } from './renameProvider';
 import { CompletionInstrumentation } from './completion/completionInstrumentation';
+import { LPCFormattingProvider } from './formatter/LPCFormattingProvider';
 import {
     clearGlobalParsedDocumentService,
     disposeGlobalParsedDocumentService,
@@ -335,6 +336,12 @@ export function activate(context: vscode.ExtensionContext) {
             completionProvider,
             '>', '#'
         )
+    );
+
+    const formattingProvider = new LPCFormattingProvider();
+    context.subscriptions.push(
+        vscode.languages.registerDocumentFormattingEditProvider('lpc', formattingProvider),
+        vscode.languages.registerDocumentRangeFormattingEditProvider('lpc', formattingProvider)
     );
 
     // 注册文档变更事件，自动清除变量缓存
