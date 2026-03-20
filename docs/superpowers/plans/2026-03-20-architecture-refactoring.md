@@ -869,6 +869,8 @@ export interface PrinterContext {
     printBlock(node: FormatNode, context: PrintContext): string;
     printParameterList(node: FormatNode | undefined): string;
     printHeaderWithBlock(header: string, body: FormatNode | undefined, context: PrintContext): string;
+    attachPreservableTrivia(node: FormatNode, rendered: string): string;
+    wrapCollection(opener: string, lines: string[], closer: string, context: PrintContext): string;
 }
 ```
 
@@ -933,9 +935,9 @@ git commit -m "refactor: extract PrinterContext interface and printer utils"
 - `printVariableDeclarator`（190-201）
 - `printStructLike`（164-176）
 - `printFieldDeclaration`（178-188）
-- `printAnonymousFunction`（203-208）
 - `renderParameterDeclaration`（748-767）
-- `renderForeachBinding`（737-746）
+
+注意：`printAnonymousFunction` 由 `renderExpression` 调用，放入 `expressionRenderer`（Task 12）。`renderForeachBinding` 由 `printForeachStatement` 调用，放入 `statementPrinter`（Task 10）。
 
 每个方法签名从 `private xxx(node, context)` 变为 `function xxx(node, context, ctx: PrinterContext)`。方法体中 `this.xxx` 改为 `ctx.xxx`，调用 `normalizeInlineText` 等纯函数改为从 `printerUtils` 导入。
 
@@ -991,6 +993,9 @@ git commit -m "refactor: extract declaration printer delegate"
 - `printDefaultClause`（313-320）
 - `printExpressionStatement`（384-388）
 - `printReturnStatement`（390-397）
+- `renderForClause`（777-790）— 被 `printForStatement` 调用
+- `isForInitializerNode`（773-775）— 被 `printForStatement` 调用
+- `renderForeachBinding`（737-746）— 被 `printForeachStatement` 调用
 
 注册 delegate map entries。
 
@@ -1072,12 +1077,15 @@ git commit -m "refactor: extract collection printer delegate"
 - `renderClosureExpression`（703-714）
 - `renderExpressionList`（716-735）
 
-Export 一个 `renderExpression` 函数供 FormatPrinter 调用（不走 delegate map，因为表达式渲染从多处调用，不走 `printNode` 分派）。
+Export 一个 `renderExpressionDelegate` 函数供 FormatPrinter 调用（不走 delegate map，因为表达式渲染从多处调用，不走 `printNode` 分派）。使用 `renderExpressionDelegate` 名称避免与 `FormatPrinter.renderExpression` 方法名冲突。
+
+同时提取 `printAnonymousFunction`（203-208），因为它从 `renderExpression` 的 `AnonymousFunctionExpression` 分支调用。
 
 ```typescript
-export function renderExpression(node: FormatNode, context: PrintContext, ctx: PrinterContext): string {
+export function renderExpressionDelegate(node: FormatNode, context: PrintContext, ctx: PrinterContext): string {
     switch (node.syntaxKind) {
         case SyntaxKind.Identifier: return renderIdentifier(node);
+        case SyntaxKind.AnonymousFunctionExpression: return printAnonymousFunction(node, context, ctx);
         // ... 原有 switch 分支
     }
 }
@@ -1089,7 +1097,7 @@ export function renderExpression(node: FormatNode, context: PrintContext, ctx: P
 
 ```typescript
 public renderExpression(node: FormatNode, context: PrintContext): string {
-    return renderExpression(node, context, this);
+    return renderExpressionDelegate(node, context, this);
 }
 ```
 
@@ -1124,6 +1132,12 @@ git commit -m "refactor: extract expression renderer delegate"
 - [ ] **Step 2: 创建 docParser.ts**
 
 统一 `parseSimulatedEfunDocs`（448-526）和 `parseFunctionDocs`（558-628）为一个共享函数。同时提取 `extractTagBlock`（438-446）。
+
+合并策略：使用 `parseFunctionDocs` 的 regex（它在 group 3 捕获 funcName），添加可选参数 `options?: { isSimulated?: boolean }`:
+- 当 `isSimulated` 为 true 时，设置 `doc.isSimulated = true`，不设置 `lastUpdated`
+- 当 `isSimulated` 为 false/undefined 时，设置 `doc.lastUpdated = Date.now()`
+- `category` 始终由调用方传入
+- `@brief` fallback 逻辑（使用注释第一行作为描述）保留，两个原始实现中 `parseFunctionDocs` 有此逻辑而 `parseSimulatedEfunDocs` 没有，统一后都使用此 fallback
 
 ```typescript
 // src/efun/docParser.ts
@@ -1191,35 +1205,99 @@ git commit -m "refactor: extract BundledEfunLoader and RemoteEfunFetcher"
 
 ---
 
-### Task 15: 提取 SimulatedEfunScanner + FileFunctionDocTracker + EfunHoverProvider
+### Task 15a: 提取 SimulatedEfunScanner
 
 **Files:**
 - Create: `src/efun/SimulatedEfunScanner.ts`
-- Create: `src/efun/FileFunctionDocTracker.ts`
-- Create: `src/efun/EfunHoverProvider.ts`
-- Modify: `src/efunDocs.ts` → 移动到 `src/efun/EfunDocsManager.ts`
+- Modify: `src/efunDocs.ts`
 
 - [ ] **Step 1: 创建 SimulatedEfunScanner**
 
-从 `efunDocs.ts` 提取：`configureSimulatedEfuns`（376-394）、`loadSimulatedEfuns`（396-433）、`resolveProjectPath`（936-944）。使用 `docParser.parseFunctionDocs` 替换 `parseSimulatedEfunDocs`。
+从 `efunDocs.ts` 提取：`configureSimulatedEfuns`（376-394）、`loadSimulatedEfuns`（396-433）、`resolveProjectPath`（936-944）。使用 `docParser.parseFunctionDocs` 替换 `parseSimulatedEfunDocs`（传入 `{ isSimulated: true }` 选项）。
 
 公开接口：`get(name)`, `getAllNames()`, `configure()`, `load()`.
 
-- [ ] **Step 2: 创建 FileFunctionDocTracker**
+- [ ] **Step 2: 更新 efunDocs.ts 使用 SimulatedEfunScanner**
+
+- [ ] **Step 3: 运行全量测试**
+
+Run: `npm test`
+Expected: 全部通过
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add src/efun/SimulatedEfunScanner.ts src/efunDocs.ts
+git commit -m "refactor: extract SimulatedEfunScanner"
+```
+
+---
+
+### Task 15b: 提取 FileFunctionDocTracker
+
+**Files:**
+- Create: `src/efun/FileFunctionDocTracker.ts`
+- Modify: `src/efunDocs.ts`
+
+- [ ] **Step 1: 创建 FileFunctionDocTracker**
 
 从 `efunDocs.ts` 提取：`updateCurrentFileDocs`（532-549）、`parseInheritStatements`（635-646）、`loadInheritedFileDocs`（651-692）、`findFunctionDocInIncludes`（861-885）、`getIncludeFiles`（890-930）。使用 `docParser.parseFunctionDocs`。
 
-公开接口：`getDoc(name): EfunDoc | undefined`, `update(document)`.
+公开接口：`getDoc(name): EfunDoc | undefined`, `update(document)`, `getDocFromInherited(name)`, `getDocFromIncludes(document, name)`.
 
-- [ ] **Step 3: 创建 EfunHoverProvider**
+- [ ] **Step 2: 更新 efunDocs.ts 委托给 FileFunctionDocTracker**
+
+- [ ] **Step 3: 运行全量测试**
+
+Run: `npm test`
+Expected: 全部通过
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add src/efun/FileFunctionDocTracker.ts src/efunDocs.ts
+git commit -m "refactor: extract FileFunctionDocTracker"
+```
+
+---
+
+### Task 15c: 提取 EfunHoverProvider
+
+**Files:**
+- Create: `src/efun/EfunHoverProvider.ts`
+- Modify: `src/efunDocs.ts`
+
+- [ ] **Step 1: 创建 EfunHoverProvider**
 
 从 `efunDocs.ts` 提取：`provideHover`（694-745）、`createHoverContent`（747-840）。
 
 实现 `vscode.HoverProvider`，构造函数接收 EfunDocsManager 引用。
 
-- [ ] **Step 4: 将 efunDocs.ts 移动为 EfunDocsManager 门面**
+- [ ] **Step 2: 更新 efunDocs.ts，hover 注册改为使用 EfunHoverProvider**
 
-创建 `src/efun/EfunDocsManager.ts`，持有各子服务引用，提供统一查询接口。更新所有外部 import 路径（`completionProvider.ts`、`definitionProvider.ts`、`functionDocPanel.ts`、`extension.ts`/`coreModule.ts`、`ServiceKeys.ts`）。
+- [ ] **Step 3: 运行全量测试**
+
+Run: `npm test`
+Expected: 全部通过
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add src/efun/EfunHoverProvider.ts src/efunDocs.ts
+git commit -m "refactor: extract EfunHoverProvider"
+```
+
+---
+
+### Task 15d: 创建 EfunDocsManager 门面 + 更新 import 路径
+
+**Files:**
+- Create: `src/efun/EfunDocsManager.ts`
+- Modify: `src/efunDocs.ts` → 变为 re-export shim
+
+- [ ] **Step 1: 将 efunDocs.ts 移动为 EfunDocsManager 门面**
+
+创建 `src/efun/EfunDocsManager.ts`，持有各子服务引用，提供统一查询接口。
 
 保留 `src/efunDocs.ts` 作为 re-export 文件以简化迁移：
 ```typescript
@@ -1227,16 +1305,20 @@ export { EfunDocsManager } from './efun/EfunDocsManager';
 export type { EfunDoc } from './efun/types';
 ```
 
-- [ ] **Step 5: 运行全量测试**
+- [ ] **Step 2: 更新所有外部 import 路径**
+
+更新消费者文件中的 import（`completionProvider.ts`、`definitionProvider.ts`、`functionDocPanel.ts`、`ServiceKeys.ts`、`coreModule.ts`）。由于 re-export shim 存在，大部分 import 无需变更，仅需确认功能正常。
+
+- [ ] **Step 3: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 6: 提交**
+- [ ] **Step 4: 提交**
 
 ```bash
-git add src/efun/ src/efunDocs.ts src/core/ServiceKeys.ts src/modules/coreModule.ts
-git commit -m "refactor: decompose EfunDocsManager into facade + sub-services"
+git add src/efun/EfunDocsManager.ts src/efunDocs.ts src/core/ServiceKeys.ts src/modules/coreModule.ts
+git commit -m "refactor: create EfunDocsManager facade with re-export shim"
 ```
 
 ---
@@ -1349,6 +1431,8 @@ git commit -m "refactor: extract collection and declaration builders"
 
 将 `buildStatement` 和 `buildExpression` 的分派改为调用外部函数。SyntaxBuilder 只保留 `build()`、分派入口、基础设施方法。
 
+**重要**：外部 builder 函数之间的递归调用必须通过 `b.buildExpression(...)` 和 `b.buildStatement(...)` 等 SyntaxBuilder 实例方法进行，不要直接调用其他 builder 文件中的函数。这避免了 builder 文件之间的循环依赖——所有跨类别调用都经过 SyntaxBuilder 中心分派。
+
 - [ ] **Step 4: 运行全量测试**
 
 Run: `npm test`
@@ -1419,7 +1503,33 @@ public async scanFolder(): Promise<void> {
 
 - [ ] **Step 4: 搬移宏 hover provider**
 
-将 `DiagnosticsOrchestrator.registerCommandsAndEvents` 中的宏 hover provider（134-154 行）移到 `src/modules/languageModule.ts`。
+将 `DiagnosticsOrchestrator.registerCommandsAndEvents` 中的宏 hover provider（134-154 行）移到 `src/modules/languageModule.ts` 的 `registerLanguageProviders` 函数末尾：
+
+```typescript
+// 在 registerLanguageProviders 末尾添加：
+// 宏 hover provider（从 DiagnosticsOrchestrator 搬移）
+context.subscriptions.push(
+    vscode.languages.registerHoverProvider('lpc', {
+        provideHover: async (document, position, token) => {
+            const range = document.getWordRangeAtPosition(position);
+            if (!range) return;
+            const word = document.getText(range);
+            if (/^[A-Z][A-Z0-9_]*_D$/.test(word)) {
+                const macro = macroManager.getMacro(word);
+                if (macro) {
+                    return new vscode.Hover(macroManager.getMacroHoverContent(macro));
+                }
+                const canResolve = await macroManager.canResolveMacro(word);
+                if (canResolve) {
+                    return new vscode.Hover(`宏 \`${word}\` 已定义但无法获取具体值`);
+                }
+            }
+        }
+    })
+);
+```
+
+然后从 DiagnosticsOrchestrator 中删除对应代码。
 
 - [ ] **Step 5: 运行全量测试**
 
@@ -1456,7 +1566,11 @@ export class DocumentLifecycleService implements vscode.Disposable {
 
     constructor() {
         this.disposables.push(
-            vscode.workspace.onDidCloseTextDocument(doc => this.invalidate(doc.uri)),
+            vscode.workspace.onDidCloseTextDocument(doc => {
+                if (doc.languageId === 'lpc') {
+                    this.invalidate(doc.uri);
+                }
+            }),
             vscode.workspace.onDidDeleteFiles(e => e.files.forEach(uri => this.invalidate(uri)))
         );
     }
