@@ -3,17 +3,22 @@ import { normalizeLeadingCommentBlock } from '../comments/commentFormatter';
 import { FormatNode } from '../model/formatNodes';
 import { PrintContext } from './PrintContext';
 import { registerDeclarationPrinters, renderParameterDeclaration } from './delegates/declarationPrinter';
+import {
+    printArrayLiteral,
+    printMappingLiteral,
+    printNewExpression,
+    registerCollectionPrinters,
+    tryRenderCompactArrayLiteral,
+    wrapCollection as renderWrappedCollection
+} from './delegates/collectionPrinter';
 import { registerStatementPrinters } from './delegates/statementPrinter';
 import { PrintDelegate, PrinterContext } from './PrinterContext';
 import {
     classifyBlockSpacingGroup,
-    containsCommentSyntax,
     extractPreservableTrivia,
-    hasPreservableTrivia,
     indentTrivia,
     normalizeClosureBody,
     normalizeInlineText,
-    prefixMultiline,
     shouldPreserveTerminalNewline,
     trimLeadingIndent,
     trimTrailingWhitespace
@@ -26,6 +31,7 @@ export class FormatPrinter implements PrinterContext {
     constructor(private readonly config: FormatterConfigSnapshot) {
         registerDeclarationPrinters(this.delegates, this);
         registerStatementPrinters(this.delegates, this);
+        registerCollectionPrinters(this.delegates, this);
     }
 
     public print(root: FormatNode): string {
@@ -47,18 +53,6 @@ export class FormatPrinter implements PrinterContext {
                 break;
             case SyntaxKind.Block:
                 rendered = this.printBlock(node, context);
-                break;
-            case SyntaxKind.MappingEntry:
-                rendered = this.printMappingEntry(node, context);
-                break;
-            case SyntaxKind.MappingLiteralExpression:
-                rendered = this.printMappingLiteral(node, context);
-                break;
-            case SyntaxKind.ArrayLiteralExpression:
-                rendered = this.printArrayLiteral(node, context);
-                break;
-            case SyntaxKind.NewExpression:
-                rendered = this.printNewExpression(node, context);
                 break;
             case SyntaxKind.Missing:
                 rendered = '';
@@ -171,110 +165,12 @@ export class FormatPrinter implements PrinterContext {
     }
 
     public renderStructuredValue(node: FormatNode, context: PrintContext): string {
-        const compactArray = this.tryRenderCompactArrayLiteral(node, context);
+        const compactArray = tryRenderCompactArrayLiteral(node, context, this);
         if (compactArray) {
             return compactArray;
         }
 
         return this.renderInlineExpression(node, context);
-    }
-
-    private tryRenderCompactArrayLiteral(node: FormatNode, context: PrintContext): string | undefined {
-        if (node.syntaxKind !== SyntaxKind.ArrayLiteralExpression || !this.canRenderCompactArrayLiteral(node, context)) {
-            return undefined;
-        }
-
-        const items = this.getArrayItems(node);
-        if (items.length === 0) {
-            return '({})';
-        }
-
-        return `({ ${items.map((item) => this.renderInlineExpression(item, context)).join(', ')} })`;
-    }
-
-    private canRenderCompactArrayLiteral(node: FormatNode, context: PrintContext): boolean {
-        if (hasPreservableTrivia(node) || containsCommentSyntax(node.text)) {
-            return false;
-        }
-
-        return this.getArrayItems(node).every((item) => this.canRenderCompactArrayItem(item, context));
-    }
-
-    private canRenderCompactArrayItem(node: FormatNode, context: PrintContext): boolean {
-        if (hasPreservableTrivia(node) || containsCommentSyntax(node.text)) {
-            return false;
-        }
-
-        switch (node.syntaxKind) {
-        case SyntaxKind.ArrayLiteralExpression:
-        case SyntaxKind.MappingLiteralExpression:
-        case SyntaxKind.NewExpression:
-        case SyntaxKind.AnonymousFunctionExpression:
-            return false;
-        default:
-            return !this.renderInlineExpression(node, context).includes('\n');
-        }
-    }
-
-    private getArrayItems(node: FormatNode): readonly FormatNode[] {
-        return node.children.find((child) => child.syntaxKind === SyntaxKind.ExpressionList)?.children ?? [];
-    }
-
-    private printMappingLiteral(node: FormatNode, context: PrintContext): string {
-        const nestedContext = context.nested();
-        const lines = node.children
-            .filter((child) => child.syntaxKind === SyntaxKind.MappingEntry)
-            .map((child) => this.printMappingEntryLine(child, nestedContext));
-
-        return this.wrapCollection('([', lines, '])', context);
-    }
-
-    private printMappingEntryLine(node: FormatNode, context: PrintContext): string {
-        return this.attachPreservableTrivia(node, this.printMappingEntry(node, context));
-    }
-
-    private printMappingEntry(node: FormatNode, context: PrintContext): string {
-        const [key, value] = node.children;
-        const prefix = `${context.indent()}${key ? this.renderExpression(key, context) : ''} : `;
-        return prefixMultiline(prefix, this.renderStructuredValue(value, context), context.indent());
-    }
-
-    private printArrayLiteral(node: FormatNode, context: PrintContext): string {
-        const nestedContext = context.nested();
-        const items = this.getArrayItems(node);
-        const lines = items.map((item) => this.printArrayItem(item, nestedContext));
-
-        return this.wrapCollection('({', lines, '})', context);
-    }
-
-    private printArrayItem(node: FormatNode, context: PrintContext): string {
-        const rendered = this.renderStructuredValue(node, context);
-        const base = rendered.includes('\n') ? rendered : `${context.indent()}${rendered}`;
-
-        return this.attachPreservableTrivia(node, base);
-    }
-
-    private printNewExpression(node: FormatNode, context: PrintContext): string {
-        const nestedContext = context.nested();
-        const head = node.children.find((child) => child.syntaxKind !== SyntaxKind.StructInitializerList);
-        const initializers = node.children.find((child) => child.syntaxKind === SyntaxKind.StructInitializerList);
-        const lines: string[] = [];
-
-        if (head) {
-            lines.push(`${nestedContext.indent()}${this.renderExpression(head, nestedContext)}`);
-        }
-
-        for (const initializer of initializers?.children ?? []) {
-            lines.push(this.printStructInitializer(initializer, nestedContext));
-        }
-
-        return this.wrapCollection('new(', lines, ')', context);
-    }
-
-    private printStructInitializer(node: FormatNode, context: PrintContext): string {
-        const [identifier, value] = node.children;
-        const prefix = `${context.indent()}${identifier?.name ?? normalizeInlineText(identifier?.text ?? '')} : `;
-        return prefixMultiline(prefix, this.renderStructuredValue(value, context), context.indent());
     }
 
     private printDefaultNode(node: FormatNode, context: PrintContext): string {
@@ -287,15 +183,7 @@ export class FormatPrinter implements PrinterContext {
     }
 
     public wrapCollection(opener: string, lines: string[], closer: string, context: PrintContext): string {
-        if (lines.length === 0) {
-            return `${context.indent()}${opener}${closer}`;
-        }
-
-        return [
-            `${context.indent()}${opener}`,
-            lines.join(',\n'),
-            `${context.indent()}${closer}`
-        ].join('\n');
+        return renderWrappedCollection(opener, lines, closer, context);
     }
 
     public renderExpression(node: FormatNode, context: PrintContext): string {
@@ -327,13 +215,13 @@ export class FormatPrinter implements PrinterContext {
             case SyntaxKind.ClosureExpression:
                 return this.renderClosureExpression(node, context);
             case SyntaxKind.MappingLiteralExpression:
-                return this.printMappingLiteral(node, context);
+                return printMappingLiteral(node, context, this);
             case SyntaxKind.ArrayLiteralExpression:
-                return this.printArrayLiteral(node, context);
+                return printArrayLiteral(node, context, this);
             case SyntaxKind.ArrayDelimiterLiteralExpression:
                 return normalizeInlineText(node.text);
             case SyntaxKind.NewExpression:
-                return this.printNewExpression(node, context);
+                return printNewExpression(node, context, this);
             case SyntaxKind.ExpressionList:
                 return this.renderExpressionList(node, context);
             case SyntaxKind.SpreadElement:
