@@ -54,7 +54,12 @@ describe('registerLanguageProviders', () => {
     let context: vscode.ExtensionContext;
     let completionProvider: { handleDocumentChange: jest.Mock };
     let efunDocsManager: { id: string };
-    let macroManager: { id: string };
+    let macroManager: {
+        id: string;
+        getMacro: jest.Mock;
+        getMacroHoverContent: jest.Mock;
+        canResolveMacro: jest.Mock;
+    };
     let completionInstrumentation: { id: string };
     let codeActionProvider: {};
     let formattingProviderInstanceA: { id: string };
@@ -72,7 +77,12 @@ describe('registerLanguageProviders', () => {
 
         completionProvider = { handleDocumentChange: jest.fn() };
         efunDocsManager = { id: 'efunDocsManager' };
-        macroManager = { id: 'macroManager' };
+        macroManager = {
+            id: 'macroManager',
+            getMacro: jest.fn(),
+            getMacroHoverContent: jest.fn(),
+            canResolveMacro: jest.fn()
+        };
         completionInstrumentation = { id: 'completionInstrumentation' };
         codeActionProvider = { id: 'codeActionProvider' };
         formattingProviderInstanceA = { id: 'formattingProvider-a' };
@@ -108,6 +118,7 @@ describe('registerLanguageProviders', () => {
         (vscode.languages.registerReferenceProvider as jest.Mock).mockClear();
         (vscode.languages.registerRenameProvider as jest.Mock).mockClear();
         (vscode.languages.registerFoldingRangeProvider as jest.Mock).mockClear();
+        (vscode.languages.registerHoverProvider as jest.Mock).mockClear();
         (vscode.workspace.onDidChangeTextDocument as jest.Mock).mockClear();
     });
 
@@ -148,8 +159,12 @@ describe('registerLanguageProviders', () => {
             .toHaveBeenCalledWith('lpc', renameProvider);
         expect(vscode.languages.registerFoldingRangeProvider)
             .toHaveBeenCalledWith({ language: 'lpc' }, foldingProvider);
+        expect(vscode.languages.registerHoverProvider)
+            .toHaveBeenCalledWith('lpc', expect.objectContaining({
+                provideHover: expect.any(Function)
+            }));
         expect(vscode.workspace.onDidChangeTextDocument).toHaveBeenCalledTimes(1);
-        expect(context.subscriptions).toHaveLength(11);
+        expect(context.subscriptions).toHaveLength(12);
     });
 
     test('calls completionProvider.handleDocumentChange for lpc documents only', () => {
@@ -161,6 +176,36 @@ describe('registerLanguageProviders', () => {
 
         expect(completionProvider.handleDocumentChange).toHaveBeenCalledTimes(1);
         expect(completionProvider.handleDocumentChange).toHaveBeenCalledWith({ languageId: 'lpc' });
+    });
+
+    test('registers macro hover provider that resolves defined and unresolved macros', async () => {
+        const macro = { name: 'USER_D', value: '/adm/user' };
+        const hoverContent = new vscode.MarkdownString('macro docs');
+        macroManager.getMacro.mockReturnValue(macro);
+        macroManager.getMacroHoverContent.mockReturnValue(hoverContent);
+        macroManager.canResolveMacro.mockResolvedValue(true);
+
+        registerLanguageProviders(registry, context);
+
+        const hoverProvider = (vscode.languages.registerHoverProvider as jest.Mock).mock.calls[0][1];
+        const document = {
+            getWordRangeAtPosition: jest.fn(() => ({ start: new vscode.Position(0, 0), end: new vscode.Position(0, 6) })),
+            getText: jest.fn(() => 'USER_D')
+        } as any;
+
+        const resolvedHover = await hoverProvider.provideHover(document, new vscode.Position(0, 0), {} as any);
+
+        expect(macroManager.getMacro).toHaveBeenCalledWith('USER_D');
+        expect(macroManager.getMacroHoverContent).toHaveBeenCalledWith(macro);
+        expect(resolvedHover).toBeInstanceOf(vscode.Hover);
+        expect((resolvedHover as vscode.Hover).contents).toBe(hoverContent);
+
+        macroManager.getMacro.mockReturnValue(undefined);
+        const unresolvedHover = await hoverProvider.provideHover(document, new vscode.Position(0, 0), {} as any);
+
+        expect(macroManager.canResolveMacro).toHaveBeenCalledWith('USER_D');
+        expect(unresolvedHover).toBeInstanceOf(vscode.Hover);
+        expect(((unresolvedHover as vscode.Hover).contents as vscode.MarkdownString).value || (unresolvedHover as any).contents).toContain('USER_D');
     });
 });
 

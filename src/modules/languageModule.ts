@@ -56,6 +56,29 @@ export function registerLanguageProviders(registry: ServiceRegistry, context: vs
         vscode.languages.registerDocumentSymbolProvider({ language: 'lpc' }, new LPCSymbolProvider()),
         vscode.languages.registerReferenceProvider('lpc', new LPCReferenceProvider()),
         vscode.languages.registerRenameProvider('lpc', new LPCRenameProvider()),
-        vscode.languages.registerFoldingRangeProvider({ language: 'lpc' }, new LPCFoldingRangeProvider())
+        vscode.languages.registerFoldingRangeProvider({ language: 'lpc' }, new LPCFoldingRangeProvider()),
+        vscode.languages.registerHoverProvider('lpc', {
+            provideHover: async (document, position) => {
+                const range = document.getWordRangeAtPosition(position);
+                if (!range) {
+                    return;
+                }
+
+                const word = document.getText(range);
+                if (!/^[A-Z][A-Z0-9_]*_D$/.test(word)) {
+                    return;
+                }
+
+                const macro = macroManager?.getMacro(word);
+                if (macro) {
+                    return new vscode.Hover(macroManager.getMacroHoverContent(macro));
+                }
+
+                const canResolve = await macroManager?.canResolveMacro(word);
+                if (canResolve) {
+                    return new vscode.Hover(`宏 \`${word}\` 已定义但无法获取具体值`);
+                }
+            }
+        })
     );
 }

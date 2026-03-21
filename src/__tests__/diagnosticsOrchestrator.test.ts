@@ -4,6 +4,12 @@ import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator'
 
 function createDocument(content: string): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
+    const lineOffsets = lines.reduce<number[]>((offsets, line, index) => {
+        const previous = offsets[index - 1] ?? 0;
+        const previousLineLength = index === 0 ? 0 : lines[index - 1].length + 1;
+        offsets.push(previous + previousLineLength);
+        return offsets;
+    }, []);
 
     return {
         uri: vscode.Uri.file('/virtual/diagnostics-test.c'),
@@ -15,6 +21,15 @@ function createDocument(content: string): vscode.TextDocument {
         lineAt: jest.fn((lineOrPosition: number | vscode.Position) => {
             const line = typeof lineOrPosition === 'number' ? lineOrPosition : lineOrPosition.line;
             return { text: lines[line] ?? '' };
+        }),
+        positionAt: jest.fn((offset: number) => {
+            let line = 0;
+            for (let index = 0; index < lineOffsets.length; index++) {
+                if (lineOffsets[index] <= offset) {
+                    line = index;
+                }
+            }
+            return new vscode.Position(line, offset - lineOffsets[line]);
         })
     } as unknown as vscode.TextDocument;
 }
@@ -116,5 +131,67 @@ describe('DiagnosticsOrchestrator', () => {
             syntax: syntaxDocument,
             semantic: semanticSnapshot
         });
+    });
+
+    test('delegates show variables command to variable inspector for active lpc documents', async () => {
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+            parseDocument: jest.fn(),
+            clearCache: jest.fn()
+        } as unknown as ASTManager);
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+        (vscode.commands.registerCommand as jest.Mock).mockClear();
+
+        const lpcDocument = createDocument('int value;');
+        const variableInspector = {
+            show: jest.fn().mockResolvedValue(undefined)
+        };
+        const onDidReceiveMessage = jest.fn();
+        (vscode.window as any).createWebviewPanel = jest.fn().mockReturnValue({
+            webview: {
+                html: '',
+                onDidReceiveMessage
+            }
+        });
+        (vscode.window as any).activeTextEditor = {
+            document: lpcDocument
+        };
+
+        const orchestrator = new DiagnosticsOrchestrator(
+            { subscriptions: [], extensionPath: process.cwd() } as any,
+            { getMacro: jest.fn(), getMacroHoverContent: jest.fn(), canResolveMacro: jest.fn() } as any
+        );
+        (orchestrator as any).variableInspector = variableInspector;
+
+        const showVariablesRegistration = (vscode.commands.registerCommand as jest.Mock).mock.calls
+            .find(([commandId]) => commandId === 'lpc.showVariables');
+        expect(showVariablesRegistration).toBeDefined();
+
+        const [, handler] = showVariablesRegistration!;
+
+        await handler();
+
+        expect(variableInspector.show).toHaveBeenCalledTimes(1);
+        expect(variableInspector.show).toHaveBeenCalledWith(lpcDocument);
+    });
+
+    test('delegates scanFolder to folder scanner', async () => {
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+            parseDocument: jest.fn(),
+            clearCache: jest.fn()
+        } as unknown as ASTManager);
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+
+        const orchestrator = new DiagnosticsOrchestrator(
+            { subscriptions: [], extensionPath: process.cwd() } as any,
+            { getMacro: jest.fn(), getMacroHoverContent: jest.fn(), canResolveMacro: jest.fn() } as any
+        );
+        const folderScanner = {
+            scanFolder: jest.fn().mockResolvedValue(undefined)
+        };
+        (orchestrator as any).folderScanner = folderScanner;
+
+        await orchestrator.scanFolder();
+
+        expect(folderScanner.scanFolder).toHaveBeenCalledTimes(1);
     });
 });
