@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { LPCCompletionItemProvider } from '../completionProvider';
+import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManager';
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 
@@ -44,6 +45,10 @@ describe('EfunDocsManager', () => {
         expect(doc?.syntax).toContain('varargs mixed *allocate');
         expect(doc?.description).toContain('配置一个有 `size` 个元素的数组');
         expect(doc?.returnValue).toContain('allocate() 返回数组');
+    });
+
+    test('re-export shim exposes the facade manager class', () => {
+        expect(EfunDocsManager).toBe(FacadeEfunDocsManager);
     });
 
     test('should build completion documentation from bundled docs synchronously', () => {

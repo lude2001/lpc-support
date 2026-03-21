@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { EfunDocsManager } from '../efunDocs';
+import type { EfunDocsManager } from './EfunDocsManager';
 import type { EfunDoc } from './types';
 
 export class EfunHoverProvider implements vscode.HoverProvider {
