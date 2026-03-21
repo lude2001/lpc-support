@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { LPCCompletionItemProvider } from '../completionProvider';
+import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 
 jest.mock('axios', () => ({
@@ -271,5 +272,81 @@ describe('EfunDocsManager', () => {
         expect(manager.currentFilePath).toBe('second.c');
         expect(manager.inheritedFiles).toEqual(['second.c']);
         expect(Array.from(manager.inheritedFileDocs.keys())).toEqual(['second-path']);
+    });
+
+    test('same-file hover waits for the latest in-flight current-file update', async () => {
+        const context = {
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext;
+
+        const manager = new EfunDocsManager(context) as any;
+        manager.currentFilePath = 'same.c';
+        manager.currentFileDocs = new Map([
+            ['helper', {
+                name: 'helper',
+                syntax: 'int helper()',
+                description: 'old description'
+            }]
+        ]);
+        manager.currentFileUpdatePromise = new Promise<void>((resolve) => {
+            setTimeout(() => {
+                manager.currentFileDocs = new Map([
+                    ['helper', {
+                        name: 'helper',
+                        syntax: 'int helper()',
+                        description: 'new description'
+                    }]
+                ]);
+                resolve();
+            }, 20);
+        });
+
+        const hover = await manager.provideHover({
+            uri: { fsPath: 'same.c' },
+            getWordRangeAtPosition: () => ({}) as vscode.Range,
+            getText: () => 'helper'
+        } as unknown as vscode.TextDocument, {} as vscode.Position);
+
+        const content = hover?.contents as vscode.MarkdownString;
+        expect(content.value).toContain('new description');
+    });
+});
+
+describe('SimulatedEfunScanner', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((_: string, defaultValue?: unknown) => defaultValue),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
+        (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([]);
+        (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(Buffer.from(''));
+        (vscode.workspace.workspaceFolders as unknown) = [];
+    });
+
+    test('clears previously loaded docs when a later reload cannot scan', async () => {
+        const scanner = new SimulatedEfunScanner();
+
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((key: string) => key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined)
+        });
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: 'D:/workspace' } }];
+        (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([{ fsPath: 'D:/workspace/simul_efuns/foo.c' }]);
+        (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValueOnce(Buffer.from([
+            '/**',
+            ' * @brief simulated helper',
+            ' */',
+            'int sim_helper()'
+        ].join('\n')));
+
+        await scanner.loadSimulatedEfuns();
+        expect(scanner.get('sim_helper')).toBeDefined();
+
+        (vscode.workspace.workspaceFolders as unknown) = [];
+        await scanner.loadSimulatedEfuns();
+
+        expect(scanner.get('sim_helper')).toBeUndefined();
+        expect(scanner.getAllNames()).toEqual([]);
     });
 });

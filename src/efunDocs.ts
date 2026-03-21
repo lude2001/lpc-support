@@ -4,6 +4,7 @@ import * as path from 'path';
 import { parseFunctionDocs } from './efun/docParser';
 import { BundledEfunLoader } from './efun/BundledEfunLoader';
 import { RemoteEfunFetcher } from './efun/RemoteEfunFetcher';
+import { SimulatedEfunScanner } from './efun/SimulatedEfunScanner';
 import type { EfunDoc } from './efun/types';
 
 export type {
@@ -15,12 +16,11 @@ export type {
 } from './efun/types';
 
 export class EfunDocsManager {
-    private static SIMULATED_EFUNS_PATH_CONFIG = 'lpc.simulatedEfunsPath';
     private bundledLoader: BundledEfunLoader;
     private remoteFetcher: RemoteEfunFetcher;
+    private simulatedEfunScanner: SimulatedEfunScanner;
     private efunDocs: Map<string, EfunDoc> = new Map();
     private efunCategories: Map<string, string[]> = new Map();
-    private simulatedEfunDocs: Map<string, EfunDoc> = new Map();
     private remoteDocFetches: Map<string, Promise<EfunDoc | undefined>> = new Map();
     // 存储当前文件的函数文档
     private currentFileDocs: Map<string, EfunDoc> = new Map();
@@ -31,11 +31,13 @@ export class EfunDocsManager {
     // 当前文件的继承文件路径列表
     private inheritedFiles: string[] = [];
     private currentFileUpdateVersion = 0;
+    private currentFileUpdatePromise: Promise<void> | undefined;
     private missingRemoteDocs = new Set<string>();
 
     constructor(context: vscode.ExtensionContext) {
         this.bundledLoader = new BundledEfunLoader(context);
         this.remoteFetcher = new RemoteEfunFetcher();
+        this.simulatedEfunScanner = new SimulatedEfunScanner();
         this.efunDocs = new Map(
             this.bundledLoader.getAllNames().map(name => [name, this.bundledLoader.get(name)!])
         );
@@ -52,22 +54,22 @@ export class EfunDocsManager {
 
         // 注册模拟函数库配置命令
         context.subscriptions.push(
-            vscode.commands.registerCommand('lpc.configureSimulatedEfuns', () => this.configureSimulatedEfuns())
+            vscode.commands.registerCommand('lpc.configureSimulatedEfuns', () => this.simulatedEfunScanner.configure())
         );
 
         // 加载模拟函数库文档
-        this.loadSimulatedEfuns();
+        void this.simulatedEfunScanner.load();
         
         // 添加文件变更事件监听
         context.subscriptions.push(
             vscode.workspace.onDidChangeTextDocument(e => {
                 if (e.document.languageId === 'lpc' || e.document.fileName.endsWith('.c')) {
-                    this.updateCurrentFileDocs(e.document);
+                    this.refreshCurrentFileDocs(e.document);
                 }
             }),
             vscode.window.onDidChangeActiveTextEditor(editor => {
                 if (editor && (editor.document.languageId === 'lpc' || editor.document.fileName.endsWith('.c'))) {
-                    this.updateCurrentFileDocs(editor.document);
+                    this.refreshCurrentFileDocs(editor.document);
                 }
             })
         );
@@ -76,8 +78,18 @@ export class EfunDocsManager {
         if (vscode.window.activeTextEditor && 
             (vscode.window.activeTextEditor.document.languageId === 'lpc' || 
              vscode.window.activeTextEditor.document.fileName.endsWith('.c'))) {
-            this.updateCurrentFileDocs(vscode.window.activeTextEditor.document);
+            this.refreshCurrentFileDocs(vscode.window.activeTextEditor.document);
         }
+    }
+
+    private refreshCurrentFileDocs(document: vscode.TextDocument): void {
+        const updatePromise = this.updateCurrentFileDocs(document);
+        this.currentFileUpdatePromise = updatePromise;
+        void updatePromise.finally(() => {
+            if (this.currentFileUpdatePromise === updatePromise) {
+                this.currentFileUpdatePromise = undefined;
+            }
+        });
     }
 
     public getStandardDoc(funcName: string): EfunDoc | undefined {
@@ -119,65 +131,6 @@ export class EfunDocsManager {
 
         this.remoteDocFetches.set(funcName, request);
         return request;
-    }
-
-    private async configureSimulatedEfuns(): Promise<void> {
-        const options: vscode.OpenDialogOptions = {
-            canSelectFiles: false,
-            canSelectFolders: true,
-            canSelectMany: false,
-            openLabel: '选择模拟函数库目录'
-        };
-
-        const folders = await vscode.window.showOpenDialog(options);
-        if (folders && folders[0]) {
-            await vscode.workspace.getConfiguration().update(
-                EfunDocsManager.SIMULATED_EFUNS_PATH_CONFIG,
-                folders[0].fsPath,
-                vscode.ConfigurationTarget.Global
-            );
-            await this.loadSimulatedEfuns();
-            vscode.window.showInformationMessage('模拟函数库目录已更新');
-        }
-    }
-
-    private async loadSimulatedEfuns(): Promise<void> {
-        const config = vscode.workspace.getConfiguration();
-        const configPath = config.get<string>(EfunDocsManager.SIMULATED_EFUNS_PATH_CONFIG);
-        
-        if (!configPath) {
-            return;
-        }
-
-        // 支持项目相对路径
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            return;
-        }
-
-        const simulatedEfunsPath = this.resolveProjectPath(workspaceFolder.uri.fsPath, configPath);
-
-        try {
-            const files = await vscode.workspace.findFiles(
-                new vscode.RelativePattern(simulatedEfunsPath, '**/*.{c,h}')
-            );
-
-            this.simulatedEfunDocs.clear();
-
-            for (const file of files) {
-                const content = await vscode.workspace.fs.readFile(file);
-                const text = Buffer.from(content).toString('utf8');
-                
-                // 解析文件中的函数文档
-                const functionDocs = parseFunctionDocs(text, '模拟函数库', { isSimulated: true });
-                
-                for (const [funcName, doc] of functionDocs) {
-                    this.simulatedEfunDocs.set(funcName, doc);
-                }
-            }
-        } catch (error) {
-            console.error('加载模拟函数库文档失败:', error);
-        }
     }
 
     /**
@@ -295,6 +248,8 @@ export class EfunDocsManager {
         // 确保当前文件的文档是最新的
         if (document.uri.fsPath !== this.currentFilePath) {
             await this.updateCurrentFileDocs(document);
+        } else if (this.currentFileUpdatePromise) {
+            await this.currentFileUpdatePromise;
         }
         
         // 查找顺序：当前文件 -> 继承文件 -> include文件 -> 模拟函数库 -> 标准 efun
@@ -320,7 +275,7 @@ export class EfunDocsManager {
         }
         
         // 4. 再查找模拟函数库文档
-        const simulatedDoc = this.simulatedEfunDocs.get(word);
+        const simulatedDoc = this.simulatedEfunScanner.get(word);
         if (simulatedDoc) {
             return this.createHoverContent(simulatedDoc);
         }
@@ -439,11 +394,11 @@ export class EfunDocsManager {
     }
 
     public getAllSimulatedFunctions(): string[] {
-        return Array.from(this.simulatedEfunDocs.keys());
+        return this.simulatedEfunScanner.getAllNames();
     }
 
     public getSimulatedDoc(funcName: string): EfunDoc | undefined {
-        return this.simulatedEfunDocs.get(funcName);
+        return this.simulatedEfunScanner.get(funcName);
     }
 
     /**
@@ -525,17 +480,4 @@ export class EfunDocsManager {
         return includeFiles;
     }
 
-    /**
-     * 解析项目相对路径
-     * 支持相对于项目根目录的路径配置
-     */
-    private resolveProjectPath(workspaceRoot: string, configPath: string): string {
-        if (path.isAbsolute(configPath)) {
-            // 绝对路径直接返回
-            return configPath;
-        } else {
-            // 相对路径，相对于项目根目录
-            return path.join(workspaceRoot, configPath);
-        }
-    }
 }
