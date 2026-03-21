@@ -15,7 +15,11 @@ export class RemoteEfunFetcher {
                     return doc;
                 }
             } catch (error) {
-                continue;
+                if ((error as { response?: { status?: number } }).response?.status === 404) {
+                    continue;
+                }
+
+                throw error;
             }
         }
 

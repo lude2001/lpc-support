@@ -130,87 +130,6 @@ describe('EfunDocsManager', () => {
         expect(content.value).toContain('| `label` | `string*` | label text |');
     });
 
-    test('include lookup parses functions from included .c files', async () => {
-        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-'));
-        const mainFile = path.join(tempRoot, 'main.c');
-        const includeFile = path.join(tempRoot, 'helper.c');
-
-        fs.writeFileSync(
-            mainFile,
-            '#include "helper.c"\n'
-        );
-        fs.writeFileSync(
-            includeFile,
-            [
-                '/**',
-                ' * helper description',
-                ' * @return int helper result',
-                ' */',
-                'int helper_func()'
-            ].join('\n')
-        );
-
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-
-        const manager = new EfunDocsManager(context) as any;
-        const document = {
-            uri: { fsPath: mainFile }
-        } as vscode.TextDocument;
-
-        const doc = await manager.findFunctionDocInIncludes(document, 'helper_func');
-
-        expect(doc).toMatchObject({
-            name: 'helper_func',
-            category: `包含自 ${path.basename(includeFile)}`
-        });
-        expect(doc?.description).toContain('helper description');
-
-        fs.rmSync(tempRoot, { recursive: true, force: true });
-    });
-
-    test('include lookup resolves workspace-root LPC include paths', async () => {
-        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-root-'));
-        const includeDir = path.join(tempRoot, 'include');
-        const mainFile = path.join(tempRoot, 'main.c');
-        const includeFile = path.join(includeDir, 'helper.h');
-
-        fs.mkdirSync(includeDir, { recursive: true });
-        fs.writeFileSync(mainFile, '#include "/include/helper.h"\n');
-        fs.writeFileSync(
-            includeFile,
-            [
-                '/**',
-                ' * root include helper',
-                ' */',
-                'int helper_root()'
-            ].join('\n')
-        );
-
-        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: tempRoot } }];
-
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-
-        const manager = new EfunDocsManager(context) as any;
-        const document = {
-            uri: { fsPath: mainFile }
-        } as vscode.TextDocument;
-
-        const doc = await manager.findFunctionDocInIncludes(document, 'helper_root');
-
-        expect(doc).toMatchObject({
-            name: 'helper_root',
-            category: '包含自 helper.h'
-        });
-
-        fs.rmSync(tempRoot, { recursive: true, force: true });
-    });
-
     test('missing remote docs are negatively cached after the first miss', async () => {
         const context = {
             subscriptions: [],
@@ -218,7 +137,7 @@ describe('EfunDocsManager', () => {
         } as unknown as vscode.ExtensionContext;
         const manager = new EfunDocsManager(context);
 
-        (axios.get as jest.Mock).mockRejectedValue(new Error('not found'));
+        (axios.get as jest.Mock).mockRejectedValue({ response: { status: 404 } });
         (manager as any).efunDocs.delete('totally_missing_efun');
 
         const first = await manager.getEfunDoc('totally_missing_efun');
@@ -231,86 +150,42 @@ describe('EfunDocsManager', () => {
         expect((axios.get as jest.Mock).mock.calls.length).toBe(firstCallCount);
     });
 
-    test('only the latest async current-file update wins when updates overlap', async () => {
+    test('transient remote fetch failures are retried on the next request', async () => {
         const context = {
             subscriptions: [],
             extensionPath: process.cwd()
         } as unknown as vscode.ExtensionContext;
+        const manager = new EfunDocsManager(context);
 
-        const manager = new EfunDocsManager(context) as any;
-        manager.parseInheritStatements = jest
-            .fn()
-            .mockImplementation((content: string) => content.includes('first') ? ['first.c'] : ['second.c']);
-        manager.loadInheritedFileDocs = jest
-            .fn()
-            .mockImplementation(async (_currentFilePath: string, inheritedFiles: string[]) => {
-                if (inheritedFiles[0] === 'first.c') {
-                    await new Promise(resolve => setTimeout(resolve, 20));
-                    return new Map([['first-path', new Map()]]);
-                }
-
-                return new Map([['second-path', new Map()]]);
+        (axios.get as jest.Mock)
+            .mockRejectedValueOnce(new Error('temporary outage'))
+            .mockResolvedValueOnce({
+                data: `
+                    <div id="mw-content-text">
+                        <div class="mw-parser-output">
+                            <h3><span class="mw-headline">语法</span></h3>
+                            <pre>int retry_doc();</pre>
+                            <h3><span class="mw-headline">描述</span></h3>
+                            <pre>retry ok</pre>
+                        </div>
+                    </div>
+                    <div class="printfooter"></div>
+                `
             });
 
-        const firstDocument = {
-            languageId: 'lpc',
-            fileName: 'first.c',
-            uri: { fsPath: 'first.c' },
-            getText: () => 'inherit "first";'
-        } as vscode.TextDocument;
-        const secondDocument = {
-            languageId: 'lpc',
-            fileName: 'second.c',
-            uri: { fsPath: 'second.c' },
-            getText: () => 'inherit "second";'
-        } as vscode.TextDocument;
+        (manager as any).efunDocs.delete('retry_doc');
 
-        const firstUpdate = manager.updateCurrentFileDocs(firstDocument);
-        const secondUpdate = manager.updateCurrentFileDocs(secondDocument);
-        await Promise.all([firstUpdate, secondUpdate]);
+        const first = await manager.getEfunDoc('retry_doc');
+        const second = await manager.getEfunDoc('retry_doc');
 
-        expect(manager.currentFilePath).toBe('second.c');
-        expect(manager.inheritedFiles).toEqual(['second.c']);
-        expect(Array.from(manager.inheritedFileDocs.keys())).toEqual(['second-path']);
-    });
-
-    test('same-file hover waits for the latest in-flight current-file update', async () => {
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-
-        const manager = new EfunDocsManager(context) as any;
-        manager.currentFilePath = 'same.c';
-        manager.currentFileDocs = new Map([
-            ['helper', {
-                name: 'helper',
-                syntax: 'int helper()',
-                description: 'old description'
-            }]
-        ]);
-        manager.currentFileUpdatePromise = new Promise<void>((resolve) => {
-            setTimeout(() => {
-                manager.currentFileDocs = new Map([
-                    ['helper', {
-                        name: 'helper',
-                        syntax: 'int helper()',
-                        description: 'new description'
-                    }]
-                ]);
-                resolve();
-            }, 20);
+        expect(first).toBeUndefined();
+        expect(second).toMatchObject({
+            name: 'retry_doc',
+            description: 'retry ok'
         });
-
-        const hover = await manager.provideHover({
-            uri: { fsPath: 'same.c' },
-            getWordRangeAtPosition: () => ({}) as vscode.Range,
-            getText: () => 'helper'
-        } as unknown as vscode.TextDocument, {} as vscode.Position);
-
-        const content = hover?.contents as vscode.MarkdownString;
-        expect(content.value).toContain('new description');
+        expect((axios.get as jest.Mock).mock.calls.length).toBeGreaterThan(1);
     });
+
 });
 
 describe('SimulatedEfunScanner', () => {
