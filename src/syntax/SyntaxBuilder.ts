@@ -93,6 +93,36 @@ import {
     SyntaxNode
 } from './types';
 import { SyntaxTrivia, syntaxTriviaFromParsedTrivia } from './trivia';
+import {
+    buildArgumentList,
+    buildArrayDelimiterElement,
+    buildArrayDelimiterLiteral,
+    buildArrayLiteral,
+    buildConcatItem,
+    buildExpressionList,
+    buildMappingLiteral,
+    buildMappingPair,
+    buildNewExpression,
+    buildSliceExpression,
+    buildSpreadElement,
+    buildStringConcatenation,
+    buildStructInitializer,
+    buildStructInitializerList
+} from './builders/collectionBuilders';
+import {
+    buildClassDeclaration,
+    buildDirectiveNode,
+    buildFunctionDeclaration,
+    buildModifierList,
+    buildParameter,
+    buildParameterList,
+    buildPrototypeDeclaration,
+    buildStructDeclaration,
+    buildStructMembers,
+    buildTypeReference,
+    buildVariableDeclaration,
+    buildVariableDeclarator
+} from './builders/declarationBuilders';
 
 type TypeLikeContext = TypeSpecContext | CastTypeContext;
 
@@ -128,27 +158,27 @@ export class SyntaxBuilder {
 
     public buildStatement(ctx: StatementContext): SyntaxNode {
         if (ctx.functionDef()) {
-            return this.buildFunctionDeclaration(ctx.functionDef()!);
+            return buildFunctionDeclaration(this, ctx.functionDef()!);
         }
 
         if (ctx.variableDecl()) {
-            return this.buildVariableDeclaration(ctx.variableDecl()!, ctx);
+            return buildVariableDeclaration(this, ctx.variableDecl()!, ctx);
         }
 
         if (ctx.structDef()) {
-            return this.buildStructDeclaration(ctx.structDef()!);
+            return buildStructDeclaration(this, ctx.structDef()!);
         }
 
         if (ctx.classDef()) {
-            return this.buildClassDeclaration(ctx.classDef()!);
+            return buildClassDeclaration(this, ctx.classDef()!);
         }
 
         if (ctx.inheritStatement()) {
-            return this.buildDirectiveNode(SyntaxKind.InheritDirective, ctx.inheritStatement()!);
+            return buildDirectiveNode(this, SyntaxKind.InheritDirective, ctx.inheritStatement()!);
         }
 
         if (ctx.includeStatement()) {
-            return this.buildDirectiveNode(SyntaxKind.IncludeDirective, ctx.includeStatement()!);
+            return buildDirectiveNode(this, SyntaxKind.IncludeDirective, ctx.includeStatement()!);
         }
 
         if (ctx.ifStatement()) {
@@ -196,7 +226,7 @@ export class SyntaxBuilder {
         }
 
         if (ctx.prototypeStatement()) {
-            return this.buildPrototypeDeclaration(ctx.prototypeStatement()!);
+            return buildPrototypeDeclaration(this, ctx.prototypeStatement()!);
         }
 
         if (ctx.macroInvoke()) {
@@ -209,125 +239,42 @@ export class SyntaxBuilder {
         return this.createMissingNode(ctx);
     }
 
-    private buildFunctionDeclaration(ctx: FunctionDefContext | PrototypeStatementContext): SyntaxNode {
-        const children: SyntaxNode[] = [];
-        const modifiers = this.buildModifierList(this.asArray(ctx.MODIFIER?.()));
-        const typeReference = this.buildTypeReference(ctx.typeSpec());
-        const identifier = this.buildIdentifierNode(ctx.Identifier());
-        const parameters = this.buildParameterList(ctx.parameterList());
-        const body = 'block' in ctx && typeof ctx.block === 'function' ? ctx.block() : undefined;
-
-        if (modifiers) {
-            children.push(modifiers);
-        }
-        if (typeReference) {
-            children.push(typeReference);
-        }
-        children.push(identifier);
-        if (parameters) {
-            children.push(parameters);
-        }
-        if (body) {
-            children.push(this.buildBlock(body));
-        }
-
-        return this.createNode(SyntaxKind.FunctionDeclaration, ctx, children, {
-            name: ctx.Identifier().text,
-            metadata: {
-                hasBody: Boolean(body),
-                pointerCount: this.asArray(ctx.STAR?.()).length
-            }
-        });
+    public buildFunctionDeclaration(ctx: FunctionDefContext | PrototypeStatementContext): SyntaxNode {
+        return buildFunctionDeclaration(this, ctx);
     }
 
-    private buildPrototypeDeclaration(ctx: PrototypeStatementContext): SyntaxNode {
-        return this.buildFunctionDeclaration(ctx);
+    public buildPrototypeDeclaration(ctx: PrototypeStatementContext): SyntaxNode {
+        return buildPrototypeDeclaration(this, ctx);
     }
 
-    private buildVariableDeclaration(
+    public buildVariableDeclaration(
         ctx: VariableDeclContext,
         rangeContext: ParserRuleContext = ctx
     ): SyntaxNode {
-        const children: SyntaxNode[] = [];
-        const modifiers = this.buildModifierList(this.asArray(ctx.MODIFIER?.()));
-        const typeReference = this.buildTypeReference(ctx.typeSpec());
-
-        if (modifiers) {
-            children.push(modifiers);
-        }
-        if (typeReference) {
-            children.push(typeReference);
-        }
-
-        children.push(...this.asArray(ctx.variableDeclarator()).map((declarator) => this.buildVariableDeclarator(declarator)));
-
-        return this.createNode(SyntaxKind.VariableDeclaration, rangeContext, children);
+        return buildVariableDeclaration(this, ctx, rangeContext);
     }
 
-    private buildVariableDeclarator(ctx: VariableDeclaratorContext): SyntaxNode {
-        const children: SyntaxNode[] = [this.buildIdentifierNode(ctx.Identifier())];
-        const initializer = ctx.expression() ? this.buildExpression(ctx.expression()!) : undefined;
-
-        if (initializer) {
-            children.push(initializer);
-        }
-
-        return this.createNode(SyntaxKind.VariableDeclarator, ctx, children, {
-            name: ctx.Identifier().text,
-            metadata: {
-                pointerCount: this.asArray(ctx.STAR?.()).length,
-                hasInitializer: Boolean(initializer)
-            }
-        });
+    public buildVariableDeclarator(ctx: VariableDeclaratorContext): SyntaxNode {
+        return buildVariableDeclarator(this, ctx);
     }
 
-    private buildStructDeclaration(ctx: StructDefContext): SyntaxNode {
-        const children = [
-            this.buildIdentifierNode(ctx.Identifier()),
-            ...this.buildStructMembers(ctx.structMemberList()?.structMember())
-        ];
-
-        return this.createNode(SyntaxKind.StructDeclaration, ctx, children, {
-            name: ctx.Identifier().text
-        });
+    public buildStructDeclaration(ctx: StructDefContext): SyntaxNode {
+        return buildStructDeclaration(this, ctx);
     }
 
-    private buildClassDeclaration(ctx: ClassDefContext): SyntaxNode {
-        const children = [
-            this.buildIdentifierNode(ctx.Identifier()),
-            ...this.buildStructMembers(ctx.structMemberList()?.structMember())
-        ];
-
-        return this.createNode(SyntaxKind.ClassDeclaration, ctx, children, {
-            name: ctx.Identifier().text
-        });
+    public buildClassDeclaration(ctx: ClassDefContext): SyntaxNode {
+        return buildClassDeclaration(this, ctx);
     }
 
-    private buildStructMembers(members: StructMemberContext[] | StructMemberContext | undefined): SyntaxNode[] {
-        return this.asArray(members).map((member) => {
-            const children: SyntaxNode[] = [];
-            const typeReference = this.buildTypeReference(member.typeSpec());
-
-            if (typeReference) {
-                children.push(typeReference);
-            }
-            children.push(this.buildIdentifierNode(member.Identifier()));
-
-            return this.createNode(SyntaxKind.FieldDeclaration, member, children, {
-                name: member.Identifier().text,
-                metadata: {
-                    pointerCount: this.asArray(member.STAR?.()).length
-                }
-            });
-        });
+    public buildStructMembers(members: StructMemberContext[] | StructMemberContext | undefined): SyntaxNode[] {
+        return buildStructMembers(this, members);
     }
 
-    private buildDirectiveNode(kind: SyntaxKind.InheritDirective | SyntaxKind.IncludeDirective, ctx: InheritStatementContext | IncludeStatementContext): SyntaxNode {
-        const expression = ctx.expression() ? this.buildExpression(ctx.expression()!) : undefined;
-        return this.createNode(kind, ctx, expression ? [expression] : []);
+    public buildDirectiveNode(kind: SyntaxKind.InheritDirective | SyntaxKind.IncludeDirective, ctx: InheritStatementContext | IncludeStatementContext): SyntaxNode {
+        return buildDirectiveNode(this, kind, ctx);
     }
 
-    private buildBlock(ctx: BlockContext): SyntaxNode {
+    public buildBlock(ctx: BlockContext): SyntaxNode {
         const children = this.collectNodes(this.asArray(ctx.statement()).map((statement) => this.buildStatement(statement)));
         return this.createNode(SyntaxKind.Block, ctx, children);
     }
@@ -470,69 +417,20 @@ export class SyntaxBuilder {
         return this.createNode(kind, ctx, []);
     }
 
-    private buildParameterList(ctx: ParameterListContext | undefined): SyntaxNode | undefined {
-        if (!ctx) {
-            return undefined;
-        }
-
-        return this.createNode(SyntaxKind.ParameterList, ctx, this.asArray(ctx.parameter()).map((parameter) => this.buildParameter(parameter)));
+    public buildParameterList(ctx: ParameterListContext | undefined): SyntaxNode | undefined {
+        return buildParameterList(this, ctx);
     }
 
-    private buildParameter(ctx: ParameterContext): SyntaxNode {
-        const children: SyntaxNode[] = [];
-        const typeReference = ctx.typeSpec() ? this.buildTypeReference(ctx.typeSpec()!) : undefined;
-
-        if (typeReference) {
-            children.push(typeReference);
-        }
-        if (ctx.Identifier()) {
-            children.push(this.buildIdentifierNode(ctx.Identifier()!));
-        }
-
-        return this.createNode(SyntaxKind.ParameterDeclaration, ctx, children, {
-            name: ctx.Identifier()?.text,
-            metadata: {
-                isReference: Boolean(ctx.REF?.()),
-                isVariadic: Boolean(ctx.ELLIPSIS?.()),
-                pointerCount: this.asArray(ctx.STAR?.()).length
-            }
-        });
+    public buildParameter(ctx: ParameterContext): SyntaxNode {
+        return buildParameter(this, ctx);
     }
 
-    private buildModifierList(tokens: TerminalNode[] | TerminalNode): SyntaxNode | undefined {
-        const modifierTokens = this.asArray(tokens);
-        if (modifierTokens.length === 0) {
-            return undefined;
-        }
-
-        return this.createNodeFromTokens(
-            SyntaxKind.ModifierList,
-            modifierTokens[0].symbol,
-            modifierTokens[modifierTokens.length - 1].symbol,
-            modifierTokens.map((token) => this.buildIdentifierNode(token)),
-            {
-                metadata: {
-                    modifiers: modifierTokens.map((token) => token.text)
-                }
-            }
-        );
+    public buildModifierList(tokens: TerminalNode[] | TerminalNode): SyntaxNode | undefined {
+        return buildModifierList(this, tokens);
     }
 
-    private buildTypeReference(ctx: TypeLikeContext | undefined): SyntaxNode | undefined {
-        if (!ctx) {
-            return undefined;
-        }
-
-        const identifier = typeof ctx.Identifier === 'function' ? ctx.Identifier() : undefined;
-        const children = identifier ? [this.buildIdentifierNode(identifier)] : [];
-
-        return this.createNode(SyntaxKind.TypeReference, ctx, children, {
-            name: identifier?.text,
-            metadata: {
-                text: this.getNodeText(ctx),
-                pointerCount: this.countExplicitPointerTokens(ctx)
-            }
-        });
+    public buildTypeReference(ctx: TypeLikeContext | undefined): SyntaxNode | undefined {
+        return buildTypeReference(this, ctx);
     }
 
     public buildExpression(ctx: ExpressionContext): SyntaxNode {
@@ -549,7 +447,7 @@ export class SyntaxBuilder {
         );
     }
 
-    private buildAssignmentExpression(ctx: AssignmentExpressionContext): SyntaxNode {
+    public buildAssignmentExpression(ctx: AssignmentExpressionContext): SyntaxNode {
         const left = this.buildConditionalExpression(ctx.conditionalExpression());
         const operator = firstDefined(
             ctx.ASSIGN?.(),
@@ -829,11 +727,11 @@ export class SyntaxBuilder {
                     metadata: { source: 'dollar-call' }
                 });
             case 'StringConcatenationContext':
-                return this.buildStringConcatenation(ctx as StringConcatenationContext);
+                return buildStringConcatenation(this, ctx as StringConcatenationContext);
             case 'AnonFunctionContext': {
                 const anonFunction = ctx as AnonFunctionContext;
                 const children: SyntaxNode[] = [];
-                const parameters = this.buildParameterList(anonFunction.parameterList());
+                const parameters = buildParameterList(this, anonFunction.parameterList());
 
                 if (parameters) {
                     children.push(parameters);
@@ -847,13 +745,13 @@ export class SyntaxBuilder {
             case 'ClosurePrimaryContext':
                 return this.buildClosureExpression((ctx as ClosurePrimaryContext).closureExpr());
             case 'MappingLiteralExprContext':
-                return this.buildMappingLiteral((ctx as MappingLiteralExprContext).mappingLiteral());
+                return buildMappingLiteral(this, (ctx as MappingLiteralExprContext).mappingLiteral());
             case 'ArrayDelimiterExprContext':
-                return this.buildArrayDelimiterLiteral((ctx as ArrayDelimiterExprContext).arrayDelimiterLiteral());
+                return buildArrayDelimiterLiteral(this, (ctx as ArrayDelimiterExprContext).arrayDelimiterLiteral());
             case 'NewExpressionPrimaryContext':
-                return this.buildNewExpression((ctx as NewExpressionPrimaryContext).newExpression());
+                return buildNewExpression(this, (ctx as NewExpressionPrimaryContext).newExpression());
             case 'ArrayLiteralContext':
-                return this.buildArrayLiteral(ctx as ArrayLiteralContext);
+                return buildArrayLiteral(this, ctx as ArrayLiteralContext);
             default:
                 break;
         }
@@ -868,7 +766,7 @@ export class SyntaxBuilder {
 
     private buildMacroInvokeExpression(ctx: MacroInvokeContext): SyntaxNode {
         const children: SyntaxNode[] = [this.buildIdentifierNode(ctx.Identifier())];
-        const argumentList = this.buildArgumentList(ctx.argumentList());
+        const argumentList = buildArgumentList(this, ctx.argumentList());
 
         if (argumentList) {
             children.push(argumentList);
@@ -890,175 +788,60 @@ export class SyntaxBuilder {
         });
     }
 
-    private buildMappingLiteral(ctx: MappingLiteralContext): SyntaxNode {
-        const children = ctx.mappingPairList()
-            ? this.asArray(ctx.mappingPairList()!.mappingPair()).map((pair) => this.buildMappingPair(pair))
-            : [];
-
-        return this.createNode(SyntaxKind.MappingLiteralExpression, ctx, children);
+    public buildMappingLiteral(ctx: MappingLiteralContext): SyntaxNode {
+        return buildMappingLiteral(this, ctx);
     }
 
-    private buildMappingPair(ctx: MappingPairContext): SyntaxNode {
-        const children = this.asArray(ctx.expression()).map((expression) => this.buildExpression(expression));
-        return this.createNode(SyntaxKind.MappingEntry, ctx, children);
+    public buildMappingPair(ctx: MappingPairContext): SyntaxNode {
+        return buildMappingPair(this, ctx);
     }
 
-    private buildArrayLiteral(ctx: ArrayLiteralContext): SyntaxNode {
-        const expressionList = ctx.expressionList();
-        const children = expressionList ? [this.buildExpressionList(expressionList)] : [];
-        return this.createNode(SyntaxKind.ArrayLiteralExpression, ctx, children);
+    public buildArrayLiteral(ctx: ArrayLiteralContext): SyntaxNode {
+        return buildArrayLiteral(this, ctx);
     }
 
-    private buildArrayDelimiterLiteral(ctx: ArrayDelimiterLiteralContext): SyntaxNode {
-        const children = ctx.arrayDelimiterContent()
-            ? this.asArray(ctx.arrayDelimiterContent()!.arrayDelimiterElement()).map((element) => this.buildArrayDelimiterElement(element))
-            : [];
-
-        return this.createNode(SyntaxKind.ArrayDelimiterLiteralExpression, ctx, children);
+    public buildArrayDelimiterLiteral(ctx: ArrayDelimiterLiteralContext): SyntaxNode {
+        return buildArrayDelimiterLiteral(this, ctx);
     }
 
-    private buildArrayDelimiterElement(ctx: ArrayDelimiterElementContext): SyntaxNode {
-        if (ctx.Identifier()) {
-            return this.buildIdentifierNode(ctx.Identifier()!);
-        }
-
-        return this.createNode(SyntaxKind.Literal, ctx, [], {
-            metadata: { text: this.getNodeText(ctx) }
-        });
+    public buildArrayDelimiterElement(ctx: ArrayDelimiterElementContext): SyntaxNode {
+        return buildArrayDelimiterElement(this, ctx);
     }
 
-    private buildNewExpression(ctx: NewExpressionContext): SyntaxNode {
-        const children: SyntaxNode[] = [];
-        const typeReference = ctx.typeSpec() ? this.buildTypeReference(ctx.typeSpec()!) : undefined;
-        const expression = ctx.expression() ? this.buildExpression(ctx.expression()!) : undefined;
-        const initializerList = ctx.structInitializerList()
-            ? this.buildStructInitializerList(ctx.structInitializerList()!)
-            : undefined;
-
-        if (typeReference) {
-            children.push(typeReference);
-        } else if (expression) {
-            children.push(expression);
-        }
-
-        if (initializerList) {
-            children.push(initializerList);
-        }
-
-        return this.createNode(SyntaxKind.NewExpression, ctx, children, {
-            metadata: { hasInitializerList: Boolean(initializerList) }
-        });
+    public buildNewExpression(ctx: NewExpressionContext): SyntaxNode {
+        return buildNewExpression(this, ctx);
     }
 
-    private buildStructInitializerList(ctx: StructInitializerListContext): SyntaxNode {
-        return this.createNode(
-            SyntaxKind.StructInitializerList,
-            ctx,
-            this.asArray(ctx.structInitializer()).map((initializer) => this.buildStructInitializer(initializer))
-        );
+    public buildStructInitializerList(ctx: StructInitializerListContext): SyntaxNode {
+        return buildStructInitializerList(this, ctx);
     }
 
-    private buildStructInitializer(ctx: StructInitializerContext): SyntaxNode {
-        return this.createNode(
-            SyntaxKind.StructInitializer,
-            ctx,
-            [
-                this.buildIdentifierNode(ctx.Identifier()),
-                this.buildExpression(ctx.expression())
-            ],
-            {
-                name: ctx.Identifier().text
-            }
-        );
+    public buildStructInitializer(ctx: StructInitializerContext): SyntaxNode {
+        return buildStructInitializer(this, ctx);
     }
 
-    private buildStringConcatenation(ctx: StringConcatenationContext): SyntaxNode {
-        const items = this.asArray(ctx.stringConcat().concatItem()).map((item) => this.buildConcatItem(item));
-        if (items.length === 1) {
-            return items[0];
-        }
-
-        return this.buildLeftAssociativeBinaryChain(ctx, items, [], 'concat');
+    public buildStringConcatenation(ctx: StringConcatenationContext): SyntaxNode {
+        return buildStringConcatenation(this, ctx);
     }
 
-    private buildConcatItem(ctx: ConcatItemContext): SyntaxNode {
-        if (ctx.STRING_LITERAL()) {
-            return this.createNode(SyntaxKind.Literal, ctx, [], {
-                metadata: { text: ctx.STRING_LITERAL()!.text }
-            });
-        }
-
-        if (ctx.Identifier() && !ctx.LPAREN()) {
-            return this.buildIdentifierNode(ctx.Identifier()!);
-        }
-
-        if (ctx.Identifier()) {
-            const children: SyntaxNode[] = [this.buildIdentifierNode(ctx.Identifier()!)];
-            const argumentList = this.buildArgumentList(ctx.argumentList());
-
-            if (argumentList) {
-                children.push(argumentList);
-            }
-
-            return this.createNode(SyntaxKind.CallExpression, ctx, children, {
-                name: ctx.Identifier()!.text
-            });
-        }
-
-        return this.createOpaqueNode(ctx, [], { reason: 'concat-item', text: this.getNodeText(ctx) });
+    public buildConcatItem(ctx: ConcatItemContext): SyntaxNode {
+        return buildConcatItem(this, ctx);
     }
 
-    private buildArgumentList(ctx: ArgumentListContext | undefined): SyntaxNode | undefined {
-        if (!ctx) {
-            return undefined;
-        }
-
-        return this.createNode(
-            SyntaxKind.ArgumentList,
-            ctx,
-            this.asArray(ctx.assignmentExpression()).map((expression) => this.buildAssignmentExpression(expression)),
-            {
-                metadata: {
-                    hasTrailingComma: this.asArray(ctx.COMMA?.()).length >= this.asArray(ctx.assignmentExpression()).length
-                }
-            }
-        );
+    public buildArgumentList(ctx: ArgumentListContext | undefined): SyntaxNode | undefined {
+        return buildArgumentList(this, ctx);
     }
 
-    private buildExpressionList(ctx: ExpressionListContext): SyntaxNode {
-        return this.createNode(
-            SyntaxKind.ExpressionList,
-            ctx,
-            this.asArray(ctx.spreadElement()).map((element) => this.buildSpreadElement(element))
-        );
+    public buildExpressionList(ctx: ExpressionListContext): SyntaxNode {
+        return buildExpressionList(this, ctx);
     }
 
-    private buildSpreadElement(ctx: SpreadElementContext): SyntaxNode {
-        const expression = this.buildAssignmentExpression(ctx.assignmentExpression());
-        if (!ctx.ELLIPSIS()) {
-            return expression;
-        }
-
-        return this.createNode(SyntaxKind.SpreadElement, ctx, [expression]);
+    public buildSpreadElement(ctx: SpreadElementContext): SyntaxNode {
+        return buildSpreadElement(this, ctx);
     }
 
-    private buildSliceExpression(ctx: ParserRuleContext): SyntaxNode {
-        const expressions = typeof (ctx as any).expression === 'function'
-            ? this.asArray((ctx as any).expression()).map((expression) => this.buildExpression(expression))
-            : [];
-        const hasRange = typeof (ctx as any).RANGE_OP === 'function' && Boolean((ctx as any).RANGE_OP());
-
-        if (!hasRange && expressions.length === 1) {
-            return expressions[0];
-        }
-
-        return this.createNode(SyntaxKind.ExpressionList, ctx, expressions, {
-            metadata: {
-                source: 'slice',
-                hasRange,
-                hasTailQualifier: typeof (ctx as any).LT === 'function' && Boolean((ctx as any).LT())
-            }
-        });
+    public buildSliceExpression(ctx: ParserRuleContext): SyntaxNode {
+        return buildSliceExpression(this, ctx);
     }
 
     public buildBinaryLayer(ctx: ParserRuleContext, operands: SyntaxNode[], operators: string[]): SyntaxNode {
