@@ -2,7 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-type AnalyzeDocument = (document: vscode.TextDocument, showMessage?: boolean) => void;
+type AnalyzeDocument = (
+    document: vscode.TextDocument,
+    showMessage?: boolean
+) => Promise<vscode.Diagnostic[]>;
 
 export class FolderScanner {
     constructor(
@@ -58,10 +61,9 @@ export class FolderScanner {
 
                         try {
                             const document = await vscode.workspace.openTextDocument(file);
-                            this.analyzeDocument(document, false);
+                            const fileDiagnostics = await this.analyzeDocument(document, false);
 
-                            const fileDiagnostics = this.diagnosticCollection.get(document.uri);
-                            if (fileDiagnostics && fileDiagnostics.length > 0) {
+                            if (fileDiagnostics.length > 0) {
                                 diagnosticsByFile.set(file, [...fileDiagnostics]);
                             }
                         } catch (error) {

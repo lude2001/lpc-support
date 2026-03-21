@@ -75,7 +75,7 @@ export class DiagnosticsOrchestrator {
         this.variableAnalyzer = new VariableAnalyzer(lpcTypes, modifiers, this.excludedIdentifiers);
         this.variableInspector = new VariableInspectorPanel(this.variableAnalyzer);
         this.folderScanner = new FolderScanner(
-            this.analyzeDocument.bind(this),
+            this.analyzeDocumentForFolderScan.bind(this),
             this.diagnosticCollection
         );
 
@@ -225,6 +225,28 @@ export class DiagnosticsOrchestrator {
             .catch(error => {
                 console.error('分析文档时发生错误:', error);
             });
+    }
+
+    public async analyzeDocumentForFolderScan(
+        document: vscode.TextDocument,
+        showMessage: boolean = false
+    ): Promise<vscode.Diagnostic[]> {
+        if (!this.shouldCheckFile(document.fileName)) {
+            return [];
+        }
+
+        const config = vscode.workspace.getConfiguration('lpc.performance');
+        const enableAsync = config.get<boolean>('enableAsyncDiagnostics', true);
+        const diagnostics = enableAsync
+            ? await this.collectDiagnosticsAsync(document, { showMessage })
+            : await this.collectDiagnostics(document);
+
+        this.diagnosticCollection.set(document.uri, diagnostics);
+        if (showMessage && diagnostics.length === 0) {
+            vscode.window.showInformationMessage('代码检查完成，未发现问题');
+        }
+
+        return diagnostics;
     }
 
     /**
