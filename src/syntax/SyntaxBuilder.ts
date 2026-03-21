@@ -126,7 +126,7 @@ export class SyntaxBuilder {
         }) as SourceFileSyntaxNode;
     }
 
-    private buildStatement(ctx: StatementContext): SyntaxNode {
+    public buildStatement(ctx: StatementContext): SyntaxNode {
         if (ctx.functionDef()) {
             return this.buildFunctionDeclaration(ctx.functionDef()!);
         }
@@ -535,7 +535,7 @@ export class SyntaxBuilder {
         });
     }
 
-    private buildExpression(ctx: ExpressionContext): SyntaxNode {
+    public buildExpression(ctx: ExpressionContext): SyntaxNode {
         const assignments = this.asArray(ctx.assignmentExpression());
         if (assignments.length === 1) {
             return this.buildAssignmentExpression(assignments[0]);
@@ -1061,7 +1061,7 @@ export class SyntaxBuilder {
         });
     }
 
-    private buildBinaryLayer(ctx: ParserRuleContext, operands: SyntaxNode[], operators: string[]): SyntaxNode {
+    public buildBinaryLayer(ctx: ParserRuleContext, operands: SyntaxNode[], operators: string[]): SyntaxNode {
         if (operands.length === 1) {
             return operands[0];
         }
@@ -1069,7 +1069,7 @@ export class SyntaxBuilder {
         return this.buildLeftAssociativeBinaryChain(ctx, operands, operators);
     }
 
-    private buildLeftAssociativeBinaryChain(
+    public buildLeftAssociativeBinaryChain(
         ctx: ParserRuleContext,
         operands: SyntaxNode[],
         operators: string[],
@@ -1089,7 +1089,7 @@ export class SyntaxBuilder {
         return current;
     }
 
-    private createNode(
+    public createNode(
         kind: SyntaxKind,
         ctx: ParserRuleContext,
         children: SyntaxNode[],
@@ -1099,7 +1099,7 @@ export class SyntaxBuilder {
         return this.createNodeFromTokens(kind, startToken, stopToken, children, options);
     }
 
-    private createNodeBetween(
+    public createNodeBetween(
         kind: SyntaxKind,
         startNode: SyntaxNode,
         endBoundary: SyntaxNode | ParseTree | undefined,
@@ -1111,7 +1111,7 @@ export class SyntaxBuilder {
         return this.createNodeFromTokens(kind, startToken, stopToken, children, options);
     }
 
-    private createNodeFromTokens(
+    public createNodeFromTokens(
         kind: SyntaxKind,
         startToken: Token | undefined,
         stopToken: Token | undefined,
@@ -1137,14 +1137,14 @@ export class SyntaxBuilder {
         });
     }
 
-    private createOpaqueNode(ctx: ParserRuleContext, children: SyntaxNode[], metadata: Record<string, unknown>): SyntaxNode {
+    public createOpaqueNode(ctx: ParserRuleContext, children: SyntaxNode[], metadata: Record<string, unknown>): SyntaxNode {
         return {
             ...this.createNode(SyntaxKind.OpaqueExpression, ctx, children, { metadata }),
             isOpaque: true
         };
     }
 
-    private createMissingNode(ctx: ParserRuleContext): SyntaxNode {
+    public createMissingNode(ctx: ParserRuleContext): SyntaxNode {
         return {
             ...this.createNode(SyntaxKind.Missing, ctx, []),
             isMissing: true,
@@ -1152,7 +1152,7 @@ export class SyntaxBuilder {
         };
     }
 
-    private buildIdentifierNode(node: TerminalNode): SyntaxNode {
+    public buildIdentifierNode(node: TerminalNode): SyntaxNode {
         return this.createNodeFromTokens(SyntaxKind.Identifier, node.symbol, node.symbol, [], {
             name: node.text
         });
@@ -1169,13 +1169,13 @@ export class SyntaxBuilder {
         return createTokenRange(firstVisible.tokenIndex, lastVisible.tokenIndex);
     }
 
-    private getRuleBoundaryTokens(ctx: ParserRuleContext): { startToken: Token | undefined; stopToken: Token | undefined } {
+    public getRuleBoundaryTokens(ctx: ParserRuleContext): { startToken: Token | undefined; stopToken: Token | undefined } {
         const startToken = this.normalizeStartToken(ctx.start, ctx.stop);
         const stopToken = this.normalizeStopToken(ctx.stop, startToken);
         return { startToken, stopToken };
     }
 
-    private getBoundaryStopToken(boundary: SyntaxNode | ParseTree | undefined): Token | undefined {
+    public getBoundaryStopToken(boundary: SyntaxNode | ParseTree | undefined): Token | undefined {
         if (!boundary) {
             return undefined;
         }
@@ -1195,7 +1195,7 @@ export class SyntaxBuilder {
         return undefined;
     }
 
-    private normalizeStartToken(startToken: Token | undefined, stopToken: Token | undefined): Token | undefined {
+    public normalizeStartToken(startToken: Token | undefined, stopToken: Token | undefined): Token | undefined {
         if (startToken && startToken.type !== Token.EOF) {
             return startToken;
         }
@@ -1203,7 +1203,7 @@ export class SyntaxBuilder {
         return stopToken && stopToken.type !== Token.EOF ? stopToken : this.parsed.visibleTokens[0];
     }
 
-    private normalizeStopToken(stopToken: Token | undefined, startToken: Token | undefined): Token | undefined {
+    public normalizeStopToken(stopToken: Token | undefined, startToken: Token | undefined): Token | undefined {
         if (stopToken && stopToken.type !== Token.EOF) {
             return stopToken;
         }
@@ -1213,11 +1213,11 @@ export class SyntaxBuilder {
             : this.parsed.visibleTokens[this.parsed.visibleTokens.length - 1];
     }
 
-    private resolveTokenByIndex(tokenIndex: number): Token | undefined {
+    public resolveTokenByIndex(tokenIndex: number): Token | undefined {
         return this.parsed.allTokens.find((token) => token.tokenIndex === tokenIndex);
     }
 
-    private createRange(startToken: Token | undefined, stopToken: Token | undefined): vscode.Range {
+    public createRange(startToken: Token | undefined, stopToken: Token | undefined): vscode.Range {
         if (!startToken || !stopToken) {
             return new vscode.Range(this.positionAt(0), this.positionAt(0));
         }
@@ -1228,7 +1228,7 @@ export class SyntaxBuilder {
         );
     }
 
-    private getTokenStartOffset(token: Token): number {
+    public getTokenStartOffset(token: Token): number {
         if (typeof token.startIndex === 'number' && token.startIndex >= 0) {
             return token.startIndex;
         }
@@ -1236,7 +1236,7 @@ export class SyntaxBuilder {
         return this.offsetFromLineAndCharacter(token.line, token.charPositionInLine);
     }
 
-    private getTokenEndOffset(token: Token): number {
+    public getTokenEndOffset(token: Token): number {
         if (typeof token.stopIndex === 'number' && token.stopIndex >= 0) {
             return token.stopIndex + 1;
         }
@@ -1244,7 +1244,7 @@ export class SyntaxBuilder {
         return this.getTokenStartOffset(token) + Math.max((token.text ?? '').length, 1);
     }
 
-    private getNodeText(node: ParserRuleContext): string {
+    public getNodeText(node: ParserRuleContext): string {
         const { startToken, stopToken } = this.getRuleBoundaryTokens(node);
 
         if (!startToken || !stopToken) {
@@ -1257,15 +1257,15 @@ export class SyntaxBuilder {
         );
     }
 
-    private countExplicitPointerTokens(ctx: TypeLikeContext): number {
+    public countExplicitPointerTokens(ctx: TypeLikeContext): number {
         return (this.getNodeText(ctx).match(/\*/g) || []).length;
     }
 
-    private collectTokenTexts(...groups: Array<TerminalNode[] | TerminalNode | undefined>): string[] {
+    public collectTokenTexts(...groups: Array<TerminalNode[] | TerminalNode | undefined>): string[] {
         return groups.flatMap((group) => this.asArray(group).map((token) => token.text));
     }
 
-    private getChildren(node: ParseTree): ParseTree[] {
+    public getChildren(node: ParseTree): ParseTree[] {
         const childCount = typeof (node as { childCount?: number }).childCount === 'number'
             ? (node as { childCount: number }).childCount
             : 0;
@@ -1278,23 +1278,23 @@ export class SyntaxBuilder {
         return children;
     }
 
-    private isTerminal(node: ParseTree | undefined, tokenType: number): node is TerminalNode {
+    public isTerminal(node: ParseTree | undefined, tokenType: number): node is TerminalNode {
         return Boolean(node && (node as TerminalNode).symbol && (node as TerminalNode).symbol.type === tokenType);
     }
 
-    private isRuleContext(node: ParseTree | undefined, constructorName: string): boolean {
+    public isRuleContext(node: ParseTree | undefined, constructorName: string): boolean {
         return Boolean(node && node.constructor && node.constructor.name === constructorName);
     }
 
-    private collectPlacementTrivia(trivia: Trivia[], placement: 'leading' | 'trailing'): SyntaxTrivia[] {
+    public collectPlacementTrivia(trivia: Trivia[], placement: 'leading' | 'trailing'): SyntaxTrivia[] {
         return trivia.map((entry) => syntaxTriviaFromParsedTrivia(entry, placement));
     }
 
-    private collectNodes(nodes: Array<SyntaxNode | undefined>): SyntaxNode[] {
+    public collectNodes(nodes: Array<SyntaxNode | undefined>): SyntaxNode[] {
         return nodes.filter((node): node is SyntaxNode => Boolean(node));
     }
 
-    private asArray<T>(value: T[] | T | undefined): T[] {
+    public asArray<T>(value: T[] | T | undefined): T[] {
         if (value === undefined || value === null) {
             return [];
         }
