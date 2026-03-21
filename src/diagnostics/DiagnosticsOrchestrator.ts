@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from '../macroManager';
 import { ASTManager } from '../ast/astManager';
-import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { Debouncer } from '../utils/debounce';
 import { DiagnosticContext, IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './types';
 import { VariableAnalyzer } from './analyzers/VariableAnalyzer';
@@ -168,9 +167,6 @@ export class DiagnosticsOrchestrator {
             // 清理缓存的分析状态
             this.isAnalyzing.delete(documentKey);
             this.lastAnalysisVersion.delete(documentKey);
-            // 清理解析缓存
-            getGlobalParsedDocumentService().invalidate(document.uri);
-            this.astManager.clearCache(document.uri.toString());
         }
     }
 
@@ -186,10 +182,6 @@ export class DiagnosticsOrchestrator {
             const documentKey = uri.toString();
             this.isAnalyzing.delete(documentKey);
             this.lastAnalysisVersion.delete(documentKey);
-
-            // 清理解析缓存
-            getGlobalParsedDocumentService().invalidate(uri);
-            this.astManager.clearCache(uri.toString());
         }
     }
 

@@ -6,6 +6,7 @@ import type { EfunDocsManager } from '../efunDocs';
 import type { LPCConfigManager } from '../config';
 import type { LPCCompiler } from '../compiler';
 import type { MacroManager } from '../macroManager';
+import type { DocumentLifecycleService } from './DocumentLifecycleService';
 import { ServiceKey } from './ServiceRegistry';
 
 export const Services = {
@@ -13,6 +14,7 @@ export const Services = {
     EfunDocs: new ServiceKey<EfunDocsManager>('EfunDocs'),
     ConfigManager: new ServiceKey<LPCConfigManager>('ConfigManager'),
     Compiler: new ServiceKey<LPCCompiler>('Compiler'),
+    Lifecycle: new ServiceKey<DocumentLifecycleService>('Lifecycle'),
     Diagnostics: new ServiceKey<DiagnosticsOrchestrator>('Diagnostics'),
     Completion: new ServiceKey<LPCCompletionItemProvider>('Completion'),
     ErrorTree: new ServiceKey<ErrorTreeDataProvider>('ErrorTree'),

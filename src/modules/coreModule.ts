@@ -1,11 +1,14 @@
 import * as vscode from 'vscode';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { Services } from '../core/ServiceKeys';
+import { DocumentLifecycleService } from '../core/DocumentLifecycleService';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import { LPCConfigManager } from '../config';
 import { LPCCompiler } from '../compiler';
 import { EfunDocsManager } from '../efunDocs';
 import { MacroManager } from '../macroManager';
+import { ASTManager } from '../ast/astManager';
+import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 
 export function registerCoreServices(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const macroManager = new MacroManager();
@@ -24,4 +27,12 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
 
     const compiler = new LPCCompiler(configManager);
     registry.register(Services.Compiler, compiler);
+
+    const lifecycle = new DocumentLifecycleService();
+    registry.register(Services.Lifecycle, lifecycle);
+    context.subscriptions.push(lifecycle);
+    lifecycle.onInvalidate(uri => {
+        getGlobalParsedDocumentService().invalidate(uri);
+        ASTManager.getInstance().clearCache(uri.toString());
+    });
 }
