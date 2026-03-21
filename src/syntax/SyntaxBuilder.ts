@@ -123,6 +123,8 @@ import {
     buildVariableDeclaration,
     buildVariableDeclarator
 } from './builders/declarationBuilders';
+import * as expressionBuilders from './builders/expressionBuilders';
+import * as statementBuilders from './builders/statementBuilders';
 
 type TypeLikeContext = TypeSpecContext | CastTypeContext;
 
@@ -157,86 +159,7 @@ export class SyntaxBuilder {
     }
 
     public buildStatement(ctx: StatementContext): SyntaxNode {
-        if (ctx.functionDef()) {
-            return buildFunctionDeclaration(this, ctx.functionDef()!);
-        }
-
-        if (ctx.variableDecl()) {
-            return buildVariableDeclaration(this, ctx.variableDecl()!, ctx);
-        }
-
-        if (ctx.structDef()) {
-            return buildStructDeclaration(this, ctx.structDef()!);
-        }
-
-        if (ctx.classDef()) {
-            return buildClassDeclaration(this, ctx.classDef()!);
-        }
-
-        if (ctx.inheritStatement()) {
-            return buildDirectiveNode(this, SyntaxKind.InheritDirective, ctx.inheritStatement()!);
-        }
-
-        if (ctx.includeStatement()) {
-            return buildDirectiveNode(this, SyntaxKind.IncludeDirective, ctx.includeStatement()!);
-        }
-
-        if (ctx.ifStatement()) {
-            return this.buildIfStatement(ctx.ifStatement()!);
-        }
-
-        if (ctx.whileStatement()) {
-            return this.buildLoopStatement(SyntaxKind.WhileStatement, ctx.whileStatement()!);
-        }
-
-        if (ctx.doWhileStatement()) {
-            return this.buildDoWhileStatement(ctx.doWhileStatement()!);
-        }
-
-        if (ctx.forStatement()) {
-            return this.buildForStatement(ctx.forStatement()!);
-        }
-
-        if (ctx.foreachStatement()) {
-            return this.buildForeachStatement(ctx.foreachStatement()!);
-        }
-
-        if (ctx.switchStatement()) {
-            return this.buildSwitchStatement(ctx.switchStatement()!);
-        }
-
-        if (ctx.breakStatement()) {
-            return this.buildLeafNode(SyntaxKind.BreakStatement, ctx.breakStatement()!);
-        }
-
-        if (ctx.continueStatement()) {
-            return this.buildLeafNode(SyntaxKind.ContinueStatement, ctx.continueStatement()!);
-        }
-
-        if (ctx.returnStatement()) {
-            return this.buildReturnStatement(ctx.returnStatement()!);
-        }
-
-        if (ctx.block()) {
-            return this.buildBlock(ctx.block()!);
-        }
-
-        if (ctx.exprStatement()) {
-            return this.buildExpressionStatement(ctx.exprStatement()!);
-        }
-
-        if (ctx.prototypeStatement()) {
-            return buildPrototypeDeclaration(this, ctx.prototypeStatement()!);
-        }
-
-        if (ctx.macroInvoke()) {
-            const expression = this.buildMacroInvokeExpression(ctx.macroInvoke()!);
-            return this.createNode(SyntaxKind.ExpressionStatement, ctx, [expression], {
-                metadata: { source: 'macro-invoke' }
-            });
-        }
-
-        return this.createMissingNode(ctx);
+        return statementBuilders.buildStatement(this, ctx);
     }
 
     public buildFunctionDeclaration(ctx: FunctionDefContext | PrototypeStatementContext): SyntaxNode {
@@ -275,146 +198,55 @@ export class SyntaxBuilder {
     }
 
     public buildBlock(ctx: BlockContext): SyntaxNode {
-        const children = this.collectNodes(this.asArray(ctx.statement()).map((statement) => this.buildStatement(statement)));
-        return this.createNode(SyntaxKind.Block, ctx, children);
+        return statementBuilders.buildBlock(this, ctx);
     }
 
-    private buildExpressionStatement(ctx: ExprStatementContext): SyntaxNode {
-        const children = ctx.expression() ? [this.buildExpression(ctx.expression()!)] : [];
-        return this.createNode(SyntaxKind.ExpressionStatement, ctx, children);
+    public buildExpressionStatement(ctx: ExprStatementContext): SyntaxNode {
+        return statementBuilders.buildExpressionStatement(this, ctx);
     }
 
-    private buildIfStatement(ctx: IfStatementContext): SyntaxNode {
-        const children: SyntaxNode[] = [this.buildExpression(ctx.expression())];
-        const statements = this.asArray(ctx.statement());
-
-        if (statements[0]) {
-            children.push(this.buildStatement(statements[0]));
-        }
-        if (statements[1]) {
-            children.push(this.buildStatement(statements[1]));
-        }
-
-        return this.createNode(SyntaxKind.IfStatement, ctx, children, {
-            metadata: { hasElse: statements.length > 1 }
-        });
+    public buildIfStatement(ctx: IfStatementContext): SyntaxNode {
+        return statementBuilders.buildIfStatement(this, ctx);
     }
 
-    private buildLoopStatement(kind: SyntaxKind.WhileStatement, ctx: WhileStatementContext): SyntaxNode {
-        return this.createNode(kind, ctx, [this.buildExpression(ctx.expression()), this.buildStatement(ctx.statement())]);
+    public buildLoopStatement(kind: SyntaxKind.WhileStatement, ctx: WhileStatementContext): SyntaxNode {
+        return statementBuilders.buildLoopStatement(this, kind, ctx);
     }
 
-    private buildDoWhileStatement(ctx: DoWhileStatementContext): SyntaxNode {
-        return this.createNode(SyntaxKind.DoWhileStatement, ctx, [this.buildStatement(ctx.statement()), this.buildExpression(ctx.expression())]);
+    public buildDoWhileStatement(ctx: DoWhileStatementContext): SyntaxNode {
+        return statementBuilders.buildDoWhileStatement(this, ctx);
     }
 
-    private buildForStatement(ctx: ForStatementContext): SyntaxNode {
-        const children: SyntaxNode[] = [];
-        const forInit = ctx.forInit();
-
-        if (forInit?.variableDecl()) {
-            children.push(this.buildVariableDeclaration(forInit.variableDecl()!));
-        } else if (forInit?.expressionList()) {
-            children.push(this.buildExpressionList(forInit.expressionList()!));
-        }
-
-        if (ctx.expression()) {
-            children.push(this.buildExpression(ctx.expression()!));
-        }
-
-        if (ctx.expressionList()) {
-            children.push(this.buildExpressionList(ctx.expressionList()!));
-        }
-
-        children.push(this.buildStatement(ctx.statement()));
-        return this.createNode(SyntaxKind.ForStatement, ctx, children);
+    public buildForStatement(ctx: ForStatementContext): SyntaxNode {
+        return statementBuilders.buildForStatement(this, ctx);
     }
 
-    private buildForeachStatement(ctx: ForeachStatementContext): SyntaxNode {
-        const children = [
-            ...this.collectNodes(this.asArray(ctx.foreachInit().foreachVar()).map((foreachVar) => this.buildForeachBinding(foreachVar))),
-            this.buildExpression(ctx.expression()),
-            this.buildStatement(ctx.statement())
-        ];
-
-        return this.createNode(SyntaxKind.ForeachStatement, ctx, children);
+    public buildForeachStatement(ctx: ForeachStatementContext): SyntaxNode {
+        return statementBuilders.buildForeachStatement(this, ctx);
     }
 
-    private buildForeachBinding(ctx: ForeachVarContext): SyntaxNode {
-        const children: SyntaxNode[] = [];
-        const typeReference = ctx.typeSpec() ? this.buildTypeReference(ctx.typeSpec()!) : undefined;
-
-        if (typeReference) {
-            children.push(typeReference);
-        }
-        children.push(this.buildIdentifierNode(ctx.Identifier()));
-
-        return this.createNode(SyntaxKind.VariableDeclarator, ctx, children, {
-            name: ctx.Identifier().text,
-            metadata: {
-                pointerCount: this.asArray(ctx.STAR?.()).length,
-                isReference: Boolean(ctx.REF?.())
-            }
-        });
+    public buildForeachBinding(ctx: ForeachVarContext): SyntaxNode {
+        return statementBuilders.buildForeachBinding(this, ctx);
     }
 
-    private buildSwitchStatement(ctx: SwitchStatementContext): SyntaxNode {
-        const children: SyntaxNode[] = [this.buildExpression(ctx.expression())];
-
-        for (const section of this.asArray(ctx.switchSection())) {
-            children.push(...this.buildSwitchSection(section));
-        }
-
-        return this.createNode(SyntaxKind.SwitchStatement, ctx, children);
+    public buildSwitchStatement(ctx: SwitchStatementContext): SyntaxNode {
+        return statementBuilders.buildSwitchStatement(this, ctx);
     }
 
-    private buildSwitchSection(ctx: SwitchSectionContext): SyntaxNode[] {
-        const clauses: SyntaxNode[] = [];
-        let currentLabel: SwitchLabelWithColonContext | undefined;
-        let currentStatements: SyntaxNode[] = [];
-
-        for (const child of this.getChildren(ctx)) {
-            if (this.isRuleContext(child, 'SwitchLabelWithColonContext')) {
-                if (currentLabel) {
-                    clauses.push(this.buildSwitchClause(currentLabel, currentStatements));
-                }
-
-                currentLabel = child as SwitchLabelWithColonContext;
-                currentStatements = [];
-                continue;
-            }
-
-            if (this.isRuleContext(child, 'StatementContext')) {
-                currentStatements.push(this.buildStatement(child as StatementContext));
-            }
-        }
-
-        if (currentLabel) {
-            clauses.push(this.buildSwitchClause(currentLabel, currentStatements));
-        }
-
-        return clauses;
+    public buildSwitchSection(ctx: SwitchSectionContext): SyntaxNode[] {
+        return statementBuilders.buildSwitchSection(this, ctx);
     }
 
-    private buildSwitchClause(ctx: SwitchLabelWithColonContext, statements: SyntaxNode[]): SyntaxNode {
-        const label = ctx.switchLabel();
-        const labelChildren = label ? this.asArray(label.expression()).map((expression) => this.buildExpression(expression)) : [];
-
-        return this.createNode(ctx.DEFAULT() ? SyntaxKind.DefaultClause : SyntaxKind.CaseClause, ctx, [...labelChildren, ...statements], {
-            metadata: {
-                hasRange: Boolean(label?.RANGE_OP()),
-                expressionCount: labelChildren.length
-            }
-        });
+    public buildSwitchClause(ctx: SwitchLabelWithColonContext, statements: SyntaxNode[]): SyntaxNode {
+        return statementBuilders.buildSwitchClause(this, ctx, statements);
     }
 
-    private buildReturnStatement(ctx: ReturnStatementContext): SyntaxNode {
-        const children = ctx.expression() ? [this.buildExpression(ctx.expression()!)] : [];
-        return this.createNode(SyntaxKind.ReturnStatement, ctx, children);
+    public buildReturnStatement(ctx: ReturnStatementContext): SyntaxNode {
+        return statementBuilders.buildReturnStatement(this, ctx);
     }
 
-    private buildLeafNode(kind: SyntaxKind.BreakStatement | SyntaxKind.ContinueStatement, ctx: ContinueStatementContext | ParserRuleContext): SyntaxNode {
-        return this.createNode(kind, ctx, []);
+    public buildLeafNode(kind: SyntaxKind.BreakStatement | SyntaxKind.ContinueStatement, ctx: ContinueStatementContext | ParserRuleContext): SyntaxNode {
+        return statementBuilders.buildLeafNode(this, kind, ctx);
     }
 
     public buildParameterList(ctx: ParameterListContext | undefined): SyntaxNode | undefined {
@@ -434,358 +266,79 @@ export class SyntaxBuilder {
     }
 
     public buildExpression(ctx: ExpressionContext): SyntaxNode {
-        const assignments = this.asArray(ctx.assignmentExpression());
-        if (assignments.length === 1) {
-            return this.buildAssignmentExpression(assignments[0]);
-        }
-
-        return this.buildLeftAssociativeBinaryChain(
-            ctx,
-            assignments.map((assignment) => this.buildAssignmentExpression(assignment)),
-            this.asArray(ctx.COMMA?.()).map((token) => token.text),
-            'comma'
-        );
+        return expressionBuilders.buildExpression(this, ctx);
     }
 
     public buildAssignmentExpression(ctx: AssignmentExpressionContext): SyntaxNode {
-        const left = this.buildConditionalExpression(ctx.conditionalExpression());
-        const operator = firstDefined(
-            ctx.ASSIGN?.(),
-            ctx.PLUS_ASSIGN?.(),
-            ctx.MINUS_ASSIGN?.(),
-            ctx.STAR_ASSIGN?.(),
-            ctx.DIV_ASSIGN?.(),
-            ctx.PERCENT_ASSIGN?.(),
-            ctx.BIT_OR_ASSIGN?.(),
-            ctx.BIT_AND_ASSIGN?.()
-        );
-
-        if (!operator || !ctx.expression()) {
-            return left;
-        }
-
-        return this.createNode(SyntaxKind.AssignmentExpression, ctx, [left, this.buildExpression(ctx.expression()!)], {
-            metadata: { operator: operator.text }
-        });
+        return expressionBuilders.buildAssignmentExpression(this, ctx);
     }
 
-    private buildConditionalExpression(ctx: ConditionalExpressionContext): SyntaxNode {
-        const condition = this.buildLogicalOrExpression(ctx.logicalOrExpression());
-        if (!ctx.QUESTION() || !ctx.expression() || !ctx.conditionalExpression()) {
-            return condition;
-        }
-
-        return this.createNode(
-            SyntaxKind.ConditionalExpression,
-            ctx,
-            [condition, this.buildExpression(ctx.expression()!), this.buildConditionalExpression(ctx.conditionalExpression()!)],
-            {
-                metadata: { operator: '?:' }
-            }
-        );
+    public buildConditionalExpression(ctx: ConditionalExpressionContext): SyntaxNode {
+        return expressionBuilders.buildConditionalExpression(this, ctx);
     }
 
-    private buildLogicalOrExpression(ctx: LogicalOrExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.logicalAndExpression()).map((node) => this.buildLogicalAndExpression(node)),
-            this.asArray(ctx.OR?.()).map((token) => token.text)
-        );
+    public buildLogicalOrExpression(ctx: LogicalOrExpressionContext): SyntaxNode {
+        return expressionBuilders.buildLogicalOrExpression(this, ctx);
     }
 
-    private buildLogicalAndExpression(ctx: LogicalAndExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.bitwiseOrExpression()).map((node) => this.buildBitwiseOrExpression(node)),
-            this.asArray(ctx.AND?.()).map((token) => token.text)
-        );
+    public buildLogicalAndExpression(ctx: LogicalAndExpressionContext): SyntaxNode {
+        return expressionBuilders.buildLogicalAndExpression(this, ctx);
     }
 
-    private buildBitwiseOrExpression(ctx: BitwiseOrExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.bitwiseXorExpression()).map((node) => this.buildBitwiseXorExpression(node)),
-            this.asArray(ctx.BIT_OR?.()).map((token) => token.text)
-        );
+    public buildBitwiseOrExpression(ctx: BitwiseOrExpressionContext): SyntaxNode {
+        return expressionBuilders.buildBitwiseOrExpression(this, ctx);
     }
 
-    private buildBitwiseXorExpression(ctx: BitwiseXorExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.bitwiseAndExpression()).map((node) => this.buildBitwiseAndExpression(node)),
-            this.asArray(ctx.BIT_XOR?.()).map((token) => token.text)
-        );
+    public buildBitwiseXorExpression(ctx: BitwiseXorExpressionContext): SyntaxNode {
+        return expressionBuilders.buildBitwiseXorExpression(this, ctx);
     }
 
-    private buildBitwiseAndExpression(ctx: BitwiseAndExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.equalityExpression()).map((node) => this.buildEqualityExpression(node)),
-            this.asArray(ctx.BIT_AND?.()).map((token) => token.text)
-        );
+    public buildBitwiseAndExpression(ctx: BitwiseAndExpressionContext): SyntaxNode {
+        return expressionBuilders.buildBitwiseAndExpression(this, ctx);
     }
 
-    private buildEqualityExpression(ctx: EqualityExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.relationalExpression()).map((node) => this.buildRelationalExpression(node)),
-            this.collectTokenTexts(ctx.EQ?.(), ctx.NE?.())
-        );
+    public buildEqualityExpression(ctx: EqualityExpressionContext): SyntaxNode {
+        return expressionBuilders.buildEqualityExpression(this, ctx);
     }
 
-    private buildRelationalExpression(ctx: RelationalExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.shiftExpression()).map((node) => this.buildShiftExpression(node)),
-            this.collectTokenTexts(ctx.GT?.(), ctx.LT?.(), ctx.GE?.(), ctx.LE?.())
-        );
+    public buildRelationalExpression(ctx: RelationalExpressionContext): SyntaxNode {
+        return expressionBuilders.buildRelationalExpression(this, ctx);
     }
 
-    private buildShiftExpression(ctx: ShiftExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.additiveExpression()).map((node) => this.buildAdditiveExpression(node)),
-            this.collectTokenTexts(ctx.SHIFT_LEFT?.(), ctx.SHIFT_RIGHT?.())
-        );
+    public buildShiftExpression(ctx: ShiftExpressionContext): SyntaxNode {
+        return expressionBuilders.buildShiftExpression(this, ctx);
     }
 
-    private buildAdditiveExpression(ctx: AdditiveExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.multiplicativeExpression()).map((node) => this.buildMultiplicativeExpression(node)),
-            this.collectTokenTexts(ctx.PLUS?.(), ctx.MINUS?.())
-        );
+    public buildAdditiveExpression(ctx: AdditiveExpressionContext): SyntaxNode {
+        return expressionBuilders.buildAdditiveExpression(this, ctx);
     }
 
-    private buildMultiplicativeExpression(ctx: MultiplicativeExpressionContext): SyntaxNode {
-        return this.buildBinaryLayer(
-            ctx,
-            this.asArray(ctx.unaryExpression()).map((node) => this.buildUnaryExpression(node)),
-            this.collectTokenTexts(ctx.STAR?.(), ctx.DIV?.(), ctx.PERCENT?.())
-        );
+    public buildMultiplicativeExpression(ctx: MultiplicativeExpressionContext): SyntaxNode {
+        return expressionBuilders.buildMultiplicativeExpression(this, ctx);
     }
 
-    private buildUnaryExpression(ctx: UnaryExpressionContext): SyntaxNode {
-        if (ctx.postfixExpression()) {
-            const operand = this.buildPostfixExpression(ctx.postfixExpression()!);
-            const operator = firstDefined(ctx.INC?.(), ctx.DEC?.());
-
-            if (!operator) {
-                return operand;
-            }
-
-            return this.createNode(SyntaxKind.UnaryExpression, ctx, [operand], {
-                metadata: { operator: operator.text, position: 'prefix' }
-            });
-        }
-
-        if (ctx.unaryExpression()) {
-            const operator = firstDefined(ctx.PLUS?.(), ctx.MINUS?.(), ctx.NOT?.(), ctx.BIT_NOT?.(), ctx.STAR?.());
-            if (operator) {
-                return this.createNode(SyntaxKind.UnaryExpression, ctx, [this.buildUnaryExpression(ctx.unaryExpression()!)], {
-                    metadata: { operator: operator.text, position: 'prefix' }
-                });
-            }
-        }
-
-        if (ctx.CATCH()) {
-            const child = ctx.expression()
-                ? this.buildExpression(ctx.expression()!)
-                : ctx.block()
-                    ? this.buildBlock(ctx.block()!)
-                    : this.createMissingNode(ctx);
-
-            return this.createNode(SyntaxKind.UnaryExpression, ctx, [child], {
-                metadata: { operator: 'catch', position: 'prefix' }
-            });
-        }
-
-        if (ctx.castExpression()) {
-            return this.buildCastExpression(ctx.castExpression()!);
-        }
-
-        return this.createOpaqueNode(ctx, [], { reason: 'unary-fallback' });
+    public buildUnaryExpression(ctx: UnaryExpressionContext): SyntaxNode {
+        return expressionBuilders.buildUnaryExpression(this, ctx);
     }
 
-    private buildCastExpression(ctx: CastExpressionContext): SyntaxNode {
-        const children: SyntaxNode[] = [];
-        const typeReference = this.buildTypeReference(ctx.castType());
-
-        if (typeReference) {
-            children.push(typeReference);
-        }
-        children.push(this.buildUnaryExpression(ctx.unaryExpression()));
-
-        return this.createNode(SyntaxKind.UnaryExpression, ctx, children, {
-            metadata: { operator: 'cast', position: 'prefix' }
-        });
+    public buildCastExpression(ctx: CastExpressionContext): SyntaxNode {
+        return expressionBuilders.buildCastExpression(this, ctx);
     }
 
-    private buildPostfixExpression(ctx: PostfixExpressionContext): SyntaxNode {
-        let current = this.buildPrimary(ctx.primary());
-        const children = this.getChildren(ctx);
-        let index = 1;
-
-        while (index < children.length) {
-            const child = children[index];
-
-            if (this.isTerminal(child, LPCParser.LPAREN)) {
-                const argumentList = this.isRuleContext(children[index + 1], 'ArgumentListContext')
-                    ? this.buildArgumentList(children[index + 1] as ArgumentListContext)
-                    : undefined;
-                const endBoundary = argumentList ? children[index + 2] : children[index + 1];
-                const callChildren = argumentList ? [current, argumentList] : [current];
-
-                current = this.createNodeBetween(SyntaxKind.CallExpression, current, endBoundary, callChildren);
-                index += argumentList ? 3 : 2;
-                continue;
-            }
-
-            if (this.isTerminal(child, LPCParser.ARROW) || this.isTerminal(child, LPCParser.DOT) || this.isTerminal(child, LPCParser.SCOPE)) {
-                const memberToken = children[index + 1] as TerminalNode;
-                let memberAccess = this.createNodeBetween(
-                    SyntaxKind.MemberAccessExpression,
-                    current,
-                    memberToken,
-                    [current, this.buildIdentifierNode(memberToken)],
-                    {
-                        metadata: { operator: (child as TerminalNode).text }
-                    }
-                );
-                index += 2;
-
-                if (this.isTerminal(children[index], LPCParser.LPAREN)) {
-                    const argumentList = this.isRuleContext(children[index + 1], 'ArgumentListContext')
-                        ? this.buildArgumentList(children[index + 1] as ArgumentListContext)
-                        : undefined;
-                    const endBoundary = argumentList ? children[index + 2] : children[index + 1];
-                    const callChildren = argumentList ? [memberAccess, argumentList] : [memberAccess];
-
-                    memberAccess = this.createNodeBetween(SyntaxKind.CallExpression, memberAccess, endBoundary, callChildren);
-                    index += argumentList ? 3 : 2;
-                }
-
-                current = memberAccess;
-                continue;
-            }
-
-            if (this.isTerminal(child, LPCParser.LBRACK)) {
-                const sliceExpr = children[index + 1] instanceof ParserRuleContext
-                    ? this.buildSliceExpression(children[index + 1] as ParserRuleContext)
-                    : this.createMissingNode(ctx);
-                const endBoundary = children[index + 2];
-
-                current = this.createNodeBetween(SyntaxKind.IndexExpression, current, endBoundary, [current, sliceExpr]);
-                index += 3;
-                continue;
-            }
-
-            if (this.isTerminal(child, LPCParser.INC) || this.isTerminal(child, LPCParser.DEC)) {
-                current = this.createNodeBetween(SyntaxKind.PostfixExpression, current, child, [current], {
-                    metadata: { operator: (child as TerminalNode).text, position: 'postfix' }
-                });
-                index += 1;
-                continue;
-            }
-
-            index += 1;
-        }
-
-        return current;
+    public buildPostfixExpression(ctx: PostfixExpressionContext): SyntaxNode {
+        return expressionBuilders.buildPostfixExpression(this, ctx);
     }
 
-    private buildPrimary(ctx: PrimaryContext): SyntaxNode {
-        switch (ctx.constructor.name) {
-            case 'IdentifierPrimaryContext':
-                return this.buildIdentifierNode((ctx as IdentifierPrimaryContext).Identifier());
-            case 'ScopeIdentifierContext':
-                return this.createNode(SyntaxKind.Identifier, ctx, [], {
-                    name: (ctx as ScopeIdentifierContext).Identifier().text,
-                    metadata: { scopeQualifier: (ctx as ScopeIdentifierContext).SCOPE().text }
-                });
-            case 'RefVariableContext':
-                return this.createNode(SyntaxKind.Identifier, ctx, [], {
-                    name: (ctx as RefVariableContext).Identifier().text,
-                    metadata: { isReference: true }
-                });
-            case 'ParameterPlaceholderContext':
-                return this.createNode(SyntaxKind.Identifier, ctx, [], {
-                    name: (ctx as ParameterPlaceholderContext).PARAMETER_PLACEHOLDER().text,
-                    metadata: { placeholder: true }
-                });
-            case 'IntegerPrimaryContext':
-            case 'FloatPrimaryContext':
-            case 'StringPrimaryContext':
-            case 'CharPrimaryContext':
-                return this.createNode(SyntaxKind.Literal, ctx, [], {
-                    metadata: { text: this.getNodeText(ctx) }
-                });
-            case 'ParenExprContext':
-                return this.createNode(SyntaxKind.ParenthesizedExpression, ctx, [this.buildExpression((ctx as ParenExprContext).expression())]);
-            case 'DollarCallExprContext':
-                return this.createNode(SyntaxKind.CallExpression, ctx, [this.buildExpression((ctx as DollarCallExprContext).expression())], {
-                    metadata: { source: 'dollar-call' }
-                });
-            case 'StringConcatenationContext':
-                return buildStringConcatenation(this, ctx as StringConcatenationContext);
-            case 'AnonFunctionContext': {
-                const anonFunction = ctx as AnonFunctionContext;
-                const children: SyntaxNode[] = [];
-                const parameters = buildParameterList(this, anonFunction.parameterList());
-
-                if (parameters) {
-                    children.push(parameters);
-                }
-                children.push(this.buildBlock(anonFunction.block()));
-
-                return this.createNode(SyntaxKind.AnonymousFunctionExpression, ctx, children, {
-                    metadata: { source: 'anonymous-function' }
-                });
-            }
-            case 'ClosurePrimaryContext':
-                return this.buildClosureExpression((ctx as ClosurePrimaryContext).closureExpr());
-            case 'MappingLiteralExprContext':
-                return buildMappingLiteral(this, (ctx as MappingLiteralExprContext).mappingLiteral());
-            case 'ArrayDelimiterExprContext':
-                return buildArrayDelimiterLiteral(this, (ctx as ArrayDelimiterExprContext).arrayDelimiterLiteral());
-            case 'NewExpressionPrimaryContext':
-                return buildNewExpression(this, (ctx as NewExpressionPrimaryContext).newExpression());
-            case 'ArrayLiteralContext':
-                return buildArrayLiteral(this, ctx as ArrayLiteralContext);
-            default:
-                break;
-        }
-
-        const primaryContext = ctx as any;
-        if (typeof primaryContext.Identifier === 'function' && typeof primaryContext.expression !== 'function') {
-            return this.buildIdentifierNode(primaryContext.Identifier());
-        }
-
-        return this.createOpaqueNode(ctx, [], { reason: 'primary-fallback', text: this.getNodeText(ctx) });
+    public buildPrimary(ctx: PrimaryContext): SyntaxNode {
+        return expressionBuilders.buildPrimary(this, ctx);
     }
 
-    private buildMacroInvokeExpression(ctx: MacroInvokeContext): SyntaxNode {
-        const children: SyntaxNode[] = [this.buildIdentifierNode(ctx.Identifier())];
-        const argumentList = buildArgumentList(this, ctx.argumentList());
-
-        if (argumentList) {
-            children.push(argumentList);
-        }
-
-        return this.createNode(SyntaxKind.CallExpression, ctx, children, {
-            name: ctx.Identifier().text,
-            metadata: { source: 'macro-invoke' }
-        });
+    public buildMacroInvokeExpression(ctx: MacroInvokeContext): SyntaxNode {
+        return expressionBuilders.buildMacroInvokeExpression(this, ctx);
     }
 
-    private buildClosureExpression(ctx: ClosureExprContext): SyntaxNode {
-        const children = ctx.expression() ? [this.buildExpression(ctx.expression()!)] : [];
-        return this.createNode(SyntaxKind.ClosureExpression, ctx, children, {
-            metadata: {
-                hasDollarIdentifier: Boolean(ctx.DOLLAR()),
-                identifier: ctx.Identifier()?.text
-            }
-        });
+    public buildClosureExpression(ctx: ClosureExprContext): SyntaxNode {
+        return expressionBuilders.buildClosureExpression(this, ctx);
     }
 
     public buildMappingLiteral(ctx: MappingLiteralContext): SyntaxNode {
@@ -1108,10 +661,6 @@ export class SyntaxBuilder {
         const lineStart = this.lineStartOffsets[normalizedLine] ?? 0;
         return lineStart + Math.max(0, character || 0);
     }
-}
-
-function firstDefined<T>(...values: Array<T | undefined>): T | undefined {
-    return values.find((value) => value !== undefined);
 }
 
 function buildLineStartOffsets(text: string): number[] {
