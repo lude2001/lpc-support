@@ -169,4 +169,107 @@ describe('EfunDocsManager', () => {
 
         fs.rmSync(tempRoot, { recursive: true, force: true });
     });
+
+    test('include lookup resolves workspace-root LPC include paths', async () => {
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-root-'));
+        const includeDir = path.join(tempRoot, 'include');
+        const mainFile = path.join(tempRoot, 'main.c');
+        const includeFile = path.join(includeDir, 'helper.h');
+
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(mainFile, '#include "/include/helper.h"\n');
+        fs.writeFileSync(
+            includeFile,
+            [
+                '/**',
+                ' * root include helper',
+                ' */',
+                'int helper_root()'
+            ].join('\n')
+        );
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: tempRoot } }];
+
+        const context = {
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext;
+
+        const manager = new EfunDocsManager(context) as any;
+        const document = {
+            uri: { fsPath: mainFile }
+        } as vscode.TextDocument;
+
+        const doc = await manager.findFunctionDocInIncludes(document, 'helper_root');
+
+        expect(doc).toMatchObject({
+            name: 'helper_root',
+            category: '包含自 helper.h'
+        });
+
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    });
+
+    test('missing remote docs are negatively cached after the first miss', async () => {
+        const context = {
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext;
+        const manager = new EfunDocsManager(context);
+
+        (axios.get as jest.Mock).mockRejectedValue(new Error('not found'));
+        (manager as any).efunDocs.delete('totally_missing_efun');
+
+        const first = await manager.getEfunDoc('totally_missing_efun');
+        const firstCallCount = (axios.get as jest.Mock).mock.calls.length;
+        const second = await manager.getEfunDoc('totally_missing_efun');
+
+        expect(first).toBeUndefined();
+        expect(second).toBeUndefined();
+        expect(firstCallCount).toBeGreaterThan(0);
+        expect((axios.get as jest.Mock).mock.calls.length).toBe(firstCallCount);
+    });
+
+    test('only the latest async current-file update wins when updates overlap', async () => {
+        const context = {
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext;
+
+        const manager = new EfunDocsManager(context) as any;
+        manager.parseInheritStatements = jest
+            .fn()
+            .mockImplementation((content: string) => content.includes('first') ? ['first.c'] : ['second.c']);
+        manager.loadInheritedFileDocs = jest
+            .fn()
+            .mockImplementation(async (_currentFilePath: string, inheritedFiles: string[]) => {
+                if (inheritedFiles[0] === 'first.c') {
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                    return new Map([['first-path', new Map()]]);
+                }
+
+                return new Map([['second-path', new Map()]]);
+            });
+
+        const firstDocument = {
+            languageId: 'lpc',
+            fileName: 'first.c',
+            uri: { fsPath: 'first.c' },
+            getText: () => 'inherit "first";'
+        } as vscode.TextDocument;
+        const secondDocument = {
+            languageId: 'lpc',
+            fileName: 'second.c',
+            uri: { fsPath: 'second.c' },
+            getText: () => 'inherit "second";'
+        } as vscode.TextDocument;
+
+        const firstUpdate = manager.updateCurrentFileDocs(firstDocument);
+        const secondUpdate = manager.updateCurrentFileDocs(secondDocument);
+        await Promise.all([firstUpdate, secondUpdate]);
+
+        expect(manager.currentFilePath).toBe('second.c');
+        expect(manager.inheritedFiles).toEqual(['second.c']);
+        expect(Array.from(manager.inheritedFileDocs.keys())).toEqual(['second-path']);
+    });
 });

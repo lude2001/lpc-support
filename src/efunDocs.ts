@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
-import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
-import { extractReturnType, parseFunctionDocs } from './efun/docParser';
-import type { BundledEfunDocBundle, EfunDoc, LegacyEfunConfig } from './efun/types';
+import { parseFunctionDocs } from './efun/docParser';
+import { BundledEfunLoader } from './efun/BundledEfunLoader';
+import { RemoteEfunFetcher } from './efun/RemoteEfunFetcher';
+import type { EfunDoc } from './efun/types';
 
 export type {
     BundledEfunDoc,
@@ -15,10 +16,8 @@ export type {
 
 export class EfunDocsManager {
     private static SIMULATED_EFUNS_PATH_CONFIG = 'lpc.simulatedEfunsPath';
-    private static DEFAULT_CATEGORY = '标准 Efun';
-    private static BUNDLED_DOCS_FILE = 'efun-docs.json';
-    private static LEGACY_CONFIG_FILE = 'lpc-config.json';
-    private static MUD_WIKI_BASE_URL = 'https://mud.wiki';
+    private bundledLoader: BundledEfunLoader;
+    private remoteFetcher: RemoteEfunFetcher;
     private efunDocs: Map<string, EfunDoc> = new Map();
     private efunCategories: Map<string, string[]> = new Map();
     private simulatedEfunDocs: Map<string, EfunDoc> = new Map();
@@ -31,9 +30,18 @@ export class EfunDocsManager {
     private currentFilePath: string = '';
     // 当前文件的继承文件路径列表
     private inheritedFiles: string[] = [];
+    private currentFileUpdateVersion = 0;
+    private missingRemoteDocs = new Set<string>();
 
     constructor(context: vscode.ExtensionContext) {
-        this.loadBundledDocs(context);
+        this.bundledLoader = new BundledEfunLoader(context);
+        this.remoteFetcher = new RemoteEfunFetcher();
+        this.efunDocs = new Map(
+            this.bundledLoader.getAllNames().map(name => [name, this.bundledLoader.get(name)!])
+        );
+        this.efunCategories = new Map(
+            Array.from(this.bundledLoader.getCategories().entries(), ([category, names]) => [category, [...names]])
+        );
 
         // 注册悬停提供程序
         context.subscriptions.push(
@@ -72,98 +80,6 @@ export class EfunDocsManager {
         }
     }
 
-    private loadBundledDocs(context: vscode.ExtensionContext): void {
-        for (const basePath of this.getConfigSearchRoots(context)) {
-            const bundledDocsPath = path.join(basePath, 'config', EfunDocsManager.BUNDLED_DOCS_FILE);
-
-            try {
-                if (!fs.existsSync(bundledDocsPath)) {
-                    continue;
-                }
-
-                const bundle = JSON.parse(fs.readFileSync(bundledDocsPath, 'utf8')) as BundledEfunDocBundle;
-                this.efunDocs = new Map(
-                    Object.entries(bundle.docs ?? {}).map(([name, doc]) => [name, { ...doc, name } as EfunDoc])
-                );
-                this.efunCategories = new Map(Object.entries(bundle.categories ?? {}));
-                return;
-            } catch (error) {
-                console.error('加载内置 Efun 文档失败:', error);
-            }
-        }
-
-        this.loadLegacyBundledDocs(context);
-    }
-
-    private loadLegacyBundledDocs(context: vscode.ExtensionContext): void {
-        for (const basePath of this.getConfigSearchRoots(context)) {
-            const legacyConfigPath = path.join(basePath, 'config', EfunDocsManager.LEGACY_CONFIG_FILE);
-
-            try {
-                if (!fs.existsSync(legacyConfigPath)) {
-                    continue;
-                }
-
-                const config = JSON.parse(fs.readFileSync(legacyConfigPath, 'utf8')) as LegacyEfunConfig;
-                const docs = new Map<string, EfunDoc>();
-                const categories = new Map<string, string[]>();
-
-                Object.entries(config.efuns ?? {})
-                    .sort(([left], [right]) => left.localeCompare(right))
-                    .forEach(([name, entry]) => {
-                        const category = entry.category?.trim() || EfunDocsManager.DEFAULT_CATEGORY;
-                        const list = categories.get(category) ?? [];
-                        list.push(name);
-                        categories.set(category, list);
-
-                    docs.set(name, {
-                        name,
-                        syntax: this.normalizeSnippet(entry.snippet, name),
-                        description: entry.description?.trim() || entry.detail?.trim() || `${name} 内置函数`,
-                        returnType: extractReturnType(this.normalizeSnippet(entry.snippet, name), name),
-                        returnValue: this.cleanText(entry.returnValue),
-                        details: this.cleanText(entry.details),
-                        reference: Array.isArray(entry.reference) ? entry.reference.filter(Boolean) : undefined,
-                            category,
-                            note: this.cleanText(entry.note)
-                        });
-                    });
-
-                this.efunDocs = docs;
-                this.efunCategories = categories;
-                return;
-            } catch (error) {
-                console.error('加载备用 Efun 文档失败:', error);
-            }
-        }
-    }
-
-    private getConfigSearchRoots(context: vscode.ExtensionContext): string[] {
-        const roots = new Set<string>();
-        if (context?.extensionPath) {
-            roots.add(context.extensionPath);
-        }
-        roots.add(path.resolve(__dirname, '..'));
-        return Array.from(roots);
-    }
-
-    private normalizeSnippet(snippet: string | undefined, funcName: string): string {
-        const template = (snippet?.trim() || `${funcName}()`)
-            .replace(/\$\{\d+\|([^}]+)\|\}/g, (_, options: string) => options.split(',')[0]?.trim() ?? '')
-            .replace(/\$\{\d+:([^}]+)\}/g, '$1')
-            .replace(/\$\{\d+\}/g, '')
-            .replace(/\$\d+/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        return template || `${funcName}()`;
-    }
-
-    private cleanText(value: string | undefined): string | undefined {
-        const cleaned = value?.trim();
-        return cleaned ? cleaned : undefined;
-    }
-
     public getStandardDoc(funcName: string): EfunDoc | undefined {
         return this.efunDocs.get(funcName);
     }
@@ -178,15 +94,22 @@ export class EfunDocsManager {
     }
 
     private async fetchMissingMudWikiDoc(funcName: string): Promise<EfunDoc | undefined> {
+        if (this.missingRemoteDocs.has(funcName)) {
+            return undefined;
+        }
+
         const pendingFetch = this.remoteDocFetches.get(funcName);
         if (pendingFetch) {
             return pendingFetch;
         }
 
-        const request = this.fetchMudWikiDoc(funcName)
+        const request = this.remoteFetcher.fetchDoc(funcName)
             .then(doc => {
                 if (doc) {
                     this.efunDocs.set(funcName, doc);
+                    this.missingRemoteDocs.delete(funcName);
+                } else {
+                    this.missingRemoteDocs.add(funcName);
                 }
                 return doc;
             })
@@ -196,119 +119,6 @@ export class EfunDocsManager {
 
         this.remoteDocFetches.set(funcName, request);
         return request;
-    }
-
-    private async fetchMudWikiDoc(funcName: string): Promise<EfunDoc | undefined> {
-        for (const title of this.getMudWikiTitleCandidates(funcName)) {
-            try {
-                const response = await axios.get(`${EfunDocsManager.MUD_WIKI_BASE_URL}/${title}`);
-                const doc = this.parseMudWikiDocHtml(funcName, response.data);
-                if (doc) {
-                    return doc;
-                }
-            } catch (error) {
-                continue;
-            }
-        }
-
-        return undefined;
-    }
-
-    private getMudWikiTitleCandidates(funcName: string): string[] {
-        const firstLetterUpper = funcName.charAt(0).toUpperCase() + funcName.slice(1);
-        const eachSegmentUpper = funcName
-            .split('_')
-            .map(segment => segment ? segment.charAt(0).toUpperCase() + segment.slice(1) : segment)
-            .join('_');
-
-        return Array.from(new Set([firstLetterUpper, eachSegmentUpper, funcName]));
-    }
-
-    private parseMudWikiDocHtml(funcName: string, html: string): EfunDoc | undefined {
-        const contentMatch = html.match(/id="mw-content-text"[\s\S]*?<div class="printfooter">/u);
-        if (!contentMatch) {
-            return undefined;
-        }
-
-        const content = contentMatch[0];
-        const sectionPattern = /<h3[\s\S]*?>([\s\S]*?)<\/h3>([\s\S]*?)(?=<h3\b|<div class="printfooter">)/gu;
-        const doc: EfunDoc = {
-            name: funcName,
-            syntax: '',
-            description: '',
-            category: EfunDocsManager.DEFAULT_CATEGORY
-        };
-        const extraSections: string[] = [];
-
-        for (const match of content.matchAll(sectionPattern)) {
-            const title = this.decodeHtmlEntities(this.stripHtmlTags(match[1])).replace(/\[编辑\]$/u, '').trim();
-            const sectionHtml = match[2];
-            const text = this.decodeHtmlEntities(this.stripHtmlTags(sectionHtml))
-                .replace(/\r/g, '')
-                .replace(/[ \t]+\n/g, '\n')
-                .replace(/\n{3,}/g, '\n\n')
-                .trim();
-
-            switch (title) {
-                case '名称':
-                case '翻译':
-                    break;
-                case '语法':
-                    doc.syntax = text;
-                    doc.returnType = extractReturnType(text, funcName);
-                    break;
-                case '描述':
-                    doc.description = text;
-                    break;
-                case '返回值':
-                    doc.returnValue = text;
-                    break;
-                case '参考':
-                    doc.reference = Array.from(new Set(Array.from(sectionHtml.matchAll(/<a [^>]*>(.*?)<\/a>/gu))
-                        .map(linkMatch => this.decodeHtmlEntities(this.stripHtmlTags(linkMatch[1])).trim())
-                        .map(name => name.replace(/\(\d+\)$/u, '').replace(/\*$/u, '').trim())
-                        .filter(Boolean)
-                        .filter(name => name !== funcName)));
-                    break;
-                default:
-                    if (text) {
-                        extraSections.push(`${title}\n${text}`);
-                    }
-                    break;
-            }
-        }
-
-        if (!doc.syntax && !doc.description && !doc.returnValue) {
-            return undefined;
-        }
-
-        if (extraSections.length > 0) {
-            doc.details = extraSections.join('\n\n');
-        }
-
-        if (!doc.returnType) {
-            doc.returnType = extractReturnType(doc.syntax, funcName);
-        }
-
-        return doc;
-    }
-
-    private stripHtmlTags(value: string): string {
-        return value
-            .replace(/<br\s*\/?>/giu, '\n')
-            .replace(/<\/p>/giu, '\n')
-            .replace(/<[^>]+>/gu, '');
-    }
-
-    private decodeHtmlEntities(value: string): string {
-        return value
-            .replace(/&#(\d+);/gu, (_, code: string) => String.fromCodePoint(Number(code)))
-            .replace(/&nbsp;/giu, ' ')
-            .replace(/&lt;/giu, '<')
-            .replace(/&gt;/giu, '>')
-            .replace(/&amp;/giu, '&')
-            .replace(/&quot;/giu, '"')
-            .replace(/&#39;/giu, '\'');
     }
 
     private async configureSimulatedEfuns(): Promise<void> {
@@ -380,18 +190,25 @@ export class EfunDocsManager {
             return;
         }
 
-        this.currentFilePath = document.uri.fsPath;
-        this.currentFileDocs.clear();
-        this.inheritedFileDocs.clear();
-        this.inheritedFiles = [];
+        const updateVersion = ++this.currentFileUpdateVersion;
+        const currentFilePath = document.uri.fsPath;
 
         // 解析当前文件的函数文档
         const content = document.getText();
-        this.currentFileDocs = parseFunctionDocs(content, '当前文件');
+        const currentFileDocs = parseFunctionDocs(content, '当前文件');
 
         // 解析并加载继承文件
-        this.inheritedFiles = this.parseInheritStatements(content);
-        await this.loadInheritedFileDocs();
+        const inheritedFiles = this.parseInheritStatements(content);
+        const inheritedFileDocs = await this.loadInheritedFileDocs(currentFilePath, inheritedFiles);
+
+        if (updateVersion !== this.currentFileUpdateVersion) {
+            return;
+        }
+
+        this.currentFilePath = currentFilePath;
+        this.currentFileDocs = currentFileDocs;
+        this.inheritedFiles = inheritedFiles;
+        this.inheritedFileDocs = inheritedFileDocs;
     }
 
     /**
@@ -415,28 +232,32 @@ export class EfunDocsManager {
     /**
      * 加载继承文件的函数文档
      */
-    private async loadInheritedFileDocs(): Promise<void> {
-        if (!this.inheritedFiles.length) {
-            return;
+    private async loadInheritedFileDocs(
+        currentFilePath: string,
+        inheritedFiles: readonly string[]
+    ): Promise<Map<string, Map<string, EfunDoc>>> {
+        const inheritedFileDocs = new Map<string, Map<string, EfunDoc>>();
+        if (!inheritedFiles.length) {
+            return inheritedFileDocs;
         }
 
         try {
             // 获取当前工作区
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders || workspaceFolders.length === 0) {
-                return;
+                return inheritedFileDocs;
             }
 
             const workspaceRoot = workspaceFolders[0].uri.fsPath;
             
-            for (const inheritPath of this.inheritedFiles) {
+            for (const inheritPath of inheritedFiles) {
                 // 解析继承文件的绝对路径
                 // 在 LPC 中，继承路径可能是相对于游戏根目录的，需要根据项目结构调整
                 const possiblePaths = [
                     path.join(workspaceRoot, inheritPath),
                     path.join(workspaceRoot, inheritPath + '.c'),
-                    path.join(path.dirname(this.currentFilePath), inheritPath),
-                    path.join(path.dirname(this.currentFilePath), inheritPath + '.c')
+                    path.join(path.dirname(currentFilePath), inheritPath),
+                    path.join(path.dirname(currentFilePath), inheritPath + '.c')
                 ];
 
                 for (const filePath of possiblePaths) {
@@ -445,7 +266,7 @@ export class EfunDocsManager {
                             const content = fs.readFileSync(filePath, 'utf8');
                             const fileName = path.basename(filePath);
                             const funcDocs = parseFunctionDocs(content, `继承自 ${fileName}`);
-                            this.inheritedFileDocs.set(filePath, funcDocs);
+                            inheritedFileDocs.set(filePath, funcDocs);
                             break; // 找到文件后停止搜索其他可能的路径
                         }
                     } catch (error) {
@@ -456,6 +277,8 @@ export class EfunDocsManager {
         } catch (error) {
             console.error('加载继承文件文档失败:', error);
         }
+
+        return inheritedFileDocs;
     }
 
     public async provideHover(
@@ -675,8 +498,13 @@ export class EfunDocsManager {
                     
                     // 解析为绝对路径
                     let resolvedPath: string;
-                    if (path.isAbsolute(includePath)) {
-                        resolvedPath = includePath;
+                    if (/^(?:[\\/]|[A-Za-z]:[\\/])/.test(includePath)) {
+                        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                        if (workspaceRoot && !/^[A-Za-z]:[\\/]/.test(includePath)) {
+                            resolvedPath = path.join(workspaceRoot, includePath.replace(/^[/\\]+/, ''));
+                        } else {
+                            resolvedPath = includePath;
+                        }
                     } else {
                         resolvedPath = path.resolve(currentDir, includePath);
                     }
