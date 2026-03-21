@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import axios from 'axios';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { LPCCompletionItemProvider } from '../completionProvider';
 import { EfunDocsManager } from '../efunDocs';
 
@@ -105,5 +108,65 @@ describe('EfunDocsManager', () => {
         expect(manager.getStandardDoc('valid_read')).toMatchObject({
             returnType: 'int'
         });
+    });
+
+    test('hover markdown is not trusted and preserves pointer-like parameter types in the table', () => {
+        const context = {
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext;
+
+        const manager = new EfunDocsManager(context) as any;
+        const hover = manager.createHoverContent({
+            name: 'demo',
+            syntax: 'mixed demo(mixed * items, string* label)',
+            description: 'demo description\n\n参数:\nmixed * items: item list\nstring* label: label text'
+        });
+
+        const content = hover.contents as vscode.MarkdownString;
+        expect(content.isTrusted).toBe(false);
+        expect(content.value).toContain('| `items` | `mixed *` | item list |');
+        expect(content.value).toContain('| `label` | `string*` | label text |');
+    });
+
+    test('include lookup parses functions from included .c files', async () => {
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-'));
+        const mainFile = path.join(tempRoot, 'main.c');
+        const includeFile = path.join(tempRoot, 'helper.c');
+
+        fs.writeFileSync(
+            mainFile,
+            '#include "helper.c"\n'
+        );
+        fs.writeFileSync(
+            includeFile,
+            [
+                '/**',
+                ' * helper description',
+                ' * @return int helper result',
+                ' */',
+                'int helper_func()'
+            ].join('\n')
+        );
+
+        const context = {
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext;
+
+        const manager = new EfunDocsManager(context) as any;
+        const document = {
+            uri: { fsPath: mainFile }
+        } as vscode.TextDocument;
+
+        const doc = await manager.findFunctionDocInIncludes(document, 'helper_func');
+
+        expect(doc).toMatchObject({
+            name: 'helper_func',
+            category: `包含自 ${path.basename(includeFile)}`
+        });
+        expect(doc?.description).toContain('helper description');
+
+        fs.rmSync(tempRoot, { recursive: true, force: true });
     });
 });

@@ -2,45 +2,16 @@ import * as vscode from 'vscode';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
+import { extractReturnType, parseFunctionDocs } from './efun/docParser';
+import type { BundledEfunDocBundle, EfunDoc, LegacyEfunConfig } from './efun/types';
 
-export interface EfunDoc {
-    name: string;
-    syntax: string;
-    description: string;
-    returnType?: string;
-    returnValue?: string;
-    example?: string;
-    details?: string;
-    reference?: string[];
-    category?: string;
-    lastUpdated?: number;  // 添加最后更新时间戳
-    isSimulated?: boolean;
-    note?: string; // 新增其他注解
-}
-
-interface BundledEfunDoc extends Omit<EfunDoc, 'name'> {
-    name?: string;
-}
-
-interface BundledEfunDocBundle {
-    categories?: Record<string, string[]>;
-    docs?: Record<string, BundledEfunDoc>;
-}
-
-interface LegacyEfunConfigEntry {
-    snippet?: string;
-    detail?: string;
-    description?: string;
-    returnValue?: string;
-    details?: string;
-    reference?: string[];
-    category?: string;
-    note?: string;
-}
-
-interface LegacyEfunConfig {
-    efuns?: Record<string, LegacyEfunConfigEntry>;
-}
+export type {
+    BundledEfunDoc,
+    BundledEfunDocBundle,
+    EfunDoc,
+    LegacyEfunConfig,
+    LegacyEfunConfigEntry
+} from './efun/types';
 
 export class EfunDocsManager {
     private static SIMULATED_EFUNS_PATH_CONFIG = 'lpc.simulatedEfunsPath';
@@ -149,7 +120,7 @@ export class EfunDocsManager {
                         name,
                         syntax: this.normalizeSnippet(entry.snippet, name),
                         description: entry.description?.trim() || entry.detail?.trim() || `${name} 内置函数`,
-                        returnType: this.extractReturnType(this.normalizeSnippet(entry.snippet, name), name),
+                        returnType: extractReturnType(this.normalizeSnippet(entry.snippet, name), name),
                         returnValue: this.cleanText(entry.returnValue),
                         details: this.cleanText(entry.details),
                         reference: Array.isArray(entry.reference) ? entry.reference.filter(Boolean) : undefined,
@@ -191,39 +162,6 @@ export class EfunDocsManager {
     private cleanText(value: string | undefined): string | undefined {
         const cleaned = value?.trim();
         return cleaned ? cleaned : undefined;
-    }
-
-    private extractReturnType(syntax: string | undefined, funcName: string): string | undefined {
-        if (!syntax) {
-            return undefined;
-        }
-
-        const firstLine = syntax
-            .split('\n')
-            .map(line => line.trim())
-            .find(Boolean);
-
-        if (!firstLine) {
-            return undefined;
-        }
-
-        const escapedName = funcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const match = firstLine.match(new RegExp(`\\b${escapedName}\\s*\\(`));
-        if (!match || match.index === undefined) {
-            return undefined;
-        }
-
-        let prefix = firstLine.slice(0, match.index).trim().replace(/^varargs\s+/i, '');
-        if (!prefix) {
-            return undefined;
-        }
-
-        if (prefix.includes('=')) {
-            prefix = prefix.slice(0, prefix.lastIndexOf('=')).trim();
-            prefix = prefix.replace(/\s+[A-Za-z_][A-Za-z0-9_]*$/u, '').trim();
-        }
-
-        return prefix || undefined;
     }
 
     public getStandardDoc(funcName: string): EfunDoc | undefined {
@@ -317,7 +255,7 @@ export class EfunDocsManager {
                     break;
                 case '语法':
                     doc.syntax = text;
-                    doc.returnType = this.extractReturnType(text, funcName);
+                    doc.returnType = extractReturnType(text, funcName);
                     break;
                 case '描述':
                     doc.description = text;
@@ -349,7 +287,7 @@ export class EfunDocsManager {
         }
 
         if (!doc.returnType) {
-            doc.returnType = this.extractReturnType(doc.syntax, funcName);
+            doc.returnType = extractReturnType(doc.syntax, funcName);
         }
 
         return doc;
@@ -421,7 +359,7 @@ export class EfunDocsManager {
                 const text = Buffer.from(content).toString('utf8');
                 
                 // 解析文件中的函数文档
-                const functionDocs = this.parseSimulatedEfunDocs(text);
+                const functionDocs = parseFunctionDocs(text, '模拟函数库', { isSimulated: true });
                 
                 for (const [funcName, doc] of functionDocs) {
                     this.simulatedEfunDocs.set(funcName, doc);
@@ -430,99 +368,6 @@ export class EfunDocsManager {
         } catch (error) {
             console.error('加载模拟函数库文档失败:', error);
         }
-    }
-
-    /**
-     * 提取多行标签内容
-     */
-    private extractTagBlock(docComment: string, tag: string): string | undefined {
-        const regex = new RegExp(`@${tag}\\s+([\\s\\S]*?)(?=\\n\\s*\\*\\s*@|\\*/|$)`, 'i');
-        const match = docComment.match(regex);
-        if (match) {
-            // 去除每行前的 * 和多余空格
-            return match[1].split('\n').map(line => line.replace(/^\s*\*\s?/, '').trim()).join('\n').trim();
-        }
-        return undefined;
-    }
-
-    private parseSimulatedEfunDocs(content: string): Map<string, EfunDoc> {
-        const docs = new Map<string, EfunDoc>();
-        const functionPattern = /\/\*\*\s*([\s\S]*?)\s*\*\/\s*(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+)*((?:varargs\s+)?[a-zA-Z_][a-zA-Z0-9_]*\s*\**\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*\))/g;
-        const paramPattern = /@param\s+(\S+)\s+(\S+)\s+([^\n]+)/g;
-        const returnPattern = /@return\s+(\S+)\s+(.*)/;
-        const briefPattern = /@brief\s+([^\n]+)/;
-        const detailsPattern = /@details\s+([^\n]+)/;
-
-        let match;
-        while ((match = functionPattern.exec(content)) !== null) {
-            const [_, docComment, funcDecl] = match;
-            const funcName = funcDecl.match(/(?:varargs\s+)?[a-zA-Z_][a-zA-Z0-9_]*\s*\**\s*([a-zA-Z_][a-zA-Z0-9_]*)/)?.[1];
-            
-            if (funcName) {
-                const doc: EfunDoc = {
-                    name: funcName,
-                    syntax: funcDecl.trim(),
-                    description: '',
-                    returnType: this.extractReturnType(funcDecl.trim(), funcName),
-                    category: '模拟函数库',
-                    isSimulated: true
-                };
-
-                // 解析 @brief
-                const brief = this.extractTagBlock(docComment, 'brief');
-                if (brief) {
-                    doc.description = brief;
-                }
-
-                // 解析 @details
-                const details = this.extractTagBlock(docComment, 'details');
-                if (details) {
-                    doc.details = details;
-                }
-
-                // 解析 @note
-                const note = this.extractTagBlock(docComment, 'note');
-                if (note) {
-                    doc.note = note;
-                }
-
-                // 解析参数
-                const params: string[] = [];
-                let paramMatch;
-                const paramText = docComment.replace(/\r\n/g, '\n');  // 统一换行符
-                while ((paramMatch = paramPattern.exec(paramText)) !== null) {
-                    const [_, type, name, desc] = paramMatch;
-                    // 处理可能跨行的描述（保持原逻辑）
-                    let fullDesc = desc.trim();
-                    const nextIndex = paramText.indexOf('@', paramMatch.index + paramMatch[0].length);
-                    if (nextIndex !== -1) {
-                        const extraDesc = paramText
-                            .slice(paramMatch.index + paramMatch[0].length, nextIndex)
-                            .split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line && !line.startsWith('*'))
-                            .join(' ');
-                        if (extraDesc) {
-                            fullDesc += ' ' + extraDesc;
-                        }
-                    }
-                    params.push(`${type} ${name}: ${fullDesc}`);
-                }
-                if (params.length > 0) {
-                    doc.description += '\n\n参数:\n' + params.join('\n');
-                }
-
-                // 解析返回值
-                const ret = this.extractTagBlock(docComment, 'return');
-                if (ret) {
-                    doc.returnValue = ret;
-                }
-
-                docs.set(funcName, doc);
-            }
-        }
-
-        return docs;
     }
 
     /**
@@ -542,89 +387,11 @@ export class EfunDocsManager {
 
         // 解析当前文件的函数文档
         const content = document.getText();
-        this.currentFileDocs = this.parseFunctionDocs(content, '当前文件');
+        this.currentFileDocs = parseFunctionDocs(content, '当前文件');
 
         // 解析并加载继承文件
         this.inheritedFiles = this.parseInheritStatements(content);
         await this.loadInheritedFileDocs();
-    }
-
-    /**
-     * 解析文件内容中的函数文档
-     * @param content 文件内容
-     * @param category 文档分类
-     * @returns 函数文档 Map
-     */
-    private parseFunctionDocs(content: string, category: string): Map<string, EfunDoc> {
-        const docs = new Map<string, EfunDoc>();
-        // 匹配文档注释后跟着的函数定义
-        const functionPattern = /\/\*\*\s*([\s\S]*?)\s*\*\/\s*(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+|varargs\s+)*((?:mixed|void|int|string|object|mapping|array|float|function|buffer|class|[a-zA-Z_][a-zA-Z0-9_]*)\s*\**\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\))/g;
-        const paramPattern = /@param\s+(\S+)\s+(\S+)\s+([^\n]+)/g;
-        let match;
-        while ((match = functionPattern.exec(content)) !== null) {
-            try {
-                const [_, docComment, funcDecl, funcName] = match;
-                
-                if (funcName) {
-                    const doc: EfunDoc = {
-                        name: funcName,
-                        syntax: funcDecl.trim(),
-                        description: '',
-                        returnType: this.extractReturnType(funcDecl.trim(), funcName),
-                        category: category,
-                        lastUpdated: Date.now()
-                    };
-
-                    // 解析 @brief
-                    const brief = this.extractTagBlock(docComment, 'brief');
-                    if (brief) {
-                        doc.description = brief;
-                    } else {
-                        // 没有 @brief 的情况下，使用注释的第一行作为描述
-                        const firstLine = docComment.trim().split('\n')[0].replace(/^\*+\s*/, '').trim();
-                        if (firstLine) {
-                            doc.description = firstLine;
-                        }
-                    }
-
-                    // 解析 @details
-                    const details = this.extractTagBlock(docComment, 'details');
-                    if (details) {
-                        doc.details = details;
-                    }
-
-                    // 解析 @note
-                    const note = this.extractTagBlock(docComment, 'note');
-                    if (note) {
-                        doc.note = note;
-                    }
-
-                    // 解析参数
-                    const params: string[] = [];
-                    let paramMatch;
-                    const paramText = docComment.replace(/\r\n/g, '\n');  // 统一换行符
-                    while ((paramMatch = paramPattern.exec(paramText)) !== null) {
-                        const [_, type, name, desc] = paramMatch;
-                        params.push(`${type} ${name}: ${desc.trim()}`);
-                    }
-                    if (params.length > 0) {
-                        doc.description += '\n\n参数:\n' + params.join('\n');
-                    }
-
-                    // 解析返回值
-                    const ret = this.extractTagBlock(docComment, 'return');
-                    if (ret) {
-                        doc.returnValue = ret;
-                    }
-
-                    docs.set(funcName, doc);
-                }
-            } catch (error) {
-                console.error('解析函数文档失败:', error);
-            }
-        }
-
-        return docs;
     }
 
     /**
@@ -677,7 +444,7 @@ export class EfunDocsManager {
                         if (fs.existsSync(filePath)) {
                             const content = fs.readFileSync(filePath, 'utf8');
                             const fileName = path.basename(filePath);
-                            const funcDocs = this.parseFunctionDocs(content, `继承自 ${fileName}`);
+                            const funcDocs = parseFunctionDocs(content, `继承自 ${fileName}`);
                             this.inheritedFileDocs.set(filePath, funcDocs);
                             break; // 找到文件后停止搜索其他可能的路径
                         }
@@ -746,7 +513,7 @@ export class EfunDocsManager {
 
     private createHoverContent(doc: EfunDoc): vscode.Hover {
         const content = new vscode.MarkdownString();
-        content.isTrusted = true;
+        content.isTrusted = false;
         content.supportHtml = true;
 
         // 函数签名
@@ -799,11 +566,12 @@ export class EfunDocsManager {
                     const cleaned = param.trim();
                     if (cleaned) {
                         // 解析参数格式: "type name: description" 或 "name: description"
-                        const match = cleaned.match(/^(?:(\w+)\s+)?`?(\w+)`?\s*:\s*(.+)$/);
+                        const match = cleaned.match(/^(?:(.+?)\s+)?`?([A-Za-z_][A-Za-z0-9_]*)`?\s*:\s*(.+)$/);
                         if (match) {
                             const [, type, name, desc] = match;
-                            if (type) {
-                                content.appendMarkdown(`| \`${name}\` | \`${type}\` | ${desc} |\n`);
+                            const normalizedType = type?.trim();
+                            if (normalizedType) {
+                                content.appendMarkdown(`| \`${name}\` | \`${normalizedType}\` | ${desc} |\n`);
                             } else {
                                 content.appendMarkdown(`| \`${name}\` | | ${desc} |\n`);
                             }
@@ -863,11 +631,11 @@ export class EfunDocsManager {
             const includeFiles = await this.getIncludeFiles(document.uri.fsPath);
             
             for (const includeFile of includeFiles) {
-                if (includeFile.endsWith('.h')) {
+                if (includeFile.endsWith('.h') || includeFile.endsWith('.c')) {
                     try {
                         const content = await fs.promises.readFile(includeFile, 'utf-8');
                         const fileName = path.basename(includeFile);
-                        const funcDocs = this.parseFunctionDocs(content, `包含自 ${fileName}`);
+                        const funcDocs = parseFunctionDocs(content, `包含自 ${fileName}`);
                         const doc = funcDocs.get(functionName);
                         if (doc) {
                             return doc;
