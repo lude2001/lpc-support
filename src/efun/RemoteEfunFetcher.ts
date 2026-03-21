@@ -7,9 +7,12 @@ const MUD_WIKI_BASE_URL = 'https://mud.wiki';
 
 export class RemoteEfunFetcher {
     public async fetchDoc(funcName: string): Promise<EfunDoc | undefined> {
+        let sawSuccessfulResponse = false;
+
         for (const title of this.getMudWikiTitleCandidates(funcName)) {
             try {
                 const response = await axios.get(`${MUD_WIKI_BASE_URL}/${title}`);
+                sawSuccessfulResponse = true;
                 const doc = this.parseMudWikiDocHtml(funcName, response.data);
                 if (doc) {
                     return doc;
@@ -21,6 +24,10 @@ export class RemoteEfunFetcher {
 
                 throw error;
             }
+        }
+
+        if (sawSuccessfulResponse) {
+            throw new Error(`MudWiki doc for ${funcName} was fetched but could not be parsed`);
         }
 
         return undefined;

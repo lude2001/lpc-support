@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { BundledEfunLoader } from './efun/BundledEfunLoader';
+import { EfunHoverProvider } from './efun/EfunHoverProvider';
 import { FileFunctionDocTracker } from './efun/FileFunctionDocTracker';
 import { RemoteEfunFetcher } from './efun/RemoteEfunFetcher';
 import { SimulatedEfunScanner } from './efun/SimulatedEfunScanner';
@@ -15,6 +16,7 @@ export type {
 
 export class EfunDocsManager {
     private bundledLoader: BundledEfunLoader;
+    private hoverProvider: EfunHoverProvider;
     private fileFunctionDocTracker: FileFunctionDocTracker;
     private remoteFetcher: RemoteEfunFetcher;
     private simulatedEfunScanner: SimulatedEfunScanner;
@@ -28,6 +30,7 @@ export class EfunDocsManager {
         this.fileFunctionDocTracker = new FileFunctionDocTracker();
         this.remoteFetcher = new RemoteEfunFetcher();
         this.simulatedEfunScanner = new SimulatedEfunScanner();
+        this.hoverProvider = new EfunHoverProvider(this);
         this.efunDocs = new Map(
             this.bundledLoader.getAllNames().map(name => [name, this.bundledLoader.get(name)!])
         );
@@ -37,9 +40,7 @@ export class EfunDocsManager {
 
         // 注册悬停提供程序
         context.subscriptions.push(
-            vscode.languages.registerHoverProvider('lpc', {
-                provideHover: (document, position) => this.provideHover(document, position)
-            })
+            vscode.languages.registerHoverProvider('lpc', this.hoverProvider)
         );
 
         // 注册模拟函数库配置命令
@@ -48,7 +49,7 @@ export class EfunDocsManager {
         );
 
         // 加载模拟函数库文档
-        void this.simulatedEfunScanner.load();
+        this.runBackgroundTask(this.simulatedEfunScanner.load(), '加载模拟函数库文档失败');
         
         // 添加文件变更事件监听
         context.subscriptions.push(
@@ -73,7 +74,32 @@ export class EfunDocsManager {
     }
 
     private refreshCurrentFileDocs(document: vscode.TextDocument): void {
-        void this.updateCurrentFileDocs(document);
+        this.runBackgroundTask(this.updateCurrentFileDocs(document), '更新当前文件函数文档失败');
+    }
+
+    private runBackgroundTask(task: Promise<void>, message: string): void {
+        void task.catch(error => {
+            console.error(message, error);
+        });
+    }
+
+    public async prepareHoverLookup(document: vscode.TextDocument): Promise<void> {
+        await this.updateCurrentFileDocs(document);
+    }
+
+    public getCurrentFileDoc(funcName: string): EfunDoc | undefined {
+        return this.fileFunctionDocTracker.getDoc(funcName);
+    }
+
+    public getInheritedFileDoc(funcName: string): EfunDoc | undefined {
+        return this.fileFunctionDocTracker.getDocFromInherited(funcName);
+    }
+
+    public async getIncludedFileDoc(
+        document: vscode.TextDocument,
+        funcName: string
+    ): Promise<EfunDoc | undefined> {
+        return this.fileFunctionDocTracker.getDocFromIncludes(document, funcName);
     }
 
     public getStandardDoc(funcName: string): EfunDoc | undefined {
@@ -133,145 +159,11 @@ export class EfunDocsManager {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<vscode.Hover | undefined> {
-        const wordRange = document.getWordRangeAtPosition(position);
-        if (!wordRange) {
-            return undefined;
-        }
-
-        const word = document.getText(wordRange);
-        
-        // 确保当前文件的文档是最新的
-        await this.updateCurrentFileDocs(document);
-        
-        // 查找顺序：当前文件 -> 继承文件 -> include文件 -> 模拟函数库 -> 标准 efun
-        
-        // 1. 先查找当前文件中的函数文档
-        const currentDoc = this.fileFunctionDocTracker.getDoc(word);
-        if (currentDoc) {
-            return this.createHoverContent(currentDoc);
-        }
-        
-        // 2. 再查找继承文件中的函数文档
-        const inheritedDoc = this.fileFunctionDocTracker.getDocFromInherited(word);
-        if (inheritedDoc) {
-            return this.createHoverContent(inheritedDoc);
-        }
-        
-        // 3. 查找include文件中的函数文档
-        const includeDoc = await this.fileFunctionDocTracker.getDocFromIncludes(document, word);
-        if (includeDoc) {
-            return this.createHoverContent(includeDoc);
-        }
-        
-        // 4. 再查找模拟函数库文档
-        const simulatedDoc = this.simulatedEfunScanner.get(word);
-        if (simulatedDoc) {
-            return this.createHoverContent(simulatedDoc);
-        }
-
-        // 5. 最后查找标准efun文档
-        const efunDoc = await this.getEfunDoc(word);
-        if (!efunDoc) {
-            return undefined;
-        }
-
-        return this.createHoverContent(efunDoc);
+        return this.hoverProvider.provideHover(document, position);
     }
 
-    private createHoverContent(doc: EfunDoc): vscode.Hover {
-        const content = new vscode.MarkdownString();
-        content.isTrusted = false;
-        content.supportHtml = true;
-
-        // 函数签名
-        if (doc.syntax) {
-            content.appendMarkdown(`\`\`\`lpc\n${doc.syntax}\n\`\`\`\n\n`);
-        }
-
-        if (doc.returnType) {
-            content.appendMarkdown(`**Return Type:** \`${doc.returnType}\`\n\n`);
-        }
-
-        // 分类标签 - 使用小型标签样式
-        if (doc.category) {
-            content.appendMarkdown(`<sub>${doc.category}</sub>\n\n`);
-        }
-
-        content.appendMarkdown(`---\n\n`);
-
-        // 描述
-        if (doc.description) {
-            // 移除旧的"参数:"部分标记
-            const descLines = doc.description.split('\n');
-            const mainDesc: string[] = [];
-            const params: string[] = [];
-            let inParams = false;
-
-            for (const line of descLines) {
-                if (line.trim() === '参数:') {
-                    inParams = true;
-                    continue;
-                }
-                if (inParams) {
-                    params.push(line);
-                } else if (line.trim()) {
-                    mainDesc.push(line);
-                }
-            }
-
-            if (mainDesc.length > 0) {
-                content.appendMarkdown(`${mainDesc.join('\n')}\n\n`);
-            }
-
-            // 参数表格
-            if (params.length > 0) {
-                content.appendMarkdown(`#### Parameters\n\n`);
-                content.appendMarkdown(`| Name | Type | Description |\n`);
-                content.appendMarkdown(`|------|------|-------------|\n`);
-
-                params.forEach(param => {
-                    const cleaned = param.trim();
-                    if (cleaned) {
-                        // 解析参数格式: "type name: description" 或 "name: description"
-                        const match = cleaned.match(/^(?:(.+?)\s+)?`?([A-Za-z_][A-Za-z0-9_]*)`?\s*:\s*(.+)$/);
-                        if (match) {
-                            const [, type, name, desc] = match;
-                            const normalizedType = type?.trim();
-                            if (normalizedType) {
-                                content.appendMarkdown(`| \`${name}\` | \`${normalizedType}\` | ${desc} |\n`);
-                            } else {
-                                content.appendMarkdown(`| \`${name}\` | | ${desc} |\n`);
-                            }
-                        } else {
-                            content.appendMarkdown(`| ${cleaned} | | |\n`);
-                        }
-                    }
-                });
-                content.appendMarkdown(`\n`);
-            }
-        }
-
-        // 返回值
-        if (doc.returnValue) {
-            content.appendMarkdown(`#### Returns\n\n${doc.returnValue}\n\n`);
-        }
-
-        // 详细说明
-        if (doc.details) {
-            content.appendMarkdown(`#### Details\n\n${doc.details}\n\n`);
-        }
-
-        // 其他说明
-        if (doc.note) {
-            content.appendMarkdown(`> **Note**  \n> ${doc.note.replace(/\n/g, '\n> ')}\n\n`);
-        }
-
-        // 相关函数
-        if (doc.reference && doc.reference.length > 0) {
-            content.appendMarkdown(`**See also:** ${doc.reference.map(ref => `\`${ref}\``).join(', ')}\n`);
-        }
-
-        return new vscode.Hover(content);
+    public createHoverContent(doc: EfunDoc): vscode.Hover {
+        return this.hoverProvider.createHoverContent(doc);
     }
 
     public getCategories(): Map<string, string[]> {

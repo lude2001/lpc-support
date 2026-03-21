@@ -130,6 +130,23 @@ describe('EfunDocsManager', () => {
         expect(content.value).toContain('| `label` | `string*` | label text |');
     });
 
+    test('hover parameter table escapes markdown-breaking pipe characters', () => {
+        const context = {
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext;
+
+        const manager = new EfunDocsManager(context) as any;
+        const hover = manager.createHoverContent({
+            name: 'demo',
+            syntax: 'void demo(string value)',
+            description: 'demo description\n\n参数:\nstring value: foo | bar'
+        });
+
+        const content = hover.contents as vscode.MarkdownString;
+        expect(content.value).toContain('| `value` | `string` | foo \\| bar |');
+    });
+
     test('missing remote docs are negatively cached after the first miss', async () => {
         const context = {
             subscriptions: [],
@@ -182,6 +199,46 @@ describe('EfunDocsManager', () => {
         expect(second).toMatchObject({
             name: 'retry_doc',
             description: 'retry ok'
+        });
+        expect((axios.get as jest.Mock).mock.calls.length).toBeGreaterThan(1);
+    });
+
+    test('unparseable 200 responses are not permanently negative-cached', async () => {
+        const context = {
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext;
+        const manager = new EfunDocsManager(context);
+
+        let requestCount = 0;
+        (axios.get as jest.Mock).mockImplementation(() => {
+            requestCount += 1;
+            if (requestCount <= 3) {
+                return Promise.resolve({ data: '<html><body>unexpected layout</body></html>' });
+            }
+
+            return Promise.resolve({
+                data: `
+                    <div id="mw-content-text">
+                        <div class="mw-parser-output">
+                            <h3><span class="mw-headline">语法</span></h3>
+                            <pre>int retry_parse();</pre>
+                            <h3><span class="mw-headline">描述</span></h3>
+                            <pre>parse ok</pre>
+                        </div>
+                    </div>
+                    <div class="printfooter"></div>
+                `
+            });
+        });
+
+        const first = await manager.getEfunDoc('retry_parse');
+        const second = await manager.getEfunDoc('retry_parse');
+
+        expect(first).toBeUndefined();
+        expect(second).toMatchObject({
+            name: 'retry_parse',
+            description: 'parse ok'
         });
         expect((axios.get as jest.Mock).mock.calls.length).toBeGreaterThan(1);
     });
