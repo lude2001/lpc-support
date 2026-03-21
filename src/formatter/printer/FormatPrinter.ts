@@ -2,9 +2,25 @@ import { FormatterConfigSnapshot } from '../types';
 import { normalizeLeadingCommentBlock } from '../comments/commentFormatter';
 import { FormatNode } from '../model/formatNodes';
 import { PrintContext } from './PrintContext';
+import { PrinterContext } from './PrinterContext';
+import {
+    appendToLastLine,
+    classifyBlockSpacingGroup,
+    containsCommentSyntax,
+    extractPreservableTrivia,
+    hasPreservableTrivia,
+    indentTrivia,
+    normalizeClosureBody,
+    normalizeInlineText,
+    prefixMultiline,
+    repeatPointer,
+    shouldPreserveTerminalNewline,
+    trimLeadingIndent,
+    trimTrailingWhitespace
+} from './printerUtils';
 import { SyntaxKind } from '../../syntax/types';
 
-export class FormatPrinter {
+export class FormatPrinter implements PrinterContext {
     constructor(private readonly config: FormatterConfigSnapshot) {}
 
     public print(root: FormatNode): string {
@@ -13,7 +29,7 @@ export class FormatPrinter {
         return shouldPreserveTerminalNewline(root.text) ? `${rendered}\n` : rendered;
     }
 
-    private printNode(node: FormatNode, context: PrintContext): string {
+    public printNode(node: FormatNode, context: PrintContext): string {
         let rendered: string;
         switch (node.syntaxKind) {
         case SyntaxKind.SourceFile:
@@ -331,7 +347,7 @@ export class FormatPrinter {
         ].join('\n');
     }
 
-    private printAttachedStatement(node: FormatNode | undefined, context: PrintContext): string {
+    public printAttachedStatement(node: FormatNode | undefined, context: PrintContext): string {
         if (!node) {
             return `${context.indent()}{}`;
         }
@@ -343,7 +359,7 @@ export class FormatPrinter {
         return this.printNode(node, context.nested());
     }
 
-    private printBlock(node: FormatNode, context: PrintContext): string {
+    public printBlock(node: FormatNode, context: PrintContext): string {
         const nestedContext = context.nested();
         const parts: string[] = [];
         let previousRenderedNode: FormatNode | undefined;
@@ -373,7 +389,7 @@ export class FormatPrinter {
         ].join('\n');
     }
 
-    private printHeaderWithBlock(header: string, body: FormatNode | undefined, context: PrintContext): string {
+    public printHeaderWithBlock(header: string, body: FormatNode | undefined, context: PrintContext): string {
         if (!body) {
             return header;
         }
@@ -396,7 +412,7 @@ export class FormatPrinter {
         return appendToLastLine(`${context.indent()}return ${this.renderInlineExpression(expression, context)}`, ';');
     }
 
-    private printParameterList(node: FormatNode | undefined): string {
+    public printParameterList(node: FormatNode | undefined): string {
         if (!node) {
             return '';
         }
@@ -404,7 +420,7 @@ export class FormatPrinter {
         return node.children.map((child) => this.renderParameterDeclaration(child)).join(', ');
     }
 
-    private renderStructuredValue(node: FormatNode, context: PrintContext): string {
+    public renderStructuredValue(node: FormatNode, context: PrintContext): string {
         const compactArray = this.tryRenderCompactArrayLiteral(node, context);
         if (compactArray) {
             return compactArray;
@@ -520,7 +536,7 @@ export class FormatPrinter {
         return `${context.indent()}${normalized}`;
     }
 
-    private wrapCollection(opener: string, lines: string[], closer: string, context: PrintContext): string {
+    public wrapCollection(opener: string, lines: string[], closer: string, context: PrintContext): string {
         if (lines.length === 0) {
             return `${context.indent()}${opener}${closer}`;
         }
@@ -532,7 +548,7 @@ export class FormatPrinter {
         ].join('\n');
     }
 
-    private renderExpression(node: FormatNode, context: PrintContext): string {
+    public renderExpression(node: FormatNode, context: PrintContext): string {
         switch (node.syntaxKind) {
             case SyntaxKind.Identifier:
                 return this.renderIdentifier(node);
@@ -766,7 +782,7 @@ export class FormatPrinter {
         ].filter(Boolean).join(' ');
     }
 
-    private renderInlineExpression(node: FormatNode, context: PrintContext): string {
+    public renderInlineExpression(node: FormatNode, context: PrintContext): string {
         return trimLeadingIndent(this.renderExpression(node, context), context.indent());
     }
 
@@ -805,7 +821,7 @@ export class FormatPrinter {
             && !node.children.some((child) => child.syntaxKind === SyntaxKind.Block);
     }
 
-    private attachPreservableTrivia(node: FormatNode, rendered: string): string {
+    public attachPreservableTrivia(node: FormatNode, rendered: string): string {
         const leadingDirectives = extractPreservableTrivia(node.leadingTrivia);
         let result = rendered;
 
@@ -918,179 +934,4 @@ export class FormatPrinter {
 
         return previousGroup === 'control' || currentGroup === 'control';
     }
-}
-
-function normalizeInlineText(text: string): string {
-    const placeholders = new Map<string, string>([
-        ['__ARROW__', '->'],
-        ['__SCOPE__', '::'],
-        ['__ELLIPSIS__', '...'],
-        ['__RANGE__', '..'],
-        ['__INCREMENT__', '++'],
-        ['__DECREMENT__', '--'],
-        ['__PLUS_ASSIGN__', '+='],
-        ['__MINUS_ASSIGN__', '-='],
-        ['__STAR_ASSIGN__', '*='],
-        ['__DIV_ASSIGN__', '/='],
-        ['__PERCENT_ASSIGN__', '%='],
-        ['__BIT_OR_ASSIGN__', '|='],
-        ['__BIT_AND_ASSIGN__', '&='],
-        ['__GE__', '>='],
-        ['__LE__', '<='],
-        ['__EQ__', '=='],
-        ['__NE__', '!='],
-        ['__AND__', '&&'],
-        ['__OR__', '||'],
-        ['__SHIFT_LEFT__', '<<'],
-        ['__SHIFT_RIGHT__', '>>']
-    ]);
-
-    let normalized = text
-        .replace(/\.\.\./g, ' __ELLIPSIS__ ')
-        .replace(/->/g, ' __ARROW__ ')
-        .replace(/::/g, ' __SCOPE__ ')
-        .replace(/\+\+/g, ' __INCREMENT__ ')
-        .replace(/--/g, ' __DECREMENT__ ')
-        .replace(/\+=/g, ' __PLUS_ASSIGN__ ')
-        .replace(/-=/g, ' __MINUS_ASSIGN__ ')
-        .replace(/\*=/g, ' __STAR_ASSIGN__ ')
-        .replace(/\/=/g, ' __DIV_ASSIGN__ ')
-        .replace(/%=/g, ' __PERCENT_ASSIGN__ ')
-        .replace(/\|=/g, ' __BIT_OR_ASSIGN__ ')
-        .replace(/&=/g, ' __BIT_AND_ASSIGN__ ')
-        .replace(/>=/g, ' __GE__ ')
-        .replace(/<=/g, ' __LE__ ')
-        .replace(/==/g, ' __EQ__ ')
-        .replace(/!=/g, ' __NE__ ')
-        .replace(/&&/g, ' __AND__ ')
-        .replace(/\|\|/g, ' __OR__ ')
-        .replace(/<</g, ' __SHIFT_LEFT__ ')
-        .replace(/>>/g, ' __SHIFT_RIGHT__ ')
-        .replace(/\.\./g, ' __RANGE__ ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    normalized = normalized
-        .replace(/\s*,\s*/g, ', ')
-        .replace(/\(\s+/g, '(')
-        .replace(/\s+\)/g, ')')
-        .replace(/\[\s+/g, '[')
-        .replace(/\s+\]/g, ']')
-        .replace(/\s*([=+\-*/%<>!&|?:])\s*/g, ' $1 ')
-        .replace(/\s*;\s*/g, ';')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    for (const [placeholder, token] of placeholders.entries()) {
-        normalized = normalized.replace(new RegExp(placeholder, 'g'), token);
-    }
-
-    return normalized;
-}
-
-function appendToLastLine(text: string, suffix: string): string {
-    const lastNewline = text.lastIndexOf('\n');
-    if (lastNewline === -1) {
-        return `${text}${suffix}`;
-    }
-
-    return `${text.slice(0, lastNewline + 1)}${text.slice(lastNewline + 1)}${suffix}`;
-}
-
-function repeatPointer(count: number): string {
-    return count > 0 ? '*'.repeat(count) : '';
-}
-
-function trimTrailingWhitespace(text: string): string {
-    return text.replace(/[ \t]+$/gm, '');
-}
-
-function ensureStatementTerminator(text: string): string {
-    return text.endsWith(';') ? text : `${text};`;
-}
-
-function prefixMultiline(prefix: string, value: string, indent: string): string {
-    if (!value.includes('\n')) {
-        return `${prefix}${value}`;
-    }
-
-    const [firstLine, ...rest] = value.split('\n');
-    const normalizedFirstLine = firstLine.startsWith(indent)
-        ? firstLine.slice(indent.length)
-        : firstLine;
-
-    return [`${prefix}${normalizedFirstLine}`, ...rest].join('\n');
-}
-
-function trimLeadingIndent(text: string, indent: string): string {
-    if (!indent || !text.startsWith(indent)) {
-        return text;
-    }
-
-    return `${text.slice(indent.length)}`;
-}
-
-function extractPreservableTrivia(trivia: readonly string[]): string[] {
-    return trivia
-        .map((entry) => entry.trim())
-        .filter(Boolean)
-        .flatMap((entry) => {
-            if (/^#/.test(entry)) {
-                return [entry];
-            }
-
-            if (/^\/\//.test(entry)) {
-                return [entry];
-            }
-
-            if (/^\/\*/.test(entry)) {
-                return [normalizeLeadingCommentBlock(entry)];
-            }
-
-            return [];
-        });
-}
-
-function hasPreservableTrivia(node: FormatNode): boolean {
-    return extractPreservableTrivia(node.leadingTrivia).length > 0
-        || extractPreservableTrivia(node.trailingTrivia).length > 0;
-}
-
-function containsCommentSyntax(text: string): boolean {
-    return /\/\*|\/\//.test(text);
-}
-
-function indentTrivia(entry: string, indent: string): string {
-    if (!indent || entry.startsWith('#')) {
-        return entry;
-    }
-
-    return entry
-        .split('\n')
-        .map((line) => line.length > 0 ? `${indent}${line}` : line)
-        .join('\n');
-}
-
-function normalizeClosureBody(text: string): string {
-    return text.replace(/\s*,\s*/g, ', ');
-}
-
-function classifyBlockSpacingGroup(node: FormatNode): 'declaration' | 'control' | 'other' {
-    switch (node.syntaxKind) {
-        case SyntaxKind.VariableDeclaration:
-            return 'declaration';
-        case SyntaxKind.IfStatement:
-        case SyntaxKind.SwitchStatement:
-        case SyntaxKind.WhileStatement:
-        case SyntaxKind.DoWhileStatement:
-        case SyntaxKind.ForStatement:
-        case SyntaxKind.ForeachStatement:
-            return 'control';
-        default:
-            return 'other';
-    }
-}
-
-function shouldPreserveTerminalNewline(text: string): boolean {
-    return /\r?\n$/.test(text);
 }
