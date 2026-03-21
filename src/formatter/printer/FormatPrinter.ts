@@ -2,7 +2,8 @@ import { FormatterConfigSnapshot } from '../types';
 import { normalizeLeadingCommentBlock } from '../comments/commentFormatter';
 import { FormatNode } from '../model/formatNodes';
 import { PrintContext } from './PrintContext';
-import { PrinterContext } from './PrinterContext';
+import { printVariableDeclaration, registerDeclarationPrinters, renderParameterDeclaration } from './delegates/declarationPrinter';
+import { PrintDelegate, PrinterContext } from './PrinterContext';
 import {
     appendToLastLine,
     classifyBlockSpacingGroup,
@@ -21,7 +22,11 @@ import {
 import { SyntaxKind } from '../../syntax/types';
 
 export class FormatPrinter implements PrinterContext {
-    constructor(private readonly config: FormatterConfigSnapshot) {}
+    private readonly delegates = new Map<SyntaxKind, PrintDelegate>();
+
+    constructor(private readonly config: FormatterConfigSnapshot) {
+        registerDeclarationPrinters(this.delegates, this);
+    }
 
     public print(root: FormatNode): string {
         const rendered = trimTrailingWhitespace(this.printNode(root, new PrintContext(this.config.indentSize))).trim();
@@ -31,76 +36,67 @@ export class FormatPrinter implements PrinterContext {
 
     public printNode(node: FormatNode, context: PrintContext): string {
         let rendered: string;
-        switch (node.syntaxKind) {
-        case SyntaxKind.SourceFile:
-            rendered = this.printSourceFile(node, context);
-            break;
-        case SyntaxKind.FunctionDeclaration:
-            rendered = this.printFunctionDeclaration(node, context);
-            break;
-        case SyntaxKind.Block:
-            rendered = this.printBlock(node, context);
-            break;
-        case SyntaxKind.IfStatement:
-            rendered = this.printIfStatement(node, context);
-            break;
-        case SyntaxKind.WhileStatement:
-            rendered = this.printWhileStatement(node, context);
-            break;
-        case SyntaxKind.DoWhileStatement:
-            rendered = this.printDoWhileStatement(node, context);
-            break;
-        case SyntaxKind.ForStatement:
-            rendered = this.printForStatement(node, context);
-            break;
-        case SyntaxKind.ExpressionStatement:
-            rendered = this.printExpressionStatement(node, context);
-            break;
-        case SyntaxKind.ReturnStatement:
-            rendered = this.printReturnStatement(node, context);
-            break;
-        case SyntaxKind.VariableDeclaration:
-            rendered = this.printVariableDeclaration(node, context);
-            break;
-        case SyntaxKind.StructDeclaration:
-            rendered = this.printStructLike(node, context, 'struct');
-            break;
-        case SyntaxKind.ClassDeclaration:
-            rendered = this.printStructLike(node, context, 'class');
-            break;
-        case SyntaxKind.FieldDeclaration:
-            rendered = this.printFieldDeclaration(node, context);
-            break;
-        case SyntaxKind.SwitchStatement:
-            rendered = this.printSwitchStatement(node, context);
-            break;
-        case SyntaxKind.CaseClause:
-            rendered = this.printSwitchClause(node, context);
-            break;
-        case SyntaxKind.DefaultClause:
-            rendered = this.printDefaultClause(node, context);
-            break;
-        case SyntaxKind.ForeachStatement:
-            rendered = this.printForeachStatement(node, context);
-            break;
-        case SyntaxKind.MappingEntry:
-            rendered = this.printMappingEntry(node, context);
-            break;
-        case SyntaxKind.MappingLiteralExpression:
-            rendered = this.printMappingLiteral(node, context);
-            break;
-        case SyntaxKind.ArrayLiteralExpression:
-            rendered = this.printArrayLiteral(node, context);
-            break;
-        case SyntaxKind.NewExpression:
-            rendered = this.printNewExpression(node, context);
-            break;
-        case SyntaxKind.Missing:
-            rendered = '';
-            break;
-        default:
-            rendered = this.printDefaultNode(node, context);
-            break;
+        const delegate = this.delegates.get(node.syntaxKind);
+
+        if (delegate) {
+            rendered = delegate(node, context);
+        } else {
+            switch (node.syntaxKind) {
+            case SyntaxKind.SourceFile:
+                rendered = this.printSourceFile(node, context);
+                break;
+            case SyntaxKind.Block:
+                rendered = this.printBlock(node, context);
+                break;
+            case SyntaxKind.IfStatement:
+                rendered = this.printIfStatement(node, context);
+                break;
+            case SyntaxKind.WhileStatement:
+                rendered = this.printWhileStatement(node, context);
+                break;
+            case SyntaxKind.DoWhileStatement:
+                rendered = this.printDoWhileStatement(node, context);
+                break;
+            case SyntaxKind.ForStatement:
+                rendered = this.printForStatement(node, context);
+                break;
+            case SyntaxKind.ExpressionStatement:
+                rendered = this.printExpressionStatement(node, context);
+                break;
+            case SyntaxKind.ReturnStatement:
+                rendered = this.printReturnStatement(node, context);
+                break;
+            case SyntaxKind.SwitchStatement:
+                rendered = this.printSwitchStatement(node, context);
+                break;
+            case SyntaxKind.CaseClause:
+                rendered = this.printSwitchClause(node, context);
+                break;
+            case SyntaxKind.DefaultClause:
+                rendered = this.printDefaultClause(node, context);
+                break;
+            case SyntaxKind.ForeachStatement:
+                rendered = this.printForeachStatement(node, context);
+                break;
+            case SyntaxKind.MappingEntry:
+                rendered = this.printMappingEntry(node, context);
+                break;
+            case SyntaxKind.MappingLiteralExpression:
+                rendered = this.printMappingLiteral(node, context);
+                break;
+            case SyntaxKind.ArrayLiteralExpression:
+                rendered = this.printArrayLiteral(node, context);
+                break;
+            case SyntaxKind.NewExpression:
+                rendered = this.printNewExpression(node, context);
+                break;
+            case SyntaxKind.Missing:
+                rendered = '';
+                break;
+            default:
+                rendered = this.printDefaultNode(node, context);
+                break;
+            }
         }
 
         if (node.syntaxKind === SyntaxKind.SourceFile) {
@@ -136,84 +132,6 @@ export class FormatPrinter implements PrinterContext {
         return !renderedBody
             ? this.attachSourceFileTrivia(node, '')
             : renderedBody;
-    }
-
-    private printFunctionDeclaration(node: FormatNode, context: PrintContext): string {
-        const body = node.children.find((child) => child.syntaxKind === SyntaxKind.Block);
-        const modifier = node.children.find((child) => child.syntaxKind === SyntaxKind.ModifierList);
-        const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
-        const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
-        const parameters = node.children.find((child) => child.syntaxKind === SyntaxKind.ParameterList);
-        const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
-        const renderedIdentifier = `${pointerPrefix}${identifier?.name ?? normalizeInlineText(identifier?.text ?? '')}`;
-
-        const header = [
-            modifier ? normalizeInlineText(modifier.text) : '',
-            typeReference ? normalizeInlineText(typeReference.text) : '',
-            renderedIdentifier
-        ].filter(Boolean).join(' ');
-
-        const declaration = `${context.indent()}${header}(${this.printParameterList(parameters)})`;
-        if (!body) {
-            return `${declaration};`;
-        }
-
-        return this.printHeaderWithBlock(declaration, body, context);
-    }
-
-    private printVariableDeclaration(node: FormatNode, context: PrintContext): string {
-        const modifier = node.children.find((child) => child.syntaxKind === SyntaxKind.ModifierList);
-        const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
-        const declarators = node.children.filter((child) => child.syntaxKind === SyntaxKind.VariableDeclarator);
-
-        const prefix = [
-            modifier ? normalizeInlineText(modifier.text) : '',
-            typeReference ? normalizeInlineText(typeReference.text) : ''
-        ].filter(Boolean).join(' ');
-
-        const renderedDeclarators = declarators.map((child) => this.printVariableDeclarator(child, context));
-        const statement = `${context.indent()}${[prefix, renderedDeclarators.join(', ')].filter(Boolean).join(' ')}`;
-
-        return appendToLastLine(statement, ';');
-    }
-
-    private printStructLike(node: FormatNode, context: PrintContext, keyword: 'struct' | 'class'): string {
-        const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
-        const fields = node.children.filter((child) => child.syntaxKind === SyntaxKind.FieldDeclaration);
-        const nestedContext = context.nested();
-        const lines = fields.map((field) => this.printFieldDeclaration(field, nestedContext));
-
-        return [
-            `${context.indent()}${keyword} ${identifier?.name ?? normalizeInlineText(identifier?.text ?? '')}`,
-            `${context.indent()}{`,
-            lines.join('\n'),
-            `${context.indent()}}`
-        ].join('\n');
-    }
-
-    private printFieldDeclaration(node: FormatNode, context: PrintContext): string {
-        const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
-        const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
-        const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
-        const fieldText = [
-            typeReference ? normalizeInlineText(typeReference.text) : '',
-            `${pointerPrefix}${identifier?.name ?? normalizeInlineText(identifier?.text ?? '')}`
-        ].filter(Boolean).join(' ');
-
-        return `${context.indent()}${fieldText};`;
-    }
-
-    private printVariableDeclarator(node: FormatNode, context: PrintContext): string {
-        const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
-        const initializer = node.children.find((child) => child.syntaxKind !== SyntaxKind.Identifier);
-        const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
-        const name = `${pointerPrefix}${identifier?.name ?? normalizeInlineText(identifier?.text ?? node.text)}`;
-
-        if (!initializer) {
-            return name;
-        }
-
-        return `${name} = ${this.renderStructuredValue(initializer, context)}`;
     }
 
     private printAnonymousFunction(node: FormatNode, context: PrintContext): string {
@@ -417,7 +335,8 @@ export class FormatPrinter implements PrinterContext {
             return '';
         }
 
-        return node.children.map((child) => this.renderParameterDeclaration(child)).join(', ');
+        const parameterContext = new PrintContext(this.config.indentSize);
+        return node.children.map((child) => renderParameterDeclaration(child, parameterContext, this)).join(', ');
     }
 
     public renderStructuredValue(node: FormatNode, context: PrintContext): string {
@@ -761,27 +680,6 @@ export class FormatPrinter implements PrinterContext {
         ].filter(Boolean).join(' ');
     }
 
-    private renderParameterDeclaration(node: FormatNode): string {
-        if (node.syntaxKind !== SyntaxKind.ParameterDeclaration) {
-            return normalizeInlineText(node.text);
-        }
-
-        const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
-        const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
-        const isReference = Boolean(node.metadata?.isReference);
-        const isVariadic = Boolean(node.metadata?.isVariadic);
-        const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
-        const typeText = typeReference ? normalizeInlineText(typeReference.text) : '';
-        const name = identifier ? `${pointerPrefix}${this.renderIdentifier(identifier)}` : '';
-        const prefix = isReference ? 'ref ' : '';
-
-        return [
-            `${prefix}${typeText}`.trim(),
-            name,
-            isVariadic ? '...' : ''
-        ].filter(Boolean).join(' ');
-    }
-
     public renderInlineExpression(node: FormatNode, context: PrintContext): string {
         return trimLeadingIndent(this.renderExpression(node, context), context.indent());
     }
@@ -796,7 +694,7 @@ export class FormatPrinter implements PrinterContext {
         }
 
         if (node.syntaxKind === SyntaxKind.VariableDeclaration) {
-            const rendered = this.printVariableDeclaration(node, context);
+            const rendered = printVariableDeclaration(node, context, this);
             return rendered.startsWith(context.indent())
                 ? rendered.slice(context.indent().length, -1)
                 : rendered.slice(0, -1);
