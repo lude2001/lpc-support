@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseConfigHell } from './configHellParser';
-import { LpcProjectConfig } from './LpcProjectConfig';
+import { LpcProjectConfig, LpcResolvedConfig } from './LpcProjectConfig';
 
 export class LpcProjectConfigService {
     public getProjectConfigPath(workspaceRoot: string): string {
@@ -67,5 +67,55 @@ export class LpcProjectConfigService {
     public async writeConfigFile(configPath: string, config: LpcProjectConfig): Promise<void> {
         await fs.promises.mkdir(path.dirname(configPath), { recursive: true });
         await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2));
+    }
+
+    public async getResolvedForWorkspace(workspaceRoot: string): Promise<LpcResolvedConfig | undefined> {
+        const config = await this.loadForWorkspace(workspaceRoot);
+        return config?.resolved;
+    }
+
+    public async getIncludeDirectoriesForWorkspace(workspaceRoot: string): Promise<string[] | undefined> {
+        const resolved = await this.getResolvedForWorkspace(workspaceRoot);
+        if (!resolved?.includeDirectories?.length) {
+            return undefined;
+        }
+
+        return resolved.includeDirectories.map((entry) => this.resolveMudlibPath(workspaceRoot, resolved, entry));
+    }
+
+    public async getPrimaryIncludeDirectoryForWorkspace(workspaceRoot: string): Promise<string | undefined> {
+        return (await this.getIncludeDirectoriesForWorkspace(workspaceRoot))?.[0];
+    }
+
+    public async getSimulatedEfunFileForWorkspace(workspaceRoot: string): Promise<string | undefined> {
+        const resolved = await this.getResolvedForWorkspace(workspaceRoot);
+        if (!resolved?.simulatedEfunFile) {
+            return undefined;
+        }
+
+        return this.resolveMudlibPath(workspaceRoot, resolved, resolved.simulatedEfunFile);
+    }
+
+    private resolveMudlibPath(workspaceRoot: string, resolved: LpcResolvedConfig, targetPath: string): string {
+        const mudlibDirectory = resolved.mudlibDirectory ?? '.';
+        const mudlibRoot = this.resolveWorkspaceRelativePath(workspaceRoot, mudlibDirectory);
+
+        if (/^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\')) {
+            return targetPath;
+        }
+
+        if (targetPath.startsWith('/')) {
+            return path.join(mudlibRoot, targetPath.slice(1));
+        }
+
+        return path.resolve(mudlibRoot, targetPath);
+    }
+
+    private resolveWorkspaceRelativePath(workspaceRoot: string, targetPath: string): string {
+        if (/^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\')) {
+            return targetPath;
+        }
+
+        return path.resolve(workspaceRoot, targetPath);
     }
 }

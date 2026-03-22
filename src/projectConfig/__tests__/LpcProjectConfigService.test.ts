@@ -45,6 +45,32 @@ describe('LpcProjectConfigService', () => {
         expect(written.resolved.includeDirectories).toEqual(['/include']);
     });
 
+    test('resolves mudlib-relative include and simulated efun paths for consumers', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-resolve-'));
+        const configPath = path.join(workspaceRoot, 'lpc-support.json');
+        const hellPath = path.join(workspaceRoot, 'config.hell');
+        const service = new LpcProjectConfigService();
+
+        fs.mkdirSync(path.join(workspaceRoot, 'include'));
+        fs.mkdirSync(path.join(workspaceRoot, 'adm', 'single'), { recursive: true });
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }, null, 2));
+        fs.writeFileSync(hellPath, [
+            'mudlib directory : ./',
+            'include directories : /include',
+            'simulated efun file : /adm/single/simul_efun'
+        ].join('\n'));
+
+        await service.loadForWorkspace(workspaceRoot);
+
+        await expect(service.getIncludeDirectoriesForWorkspace(workspaceRoot))
+            .resolves.toEqual([path.join(workspaceRoot, 'include')]);
+        await expect(service.getSimulatedEfunFileForWorkspace(workspaceRoot))
+            .resolves.toBe(path.join(workspaceRoot, 'adm', 'single', 'simul_efun'));
+    });
+
     test('keeps previous resolved fields when config.hell is missing', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-missing-'));
         const configPath = path.join(workspaceRoot, 'lpc-support.json');

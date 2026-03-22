@@ -82,6 +82,7 @@ describe('registerCommands', () => {
         showServerManager: jest.Mock;
     };
     let compiler: { compileFile: jest.Mock };
+    let projectConfigService: { loadForWorkspace: jest.Mock };
     let errorTreeProvider: {
         refresh: jest.Mock;
         clearErrors: jest.Mock;
@@ -126,6 +127,9 @@ describe('registerCommands', () => {
         compiler = {
             compileFile: jest.fn()
         };
+        projectConfigService = {
+            loadForWorkspace: jest.fn().mockResolvedValue(undefined)
+        };
         errorTreeProvider = {
             refresh: jest.fn(),
             clearErrors: jest.fn(),
@@ -146,6 +150,7 @@ describe('registerCommands', () => {
         registry.register(Services.CompletionInstrumentation, completionInstrumentation as any);
         registry.register(Services.ConfigManager, configManager as any);
         registry.register(Services.Compiler, compiler as any);
+        registry.register(Services.ProjectConfig, projectConfigService as any);
         registry.register(Services.ErrorTree, errorTreeProvider as any);
 
         (ErrorTreeDataProvider as unknown as jest.Mock).mockReset().mockImplementation(() => errorTreeProvider);
@@ -183,6 +188,7 @@ describe('registerCommands', () => {
             };
         });
         (vscode.workspace as any).workspaceFolders = [];
+        (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({ uri: { fsPath: 'D:/workspace' } });
         (vscode.window as any).activeTextEditor = undefined;
     });
 
@@ -237,6 +243,7 @@ describe('registerCommands', () => {
         expect(compiler.compileFile).toHaveBeenCalledWith(activeDocument.fileName);
         expect(LPCConfigManager).toHaveBeenCalledWith(context);
         expect(LPCCompiler).toHaveBeenCalledWith(freshConfigManager);
+        expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('D:/workspace');
         expect(freshCompiler.compileFolder).toHaveBeenCalledWith('D:/workspace/project');
         expect(completionProvider.scanInheritance).toHaveBeenCalledWith(activeDocument);
         expect(macroManager.showMacrosList).toHaveBeenCalledTimes(1);
@@ -283,6 +290,7 @@ describe('registerCommands', () => {
 
     test('starts the driver in a terminal using the configured command', () => {
         const driverCommand = 'C:\\mud\\driver.exe --boot';
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
         (vscode.workspace.getConfiguration as jest.Mock).mockImplementation((section?: string) => {
             if (section === 'lpc') {
                 return {
@@ -308,6 +316,7 @@ describe('registerCommands', () => {
         handlers.get('lpc.startDriver')?.();
 
         const terminal = (vscode.window.createTerminal as jest.Mock).mock.results[0].value;
+        expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('D:/workspace');
         expect(vscode.window.createTerminal).toHaveBeenCalledWith({
             name: 'MUD Driver',
             cwd: path.dirname(driverCommand)

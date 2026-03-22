@@ -1,11 +1,14 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { parseFunctionDocs } from './docParser';
 import type { EfunDoc } from './types';
 
 export class SimulatedEfunScanner {
     private static readonly SIMULATED_EFUNS_PATH_CONFIG = 'lpc.simulatedEfunsPath';
     private docs: Map<string, EfunDoc> = new Map();
+
+    constructor(private readonly projectConfigService?: LpcProjectConfigService) {}
 
     public get(name: string): EfunDoc | undefined {
         return this.docs.get(name);
@@ -49,25 +52,31 @@ export class SimulatedEfunScanner {
     public async loadSimulatedEfuns(): Promise<void> {
         this.docs.clear();
 
-        const config = vscode.workspace.getConfiguration();
-        const configPath = config.get<string>(SimulatedEfunScanner.SIMULATED_EFUNS_PATH_CONFIG);
-
-        if (!configPath) {
-            return;
-        }
-
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
             return;
         }
 
-        const simulatedEfunsPath = this.resolveProjectPath(workspaceFolder.uri.fsPath, configPath);
+        const projectConfigPath = this.projectConfigService
+            ? await this.projectConfigService.getSimulatedEfunFileForWorkspace(workspaceFolder.uri.fsPath)
+            : undefined;
+        const config = vscode.workspace.getConfiguration();
+        const legacyConfigPath = config.get<string>(SimulatedEfunScanner.SIMULATED_EFUNS_PATH_CONFIG);
 
-        try {
-            const files = await vscode.workspace.findFiles(
-                new vscode.RelativePattern(simulatedEfunsPath, '**/*.{c,h}')
+        if (!projectConfigPath && !legacyConfigPath) {
+            return;
+        }
+
+        const files = projectConfigPath
+            ? [vscode.Uri.file(projectConfigPath)]
+            : await vscode.workspace.findFiles(
+                new vscode.RelativePattern(
+                    this.resolveProjectPath(workspaceFolder.uri.fsPath, legacyConfigPath!),
+                    '**/*.{c,h}'
+                )
             );
 
+        try {
             this.docs.clear();
 
             for (const file of files) {

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MacroDefinition } from './types';
+import { LpcProjectConfigService } from './projectConfig/LpcProjectConfigService';
 
 export class MacroManager {
     private macros: Map<string, MacroDefinition> = new Map();
@@ -9,23 +10,34 @@ export class MacroManager {
     private watcher: vscode.FileSystemWatcher | undefined;
     private scanningComplete: boolean = false;
     private scanningPromise: Promise<void> | null = null;
+    private readonly initializationPromise: Promise<void>;
 
-    constructor() {
-        this.loadIncludePath();
+    constructor(private readonly projectConfigService?: LpcProjectConfigService) {
+        this.initializationPromise = this.initialize();
+    }
+
+    private async initialize(): Promise<void> {
+        await this.loadIncludePath();
         this.setupFileWatcher();
-        this.startInitialScan();
+        await this.startInitialScan();
     }
 
     private async loadIncludePath() {
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const config = vscode.workspace.getConfiguration('lpc');
         const configPath = config.get<string>('includePath');
-        
-        if (!configPath && vscode.workspace.workspaceFolders?.[0]) {
-            // 默认使用工作区根目录下的 include 文件夹
-            this.includePath = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, 'include');
-        } else if (configPath && vscode.workspace.workspaceFolders?.[0]) {
-            // 支持相对于项目根目录的路径
-            this.includePath = this.resolveProjectPath(vscode.workspace.workspaceFolders[0].uri.fsPath, configPath);
+
+        if (workspaceRoot && this.projectConfigService) {
+            const projectIncludePath = await this.projectConfigService.getPrimaryIncludeDirectoryForWorkspace(workspaceRoot);
+            if (projectIncludePath) {
+                this.includePath = projectIncludePath;
+            }
+        }
+
+        if (!this.includePath && !configPath && workspaceRoot) {
+            this.includePath = path.join(workspaceRoot, 'include');
+        } else if (!this.includePath && configPath && workspaceRoot) {
+            this.includePath = this.resolveProjectPath(workspaceRoot, configPath);
         }
 
         console.log(`MacroManager: 配置的包含路径: ${this.includePath || '未配置'}`);
@@ -218,11 +230,15 @@ export class MacroManager {
     }
 
     public async refreshMacros(): Promise<void> {
+        await this.initializationPromise;
+
         // 重新加载宏定义
         await this.scanMacros();
     }
 
     public async canResolveMacro(macroName: string): Promise<boolean> {
+        await this.initializationPromise;
+
         // 等待初始扫描完成
         if (this.scanningPromise) {
             await this.scanningPromise;

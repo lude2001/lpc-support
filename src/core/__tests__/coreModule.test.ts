@@ -10,6 +10,7 @@ import { LPCCompiler } from '../../compiler';
 import { DocumentLifecycleService } from '../DocumentLifecycleService';
 import { ASTManager } from '../../ast/astManager';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
+import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 
 jest.mock('../../macroManager', () => ({
     MacroManager: jest.fn()
@@ -29,6 +30,10 @@ jest.mock('../../config', () => ({
 
 jest.mock('../../compiler', () => ({
     LPCCompiler: jest.fn()
+}));
+
+jest.mock('../../projectConfig/LpcProjectConfigService', () => ({
+    LpcProjectConfigService: jest.fn()
 }));
 
 jest.mock('../DocumentLifecycleService', () => ({
@@ -53,6 +58,7 @@ describe('registerCoreServices', () => {
     let completionInstrumentation: vscode.Disposable & { id: string };
     let configManager: { id: string };
     let compiler: { id: string };
+    let projectConfigService: { id: string };
     let lifecycle: vscode.Disposable & { id: string; onInvalidate: jest.Mock };
     let parsedDocumentService: { invalidate: jest.Mock };
     let astManager: { clearCache: jest.Mock };
@@ -70,6 +76,7 @@ describe('registerCoreServices', () => {
         completionInstrumentation = { id: 'completionInstrumentation', dispose: jest.fn() };
         configManager = { id: 'configManager' };
         compiler = { id: 'compiler' };
+        projectConfigService = { id: 'projectConfigService' };
         lifecycle = { id: 'lifecycle', dispose: jest.fn(), onInvalidate: jest.fn() };
         parsedDocumentService = { invalidate: jest.fn() };
         astManager = { clearCache: jest.fn() };
@@ -79,6 +86,7 @@ describe('registerCoreServices', () => {
         (CompletionInstrumentation as unknown as jest.Mock).mockReset().mockImplementation(() => completionInstrumentation);
         (LPCConfigManager as unknown as jest.Mock).mockReset().mockImplementation(() => configManager);
         (LPCCompiler as unknown as jest.Mock).mockReset().mockImplementation(() => compiler);
+        (LpcProjectConfigService as unknown as jest.Mock).mockReset().mockImplementation(() => projectConfigService);
         (DocumentLifecycleService as unknown as jest.Mock).mockReset().mockImplementation(() => lifecycle);
         (getGlobalParsedDocumentService as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
         ((ASTManager as any).getInstance as jest.Mock).mockReset().mockReturnValue(astManager);
@@ -88,19 +96,22 @@ describe('registerCoreServices', () => {
         registerCoreServices(registry, context);
 
         expect(MacroManager).toHaveBeenCalledTimes(1);
+        expect(MacroManager).toHaveBeenCalledWith(projectConfigService);
         expect(EfunDocsManager).toHaveBeenCalledTimes(1);
-        expect(EfunDocsManager).toHaveBeenCalledWith(context);
+        expect(EfunDocsManager).toHaveBeenCalledWith(context, projectConfigService);
         expect(CompletionInstrumentation).toHaveBeenCalledTimes(1);
         expect(LPCConfigManager).toHaveBeenCalledTimes(1);
         expect(LPCConfigManager).toHaveBeenCalledWith(context);
         expect(LPCCompiler).toHaveBeenCalledTimes(1);
         expect(LPCCompiler).toHaveBeenCalledWith(configManager);
+        expect(LpcProjectConfigService).toHaveBeenCalledTimes(1);
         expect(DocumentLifecycleService).toHaveBeenCalledTimes(1);
 
         expect(registry.get(Services.MacroManager)).toBe(macroManager);
         expect(registry.get(Services.EfunDocs)).toBe(efunDocsManager);
         expect(registry.get(Services.ConfigManager)).toBe(configManager);
         expect(registry.get(Services.Compiler)).toBe(compiler);
+        expect(registry.get(Services.ProjectConfig)).toBe(projectConfigService);
         expect(registry.get(Services.CompletionInstrumentation)).toBe(completionInstrumentation);
         expect(registry.get(Services.Lifecycle)).toBe(lifecycle);
 

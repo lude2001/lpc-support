@@ -23,6 +23,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     const completionInstrumentation = registry.get(Services.CompletionInstrumentation);
     const configManager = registry.get(Services.ConfigManager);
     const compiler = registry.get(Services.Compiler);
+    const projectConfigService = registry.get(Services.ProjectConfig);
     const errorTreeProvider = registry.get(Services.ErrorTree);
 
     register(context, 'lpc.efunDocsSettings', async () => {
@@ -190,9 +191,11 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
     register(context, 'lpc.compileFolder', async (uri?: vscode.Uri) => {
         let targetFolder: string;
+        let workspaceRoot: string | undefined;
 
         if (uri) {
             targetFolder = uri.fsPath;
+            workspaceRoot = vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
         } else {
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -208,6 +211,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
             if (folders.length === 1) {
                 targetFolder = folders[0].uri.fsPath;
+                workspaceRoot = folders[0].uri.fsPath;
             } else {
                 const selected = await vscode.window.showQuickPick(folders, {
                     placeHolder: '选择要编译的文件夹'
@@ -218,7 +222,12 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
                 }
 
                 targetFolder = selected.uri.fsPath;
+                workspaceRoot = selected.uri.fsPath;
             }
+        }
+
+        if (workspaceRoot) {
+            await projectConfigService.loadForWorkspace(workspaceRoot);
         }
 
         await new LPCCompiler(new LPCConfigManager(context)).compileFolder(targetFolder);
@@ -307,6 +316,11 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     register(context, 'lpc.startDriver', () => {
         const config = vscode.workspace.getConfiguration('lpc');
         const driverCommand = config.get<string>('driver.command');
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+        if (workspaceRoot) {
+            void projectConfigService.loadForWorkspace(workspaceRoot);
+        }
 
         if (!driverCommand) {
             vscode.window.showWarningMessage(

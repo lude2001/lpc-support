@@ -5,6 +5,7 @@ import { FileFunctionDocTracker } from './FileFunctionDocTracker';
 import { RemoteEfunFetcher } from './RemoteEfunFetcher';
 import { SimulatedEfunScanner } from './SimulatedEfunScanner';
 import type { EfunDoc } from './types';
+import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 
 export class EfunDocsManager {
     private bundledLoader: BundledEfunLoader;
@@ -17,11 +18,11 @@ export class EfunDocsManager {
     private remoteDocFetches: Map<string, Promise<EfunDoc | undefined>> = new Map();
     private missingRemoteDocs = new Set<string>();
 
-    constructor(context: vscode.ExtensionContext) {
+    constructor(context: vscode.ExtensionContext, projectConfigService?: LpcProjectConfigService) {
         this.bundledLoader = new BundledEfunLoader(context);
         this.fileFunctionDocTracker = new FileFunctionDocTracker();
         this.remoteFetcher = new RemoteEfunFetcher();
-        this.simulatedEfunScanner = new SimulatedEfunScanner();
+        this.simulatedEfunScanner = new SimulatedEfunScanner(projectConfigService);
         this.hoverProvider = new EfunHoverProvider(this);
         this.efunDocs = new Map(
             this.bundledLoader.getAllNames().map(name => [name, this.bundledLoader.get(name)!])

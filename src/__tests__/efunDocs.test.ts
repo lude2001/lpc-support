@@ -286,4 +286,29 @@ describe('SimulatedEfunScanner', () => {
         expect(scanner.get('sim_helper')).toBeUndefined();
         expect(scanner.getAllNames()).toEqual([]);
     });
+
+    test('loads simulated efun docs from project config simulatedEfunFile before legacy settings', async () => {
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue('D:/workspace/adm/single/simul_efun.c')
+        };
+        const scanner = new SimulatedEfunScanner(projectConfigService as any);
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: 'D:/workspace' } }];
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn(() => undefined),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
+        (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(Buffer.from([
+            '/**',
+            ' * @brief simulated helper',
+            ' */',
+            'int sim_helper()'
+        ].join('\n')));
+
+        await scanner.loadSimulatedEfuns();
+
+        expect(projectConfigService.getSimulatedEfunFileForWorkspace).toHaveBeenCalledWith('D:/workspace');
+        expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
+        expect(scanner.get('sim_helper')).toBeDefined();
+    });
 });
