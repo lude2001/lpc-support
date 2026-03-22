@@ -1,6 +1,6 @@
 # 架构重构实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 将 LPC Support 扩展的核心大文件拆分为职责清晰的小模块，提升可维护性、可测试性和可扩展性。
 
@@ -79,7 +79,7 @@
 **Files:**
 - Create: `src/core/ServiceRegistry.ts`
 
-- [ ] **Step 1: 创建 ServiceRegistry**
+- [x] **Step 1: 创建 ServiceRegistry**
 
 ```typescript
 // src/core/ServiceRegistry.ts
@@ -122,12 +122,12 @@ export class ServiceRegistry implements vscode.Disposable {
 }
 ```
 
-- [ ] **Step 2: 验证编译通过**
+- [x] **Step 2: 验证编译通过**
 
 Run: `npx tsc --noEmit`
 Expected: 无错误
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add src/core/ServiceRegistry.ts
@@ -142,7 +142,7 @@ git commit -m "feat: add ServiceRegistry for dependency management"
 - Create: `src/core/ServiceKeys.ts`
 - Create: `src/modules/coreModule.ts`
 
-- [ ] **Step 1: 创建 ServiceKeys**
+- [x] **Step 1: 创建 ServiceKeys**
 
 ```typescript
 // src/core/ServiceKeys.ts
@@ -168,7 +168,7 @@ export const Services = {
 };
 ```
 
-- [ ] **Step 2: 创建 coreModule**
+- [x] **Step 2: 创建 coreModule**
 
 将 `extension.ts:35-41` 的服务实例化搬到这里：
 
@@ -203,11 +203,11 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
 }
 ```
 
-- [ ] **Step 3: 验证编译通过**
+- [x] **Step 3: 验证编译通过**
 
 Run: `npx tsc --noEmit`
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/core/ServiceKeys.ts src/modules/coreModule.ts
@@ -221,7 +221,7 @@ git commit -m "feat: add ServiceKeys and coreModule"
 **Files:**
 - Create: `src/modules/diagnosticsModule.ts`
 
-- [ ] **Step 1: 创建 diagnosticsModule**
+- [x] **Step 1: 创建 diagnosticsModule**
 
 将 `extension.ts:34-37, 71-91` 的诊断初始化搬到这里：
 
@@ -244,11 +244,11 @@ export function registerDiagnostics(registry: ServiceRegistry, context: vscode.E
 }
 ```
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `npx tsc --noEmit`
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add src/modules/diagnosticsModule.ts
@@ -262,7 +262,7 @@ git commit -m "feat: add diagnosticsModule"
 **Files:**
 - Create: `src/modules/languageModule.ts`
 
-- [ ] **Step 1: 创建 languageModule**
+- [x] **Step 1: 创建 languageModule**
 
 将 `extension.ts:331-443` 的 Provider 注册搬到这里：
 
@@ -352,11 +352,11 @@ export function registerLanguageProviders(registry: ServiceRegistry, context: vs
 }
 ```
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `npx tsc --noEmit`
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add src/modules/languageModule.ts
@@ -370,7 +370,7 @@ git commit -m "feat: add languageModule"
 **Files:**
 - Create: `src/modules/commandModule.ts`
 
-- [ ] **Step 1: 创建 commandModule**
+- [x] **Step 1: 创建 commandModule**
 
 将 `extension.ts` 中所有 `registerCommand` 调用搬到这里。这是最大的模块，包含：
 - efun 文档设置命令（44-62）
@@ -589,11 +589,11 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 }
 ```
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `npx tsc --noEmit`
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add src/modules/commandModule.ts
@@ -607,7 +607,7 @@ git commit -m "feat: add commandModule"
 **Files:**
 - Create: `src/modules/uiModule.ts`
 
-- [ ] **Step 1: 创建 uiModule**
+- [x] **Step 1: 创建 uiModule**
 
 将 `extension.ts:99-233, 448-487` 的 ErrorTree 和 StatusBar 注册搬到这里：
 
@@ -776,11 +776,11 @@ function registerConfigWatcher(registry: ServiceRegistry): void {
 }
 ```
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `npx tsc --noEmit`
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add src/modules/uiModule.ts
@@ -794,7 +794,7 @@ git commit -m "feat: add uiModule"
 **Files:**
 - Modify: `src/extension.ts`
 
-- [ ] **Step 1: 替换 extension.ts 内容**
+- [x] **Step 1: 替换 extension.ts 内容**
 
 用以下内容完全替换 `src/extension.ts`：
 
@@ -824,17 +824,17 @@ export function deactivate() {
 }
 ```
 
-- [ ] **Step 2: 运行全量测试**
+- [x] **Step 2: 运行全量测试**
 
 Run: `npm test`
 Expected: 376 tests passing, 0 failures
 
-- [ ] **Step 3: 验证构建产出**
+- [x] **Step 3: 验证构建产出**
 
 Run: `npm run build`
 Expected: 构建成功，dist/extension.js 生成
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/extension.ts
@@ -851,7 +851,7 @@ git commit -m "refactor: slim extension.ts to use modular registration"
 - Create: `src/formatter/printer/PrinterContext.ts`
 - Create: `src/formatter/printer/printerUtils.ts`
 
-- [ ] **Step 1: 创建 PrinterContext 接口**
+- [x] **Step 1: 创建 PrinterContext 接口**
 
 ```typescript
 // src/formatter/printer/PrinterContext.ts
@@ -874,7 +874,7 @@ export interface PrinterContext {
 }
 ```
 
-- [ ] **Step 2: 创建 printerUtils**
+- [x] **Step 2: 创建 printerUtils**
 
 从 `FormatPrinter.ts:923-1097` 提取所有模块级纯函数（`normalizeInlineText`、`appendToLastLine`、`repeatPointer`、`trimTrailingWhitespace`、`ensureStatementTerminator`、`prefixMultiline`、`trimLeadingIndent`、`extractPreservableTrivia`、`hasPreservableTrivia`、`containsCommentSyntax`、`indentTrivia`、`normalizeClosureBody`、`classifyBlockSpacingGroup`、`shouldPreserveTerminalNewline`）到 `printerUtils.ts`。
 
@@ -903,16 +903,16 @@ export function classifyBlockSpacingGroup(node: FormatNode): 'declaration' | 'co
 export function shouldPreserveTerminalNewline(text: string): boolean { ... }
 ```
 
-- [ ] **Step 3: 更新 FormatPrinter.ts 的 import**
+- [x] **Step 3: 更新 FormatPrinter.ts 的 import**
 
 在 `FormatPrinter.ts` 顶部添加 `import { ... } from './printerUtils';` 并删除文件底部搬走的函数。确保 FormatPrinter 类内的方法调用这些函数时不需要改名（它们在原文件中本来就是模块级函数调用）。
 
-- [ ] **Step 4: 运行全量测试**
+- [x] **Step 4: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/formatter/printer/PrinterContext.ts src/formatter/printer/printerUtils.ts src/formatter/printer/FormatPrinter.ts
@@ -927,7 +927,7 @@ git commit -m "refactor: extract PrinterContext interface and printer utils"
 - Create: `src/formatter/printer/delegates/declarationPrinter.ts`
 - Modify: `src/formatter/printer/FormatPrinter.ts`
 
-- [ ] **Step 1: 创建 declarationPrinter**
+- [x] **Step 1: 创建 declarationPrinter**
 
 从 `FormatPrinter` 类中提取以下方法为独立函数：
 - `printFunctionDeclaration`（125-146）
@@ -956,16 +956,16 @@ export function registerDeclarationPrinters(
 }
 ```
 
-- [ ] **Step 2: 更新 FormatPrinter**
+- [x] **Step 2: 更新 FormatPrinter**
 
 在 `FormatPrinter` 构造函数中调用 `registerDeclarationPrinters`。从 `printNode` 的 switch 中移除已注册的 case（由 delegate map 处理）。删除已搬走的 private 方法。
 
-- [ ] **Step 3: 运行全量测试**
+- [x] **Step 3: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/formatter/printer/delegates/declarationPrinter.ts src/formatter/printer/FormatPrinter.ts
@@ -980,7 +980,7 @@ git commit -m "refactor: extract declaration printer delegate"
 - Create: `src/formatter/printer/delegates/statementPrinter.ts`
 - Modify: `src/formatter/printer/FormatPrinter.ts`
 
-- [ ] **Step 1: 创建 statementPrinter**
+- [x] **Step 1: 创建 statementPrinter**
 
 提取以下方法：
 - `printIfStatement`（210-230）
@@ -999,14 +999,14 @@ git commit -m "refactor: extract declaration printer delegate"
 
 注册 delegate map entries。
 
-- [ ] **Step 2: 更新 FormatPrinter，删除搬走的方法**
+- [x] **Step 2: 更新 FormatPrinter，删除搬走的方法**
 
-- [ ] **Step 3: 运行全量测试**
+- [x] **Step 3: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/formatter/printer/delegates/statementPrinter.ts src/formatter/printer/FormatPrinter.ts
@@ -1021,7 +1021,7 @@ git commit -m "refactor: extract statement printer delegate"
 - Create: `src/formatter/printer/delegates/collectionPrinter.ts`
 - Modify: `src/formatter/printer/FormatPrinter.ts`
 
-- [ ] **Step 1: 创建 collectionPrinter**
+- [x] **Step 1: 创建 collectionPrinter**
 
 提取以下方法：
 - `printMappingLiteral`（457-464）
@@ -1039,14 +1039,14 @@ git commit -m "refactor: extract statement printer delegate"
 
 注册 delegate map entries（`MappingLiteralExpression`、`MappingEntry`、`ArrayLiteralExpression`、`NewExpression`）。
 
-- [ ] **Step 2: 更新 FormatPrinter**
+- [x] **Step 2: 更新 FormatPrinter**
 
-- [ ] **Step 3: 运行全量测试**
+- [x] **Step 3: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/formatter/printer/delegates/collectionPrinter.ts src/formatter/printer/FormatPrinter.ts
@@ -1061,7 +1061,7 @@ git commit -m "refactor: extract collection printer delegate"
 - Create: `src/formatter/printer/delegates/expressionRenderer.ts`
 - Modify: `src/formatter/printer/FormatPrinter.ts`
 
-- [ ] **Step 1: 创建 expressionRenderer**
+- [x] **Step 1: 创建 expressionRenderer**
 
 提取 `renderExpression`（535-580）及其所有子方法：
 - `renderIdentifier`（582-588）
@@ -1091,7 +1091,7 @@ export function renderExpressionDelegate(node: FormatNode, context: PrintContext
 }
 ```
 
-- [ ] **Step 2: 更新 FormatPrinter**
+- [x] **Step 2: 更新 FormatPrinter**
 
 `FormatPrinter.renderExpression` 变为：
 
@@ -1103,12 +1103,12 @@ public renderExpression(node: FormatNode, context: PrintContext): string {
 
 删除搬走的所有 render 方法。
 
-- [ ] **Step 3: 运行全量测试**
+- [x] **Step 3: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/formatter/printer/delegates/expressionRenderer.ts src/formatter/printer/FormatPrinter.ts
@@ -1125,11 +1125,11 @@ git commit -m "refactor: extract expression renderer delegate"
 - Create: `src/efun/types.ts`
 - Create: `src/efun/docParser.ts`
 
-- [ ] **Step 1: 创建 types.ts**
+- [x] **Step 1: 创建 types.ts**
 
 从 `src/efunDocs.ts:6-43` 提取所有接口定义：`EfunDoc`、`BundledEfunDoc`、`BundledEfunDocBundle`、`LegacyEfunConfigEntry`、`LegacyEfunConfig`。
 
-- [ ] **Step 2: 创建 docParser.ts**
+- [x] **Step 2: 创建 docParser.ts**
 
 统一 `parseSimulatedEfunDocs`（448-526）和 `parseFunctionDocs`（558-628）为一个共享函数。同时提取 `extractTagBlock`（438-446）。
 
@@ -1150,16 +1150,16 @@ export function parseFunctionDocs(content: string, category: string): Map<string
 }
 ```
 
-- [ ] **Step 3: 更新 efunDocs.ts 使用新模块**
+- [x] **Step 3: 更新 efunDocs.ts 使用新模块**
 
 将 `efunDocs.ts` 中的 import 改为从 `./efun/types` 和 `./efun/docParser` 导入，删除内联的重复实现。
 
-- [ ] **Step 4: 运行全量测试**
+- [x] **Step 4: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过（特别关注 `efunDocs.test.ts`）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/efun/types.ts src/efun/docParser.ts src/efunDocs.ts
@@ -1175,28 +1175,28 @@ git commit -m "refactor: extract efun types and shared doc parser"
 - Create: `src/efun/RemoteEfunFetcher.ts`
 - Modify: `src/efunDocs.ts`
 
-- [ ] **Step 1: 创建 BundledEfunLoader**
+- [x] **Step 1: 创建 BundledEfunLoader**
 
 从 `efunDocs.ts` 提取：`loadBundledDocs`（104-125）、`loadLegacyBundledDocs`（127-168）、`getConfigSearchRoots`（170-177）、`normalizeSnippet`（179-189）、`cleanText`（191-194）、`extractReturnType`（196-227）。
 
 公开接口：`get(name)`, `getAllNames()`, `getCategories()`.
 
-- [ ] **Step 2: 创建 RemoteEfunFetcher**
+- [x] **Step 2: 创建 RemoteEfunFetcher**
 
 从 `efunDocs.ts` 提取：`fetchMissingMudWikiDoc`（242-261）、`fetchMudWikiDoc`（263-277）、`getMudWikiTitleCandidates`（279-287）、`parseMudWikiDocHtml`（289-356）、`stripHtmlTags`（358-363）、`decodeHtmlEntities`（365-374）。
 
 公开接口：`fetchDoc(name): Promise<EfunDoc | undefined>`.
 
-- [ ] **Step 3: 更新 efunDocs.ts**
+- [x] **Step 3: 更新 efunDocs.ts**
 
 用 BundledEfunLoader 和 RemoteEfunFetcher 替换内联实现。
 
-- [ ] **Step 4: 运行全量测试**
+- [x] **Step 4: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/efun/BundledEfunLoader.ts src/efun/RemoteEfunFetcher.ts src/efunDocs.ts
@@ -1211,20 +1211,20 @@ git commit -m "refactor: extract BundledEfunLoader and RemoteEfunFetcher"
 - Create: `src/efun/SimulatedEfunScanner.ts`
 - Modify: `src/efunDocs.ts`
 
-- [ ] **Step 1: 创建 SimulatedEfunScanner**
+- [x] **Step 1: 创建 SimulatedEfunScanner**
 
 从 `efunDocs.ts` 提取：`configureSimulatedEfuns`（376-394）、`loadSimulatedEfuns`（396-433）、`resolveProjectPath`（936-944）。使用 `docParser.parseFunctionDocs` 替换 `parseSimulatedEfunDocs`（传入 `{ isSimulated: true }` 选项）。
 
 公开接口：`get(name)`, `getAllNames()`, `configure()`, `load()`.
 
-- [ ] **Step 2: 更新 efunDocs.ts 使用 SimulatedEfunScanner**
+- [x] **Step 2: 更新 efunDocs.ts 使用 SimulatedEfunScanner**
 
-- [ ] **Step 3: 运行全量测试**
+- [x] **Step 3: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/efun/SimulatedEfunScanner.ts src/efunDocs.ts
@@ -1239,20 +1239,20 @@ git commit -m "refactor: extract SimulatedEfunScanner"
 - Create: `src/efun/FileFunctionDocTracker.ts`
 - Modify: `src/efunDocs.ts`
 
-- [ ] **Step 1: 创建 FileFunctionDocTracker**
+- [x] **Step 1: 创建 FileFunctionDocTracker**
 
 从 `efunDocs.ts` 提取：`updateCurrentFileDocs`（532-549）、`parseInheritStatements`（635-646）、`loadInheritedFileDocs`（651-692）、`findFunctionDocInIncludes`（861-885）、`getIncludeFiles`（890-930）。使用 `docParser.parseFunctionDocs`。
 
 公开接口：`getDoc(name): EfunDoc | undefined`, `update(document)`, `getDocFromInherited(name)`, `getDocFromIncludes(document, name)`.
 
-- [ ] **Step 2: 更新 efunDocs.ts 委托给 FileFunctionDocTracker**
+- [x] **Step 2: 更新 efunDocs.ts 委托给 FileFunctionDocTracker**
 
-- [ ] **Step 3: 运行全量测试**
+- [x] **Step 3: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/efun/FileFunctionDocTracker.ts src/efunDocs.ts
@@ -1267,20 +1267,20 @@ git commit -m "refactor: extract FileFunctionDocTracker"
 - Create: `src/efun/EfunHoverProvider.ts`
 - Modify: `src/efunDocs.ts`
 
-- [ ] **Step 1: 创建 EfunHoverProvider**
+- [x] **Step 1: 创建 EfunHoverProvider**
 
 从 `efunDocs.ts` 提取：`provideHover`（694-745）、`createHoverContent`（747-840）。
 
 实现 `vscode.HoverProvider`，构造函数接收 EfunDocsManager 引用。
 
-- [ ] **Step 2: 更新 efunDocs.ts，hover 注册改为使用 EfunHoverProvider**
+- [x] **Step 2: 更新 efunDocs.ts，hover 注册改为使用 EfunHoverProvider**
 
-- [ ] **Step 3: 运行全量测试**
+- [x] **Step 3: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/efun/EfunHoverProvider.ts src/efunDocs.ts
@@ -1295,7 +1295,7 @@ git commit -m "refactor: extract EfunHoverProvider"
 - Create: `src/efun/EfunDocsManager.ts`
 - Modify: `src/efunDocs.ts` → 变为 re-export shim
 
-- [ ] **Step 1: 将 efunDocs.ts 移动为 EfunDocsManager 门面**
+- [x] **Step 1: 将 efunDocs.ts 移动为 EfunDocsManager 门面**
 
 创建 `src/efun/EfunDocsManager.ts`，持有各子服务引用，提供统一查询接口。
 
@@ -1305,16 +1305,16 @@ export { EfunDocsManager } from './efun/EfunDocsManager';
 export type { EfunDoc } from './efun/types';
 ```
 
-- [ ] **Step 2: 更新所有外部 import 路径**
+- [x] **Step 2: 更新所有外部 import 路径**
 
 更新消费者文件中的 import（`completionProvider.ts`、`definitionProvider.ts`、`functionDocPanel.ts`、`ServiceKeys.ts`、`coreModule.ts`）。由于 re-export shim 存在，大部分 import 无需变更，仅需确认功能正常。
 
-- [ ] **Step 3: 运行全量测试**
+- [x] **Step 3: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/efun/EfunDocsManager.ts src/efunDocs.ts src/core/ServiceKeys.ts src/modules/coreModule.ts
@@ -1330,7 +1330,7 @@ git commit -m "refactor: create EfunDocsManager facade with re-export shim"
 **Files:**
 - Modify: `src/syntax/SyntaxBuilder.ts`
 
-- [ ] **Step 1: 将外部 builder 需要的方法改为 public**
+- [x] **Step 1: 将外部 builder 需要的方法改为 public**
 
 将以下方法从 `private` 改为 `public`：
 - `createNode`（1092）
@@ -1363,12 +1363,12 @@ git commit -m "refactor: create EfunDocsManager facade with re-export shim"
 - `buildStatement`（129）
 - `buildExpression`（538）
 
-- [ ] **Step 2: 运行全量测试**
+- [x] **Step 2: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过（只是 visibility 变更，不影响行为）
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add src/syntax/SyntaxBuilder.ts
@@ -1384,26 +1384,26 @@ git commit -m "refactor: expose SyntaxBuilder infrastructure methods for extract
 - Create: `src/syntax/builders/declarationBuilders.ts`
 - Modify: `src/syntax/SyntaxBuilder.ts`
 
-- [ ] **Step 1: 创建 collectionBuilders**
+- [x] **Step 1: 创建 collectionBuilders**
 
 提取：`buildMappingLiteral`（893）、`buildMappingPair`（901）、`buildArrayLiteral`（906）、`buildArrayDelimiterLiteral`（912）、`buildArrayDelimiterElement`（920）、`buildNewExpression`（930）、`buildStructInitializerList`（953）、`buildStructInitializer`（961）、`buildStringConcatenation`（975）、`buildConcatItem`（984）、`buildArgumentList`（1011）、`buildExpressionList`（1028）、`buildSpreadElement`（1036）、`buildSliceExpression`（1045）。
 
 每个方法签名：`export function buildXxx(b: SyntaxBuilder, ctx: XxxContext): SyntaxNode`
 
-- [ ] **Step 2: 创建 declarationBuilders**
+- [x] **Step 2: 创建 declarationBuilders**
 
 提取：`buildFunctionDeclaration`（212）、`buildPrototypeDeclaration`（243）、`buildVariableDeclaration`（247）、`buildVariableDeclarator`（267）、`buildStructDeclaration`（284）、`buildClassDeclaration`（295）、`buildStructMembers`（306）、`buildDirectiveNode`（325）、`buildParameterList`（473）、`buildParameter`（481）、`buildModifierList`（502）、`buildTypeReference`（521）。
 
-- [ ] **Step 3: 更新 SyntaxBuilder 分派方法**
+- [x] **Step 3: 更新 SyntaxBuilder 分派方法**
 
 在 `buildStatement` 和相关分派方法中调用外部函数，删除搬走的 private 方法。
 
-- [ ] **Step 4: 运行全量测试**
+- [x] **Step 4: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过（特别关注 `syntaxBuilder.test.ts`、`formatterIntegration.test.ts`）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/syntax/builders/ src/syntax/SyntaxBuilder.ts
@@ -1419,26 +1419,26 @@ git commit -m "refactor: extract collection and declaration builders"
 - Create: `src/syntax/builders/expressionBuilders.ts`
 - Modify: `src/syntax/SyntaxBuilder.ts`
 
-- [ ] **Step 1: 创建 statementBuilders**
+- [x] **Step 1: 创建 statementBuilders**
 
 提取：`buildBlock`（330）、`buildExpressionStatement`（335）、`buildIfStatement`（340）、`buildLoopStatement`（356）、`buildDoWhileStatement`（360）、`buildForStatement`（364）、`buildForeachStatement`（386）、`buildForeachBinding`（396）、`buildSwitchStatement`（414）、`buildSwitchSection`（424）、`buildSwitchClause`（452）、`buildReturnStatement`（464）、`buildLeafNode`（469）。
 
-- [ ] **Step 2: 创建 expressionBuilders**
+- [x] **Step 2: 创建 expressionBuilders**
 
 提取整条优先级链（10 个 buildXxxExpression 方法）+ `buildAssignmentExpression`（552）、`buildConditionalExpression`（574）、`buildUnaryExpression`（670）、`buildCastExpression`（712）、`buildPostfixExpression`（726）、`buildPrimary`（799）、`buildMacroInvokeExpression`（869）、`buildClosureExpression`（883）。
 
-- [ ] **Step 3: 更新 SyntaxBuilder**
+- [x] **Step 3: 更新 SyntaxBuilder**
 
 将 `buildStatement` 和 `buildExpression` 的分派改为调用外部函数。SyntaxBuilder 只保留 `build()`、分派入口、基础设施方法。
 
 **重要**：外部 builder 函数之间的递归调用必须通过 `b.buildExpression(...)` 和 `b.buildStatement(...)` 等 SyntaxBuilder 实例方法进行，不要直接调用其他 builder 文件中的函数。这避免了 builder 文件之间的循环依赖——所有跨类别调用都经过 SyntaxBuilder 中心分派。
 
-- [ ] **Step 4: 运行全量测试**
+- [x] **Step 4: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/syntax/builders/ src/syntax/SyntaxBuilder.ts
@@ -1456,7 +1456,7 @@ git commit -m "refactor: extract statement and expression builders"
 - Create: `src/diagnostics/FolderScanner.ts`
 - Modify: `src/diagnostics/DiagnosticsOrchestrator.ts`
 
-- [ ] **Step 1: 创建 VariableInspectorPanel**
+- [x] **Step 1: 创建 VariableInspectorPanel**
 
 从 `DiagnosticsOrchestrator.ts` 提取：`showAllVariables`（365-395）、`getVariablesHtml`（400-459）。
 
@@ -1473,7 +1473,7 @@ export class VariableInspectorPanel {
 }
 ```
 
-- [ ] **Step 2: 创建 FolderScanner**
+- [x] **Step 2: 创建 FolderScanner**
 
 从 `DiagnosticsOrchestrator.ts` 提取：`scanFolder`（464-542）、`findLPCFiles`（547-582）。
 
@@ -1490,7 +1490,7 @@ export class FolderScanner {
 }
 ```
 
-- [ ] **Step 3: 更新 DiagnosticsOrchestrator**
+- [x] **Step 3: 更新 DiagnosticsOrchestrator**
 
 删除搬走的方法。`scanFolder()` 变为委托调用：
 ```typescript
@@ -1501,7 +1501,7 @@ public async scanFolder(): Promise<void> {
 
 `showAllVariables` 的命令注册保留在 `registerCommandsAndEvents` 中，但调用 `this.variableInspector.show(doc)`。
 
-- [ ] **Step 4: 搬移宏 hover provider**
+- [x] **Step 4: 搬移宏 hover provider**
 
 将 `DiagnosticsOrchestrator.registerCommandsAndEvents` 中的宏 hover provider（134-154 行）移到 `src/modules/languageModule.ts` 的 `registerLanguageProviders` 函数末尾：
 
@@ -1531,12 +1531,12 @@ context.subscriptions.push(
 
 然后从 DiagnosticsOrchestrator 中删除对应代码。
 
-- [ ] **Step 5: 运行全量测试**
+- [x] **Step 5: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过（特别关注 `diagnosticsOrchestrator.test.ts`）
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add src/diagnostics/VariableInspectorPanel.ts src/diagnostics/FolderScanner.ts src/diagnostics/DiagnosticsOrchestrator.ts src/modules/languageModule.ts
@@ -1552,7 +1552,7 @@ git commit -m "refactor: extract VariableInspectorPanel and FolderScanner from o
 - Modify: `src/modules/coreModule.ts`
 - Modify: `src/diagnostics/DiagnosticsOrchestrator.ts`
 
-- [ ] **Step 1: 创建 DocumentLifecycleService**
+- [x] **Step 1: 创建 DocumentLifecycleService**
 
 ```typescript
 // src/core/DocumentLifecycleService.ts
@@ -1595,14 +1595,14 @@ export class DocumentLifecycleService implements vscode.Disposable {
 }
 ```
 
-- [ ] **Step 2: 在 ServiceKeys 中注册**
+- [x] **Step 2: 在 ServiceKeys 中注册**
 
 在 `ServiceKeys.ts` 中添加：
 ```typescript
 Lifecycle: new ServiceKey<DocumentLifecycleService>('Lifecycle'),
 ```
 
-- [ ] **Step 3: 在 coreModule 中初始化并注册各模块的失效逻辑**
+- [x] **Step 3: 在 coreModule 中初始化并注册各模块的失效逻辑**
 
 ```typescript
 import { DocumentLifecycleService } from '../core/DocumentLifecycleService';
@@ -1620,16 +1620,16 @@ lifecycle.onInvalidate(uri => {
 });
 ```
 
-- [ ] **Step 4: 从 DiagnosticsOrchestrator 中移除重复的事件订阅**
+- [x] **Step 4: 从 DiagnosticsOrchestrator 中移除重复的事件订阅**
 
 删除 `onDidCloseTextDocument` 和 `onDidDeleteFiles` 中对 ParsedDocumentService 和 ASTManager 的清理逻辑（已由 DocumentLifecycleService 统一处理）。仅保留 orchestrator 自身状态的清理（`isAnalyzing`、`lastAnalysisVersion`）。
 
-- [ ] **Step 5: 运行全量测试**
+- [x] **Step 5: 运行全量测试**
 
 Run: `npm test`
 Expected: 全部通过
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add src/core/DocumentLifecycleService.ts src/core/ServiceKeys.ts src/modules/coreModule.ts src/diagnostics/DiagnosticsOrchestrator.ts
@@ -1642,22 +1642,23 @@ git commit -m "feat: add DocumentLifecycleService for unified cache invalidation
 
 ### Task 21: 最终验证 + 清理
 
-- [ ] **Step 1: 运行全量测试**
+- [x] **Step 1: 运行全量测试**
 
 Run: `npm test`
 Expected: 376 tests passing
 
-- [ ] **Step 2: 验证构建**
+- [x] **Step 2: 验证构建**
 
 Run: `npm run build`
 Expected: 构建成功
 
-- [ ] **Step 3: 检查无遗留的未使用 import**
+- [x] **Step 3: 检查无遗留的未使用 import**
 
 Run: `npx tsc --noEmit`
 Expected: 无错误
 
-- [ ] **Step 4: 验证 bundle 大小**
+- [x] **Step 4: 验证 bundle 大小**
 
 Run: `ls -la dist/extension.js`
 Expected: 大小与重构前相近（±10%）
+

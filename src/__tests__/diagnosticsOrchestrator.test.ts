@@ -1,9 +1,16 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
+import * as parsedDocumentService from '../parser/ParsedDocumentService';
 
 function createDocument(content: string): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
+    const lineOffsets = lines.reduce<number[]>((offsets, line, index) => {
+        const previous = offsets[index - 1] ?? 0;
+        const previousLineLength = index === 0 ? 0 : lines[index - 1].length + 1;
+        offsets.push(previous + previousLineLength);
+        return offsets;
+    }, []);
 
     return {
         uri: vscode.Uri.file('/virtual/diagnostics-test.c'),
@@ -15,6 +22,15 @@ function createDocument(content: string): vscode.TextDocument {
         lineAt: jest.fn((lineOrPosition: number | vscode.Position) => {
             const line = typeof lineOrPosition === 'number' ? lineOrPosition : lineOrPosition.line;
             return { text: lines[line] ?? '' };
+        }),
+        positionAt: jest.fn((offset: number) => {
+            let line = 0;
+            for (let index = 0; index < lineOffsets.length; index++) {
+                if (lineOffsets[index] <= offset) {
+                    line = index;
+                }
+            }
+            return new vscode.Position(line, offset - lineOffsets[line]);
         })
     } as unknown as vscode.TextDocument;
 }
@@ -116,5 +132,135 @@ describe('DiagnosticsOrchestrator', () => {
             syntax: syntaxDocument,
             semantic: semanticSnapshot
         });
+    });
+
+    test('delegates show variables command to variable inspector for active lpc documents', async () => {
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+            parseDocument: jest.fn(),
+            clearCache: jest.fn()
+        } as unknown as ASTManager);
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+        (vscode.commands.registerCommand as jest.Mock).mockClear();
+
+        const lpcDocument = createDocument('int value;');
+        const variableInspector = {
+            show: jest.fn().mockResolvedValue(undefined)
+        };
+        const onDidReceiveMessage = jest.fn();
+        (vscode.window as any).createWebviewPanel = jest.fn().mockReturnValue({
+            webview: {
+                html: '',
+                onDidReceiveMessage
+            }
+        });
+        (vscode.window as any).activeTextEditor = {
+            document: lpcDocument
+        };
+
+        const orchestrator = new DiagnosticsOrchestrator(
+            { subscriptions: [], extensionPath: process.cwd() } as any,
+            { getMacro: jest.fn(), getMacroHoverContent: jest.fn(), canResolveMacro: jest.fn() } as any
+        );
+        (orchestrator as any).variableInspector = variableInspector;
+
+        const showVariablesRegistration = (vscode.commands.registerCommand as jest.Mock).mock.calls
+            .find(([commandId]) => commandId === 'lpc.showVariables');
+        expect(showVariablesRegistration).toBeDefined();
+
+        const [, handler] = showVariablesRegistration!;
+
+        await handler();
+
+        expect(variableInspector.show).toHaveBeenCalledTimes(1);
+        expect(variableInspector.show).toHaveBeenCalledWith(lpcDocument);
+    });
+
+    test('delegates scanFolder to folder scanner', async () => {
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+            parseDocument: jest.fn(),
+            clearCache: jest.fn()
+        } as unknown as ASTManager);
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+
+        const orchestrator = new DiagnosticsOrchestrator(
+            { subscriptions: [], extensionPath: process.cwd() } as any,
+            { getMacro: jest.fn(), getMacroHoverContent: jest.fn(), canResolveMacro: jest.fn() } as any
+        );
+        const folderScanner = {
+            scanFolder: jest.fn().mockResolvedValue(undefined)
+        };
+        (orchestrator as any).folderScanner = folderScanner;
+
+        await orchestrator.scanFolder();
+
+        expect(folderScanner.scanFolder).toHaveBeenCalledTimes(1);
+    });
+
+    test('cleans local analysis state on lpc close without invalidating shared caches', () => {
+        const astManager = {
+            parseDocument: jest.fn(),
+            clearCache: jest.fn()
+        };
+        const parsedService = {
+            invalidate: jest.fn()
+        };
+
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue(astManager as unknown as ASTManager);
+        jest.spyOn(parsedDocumentService, 'getGlobalParsedDocumentService').mockReturnValue(parsedService as any);
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+
+        const orchestrator = new DiagnosticsOrchestrator(
+            { subscriptions: [], extensionPath: process.cwd() } as any,
+            { getMacro: jest.fn(), getMacroHoverContent: jest.fn(), canResolveMacro: jest.fn() } as any
+        );
+
+        (orchestrator as any).isAnalyzing.add('file:////virtual/diagnostics-test.c');
+        (orchestrator as any).lastAnalysisVersion.set('file:////virtual/diagnostics-test.c', 3);
+
+        (orchestrator as any).onDidCloseTextDocument(createDocument('int value;', '/virtual/diagnostics-test.c', 3));
+
+        expect((orchestrator as any).isAnalyzing.has('file:////virtual/diagnostics-test.c')).toBe(false);
+        expect((orchestrator as any).lastAnalysisVersion.has('file:////virtual/diagnostics-test.c')).toBe(false);
+        expect(parsedService.invalidate).not.toHaveBeenCalled();
+        expect(astManager.clearCache).not.toHaveBeenCalled();
+    });
+
+    test('cleans diagnostics and local analysis state on delete without invalidating shared caches', () => {
+        const diagnosticCollection = {
+            set: jest.fn(),
+            delete: jest.fn(),
+            clear: jest.fn(),
+            dispose: jest.fn()
+        };
+        const astManager = {
+            parseDocument: jest.fn(),
+            clearCache: jest.fn()
+        };
+        const parsedService = {
+            invalidate: jest.fn()
+        };
+
+        (vscode.languages.createDiagnosticCollection as jest.Mock).mockReturnValue(diagnosticCollection);
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue(astManager as unknown as ASTManager);
+        jest.spyOn(parsedDocumentService, 'getGlobalParsedDocumentService').mockReturnValue(parsedService as any);
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+
+        const orchestrator = new DiagnosticsOrchestrator(
+            { subscriptions: [], extensionPath: process.cwd() } as any,
+            { getMacro: jest.fn(), getMacroHoverContent: jest.fn(), canResolveMacro: jest.fn() } as any
+        );
+        const deletedUri = vscode.Uri.file('/virtual/deleted.c');
+
+        (orchestrator as any).isAnalyzing.add(deletedUri.toString());
+        (orchestrator as any).lastAnalysisVersion.set(deletedUri.toString(), 4);
+
+        (orchestrator as any).onDidDeleteFiles({ files: [deletedUri] });
+
+        expect(diagnosticCollection.delete).toHaveBeenCalledTimes(1);
+        expect(diagnosticCollection.delete).toHaveBeenCalledWith(deletedUri);
+        expect((orchestrator as any).isAnalyzing.has(deletedUri.toString())).toBe(false);
+        expect((orchestrator as any).lastAnalysisVersion.has(deletedUri.toString())).toBe(false);
+        expect(parsedService.invalidate).not.toHaveBeenCalled();
+        expect(astManager.clearCache).not.toHaveBeenCalled();
     });
 });

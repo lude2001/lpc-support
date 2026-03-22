@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
+import type { ParsedDocument } from '../parser/types';
 import { applyCommentFormatting } from './comments/commentFormatter';
 import { getFormatterConfig } from './config';
 import { containsDelimitedTextBlock, maskDelimitedTextBlocks, restoreDelimitedTextBlocks } from './heredoc/heredocGuard';
@@ -108,13 +109,7 @@ export class FormattingService {
         return [vscode.TextEdit.replace(fullRange, text)];
     }
 
-    private canBuildFormatModel(parsed: unknown): parsed is {
-        text: string;
-        tree: unknown;
-        visibleTokens: unknown[];
-        hiddenTokens: unknown[];
-        allTokens: unknown[];
-    } {
+    private canBuildFormatModel(parsed: unknown): parsed is ParsedDocument {
         return Boolean(
             parsed
             && typeof (parsed as { text?: unknown }).text === 'string'
@@ -226,13 +221,7 @@ export class FormattingService {
 
     private renderFormattedSource(
         source: string,
-        parsed: {
-            text: string;
-            tree: unknown;
-            visibleTokens: unknown[];
-            hiddenTokens: unknown[];
-            allTokens: unknown[];
-        }
+        parsed: ParsedDocument
     ): string {
         return applyCommentFormatting(
             source,
@@ -241,13 +230,7 @@ export class FormattingService {
     }
 
     private renderSyntaxNode(
-        parsed: {
-            text: string;
-            tree: unknown;
-            visibleTokens: unknown[];
-            hiddenTokens: unknown[];
-            allTokens: unknown[];
-        },
+        parsed: ParsedDocument,
         node: Parameters<FormatModelBuilder['buildFromSyntaxNode']>[0],
         range: vscode.Range
     ): string {
