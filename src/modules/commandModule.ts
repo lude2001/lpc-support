@@ -15,6 +15,10 @@ import {
     clearGlobalParsedDocumentService,
     getGlobalParsedDocumentService
 } from '../parser/ParsedDocumentService';
+import {
+    migrateProjectConfigForWorkspace,
+    shouldPromptProjectConfigMigration
+} from '../projectConfig/projectConfigMigration';
 
 export function registerCommands(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const macroManager = registry.get(Services.MacroManager);
@@ -25,6 +29,17 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     const compiler = registry.get(Services.Compiler);
     const projectConfigService = registry.get(Services.ProjectConfig);
     const errorTreeProvider = registry.get(Services.ErrorTree);
+
+    register(context, 'lpc.migrateProjectConfig', async () => {
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+            vscode.window.showErrorMessage('请先打开一个工作区');
+            return;
+        }
+
+        await migrateProjectConfigForWorkspace(projectConfigService, workspaceRoot);
+        vscode.window.showInformationMessage('已创建并同步 lpc-support.json');
+    });
 
     register(context, 'lpc.efunDocsSettings', async () => {
         const items = [
@@ -358,6 +373,8 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         completionInstrumentation.clear();
         vscode.window.showInformationMessage('LPC 解析与补全缓存已清理');
     });
+
+    void promptProjectConfigMigrationIfNeeded(projectConfigService);
 }
 
 function register(
@@ -366,4 +383,26 @@ function register(
     handler: (...args: any[]) => any
 ): void {
     context.subscriptions.push(vscode.commands.registerCommand(commandId, handler));
+}
+
+async function promptProjectConfigMigrationIfNeeded(projectConfigService: any): Promise<void> {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+        return;
+    }
+
+    const config = vscode.workspace.getConfiguration('lpc');
+    const shouldPrompt = await shouldPromptProjectConfigMigration(projectConfigService, workspaceRoot, config);
+    if (!shouldPrompt) {
+        return;
+    }
+
+    const selection = await vscode.window.showInformationMessage(
+        '当前项目仍在使用旧版 LPC Support 配置。建议迁移到项目根目录的 lpc-support.json。',
+        '立即迁移'
+    );
+
+    if (selection === '立即迁移') {
+        await vscode.commands.executeCommand('lpc.migrateProjectConfig');
+    }
 }

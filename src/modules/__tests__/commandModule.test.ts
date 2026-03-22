@@ -60,6 +60,7 @@ describe('registerCommands', () => {
         'lpc.compileFile',
         'lpc.showMacros',
         'lpc.configureMacroPath',
+        'lpc.migrateProjectConfig',
         'lpc.startDriver',
         'lpc.showPerformanceStats',
         'lpc.clearCache'
@@ -82,7 +83,12 @@ describe('registerCommands', () => {
         showServerManager: jest.Mock;
     };
     let compiler: { compileFile: jest.Mock };
-    let projectConfigService: { loadForWorkspace: jest.Mock };
+    let projectConfigService: {
+        loadForWorkspace: jest.Mock;
+        ensureConfigForWorkspace: jest.Mock;
+        readConfigFile: jest.Mock;
+        getProjectConfigPath: jest.Mock;
+    };
     let errorTreeProvider: {
         refresh: jest.Mock;
         clearErrors: jest.Mock;
@@ -128,7 +134,10 @@ describe('registerCommands', () => {
             compileFile: jest.fn()
         };
         projectConfigService = {
-            loadForWorkspace: jest.fn().mockResolvedValue(undefined)
+            loadForWorkspace: jest.fn().mockResolvedValue(undefined),
+            ensureConfigForWorkspace: jest.fn().mockResolvedValue(undefined),
+            readConfigFile: jest.fn().mockResolvedValue({ version: 1, configHellPath: 'config.hell' }),
+            getProjectConfigPath: jest.fn().mockReturnValue('D:/workspace/lpc-support.json')
         };
         errorTreeProvider = {
             refresh: jest.fn(),
@@ -218,6 +227,7 @@ describe('registerCommands', () => {
     test('delegates representative commands to registry services and helpers', async () => {
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
         const activeDocument = {
             fileName: 'D:/code/lpc-support/test/example.c',
             languageId: 'lpc'
@@ -232,6 +242,7 @@ describe('registerCommands', () => {
         handlers.get('lpc.scanInheritance')?.();
         handlers.get('lpc.showMacros')?.();
         handlers.get('lpc.configureMacroPath')?.();
+        await handlers.get('lpc.migrateProjectConfig')?.();
         handlers.get('lpc.errorTree.refresh')?.();
         handlers.get('lpc.showPerformanceStats')?.();
         handlers.get('lpc.clearCache')?.();
@@ -248,6 +259,7 @@ describe('registerCommands', () => {
         expect(completionProvider.scanInheritance).toHaveBeenCalledWith(activeDocument);
         expect(macroManager.showMacrosList).toHaveBeenCalledTimes(1);
         expect(macroManager.configurePath).toHaveBeenCalledTimes(1);
+        expect(projectConfigService.ensureConfigForWorkspace).toHaveBeenCalledWith('D:/workspace', 'config.hell');
         expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
         expect(parsedDocumentService.getStats).toHaveBeenCalledTimes(1);
         expect(completionInstrumentation.showReport).toHaveBeenCalledWith({ size: 2, memory: 2048 });
@@ -255,6 +267,7 @@ describe('registerCommands', () => {
         expect(clearGlobalParsedDocumentService).toHaveBeenCalledTimes(1);
         expect(completionProvider.clearCache).toHaveBeenCalledTimes(1);
         expect(completionInstrumentation.clear).toHaveBeenCalledTimes(1);
+        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('已创建并同步 lpc-support.json');
         expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('LPC 解析与补全缓存已清理');
     });
 

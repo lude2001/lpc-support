@@ -69,6 +69,28 @@ export class LpcProjectConfigService {
         await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2));
     }
 
+    public async ensureConfigForWorkspace(
+        workspaceRoot: string,
+        configHellPath = 'config.hell'
+    ): Promise<LpcProjectConfig> {
+        const configPath = this.getProjectConfigPath(workspaceRoot);
+        const existing = await this.readConfigFile(configPath);
+
+        if (existing) {
+            const synced = await this.syncForWorkspace(workspaceRoot, existing);
+            return synced ?? existing;
+        }
+
+        const created: LpcProjectConfig = {
+            version: 1,
+            configHellPath
+        };
+        await this.writeConfigFile(configPath, created);
+
+        const synced = await this.syncForWorkspace(workspaceRoot, created);
+        return synced ?? created;
+    }
+
     public async getResolvedForWorkspace(workspaceRoot: string): Promise<LpcResolvedConfig | undefined> {
         const config = await this.loadForWorkspace(workspaceRoot);
         return config?.resolved;

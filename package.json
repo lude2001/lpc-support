@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.2.7",
+  "version": "0.2.9",
   "publisher": "ludexiang",
   "author": {
     "name": "ludexiang",
@@ -146,6 +146,11 @@
       {
         "command": "lpc.configureSimulatedEfuns",
         "title": "配置模拟函数库目录",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.migrateProjectConfig",
+        "title": "迁移项目配置到 lpc-support.json",
         "category": "LPC"
       },
       {
