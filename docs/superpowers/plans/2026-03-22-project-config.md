@@ -579,7 +579,7 @@ Run: `npm test -- --runInBand`
 
 Expected: PASS
 
-- [ ] **Step 5: 提交最终收尾**
+- [x] **Step 5: 提交最终收尾**
 
 ```bash
 git add .
