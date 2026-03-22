@@ -83,6 +83,8 @@ describe('registerCommands', () => {
         ensureConfigForWorkspace: jest.Mock;
         getCompileConfigForWorkspace: jest.Mock;
         updateCompileConfigForWorkspace: jest.Mock;
+        toWorkspaceRelativePath: jest.Mock;
+        resolveWorkspacePath: jest.Mock;
         readConfigFile: jest.Mock;
         getProjectConfigPath: jest.Mock;
     };
@@ -140,8 +142,7 @@ describe('registerCommands', () => {
                 mode: 'remote',
                 local: {
                     useSystemCommand: false,
-                    lpccpPath: '',
-                    driverConfigPath: 'etc/config.test'
+                    lpccpPath: ''
                 },
                 remote: {
                     activeServer: 'Alpha',
@@ -155,8 +156,7 @@ describe('registerCommands', () => {
                     mode: 'remote',
                     local: {
                         useSystemCommand: false,
-                        lpccpPath: '',
-                        driverConfigPath: 'etc/config.test'
+                        lpccpPath: ''
                     },
                     remote: {
                         activeServer: 'Alpha',
@@ -164,6 +164,8 @@ describe('registerCommands', () => {
                     }
                 })
             })),
+            toWorkspaceRelativePath: jest.fn((workspaceRoot: string, targetPath: string) => path.relative(workspaceRoot, targetPath)),
+            resolveWorkspacePath: jest.fn((workspaceRoot: string, targetPath: string) => path.resolve(workspaceRoot, targetPath)),
             readConfigFile: jest.fn().mockResolvedValue({ version: 1, configHellPath: 'config.hell' }),
             getProjectConfigPath: jest.fn().mockReturnValue('D:/workspace/lpc-support.json')
         };
@@ -311,8 +313,7 @@ describe('registerCommands', () => {
             mode: 'remote',
             local: {
                 useSystemCommand: false,
-                lpccpPath: '',
-                driverConfigPath: 'etc/config.test'
+                lpccpPath: ''
             },
             remote: {
                 activeServer: 'Alpha',
@@ -322,8 +323,7 @@ describe('registerCommands', () => {
             mode: 'local',
             local: {
                 useSystemCommand: true,
-                lpccpPath: '',
-                driverConfigPath: 'etc/config.test'
+                lpccpPath: ''
             },
             remote: {
                 activeServer: 'Alpha',
@@ -352,8 +352,7 @@ describe('registerCommands', () => {
             mode: 'remote',
             local: {
                 useSystemCommand: false,
-                lpccpPath: '',
-                driverConfigPath: 'etc/config.test'
+                lpccpPath: ''
             },
             remote: {
                 activeServer: 'Alpha',
@@ -363,8 +362,7 @@ describe('registerCommands', () => {
             mode: 'remote',
             local: {
                 useSystemCommand: false,
-                lpccpPath: '',
-                driverConfigPath: 'etc/config.test'
+                lpccpPath: ''
             },
             remote: {
                 activeServer: 'Alpha',
@@ -372,6 +370,47 @@ describe('registerCommands', () => {
                     { name: 'Alpha', url: 'http://127.0.0.1:8080', description: 'local' },
                     { name: 'Beta', url: 'http://127.0.0.1:8081', description: 'backup' }
                 ]
+            }
+        });
+    });
+
+    test('manageCompilation sets lpccp path via file picker and no longer exposes driver config action', async () => {
+        registerCommands(registry, context);
+        const handlers = getRegisteredHandlers();
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
+        (vscode.window.showQuickPick as jest.Mock)
+            .mockResolvedValueOnce({ value: 'local' })
+            .mockResolvedValueOnce({ action: 'setLpccpPath' });
+        (vscode.window.showOpenDialog as jest.Mock).mockResolvedValueOnce([
+            { fsPath: 'D:/workspace/tools/lpccp.exe' }
+        ]);
+
+        await handlers.get('lpc.manageCompilation')?.();
+
+        const localActions = (vscode.window.showQuickPick as jest.Mock).mock.calls[1][0];
+        expect(localActions.some((entry: any) => entry.action === 'setDriverConfigPath')).toBe(false);
+        expect(vscode.window.showOpenDialog).toHaveBeenCalled();
+
+        const updater = projectConfigService.updateCompileConfigForWorkspace.mock.calls[1][1];
+        expect(updater({
+            mode: 'remote',
+            local: {
+                useSystemCommand: false,
+                lpccpPath: ''
+            },
+            remote: {
+                activeServer: 'Alpha',
+                servers: []
+            }
+        })).toEqual({
+            mode: 'local',
+            local: {
+                useSystemCommand: false,
+                lpccpPath: path.join('tools', 'lpccp.exe')
+            },
+            remote: {
+                activeServer: 'Alpha',
+                servers: []
             }
         });
     });

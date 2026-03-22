@@ -85,9 +85,8 @@ export class CompilationService {
         const targetPath = this.toMudPath(workspaceRoot, targetFsPath, targetKind);
 
         if (projectConfig.compile.mode === 'local') {
-            const driverConfigPath = projectConfig.compile.local?.driverConfigPath;
-            if (!driverConfigPath) {
-                vscode.window.showErrorMessage('本地编译缺少 driver config 路径');
+            if (!projectConfig.configHellPath) {
+                vscode.window.showErrorMessage('当前项目缺少 configHellPath，无法执行本地编译');
                 return undefined;
             }
 
@@ -107,7 +106,10 @@ export class CompilationService {
                                 projectConfig.compile.local.lpccpPath
                             )
                             : projectConfig.compile.local?.lpccpPath,
-                        driverConfigPath: this.projectConfigService.resolveWorkspacePath(workspaceRoot, driverConfigPath)
+                        driverConfigPath: this.projectConfigService.resolveWorkspacePath(
+                            workspaceRoot,
+                            projectConfig.configHellPath
+                        )
                     }
                 }
             };

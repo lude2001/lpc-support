@@ -37,12 +37,11 @@ describe('CompilationService', () => {
     test('uses local backend for file compilation when compile.mode is local', async () => {
         projectConfigService.loadForWorkspace.mockResolvedValue({
             version: 1,
-            configHellPath: 'config.hell',
+            configHellPath: 'etc/config.test',
             compile: {
                 mode: 'local',
                 local: {
-                    useSystemCommand: true,
-                    driverConfigPath: 'etc/config.test'
+                    useSystemCommand: true
                 }
             }
         });
@@ -76,12 +75,11 @@ describe('CompilationService', () => {
     test('uses local backend directory mode instead of fan-out for folder compilation', async () => {
         projectConfigService.loadForWorkspace.mockResolvedValue({
             version: 1,
-            configHellPath: 'config.hell',
+            configHellPath: 'etc/config.test',
             compile: {
                 mode: 'local',
                 local: {
-                    useSystemCommand: true,
-                    driverConfigPath: 'etc/config.test'
+                    useSystemCommand: true
                 }
             }
         });
@@ -144,12 +142,11 @@ describe('CompilationService', () => {
     test('maps file diagnostics returned by local backend into VS Code diagnostics', async () => {
         projectConfigService.loadForWorkspace.mockResolvedValue({
             version: 1,
-            configHellPath: 'config.hell',
+            configHellPath: 'etc/config.test',
             compile: {
                 mode: 'local',
                 local: {
-                    useSystemCommand: true,
-                    driverConfigPath: 'etc/config.test'
+                    useSystemCommand: true
                 }
             }
         });

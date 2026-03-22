@@ -23,6 +23,8 @@
 - `compileFile` / `compileFolder` 现已按配置模式自动选择远程 HTTP 或本地 `lpccp` 后端。
 - 对仍保存在 legacy 全局存储中的远程编译服务器，扩展会在工作区中惰性迁移到 `lpc-support.json`。
 - 本地目录编译现在可直接使用 `lpccp` 的目录级 JSON 返回，而不是仅依赖逐文件 fan-out。
+- 本地 `lpccp` 模式不再要求单独配置 driver config 路径，而是自动使用 `lpc-support.json` 中的 `configHellPath`。
+- 设置 `lpccp` 路径时改为使用文件选择器，减少手工输入路径错误。
 
 ### 命令收敛
 

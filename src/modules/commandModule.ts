@@ -387,7 +387,6 @@ async function showLocalCompilationManager(projectConfigService: any, workspaceR
         [
             { label: '切换为使用系统命令', action: 'toggleSystemCommand' },
             { label: '设置 lpccp 路径', action: 'setLpccpPath' },
-            { label: '设置 driver config 路径', action: 'setDriverConfigPath' },
             { label: '查看当前本地编译配置', action: 'showCurrentConfig' }
         ],
         { placeHolder: '管理本地编译配置' }
@@ -410,11 +409,17 @@ async function showLocalCompilationManager(projectConfigService: any, workspaceR
     }
 
     if (selectedAction.action === 'setLpccpPath') {
-        const lpccpPath = await vscode.window.showInputBox({
-            prompt: '输入 lpccp 可执行文件路径',
-            value: compileConfig?.local?.lpccpPath
+        const selectedFiles = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            openLabel: '选择 lpccp 可执行文件',
+            defaultUri: compileConfig?.local?.lpccpPath
+                ? vscode.Uri.file(projectConfigService.resolveWorkspacePath(workspaceRoot, compileConfig.local.lpccpPath))
+                : undefined
         });
 
+        const lpccpPath = selectedFiles?.[0]?.fsPath;
         if (!lpccpPath) {
             return;
         }
@@ -430,29 +435,11 @@ async function showLocalCompilationManager(projectConfigService: any, workspaceR
         return;
     }
 
-    if (selectedAction.action === 'setDriverConfigPath') {
-        const driverConfigPath = await vscode.window.showInputBox({
-            prompt: '输入 driver config 路径',
-            value: compileConfig?.local?.driverConfigPath
-        });
-
-        if (!driverConfigPath) {
-            return;
-        }
-
-        await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig: any) => ({
-            ...currentConfig,
-            mode: 'local',
-            local: {
-                ...currentConfig.local,
-                driverConfigPath: projectConfigService.toWorkspaceRelativePath(workspaceRoot, driverConfigPath)
-            }
-        }));
-        return;
-    }
-
+    const projectConfig = await projectConfigService.readConfigFile(
+        projectConfigService.getProjectConfigPath(workspaceRoot)
+    );
     await vscode.window.showInformationMessage(
-        `当前模式: local\nuseSystemCommand: ${compileConfig?.local?.useSystemCommand ? 'true' : 'false'}\nlpccpPath: ${compileConfig?.local?.lpccpPath || '(系统命令)'}\ndriverConfigPath: ${compileConfig?.local?.driverConfigPath || '(未设置)'}`
+        `当前模式: local\nuseSystemCommand: ${compileConfig?.local?.useSystemCommand ? 'true' : 'false'}\nlpccpPath: ${compileConfig?.local?.lpccpPath || '(系统命令)'}\nconfigHellPath: ${projectConfig?.configHellPath || '(未设置)'}`
     );
 }
 
