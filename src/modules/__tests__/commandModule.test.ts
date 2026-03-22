@@ -51,6 +51,7 @@ describe('registerCommands', () => {
         'lpc.addServer',
         'lpc.selectServer',
         'lpc.removeServer',
+        'lpc.manageCompilation',
         'lpc.manageServers',
         'lpc.compileFile',
         'lpc.configureMacroPath',
@@ -73,11 +74,15 @@ describe('registerCommands', () => {
         selectServer: jest.Mock;
         removeServer: jest.Mock;
         showServerManager: jest.Mock;
+        getServers: jest.Mock;
+        getDefaultServerName: jest.Mock;
     };
-    let compiler: { compileFile: jest.Mock };
+    let compiler: { compileFile: jest.Mock; compileFolder: jest.Mock };
     let projectConfigService: {
         loadForWorkspace: jest.Mock;
         ensureConfigForWorkspace: jest.Mock;
+        getCompileConfigForWorkspace: jest.Mock;
+        updateCompileConfigForWorkspace: jest.Mock;
         readConfigFile: jest.Mock;
         getProjectConfigPath: jest.Mock;
     };
@@ -120,14 +125,45 @@ describe('registerCommands', () => {
             addServer: jest.fn(),
             selectServer: jest.fn(),
             removeServer: jest.fn(),
-            showServerManager: jest.fn()
+            showServerManager: jest.fn(),
+            getServers: jest.fn().mockReturnValue([]),
+            getDefaultServerName: jest.fn().mockReturnValue(undefined)
         };
         compiler = {
-            compileFile: jest.fn()
+            compileFile: jest.fn(),
+            compileFolder: jest.fn()
         };
         projectConfigService = {
             loadForWorkspace: jest.fn().mockResolvedValue(undefined),
             ensureConfigForWorkspace: jest.fn().mockResolvedValue(undefined),
+            getCompileConfigForWorkspace: jest.fn().mockResolvedValue({
+                mode: 'remote',
+                local: {
+                    useSystemCommand: false,
+                    lpccpPath: '',
+                    driverConfigPath: 'etc/config.test'
+                },
+                remote: {
+                    activeServer: 'Alpha',
+                    servers: [{ name: 'Alpha', url: 'http://127.0.0.1:8080', description: 'local' }]
+                }
+            }),
+            updateCompileConfigForWorkspace: jest.fn().mockImplementation(async (_workspaceRoot, updater) => ({
+                version: 1,
+                configHellPath: 'config.hell',
+                compile: updater({
+                    mode: 'remote',
+                    local: {
+                        useSystemCommand: false,
+                        lpccpPath: '',
+                        driverConfigPath: 'etc/config.test'
+                    },
+                    remote: {
+                        activeServer: 'Alpha',
+                        servers: [{ name: 'Alpha', url: 'http://127.0.0.1:8080', description: 'local' }]
+                    }
+                })
+            })),
             readConfigFile: jest.fn().mockResolvedValue({ version: 1, configHellPath: 'config.hell' }),
             getProjectConfigPath: jest.fn().mockReturnValue('D:/workspace/lpc-support.json')
         };
@@ -237,12 +273,10 @@ describe('registerCommands', () => {
         expect(diagnostics.scanFolder).toHaveBeenCalledTimes(1);
         expect(FunctionDocPanel.createOrShow).toHaveBeenCalledWith(context, macroManager);
         expect(compiler.compileFile).toHaveBeenCalledWith(activeDocument.fileName);
-        expect(LPCConfigManager).toHaveBeenCalledWith(context);
-        expect(LPCCompiler).toHaveBeenCalledWith(freshConfigManager);
-        expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('D:/workspace');
-        expect(freshCompiler.compileFolder).toHaveBeenCalledWith('D:/workspace/project');
+        expect((compiler as any).compileFolder).toHaveBeenCalledWith('D:/workspace/project');
         expect(macroManager.configurePath).toHaveBeenCalledTimes(1);
         expect(projectConfigService.ensureConfigForWorkspace).toHaveBeenCalledWith('D:/workspace', 'config.hell');
+        expect(projectConfigService.getCompileConfigForWorkspace).toHaveBeenCalledWith('D:/workspace');
         expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
         expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('已创建并同步 lpc-support.json');
     });
@@ -255,9 +289,91 @@ describe('registerCommands', () => {
         await handlers.get('lpc.compileFolder')?.();
 
         expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('请先打开一个工作区');
-        expect(LPCConfigManager).not.toHaveBeenCalled();
-        expect(LPCCompiler).not.toHaveBeenCalled();
-        expect(freshCompiler.compileFolder).not.toHaveBeenCalled();
+        expect((compiler as any).compileFolder).not.toHaveBeenCalled();
+    });
+
+    test('manageCompilation toggles local system command in project config', async () => {
+        registerCommands(registry, context);
+        const handlers = getRegisteredHandlers();
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
+        (vscode.window.showQuickPick as jest.Mock)
+            .mockResolvedValueOnce({ value: 'local' })
+            .mockResolvedValueOnce({ action: 'toggleSystemCommand' });
+
+        await handlers.get('lpc.manageCompilation')?.();
+
+        expect(projectConfigService.updateCompileConfigForWorkspace).toHaveBeenCalledWith(
+            'D:/workspace',
+            expect.any(Function)
+        );
+        const updater = projectConfigService.updateCompileConfigForWorkspace.mock.calls[1][1];
+        expect(updater({
+            mode: 'remote',
+            local: {
+                useSystemCommand: false,
+                lpccpPath: '',
+                driverConfigPath: 'etc/config.test'
+            },
+            remote: {
+                activeServer: 'Alpha',
+                servers: []
+            }
+        })).toEqual({
+            mode: 'local',
+            local: {
+                useSystemCommand: true,
+                lpccpPath: '',
+                driverConfigPath: 'etc/config.test'
+            },
+            remote: {
+                activeServer: 'Alpha',
+                servers: []
+            }
+        });
+    });
+
+    test('addServer writes remote server into project config', async () => {
+        registerCommands(registry, context);
+        const handlers = getRegisteredHandlers();
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
+        (vscode.window.showInputBox as jest.Mock)
+            .mockResolvedValueOnce('Beta')
+            .mockResolvedValueOnce('http://127.0.0.1:8081')
+            .mockResolvedValueOnce('backup');
+
+        await handlers.get('lpc.addServer')?.();
+
+        expect(projectConfigService.updateCompileConfigForWorkspace).toHaveBeenCalledWith(
+            'D:/workspace',
+            expect.any(Function)
+        );
+        const updater = projectConfigService.updateCompileConfigForWorkspace.mock.calls[0][1];
+        expect(updater({
+            mode: 'remote',
+            local: {
+                useSystemCommand: false,
+                lpccpPath: '',
+                driverConfigPath: 'etc/config.test'
+            },
+            remote: {
+                activeServer: 'Alpha',
+                servers: [{ name: 'Alpha', url: 'http://127.0.0.1:8080', description: 'local' }]
+            }
+        })).toEqual({
+            mode: 'remote',
+            local: {
+                useSystemCommand: false,
+                lpccpPath: '',
+                driverConfigPath: 'etc/config.test'
+            },
+            remote: {
+                activeServer: 'Alpha',
+                servers: [
+                    { name: 'Alpha', url: 'http://127.0.0.1:8080', description: 'local' },
+                    { name: 'Beta', url: 'http://127.0.0.1:8081', description: 'backup' }
+                ]
+            }
+        });
     });
 
     test('openErrorLocation shows an error when no workspace folders are open', async () => {

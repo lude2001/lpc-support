@@ -125,8 +125,13 @@
         "category": "LPC"
       },
       {
+        "command": "lpc.manageCompilation",
+        "title": "编译管理",
+        "category": "LPC"
+      },
+      {
         "command": "lpc.manageServers",
-        "title": "管理编译服务器",
+        "title": "编译管理（兼容入口）",
         "category": "LPC"
       },
       {
@@ -226,7 +231,7 @@
         },
         {
           "when": "resourceLangId == lpc",
-          "command": "lpc.manageServers",
+          "command": "lpc.manageCompilation",
           "group": "LPC"
         },
         {
