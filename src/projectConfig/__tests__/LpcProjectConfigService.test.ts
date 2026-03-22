@@ -9,6 +9,19 @@ describe('LpcProjectConfigService', () => {
         const config: LpcProjectConfig = {
             version: 1,
             configHellPath: 'config.hell',
+            compile: {
+                mode: 'local',
+                local: {
+                    useSystemCommand: true,
+                    driverConfigPath: 'etc/config.test'
+                },
+                remote: {
+                    activeServer: 'Alpha',
+                    servers: [
+                        { name: 'Alpha', url: 'http://127.0.0.1:8080' }
+                    ]
+                }
+            },
             resolved: {
                 includeDirectories: ['/include']
             }
@@ -16,6 +29,9 @@ describe('LpcProjectConfigService', () => {
 
         expect(config.version).toBe(1);
         expect(config.configHellPath).toBe('config.hell');
+        expect(config.compile?.mode).toBe('local');
+        expect(config.compile?.local?.driverConfigPath).toBe('etc/config.test');
+        expect(config.compile?.remote?.activeServer).toBe('Alpha');
         expect(config.resolved?.includeDirectories).toEqual(['/include']);
     });
 
@@ -27,7 +43,18 @@ describe('LpcProjectConfigService', () => {
 
         fs.writeFileSync(configPath, JSON.stringify({
             version: 1,
-            configHellPath: 'config.hell'
+            configHellPath: 'config.hell',
+            compile: {
+                mode: 'local',
+                local: {
+                    useSystemCommand: true,
+                    driverConfigPath: 'etc/config.test'
+                },
+                remote: {
+                    activeServer: 'Alpha',
+                    servers: [{ name: 'Alpha', url: 'http://127.0.0.1:8080' }]
+                }
+            }
         }, null, 2));
         fs.writeFileSync(hellPath, [
             'name : 武侠黎明',
@@ -39,10 +66,14 @@ describe('LpcProjectConfigService', () => {
         const written = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
         expect(result?.configHellPath).toBe('config.hell');
+        expect(result?.compile?.mode).toBe('local');
+        expect(result?.compile?.local?.useSystemCommand).toBe(true);
+        expect(result?.compile?.remote?.servers).toEqual([{ name: 'Alpha', url: 'http://127.0.0.1:8080' }]);
         expect(result?.resolved?.includeDirectories).toEqual(['/include']);
         expect(result?.resolved?.simulatedEfunFile).toBe('/adm/single/simul_efun');
         expect(result?.lastSyncedAt).toBeDefined();
         expect(written.resolved.includeDirectories).toEqual(['/include']);
+        expect(written.compile.mode).toBe('local');
     });
 
     test('resolves mudlib-relative include and simulated efun paths for consumers', async () => {
@@ -97,5 +128,36 @@ describe('LpcProjectConfigService', () => {
         const service = new LpcProjectConfigService();
 
         await expect(service.loadForWorkspace(workspaceRoot)).resolves.toBeUndefined();
+    });
+
+    test('ensures compile config helpers create defaults and preserve resolved data', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-compile-defaults-'));
+        const configPath = path.join(workspaceRoot, 'lpc-support.json');
+        const service = new LpcProjectConfigService();
+
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell',
+            resolved: {
+                includeDirectories: ['/include']
+            }
+        }, null, 2));
+
+        const compileConfig = await service.getCompileConfigForWorkspace(workspaceRoot);
+        const written = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+        expect(compileConfig?.remote?.servers).toEqual([]);
+        expect(written.resolved.includeDirectories).toEqual(['/include']);
+        expect(written.compile.remote.servers).toEqual([]);
+    });
+
+    test('resolves workspace-relative compile paths', () => {
+        const workspaceRoot = path.join('D:', 'code', 'lpc-support');
+        const service = new LpcProjectConfigService();
+
+        expect(service.resolveWorkspacePath(workspaceRoot, 'tools/lpccp.exe'))
+            .toBe(path.resolve(workspaceRoot, 'tools/lpccp.exe'));
+        expect(service.toWorkspaceRelativePath(workspaceRoot, path.resolve(workspaceRoot, 'etc', 'config.test')))
+            .toBe(path.join('etc', 'config.test'));
     });
 });

@@ -1,7 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseConfigHell } from './configHellParser';
-import { LpcProjectConfig, LpcResolvedConfig } from './LpcProjectConfig';
+import {
+    LpcCompileConfig,
+    LpcProjectConfig,
+    LpcResolvedConfig
+} from './LpcProjectConfig';
 
 export class LpcProjectConfigService {
     public getProjectConfigPath(workspaceRoot: string): string {
@@ -91,6 +95,43 @@ export class LpcProjectConfigService {
         return synced ?? created;
     }
 
+    public async getCompileConfigForWorkspace(workspaceRoot: string): Promise<LpcCompileConfig | undefined> {
+        const configPath = this.getProjectConfigPath(workspaceRoot);
+        const existing = await this.readConfigFile(configPath);
+
+        if (!existing) {
+            return undefined;
+        }
+
+        const ensured = this.ensureCompileConfig(existing);
+        if (ensured !== existing) {
+            await this.writeConfigFile(configPath, ensured);
+        }
+
+        return ensured.compile;
+    }
+
+    public async updateCompileConfigForWorkspace(
+        workspaceRoot: string,
+        updater: (compileConfig: LpcCompileConfig) => LpcCompileConfig
+    ): Promise<LpcProjectConfig | undefined> {
+        const configPath = this.getProjectConfigPath(workspaceRoot);
+        const existing = await this.readConfigFile(configPath);
+
+        if (!existing) {
+            return undefined;
+        }
+
+        const ensured = this.ensureCompileConfig(existing);
+        const nextConfig: LpcProjectConfig = {
+            ...ensured,
+            compile: updater(ensured.compile ?? { remote: { servers: [] } })
+        };
+
+        await this.writeConfigFile(configPath, nextConfig);
+        return nextConfig;
+    }
+
     public async getResolvedForWorkspace(workspaceRoot: string): Promise<LpcResolvedConfig | undefined> {
         const config = await this.loadForWorkspace(workspaceRoot);
         return config?.resolved;
@@ -122,7 +163,7 @@ export class LpcProjectConfigService {
 
     private resolveMudlibPath(workspaceRoot: string, resolved: LpcResolvedConfig, targetPath: string): string {
         const mudlibDirectory = resolved.mudlibDirectory ?? '.';
-        const mudlibRoot = this.resolveWorkspaceRelativePath(workspaceRoot, mudlibDirectory);
+        const mudlibRoot = this.resolveWorkspacePath(workspaceRoot, mudlibDirectory);
 
         if (/^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\')) {
             return targetPath;
@@ -135,12 +176,25 @@ export class LpcProjectConfigService {
         return path.resolve(mudlibRoot, targetPath);
     }
 
-    private resolveWorkspaceRelativePath(workspaceRoot: string, targetPath: string): string {
+    public resolveWorkspacePath(workspaceRoot: string, targetPath: string): string {
         if (/^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\')) {
             return targetPath;
         }
 
         return path.resolve(workspaceRoot, targetPath);
+    }
+
+    public toWorkspaceRelativePath(workspaceRoot: string, targetPath: string): string {
+        if (!targetPath) {
+            return targetPath;
+        }
+
+        const relativePath = path.relative(workspaceRoot, targetPath);
+        if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+            return targetPath;
+        }
+
+        return relativePath || '.';
     }
 
     private resolveExistingCodePath(targetPath: string): string {
@@ -160,5 +214,24 @@ export class LpcProjectConfigService {
         }
 
         return targetPath;
+    }
+
+    private ensureCompileConfig(config: LpcProjectConfig): LpcProjectConfig {
+        const nextCompile: LpcCompileConfig = {
+            ...config.compile,
+            remote: {
+                ...config.compile?.remote,
+                servers: config.compile?.remote?.servers ?? []
+            }
+        };
+
+        if (config.compile?.remote?.servers) {
+            return config;
+        }
+
+        return {
+            ...config,
+            compile: nextCompile
+        };
     }
 }

@@ -111,6 +111,14 @@ export class LPCConfigManager {
         return this.config.servers.find(server => server.active);
     }
 
+    public getServers(): FluffOSServer[] {
+        return [...this.config.servers];
+    }
+
+    public getDefaultServerName(): string | undefined {
+        return this.config.defaultServer;
+    }
+
     public async removeServer(): Promise<void> {
         const items = this.getServerQuickPickItems();
         const selected = await vscode.window.showQuickPick(items, {

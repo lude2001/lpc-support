@@ -4,6 +4,7 @@ import * as path from 'path';
 import { LpcProjectConfigService } from '../LpcProjectConfigService';
 import {
     hasLegacyProjectSettings,
+    migrateLegacyCompilationConfigForWorkspace,
     migrateProjectConfigForWorkspace,
     shouldPromptProjectConfigMigration
 } from '../projectConfigMigration';
@@ -50,5 +51,38 @@ describe('projectConfigMigration', () => {
         expect(result.configHellPath).toBe('config.hell');
         expect(result.resolved?.includeDirectories).toEqual(['/include']);
         expect(written.resolved.includeDirectories).toEqual(['/include']);
+    });
+
+    test('migrates legacy remote compilation servers into project config', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-compile-migrate-'));
+        const configPath = path.join(workspaceRoot, 'lpc-support.json');
+        const service = new LpcProjectConfigService();
+        const legacyConfigManager = {
+            getServers: jest.fn().mockReturnValue([
+                { name: 'Alpha', url: 'http://127.0.0.1:8080', description: 'local', active: true },
+                { name: 'Beta', url: 'http://127.0.0.1:8081', description: 'backup', active: false }
+            ]),
+            getDefaultServerName: jest.fn().mockReturnValue('Alpha')
+        };
+
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }, null, 2));
+
+        const result = await migrateLegacyCompilationConfigForWorkspace(
+            service,
+            workspaceRoot,
+            legacyConfigManager as any
+        );
+        const written = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+        expect(result?.compile?.mode).toBe('remote');
+        expect(result?.compile?.remote?.activeServer).toBe('Alpha');
+        expect(result?.compile?.remote?.servers).toEqual([
+            { name: 'Alpha', url: 'http://127.0.0.1:8080', description: 'local' },
+            { name: 'Beta', url: 'http://127.0.0.1:8081', description: 'backup' }
+        ]);
+        expect(written.compile.remote.servers).toHaveLength(2);
     });
 });
