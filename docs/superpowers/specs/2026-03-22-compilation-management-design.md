@@ -1,77 +1,77 @@
-# Compilation Management Design
+# 编译管理设计
 
-Date: 2026-03-22
+日期：2026-03-22
 
-## Background
+## 背景
 
-The extension currently treats compilation as a remote-server-only workflow:
+当前扩展把“编译”基本等同于“远程编译服务器”工作流：
 
-- `src/compiler.ts` sends HTTP requests to `/update_code/update_file`
-- server definitions live in global storage via `lpc-servers.json`
-- the command surface is still framed as "manage compilation servers"
+- [`src/compiler.ts`](D:/code/lpc-support/src/compiler.ts) 通过 `/update_code/update_file` 发起 HTTP 请求
+- 服务器定义保存在全局存储 `lpc-servers.json`
+- 命令与界面文案仍然以“管理编译服务器”为中心
 
-That model no longer matches current development-driver workflows. The driver now supports `lpccp`, which provides local runtime compilation for both a single file and a directory, with structured JSON output. At the same time, project configuration is already moving toward `lpc-support.json` as the preferred project-level source of truth.
+这个模型已经不再完全匹配当前开发驱动场景。现在 driver 已支持 `lpccp`，可以在本地连接运行中的编译服务，对单文件或目录执行运行时重编译，并以 JSON 返回结构化结果。同时，项目配置也已经开始收敛到项目根目录的 `lpc-support.json`。
 
-This design upgrades compilation from "server management" to "compilation management", while preserving remote compilation and adding a first-class local `lpccp` mode.
+这次设计的目标，是把“服务器管理”升级为“编译管理”：在保留远程 HTTP 编译能力的前提下，新增本地 `lpccp` 编译模式，并把本地和远程两套配置统一纳入 `lpc-support.json`。
 
-## Goals
+## 目标
 
-- Rename the user-facing management entry from "管理编译服务器" to "编译管理"
-- Keep existing remote HTTP compilation support
-- Add local compilation support through `lpccp`
-- Allow local mode to either:
-  - use `lpccp` from `PATH`, or
-  - use an explicit executable path
-- Store both local and remote compilation configuration in project-level `lpc-support.json`
-- Route both file and folder compilation through a unified compilation management layer
-- Use `lpccp` native directory compilation instead of per-file folder fan-out when local mode is active
+- 将用户可见的“管理编译服务器”更名为“编译管理”
+- 保留现有远程 HTTP 编译支持
+- 新增基于 `lpccp` 的本地编译支持
+- 本地模式支持两种方式：
+  - 直接使用环境变量中的 `lpccp`
+  - 指定 `lpccp` 可执行文件路径
+- 本地与远程编译配置统一写入项目级 `lpc-support.json`
+- `compileFile` / `compileFolder` 统一走一个编译管理层
+- 本地目录编译优先使用 `lpccp` 原生目录能力，而不是逐文件 fan-out
 
-## Non-Goals
+## 非目标
 
-- Replacing the diagnostics pipeline outside compile-triggered diagnostics
-- Changing parser / syntax / semantic responsibilities
-- Removing legacy settings immediately in this change
-- Introducing a new parser or static compilation flow
+- 不修改 compile 之外的 diagnostics 主链路
+- 不改变 parser / syntax / semantic 的职责边界
+- 本次不立即移除所有 legacy 设置
+- 不引入新的离线编译器或静态编译流程
 
-## User Experience
+## 用户体验
 
-### Commands
+### 命令
 
-Introduce a new primary command:
+新增主命令：
 
 - `lpc.manageCompilation`
 
-User-facing title:
+用户可见标题：
 
 - `编译管理`
 
-Compatibility:
+兼容策略：
 
-- Keep `lpc.manageServers` registered temporarily as a compatibility alias
-- Route `lpc.manageServers` internally to the new compilation management flow
+- 暂时保留 `lpc.manageServers`
+- `lpc.manageServers` 内部直接转发到新的编译管理流程
 
-Other commands remain:
+现有编译命令保留：
 
 - `lpc.compileFile`
 - `lpc.compileFolder`
 
-### Management Flow
+### 管理流程
 
-The `编译管理` entry opens a Quick Pick based flow:
+`编译管理` 入口使用 Quick Pick 两层交互：
 
-1. Choose current compilation mode
+1. 先选择当前编译模式
    - `本地编译 (lpccp)`
    - `远程编译 (HTTP)`
-2. Then choose mode-specific actions
+2. 再进入对应模式的管理动作
 
-Local mode actions:
+本地模式动作：
 
 - `切换为使用系统命令`
 - `设置 lpccp 路径`
 - `设置 driver config 路径`
 - `查看当前本地编译配置`
 
-Remote mode actions:
+远程模式动作：
 
 - `选择活动服务器`
 - `添加服务器`
@@ -79,11 +79,11 @@ Remote mode actions:
 - `删除服务器`
 - `查看当前远程编译配置`
 
-The selected mode becomes the active compilation mode and is persisted to `lpc-support.json`.
+用户在这里选定的模式会成为当前活动编译模式，并持久化回 `lpc-support.json`。
 
-## Configuration Model
+## 配置模型
 
-Extend `lpc-support.json` with a new `compile` section:
+在 `lpc-support.json` 中新增 `compile` 配置块：
 
 ```json
 {
@@ -110,7 +110,7 @@ Extend `lpc-support.json` with a new `compile` section:
 }
 ```
 
-### Proposed Types
+### 建议类型
 
 ```ts
 interface LpcCompileLocalConfig {
@@ -137,124 +137,120 @@ interface LpcCompileConfig {
 }
 ```
 
-The project config root adds:
+项目配置根类型新增：
 
 ```ts
 compile?: LpcCompileConfig;
 ```
 
-### Path Rules
+### 路径规则
 
-- `driverConfigPath` should be stored relative to workspace root whenever practical
-- `lpccpPath` may be empty when `useSystemCommand` is enabled
-- if `lpccpPath` is provided and relative, resolve it relative to workspace root
+- `driverConfigPath` 应尽量以相对工作区路径保存
+- 当 `useSystemCommand` 为 `true` 时，`lpccpPath` 可为空
+- 当 `lpccpPath` 有值且为相对路径时，按工作区根目录解析
 
-## Architecture
+## 架构设计
 
-### High-Level Direction
+### 高层方向
 
-Compilation should no longer be hardwired to one transport. Introduce a small compile-management layer that:
+编译逻辑不应继续被单一传输方式写死。需要引入一个小型的编译管理层，负责：
 
-- loads project-level compile settings
-- selects the active backend
-- executes compilation
-- normalizes results into VS Code diagnostics and output messages
+- 加载项目级编译配置
+- 选择当前活跃的编译后端
+- 执行编译
+- 将结果统一映射为 VS Code diagnostics 和输出通道信息
 
-### Proposed Services
+### 建议服务划分
 
-Keep the user-facing `LPCCompiler` entry if desired for compatibility, but refactor internals so it delegates to backend-specific executors.
-
-Recommended structure:
+可以保留现有 `LPCCompiler` 作为对外入口，但内部应重构为按后端委派：
 
 - `CompilationService`
-  - orchestration entry for `compileFile` and `compileFolder`
-  - loads `lpc-support.json`
-  - chooses backend based on `compile.mode`
+  - `compileFile` / `compileFolder` 的统一编排入口
+  - 负责读取 `lpc-support.json`
+  - 按 `compile.mode` 选择后端
 - `RemoteCompilationBackend`
-  - wraps current HTTP behavior
+  - 封装当前 HTTP 编译逻辑
 - `LocalLpccpCompilationBackend`
-  - invokes `lpccp`
-  - parses stdout JSON / stderr / exit codes
+  - 调用 `lpccp`
+  - 解析 stdout JSON、stderr 和退出码
 
-This can live either as new files or as a staged refactor inside `src/compiler.ts`, but the target shape should preserve a clear backend boundary.
+这部分既可以拆成新文件，也可以先在 [`src/compiler.ts`](D:/code/lpc-support/src/compiler.ts) 内部分阶段重构，但目标形态应保持后端边界清晰。
 
-## Execution Model
+## 执行模型
 
-### Shared Preparation
+### 共享前置步骤
 
-Both `compileFile` and `compileFolder` should:
+`compileFile` 和 `compileFolder` 都应先完成：
 
-- determine workspace root
-- load project config through `LpcProjectConfigService`
-- determine current compile mode
-- resolve LPC/MUD path from workspace-relative path
+- 解析工作区根目录
+- 通过 `LpcProjectConfigService` 加载项目配置
+- 确定当前编译模式
+- 将工作区相对路径转换为 LPC / MUD 路径
 
-### Remote Mode
+### 远程模式
 
-Remote mode preserves current behavior with one improvement:
+远程模式保留当前行为，但做一个关键调整：
 
-- it reads server list and active server from `lpc-support.json`, not global `lpc-servers.json`
+- 服务器列表与活动服务器改为从 `lpc-support.json` 读取，而不是继续依赖全局 `lpc-servers.json`
 
-Folder compilation in remote mode may continue to use the existing file fan-out behavior in this change, unless later remote protocol support adds a true directory endpoint.
+本次变更中，远程目录编译仍可继续使用现有逐文件 fan-out 行为，除非后续远程协议补齐目录级编译接口。
 
-### Local Mode
+### 本地模式
 
-Single-file command:
+单文件编译命令：
 
 ```bash
 lpccp <config-path> <mud-path>
 ```
 
-Directory command:
+目录编译命令：
 
 ```bash
 lpccp <config-path> <mud-dir>
 ```
 
-Execution rules:
+执行规则：
 
-- if `useSystemCommand` is `true`, launch `lpccp`
-- otherwise launch configured executable path
-- pass the resolved driver config path as the first positional argument
-- pass the MUD path or directory as the second positional argument
+- `useSystemCommand === true` 时直接调用 `lpccp`
+- 否则调用配置中的可执行文件路径
+- 第一个位置参数为解析后的 driver config 路径
+- 第二个位置参数为目标 MUD 文件或目录
 
-Implementation should use Node child process APIs, capture:
+实现上应使用 Node 的 child process API，并捕获：
 
 - stdout
 - stderr
 - exit code
 
-## Result Normalization
+## 结果归一化
 
-`lpccp` stdout is JSON and should be treated as the primary structured response.
+`lpccp` 的 stdout 始终是 JSON，应作为主要结构化结果源。
 
-### Exit Code Handling
+### 退出码处理
 
-- `0`: request succeeded and top-level `ok: true`
-- `1`: request completed but compilation returned errors; still parse stdout JSON and surface diagnostics
-- `2`: local connection or request-level failure; treat stderr as the primary error surface and show actionable guidance
+- `0`：请求成功，且顶层 `ok: true`
+- `1`：请求已送达，但编译返回失败；仍要解析 stdout JSON 并展示 diagnostics
+- `2`：本地连接或请求级失败；以 stderr 为主，并给出 driver/config 检查提示
 
-### File Response Mapping
+### 单文件响应映射
 
-Map file diagnostics to the current document URI.
-
-Expected JSON fields:
+重点字段：
 
 - `ok`
 - `kind: "file"`
 - `target`
 - `diagnostics`
 
-Each diagnostic should map to `vscode.Diagnostic` using:
+每条诊断映射到 `vscode.Diagnostic` 时：
 
-- `severity: "warning"` -> `DiagnosticSeverity.Warning`
-- otherwise -> `DiagnosticSeverity.Error`
+- `severity: "warning"` 映射为 `DiagnosticSeverity.Warning`
+- 其他情况默认映射为 `DiagnosticSeverity.Error`
 
-When line information is missing or invalid, fall back to line 0.
+如果行号缺失或非法，回退到第 0 行。
 
-### Directory Response Mapping
+### 目录响应映射
 
-Expected JSON fields:
+重点字段：
 
 - `ok`
 - `kind: "directory"`
@@ -263,135 +259,141 @@ Expected JSON fields:
 - `files_failed`
 - `results`
 
-Behavior:
+行为约定：
 
-- aggregate success/failure summary into the output channel
-- for every result entry, map diagnostics back to its corresponding workspace file URI
-- clear diagnostics for files that compiled successfully and were included in the response
+- 将整体成功/失败统计写入 output channel
+- 遍历 `results`，把每个文件的 diagnostics 映射回工作区内对应 URI
+- 对本次返回中成功编译的文件清除旧 diagnostics
 
-### Output Channel Behavior
+### 输出通道行为
 
-Continue using the LPC compiler output channel and print:
+继续复用现有 LPC Compiler 输出通道，并打印：
 
-- active mode
-- resolved command or server target
-- compile target
-- high-level summary
-- stderr or request-level failures when execution fails
+- 当前编译模式
+- 实际命令或服务器目标
+- 编译目标
+- 高层摘要
+- stderr 或请求级失败信息
 
-## Migration Strategy
+## 迁移策略
 
-### Existing Project Config Migration
+### 已有项目配置的增量初始化
 
-When `lpc-support.json` already exists but does not contain `compile`, initialize it lazily when the user opens `编译管理` or triggers compilation.
+如果 `lpc-support.json` 已存在但尚未包含 `compile` 字段，则在以下时机惰性初始化：
 
-Default initialization:
+- 用户打开 `编译管理`
+- 用户执行 `compileFile`
+- 用户执行 `compileFolder`
 
-- if legacy remote server config exists, initialize `compile.remote` from it
-- otherwise initialize empty remote config
-- default `compile.mode` to:
-  - `remote` when remote servers are available
-  - otherwise `local` only if local config is explicitly created by the user
+默认初始化策略：
 
-### Global Server Migration
+- 如果存在 legacy 远程服务器配置，则先初始化 `compile.remote`
+- 否则初始化为空远程配置
+- `compile.mode` 默认值：
+  - 有远程服务器时默认 `remote`
+  - 否则只有在用户显式创建本地配置后才切到 `local`
 
-Current remote server definitions live in global storage (`lpc-servers.json`).
+### 全局服务器迁移
 
-Migration approach:
+现有远程服务器定义仍在全局存储 `lpc-servers.json` 中。
 
-1. Read legacy server config through `LPCConfigManager`
-2. On first compilation-management load for a workspace, if `compile.remote.servers` is missing or empty:
-   - import legacy servers into project config
-   - preserve legacy active server as `compile.remote.activeServer`
-3. Write migrated values to `lpc-support.json`
-4. Continue reading from project config as the new source of truth
+迁移方式：
 
-This keeps migration automatic and minimizes user re-entry.
+1. 通过 `LPCConfigManager` 读取 legacy 服务器配置
+2. 首次加载某个工作区的编译管理时，如果 `compile.remote.servers` 缺失或为空：
+   - 将 legacy 服务器导入项目配置
+   - 将 legacy 活动服务器写入 `compile.remote.activeServer`
+3. 将迁移结果写回 `lpc-support.json`
+4. 后续统一以项目配置为编译真源
 
-### Legacy Setting Prompt Logic
+这样可以避免让用户手工重新录入远程服务器。
 
-Migration detection should expand from:
+### legacy 提示逻辑
+
+现有迁移检测只关注：
 
 - `lpc.includePath`
 - `lpc.simulatedEfunsPath`
 - `lpc.driver.command`
 
-to also consider legacy compilation server storage when useful for messaging. The prompt can remain focused on `lpc-support.json` as the project-level source of truth.
+本次可以在提示逻辑中补充考虑 legacy 编译服务器来源，但提示主旨仍保持为：
 
-## Validation Rules
+- 推荐迁移到项目根目录 `lpc-support.json`
 
-Before running local compilation:
+## 校验规则
 
-- require `driverConfigPath`
-- require either `useSystemCommand === true` or a non-empty `lpccpPath`
+本地编译前需要校验：
 
-Helpful errors:
+- `driverConfigPath` 必填
+- `useSystemCommand === true` 或 `lpccpPath` 非空
 
-- missing config path
-- missing executable path when system command is disabled
-- failed process spawn
-- invalid JSON from `lpccp`
-- workspace root unavailable
+需要给出清晰报错的场景：
 
-Before running remote compilation:
+- 缺少 config 路径
+- 未勾选系统命令且缺少可执行文件路径
+- 进程启动失败
+- `lpccp` 返回非法 JSON
+- 无法确定工作区根目录
 
-- require at least one configured server
-- require an active server or pick the first server as fallback
+远程编译前需要校验：
 
-## Testing Plan
+- 至少存在一个服务器
+- 必须有活动服务器，或自动回退到第一个服务器
 
-### Unit Tests
+## 测试方案
 
-Add focused tests for:
+### 单元测试
 
-- project config read/write of `compile` section
-- migration from legacy global remote servers into project config
-- command registration rename and compatibility alias
-- local mode command resolution
-- local mode exit code and JSON parsing behavior
-- remote mode loading from project config instead of global file
+新增或补充以下测试：
 
-Likely files:
+- `compile` 配置块的读写
+- legacy 全局服务器迁移到项目配置
+- 命令注册更名与兼容别名
+- 本地模式命令解析
+- 本地模式退出码与 JSON 解析
+- 远程模式从项目配置而不是全局文件读取服务器
 
-- `src/projectConfig/__tests__/LpcProjectConfigService.test.ts`
-- `src/projectConfig/__tests__/projectConfigMigration.test.ts`
-- `src/modules/__tests__/commandModule.test.ts`
-- new compile-management tests near compiler implementation
+建议重点覆盖文件：
 
-### Behavior Tests
+- [`src/projectConfig/__tests__/LpcProjectConfigService.test.ts`](D:/code/lpc-support/src/projectConfig/__tests__/LpcProjectConfigService.test.ts)
+- [`src/projectConfig/__tests__/projectConfigMigration.test.ts`](D:/code/lpc-support/src/projectConfig/__tests__/projectConfigMigration.test.ts)
+- [`src/modules/__tests__/commandModule.test.ts`](D:/code/lpc-support/src/modules/__tests__/commandModule.test.ts)
+- 编译实现附近新增 compile-management 相关测试
 
-Cover:
+### 行为测试
 
-- `lpc.compileFile` using local mode with `useSystemCommand`
-- `lpc.compileFile` using local mode with explicit executable path
-- `lpc.compileFolder` using local mode and directory JSON results
-- `lpc.compileFile` using remote mode after migration to project config
+覆盖以下场景：
 
-Mocks should verify:
+- `lpc.compileFile` 在本地模式下使用系统命令
+- `lpc.compileFile` 在本地模式下使用显式可执行路径
+- `lpc.compileFolder` 在本地模式下消费目录 JSON 返回
+- `lpc.compileFile` 在远程模式下走项目配置中的迁移后服务器
 
-- spawned command and arguments
-- diagnostics written for reported files
-- output channel summary messages
+mock 重点验证：
 
-## Risks
+- 实际调用的命令与参数
+- 返回 diagnostics 后是否正确写入
+- output channel 是否输出摘要
 
-- Mixing global legacy server storage and project config during migration could create confusing precedence if not made explicit
-- Folder result mapping must correctly translate MUD paths back to workspace file paths
-- `lpccp` JSON parse failures need clear fallback logging to avoid silent failures
-- local executable path handling must work on Windows path conventions
+## 风险
 
-## Rollout Notes
+- legacy 全局服务器与项目配置在迁移期并存时，若优先级不明确，可能让用户困惑
+- 目录编译结果需要准确把 MUD 路径映射回工作区文件路径
+- `lpccp` JSON 解析失败时必须有清晰的兜底日志
+- Windows 下本地可执行路径处理需要稳妥
 
-- Keep `lpc.manageServers` as a compatibility alias for this release
-- update command titles and README wording from "管理编译服务器" to "编译管理"
-- document `lpccp` local mode requirements and examples
+## 落地说明
 
-## Recommended Implementation Order
+- 本次版本中继续保留 `lpc.manageServers` 作为兼容别名
+- README 与命令文案统一从“管理编译服务器”更新为“编译管理”
+- 文档中补充 `lpccp` 本地模式的配置方式和示例
 
-1. Extend project config types and service helpers for `compile`
-2. Add migration from legacy remote server storage into `lpc-support.json`
-3. Refactor compiler into a mode-aware orchestration layer
-4. Implement local `lpccp` backend
-5. Update command surface and menus to `编译管理`
-6. Add tests
-7. Update README / changelog
+## 推荐实施顺序
+
+1. 扩展项目配置类型与 `LpcProjectConfigService`，支持 `compile`
+2. 增加 legacy 远程服务器向 `lpc-support.json` 的迁移
+3. 将编译器重构为按模式分发的编排层
+4. 实现本地 `lpccp` 编译后端
+5. 更新命令、菜单和文案为“编译管理”
+6. 补齐测试
+7. 更新 README / CHANGELOG
