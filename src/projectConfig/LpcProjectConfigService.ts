@@ -115,7 +115,9 @@ export class LpcProjectConfigService {
             return undefined;
         }
 
-        return this.resolveMudlibPath(workspaceRoot, resolved, resolved.simulatedEfunFile);
+        return this.resolveExistingCodePath(
+            this.resolveMudlibPath(workspaceRoot, resolved, resolved.simulatedEfunFile)
+        );
     }
 
     private resolveMudlibPath(workspaceRoot: string, resolved: LpcResolvedConfig, targetPath: string): string {
@@ -139,5 +141,24 @@ export class LpcProjectConfigService {
         }
 
         return path.resolve(workspaceRoot, targetPath);
+    }
+
+    private resolveExistingCodePath(targetPath: string): string {
+        if (fs.existsSync(targetPath)) {
+            return targetPath;
+        }
+
+        if (path.extname(targetPath)) {
+            return targetPath;
+        }
+
+        const candidates = [`${targetPath}.c`, `${targetPath}.h`];
+        for (const candidate of candidates) {
+            if (fs.existsSync(candidate)) {
+                return candidate;
+            }
+        }
+
+        return targetPath;
     }
 }

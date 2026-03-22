@@ -53,6 +53,7 @@ describe('LpcProjectConfigService', () => {
 
         fs.mkdirSync(path.join(workspaceRoot, 'include'));
         fs.mkdirSync(path.join(workspaceRoot, 'adm', 'single'), { recursive: true });
+        fs.writeFileSync(path.join(workspaceRoot, 'adm', 'single', 'simul_efun.c'), 'int sim_helper() { return 1; }');
         fs.writeFileSync(configPath, JSON.stringify({
             version: 1,
             configHellPath: 'config.hell'
@@ -68,7 +69,7 @@ describe('LpcProjectConfigService', () => {
         await expect(service.getIncludeDirectoriesForWorkspace(workspaceRoot))
             .resolves.toEqual([path.join(workspaceRoot, 'include')]);
         await expect(service.getSimulatedEfunFileForWorkspace(workspaceRoot))
-            .resolves.toBe(path.join(workspaceRoot, 'adm', 'single', 'simul_efun'));
+            .resolves.toBe(path.join(workspaceRoot, 'adm', 'single', 'simul_efun.c'));
     });
 
     test('keeps previous resolved fields when config.hell is missing', async () => {

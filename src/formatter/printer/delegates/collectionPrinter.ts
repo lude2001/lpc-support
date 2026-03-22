@@ -3,8 +3,6 @@ import { FormatNode } from '../../model/formatNodes';
 import { PrintContext } from '../PrintContext';
 import { PrintDelegate, PrinterContext } from '../PrinterContext';
 import {
-    containsCommentSyntax,
-    hasPreservableTrivia,
     normalizeInlineText,
     prefixMultiline
 } from '../printerUtils';
@@ -92,55 +90,6 @@ export function printStructInitializer(
     const [identifier, value] = node.children;
     const prefix = `${context.indent()}${identifier?.name ?? normalizeInlineText(identifier?.text ?? '')} : `;
     return prefixMultiline(prefix, ctx.renderStructuredValue(value, context), context.indent());
-}
-
-export function tryRenderCompactArrayLiteral(
-    node: FormatNode,
-    context: PrintContext,
-    ctx: PrinterContext
-): string | undefined {
-    if (node.syntaxKind !== SyntaxKind.ArrayLiteralExpression || !canRenderCompactArrayLiteral(node, context, ctx)) {
-        return undefined;
-    }
-
-    const items = getArrayItems(node);
-    if (items.length === 0) {
-        return '({})';
-    }
-
-    return `({ ${items.map((item) => ctx.renderInlineExpression(item, context)).join(', ')} })`;
-}
-
-export function canRenderCompactArrayLiteral(
-    node: FormatNode,
-    context: PrintContext,
-    ctx: PrinterContext
-): boolean {
-    if (hasPreservableTrivia(node) || containsCommentSyntax(node.text)) {
-        return false;
-    }
-
-    return getArrayItems(node).every((item) => canRenderCompactArrayItem(item, context, ctx));
-}
-
-export function canRenderCompactArrayItem(
-    node: FormatNode,
-    context: PrintContext,
-    ctx: PrinterContext
-): boolean {
-    if (hasPreservableTrivia(node) || containsCommentSyntax(node.text)) {
-        return false;
-    }
-
-    switch (node.syntaxKind) {
-    case SyntaxKind.ArrayLiteralExpression:
-    case SyntaxKind.MappingLiteralExpression:
-    case SyntaxKind.NewExpression:
-    case SyntaxKind.AnonymousFunctionExpression:
-        return false;
-    default:
-        return !ctx.renderInlineExpression(node, context).includes('\n');
-    }
 }
 
 export function getArrayItems(node: FormatNode): readonly FormatNode[] {

@@ -37,8 +37,6 @@ jest.mock('../../parser/ParsedDocumentService', () => ({
 
 describe('registerCommands', () => {
     const expectedCommandIds = [
-        'lpc.efunDocsSettings',
-        'lpc-support.checkUnusedVariables',
         'lpc.scanFolder',
         'lpc.showFunctionDoc',
         'lpc.errorTree.refresh',
@@ -50,20 +48,14 @@ describe('registerCommands', () => {
         'lpc.errorTree.openErrorLocation',
         'lpc.errorTree.copyError',
         'lpc.compileFolder',
-        'lpc.showParseTree',
-        'lpc.debugParseErrors',
-        'lpc.scanInheritance',
         'lpc.addServer',
         'lpc.selectServer',
         'lpc.removeServer',
         'lpc.manageServers',
         'lpc.compileFile',
-        'lpc.showMacros',
         'lpc.configureMacroPath',
         'lpc.migrateProjectConfig',
-        'lpc.startDriver',
-        'lpc.showPerformanceStats',
-        'lpc.clearCache'
+        'lpc.startDriver'
     ];
 
     let registry: ServiceRegistry;
@@ -234,41 +226,25 @@ describe('registerCommands', () => {
         } as vscode.TextDocument;
         (vscode.window as any).activeTextEditor = { document: activeDocument };
 
-        handlers.get('lpc-support.checkUnusedVariables')?.();
         handlers.get('lpc.scanFolder')?.();
         handlers.get('lpc.showFunctionDoc')?.();
         await handlers.get('lpc.compileFile')?.();
         await handlers.get('lpc.compileFolder')?.({ fsPath: 'D:/workspace/project' } as vscode.Uri);
-        handlers.get('lpc.scanInheritance')?.();
-        handlers.get('lpc.showMacros')?.();
         handlers.get('lpc.configureMacroPath')?.();
         await handlers.get('lpc.migrateProjectConfig')?.();
         handlers.get('lpc.errorTree.refresh')?.();
-        handlers.get('lpc.showPerformanceStats')?.();
-        handlers.get('lpc.clearCache')?.();
 
-        expect(diagnostics.analyzeDocument).toHaveBeenCalledWith(activeDocument, true);
         expect(diagnostics.scanFolder).toHaveBeenCalledTimes(1);
-        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('已完成未使用变量检查');
         expect(FunctionDocPanel.createOrShow).toHaveBeenCalledWith(context, macroManager);
         expect(compiler.compileFile).toHaveBeenCalledWith(activeDocument.fileName);
         expect(LPCConfigManager).toHaveBeenCalledWith(context);
         expect(LPCCompiler).toHaveBeenCalledWith(freshConfigManager);
         expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('D:/workspace');
         expect(freshCompiler.compileFolder).toHaveBeenCalledWith('D:/workspace/project');
-        expect(completionProvider.scanInheritance).toHaveBeenCalledWith(activeDocument);
-        expect(macroManager.showMacrosList).toHaveBeenCalledTimes(1);
         expect(macroManager.configurePath).toHaveBeenCalledTimes(1);
         expect(projectConfigService.ensureConfigForWorkspace).toHaveBeenCalledWith('D:/workspace', 'config.hell');
         expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
-        expect(parsedDocumentService.getStats).toHaveBeenCalledTimes(1);
-        expect(completionInstrumentation.showReport).toHaveBeenCalledWith({ size: 2, memory: 2048 });
-        expect(completionInstrumentation.formatSummary).toHaveBeenCalledWith({ size: 2, memory: 2048 });
-        expect(clearGlobalParsedDocumentService).toHaveBeenCalledTimes(1);
-        expect(completionProvider.clearCache).toHaveBeenCalledTimes(1);
-        expect(completionInstrumentation.clear).toHaveBeenCalledTimes(1);
         expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('已创建并同步 lpc-support.json');
-        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('LPC 解析与补全缓存已清理');
     });
 
     test('compileFolder shows an error and skips compiler setup when no workspace folders are open', async () => {
@@ -355,19 +331,4 @@ describe('registerCommands', () => {
         );
     });
 
-    test('warns instead of scanning inheritance for a non-lpc editor', () => {
-        registerCommands(registry, context);
-        const handlers = getRegisteredHandlers();
-        (vscode.window as any).activeTextEditor = {
-            document: {
-                fileName: 'D:/code/lpc-support/test/example.txt',
-                languageId: 'plaintext'
-            }
-        };
-
-        handlers.get('lpc.scanInheritance')?.();
-
-        expect(completionProvider.scanInheritance).not.toHaveBeenCalled();
-        expect(vscode.window.showWarningMessage).toHaveBeenCalledWith('请在LPC文件中使用此命令');
-    });
 });

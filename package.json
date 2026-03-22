@@ -91,10 +91,6 @@
         "category": "LPC"
       },
       {
-        "command": "lpc-support.checkUnusedVariables",
-        "title": "检查未使用的变量"
-      },
-      {
         "command": "lpc.showVariables",
         "title": "显示所有 LPC 变量"
       },
@@ -134,11 +130,6 @@
         "category": "LPC"
       },
       {
-        "command": "lpc.showMacros",
-        "title": "显示所有宏定义",
-        "category": "LPC"
-      },
-      {
         "command": "lpc.configureMacroPath",
         "title": "配置宏定义目录",
         "category": "LPC"
@@ -154,16 +145,6 @@
         "category": "LPC"
       },
       {
-        "command": "lpc.efunDocsSettings",
-        "title": "efun文档设置",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.scanInheritance",
-        "title": "扫描继承关系",
-        "category": "LPC"
-      },
-      {
         "command": "lpc.showFunctionDoc",
         "title": "显示函数文档面板",
         "category": "LPC",
@@ -171,26 +152,6 @@
           "light": "./media/function-doc-light.svg",
           "dark": "./media/function-doc-dark.svg"
         }
-      },
-      {
-        "command": "lpc.showParseTree",
-        "title": "调试：显示 LPC 解析树",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.debugParseErrors",
-        "title": "调试：解析错误详情",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.showPerformanceStats",
-        "title": "显示性能统计",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.clearCache",
-        "title": "清理解析缓存",
-        "category": "LPC"
       },
       {
         "command": "lpc.generateJavadoc",
@@ -260,48 +221,12 @@
       "editor/context": [
         {
           "when": "resourceLangId == lpc",
-          "command": "lpc-support.checkUnusedVariables",
-          "group": "1_modification"
-        },
-        {
-          "when": "editorLangId == lpc",
-          "command": "lpc.showVariables",
-          "group": "navigation"
-        },
-        {
-          "when": "resourceLangId == lpc",
           "command": "lpc.compileFile",
           "group": "LPC"
         },
         {
           "when": "resourceLangId == lpc",
           "command": "lpc.manageServers",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.showMacros",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.efunDocsSettings",
-          "label": "efun文档设置",
-          "group": "LPC@1"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.scanInheritance",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.showPerformanceStats",
-          "group": "LPC"
-        },
-        {
-          "when": "resourceLangId == lpc",
-          "command": "lpc.clearCache",
           "group": "LPC"
         },
         {

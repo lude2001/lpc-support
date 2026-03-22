@@ -115,7 +115,10 @@ export function renderBinaryExpression(
     }
 
     if (operator === 'concat') {
-        return `${ctx.renderExpression(left, context)}${ctx.renderExpression(right, context)}`;
+        const renderedLeft = ctx.renderExpression(left, context);
+        const renderedRight = ctx.renderExpression(right, context);
+        const separator = needsConcatSeparator(renderedLeft, renderedRight) ? ' ' : '';
+        return `${renderedLeft}${separator}${renderedRight}`;
     }
 
     if (operator === ',') {
@@ -123,6 +126,14 @@ export function renderBinaryExpression(
     }
 
     return `${ctx.renderExpression(left, context)} ${operator} ${ctx.renderExpression(right, context)}`;
+}
+
+function needsConcatSeparator(left: string, right: string): boolean {
+    if (!left || !right) {
+        return false;
+    }
+
+    return /[A-Za-z0-9_]$/.test(left) && /^[A-Za-z_]/.test(right);
 }
 
 export function renderAssignmentExpression(

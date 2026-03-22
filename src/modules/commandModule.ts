@@ -1,20 +1,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { CharStreams, CommonTokenStream } from 'antlr4ts';
 import { LPCCompiler } from '../compiler';
 import { LPCConfigManager } from '../config';
 import { Services } from '../core/ServiceKeys';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import type { ErrorServerConfig } from '../errorTreeDataProvider';
 import { FunctionDocPanel } from '../functionDocPanel';
-import { LPCLexer } from '../antlr/LPCLexer';
-import { LPCParser } from '../antlr/LPCParser';
-import { DebugErrorListener } from '../parser/DebugErrorListener';
-import { getParseTreeString } from '../parser/ParseTreePrinter';
-import {
-    clearGlobalParsedDocumentService,
-    getGlobalParsedDocumentService
-} from '../parser/ParsedDocumentService';
 import {
     migrateProjectConfigForWorkspace,
     shouldPromptProjectConfigMigration
@@ -39,32 +30,6 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
         await migrateProjectConfigForWorkspace(projectConfigService, workspaceRoot);
         vscode.window.showInformationMessage('已创建并同步 lpc-support.json');
-    });
-
-    register(context, 'lpc.efunDocsSettings', async () => {
-        const items = [
-            {
-                label: '配置模拟函数库目录',
-                description: '设置本地模拟函数库的目录路径',
-                command: 'lpc.configureSimulatedEfuns'
-            }
-        ];
-
-        const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: 'efun文档设置'
-        });
-
-        if (selected) {
-            vscode.commands.executeCommand(selected.command);
-        }
-    });
-
-    register(context, 'lpc-support.checkUnusedVariables', () => {
-        const editor = vscode.window.activeTextEditor;
-        if (editor) {
-            diagnostics.analyzeDocument(editor.document, true);
-            vscode.window.showInformationMessage('已完成未使用变量检查');
-        }
     });
 
     register(context, 'lpc.scanFolder', () => {
@@ -248,71 +213,6 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         await new LPCCompiler(new LPCConfigManager(context)).compileFolder(targetFolder);
     });
 
-    register(context, 'lpc.showParseTree', () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor || editor.document.languageId !== 'lpc') {
-            vscode.window.showWarningMessage('请在 LPC 文件中使用此命令。');
-            return;
-        }
-
-        try {
-            const parseTree = getParseTreeString(editor.document.getText());
-            const output = vscode.window.createOutputChannel('LPC ParseTree');
-            output.clear();
-            output.appendLine(parseTree);
-            output.show(true);
-        } catch (error: any) {
-            vscode.window.showErrorMessage(`解析 LPC 代码时发生错误: ${error.message || error}`);
-        }
-    });
-
-    register(context, 'lpc.debugParseErrors', () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor || editor.document.languageId !== 'lpc') {
-            vscode.window.showWarningMessage('请在 LPC 文件中使用此命令');
-            return;
-        }
-
-        const input = CharStreams.fromString(editor.document.getText());
-        const lexer = new LPCLexer(input);
-        const tokenStream = new CommonTokenStream(lexer);
-        const parser = new LPCParser(tokenStream);
-        const debugListener = new DebugErrorListener();
-
-        parser.removeErrorListeners();
-        parser.addErrorListener(debugListener);
-        parser.sourceFile();
-
-        const output = vscode.window.createOutputChannel('LPC Parse Debug');
-        output.clear();
-
-        if (debugListener.errors.length === 0) {
-            output.appendLine('未发现 ANTLR 语法错误。');
-        } else {
-            debugListener.errors.forEach((error, index) => {
-                output.appendLine(`错误 ${index + 1}: 行 ${error.line}, 列 ${error.column}`);
-                output.appendLine(`  token: ${error.offendingToken}`);
-                output.appendLine(`  message: ${error.message}`);
-                if (error.ruleStack.length) {
-                    output.appendLine(`  rule stack: ${error.ruleStack.join(' -> ')}`);
-                }
-                output.appendLine('');
-            });
-        }
-
-        output.show(true);
-    });
-
-    register(context, 'lpc.scanInheritance', () => {
-        const editor = vscode.window.activeTextEditor;
-        if (editor && editor.document.languageId === 'lpc') {
-            completionProvider.scanInheritance(editor.document);
-            return;
-        }
-
-        vscode.window.showWarningMessage('请在LPC文件中使用此命令');
-    });
-
     register(context, 'lpc.addServer', () => configManager.addServer());
     register(context, 'lpc.selectServer', () => configManager.selectServer());
     register(context, 'lpc.removeServer', () => configManager.removeServer());
@@ -321,11 +221,14 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     register(context, 'lpc.compileFile', async () => {
         const editor = vscode.window.activeTextEditor;
         if (editor && editor.document.languageId === 'lpc') {
+            const workspaceRoot = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath;
+            if (workspaceRoot) {
+                await projectConfigService.loadForWorkspace(workspaceRoot);
+            }
             await compiler.compileFile(editor.document.fileName);
         }
     });
 
-    register(context, 'lpc.showMacros', () => macroManager.showMacrosList());
     register(context, 'lpc.configureMacroPath', () => macroManager.configurePath());
 
     register(context, 'lpc.startDriver', () => {
@@ -359,19 +262,6 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         const terminal = vscode.window.createTerminal({ name: 'MUD Driver', cwd });
         terminal.sendText(driverCommand);
         terminal.show();
-    });
-
-    register(context, 'lpc.showPerformanceStats', () => {
-        const stats = getGlobalParsedDocumentService().getStats();
-        completionInstrumentation.showReport(stats);
-        vscode.window.showInformationMessage(completionInstrumentation.formatSummary(stats));
-    });
-
-    register(context, 'lpc.clearCache', () => {
-        clearGlobalParsedDocumentService();
-        completionProvider.clearCache();
-        completionInstrumentation.clear();
-        vscode.window.showInformationMessage('LPC 解析与补全缓存已清理');
     });
 
     void promptProjectConfigMigrationIfNeeded(projectConfigService);

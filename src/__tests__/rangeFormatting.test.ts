@@ -550,7 +550,7 @@ describe('FormattingService range formatting', () => {
         expect(edits[0].newText).toContain('"southwest" : __DIR__"xiyuan"');
     });
 
-    test('多行 mapping 选区格式化与整文一致地保留条目前注释和紧凑数组值', async () => {
+    test('多行 mapping 选区格式化与整文一致地保留条目前注释和块状数组值', async () => {
         const service = new FormattingService();
         const source = [
             'void create()',
@@ -570,23 +570,25 @@ describe('FormattingService range formatting', () => {
         expect(edits).toHaveLength(1);
         expect(edits[0].newText).toContain('// keep these names');
         expect(edits[0].newText).toContain('// keep first 25 entries');
-        expect(edits[0].newText).toContain('"foot" : ({ "a", "b" })');
-        expect(edits[0].newText).toContain('"hand" : ({ "c", "d" })');
-        expect(edits[0].newText).not.toContain('"foot" : ({\n');
+        expect(edits[0].newText).toContain('"foot" : ({\n');
+        expect(edits[0].newText).toContain('            "a",\n');
+        expect(edits[0].newText).toContain('"hand" : ({\n');
+        expect(edits[0].newText).toContain('            "c",\n');
     });
 
-    test('真实 meridiand 的足三阳经选区格式化保留说明注释和紧凑数组值', async () => {
+    test('真实 meridiand 的足三阳经选区格式化保留说明注释和块状数组值', async () => {
         const service = new FormattingService();
         const source = readFixture('meridiand.c');
         const document = TestHelper.createMockDocument(source, 'lpc', 'range-meridiand-foot.c');
         const range = new vscode.Range(18, 0, 20, document.lineAt(20).text.length);
         const edits = await service.formatRange(document, range);
+        const output = normalizeLineEndings(edits[0].newText);
 
         expect(edits).toHaveLength(1);
-        expect(edits[0].newText).toContain('//瞳子髎、听会、上关、颔厌');
-        expect(edits[0].newText).toContain('//保留前25个穴位');
-        expect(edits[0].newText).toContain('"足三阳经" : ({ "瞳子髎", "听会", "上关", "颔厌"');
-        expect(edits[0].newText).not.toContain('"足三阳经" : ({\n');
+        expect(output).toContain('//瞳子髎、听会、上关、颔厌');
+        expect(output).toContain('//保留前25个穴位');
+        expect(output).toContain('"足三阳经" : ({\n');
+        expect(output).toContain('"瞳子髎",\n');
     });
 
     test('真实 meridiand 的 mapping 选区格式化不会把文件头注释混进结果', async () => {

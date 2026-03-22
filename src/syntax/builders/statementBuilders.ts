@@ -205,18 +205,18 @@ export function buildSwitchSection(b: SyntaxBuilder, ctx: SwitchSectionContext):
     let currentStatements: SyntaxNode[] = [];
 
     for (const child of b.getChildren(ctx)) {
-        if (b.isRuleContext(child, 'SwitchLabelWithColonContext')) {
+        if (child instanceof SwitchLabelWithColonContext) {
             if (currentLabel) {
                 clauses.push(b.buildSwitchClause(currentLabel, currentStatements));
             }
 
-            currentLabel = child as SwitchLabelWithColonContext;
+            currentLabel = child;
             currentStatements = [];
             continue;
         }
 
-        if (b.isRuleContext(child, 'StatementContext')) {
-            currentStatements.push(b.buildStatement(child as StatementContext));
+        if (child instanceof StatementContext) {
+            currentStatements.push(b.buildStatement(child));
         }
     }
 

@@ -5,7 +5,6 @@ import { PrintContext } from './PrintContext';
 import { registerDeclarationPrinters, renderParameterDeclaration } from './delegates/declarationPrinter';
 import {
     registerCollectionPrinters,
-    tryRenderCompactArrayLiteral,
     wrapCollection as renderWrappedCollection
 } from './delegates/collectionPrinter';
 import { renderExpressionDelegate } from './delegates/expressionRenderer';
@@ -155,11 +154,6 @@ export class FormatPrinter implements PrinterContext {
     }
 
     public renderStructuredValue(node: FormatNode, context: PrintContext): string {
-        const compactArray = tryRenderCompactArrayLiteral(node, context, this);
-        if (compactArray) {
-            return compactArray;
-        }
-
         return this.renderInlineExpression(node, context);
     }
 
@@ -298,6 +292,10 @@ export class FormatPrinter implements PrinterContext {
     ): boolean {
         if (!previous) {
             return false;
+        }
+
+        if (previous.syntaxKind === SyntaxKind.IfStatement && current.syntaxKind === SyntaxKind.IfStatement) {
+            return true;
         }
 
         const previousGroup = classifyBlockSpacingGroup(previous);

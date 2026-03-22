@@ -311,6 +311,46 @@ describe('formatter integration', () => {
         expect(output).toContain('else if (name == "阳维脉")');
     });
 
+    test('相邻独立 if 语句之间会插入空行但不影响注释归属', async () => {
+        const source = [
+            'mixed hit_ob(object me, object victim, int damage_bonus)',
+            '{',
+            '    if (me->query_skill("yifeng-jian", 1) > 150) {',
+            '        victim->receive_damage("qi", (damage_bonus) * 2 / 3, me);',
+            '        return CYN"$N的移风剑法已入返璞归真境界，随意一剑带出一阵剑气扑向$n！！！！！\\n"NOR;',
+            '    }',
+            '    // 第二等级的伤气',
+            '    if (me->query_skill("yifeng-jian", 1) > 120) {',
+            '        victim->receive_damage("qi", (damage_bonus) * 2 / 3, me);',
+            '        return RED"$N的移风剑法已初有小成,每出一剑都带着强烈"HIR"剑气"HIW"扑向$n！！\\n"NOR;',
+            '    }',
+            '}'
+        ].join('\n');
+        const output = normalizeLineEndings(await format(source));
+
+        expect(output).toContain([
+            '    }',
+            '',
+            '    // 第二等级的伤气',
+            '    if (me->query_skill("yifeng-jian", 1) > 120)'
+        ].join('\n'));
+    });
+
+    test('字符串拼接中的相邻宏标识符会保留必要空格避免词法粘连', async () => {
+        const source = [
+            'string query_description()',
+            '{',
+            '    string msg;',
+            '    msg += HIC "  柔情媚影 (meiying)" ZJBR NOR;',
+            '    return msg;',
+            '}'
+        ].join('\n');
+        const output = await format(source);
+
+        expect(output).toContain('msg += HIC"  柔情媚影 (meiying)"ZJBR NOR;');
+        expect(output).not.toContain('ZJBRNOR');
+    });
+
     test('真实 meridiand 文件在赋值与 return 中不注入结构化值前导缩进', async () => {
         const source = readFixture('meridiand.c');
         const output = await format(source);
@@ -320,15 +360,15 @@ describe('formatter integration', () => {
         expect(output).not.toContain('return         ({');
     });
 
-    test('真实 meridiand 文件的经脉 mapping 保持逐项布局且穴位数组不被逐行打散', async () => {
+    test('真实 meridiand 文件的经脉 mapping 保持逐项布局且穴位数组按原始设计块状展开', async () => {
         const source = readFixture('meridiand.c');
         const output = normalizeLineEndings(await format(source));
 
         expect(output).toContain('mapping xuewei = ([\n');
-        expect(output).toContain('"带脉" : ({ "带脉", "五枢", "维", "天冲"');
-        expect(output).toContain('"冲脉" : ({ "会阴", "阴交", "气冲", "横骨"');
-        expect(output).not.toContain('"带脉" : ({\n');
-        expect(output).not.toContain('"冲脉" : ({\n');
+        expect(output).toContain('"带脉" : ({\n');
+        expect(output).toContain('        "带脉",\n');
+        expect(output).toContain('"冲脉" : ({\n');
+        expect(output).toContain('        "会阴",\n');
     });
 
     test('真实 meridiand 文件保留足三阳经前的说明注释', async () => {
@@ -337,7 +377,7 @@ describe('formatter integration', () => {
 
         expect(output).toContain('//瞳子髎、听会、上关、颔厌、悬颅、悬厘、曲鬓、率谷、天冲、浮白、头窍阴、完骨、本神、阳白、头临泣、目窗、正营、承灵、脑空、风池、肩井、渊液、辄筋、日月、京门、带脉、五枢、维道、居髎、环跳、风市、中渎、膝阳关、阳陵泉、阳交、外丘、光明、阳辅、悬钟、丘墟、足临泣、地五会、侠溪、足窍阴');
         expect(output).toContain('//保留前25个穴位');
-        expect(output).toContain('//保留前25个穴位\n    "足三阳经" : ({ "瞳子髎", "听会", "上关", "颔厌"');
+        expect(output).toContain('//保留前25个穴位\n    "足三阳经" : ({\n');
     });
 
     test('真实 meridiand 文件保留 closure 参数列表的紧凑逗号间距', async () => {

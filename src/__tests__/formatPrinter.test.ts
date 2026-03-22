@@ -37,16 +37,16 @@ describe('formatter printer', () => {
         await expect(format(source)).resolves.toContain('function(int x)\n{');
     });
 
-    test('mapping 条目逐行展开但简单数组值保持紧凑', async () => {
+    test('mapping 与嵌套数组按原始设计强制块状展开', async () => {
         const source = 'mapping data = ([ "name":"sword", "actions":({ "slash", "parry" }) ]);';
         const output = await format(source);
 
-        expect(output).toBe([
-            'mapping data = ([',
-            '    "name" : "sword",',
-            '    "actions" : ({ "slash", "parry" })',
-            ']);'
-        ].join('\n'));
+        expect(output).toContain('mapping data = ([');
+        expect(output).toContain('    "name" : "sword"');
+        expect(output).toContain('    "actions" : ({\n');
+        expect(output).toContain('        "slash",\n');
+        expect(output).toContain('        "parry"\n');
+        expect(output).not.toContain('    "actions" : ({ "slash", "parry" })');
     });
 
     test('数组内部带注释时保持块状布局并保留注释', async () => {
@@ -72,8 +72,10 @@ describe('formatter printer', () => {
 
         expect(output).toContain('// keep these names');
         expect(output).toContain('// keep first 25 entries');
-        expect(output).toContain('"foot" : ({ "a", "b" })');
-        expect(output).toContain('// keep first 25 entries\n    "foot" : ({ "a", "b" })');
+        expect(output).toContain('"foot" : ({\n');
+        expect(output).toContain('        "a",\n');
+        expect(output).toContain('        "b"\n');
+        expect(output).toContain('// keep first 25 entries\n    "foot" : ({\n');
     });
 
     test('多字符运算符保持为合法 token', async () => {

@@ -4,9 +4,11 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { LPCCompletionItemProvider } from '../completionProvider';
+import { ASTManager } from '../ast/astManager';
 import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManager';
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
+import { TestHelper } from './utils/TestHelper';
 
 jest.mock('axios', () => ({
     __esModule: true,
@@ -288,27 +290,136 @@ describe('SimulatedEfunScanner', () => {
     });
 
     test('loads simulated efun docs from project config simulatedEfunFile before legacy settings', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-direct-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
         const projectConfigService = {
-            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue('D:/workspace/adm/single/simul_efun.c')
+            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(entryFile),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' })
         };
         const scanner = new SimulatedEfunScanner(projectConfigService as any);
 
-        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: 'D:/workspace' } }];
-        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-            get: jest.fn(() => undefined),
-            update: jest.fn().mockResolvedValue(undefined)
-        });
-        (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(Buffer.from([
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.writeFileSync(entryFile, [
             '/**',
             ' * @brief simulated helper',
             ' */',
             'int sim_helper()'
-        ].join('\n')));
+        ].join('\n'));
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn(() => undefined),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
 
         await scanner.loadSimulatedEfuns();
 
-        expect(projectConfigService.getSimulatedEfunFileForWorkspace).toHaveBeenCalledWith('D:/workspace');
+        expect(projectConfigService.getSimulatedEfunFileForWorkspace).toHaveBeenCalledWith(workspaceRoot);
         expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
         expect(scanner.get('sim_helper')).toBeDefined();
+    });
+
+    test('project config simulated efun path without extension should resolve to the real .c file', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-config-'));
+        const configPath = path.join(workspaceRoot, 'lpc-support.json');
+        const hellPath = path.join(workspaceRoot, 'config.hell');
+        const simulPath = path.join(workspaceRoot, 'adm', 'single');
+        const { LpcProjectConfigService } = await import('../projectConfig/LpcProjectConfigService');
+        const service = new LpcProjectConfigService();
+
+        fs.mkdirSync(simulPath, { recursive: true });
+        fs.writeFileSync(path.join(simulPath, 'simul_efun.c'), 'int sim_helper() { return 1; }');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }, null, 2));
+        fs.writeFileSync(hellPath, [
+            'mudlib directory : ./',
+            'simulated efun file : /adm/single/simul_efun'
+        ].join('\n'));
+
+        await expect(service.getSimulatedEfunFileForWorkspace(workspaceRoot))
+            .resolves.toBe(path.join(simulPath, 'simul_efun.c'));
+    });
+
+    test('entry simul_efun file loads docs from included simul efun sources', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-entry-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const includeDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(entryFile, '#include "/adm/simul_efun/helper.c"\n');
+        fs.writeFileSync(path.join(includeDir, 'helper.c'), [
+            '/**',
+            ' * @brief helper from include',
+            ' */',
+            'int sim_helper()'
+        ].join('\n'));
+
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(entryFile),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' })
+        };
+        const scanner = new SimulatedEfunScanner(projectConfigService as any);
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn(() => undefined),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
+
+        await scanner.loadSimulatedEfuns();
+
+        expect(scanner.get('sim_helper')).toMatchObject({
+            name: 'sim_helper',
+            description: 'helper from include'
+        });
+    });
+
+    test('parser trivia exposes include directives for simulated efun entry files', () => {
+        const document = TestHelper.createMockDocument('#include "/adm/simul_efun/helper.c"\n', 'lpc', 'simul_efun.c');
+        const parsed = ASTManager.getInstance().parseDocument(document, false).parsed;
+
+        expect(parsed?.tokenTriviaIndex.getAllTrivia().filter(trivia => trivia.kind === 'directive').map(trivia => trivia.text.trim()))
+            .toEqual(['#include "/adm/simul_efun/helper.c"']);
+    });
+
+    test('entry simul_efun file also follows inherited simul efun sources', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-inherit-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const inheritDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(inheritDir, { recursive: true });
+        fs.writeFileSync(entryFile, 'inherit "/adm/simul_efun/helper";\n');
+        fs.writeFileSync(path.join(inheritDir, 'helper.c'), [
+            '/**',
+            ' * @brief helper from inherit',
+            ' */',
+            'int inherited_helper()'
+        ].join('\n'));
+
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(entryFile),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' })
+        };
+        const scanner = new SimulatedEfunScanner(projectConfigService as any);
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn(() => undefined),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
+
+        await scanner.loadSimulatedEfuns();
+
+        expect(scanner.get('inherited_helper')).toMatchObject({
+            name: 'inherited_helper',
+            description: 'helper from inherit'
+        });
     });
 });

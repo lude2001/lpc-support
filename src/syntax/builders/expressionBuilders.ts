@@ -240,8 +240,9 @@ export function buildPostfixExpression(b: SyntaxBuilder, ctx: PostfixExpressionC
         const child = children[index];
 
         if (b.isTerminal(child, LPCParser.LPAREN)) {
-            const argumentList = b.isRuleContext(children[index + 1], 'ArgumentListContext')
-                ? b.buildArgumentList(children[index + 1] as ArgumentListContext)
+            const argumentListNode = children[index + 1];
+            const argumentList = argumentListNode instanceof ArgumentListContext
+                ? b.buildArgumentList(argumentListNode)
                 : undefined;
             const endBoundary = argumentList ? children[index + 2] : children[index + 1];
             const callChildren = argumentList ? [current, argumentList] : [current];
@@ -265,8 +266,9 @@ export function buildPostfixExpression(b: SyntaxBuilder, ctx: PostfixExpressionC
             index += 2;
 
             if (b.isTerminal(children[index], LPCParser.LPAREN)) {
-                const argumentList = b.isRuleContext(children[index + 1], 'ArgumentListContext')
-                    ? b.buildArgumentList(children[index + 1] as ArgumentListContext)
+                const argumentListNode = children[index + 1];
+                const argumentList = argumentListNode instanceof ArgumentListContext
+                    ? b.buildArgumentList(argumentListNode)
                     : undefined;
                 const endBoundary = argumentList ? children[index + 2] : children[index + 1];
                 const callChildren = argumentList ? [memberAccess, argumentList] : [memberAccess];
@@ -305,65 +307,88 @@ export function buildPostfixExpression(b: SyntaxBuilder, ctx: PostfixExpressionC
 }
 
 export function buildPrimary(b: SyntaxBuilder, ctx: PrimaryContext): SyntaxNode {
-    switch (ctx.constructor.name) {
-        case 'IdentifierPrimaryContext':
-            return b.buildIdentifierNode((ctx as IdentifierPrimaryContext).Identifier());
-        case 'ScopeIdentifierContext':
-            return b.createNode(SyntaxKind.Identifier, ctx, [], {
-                name: (ctx as ScopeIdentifierContext).Identifier().text,
-                metadata: { scopeQualifier: (ctx as ScopeIdentifierContext).SCOPE().text }
-            });
-        case 'RefVariableContext':
-            return b.createNode(SyntaxKind.Identifier, ctx, [], {
-                name: (ctx as RefVariableContext).Identifier().text,
-                metadata: { isReference: true }
-            });
-        case 'ParameterPlaceholderContext':
-            return b.createNode(SyntaxKind.Identifier, ctx, [], {
-                name: (ctx as ParameterPlaceholderContext).PARAMETER_PLACEHOLDER().text,
-                metadata: { placeholder: true }
-            });
-        case 'IntegerPrimaryContext':
-        case 'FloatPrimaryContext':
-        case 'StringPrimaryContext':
-        case 'CharPrimaryContext':
-            return b.createNode(SyntaxKind.Literal, ctx, [], {
-                metadata: { text: b.getNodeText(ctx) }
-            });
-        case 'ParenExprContext':
-            return b.createNode(SyntaxKind.ParenthesizedExpression, ctx, [b.buildExpression((ctx as ParenExprContext).expression())]);
-        case 'DollarCallExprContext':
-            return b.createNode(SyntaxKind.CallExpression, ctx, [b.buildExpression((ctx as DollarCallExprContext).expression())], {
-                metadata: { source: 'dollar-call' }
-            });
-        case 'StringConcatenationContext':
-            return b.buildStringConcatenation(ctx as StringConcatenationContext);
-        case 'AnonFunctionContext': {
-            const anonFunction = ctx as AnonFunctionContext;
-            const children: SyntaxNode[] = [];
-            const parameters = b.buildParameterList(anonFunction.parameterList());
+    if (ctx instanceof IdentifierPrimaryContext) {
+        return b.buildIdentifierNode(ctx.Identifier());
+    }
 
-            if (parameters) {
-                children.push(parameters);
-            }
-            children.push(b.buildBlock(anonFunction.block()));
+    if (ctx instanceof ScopeIdentifierContext) {
+        return b.createNode(SyntaxKind.Identifier, ctx, [], {
+            name: ctx.Identifier().text,
+            metadata: { scopeQualifier: ctx.SCOPE().text }
+        });
+    }
 
-            return b.createNode(SyntaxKind.AnonymousFunctionExpression, ctx, children, {
-                metadata: { source: 'anonymous-function' }
-            });
+    if (ctx instanceof RefVariableContext) {
+        return b.createNode(SyntaxKind.Identifier, ctx, [], {
+            name: ctx.Identifier().text,
+            metadata: { isReference: true }
+        });
+    }
+
+    if (ctx instanceof ParameterPlaceholderContext) {
+        return b.createNode(SyntaxKind.Identifier, ctx, [], {
+            name: ctx.PARAMETER_PLACEHOLDER().text,
+            metadata: { placeholder: true }
+        });
+    }
+
+    if (
+        ctx instanceof IntegerPrimaryContext
+        || ctx instanceof FloatPrimaryContext
+        || ctx instanceof StringPrimaryContext
+        || ctx instanceof CharPrimaryContext
+    ) {
+        return b.createNode(SyntaxKind.Literal, ctx, [], {
+            metadata: { text: b.getNodeText(ctx) }
+        });
+    }
+
+    if (ctx instanceof ParenExprContext) {
+        return b.createNode(SyntaxKind.ParenthesizedExpression, ctx, [b.buildExpression(ctx.expression())]);
+    }
+
+    if (ctx instanceof DollarCallExprContext) {
+        return b.createNode(SyntaxKind.CallExpression, ctx, [b.buildExpression(ctx.expression())], {
+            metadata: { source: 'dollar-call' }
+        });
+    }
+
+    if (ctx instanceof StringConcatenationContext) {
+        return b.buildStringConcatenation(ctx);
+    }
+
+    if (ctx instanceof AnonFunctionContext) {
+        const children: SyntaxNode[] = [];
+        const parameters = b.buildParameterList(ctx.parameterList());
+
+        if (parameters) {
+            children.push(parameters);
         }
-        case 'ClosurePrimaryContext':
-            return b.buildClosureExpression((ctx as ClosurePrimaryContext).closureExpr());
-        case 'MappingLiteralExprContext':
-            return b.buildMappingLiteral((ctx as MappingLiteralExprContext).mappingLiteral());
-        case 'ArrayDelimiterExprContext':
-            return b.buildArrayDelimiterLiteral((ctx as ArrayDelimiterExprContext).arrayDelimiterLiteral());
-        case 'NewExpressionPrimaryContext':
-            return b.buildNewExpression((ctx as NewExpressionPrimaryContext).newExpression());
-        case 'ArrayLiteralContext':
-            return b.buildArrayLiteral(ctx as ArrayLiteralContext);
-        default:
-            break;
+        children.push(b.buildBlock(ctx.block()));
+
+        return b.createNode(SyntaxKind.AnonymousFunctionExpression, ctx, children, {
+            metadata: { source: 'anonymous-function' }
+        });
+    }
+
+    if (ctx instanceof ClosurePrimaryContext) {
+        return b.buildClosureExpression(ctx.closureExpr());
+    }
+
+    if (ctx instanceof MappingLiteralExprContext) {
+        return b.buildMappingLiteral(ctx.mappingLiteral());
+    }
+
+    if (ctx instanceof ArrayDelimiterExprContext) {
+        return b.buildArrayDelimiterLiteral(ctx.arrayDelimiterLiteral());
+    }
+
+    if (ctx instanceof NewExpressionPrimaryContext) {
+        return b.buildNewExpression(ctx.newExpression());
+    }
+
+    if (ctx instanceof ArrayLiteralContext) {
+        return b.buildArrayLiteral(ctx);
     }
 
     const primaryContext = ctx as any;
