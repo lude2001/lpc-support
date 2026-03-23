@@ -174,16 +174,6 @@
         "icon": "$(clear-all)"
       },
       {
-        "command": "lpc.errorTree.manageServers",
-        "title": "管理服务器",
-        "icon": "$(settings-gear)"
-      },
-      {
-        "command": "lpc.errorTree.selectServer",
-        "title": "切换服务器",
-        "icon": "$(server-environment)"
-      },
-      {
         "command": "lpc.errorTree.openErrorLocation",
         "title": "打开错误位置"
       },
@@ -196,24 +186,14 @@
     "menus": {
       "view/title": [
         {
-          "command": "lpc.errorTree.selectServer",
+          "command": "lpc.errorTree.refresh",
           "when": "view == lpcErrorTree",
           "group": "navigation@1"
         },
         {
-          "command": "lpc.errorTree.refresh",
-          "when": "view == lpcErrorTree",
-          "group": "navigation@2"
-        },
-        {
           "command": "lpc.errorTree.clear",
           "when": "view == lpcErrorTree",
-          "group": "navigation@3"
-        },
-        {
-          "command": "lpc.errorTree.manageServers",
-          "when": "view == lpcErrorTree",
-          "group": "navigation@4"
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -296,24 +276,6 @@
           "type": "string",
           "default": "",
           "description": "LPC模拟函数库目录的路径"
-        },
-        "lpc.errorViewer.servers": {
-          "type": "array",
-          "default": [],
-          "description": "配置错误查看器的服务器列表",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "服务器的名称"
-              },
-              "address": {
-                "type": "string",
-                "description": "服务器的地址 (例如 http://127.0.0.1:8092)"
-              }
-            }
-          }
         },
         "lpc.enableUnusedGlobalVarCheck": {
           "type": "boolean",

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import axios from 'axios';
 import * as path from 'path';
+import type { LpcProjectConfigService } from './projectConfig/LpcProjectConfigService';
 
 // -- Interfaces for API data and configuration --
 interface CompileError {
@@ -89,13 +90,11 @@ export class ErrorTreeDataProvider implements vscode.TreeDataProvider<vscode.Tre
     readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
     private _activeServerAddress?: string;
+    private _activeServerName?: string;
     private _errorData: [CompileError[], RuntimeError[]] = [[], []];
 
-    constructor() {
-        const servers = this.getServers();
-        if (servers.length > 0) {
-            this.setActiveServer(servers[0]);
-        }
+    constructor(private readonly projectConfigService: Pick<LpcProjectConfigService, 'loadForWorkspace'>) {
+        void this.fetchErrors();
     }
 
     public getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
@@ -137,14 +136,21 @@ export class ErrorTreeDataProvider implements vscode.TreeDataProvider<vscode.Tre
 
     public refresh(): void {
         this._onDidChangeTreeData.fire();
-        this.fetchErrors();
+        void this.fetchErrors();
     }
 
     public async fetchErrors() {
+        const activeServer = await this.resolveActiveServer();
+        this._activeServerAddress = activeServer?.address;
+        this._activeServerName = activeServer?.name;
+
         if (!this._activeServerAddress) {
+            this._errorData = [[], []];
             vscode.window.setStatusBarMessage('Error Viewer: No active server.', 5000);
+            this._onDidChangeTreeData.fire();
             return;
         }
+        vscode.window.setStatusBarMessage(`LPC Error Viewer: ${this._activeServerName}`, 5000);
         vscode.window.setStatusBarMessage('$(sync~spin) Fetching LPC errors...', 2000);
         try {
             const compilePromise = axios.get(`${this._activeServerAddress}/error_info/get_compile_errors`);
@@ -173,13 +179,33 @@ export class ErrorTreeDataProvider implements vscode.TreeDataProvider<vscode.Tre
         }
     }
 
-    public getServers(): ErrorServerConfig[] {
-        return vscode.workspace.getConfiguration('lpc.errorViewer').get<ErrorServerConfig[]>('servers') || [];
+    private async resolveActiveServer(): Promise<ErrorServerConfig | undefined> {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!workspaceRoot) {
+            return undefined;
+        }
+
+        const projectConfig = await this.projectConfigService.loadForWorkspace(workspaceRoot);
+        const servers = (projectConfig?.compile?.remote?.servers ?? []).map((server) => ({
+            name: server.name,
+            address: server.url
+        }));
+        if (servers.length === 0) {
+            return undefined;
+        }
+
+        return servers.find((server) => server.name === projectConfig?.compile?.remote?.activeServer) ?? servers[0];
     }
 
-    public setActiveServer(server: ErrorServerConfig) {
-        this._activeServerAddress = server.address;
-        vscode.window.setStatusBarMessage(`LPC Error Viewer: ${server.name}`, 5000);
-        this.refresh();
+    private getWorkspaceRoot(): string | undefined {
+        const activeDocument = vscode.window.activeTextEditor?.document;
+        if (activeDocument) {
+            const folder = vscode.workspace.getWorkspaceFolder(activeDocument.uri);
+            if (folder) {
+                return folder.uri.fsPath;
+            }
+        }
+
+        return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     }
 }

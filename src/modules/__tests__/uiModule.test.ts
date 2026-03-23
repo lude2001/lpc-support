@@ -14,9 +14,9 @@ describe('registerUI', () => {
     let errorTreeProvider: {
         refresh: jest.Mock;
     };
+    let projectConfigService: { id: string };
     let treeView: vscode.Disposable;
     let statusBarItem: vscode.StatusBarItem;
-    let configWatcher: vscode.Disposable;
 
     beforeEach(() => {
         registry = new ServiceRegistry();
@@ -24,6 +24,7 @@ describe('registerUI', () => {
         errorTreeProvider = {
             refresh: jest.fn()
         };
+        projectConfigService = { id: 'project-config' };
         treeView = { dispose: jest.fn() };
         statusBarItem = {
             show: jest.fn(),
@@ -33,19 +34,20 @@ describe('registerUI', () => {
             tooltip: undefined,
             command: undefined
         } as unknown as vscode.StatusBarItem;
-        configWatcher = { dispose: jest.fn() };
 
         (ErrorTreeDataProvider as unknown as jest.Mock).mockReset().mockImplementation(() => errorTreeProvider);
         (vscode.window.createTreeView as jest.Mock).mockReset().mockReturnValue(treeView);
         (vscode.window.createStatusBarItem as jest.Mock).mockReset().mockReturnValue(statusBarItem);
-        (vscode.workspace.onDidChangeConfiguration as jest.Mock).mockReset().mockReturnValue(configWatcher);
         (vscode.commands.registerCommand as jest.Mock).mockClear();
+
+        registry.register(Services.ProjectConfig, projectConfigService as any);
     });
 
-    test('registers the error tree service, tree view, driver status bar, and config watcher', () => {
+    test('registers the error tree service, tree view, and driver status bar', () => {
         registerUI(registry, context);
 
         expect(ErrorTreeDataProvider).toHaveBeenCalledTimes(1);
+        expect(ErrorTreeDataProvider).toHaveBeenCalledWith(projectConfigService);
         expect(registry.get(Services.ErrorTree)).toBe(errorTreeProvider);
         expect(vscode.window.createTreeView).toHaveBeenCalledWith('lpcErrorTree', {
             treeDataProvider: errorTreeProvider
@@ -55,22 +57,8 @@ describe('registerUI', () => {
         expect(statusBarItem.text).toBe('$(play) 启动驱动');
         expect(statusBarItem.tooltip).toBe('启动 MUD 驱动程序');
         expect(statusBarItem.show).toHaveBeenCalledTimes(1);
-        expect(vscode.workspace.onDidChangeConfiguration).toHaveBeenCalledTimes(1);
-        expect(context.subscriptions).toEqual([treeView, statusBarItem, configWatcher]);
+        expect(vscode.workspace.onDidChangeConfiguration).not.toHaveBeenCalled();
+        expect(context.subscriptions).toEqual([treeView, statusBarItem]);
         expect(vscode.commands.registerCommand).not.toHaveBeenCalled();
-    });
-
-    test('refreshes the error tree provider only when error viewer servers configuration changes', () => {
-        registerUI(registry, context);
-
-        const onDidChangeConfiguration = (vscode.workspace.onDidChangeConfiguration as jest.Mock).mock.calls[0][0];
-        onDidChangeConfiguration({
-            affectsConfiguration: jest.fn().mockReturnValue(false)
-        });
-        onDidChangeConfiguration({
-            affectsConfiguration: jest.fn().mockImplementation((section: string) => section === 'lpc.errorViewer.servers')
-        });
-
-        expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
     });
 });

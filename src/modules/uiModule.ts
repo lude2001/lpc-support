@@ -4,16 +4,16 @@ import { ServiceRegistry } from '../core/ServiceRegistry';
 import { ErrorTreeDataProvider } from '../errorTreeDataProvider';
 
 export function registerUI(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
-    const errorTreeProvider = new ErrorTreeDataProvider();
+    const projectConfigService = registry.get(Services.ProjectConfig);
+    const errorTreeProvider = new ErrorTreeDataProvider(projectConfigService);
     registry.register(Services.ErrorTree, errorTreeProvider);
 
     const errorTreeView = vscode.window.createTreeView('lpcErrorTree', {
         treeDataProvider: errorTreeProvider
     });
     const driverStatusBarItem = registerDriverStatusBar(context);
-    const configWatcher = registerConfigWatcher(registry);
 
-    context.subscriptions.push(errorTreeView, driverStatusBarItem, configWatcher);
+    context.subscriptions.push(errorTreeView, driverStatusBarItem);
 }
 
 function registerDriverStatusBar(_context: vscode.ExtensionContext): vscode.StatusBarItem {
@@ -23,14 +23,4 @@ function registerDriverStatusBar(_context: vscode.ExtensionContext): vscode.Stat
     driverStatusBarItem.tooltip = '启动 MUD 驱动程序';
     driverStatusBarItem.show();
     return driverStatusBarItem;
-}
-
-function registerConfigWatcher(registry: ServiceRegistry): vscode.Disposable {
-    const errorTreeProvider = registry.get(Services.ErrorTree);
-
-    return vscode.workspace.onDidChangeConfiguration(event => {
-        if (event.affectsConfiguration('lpc.errorViewer.servers')) {
-            errorTreeProvider.refresh();
-        }
-    });
 }

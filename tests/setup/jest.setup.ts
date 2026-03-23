@@ -58,11 +58,30 @@ const mockVSCode = {
         Information: 2,
         Hint: 3
     },
-    
+
+    TreeItemCollapsibleState: {
+        None: 0,
+        Collapsed: 1,
+        Expanded: 2
+    },
+
+    ThemeIcon: jest.fn((id: string) => ({ id })),
+
+    TreeItem: jest.fn(function(this: any, label: string, collapsibleState?: number) {
+        this.label = label;
+        this.collapsibleState = collapsibleState;
+        this.tooltip = undefined;
+        this.description = undefined;
+        this.iconPath = undefined;
+        this.contextValue = undefined;
+        this.command = undefined;
+    }),
+
     window: {
         showInformationMessage: jest.fn(),
         showWarningMessage: jest.fn(),
         showErrorMessage: jest.fn(),
+        setStatusBarMessage: jest.fn(),
         showQuickPick: jest.fn(),
         showInputBox: jest.fn(),
         showTextDocument: jest.fn(),

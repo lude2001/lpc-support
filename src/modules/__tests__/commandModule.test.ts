@@ -41,10 +41,6 @@ describe('registerCommands', () => {
         'lpc.showFunctionDoc',
         'lpc.errorTree.refresh',
         'lpc.errorTree.clear',
-        'lpc.errorTree.addServer',
-        'lpc.errorTree.removeServer',
-        'lpc.errorTree.manageServers',
-        'lpc.errorTree.selectServer',
         'lpc.errorTree.openErrorLocation',
         'lpc.errorTree.copyError',
         'lpc.compileFolder',
@@ -91,8 +87,6 @@ describe('registerCommands', () => {
     let errorTreeProvider: {
         refresh: jest.Mock;
         clearErrors: jest.Mock;
-        getServers: jest.Mock;
-        setActiveServer: jest.Mock;
     };
     let parsedDocumentService: { getStats: jest.Mock };
     let freshConfigManager: { id: string };
@@ -171,11 +165,7 @@ describe('registerCommands', () => {
         };
         errorTreeProvider = {
             refresh: jest.fn(),
-            clearErrors: jest.fn(),
-            getServers: jest.fn().mockReturnValue([
-                { name: 'Alpha', address: 'http://127.0.0.1:8092' }
-            ]),
-            setActiveServer: jest.fn()
+            clearErrors: jest.fn()
         };
         parsedDocumentService = {
             getStats: jest.fn().mockReturnValue({ size: 2, memory: 2048 })
@@ -211,13 +201,6 @@ describe('registerCommands', () => {
             if (section === 'lpc') {
                 return {
                     get: jest.fn().mockReturnValue(undefined)
-                };
-            }
-
-            if (section === 'lpc.errorViewer') {
-                return {
-                    get: jest.fn().mockReturnValue([]),
-                    update: jest.fn().mockResolvedValue(undefined)
                 };
             }
 
@@ -279,7 +262,7 @@ describe('registerCommands', () => {
         expect(macroManager.configurePath).toHaveBeenCalledTimes(1);
         expect(projectConfigService.ensureConfigForWorkspace).toHaveBeenCalledWith('D:/workspace', 'config.hell');
         expect(projectConfigService.getCompileConfigForWorkspace).toHaveBeenCalledWith('D:/workspace');
-        expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
+        expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(2);
         expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('已创建并同步 lpc-support.json');
     });
 
@@ -372,6 +355,26 @@ describe('registerCommands', () => {
                 ]
             }
         });
+        expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    test('selectServer updates active remote server in project config and refreshes error tree', async () => {
+        registerCommands(registry, context);
+        const handlers = getRegisteredHandlers();
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
+        (vscode.window.showQuickPick as jest.Mock).mockResolvedValueOnce({
+            label: 'Alpha',
+            description: 'local',
+            detail: 'http://127.0.0.1:8080'
+        });
+
+        await handlers.get('lpc.selectServer')?.();
+
+        expect(projectConfigService.updateCompileConfigForWorkspace).toHaveBeenCalledWith(
+            'D:/workspace',
+            expect.any(Function)
+        );
+        expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
     });
 
     test('manageCompilation sets lpccp path via file picker and no longer exposes driver config action', async () => {
@@ -413,6 +416,7 @@ describe('registerCommands', () => {
                 servers: []
             }
         });
+        expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
     });
 
     test('openErrorLocation shows an error when no workspace folders are open', async () => {
@@ -439,13 +443,6 @@ describe('registerCommands', () => {
             if (section === 'lpc') {
                 return {
                     get: jest.fn((key: string) => key === 'driver.command' ? driverCommand : undefined)
-                };
-            }
-
-            if (section === 'lpc.errorViewer') {
-                return {
-                    get: jest.fn().mockReturnValue([]),
-                    update: jest.fn().mockResolvedValue(undefined)
                 };
             }
 

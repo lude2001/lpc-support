@@ -2,7 +2,6 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Services } from '../core/ServiceKeys';
 import { ServiceRegistry } from '../core/ServiceRegistry';
-import type { ErrorServerConfig } from '../errorTreeDataProvider';
 import { FunctionDocPanel } from '../functionDocPanel';
 import {
     migrateLegacyCompilationConfigForWorkspace,
@@ -29,6 +28,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
         await migrateProjectConfigForWorkspace(projectConfigService, workspaceRoot);
         await migrateLegacyCompilationConfigForWorkspace(projectConfigService, workspaceRoot, configManager);
+        errorTreeProvider.refresh();
         vscode.window.showInformationMessage('已创建并同步 lpc-support.json');
     });
 
@@ -42,94 +42,6 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
     register(context, 'lpc.errorTree.refresh', () => errorTreeProvider.refresh());
     register(context, 'lpc.errorTree.clear', () => errorTreeProvider.clearErrors());
-
-    register(context, 'lpc.errorTree.addServer', async () => {
-        const name = await vscode.window.showInputBox({ prompt: '输入服务器名称' });
-        if (!name) {
-            return;
-        }
-
-        const address = await vscode.window.showInputBox({ prompt: '输入服务器地址 (例如 http://127.0.0.1:8092)' });
-        if (!address) {
-            return;
-        }
-
-        const config = vscode.workspace.getConfiguration('lpc.errorViewer');
-        const servers = config.get<ErrorServerConfig[]>('servers') || [];
-        servers.push({ name, address });
-        await config.update('servers', servers, vscode.ConfigurationTarget.Global);
-        errorTreeProvider.refresh();
-    });
-
-    register(context, 'lpc.errorTree.removeServer', async () => {
-        const servers = errorTreeProvider.getServers();
-        if (servers.length === 0) {
-            vscode.window.showInformationMessage('没有配置的服务器。');
-            return;
-        }
-
-        const serverToRemove = await vscode.window.showQuickPick(
-            servers.map(server => server.name),
-            { placeHolder: '选择要移除的服务器' }
-        );
-
-        if (serverToRemove) {
-            const updatedServers = servers.filter(server => server.name !== serverToRemove);
-            await vscode.workspace
-                .getConfiguration('lpc.errorViewer')
-                .update('servers', updatedServers, vscode.ConfigurationTarget.Global);
-            errorTreeProvider.refresh();
-        }
-    });
-
-    register(context, 'lpc.errorTree.manageServers', async () => {
-        const items = [
-            { label: '添加新服务器', command: 'lpc.errorTree.addServer' },
-            { label: '移除服务器', command: 'lpc.errorTree.removeServer' },
-            { label: '手动编辑 settings.json', command: 'openSettings' }
-        ];
-
-        const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: '管理错误查看器服务器'
-        });
-
-        if (!selected) {
-            return;
-        }
-
-        if (selected.command === 'openSettings') {
-            vscode.commands.executeCommand('workbench.action.openSettings', 'lpc.errorViewer.servers');
-            return;
-        }
-
-        vscode.commands.executeCommand(selected.command);
-    });
-
-    register(context, 'lpc.errorTree.selectServer', async () => {
-        const servers = errorTreeProvider.getServers();
-        if (servers.length === 0) {
-            vscode.window.showInformationMessage('没有可用的服务器，请先添加。', '添加服务器').then(selection => {
-                if (selection === '添加服务器') {
-                    vscode.commands.executeCommand('lpc.errorTree.addServer');
-                }
-            });
-            return;
-        }
-
-        const selected = await vscode.window.showQuickPick(
-            servers.map(server => server.name),
-            { placeHolder: '选择一个活动的错误服务器' }
-        );
-
-        if (!selected) {
-            return;
-        }
-
-        const server = servers.find(candidate => candidate.name === selected);
-        if (server) {
-            errorTreeProvider.setActiveServer(server);
-        }
-    });
 
     register(context, 'lpc.errorTree.openErrorLocation', async (errorItem: any) => {
         const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -222,6 +134,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
         await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
         await addRemoteServer(projectConfigService, workspaceRoot);
+        errorTreeProvider.refresh();
     });
 
     register(context, 'lpc.selectServer', async () => {
@@ -233,6 +146,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
         await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
         await selectRemoteServer(projectConfigService, workspaceRoot);
+        errorTreeProvider.refresh();
     });
 
     register(context, 'lpc.removeServer', async () => {
@@ -244,6 +158,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
         await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
         await removeRemoteServer(projectConfigService, workspaceRoot);
+        errorTreeProvider.refresh();
     });
 
     register(context, 'lpc.manageCompilation', async () => {
@@ -255,6 +170,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
         await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
         await showCompilationManager(projectConfigService, workspaceRoot);
+        errorTreeProvider.refresh();
     });
 
     register(context, 'lpc.manageServers', async () => {

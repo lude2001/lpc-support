@@ -178,6 +178,25 @@ export class Diagnostic {
     ) {}
 }
 
+export class ThemeIcon {
+    static readonly File = new ThemeIcon('file');
+
+    constructor(public id: string) {}
+}
+
+export class TreeItem {
+    public tooltip?: string;
+    public description?: string;
+    public iconPath?: any;
+    public contextValue?: string;
+    public command?: any;
+
+    constructor(
+        public label: string,
+        public collapsibleState: TreeItemCollapsibleState = TreeItemCollapsibleState.None
+    ) {}
+}
+
 export const TextEdit = {
     replace: (range: Range, newText: string) => ({
         range,
@@ -212,6 +231,12 @@ export enum DiagnosticSeverity {
     Warning = 1,
     Information = 2,
     Hint = 3
+}
+
+export enum TreeItemCollapsibleState {
+    None = 0,
+    Collapsed = 1,
+    Expanded = 2
 }
 
 export enum ConfigurationTarget {
@@ -371,6 +396,7 @@ export const window = {
     showInformationMessage: jest.fn().mockResolvedValue(undefined),
     showWarningMessage: jest.fn().mockResolvedValue(undefined),
     showErrorMessage: jest.fn().mockResolvedValue(undefined),
+    setStatusBarMessage: jest.fn(),
     showQuickPick: jest.fn().mockResolvedValue(undefined),
     showInputBox: jest.fn().mockResolvedValue(undefined),
     showOpenDialog: jest.fn().mockResolvedValue(undefined),
