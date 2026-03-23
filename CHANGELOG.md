@@ -4,6 +4,14 @@
 
 ## [Changelog]
 
+## [0.3.1] - 2026-03-23
+
+### 稳定性修复
+
+- 修复打开工作区时 `loadForWorkspace()` 在 `config.hell` 解析结果未变化的情况下仍反复回写 `lpc-support.json` 的问题，减少无意义文件写入与相关副作用。
+- 修复无 `lpc-support.json` 的普通工作区也会自动使用全局旧版 `lpc.includePath` / `lpc.simulatedEfunsPath` 触发大范围初始化扫描的问题。
+- 限制宏扫描与模拟函数库扫描的 legacy 自动初始化范围，避免在非 LPC 项目或无项目配置工作区中引发 PowerShell 提示符反复刷新、卡顿和内存异常上涨。
+
 ## [0.3.0] - 2026-03-22
 
 ### 项目级配置
