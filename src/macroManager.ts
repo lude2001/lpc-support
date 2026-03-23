@@ -26,6 +26,7 @@ export class MacroManager {
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const config = vscode.workspace.getConfiguration('lpc');
         const configPath = config.get<string>('includePath');
+        const hasProjectConfig = workspaceRoot ? fs.existsSync(path.join(workspaceRoot, 'lpc-support.json')) : false;
 
         if (workspaceRoot && this.projectConfigService) {
             const projectIncludePath = await this.projectConfigService.getPrimaryIncludeDirectoryForWorkspace(workspaceRoot);
@@ -34,9 +35,9 @@ export class MacroManager {
             }
         }
 
-        if (!this.includePath && !configPath && workspaceRoot) {
+        if (!this.includePath && !configPath && hasProjectConfig && workspaceRoot) {
             this.includePath = path.join(workspaceRoot, 'include');
-        } else if (!this.includePath && configPath && workspaceRoot) {
+        } else if (!this.includePath && configPath && hasProjectConfig && workspaceRoot) {
             this.includePath = this.resolveProjectPath(workspaceRoot, configPath);
         }
 

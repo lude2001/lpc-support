@@ -61,13 +61,14 @@ export class SimulatedEfunScanner {
             return;
         }
 
+        const hasProjectConfig = fs.existsSync(path.join(workspaceFolder.uri.fsPath, 'lpc-support.json'));
         const projectConfigPath = this.projectConfigService
             ? await this.projectConfigService.getSimulatedEfunFileForWorkspace(workspaceFolder.uri.fsPath)
             : undefined;
         const config = vscode.workspace.getConfiguration();
         const legacyConfigPath = config.get<string>(SimulatedEfunScanner.SIMULATED_EFUNS_PATH_CONFIG);
 
-        if (!projectConfigPath && !legacyConfigPath) {
+        if (!projectConfigPath && (!legacyConfigPath || !hasProjectConfig)) {
             return;
         }
 

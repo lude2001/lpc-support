@@ -265,13 +265,18 @@ describe('SimulatedEfunScanner', () => {
     });
 
     test('clears previously loaded docs when a later reload cannot scan', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-clear-'));
         const scanner = new SimulatedEfunScanner();
 
+        fs.writeFileSync(path.join(workspaceRoot, 'lpc-support.json'), JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }, null, 2));
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((key: string) => key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined)
         });
-        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: 'D:/workspace' } }];
-        (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([{ fsPath: 'D:/workspace/simul_efuns/foo.c' }]);
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([{ fsPath: path.join(workspaceRoot, 'simul_efuns', 'foo.c') }]);
         (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValueOnce(Buffer.from([
             '/**',
             ' * @brief simulated helper',
@@ -318,6 +323,22 @@ describe('SimulatedEfunScanner', () => {
         expect(projectConfigService.getSimulatedEfunFileForWorkspace).toHaveBeenCalledWith(workspaceRoot);
         expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
         expect(scanner.get('sim_helper')).toBeDefined();
+    });
+
+    test('does not auto-scan legacy simulated efun path when workspace has no lpc-support.json', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-no-project-config-'));
+        const scanner = new SimulatedEfunScanner(new (await import('../projectConfig/LpcProjectConfigService')).LpcProjectConfigService());
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((key: string) => key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
+
+        await scanner.loadSimulatedEfuns();
+
+        expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
+        expect(scanner.getAllNames()).toEqual([]);
     });
 
     test('project config simulated efun path without extension should resolve to the real .c file', async () => {
