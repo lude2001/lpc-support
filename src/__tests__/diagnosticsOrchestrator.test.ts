@@ -1,9 +1,19 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
 import * as parsedDocumentService from '../parser/ParsedDocumentService';
 
-function createDocument(content: string): vscode.TextDocument {
+jest.mock('fs', () => {
+    const actual = jest.requireActual('fs');
+    return {
+        ...actual,
+        existsSync: jest.fn(actual.existsSync),
+        readFileSync: jest.fn(actual.readFileSync)
+    };
+});
+
+function createDocument(content: string, fileName = '/virtual/diagnostics-test.c', version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
     const lineOffsets = lines.reduce<number[]>((offsets, line, index) => {
         const previous = offsets[index - 1] ?? 0;
@@ -13,10 +23,10 @@ function createDocument(content: string): vscode.TextDocument {
     }, []);
 
     return {
-        uri: vscode.Uri.file('/virtual/diagnostics-test.c'),
-        fileName: '/virtual/diagnostics-test.c',
+        uri: vscode.Uri.file(fileName),
+        fileName,
         languageId: 'lpc',
-        version: 1,
+        version,
         lineCount: lines.length,
         getText: jest.fn(() => content),
         lineAt: jest.fn((lineOrPosition: number | vscode.Position) => {
@@ -74,6 +84,101 @@ describe('DiagnosticsOrchestrator', () => {
         expect(parseDocumentSpy).toHaveBeenCalledTimes(1);
         expect(diagnostics.map((diagnostic: vscode.Diagnostic) => diagnostic.message)).toContain('snapshot parse error');
         expect(diagnostics.map((diagnostic: vscode.Diagnostic) => diagnostic.message)).not.toContain('stale');
+    });
+
+    test('skips lpc diagnostics for workspace c files when workspace root lacks lpc-support.json', () => {
+        const parseDocumentSpy = jest.fn();
+        const diagnosticCollection = {
+            set: jest.fn(),
+            delete: jest.fn(),
+            clear: jest.fn(),
+            dispose: jest.fn()
+        };
+
+        (vscode.languages.createDiagnosticCollection as jest.Mock).mockReturnValue(diagnosticCollection);
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+            parseDocument: parseDocumentSpy,
+            clearCache: jest.fn()
+        } as unknown as ASTManager);
+        (fs.existsSync as jest.Mock).mockImplementation((targetPath: fs.PathLike) => (
+            String(targetPath).endsWith('config/lpc-config.json')
+        ));
+        (vscode.workspace as any).getWorkspaceFolder = jest.fn().mockReturnValue({
+            uri: vscode.Uri.file('/workspace/project')
+        });
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+
+        const orchestrator = new DiagnosticsOrchestrator(
+            { subscriptions: [], extensionPath: process.cwd() } as any,
+            { getMacro: jest.fn(), getMacroHoverContent: jest.fn(), canResolveMacro: jest.fn() } as any
+        );
+
+        const document = createDocument('int value;', '/workspace/project/src/sample.c');
+        orchestrator.analyzeDocument(document);
+
+        expect(parseDocumentSpy).not.toHaveBeenCalled();
+        expect(diagnosticCollection.delete).toHaveBeenCalledWith(document.uri);
+        expect(diagnosticCollection.set).not.toHaveBeenCalled();
+    });
+
+    test('allows lpc diagnostics for workspace c files when workspace root contains lpc-support.json', async () => {
+        const snapshotDiagnostic = new vscode.Diagnostic(
+            new vscode.Range(0, 0, 0, 1),
+            'snapshot parse error',
+            vscode.DiagnosticSeverity.Error
+        );
+        const parseDocumentSpy = jest.fn(() => ({
+            parsed: {
+                version: 1,
+                tokens: {} as any,
+                tree: {} as any,
+                diagnostics: [],
+                lastAccessed: Date.now(),
+                parseTime: 1,
+                size: 1
+            },
+            snapshot: { parseDiagnostics: [snapshotDiagnostic] }
+        }));
+        const diagnosticCollection = {
+            set: jest.fn(),
+            delete: jest.fn(),
+            clear: jest.fn(),
+            dispose: jest.fn()
+        };
+
+        (vscode.languages.createDiagnosticCollection as jest.Mock).mockReturnValue(diagnosticCollection);
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+            parseDocument: parseDocumentSpy,
+            clearCache: jest.fn()
+        } as unknown as ASTManager);
+        (fs.existsSync as jest.Mock).mockImplementation((targetPath: fs.PathLike) => {
+            const normalized = String(targetPath).replace(/\\/g, '/');
+            return normalized.endsWith('config/lpc-config.json') || normalized.endsWith('/workspace/project/lpc-support.json');
+        });
+        (vscode.workspace as any).getWorkspaceFolder = jest.fn().mockReturnValue({
+            uri: vscode.Uri.file('/workspace/project')
+        });
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+
+        const orchestrator = new DiagnosticsOrchestrator(
+            { subscriptions: [], extensionPath: process.cwd() } as any,
+            { getMacro: jest.fn(), getMacroHoverContent: jest.fn(), canResolveMacro: jest.fn() } as any
+        );
+        (orchestrator as any).collectors = [];
+
+        const document = createDocument('int value;', '/workspace/project/src/sample.c');
+        orchestrator.analyzeDocument(document);
+
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(parseDocumentSpy).toHaveBeenCalledTimes(1);
+        expect(diagnosticCollection.set).toHaveBeenCalledWith(
+            document.uri,
+            expect.arrayContaining([
+                expect.objectContaining({ message: 'snapshot parse error' })
+            ])
+        );
+        expect(diagnosticCollection.delete).not.toHaveBeenCalled();
     });
 
     test('passes syntax and semantic analysis context to collectors', async () => {

@@ -189,7 +189,9 @@ export class DiagnosticsOrchestrator {
      * 分析文档
      */
     public analyzeDocument(document: vscode.TextDocument, showMessage: boolean = false): void {
-        if (!this.shouldCheckFile(document.fileName)) {
+        if (!this.shouldAnalyzeDocument(document)) {
+            this.clearDocumentAnalysisState(document);
+            this.diagnosticCollection.delete(document.uri);
             return;
         }
 
@@ -223,7 +225,9 @@ export class DiagnosticsOrchestrator {
         document: vscode.TextDocument,
         showMessage: boolean = false
     ): Promise<vscode.Diagnostic[]> {
-        if (!this.shouldCheckFile(document.fileName)) {
+        if (!this.shouldAnalyzeDocument(document)) {
+            this.clearDocumentAnalysisState(document);
+            this.diagnosticCollection.delete(document.uri);
             return [];
         }
 
@@ -398,6 +402,25 @@ export class DiagnosticsOrchestrator {
     private shouldCheckFile(fileName: string): boolean {
         const ext = path.extname(fileName).toLowerCase();
         return ext === '.c' || ext === '.h';
+    }
+
+    private shouldAnalyzeDocument(document: vscode.TextDocument): boolean {
+        if (!this.shouldCheckFile(document.fileName)) {
+            return false;
+        }
+
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+        if (!workspaceFolder) {
+            return false;
+        }
+
+        return fs.existsSync(path.join(workspaceFolder.uri.fsPath, 'lpc-support.json'));
+    }
+
+    private clearDocumentAnalysisState(document: vscode.TextDocument): void {
+        const documentKey = document.uri.toString();
+        this.isAnalyzing.delete(documentKey);
+        this.lastAnalysisVersion.delete(documentKey);
     }
 
     /**
