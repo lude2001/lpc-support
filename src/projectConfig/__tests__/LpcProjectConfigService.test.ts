@@ -123,6 +123,36 @@ describe('LpcProjectConfigService', () => {
         expect(result?.lastSyncedAt).toBe('2026-03-22T00:00:00.000Z');
     });
 
+    test('does not rewrite lpc-support.json when resolved fields are unchanged', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-stable-'));
+        const configPath = path.join(workspaceRoot, 'lpc-support.json');
+        const hellPath = path.join(workspaceRoot, 'config.hell');
+        const service = new LpcProjectConfigService();
+
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell',
+            resolved: {
+                includeDirectories: ['/include'],
+                simulatedEfunFile: '/adm/single/simul_efun'
+            },
+            lastSyncedAt: '2026-03-23T00:00:00.000Z'
+        }, null, 2));
+        fs.writeFileSync(hellPath, [
+            'include directories : /include',
+            'simulated efun file : /adm/single/simul_efun'
+        ].join('\n'));
+
+        const writeSpy = jest.spyOn(service, 'writeConfigFile');
+
+        const result = await service.loadForWorkspace(workspaceRoot);
+
+        expect(writeSpy).not.toHaveBeenCalled();
+        expect(result?.resolved?.includeDirectories).toEqual(['/include']);
+        expect(result?.resolved?.simulatedEfunFile).toBe('/adm/single/simul_efun');
+        expect(result?.lastSyncedAt).toBe('2026-03-23T00:00:00.000Z');
+    });
+
     test('returns undefined when project config file does not exist', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-none-'));
         const service = new LpcProjectConfigService();

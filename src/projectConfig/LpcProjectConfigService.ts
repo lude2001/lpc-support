@@ -42,6 +42,11 @@ export class LpcProjectConfigService {
         try {
             const source = await fs.promises.readFile(configHellPath, 'utf8');
             const resolved = parseConfigHell(source);
+            const hasResolvedChanged = JSON.stringify(loadedConfig.resolved ?? {}) !== JSON.stringify(resolved);
+            if (!hasResolvedChanged) {
+                return loadedConfig;
+            }
+
             const nextConfig: LpcProjectConfig = {
                 ...loadedConfig,
                 resolved,
