@@ -139,6 +139,37 @@ describe('LPCCompletionItemProvider', () => {
         expect(result.map(item => item.label)).toContain('hp');
     });
 
+    test('does not mix prefix-matching efun candidates into arrow member completions', async () => {
+        const getAllFunctions = efunDocsManager.getAllFunctions as jest.Mock;
+        getAllFunctions.mockReturnValue(['heal']);
+
+        try {
+            const content = [
+                'class Payload {',
+                '    int hp;',
+                '}',
+                '',
+                'void demo() {',
+                '    class Payload payload;',
+                '    payload->h',
+                '}'
+            ].join('\n');
+            const document = createDocument(path.join(fixtureRoot, 'member-no-efun.c'), content);
+
+            const result = await provider.provideCompletionItems(
+                document,
+                new vscode.Position(6, '    payload->h'.length),
+                { isCancellationRequested: false } as vscode.CancellationToken,
+                {} as vscode.CompletionContext
+            ) as vscode.CompletionItem[];
+
+            expect(result.map(item => item.label)).toContain('hp');
+            expect(result.map(item => item.label)).not.toContain('heal');
+        } finally {
+            getAllFunctions.mockReturnValue(['write']);
+        }
+    });
+
     test('preserves generic object methods for object-style arrow receivers', async () => {
         const content = [
             'object foo() {',

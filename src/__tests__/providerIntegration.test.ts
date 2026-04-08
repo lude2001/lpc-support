@@ -223,4 +223,44 @@ describe('provider integration regression', () => {
         expect(definition.range.line).toBe(0);
         expect(updatedDocument.lineAt(definition.range.line).text).toContain('renamed_call');
     });
+
+    test('definition does not fall back to simul_efun when object method resolution fails', async () => {
+        efunDocsManager.getSimulatedDoc.mockImplementation((name: string) => (
+            name === 'write' ? { name: 'write' } : undefined
+        ));
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((key: string) => (key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined))
+        });
+
+        const simulatedEfunFile = path.join(fixtureRoot, 'simul_efuns', 'write.c');
+        fs.mkdirSync(path.dirname(simulatedEfunFile), { recursive: true });
+        fs.writeFileSync(simulatedEfunFile, 'void write(string msg) {\n}\n');
+        (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([vscode.Uri.file(simulatedEfunFile)]);
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (uri: vscode.Uri) => {
+            if (uri.fsPath === simulatedEfunFile) {
+                return createDocument(simulatedEfunFile, fs.readFileSync(simulatedEfunFile, 'utf8'));
+            }
+
+            return undefined;
+        });
+
+        const provider = new LPCDefinitionProvider(macroManager as any, efunDocsManager as any);
+        const document = createDocument(
+            path.join(fixtureRoot, 'object-method.c'),
+            [
+                'void demo() {',
+                '    ghost->write();',
+                '}'
+            ].join('\n')
+        );
+
+        const definition = await provider.provideDefinition(
+            document,
+            new vscode.Position(1, 11),
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        expect(definition).toBeUndefined();
+        expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
+    });
 });

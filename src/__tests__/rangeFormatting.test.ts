@@ -11,6 +11,14 @@ import * as path from 'path';
 
 const FIXTURE_ROOT = path.resolve(__dirname, '../../test/lpc_code');
 
+function fixturePath(name: string): string {
+    return path.join(FIXTURE_ROOT, name);
+}
+
+function hasFixture(name: string): boolean {
+    return fs.existsSync(fixturePath(name));
+}
+
 function applyEdit(document: ReturnType<typeof TestHelper.createMockDocument>, edit: vscode.TextEdit): string {
     const source = document.getText();
     const startOffset = document.offsetAt(edit.range.start);
@@ -20,7 +28,7 @@ function applyEdit(document: ReturnType<typeof TestHelper.createMockDocument>, e
 }
 
 function readFixture(name: string): string {
-    return fs.readFileSync(path.join(FIXTURE_ROOT, name), 'utf8');
+    return fs.readFileSync(fixturePath(name), 'utf8');
 }
 
 function normalizeLineEndings(text: string): string {
@@ -576,7 +584,7 @@ describe('FormattingService range formatting', () => {
         expect(edits[0].newText).toContain('            "c",\n');
     });
 
-    test('真实 meridiand 的足三阳经选区格式化保留说明注释和块状数组值', async () => {
+    (hasFixture('meridiand.c') ? test : test.skip)('真实 meridiand 的足三阳经选区格式化保留说明注释和块状数组值', async () => {
         const service = new FormattingService();
         const source = readFixture('meridiand.c');
         const document = TestHelper.createMockDocument(source, 'lpc', 'range-meridiand-foot.c');
@@ -591,7 +599,7 @@ describe('FormattingService range formatting', () => {
         expect(output).toContain('"瞳子髎",\n');
     });
 
-    test('真实 meridiand 的 mapping 选区格式化不会把文件头注释混进结果', async () => {
+    (hasFixture('meridiand.c') ? test : test.skip)('真实 meridiand 的 mapping 选区格式化不会把文件头注释混进结果', async () => {
         const service = new FormattingService();
         const source = readFixture('meridiand.c');
         const document = TestHelper.createMockDocument(source, 'lpc', 'range-meridiand-mapping.c');
@@ -605,14 +613,14 @@ describe('FormattingService range formatting', () => {
         expect(edits[0].newText).not.toContain('//by luoyun 2016.6.27');
     });
 
-    test.each(MERIDIAND_TOP_LEVEL_CASES)('真实 meridiand 的$name选区格式化后与整文结果一致', async ({ fileName, rangeFactory }) => {
+    (hasFixture('meridiand.c') ? test.each(MERIDIAND_TOP_LEVEL_CASES) : test.skip.each(MERIDIAND_TOP_LEVEL_CASES))('真实 meridiand 的$name选区格式化后与整文结果一致', async ({ fileName, rangeFactory }) => {
         const source = readFixture('meridiand.c');
         const document = TestHelper.createMockDocument(source, 'lpc', fileName);
 
         await expectMeridiandRangeToMatchStandaloneDocument(rangeFactory(document), fileName);
     });
 
-    test.each(MERIDIAND_STATEMENT_CASES)('真实 meridiand 的$name节点选区格式化后与包装格式化一致', async ({ fileName, rangeFactory }) => {
+    (hasFixture('meridiand.c') ? test.each(MERIDIAND_STATEMENT_CASES) : test.skip.each(MERIDIAND_STATEMENT_CASES))('真实 meridiand 的$name节点选区格式化后与包装格式化一致', async ({ fileName, rangeFactory }) => {
         const source = readFixture('meridiand.c');
         const document = TestHelper.createMockDocument(source, 'lpc', fileName);
 
@@ -624,14 +632,14 @@ describe('FormattingService range formatting', () => {
         );
     });
 
-    test.each(MERIDIAND_SNIPPET_CASES)('真实 meridiand 的$name选区格式化后与 snippet fallback 一致', async ({ fileName, rangeFactory }) => {
+    (hasFixture('meridiand.c') ? test.each(MERIDIAND_SNIPPET_CASES) : test.skip.each(MERIDIAND_SNIPPET_CASES))('真实 meridiand 的$name选区格式化后与 snippet fallback 一致', async ({ fileName, rangeFactory }) => {
         const source = readFixture('meridiand.c');
         const document = TestHelper.createMockDocument(source, 'lpc', fileName);
 
         await expectMeridiandRangeToMatchWrappedSnippetDocument(rangeFactory(document), fileName);
     });
 
-    test.each(MERIDIAND_MAPPING_ENTRY_CASES)('真实 meridiand 的$name条目选区格式化后与包装 mapping 格式化一致', async ({ fileName, rangeFactory }) => {
+    (hasFixture('meridiand.c') ? test.each(MERIDIAND_MAPPING_ENTRY_CASES) : test.skip.each(MERIDIAND_MAPPING_ENTRY_CASES))('真实 meridiand 的$name条目选区格式化后与包装 mapping 格式化一致', async ({ fileName, rangeFactory }) => {
         const source = readFixture('meridiand.c');
         const document = TestHelper.createMockDocument(source, 'lpc', fileName);
 
@@ -643,7 +651,7 @@ describe('FormattingService range formatting', () => {
         );
     });
 
-    test.each(MERIDIAND_ARRAY_LITERAL_CASES)('真实 meridiand 的$name直接选区格式化会展开为稳定的多行数组', async ({ fileName, rangeFactory }) => {
+    (hasFixture('meridiand.c') ? test.each(MERIDIAND_ARRAY_LITERAL_CASES) : test.skip.each(MERIDIAND_ARRAY_LITERAL_CASES))('真实 meridiand 的$name直接选区格式化会展开为稳定的多行数组', async ({ fileName, rangeFactory }) => {
         const source = readFixture('meridiand.c');
         const document = TestHelper.createMockDocument(source, 'lpc', fileName);
         const edits = await new FormattingService().formatRange(document, rangeFactory(document));
@@ -654,7 +662,7 @@ describe('FormattingService range formatting', () => {
         expect(normalizeLineEndings(edits[0].newText)).toContain('\n\t})');
     });
 
-    test('真实 meridiand 的不完整 mapping 片段选区会被拒绝', async () => {
+    (hasFixture('meridiand.c') ? test : test.skip)('真实 meridiand 的不完整 mapping 片段选区会被拒绝', async () => {
         const service = new FormattingService();
         const source = readFixture('meridiand.c');
         const document = TestHelper.createMockDocument(source, 'lpc', 'range-meridiand-partial-mapping.c');
@@ -663,7 +671,7 @@ describe('FormattingService range formatting', () => {
         await expect(service.formatRange(document, range)).resolves.toEqual([]);
     });
 
-    test.each([
+    (hasFixture('meridiand.c') ? test.each : test.skip.each)([
         {
             name: '注释说明块',
             fileName: 'range-meridiand-comment-only.c',

@@ -1,8 +1,12 @@
 import * as vscode from 'vscode';
+import { ASTManager } from '../ast/astManager';
+import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import type { EfunDocsManager } from './EfunDocsManager';
 import type { EfunDoc } from './types';
 
 export class EfunHoverProvider implements vscode.HoverProvider {
+    private readonly astManager = ASTManager.getInstance();
+
     public constructor(private readonly efunDocsManager: EfunDocsManager) {}
 
     public async provideHover(
@@ -32,6 +36,10 @@ export class EfunHoverProvider implements vscode.HoverProvider {
         const includeDoc = await this.efunDocsManager.getIncludedFileDoc(document, word);
         if (includeDoc) {
             return this.createHoverContent(includeDoc);
+        }
+
+        if (this.isArrowMemberAccess(document, position, word)) {
+            return undefined;
         }
 
         const simulatedDoc = this.efunDocsManager.getSimulatedDoc(word);
@@ -139,5 +147,46 @@ export class EfunHoverProvider implements vscode.HoverProvider {
             .replace(/\\/g, '\\\\')
             .replace(/\|/g, '\\|')
             .replace(/\r?\n/g, '<br>');
+    }
+
+    private isArrowMemberAccess(document: vscode.TextDocument, position: vscode.Position, word: string): boolean {
+        const syntax = this.getSyntaxDocument(document);
+        if (!syntax) {
+            return false;
+        }
+
+        const candidates = this.getContainingSyntaxNodes(syntax, position);
+
+        for (const node of candidates) {
+            if (node.kind === SyntaxKind.CallExpression && this.isMatchingArrowMember(node.children[0], word)) {
+                return true;
+            }
+        }
+
+        return candidates.some((node) => this.isMatchingArrowMember(node, word));
+    }
+
+    private getSyntaxDocument(document: vscode.TextDocument): SyntaxDocument | undefined {
+        return this.astManager.getSyntaxDocument(document, false)
+            ?? this.astManager.getSyntaxDocument(document, true);
+    }
+
+    private getContainingSyntaxNodes(syntax: SyntaxDocument, position: vscode.Position): SyntaxNode[] {
+        return [...syntax.nodes]
+            .filter((node) => node.range.contains(position))
+            .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range));
+    }
+
+    private getRangeSize(range: vscode.Range): number {
+        return (range.end.line - range.start.line) * 10_000 + (range.end.character - range.start.character);
+    }
+
+    private isMatchingArrowMember(node: SyntaxNode | undefined, word: string): boolean {
+        if (!node || node.kind !== SyntaxKind.MemberAccessExpression || node.children.length < 2) {
+            return false;
+        }
+
+        const memberNode = node.children[1];
+        return memberNode.kind === SyntaxKind.Identifier && memberNode.name === word;
     }
 }

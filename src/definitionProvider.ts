@@ -59,6 +59,11 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         const word = document.getText(wordRange);
+        const objectAccess = this.analyzeObjectAccessWithAST(document, position, word);
+        if (objectAccess) {
+            return this.handleObjectMethodCall(document, objectAccess);
+        }
+
         const directDefinition = await this.resolveDirectDefinition(document, position, word);
         if (directDefinition) {
             return directDefinition;
@@ -75,14 +80,6 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         const includeResult = await this.handleIncludeDefinition(document, position);
         if (includeResult) {
             return includeResult;
-        }
-
-        const objectAccess = this.analyzeObjectAccessWithAST(document, position, word);
-        if (objectAccess) {
-            const crossFileResult = await this.handleObjectMethodCall(document, objectAccess);
-            if (crossFileResult) {
-                return crossFileResult;
-            }
         }
 
         const macroDefinition = await this.findMacroDefinition(word);
