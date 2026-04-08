@@ -3,60 +3,71 @@ import { parseFunctionDocs } from '../efun/docParser';
 import { MacroManager } from '../macroManager';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { PathResolver } from '../utils/pathResolver';
-import { ClassifiedReceiver, ObjectCandidate } from './types';
+import { ReceiverClassifier } from './ReceiverClassifier';
+import { ClassifiedReceiver, ObjectCandidate, ObjectResolutionOutcome } from './types';
 
 export class ReturnObjectResolver {
+    private readonly classifier = new ReceiverClassifier();
+
     constructor(private readonly macroManager?: MacroManager) {}
 
     public async resolveExpression(
         document: vscode.TextDocument,
         expression: SyntaxNode
     ): Promise<ObjectCandidate[]> {
+        return (await this.resolveExpressionOutcome(document, expression)).candidates;
+    }
+
+    public async resolveExpressionOutcome(
+        document: vscode.TextDocument,
+        expression: SyntaxNode
+    ): Promise<ObjectResolutionOutcome> {
         if (expression.kind === SyntaxKind.ParenthesizedExpression && expression.children[0]) {
-            return this.resolveExpression(document, expression.children[0]);
+            return this.resolveExpressionOutcome(document, expression.children[0]);
         }
 
-        if (expression.kind === SyntaxKind.Literal) {
-            const nodeText = this.getNodeText(document, expression);
-            if (!this.isStringLiteral(nodeText)) {
-                return [];
-            }
-
-            return this.resolvePathCandidate(document, nodeText, 'literal');
+        const classified = this.classifier.classify(expression);
+        if (classified.kind === 'unsupported' || classified.kind === 'index') {
+            return {
+                candidates: [],
+                reason: classified.reason
+            };
         }
 
         if (expression.kind === SyntaxKind.Identifier && expression.name) {
             if (!this.macroManager?.getMacro(expression.name)) {
-                return [];
+                return { candidates: [] };
             }
 
-            return this.resolvePathCandidate(document, expression.name, 'macro');
+            return {
+                candidates: await this.resolvePathCandidate(document, expression.name, 'macro')
+            };
         }
 
         if (expression.kind !== SyntaxKind.CallExpression) {
-            return [];
+            return { candidates: [] };
         }
 
         const callee = expression.children[0];
-        const argumentList = expression.children[1];
         if (callee?.kind !== SyntaxKind.Identifier || !callee.name) {
-            return [];
+            return { candidates: [] };
         }
 
-        const builtinCandidates = await this.resolveCall(document, {
-            kind: 'call',
-            calleeName: callee.name,
-            argumentCount: argumentList?.children.length ?? 0,
-            firstArgument: argumentList?.children[0]
-                ? this.getExpressionText(document, argumentList.children[0])
-                : undefined,
-            nodeText: this.getNodeText(document, expression)
-        });
+        if (classified.kind !== 'call') {
+            return { candidates: [] };
+        }
+
+        const builtinCandidates = await this.resolveCall(document, classified);
         if (builtinCandidates.length > 0 || this.isBuiltinCall(callee.name)) {
-            return builtinCandidates;
+            return {
+                candidates: builtinCandidates,
+                reason: classified.unsupportedReason
+            };
         }
 
-        return this.resolveDocumentedReturnObjects(document, callee.name);
+        return {
+            candidates: await this.resolveDocumentedReturnObjects(document, callee.name)
+        };
     }
 
     public async resolveCall(
@@ -130,20 +141,6 @@ export class ReturnObjectResolver {
 
     private isStringLiteral(value: string): boolean {
         return value.length >= 2 && value.startsWith('"') && value.endsWith('"');
-    }
-
-    private getNodeText(document: vscode.TextDocument, node: SyntaxNode): string {
-        return typeof node.metadata?.text === 'string'
-            ? node.metadata.text
-            : document.getText(node.range);
-    }
-
-    private getExpressionText(document: vscode.TextDocument, node: SyntaxNode): string {
-        if (node.kind === SyntaxKind.ParenthesizedExpression && node.children[0]) {
-            return this.getExpressionText(document, node.children[0]);
-        }
-
-        return this.getNodeText(document, node);
     }
 
     private toObjectPathExpression(objectPath: string): string {

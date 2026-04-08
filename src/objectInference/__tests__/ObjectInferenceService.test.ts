@@ -820,4 +820,54 @@ describe('ObjectInferenceService', () => {
             ]
         });
     });
+
+    test('out-of-scope inner block locals do not block later macro fallback', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/combat_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'void demo() {',
+            '    {',
+            '        object COMBAT_D = load_object("/adm/objects/sword");',
+            '        COMBAT_D->query();',
+            '    }',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'macro-fallback-after-inner-block.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'macro'
+                }
+            ]
+        });
+    });
+
+    test('identifier tracing preserves unsupported builtin rhs semantics', async () => {
+        const source = [
+            'void demo() {',
+            '    object ob = load_object(1);',
+            '    ob->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'traced-unsupported-builtin.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'ob->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
 });

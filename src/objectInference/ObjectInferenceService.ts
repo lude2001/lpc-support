@@ -7,7 +7,7 @@ import { ObjectCandidateResolver } from './ObjectCandidateResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ReceiverTraceService } from './ReceiverTraceService';
 import { ReturnObjectResolver } from './ReturnObjectResolver';
-import { ClassifiedReceiver, InferredObjectAccess, ObjectCandidate } from './types';
+import { ClassifiedReceiver, InferredObjectAccess, ObjectCandidate, ObjectResolutionOutcome } from './types';
 
 export class ObjectInferenceService {
     private readonly astManager = ASTManager.getInstance();
@@ -51,14 +51,14 @@ export class ObjectInferenceService {
             };
         }
 
-        const candidates = await this.resolveCandidates(document, syntax, receiverNode, classifiedReceiver);
-        const inferenceReason = this.getInferenceReason(classifiedReceiver);
+        const resolution = await this.resolveCandidates(document, syntax, receiverNode, classifiedReceiver);
+        const inferenceReason = resolution.reason ?? this.getInferenceReason(classifiedReceiver);
 
         return {
             receiver: this.getNodeText(document, receiverNode),
             memberName: memberNode.name,
             inference: this.candidateResolver.resolve(
-                candidates,
+                resolution.candidates,
                 inferenceReason
             )
         };
@@ -84,29 +84,35 @@ export class ObjectInferenceService {
         syntax: SyntaxDocument,
         receiverNode: SyntaxNode,
         receiver: ClassifiedReceiver
-    ): Promise<ObjectCandidate[]> {
+    ): Promise<ObjectResolutionOutcome> {
         if (receiver.kind === 'literal') {
-            return this.resolvePathCandidate(document, receiver.expression, 'literal');
+            return {
+                candidates: await this.resolvePathCandidate(document, receiver.expression, 'literal')
+            };
         }
 
         if (receiver.kind === 'macro') {
-            return this.resolvePathCandidate(document, receiver.expression, 'macro');
+            return {
+                candidates: await this.resolvePathCandidate(document, receiver.expression, 'macro')
+            };
         }
 
         if (receiver.kind === 'call') {
-            return this.returnObjectResolver.resolveExpression(document, receiverNode);
+            return this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
         }
 
         if (receiver.kind === 'identifier') {
-            const tracedCandidates = (await this.traceService.traceIdentifier(document, syntax, receiverNode)) ?? [];
-            if (tracedCandidates.length > 0 || this.hasEnclosingLocalDeclaration(syntax, receiverNode)) {
-                return tracedCandidates;
+            const tracedResult = await this.traceService.traceIdentifier(document, syntax, receiverNode);
+            if (tracedResult && (tracedResult.candidates.length > 0 || tracedResult.hasVisibleBinding)) {
+                return tracedResult;
             }
 
-            return this.resolvePathCandidate(document, receiver.expression, 'macro');
+            return {
+                candidates: await this.resolvePathCandidate(document, receiver.expression, 'macro')
+            };
         }
 
-        return [];
+        return { candidates: [] };
     }
 
     private getInferenceReason(receiver: ClassifiedReceiver) {
@@ -119,39 +125,6 @@ export class ObjectInferenceService {
         }
 
         return undefined;
-    }
-
-    private hasEnclosingLocalDeclaration(syntax: SyntaxDocument, receiverNode: SyntaxNode): boolean {
-        if (!receiverNode.name) {
-            return false;
-        }
-
-        const enclosingFunction = [...syntax.nodes]
-            .filter((node) => node.kind === SyntaxKind.FunctionDeclaration)
-            .filter((node) => node.range.contains(receiverNode.range.start))
-            .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range))[0];
-
-        if (!enclosingFunction) {
-            return false;
-        }
-
-        return syntax.nodes.some((node) => {
-            if (!this.isLocalDeclarationNode(node, receiverNode.name!)) {
-                return false;
-            }
-
-            return enclosingFunction.range.contains(node.range.start)
-                && this.isBeforeOrEqual(node.range.start, receiverNode.range.start);
-        });
-    }
-
-    private isLocalDeclarationNode(node: SyntaxNode, name: string): boolean {
-        return (node.kind === SyntaxKind.ParameterDeclaration || node.kind === SyntaxKind.VariableDeclarator)
-            && node.name === name;
-    }
-
-    private isBeforeOrEqual(left: vscode.Position, right: vscode.Position): boolean {
-        return left.isBefore(right) || left.isEqual(right);
     }
 
     private async resolvePathCandidate(

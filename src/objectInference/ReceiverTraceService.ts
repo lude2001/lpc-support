@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
-import { ObjectCandidate } from './types';
+import { ObjectCandidate, ObjectInferenceReason, ObjectResolutionOutcome, TracedReceiverResult } from './types';
 import { ReturnObjectResolver } from './ReturnObjectResolver';
 
 interface FlowState {
@@ -15,7 +15,7 @@ export class ReceiverTraceService {
         document: vscode.TextDocument,
         syntax: SyntaxDocument,
         identifierNode: SyntaxNode
-    ): Promise<ObjectCandidate[] | undefined> {
+    ): Promise<TracedReceiverResult | undefined> {
         if (!identifierNode.name) {
             return undefined;
         }
@@ -25,12 +25,15 @@ export class ReceiverTraceService {
             return undefined;
         }
 
+        const binding = this.resolveVisibleBinding(containingFunction, identifierNode.name, identifierNode.range.start);
+
         return this.traceIdentifierInFunction(
             document,
             containingFunction,
             identifierNode.name,
             identifierNode.range.start,
-            new Set<string>()
+            new Set<string>(),
+            binding
         );
     }
 
@@ -48,28 +51,38 @@ export class ReceiverTraceService {
         usagePosition: vscode.Position,
         visited: Set<string>,
         binding: SyntaxNode | undefined = this.resolveVisibleBinding(functionNode, identifierName, usagePosition)
-    ): Promise<ObjectCandidate[]> {
+    ): Promise<TracedReceiverResult> {
         const visitKey = `${this.getBindingKey(identifierName, binding)}@${usagePosition.line}:${usagePosition.character}`;
         if (visited.has(visitKey)) {
-            return [];
+            return {
+                candidates: [],
+                hasVisibleBinding: binding !== undefined
+            };
         }
 
         visited.add(visitKey);
 
         const sourceState = this.collectSourceExpressions(functionNode, identifierName, usagePosition, binding);
         const candidates: ObjectCandidate[] = [];
+        let reason: ObjectInferenceReason | undefined;
 
         for (const expression of sourceState.expressions) {
-            candidates.push(...await this.resolveSourceExpression(
+            const outcome = await this.resolveSourceExpression(
                 document,
                 functionNode,
                 expression,
                 usagePosition,
                 visited
-            ));
+            );
+            candidates.push(...outcome.candidates);
+            reason = reason ?? outcome.reason;
         }
 
-        return candidates;
+        return {
+            candidates,
+            reason,
+            hasVisibleBinding: binding !== undefined
+        };
     }
 
     private collectSourceExpressions(
@@ -192,10 +205,10 @@ export class ReceiverTraceService {
         expression: SyntaxNode,
         usagePosition: vscode.Position,
         visited: Set<string>
-    ): Promise<ObjectCandidate[]> {
-        const directCandidates = await this.returnObjectResolver.resolveExpression(document, expression);
-        if (directCandidates.length > 0) {
-            return directCandidates;
+    ): Promise<ObjectResolutionOutcome> {
+        const directResolution = await this.returnObjectResolver.resolveExpressionOutcome(document, expression);
+        if (directResolution.candidates.length > 0 || directResolution.reason) {
+            return directResolution;
         }
 
         if (expression.kind === SyntaxKind.ParenthesizedExpression && expression.children[0]) {
@@ -206,7 +219,7 @@ export class ReceiverTraceService {
             return this.traceIdentifierInFunction(document, functionNode, expression.name, expression.range.start, visited);
         }
 
-        return [];
+        return { candidates: [] };
     }
 
     private resolveVisibleBinding(
