@@ -263,4 +263,44 @@ describe('provider integration regression', () => {
         expect(definition).toBeUndefined();
         expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
     });
+
+    test('definition does not fall back to simul_efun for expression-based arrow receivers', async () => {
+        efunDocsManager.getSimulatedDoc.mockImplementation((name: string) => (
+            name === 'query' ? { name: 'query' } : undefined
+        ));
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((key: string) => (key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined))
+        });
+
+        const simulatedEfunFile = path.join(fixtureRoot, 'simul_efuns', 'query.c');
+        fs.mkdirSync(path.dirname(simulatedEfunFile), { recursive: true });
+        fs.writeFileSync(simulatedEfunFile, 'mixed query(string key) {\n}\n');
+        (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([vscode.Uri.file(simulatedEfunFile)]);
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (uri: vscode.Uri) => {
+            if (uri.fsPath === simulatedEfunFile) {
+                return createDocument(simulatedEfunFile, fs.readFileSync(simulatedEfunFile, 'utf8'));
+            }
+
+            return undefined;
+        });
+
+        const provider = new LPCDefinitionProvider(macroManager as any, efunDocsManager as any);
+        const document = createDocument(
+            path.join(fixtureRoot, 'expression-object-method.c'),
+            [
+                'void demo(object ob) {',
+                '    environment(ob)->query("short");',
+                '}'
+            ].join('\n')
+        );
+
+        const definition = await provider.provideDefinition(
+            document,
+            new vscode.Position(1, 21),
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        expect(definition).toBeUndefined();
+        expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
+    });
 });

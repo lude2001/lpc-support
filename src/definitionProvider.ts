@@ -10,7 +10,7 @@ import { SyntaxDocument, SyntaxKind, SyntaxNode } from './syntax/types';
 import { resolveVisibleSymbol } from './symbolReferenceResolver';
 
 interface ObjectAccessInfo {
-    objectExpression: string;  // 对象表达式（可能是标识符、字符串字面量等）
+    objectExpression?: string;  // 对象表达式（可能是标识符、字符串字面量等）
     methodName: string;        // 方法名
     isMethodCall: boolean;     // 是否是方法调用（带括号）
     objectIsString: boolean;   // 对象是否是字符串字面量
@@ -419,6 +419,10 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     }
 
     private resolveObjectAccessTargetPath(objectAccess: ObjectAccessInfo): string | undefined {
+        if (!objectAccess.objectExpression) {
+            return undefined;
+        }
+
         if (objectAccess.objectIsString) {
             return this.parseStringPath(objectAccess.objectExpression);
         }
@@ -541,16 +545,13 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         const receiver = this.extractObjectReceiver(node.children[0]);
-        if (!receiver) {
-            return undefined;
-        }
 
         return {
-            objectExpression: receiver.objectExpression,
+            objectExpression: receiver?.objectExpression,
             methodName: targetWord,
             isMethodCall,
-            objectIsString: receiver.objectIsString,
-            objectIsMacro: receiver.objectIsMacro
+            objectIsString: receiver?.objectIsString ?? false,
+            objectIsMacro: receiver?.objectIsMacro ?? false
         };
     }
 
