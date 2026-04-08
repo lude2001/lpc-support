@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.3.1",
+  "version": "0.32.1",
   "publisher": "ludexiang",
   "author": {
     "name": "ludexiang",
@@ -262,11 +262,6 @@
       "type": "object",
       "title": "LPC Support Configuration",
       "properties": {
-        "lpc.driver.command": {
-          "type": "string",
-          "default": "",
-          "description": "用于启动MUD驱动程序的命令。"
-        },
         "lpc.includePath": {
           "type": "string",
           "default": "",

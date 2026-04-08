@@ -7,7 +7,6 @@ export function hasLegacyProjectSettings(config: vscode.WorkspaceConfiguration):
     return Boolean(
         config.get<string>('includePath')
         || config.get<string>('simulatedEfunsPath')
-        || config.get<string>('driver.command')
     );
 }
 

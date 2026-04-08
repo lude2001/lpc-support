@@ -12,6 +12,11 @@ import {
     getGlobalParsedDocumentService
 } from '../../parser/ParsedDocumentService';
 
+jest.mock('../../utils/lpcprj', () => ({
+    hasLpcprjCommand: jest.fn(),
+    getLpcprjStartCommand: jest.fn((configPath: string) => `lpcprj "${configPath}"`)
+}), { virtual: true });
+
 jest.mock('../../functionDocPanel', () => ({
     FunctionDocPanel: {
         createOrShow: jest.fn()
@@ -91,6 +96,10 @@ describe('registerCommands', () => {
     let parsedDocumentService: { getStats: jest.Mock };
     let freshConfigManager: { id: string };
     let freshCompiler: { compileFolder: jest.Mock };
+    let lpcprj: {
+        hasLpcprjCommand: jest.Mock;
+        getLpcprjStartCommand: jest.Mock;
+    };
 
     beforeEach(() => {
         registry = new ServiceRegistry();
@@ -130,7 +139,10 @@ describe('registerCommands', () => {
             compileFolder: jest.fn()
         };
         projectConfigService = {
-            loadForWorkspace: jest.fn().mockResolvedValue(undefined),
+            loadForWorkspace: jest.fn().mockResolvedValue({
+                version: 1,
+                configHellPath: 'config.hell'
+            }),
             ensureConfigForWorkspace: jest.fn().mockResolvedValue(undefined),
             getCompileConfigForWorkspace: jest.fn().mockResolvedValue({
                 mode: 'remote',
@@ -172,6 +184,12 @@ describe('registerCommands', () => {
         };
         freshConfigManager = { id: 'fresh-config-manager' };
         freshCompiler = { compileFolder: jest.fn() };
+        lpcprj = jest.requireMock('../../utils/lpcprj') as {
+            hasLpcprjCommand: jest.Mock;
+            getLpcprjStartCommand: jest.Mock;
+        };
+        lpcprj.hasLpcprjCommand.mockReset().mockReturnValue(true);
+        lpcprj.getLpcprjStartCommand.mockReset().mockImplementation((configPath: string) => `lpcprj "${configPath}"`);
 
         registry.register(Services.MacroManager, macroManager as any);
         registry.register(Services.Diagnostics, diagnostics as any);
@@ -436,51 +454,53 @@ describe('registerCommands', () => {
         expect(vscode.window.showTextDocument).not.toHaveBeenCalled();
     });
 
-    test('starts the driver in a terminal using the configured command', () => {
-        const driverCommand = 'C:\\mud\\driver.exe --boot';
+    test('starts the driver in a terminal with configHellPath from lpc-support.json when lpcprj is available', async () => {
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
-        (vscode.workspace.getConfiguration as jest.Mock).mockImplementation((section?: string) => {
-            if (section === 'lpc') {
-                return {
-                    get: jest.fn((key: string) => key === 'driver.command' ? driverCommand : undefined)
-                };
-            }
-
-            return {
-                get: jest.fn((key: string, defaultValue?: unknown) => defaultValue),
-                update: jest.fn().mockResolvedValue(undefined)
-            };
-        });
 
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
-        handlers.get('lpc.startDriver')?.();
+        await handlers.get('lpc.startDriver')?.();
 
         const terminal = (vscode.window.createTerminal as jest.Mock).mock.results[0].value;
+        expect(lpcprj.hasLpcprjCommand).toHaveBeenCalledTimes(1);
         expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('D:/workspace');
         expect(vscode.window.createTerminal).toHaveBeenCalledWith({
             name: 'MUD Driver',
-            cwd: path.dirname(driverCommand)
+            cwd: 'D:/workspace'
         });
-        expect(terminal.sendText).toHaveBeenCalledWith(driverCommand);
+        expect(lpcprj.getLpcprjStartCommand).toHaveBeenCalledWith('D:\\workspace\\config.hell');
+        expect(terminal.sendText).toHaveBeenCalledWith('lpcprj "D:\\workspace\\config.hell"');
         expect(terminal.show).toHaveBeenCalledTimes(1);
     });
 
-    test('warns and does not create a terminal when no driver command is configured', () => {
+    test('warns and does not create a terminal when project config is missing configHellPath', async () => {
+        projectConfigService.loadForWorkspace.mockResolvedValueOnce(undefined);
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
+
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
 
-        handlers.get('lpc.startDriver')?.();
+        await handlers.get('lpc.startDriver')?.();
 
         expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
-            '未配置驱动启动命令。请在设置中配置 `lpc.driver.command`。',
-            '打开设置'
+            '当前工作区缺少可用的 `lpc-support.json` 或 `configHellPath`，无法启动开发驱动。'
         );
         expect(vscode.window.createTerminal).not.toHaveBeenCalled();
-        expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith(
-            'workbench.action.openSettings',
-            'lpc.driver.command'
+    });
+
+    test('warns and does not create a terminal when lpcprj is unavailable', async () => {
+        lpcprj.hasLpcprjCommand.mockReturnValue(false);
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
+        registerCommands(registry, context);
+        const handlers = getRegisteredHandlers();
+
+        await handlers.get('lpc.startDriver')?.();
+
+        expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+            '未检测到系统命令 `lpcprj`。请前往 GitHub 获取并安装开发驱动环境（预览版）后，再使用“启动驱动”功能。'
         );
+        expect(vscode.window.createTerminal).not.toHaveBeenCalled();
+        expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
     });
 
 });

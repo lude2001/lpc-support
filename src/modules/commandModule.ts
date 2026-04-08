@@ -8,6 +8,7 @@ import {
     migrateProjectConfigForWorkspace,
     shouldPromptProjectConfigMigration
 } from '../projectConfig/projectConfigMigration';
+import { getLpcprjStartCommand, hasLpcprjCommand } from '../utils/lpcprj';
 
 export function registerCommands(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const macroManager = registry.get(Services.MacroManager);
@@ -190,36 +191,34 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
     register(context, 'lpc.configureMacroPath', () => macroManager.configurePath());
 
-    register(context, 'lpc.startDriver', () => {
-        const config = vscode.workspace.getConfiguration('lpc');
-        const driverCommand = config.get<string>('driver.command');
+    register(context, 'lpc.startDriver', async () => {
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
-        if (workspaceRoot) {
-            void projectConfigService.loadForWorkspace(workspaceRoot);
-        }
-
-        if (!driverCommand) {
-            vscode.window.showWarningMessage(
-                '未配置驱动启动命令。请在设置中配置 `lpc.driver.command`。',
-                '打开设置'
-            ).then(selection => {
-                if (selection === '打开设置') {
-                    vscode.commands.executeCommand('workbench.action.openSettings', 'lpc.driver.command');
-                }
-            });
+        if (!workspaceRoot) {
+            vscode.window.showErrorMessage('请先打开一个工作区');
             return;
         }
 
-        let cwd: string | undefined;
-        if (path.isAbsolute(driverCommand)) {
-            cwd = path.dirname(driverCommand);
-        } else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-            cwd = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        if (!hasLpcprjCommand()) {
+            vscode.window.showWarningMessage(
+                '未检测到系统命令 `lpcprj`。请前往 GitHub 获取并安装开发驱动环境（预览版）后，再使用“启动驱动”功能。'
+            );
+            return;
         }
 
-        const terminal = vscode.window.createTerminal({ name: 'MUD Driver', cwd });
-        terminal.sendText(driverCommand);
+        const projectConfig = await projectConfigService.loadForWorkspace(workspaceRoot);
+        if (!projectConfig?.configHellPath) {
+            vscode.window.showWarningMessage(
+                '当前工作区缺少可用的 `lpc-support.json` 或 `configHellPath`，无法启动开发驱动。'
+            );
+            return;
+        }
+
+        const resolvedConfigPath = projectConfigService.resolveWorkspacePath(
+            workspaceRoot,
+            projectConfig.configHellPath
+        );
+        const terminal = vscode.window.createTerminal({ name: 'MUD Driver', cwd: workspaceRoot });
+        terminal.sendText(getLpcprjStartCommand(resolvedConfigPath));
         terminal.show();
     });
 

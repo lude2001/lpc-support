@@ -57,3 +57,4 @@ test-output*
 *-comparison*.txt
 .spec-workflow
 test/lpc_code/
+.worktrees/

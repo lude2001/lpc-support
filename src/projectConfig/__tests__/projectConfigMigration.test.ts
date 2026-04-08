@@ -34,6 +34,17 @@ describe('projectConfigMigration', () => {
         await expect(shouldPromptProjectConfigMigration(service, workspaceRoot, config)).resolves.toBe(true);
     });
 
+    test('does not treat legacy driver startup setting as a migration source anymore', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-driver-startup-'));
+        const service = new LpcProjectConfigService();
+        const config = {
+            get: jest.fn((key: string) => key === 'driver.command' ? 'driver.exe --boot' : undefined)
+        } as any;
+
+        expect(hasLegacyProjectSettings(config)).toBe(false);
+        await expect(shouldPromptProjectConfigMigration(service, workspaceRoot, config)).resolves.toBe(false);
+    });
+
     test('creates lpc-support.json and syncs resolved fields during migration', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-migrate-run-'));
         const configPath = path.join(workspaceRoot, 'lpc-support.json');
