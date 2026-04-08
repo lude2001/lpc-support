@@ -302,7 +302,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
     ): Promise<CompletionCandidate[]> {
         const currentUri = document.uri.toString();
         const occurrenceCounts = new Map<string, number>();
-        const functionsByKey = new Map<string, FunctionSummary>();
+        const functionsByLabel = new Map<string, FunctionSummary>();
 
         for (const candidate of inference.candidates) {
             if (token.isCancellationRequested) {
@@ -310,21 +310,24 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
             }
 
             const functions = await this.collectObjectFunctions(document, candidate.path, new Set<string>());
-            const functionKeysInCandidate = new Set<string>();
+            const visibleFunctions = new Map<string, FunctionSummary>();
 
             for (const func of functions) {
-                const functionKey = `${func.sourceUri}:${func.name}`;
-                functionsByKey.set(functionKey, func);
-                functionKeysInCandidate.add(functionKey);
+                if (!visibleFunctions.has(func.name)) {
+                    visibleFunctions.set(func.name, func);
+                }
             }
 
-            for (const functionKey of functionKeysInCandidate) {
-                occurrenceCounts.set(functionKey, (occurrenceCounts.get(functionKey) ?? 0) + 1);
+            for (const [label, func] of visibleFunctions.entries()) {
+                occurrenceCounts.set(label, (occurrenceCounts.get(label) ?? 0) + 1);
+                if (!functionsByLabel.has(label)) {
+                    functionsByLabel.set(label, func);
+                }
             }
         }
 
         const normalizedPrefix = result.context.currentWord.toLowerCase();
-        return Array.from(functionsByKey.entries())
+        return Array.from(functionsByLabel.entries())
             .filter(([, func]) => !normalizedPrefix || func.name.toLowerCase().startsWith(normalizedPrefix))
             .sort((left, right) => {
                 const leftCount = occurrenceCounts.get(left[0]) ?? 0;
@@ -335,11 +338,11 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
 
                 return left[1].name.localeCompare(right[1].name);
             })
-            .map(([functionKey, func]) => {
-                const occurrenceCount = occurrenceCounts.get(functionKey) ?? 0;
+            .map(([label, func]) => {
+                const occurrenceCount = occurrenceCounts.get(label) ?? 0;
                 const sourceType: CompletionCandidateSourceType = func.sourceUri === currentUri ? 'local' : 'inherited';
                 return {
-                    key: `object-member:${occurrenceCount > 1 ? 'shared' : 'specific'}:${functionKey}`,
+                    key: `object-member:${occurrenceCount > 1 ? 'shared' : 'specific'}:${label}`,
                     label: func.name,
                     kind: vscode.CompletionItemKind.Method,
                     detail: `${normalizeLpcType(func.returnType)} ${func.name}`,

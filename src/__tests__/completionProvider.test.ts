@@ -311,6 +311,96 @@ describe('LPCCompletionItemProvider', () => {
         expect(labels.indexOf('query_shared')).toBeLessThan(labels.indexOf('query_shield'));
     });
 
+    test('does not duplicate inherited methods overridden in the resolved object chain', async () => {
+        const objectRoot = path.join(fixtureRoot, 'adm', 'objects');
+        fs.mkdirSync(objectRoot, { recursive: true });
+        fs.writeFileSync(path.join(objectRoot, 'base.c'), [
+            'string query_name() {',
+            '    return "base";',
+            '}'
+        ].join('\n'), 'utf8');
+        fs.writeFileSync(path.join(objectRoot, 'child.c'), [
+            'inherit "/adm/objects/base";',
+            '',
+            'string query_name() {',
+            '    return "child";',
+            '}',
+            '',
+            'string query_child_only() {',
+            '    return "only";',
+            '}'
+        ].join('\n'), 'utf8');
+
+        const content = [
+            'void demo() {',
+            '    object ob;',
+            '    ob = load_object("/adm/objects/child");',
+            '    ob->query_',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'override.c'), content);
+
+        const result = await provider.provideCompletionItems(
+            document,
+            new vscode.Position(3, '    ob->query_'.length),
+            { isCancellationRequested: false } as vscode.CancellationToken,
+            {} as vscode.CompletionContext
+        ) as vscode.CompletionItem[];
+
+        const labels = result.map(item => item.label);
+        expect(labels.filter(label => label === 'query_name')).toHaveLength(1);
+        expect(labels).toContain('query_child_only');
+    });
+
+    test('treats same-named methods from merged object candidates as one shared completion', async () => {
+        const objectRoot = path.join(fixtureRoot, 'adm', 'objects');
+        fs.mkdirSync(objectRoot, { recursive: true });
+        fs.writeFileSync(path.join(objectRoot, 'sword.c'), [
+            'string query_name() {',
+            '    return "sword";',
+            '}',
+            '',
+            'string query_sword() {',
+            '    return "sword";',
+            '}'
+        ].join('\n'), 'utf8');
+        fs.writeFileSync(path.join(objectRoot, 'shield.c'), [
+            'string query_name() {',
+            '    return "shield";',
+            '}',
+            '',
+            'string query_shield() {',
+            '    return "shield";',
+            '}'
+        ].join('\n'), 'utf8');
+
+        const content = [
+            'void demo(int flag) {',
+            '    object ob;',
+            '    if (flag) {',
+            '        ob = load_object("/adm/objects/sword");',
+            '    } else {',
+            '        ob = load_object("/adm/objects/shield");',
+            '    }',
+            '    ob->query_',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'merged-shared.c'), content);
+
+        const result = await provider.provideCompletionItems(
+            document,
+            new vscode.Position(7, '    ob->query_'.length),
+            { isCancellationRequested: false } as vscode.CancellationToken,
+            {} as vscode.CompletionContext
+        ) as vscode.CompletionItem[];
+
+        const labels = result.map(item => item.label);
+        expect(labels.filter(label => label === 'query_name')).toHaveLength(1);
+        expect(labels).toEqual(expect.arrayContaining(['query_name', 'query_sword', 'query_shield']));
+        expect(labels.indexOf('query_name')).toBeLessThan(labels.indexOf('query_sword'));
+        expect(labels.indexOf('query_name')).toBeLessThan(labels.indexOf('query_shield'));
+    });
+
     test('resolves efun documentation lazily', async () => {
         const document = createDocument(path.join(fixtureRoot, 'main.c'), 'wri');
 
