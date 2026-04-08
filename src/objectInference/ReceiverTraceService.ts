@@ -3,6 +3,11 @@ import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { ObjectCandidate } from './types';
 import { ReturnObjectResolver } from './ReturnObjectResolver';
 
+interface FlowState {
+    expressions: SyntaxNode[];
+    isConservativeUnknown: boolean;
+}
+
 export class ReceiverTraceService {
     constructor(private readonly returnObjectResolver: ReturnObjectResolver) {}
 
@@ -41,19 +46,20 @@ export class ReceiverTraceService {
         functionNode: SyntaxNode,
         identifierName: string,
         usagePosition: vscode.Position,
-        visited: Set<string>
+        visited: Set<string>,
+        binding: SyntaxNode | undefined = this.resolveVisibleBinding(functionNode, identifierName, usagePosition)
     ): Promise<ObjectCandidate[]> {
-        const visitKey = `${identifierName}@${usagePosition.line}:${usagePosition.character}`;
+        const visitKey = `${this.getBindingKey(identifierName, binding)}@${usagePosition.line}:${usagePosition.character}`;
         if (visited.has(visitKey)) {
             return [];
         }
 
         visited.add(visitKey);
 
-        const sourceExpressions = this.collectSourceExpressions(functionNode, identifierName, usagePosition);
+        const sourceState = this.collectSourceExpressions(functionNode, identifierName, usagePosition, binding);
         const candidates: ObjectCandidate[] = [];
 
-        for (const expression of sourceExpressions) {
+        for (const expression of sourceState.expressions) {
             candidates.push(...await this.resolveSourceExpression(
                 document,
                 functionNode,
@@ -69,89 +75,103 @@ export class ReceiverTraceService {
     private collectSourceExpressions(
         functionNode: SyntaxNode,
         identifierName: string,
-        usagePosition: vscode.Position
-    ): SyntaxNode[] {
+        usagePosition: vscode.Position,
+        binding: SyntaxNode | undefined
+    ): FlowState {
         const body = functionNode.children.find((child) => child.kind === SyntaxKind.Block);
         if (!body) {
-            return [];
+            return this.createFlowState();
         }
 
-        return this.collectFlowExpressions(body, identifierName, usagePosition, []);
+        return this.collectFlowExpressions(body, functionNode, identifierName, usagePosition, binding, this.createFlowState());
     }
 
     private collectFlowExpressions(
         node: SyntaxNode,
+        functionNode: SyntaxNode,
         identifierName: string,
         usagePosition: vscode.Position,
-        currentExpressions: SyntaxNode[]
-    ): SyntaxNode[] {
+        binding: SyntaxNode | undefined,
+        currentState: FlowState
+    ): FlowState {
         if (!this.isBeforeOrEqual(node.range.start, usagePosition)) {
-            return currentExpressions;
+            return currentState;
         }
 
         if (node.kind === SyntaxKind.FunctionDeclaration) {
-            return currentExpressions;
+            return currentState;
         }
 
-        if (this.isUnsupportedControlFlow(node)) {
-            return currentExpressions;
+        if (this.isUnsupportedControlFlow(node) && this.mightWriteTrackedBinding(node, functionNode, identifierName, usagePosition, binding)) {
+            return this.createFlowState([], true);
         }
 
         if (node.kind === SyntaxKind.IfStatement) {
-            return this.collectIfFlowExpressions(node, identifierName, usagePosition, currentExpressions);
+            return this.collectIfFlowExpressions(node, functionNode, identifierName, usagePosition, binding, currentState);
         }
 
-        if (node.kind === SyntaxKind.VariableDeclarator && node.name === identifierName && node.children[1]) {
-            return [node.children[1]];
+        if (this.isTrackedDeclaration(node, identifierName, binding) && node.children[1]) {
+            return this.createFlowState([node.children[1]]);
         }
 
         if (
-            node.kind === SyntaxKind.AssignmentExpression
-            && node.metadata?.operator === '='
-            && node.children[0]?.kind === SyntaxKind.Identifier
-            && node.children[0].name === identifierName
+            this.isTrackedAssignment(node, functionNode, identifierName, binding)
             && node.children[1]
         ) {
-            return [node.children[1]];
+            return this.createFlowState([node.children[1]]);
         }
 
-        let expressions = currentExpressions;
+        let state = currentState;
         for (const child of node.children) {
             if (!this.isBeforeOrEqual(child.range.start, usagePosition)) {
                 break;
             }
 
-            expressions = this.collectFlowExpressions(child, identifierName, usagePosition, expressions);
+            state = this.collectFlowExpressions(child, functionNode, identifierName, usagePosition, binding, state);
         }
 
-        return expressions;
+        return state;
     }
 
     private collectIfFlowExpressions(
         node: SyntaxNode,
+        functionNode: SyntaxNode,
         identifierName: string,
         usagePosition: vscode.Position,
-        currentExpressions: SyntaxNode[]
-    ): SyntaxNode[] {
+        binding: SyntaxNode | undefined,
+        currentState: FlowState
+    ): FlowState {
         const thenBranch = node.children[1];
         const elseBranch = node.children[2];
 
         if (thenBranch?.range.contains(usagePosition)) {
-            return this.collectFlowExpressions(thenBranch, identifierName, usagePosition, currentExpressions);
+            return this.collectFlowExpressions(thenBranch, functionNode, identifierName, usagePosition, binding, currentState);
         }
 
         if (elseBranch?.range.contains(usagePosition)) {
-            return this.collectFlowExpressions(elseBranch, identifierName, usagePosition, currentExpressions);
+            return this.collectFlowExpressions(elseBranch, functionNode, identifierName, usagePosition, binding, currentState);
         }
 
-        const thenExpressions = thenBranch
-            ? this.collectFlowExpressions(thenBranch, identifierName, usagePosition, currentExpressions)
-            : currentExpressions;
-        const elseExpressions = elseBranch
-            ? this.collectFlowExpressions(elseBranch, identifierName, usagePosition, currentExpressions)
-            : currentExpressions;
+        const thenState = thenBranch
+            ? this.collectFlowExpressions(thenBranch, functionNode, identifierName, usagePosition, binding, currentState)
+            : currentState;
+        const elseState = elseBranch
+            ? this.collectFlowExpressions(elseBranch, functionNode, identifierName, usagePosition, binding, currentState)
+            : currentState;
 
-        return this.mergeExpressions(thenExpressions, elseExpressions);
+        return this.mergeBranchStates(currentState, thenState, elseState);
+    }
+
+    private mergeBranchStates(currentState: FlowState, left: FlowState, right: FlowState): FlowState {
+        if (
+            left.isConservativeUnknown
+            || right.isConservativeUnknown
+            || this.branchLeavesReceiverUnresolved(currentState, left, right)
+        ) {
+            return this.createFlowState([], true);
+        }
+
+        return this.createFlowState(this.mergeExpressions(left.expressions, right.expressions));
     }
 
     private mergeExpressions(left: SyntaxNode[], right: SyntaxNode[]): SyntaxNode[] {
@@ -187,6 +207,158 @@ export class ReceiverTraceService {
         }
 
         return [];
+    }
+
+    private resolveVisibleBinding(
+        functionNode: SyntaxNode,
+        identifierName: string,
+        usagePosition: vscode.Position
+    ): SyntaxNode | undefined {
+        let binding = this.findParameterBinding(functionNode, identifierName);
+
+        const walk = (node: SyntaxNode, currentBinding: SyntaxNode | undefined): SyntaxNode | undefined => {
+            let visibleBinding = currentBinding;
+
+            for (const child of node.children) {
+                if (!this.isBeforeOrEqual(child.range.start, usagePosition)) {
+                    break;
+                }
+
+                if (child.kind === SyntaxKind.VariableDeclarator && child.name === identifierName) {
+                    visibleBinding = child;
+                }
+
+                if (this.shouldRecurseForBinding(child, usagePosition)) {
+                    visibleBinding = walk(child, visibleBinding);
+                }
+            }
+
+            return visibleBinding;
+        };
+
+        const body = functionNode.children.find((child) => child.kind === SyntaxKind.Block);
+        if (!body) {
+            return binding;
+        }
+
+        binding = walk(body, binding);
+        return binding;
+    }
+
+    private shouldRecurseForBinding(node: SyntaxNode, usagePosition: vscode.Position): boolean {
+        if (node.kind === SyntaxKind.Block) {
+            return node.range.contains(usagePosition);
+        }
+
+        return true;
+    }
+
+    private findParameterBinding(functionNode: SyntaxNode, identifierName: string): SyntaxNode | undefined {
+        const parameterList = functionNode.children.find((child) => child.kind === SyntaxKind.ParameterList);
+        return parameterList?.children.find(
+            (child) => child.kind === SyntaxKind.ParameterDeclaration && child.name === identifierName
+        );
+    }
+
+    private mightWriteTrackedBinding(
+        node: SyntaxNode,
+        functionNode: SyntaxNode,
+        identifierName: string,
+        usagePosition: vscode.Position,
+        binding: SyntaxNode | undefined
+    ): boolean {
+        if (!this.isBeforeOrEqual(node.range.start, usagePosition) || node.kind === SyntaxKind.FunctionDeclaration) {
+            return false;
+        }
+
+        if (this.isTrackedDeclaration(node, identifierName, binding)) {
+            return true;
+        }
+
+        if (this.isTrackedAssignment(node, functionNode, identifierName, binding)) {
+            return true;
+        }
+
+        for (const child of node.children) {
+            if (!this.isBeforeOrEqual(child.range.start, usagePosition)) {
+                break;
+            }
+
+            if (this.mightWriteTrackedBinding(child, functionNode, identifierName, usagePosition, binding)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private isTrackedDeclaration(node: SyntaxNode, identifierName: string, binding: SyntaxNode | undefined): boolean {
+        return node.kind === SyntaxKind.VariableDeclarator
+            && node.name === identifierName
+            && this.sameBinding(node, binding);
+    }
+
+    private isTrackedAssignment(
+        node: SyntaxNode,
+        functionNode: SyntaxNode,
+        identifierName: string,
+        binding: SyntaxNode | undefined
+    ): boolean {
+        if (
+            node.kind !== SyntaxKind.AssignmentExpression
+            || node.metadata?.operator !== '='
+            || node.children[0]?.kind !== SyntaxKind.Identifier
+            || node.children[0].name !== identifierName
+        ) {
+            return false;
+        }
+
+        return this.sameBinding(
+            this.resolveVisibleBinding(functionNode, identifierName, node.children[0].range.start),
+            binding
+        );
+    }
+
+    private branchLeavesReceiverUnresolved(currentState: FlowState, left: FlowState, right: FlowState): boolean {
+        if (!this.isUnresolvedState(currentState)) {
+            return false;
+        }
+
+        return !this.sameFlowState(left, right)
+            && (this.sameFlowState(left, currentState) || this.sameFlowState(right, currentState));
+    }
+
+    private isUnresolvedState(state: FlowState): boolean {
+        return !state.isConservativeUnknown && state.expressions.length === 0;
+    }
+
+    private sameFlowState(left: FlowState, right: FlowState): boolean {
+        return left.isConservativeUnknown === right.isConservativeUnknown
+            && this.sameExpressions(left.expressions, right.expressions);
+    }
+
+    private sameExpressions(left: SyntaxNode[], right: SyntaxNode[]): boolean {
+        return left.length === right.length
+            && left.every((expression) => right.includes(expression));
+    }
+
+    private sameBinding(left: SyntaxNode | undefined, right: SyntaxNode | undefined): boolean {
+        return left === right;
+    }
+
+    private getBindingKey(identifierName: string, binding: SyntaxNode | undefined): string {
+        if (!binding) {
+            return `${identifierName}@unbound`;
+        }
+
+        return `${binding.kind}:${binding.tokenRange.start}:${binding.tokenRange.end}`;
+    }
+
+    private createFlowState(expressions: SyntaxNode[] = [], isConservativeUnknown = false): FlowState {
+        return {
+            expressions,
+            isConservativeUnknown
+        };
     }
 
     private isUnsupportedControlFlow(node: SyntaxNode): boolean {

@@ -637,6 +637,111 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('if without else keeps receiver unknown when the assignment is not guaranteed', async () => {
+        const source = [
+            'void demo(int flag) {',
+            '    object ob;',
+            '    if (flag) {',
+            '        ob = load_object("/adm/objects/sword");',
+            '    }',
+            '    ob->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'if-without-else.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'ob->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('unsupported control flow writes degrade receiver tracing to unknown', async () => {
+        const loopSource = [
+            'void demo() {',
+            '    object ob;',
+            '    ob = load_object("/adm/objects/shield");',
+            '    for (;;) {',
+            '        ob = load_object("/adm/objects/sword");',
+            '        break;',
+            '    }',
+            '    ob->query();',
+            '}'
+        ].join('\n');
+        const loopDocument = createDocument(path.join(fixtureRoot, 'room', 'loop-write.c'), loopSource);
+
+        const loopResult = await service.inferObjectAccess(loopDocument, positionAfter(loopSource, 'ob->query'));
+
+        expect(loopResult?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+
+        const switchSource = [
+            'void demo(int flag) {',
+            '    object ob;',
+            '    ob = load_object("/adm/objects/sword");',
+            '    switch (flag) {',
+            '    case 1:',
+            '        ob = load_object("/adm/objects/shield");',
+            '        break;',
+            '    }',
+            '    ob->query();',
+            '}'
+        ].join('\n');
+        const switchDocument = createDocument(path.join(fixtureRoot, 'room', 'switch-write.c'), switchSource);
+
+        const switchResult = await service.inferObjectAccess(switchDocument, positionAfter(switchSource, 'ob->query'));
+
+        expect(switchResult?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('inner block declarations shadow without leaking writes to the outer receiver', async () => {
+        const source = [
+            'void demo() {',
+            '    object ob = load_object("/adm/objects/shield");',
+            '    {',
+            '        object ob = load_object("/adm/objects/sword");',
+            '        ob->query_inner();',
+            '    }',
+            '    ob->query_outer();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'block-shadowing.c'), source);
+
+        const innerResult = await service.inferObjectAccess(
+            document,
+            positionAfter(source, 'ob->query_inner')
+        );
+        const outerResult = await service.inferObjectAccess(
+            document,
+            positionAfter(source, 'ob->query_outer')
+        );
+
+        expect(innerResult?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+        expect(outerResult?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'shield.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
     test('documented custom function return objects resolve on chained member access', async () => {
         const source = [
             '/**',
