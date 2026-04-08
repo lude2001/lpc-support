@@ -117,3 +117,4 @@ describe('LocalVariableDeclarationCollector', () => {
         expect(diagnostics[0].severity).toBe(vscode.DiagnosticSeverity.Error);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

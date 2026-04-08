@@ -171,3 +171,4 @@ describe('CompilationService', () => {
         expect(diagnosticCollection.set).toHaveBeenCalled();
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

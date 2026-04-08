@@ -77,3 +77,4 @@ describe('local symbol references', () => {
         expect(changes.every(change => change.newText === 'turn')).toBe(true);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

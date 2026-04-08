@@ -152,3 +152,4 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(macroManager.canResolveMacro).toHaveBeenCalledWith('USER_D');
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

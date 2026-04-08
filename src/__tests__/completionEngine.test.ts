@@ -160,3 +160,4 @@ describe('Completion engine regression coverage', () => {
         expect(result.isIncomplete).toBe(false);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

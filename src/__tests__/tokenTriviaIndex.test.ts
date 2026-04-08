@@ -82,3 +82,4 @@ describe('TokenTriviaIndex', () => {
         expect(trailingTrivia[1].text).toBe('// trailing comment');
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

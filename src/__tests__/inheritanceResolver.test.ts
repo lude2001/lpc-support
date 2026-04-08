@@ -104,3 +104,4 @@ describe('InheritanceResolver', () => {
         expect(targets.map(target => path.basename(vscode.Uri.parse(target.resolvedUri!).fsPath))).toEqual(['base.c', 'macro_base.c']);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

@@ -571,3 +571,4 @@ describe('LPCCompletionItemProvider', () => {
         expect(typeResult.map(item => item.label)).toEqual(expect.arrayContaining(['class Payload', 'int']));
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

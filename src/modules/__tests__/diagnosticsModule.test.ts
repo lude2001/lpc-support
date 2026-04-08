@@ -72,3 +72,4 @@ describe('registerDiagnostics', () => {
         expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

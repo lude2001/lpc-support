@@ -62,3 +62,4 @@ describe('registerUI', () => {
         expect(vscode.commands.registerCommand).not.toHaveBeenCalled();
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

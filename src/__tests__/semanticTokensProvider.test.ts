@@ -69,3 +69,4 @@ describe('LPCSemanticTokensProvider', () => {
         expect(result.data.length).toBeGreaterThan(0);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

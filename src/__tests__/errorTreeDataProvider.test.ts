@@ -62,3 +62,4 @@ describe('ErrorTreeDataProvider', () => {
         expect(children[0].label).toBe('No error server selected.');
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

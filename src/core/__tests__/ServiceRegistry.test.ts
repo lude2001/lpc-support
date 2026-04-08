@@ -51,3 +51,4 @@ describe('ServiceRegistry', () => {
         expect(() => registry.get(key)).toThrow('Service "teardown" is not registered');
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

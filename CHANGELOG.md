@@ -44,7 +44,7 @@
 
   ```c
   /**
-   * @lpc-return-objects /obj/weapon /obj/armor
+   * @lpc-return-objects {"/obj/weapon", "/obj/armor"}
    */
   object get_equipment(string type);
   ```

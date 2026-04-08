@@ -144,3 +144,4 @@ describe('SemanticModelBuilder', () => {
         expect(snapshot.symbolTable.findSymbol('demo')?.range.start.line).toBe(0);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

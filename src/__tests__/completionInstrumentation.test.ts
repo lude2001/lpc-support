@@ -77,3 +77,4 @@ describe('CompletionInstrumentation', () => {
         expect(metrics[1].documentUri).toBe('file:///room-1.c');
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

@@ -297,3 +297,4 @@ describe('ObjectHoverProvider', () => {
         expect(hoverContent.value).not.toContain('可能来自多个对象');
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

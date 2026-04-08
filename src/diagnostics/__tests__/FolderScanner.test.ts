@@ -52,3 +52,4 @@ describe('FolderScanner', () => {
         expect(outputChannel.appendLine).toHaveBeenCalledWith(expect.stringContaining('unused var'));
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

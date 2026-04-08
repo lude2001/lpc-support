@@ -85,3 +85,4 @@ describe('extension entrypoint', () => {
         expect(disposeGlobalParsedDocumentService).toHaveBeenCalledTimes(1);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

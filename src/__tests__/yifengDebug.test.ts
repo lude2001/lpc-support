@@ -74,3 +74,4 @@ describe('yifeng-jian formatter regression', () => {
         expect(output).toContain('mapping *action = ({\n([');
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

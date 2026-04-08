@@ -113,3 +113,4 @@ describe('ASTManager compound type lookup', () => {
         expect(semantic.inheritStatements.map(item => item.value)).toEqual(['/std/room']);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

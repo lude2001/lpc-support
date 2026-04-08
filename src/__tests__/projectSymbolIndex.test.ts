@@ -111,3 +111,4 @@ describe('ProjectSymbolIndex', () => {
         expect(index.findType('class Payload *')?.name).toBe('Payload');
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

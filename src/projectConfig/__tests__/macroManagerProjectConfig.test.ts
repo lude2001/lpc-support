@@ -67,3 +67,4 @@ describe('MacroManager project config integration', () => {
         expect(manager.getAllMacros()).toEqual([]);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

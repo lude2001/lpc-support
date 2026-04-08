@@ -82,3 +82,4 @@ describe('syntax model contracts', () => {
         expect(syntaxDocument.nodesByTokenRange.get(getTokenRangeKey(child.tokenRange))).toBe(child);
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

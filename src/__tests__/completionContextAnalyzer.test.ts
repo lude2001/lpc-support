@@ -58,3 +58,4 @@ describe('CompletionContextAnalyzer', () => {
         expect(analyzer.analyze(document, new vscode.Position(7, 'class Pay'.length)).kind).toBe('type-position');
     });
 });
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
