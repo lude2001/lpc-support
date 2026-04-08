@@ -48,7 +48,7 @@ export function extractReturnType(syntax: string | undefined, funcName: string):
 
 function extractParamDescriptions(normalizedComment: string): string[] {
     const params: string[] = [];
-    const paramPattern = /(?:^|\n)@param\s+(\S+)\s+(\S+)\s+([\s\S]*?)(?=\n@\w+|$)/g;
+    const paramPattern = /(?:^|\n)@param\s+(\S+)\s+(\S+)\s+([\s\S]*?)(?=\n@[A-Za-z][A-Za-z0-9-]*|$)/g;
 
     let match: RegExpExecArray | null;
     while ((match = paramPattern.exec(normalizedComment)) !== null) {
@@ -78,7 +78,7 @@ function extractFirstCommentLine(normalizedComment: string): string | undefined 
 
 export function extractTagBlock(docComment: string, tag: string): string | undefined {
     const normalizedComment = normalizeDocComment(docComment);
-    const regex = new RegExp(`(?:^|\\n)@${tag}\\s+([\\s\\S]*?)(?=\\n@\\w+|$)`, 'i');
+    const regex = new RegExp(`(?:^|\\n)@${tag}\\s+([\\s\\S]*?)(?=\\n@[A-Za-z][A-Za-z0-9-]*|$)`, 'i');
     const match = normalizedComment.match(regex);
 
     if (!match) {
@@ -92,6 +92,32 @@ export function extractTagBlock(docComment: string, tag: string): string | undef
         .trim();
 
     return value || undefined;
+}
+
+export function parseReturnObjects(docComment: string): string[] | undefined {
+    const tagValue = extractTagBlock(docComment, 'lpc-return-objects');
+    if (!tagValue) {
+        return undefined;
+    }
+
+    const match = tagValue.match(/^\{([\s\S]*)\}$/);
+    if (!match) {
+        return undefined;
+    }
+
+    const content = match[1].trim();
+    if (!content) {
+        return undefined;
+    }
+
+    const itemPattern = /"([^"\\]*(?:\\.[^"\\]*)*)"/g;
+    const strictListPattern = /^\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*(,\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*)*$/;
+    if (!strictListPattern.test(content)) {
+        return undefined;
+    }
+
+    const values = Array.from(content.matchAll(itemPattern), item => item[1]);
+    return values.length > 0 ? values : undefined;
 }
 
 export function parseFunctionDocs(
@@ -141,6 +167,11 @@ export function parseFunctionDocs(
             const returnValue = extractTagBlock(docComment, 'return');
             if (returnValue) {
                 doc.returnValue = returnValue;
+            }
+
+            const returnObjects = parseReturnObjects(docComment);
+            if (returnObjects) {
+                doc.returnObjects = returnObjects;
             }
 
             docs.set(funcName, doc);

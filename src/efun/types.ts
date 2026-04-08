@@ -4,6 +4,7 @@ export interface EfunDoc {
     description: string;
     returnType?: string;
     returnValue?: string;
+    returnObjects?: string[];
     example?: string;
     details?: string;
     reference?: string[];

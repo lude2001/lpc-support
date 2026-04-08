@@ -1,0 +1,50 @@
+import { ObjectCandidate, ObjectInferenceReason, ObjectInferenceResult } from './types';
+
+export class ObjectCandidateResolver {
+    public resolve(
+        candidates: readonly ObjectCandidate[],
+        reason?: ObjectInferenceReason
+    ): ObjectInferenceResult {
+        const dedupedCandidates = this.dedupeByPath(candidates);
+        const isUnsupported = reason === 'unsupported-expression';
+
+        if (dedupedCandidates.length === 0) {
+            if (isUnsupported) {
+                return {
+                    status: 'unsupported',
+                    reason,
+                    candidates: []
+                };
+            }
+
+            return {
+                status: 'unknown',
+                candidates: []
+            };
+        }
+
+        if (dedupedCandidates.length === 1) {
+            return {
+                status: 'resolved',
+                candidates: dedupedCandidates
+            };
+        }
+
+        return {
+            status: 'multiple',
+            candidates: dedupedCandidates
+        };
+    }
+
+    private dedupeByPath(candidates: readonly ObjectCandidate[]): ObjectCandidate[] {
+        const deduped = new Map<string, ObjectCandidate>();
+
+        for (const candidate of candidates) {
+            if (!deduped.has(candidate.path)) {
+                deduped.set(candidate.path, candidate);
+            }
+        }
+
+        return [...deduped.values()];
+    }
+}

@@ -9,9 +9,12 @@ import { CompletionQueryEngine } from './completion/completionQueryEngine';
 import { InheritanceResolver } from './completion/inheritanceResolver';
 import { ProjectSymbolIndex } from './completion/projectSymbolIndex';
 import { CompletionCandidate, CompletionCandidateSourceType, CompletionQueryResult, FunctionSummary, TypeDefinitionSummary } from './completion/types';
+import { ObjectInferenceService } from './objectInference/ObjectInferenceService';
+import { ObjectInferenceResult } from './objectInference/types';
 import { SemanticSnapshot } from './semantic/semanticSnapshot';
 import { normalizeLpcType } from './ast/typeNormalization';
 import { SymbolType } from './ast/symbolTable';
+import { PathResolver } from './utils/pathResolver';
 
 const inheritanceChannel = vscode.window.createOutputChannel('LPC Inheritance');
 
@@ -32,13 +35,20 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
     private readonly projectSymbolIndex: ProjectSymbolIndex;
     private readonly queryEngine: CompletionQueryEngine;
     private readonly instrumentation: CompletionInstrumentation;
+    private readonly objectInferenceService: ObjectInferenceService;
     private readonly staticItems: vscode.CompletionItem[];
 
-    constructor(efunDocsManager: EfunDocsManager, macroManager: MacroManager, instrumentation?: CompletionInstrumentation) {
+    constructor(
+        efunDocsManager: EfunDocsManager,
+        macroManager: MacroManager,
+        instrumentation?: CompletionInstrumentation,
+        objectInferenceService?: ObjectInferenceService
+    ) {
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
         this.astManager = ASTManager.getInstance();
         this.instrumentation = instrumentation ?? new CompletionInstrumentation();
+        this.objectInferenceService = objectInferenceService ?? new ObjectInferenceService(macroManager);
         this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
         this.queryEngine = new CompletionQueryEngine({
             snapshotProvider: this.astManager,
@@ -53,12 +63,12 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
         this.staticItems = this.buildStaticItems();
     }
 
-    public provideCompletionItems(
+    public async provideCompletionItems(
         document: vscode.TextDocument,
         position: vscode.Position,
         token: vscode.CancellationToken,
         context: vscode.CompletionContext
-    ): vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem> {
+    ): Promise<vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem>> {
         const trace = this.instrumentation.startRequest({
             documentUri: document.uri.toString(),
             documentVersion: document.version,
@@ -75,7 +85,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
                 return [];
             }
 
-            const candidates = this.appendInheritedFallbackCandidates(document, result);
+            const candidates = await this.resolveCompletionCandidates(document, position, token, result);
             const items = candidates.map(candidate => this.createCompletionItem(candidate, result, document));
             trace.complete(result.context.kind, items.length);
             return items;
@@ -157,6 +167,63 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
     public getInstrumentation(): CompletionInstrumentation {
         return this.instrumentation;
     }
+
+    private async resolveCompletionCandidates(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        token: vscode.CancellationToken,
+        result: CompletionQueryResult
+    ): Promise<CompletionCandidate[]> {
+        const baseCandidates = this.appendInheritedFallbackCandidates(document, result);
+        if (result.context.kind !== 'member') {
+            return baseCandidates;
+        }
+
+        const inferredAccess = await this.objectInferenceService.inferObjectAccess(document, position);
+        if (!inferredAccess || token.isCancellationRequested) {
+            return baseCandidates;
+        }
+
+        const inference = inferredAccess.inference;
+        if (inference.status === 'unknown') {
+            return baseCandidates;
+        }
+
+        if (inference.status === 'unsupported') {
+            return baseCandidates;
+        }
+
+        const objectCandidates = await this.buildObjectMemberCandidates(document, result, inference, token);
+        if (objectCandidates.length === 0) {
+            return baseCandidates;
+        }
+
+        if (!result.context.currentWord) {
+            return this.mergeCandidatesByLabel(objectCandidates, baseCandidates);
+        }
+
+        return objectCandidates;
+    }
+
+    private mergeCandidatesByLabel(
+        preferredCandidates: CompletionCandidate[],
+        fallbackCandidates: CompletionCandidate[]
+    ): CompletionCandidate[] {
+        const merged = new Map<string, CompletionCandidate>();
+
+        for (const candidate of preferredCandidates) {
+            merged.set(candidate.label, candidate);
+        }
+
+        for (const candidate of fallbackCandidates) {
+            if (!merged.has(candidate.label)) {
+                merged.set(candidate.label, candidate);
+            }
+        }
+
+        return Array.from(merged.values());
+    }
+
     private appendInheritedFallbackCandidates(
         document: vscode.TextDocument,
         result: CompletionQueryResult
@@ -225,6 +292,108 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
         }
 
         return merged;
+    }
+
+    private async buildObjectMemberCandidates(
+        document: vscode.TextDocument,
+        result: CompletionQueryResult,
+        inference: ObjectInferenceResult,
+        token: vscode.CancellationToken
+    ): Promise<CompletionCandidate[]> {
+        const currentUri = document.uri.toString();
+        const occurrenceCounts = new Map<string, number>();
+        const functionsByLabel = new Map<string, FunctionSummary>();
+
+        for (const candidate of inference.candidates) {
+            if (token.isCancellationRequested) {
+                return [];
+            }
+
+            const functions = await this.collectObjectFunctions(document, candidate.path, new Set<string>());
+            const visibleFunctions = new Map<string, FunctionSummary>();
+
+            for (const func of functions) {
+                if (!visibleFunctions.has(func.name)) {
+                    visibleFunctions.set(func.name, func);
+                }
+            }
+
+            for (const [label, func] of visibleFunctions.entries()) {
+                occurrenceCounts.set(label, (occurrenceCounts.get(label) ?? 0) + 1);
+                if (!functionsByLabel.has(label)) {
+                    functionsByLabel.set(label, func);
+                }
+            }
+        }
+
+        const normalizedPrefix = result.context.currentWord.toLowerCase();
+        return Array.from(functionsByLabel.entries())
+            .filter(([, func]) => !normalizedPrefix || func.name.toLowerCase().startsWith(normalizedPrefix))
+            .sort((left, right) => {
+                const leftCount = occurrenceCounts.get(left[0]) ?? 0;
+                const rightCount = occurrenceCounts.get(right[0]) ?? 0;
+                if (leftCount !== rightCount) {
+                    return rightCount - leftCount;
+                }
+
+                return left[1].name.localeCompare(right[1].name);
+            })
+            .map(([label, func]) => {
+                const occurrenceCount = occurrenceCounts.get(label) ?? 0;
+                const sourceType: CompletionCandidateSourceType = func.sourceUri === currentUri ? 'local' : 'inherited';
+                return {
+                    key: `object-member:${occurrenceCount > 1 ? 'shared' : 'specific'}:${label}`,
+                    label: func.name,
+                    kind: vscode.CompletionItemKind.Method,
+                    detail: `${normalizeLpcType(func.returnType)} ${func.name}`,
+                    insertText: this.buildFunctionSnippet(func.name, func.parameters.map(parameter => parameter.name)),
+                    sortGroup: 'inherited',
+                    metadata: {
+                        sourceUri: func.sourceUri,
+                        sourceType,
+                        documentationRef: func.name
+                    }
+                };
+            });
+    }
+
+    private async collectObjectFunctions(
+        ownerDocument: vscode.TextDocument,
+        filePath: string,
+        visited: Set<string>
+    ): Promise<FunctionSummary[]> {
+        const targetUri = vscode.Uri.file(filePath).toString();
+        if (visited.has(targetUri)) {
+            return [];
+        }
+
+        visited.add(targetUri);
+
+        const targetDocument = targetUri === ownerDocument.uri.toString()
+            ? ownerDocument
+            : this.getDocumentForUri(targetUri);
+        if (!targetDocument) {
+            return [];
+        }
+
+        let snapshot: SemanticSnapshot;
+        try {
+            snapshot = this.astManager.getBestAvailableSemanticSnapshot(targetDocument);
+        } catch {
+            snapshot = this.astManager.getSemanticSnapshot(targetDocument, false);
+        }
+
+        this.projectSymbolIndex.updateFromSnapshot(snapshot);
+
+        const functions = [...snapshot.exportedFunctions];
+        for (const inheritStatement of snapshot.inheritStatements) {
+            const inheritTargets = await PathResolver.resolveInheritPath(targetDocument, inheritStatement.value, this.macroManager);
+            for (const inheritTarget of inheritTargets) {
+                functions.push(...await this.collectObjectFunctions(targetDocument, inheritTarget, visited));
+            }
+        }
+
+        return functions;
     }
 
     private warmInheritedIndex(document: vscode.TextDocument): void {
@@ -412,7 +581,7 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
     private createCompletionItem(candidate: CompletionCandidate, result: CompletionQueryResult, document: vscode.TextDocument): vscode.CompletionItem {
         const item = new vscode.CompletionItem(candidate.label, candidate.kind);
         item.detail = candidate.detail;
-        item.sortText = `${this.getSortPrefix(candidate.sortGroup)}_${candidate.label}`;
+        item.sortText = `${this.getSortPrefix(candidate.sortGroup)}_${this.getCandidateSortBucket(candidate)}_${candidate.label}`;
         (item as vscode.CompletionItem & { data?: CompletionItemData }).data = {
             candidate,
             context: result.context,
@@ -481,15 +650,20 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
         const markdown = new vscode.MarkdownString();
         const record = candidate.metadata.sourceUri ? this.projectSymbolIndex.getRecord(candidate.metadata.sourceUri) : undefined;
         const symbol = candidate.metadata.symbol;
+        const exportedFunction = record?.exportedFunctions.find(func => func.name === candidate.label);
 
         if (symbol?.definition) {
             markdown.appendCodeblock(symbol.definition, 'lpc');
+        } else if (exportedFunction?.definition) {
+            markdown.appendCodeblock(exportedFunction.definition, 'lpc');
         } else {
             markdown.appendCodeblock(candidate.detail, 'lpc');
         }
 
         if (symbol?.documentation) {
             markdown.appendMarkdown(`\n\n${symbol.documentation}`);
+        } else if (exportedFunction?.documentation) {
+            markdown.appendMarkdown(`\n\n${exportedFunction.documentation}`);
         }
 
         if (candidate.metadata.sourceType === 'inherited' && candidate.metadata.sourceUri) {
@@ -510,14 +684,23 @@ export class LPCCompletionItemProvider implements vscode.CompletionItemProvider<
             item.insertText = new vscode.SnippetString(this.buildFunctionSnippet(symbol.name, symbol.parameters.map(parameter => parameter.name)));
         }
 
-        if (candidate.metadata.sourceType === 'inherited') {
-            const inheritedFunction = record?.exportedFunctions.find(func => func.name === candidate.label);
-            if (inheritedFunction) {
-                item.insertText = new vscode.SnippetString(
-                    this.buildFunctionSnippet(inheritedFunction.name, inheritedFunction.parameters.map(parameter => parameter.name))
-                );
-            }
+        if ((candidate.metadata.sourceType === 'local' || candidate.metadata.sourceType === 'inherited') && exportedFunction) {
+            item.insertText = new vscode.SnippetString(
+                this.buildFunctionSnippet(exportedFunction.name, exportedFunction.parameters.map(parameter => parameter.name))
+            );
         }
+    }
+
+    private getCandidateSortBucket(candidate: CompletionCandidate): string {
+        if (candidate.key.startsWith('object-member:shared:')) {
+            return '0';
+        }
+
+        if (candidate.key.startsWith('object-member:specific:')) {
+            return '1';
+        }
+
+        return '9';
     }
 
     private applyKeywordDocumentation(item: vscode.CompletionItem, candidate: CompletionCandidate): void {
