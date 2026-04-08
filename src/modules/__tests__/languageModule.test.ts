@@ -11,6 +11,8 @@ import { LPCSymbolProvider } from '../../symbolProvider';
 import { LPCReferenceProvider } from '../../referenceProvider';
 import { LPCRenameProvider } from '../../renameProvider';
 import { LPCFoldingRangeProvider } from '../../foldingProvider';
+import { ObjectHoverProvider } from '../../objectInference/ObjectHoverProvider';
+import { ObjectInferenceService } from '../../objectInference/ObjectInferenceService';
 
 jest.mock('../../completionProvider', () => ({
     LPCCompletionItemProvider: jest.fn()
@@ -49,6 +51,14 @@ jest.mock('../../foldingProvider', () => ({
     LPCFoldingRangeProvider: jest.fn()
 }));
 
+jest.mock('../../objectInference/ObjectHoverProvider', () => ({
+    ObjectHoverProvider: jest.fn()
+}));
+
+jest.mock('../../objectInference/ObjectInferenceService', () => ({
+    ObjectInferenceService: jest.fn()
+}));
+
 describe('registerLanguageProviders', () => {
     let registry: ServiceRegistry;
     let context: vscode.ExtensionContext;
@@ -65,6 +75,8 @@ describe('registerLanguageProviders', () => {
     let formattingProviderInstanceA: { id: string };
     let formattingProviderInstanceB: { id: string };
     let definitionProvider: {};
+    let objectInferenceService: {};
+    let objectHoverProvider: {};
     let semanticTokensProvider: {};
     let symbolProvider: {};
     let referenceProvider: {};
@@ -88,6 +100,8 @@ describe('registerLanguageProviders', () => {
         formattingProviderInstanceA = { id: 'formattingProvider-a' };
         formattingProviderInstanceB = { id: 'formattingProvider-b' };
         definitionProvider = { id: 'definitionProvider' };
+        objectInferenceService = { id: 'objectInferenceService' };
+        objectHoverProvider = { id: 'objectHoverProvider' };
         semanticTokensProvider = { id: 'semanticTokensProvider' };
         symbolProvider = { id: 'symbolProvider' };
         referenceProvider = { id: 'referenceProvider' };
@@ -97,6 +111,8 @@ describe('registerLanguageProviders', () => {
         (LPCCompletionItemProvider as unknown as jest.Mock).mockReset().mockImplementation(() => completionProvider);
         (LPCCodeActionProvider as unknown as jest.Mock).mockReset().mockImplementation(() => codeActionProvider);
         (LPCDefinitionProvider as unknown as jest.Mock).mockReset().mockImplementation(() => definitionProvider);
+        (ObjectInferenceService as unknown as jest.Mock).mockReset().mockImplementation(() => objectInferenceService);
+        (ObjectHoverProvider as unknown as jest.Mock).mockReset().mockImplementation(() => objectHoverProvider);
         (LPCFormattingProvider as unknown as jest.Mock).mockReset().mockImplementationOnce(() => formattingProviderInstanceA).mockImplementationOnce(() => formattingProviderInstanceB);
         (LPCSemanticTokensProvider as unknown as jest.Mock).mockReset().mockImplementation(() => semanticTokensProvider);
         (LPCSymbolProvider as unknown as jest.Mock).mockReset().mockImplementation(() => symbolProvider);
@@ -129,8 +145,10 @@ describe('registerLanguageProviders', () => {
         expect(LPCCompletionItemProvider).toHaveBeenCalledWith(
             efunDocsManager,
             macroManager,
-            completionInstrumentation
+            completionInstrumentation,
+            objectInferenceService
         );
+        expect(ObjectInferenceService).toHaveBeenCalledWith(macroManager);
         expect(registry.get(Services.Completion)).toBe(completionProvider);
         expect(vscode.languages.registerCompletionItemProvider)
             .toHaveBeenCalledWith('lpc', completionProvider, '>', '#');
@@ -145,6 +163,8 @@ describe('registerLanguageProviders', () => {
             .toHaveBeenCalledWith('lpc', formattingProviderInstanceA);
         expect(vscode.languages.registerDefinitionProvider)
             .toHaveBeenCalledWith('lpc', definitionProvider);
+        expect(LPCDefinitionProvider).toHaveBeenCalledWith(macroManager, efunDocsManager, objectInferenceService);
+        expect(ObjectHoverProvider).toHaveBeenCalledWith(objectInferenceService);
         expect(vscode.languages.registerDocumentSemanticTokensProvider)
             .toHaveBeenCalledWith(
                 { language: 'lpc' },
@@ -159,12 +179,15 @@ describe('registerLanguageProviders', () => {
             .toHaveBeenCalledWith('lpc', renameProvider);
         expect(vscode.languages.registerFoldingRangeProvider)
             .toHaveBeenCalledWith({ language: 'lpc' }, foldingProvider);
+        expect(vscode.languages.registerHoverProvider).toHaveBeenCalledTimes(2);
         expect(vscode.languages.registerHoverProvider)
-            .toHaveBeenCalledWith('lpc', expect.objectContaining({
+            .toHaveBeenNthCalledWith(1, 'lpc', objectHoverProvider);
+        expect(vscode.languages.registerHoverProvider)
+            .toHaveBeenNthCalledWith(2, 'lpc', expect.objectContaining({
                 provideHover: expect.any(Function)
             }));
         expect(vscode.workspace.onDidChangeTextDocument).toHaveBeenCalledTimes(1);
-        expect(context.subscriptions).toHaveLength(12);
+        expect(context.subscriptions).toHaveLength(13);
     });
 
     test('calls completionProvider.handleDocumentChange for lpc documents only', () => {
@@ -187,7 +210,7 @@ describe('registerLanguageProviders', () => {
 
         registerLanguageProviders(registry, context);
 
-        const hoverProvider = (vscode.languages.registerHoverProvider as jest.Mock).mock.calls[0][1];
+        const hoverProvider = (vscode.languages.registerHoverProvider as jest.Mock).mock.calls[1][1];
         const document = {
             getWordRangeAtPosition: jest.fn(() => ({ start: new vscode.Position(0, 0), end: new vscode.Position(0, 6) })),
             getText: jest.fn(() => 'USER_D')
