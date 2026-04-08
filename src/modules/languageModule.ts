@@ -32,7 +32,7 @@ export function registerLanguageProviders(registry: ServiceRegistry, context: vs
 
     const formattingProvider = new LPCFormattingProvider();
     const definitionProvider = new LPCDefinitionProvider(macroManager, efunDocsManager, objectInferenceService);
-    const objectHoverProvider = new ObjectHoverProvider(objectInferenceService);
+    const objectHoverProvider = new ObjectHoverProvider(objectInferenceService, macroManager);
     const macroHoverProvider: vscode.HoverProvider = {
         provideHover: async (document, position) => {
             const range = document.getWordRangeAtPosition(position);
