@@ -215,7 +215,8 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     }
 
     private getLocationPosition(location: vscode.Location): vscode.Position {
-        return 'line' in location.range ? location.range : location.range.start;
+        const rangeOrPosition = location.range;
+        return 'start' in rangeOrPosition ? rangeOrPosition.start : rangeOrPosition;
     }
 
     /**
