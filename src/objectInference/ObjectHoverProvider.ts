@@ -19,6 +19,10 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
             return undefined;
         }
 
+        if (!this.isHoveringMemberName(document, position, memberName)) {
+            return undefined;
+        }
+
         const resolvedDocs = await this.loadMethodDocs(inference.candidates.map((candidate) => candidate.path), memberName);
         if (resolvedDocs.length === 1 && inference.candidates.length === 1) {
             return this.createMethodHover(resolvedDocs[0].syntax, resolvedDocs[0].description);
@@ -29,6 +33,15 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
         }
 
         return undefined;
+    }
+
+    private isHoveringMemberName(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        memberName: string
+    ): boolean {
+        const wordRange = document.getWordRangeAtPosition(position);
+        return Boolean(wordRange) && document.getText(wordRange) === memberName;
     }
 
     private async loadMethodDocs(paths: string[], memberName: string) {
