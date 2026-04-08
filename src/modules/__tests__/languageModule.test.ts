@@ -83,6 +83,8 @@ describe('registerLanguageProviders', () => {
     let renameProvider: {};
     let foldingProvider: {};
 
+    let projectConfigService: { loadForWorkspace: jest.Mock };
+
     beforeEach(() => {
         registry = new ServiceRegistry();
         context = { subscriptions: [] } as vscode.ExtensionContext;
@@ -107,6 +109,7 @@ describe('registerLanguageProviders', () => {
         referenceProvider = { id: 'referenceProvider' };
         renameProvider = { id: 'renameProvider' };
         foldingProvider = { id: 'foldingProvider' };
+        projectConfigService = { loadForWorkspace: jest.fn().mockResolvedValue(undefined) };
 
         (LPCCompletionItemProvider as unknown as jest.Mock).mockReset().mockImplementation(() => completionProvider);
         (LPCCodeActionProvider as unknown as jest.Mock).mockReset().mockImplementation(() => codeActionProvider);
@@ -123,6 +126,7 @@ describe('registerLanguageProviders', () => {
         registry.register(Services.EfunDocs, efunDocsManager);
         registry.register(Services.MacroManager, macroManager);
         registry.register(Services.CompletionInstrumentation, completionInstrumentation);
+        registry.register(Services.ProjectConfig, projectConfigService as any);
 
         (vscode.languages.registerCompletionItemProvider as jest.Mock).mockClear();
         (vscode.languages.registerCodeActionsProvider as jest.Mock).mockClear();
@@ -138,8 +142,8 @@ describe('registerLanguageProviders', () => {
         (vscode.workspace.onDidChangeTextDocument as jest.Mock).mockClear();
     });
 
-    test('registers language providers and completion service using registry services', () => {
-        registerLanguageProviders(registry, context);
+    test('registers language providers and completion service using registry services', async () => {
+        await registerLanguageProviders(registry, context);
 
         expect(LPCCompletionItemProvider).toHaveBeenCalledTimes(1);
         expect(LPCCompletionItemProvider).toHaveBeenCalledWith(
@@ -148,7 +152,7 @@ describe('registerLanguageProviders', () => {
             completionInstrumentation,
             objectInferenceService
         );
-        expect(ObjectInferenceService).toHaveBeenCalledWith(macroManager);
+        expect(ObjectInferenceService).toHaveBeenCalledWith(macroManager, undefined);
         expect(registry.get(Services.Completion)).toBe(completionProvider);
         expect(vscode.languages.registerCompletionItemProvider)
             .toHaveBeenCalledWith('lpc', completionProvider, '>', '#');
@@ -190,8 +194,8 @@ describe('registerLanguageProviders', () => {
         expect(context.subscriptions).toHaveLength(13);
     });
 
-    test('calls completionProvider.handleDocumentChange for lpc documents only', () => {
-        registerLanguageProviders(registry, context);
+    test('calls completionProvider.handleDocumentChange for lpc documents only', async () => {
+        await registerLanguageProviders(registry, context);
 
         const onChangeHandler = (vscode.workspace.onDidChangeTextDocument as jest.Mock).mock.calls[0][0];
         onChangeHandler({ document: { languageId: 'txt' } });
@@ -208,7 +212,7 @@ describe('registerLanguageProviders', () => {
         macroManager.getMacroHoverContent.mockReturnValue(hoverContent);
         macroManager.canResolveMacro.mockResolvedValue(true);
 
-        registerLanguageProviders(registry, context);
+        await registerLanguageProviders(registry, context);
 
         const hoverProvider = (vscode.languages.registerHoverProvider as jest.Mock).mock.calls[1][1];
         const document = {
@@ -229,6 +233,20 @@ describe('registerLanguageProviders', () => {
         expect(macroManager.canResolveMacro).toHaveBeenCalledWith('USER_D');
         expect(unresolvedHover).toBeInstanceOf(vscode.Hover);
         expect(((unresolvedHover as vscode.Hover).contents as vscode.MarkdownString).value || (unresolvedHover as any).contents).toContain('USER_D');
+    });
+
+    test('passes playerObjectPath from project config to ObjectInferenceService', async () => {
+        projectConfigService.loadForWorkspace.mockResolvedValue({
+            version: 1,
+            configHellPath: 'config.hell',
+            playerObjectPath: '/obj/user.c'
+        });
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: '/workspace' } }];
+
+        await registerLanguageProviders(registry, context);
+
+        expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('/workspace');
+        expect(ObjectInferenceService).toHaveBeenCalledWith(macroManager, '/obj/user.c');
     });
 });
 

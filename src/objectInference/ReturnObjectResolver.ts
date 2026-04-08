@@ -14,7 +14,10 @@ export interface ObjectResolutionOutcome {
 export class ReturnObjectResolver {
     private readonly classifier = new ReceiverClassifier();
 
-    constructor(private readonly macroManager?: MacroManager) {}
+    constructor(
+        private readonly macroManager?: MacroManager,
+        private readonly playerObjectPath?: string
+    ) {}
 
     public async resolveExpression(
         document: vscode.TextDocument,
@@ -87,6 +90,18 @@ export class ReturnObjectResolver {
             return [{ path: document.fileName, source: 'builtin-call' }];
         }
 
+        if (receiver.calleeName === 'this_player') {
+            if (receiver.argumentCount !== 0) {
+                return [];
+            }
+
+            if (!this.playerObjectPath) {
+                return [];
+            }
+
+            return [{ path: this.playerObjectPath, source: 'builtin-call' }];
+        }
+
         if (!['load_object', 'find_object', 'clone_object'].includes(receiver.calleeName)) {
             return [];
         }
@@ -141,7 +156,7 @@ export class ReturnObjectResolver {
     }
 
     private isBuiltinCall(name: string): boolean {
-        return ['this_object', 'load_object', 'find_object', 'clone_object'].includes(name);
+        return ['this_object', 'this_player', 'load_object', 'find_object', 'clone_object'].includes(name);
     }
 
     private isStringLiteral(value: string): boolean {

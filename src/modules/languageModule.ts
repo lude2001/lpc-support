@@ -16,11 +16,20 @@ import { LPCFoldingRangeProvider } from '../foldingProvider';
 import { ObjectHoverProvider } from '../objectInference/ObjectHoverProvider';
 import { ObjectInferenceService } from '../objectInference/ObjectInferenceService';
 
-export function registerLanguageProviders(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
+export async function registerLanguageProviders(registry: ServiceRegistry, context: vscode.ExtensionContext): Promise<void> {
     const efunDocsManager = registry.get(Services.EfunDocs);
     const macroManager = registry.get(Services.MacroManager);
     const completionInstrumentation = registry.get(Services.CompletionInstrumentation);
-    const objectInferenceService = new ObjectInferenceService(macroManager);
+
+    const projectConfigService = registry.get(Services.ProjectConfig);
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    let playerObjectPath: string | undefined;
+    if (workspaceFolder) {
+        const projectConfig = await projectConfigService.loadForWorkspace(workspaceFolder.uri.fsPath);
+        playerObjectPath = projectConfig?.playerObjectPath;
+    }
+
+    const objectInferenceService = new ObjectInferenceService(macroManager, playerObjectPath);
 
     const completionProvider = new LPCCompletionItemProvider(
         efunDocsManager,

@@ -16,8 +16,11 @@ export class ObjectInferenceService {
     private readonly returnObjectResolver: ReturnObjectResolver;
     private readonly traceService: ReceiverTraceService;
 
-    constructor(private readonly macroManager?: MacroManager) {
-        this.returnObjectResolver = new ReturnObjectResolver(macroManager);
+    constructor(
+        private readonly macroManager?: MacroManager,
+        private readonly playerObjectPath?: string
+    ) {
+        this.returnObjectResolver = new ReturnObjectResolver(macroManager, playerObjectPath);
         this.traceService = new ReceiverTraceService(this.returnObjectResolver);
     }
 

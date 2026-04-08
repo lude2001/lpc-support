@@ -34,6 +34,7 @@ export interface LpcCompileConfig {
 export interface LpcProjectConfig {
     version: 1;
     configHellPath: string;
+    playerObjectPath?: string;
     compile?: LpcCompileConfig;
     resolved?: LpcResolvedConfig;
     lastSyncedAt?: string;

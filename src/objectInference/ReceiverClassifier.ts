@@ -4,6 +4,7 @@ import { ClassifiedReceiver } from './types';
 export class ReceiverClassifier {
     private static readonly builtinCallArities = new Map<string, number>([
         ['this_object', 0],
+        ['this_player', 0],
         ['load_object', 1],
         ['find_object', 1],
         ['clone_object', 1]

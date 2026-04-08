@@ -124,6 +124,66 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('this_player() resolves when playerObjectPath is configured', async () => {
+        const playerService = new ObjectInferenceService(macroManager as any, '/adm/objects/player.c');
+        const source = [
+            'void demo() {',
+            '    this_player()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'player.c'), source);
+
+        const result = await playerService.inferObjectAccess(document, positionAfter(source, 'query_name'));
+
+        expect(result).toEqual({
+            receiver: 'this_player()',
+            memberName: 'query_name',
+            inference: {
+                status: 'resolved',
+                candidates: [
+                    {
+                        path: '/adm/objects/player.c',
+                        source: 'builtin-call'
+                    }
+                ]
+            }
+        });
+    });
+
+    test('this_player() without playerObjectPath returns empty candidates', async () => {
+        const source = [
+            'void demo() {',
+            '    this_player()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'player-no-config.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'query_name'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('this_player with arguments does not resolve', async () => {
+        const playerService = new ObjectInferenceService(macroManager as any, '/adm/objects/player.c');
+        const source = [
+            'void demo() {',
+            '    this_player(1)->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'player-with-args.c'), source);
+
+        const result = await playerService.inferObjectAccess(document, positionAfter(source, 'query_name'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
     test('load_object("/adm/daemons/combat_d") resolves to fixture file', async () => {
         const source = [
             'void demo() {',
