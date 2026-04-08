@@ -69,6 +69,7 @@ export class ReceiverTraceService {
         const sourceState = this.collectSourceExpressions(functionNode, identifierName, usagePosition, binding);
         const candidates: ObjectCandidate[] = [];
         let reason: ObjectInferenceReason | undefined;
+        let hasUnknownSource = sourceState.isConservativeUnknown;
 
         for (const expression of sourceState.expressions) {
             const outcome = await this.resolveSourceExpression(
@@ -78,8 +79,21 @@ export class ReceiverTraceService {
                 usagePosition,
                 visited
             );
+
+            if (outcome.candidates.length === 0 && !outcome.reason) {
+                hasUnknownSource = true;
+            }
+
             candidates.push(...outcome.candidates);
             reason = reason ?? outcome.reason;
+        }
+
+        if (reason || hasUnknownSource) {
+            return {
+                candidates: [],
+                reason,
+                hasVisibleBinding: binding !== undefined
+            };
         }
 
         return {
@@ -210,17 +224,26 @@ export class ReceiverTraceService {
         usagePosition: vscode.Position,
         visited: Set<string>
     ): Promise<ObjectResolutionOutcome> {
-        const directResolution = await this.returnObjectResolver.resolveExpressionOutcome(document, expression);
-        if (directResolution.candidates.length > 0 || directResolution.reason) {
-            return directResolution;
-        }
-
         if (expression.kind === SyntaxKind.ParenthesizedExpression && expression.children[0]) {
             return this.resolveSourceExpression(document, functionNode, expression.children[0], usagePosition, visited);
         }
 
         if (expression.kind === SyntaxKind.Identifier && expression.name) {
-            return this.traceIdentifierInFunction(document, functionNode, expression.name, expression.range.start, visited);
+            const tracedIdentifier = await this.traceIdentifierInFunction(
+                document,
+                functionNode,
+                expression.name,
+                expression.range.start,
+                visited
+            );
+            if (tracedIdentifier.candidates.length > 0 || tracedIdentifier.reason || tracedIdentifier.hasVisibleBinding) {
+                return tracedIdentifier;
+            }
+        }
+
+        const directResolution = await this.returnObjectResolver.resolveExpressionOutcome(document, expression);
+        if (directResolution.candidates.length > 0 || directResolution.reason) {
+            return directResolution;
         }
 
         return { candidates: [] };

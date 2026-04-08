@@ -657,6 +657,52 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('if else merge stays unknown when only one branch resolves', async () => {
+        const source = [
+            'void demo(int flag) {',
+            '    object ob;',
+            '    if (flag) {',
+            '        ob = load_object("/adm/objects/sword");',
+            '    } else {',
+            '        object other;',
+            '        ob = other;',
+            '    }',
+            '    ob->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'if-else-resolved-unknown.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'ob->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('if else merge stays unsupported when one branch is unsupported', async () => {
+        const source = [
+            'void demo(int flag) {',
+            '    object ob;',
+            '    if (flag) {',
+            '        ob = load_object("/adm/objects/sword");',
+            '    } else {',
+            '        ob = load_object(1);',
+            '    }',
+            '    ob->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'if-else-resolved-unsupported.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'ob->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
     test('unsupported control flow writes degrade receiver tracing to unknown', async () => {
         const loopSource = [
             'void demo() {',
@@ -809,6 +855,36 @@ describe('ObjectInferenceService', () => {
         const document = createDocument(path.join(fixtureRoot, 'room', 'uppercase-local-trace.c'), source);
 
         const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('nested identifier rhs tracing prefers visible uppercase local bindings over macro fallback', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/objects/shield',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'void demo() {',
+            '    object COMBAT_D = load_object("/adm/daemons/combat_d");',
+            '    object ob = COMBAT_D;',
+            '    ob->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'nested-uppercase-local-trace.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'ob->start'));
 
         expect(result?.inference).toEqual({
             status: 'resolved',
