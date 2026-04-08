@@ -6,9 +6,10 @@ export class ObjectCandidateResolver {
         reason?: ObjectInferenceReason
     ): ObjectInferenceResult {
         const dedupedCandidates = this.dedupeByPath(candidates);
+        const isUnsupported = reason === 'unsupported-expression';
 
         if (dedupedCandidates.length === 0) {
-            if (reason === 'unsupported-expression') {
+            if (isUnsupported) {
                 return {
                     status: 'unsupported',
                     reason,

@@ -14,10 +14,11 @@ export class ObjectInferenceService {
     private readonly classifier = new ReceiverClassifier();
     private readonly candidateResolver = new ObjectCandidateResolver();
     private readonly returnObjectResolver: ReturnObjectResolver;
-    private readonly traceService = new ReceiverTraceService();
+    private readonly traceService: ReceiverTraceService;
 
     constructor(private readonly macroManager?: MacroManager) {
         this.returnObjectResolver = new ReturnObjectResolver(macroManager);
+        this.traceService = new ReceiverTraceService(this.returnObjectResolver);
     }
 
     public async inferObjectAccess(
@@ -93,11 +94,11 @@ export class ObjectInferenceService {
         }
 
         if (receiver.kind === 'call') {
-            return this.returnObjectResolver.resolveCall(document, receiver);
+            return this.returnObjectResolver.resolveExpression(document, receiverNode);
         }
 
         if (receiver.kind === 'identifier') {
-            const tracedCandidates = (await this.traceService.traceIdentifier(document, receiverNode)) ?? [];
+            const tracedCandidates = (await this.traceService.traceIdentifier(document, syntax, receiverNode)) ?? [];
             if (tracedCandidates.length > 0 || this.hasEnclosingLocalDeclaration(syntax, receiverNode)) {
                 return tracedCandidates;
             }

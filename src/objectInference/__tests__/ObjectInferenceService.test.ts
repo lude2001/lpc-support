@@ -74,8 +74,11 @@ describe('ObjectInferenceService', () => {
         fixtureRoot = path.join(process.cwd(), '.tmp-object-inference');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
         fs.mkdirSync(path.join(fixtureRoot, 'adm', 'daemons'), { recursive: true });
+        fs.mkdirSync(path.join(fixtureRoot, 'adm', 'objects'), { recursive: true });
         fs.mkdirSync(path.join(fixtureRoot, 'room'), { recursive: true });
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'), 'void start() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'sword.c'), 'void query() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'shield.c'), 'void query() {}\n', 'utf8');
 
         (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({
             uri: { fsPath: fixtureRoot }
@@ -516,6 +519,138 @@ describe('ObjectInferenceService', () => {
             status: 'unsupported',
             reason: 'unsupported-expression',
             candidates: []
+        });
+    });
+
+    test('local variable assigned from load_object resolves through identifier tracing', async () => {
+        const source = [
+            'void demo() {',
+            '    object daemon = load_object("/adm/daemons/combat_d");',
+            '    daemon->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'local-load-object.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'daemon->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('if else assignment to the same variable yields multiple candidates', async () => {
+        const source = [
+            'void demo(int flag) {',
+            '    object daemon;',
+            '    if (flag) {',
+            '        daemon = load_object("/adm/daemons/combat_d");',
+            '    } else {',
+            '        daemon = load_object("/adm/objects/sword");',
+            '    }',
+            '    daemon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'if-else-assignment.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'daemon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'multiple',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                },
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('documented custom function return objects resolve on chained member access', async () => {
+        const source = [
+            '/**',
+            ' * @brief helper docs',
+            ' * @return object helper result',
+            ' * @lpc-return-objects {"/adm/objects/sword", "/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return this_object();',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query("id");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'documented-helper.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'multiple',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                },
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'shield.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('bare object parameters remain unknown', async () => {
+        const source = [
+            'void demo(object ob) {',
+            '    ob->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'bare-parameter.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'ob->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('uppercase local identifiers resolve through identifier tracing before macro fallback', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/objects/shield',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'void demo() {',
+            '    object COMBAT_D = load_object("/adm/daemons/combat_d");',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'uppercase-local-trace.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
         });
     });
 });
