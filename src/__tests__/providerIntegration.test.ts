@@ -76,6 +76,19 @@ function createDocument(fileName: string, content: string, version = 1): vscode.
     } as unknown as vscode.TextDocument;
 }
 
+function positionAtSubstring(document: vscode.TextDocument, source: string, substring: string): vscode.Position {
+    const start = source.indexOf(substring);
+    if (start === -1) {
+        throw new Error(`Substring not found: ${substring}`);
+    }
+
+    return document.positionAt(start + 1);
+}
+
+function normalizeFsPath(filePath: string): string {
+    return filePath.replace(/^\//, '').replace(/\//g, path.sep);
+}
+
 describe('provider integration regression', () => {
     const efunDocsManager = {
         getAllFunctions: jest.fn(() => ['write']),
@@ -222,6 +235,156 @@ describe('provider integration regression', () => {
         expect(definition.uri.fsPath).toBe(updatedDocument.uri.fsPath);
         expect(definition.range.line).toBe(0);
         expect(updatedDocument.lineAt(definition.range.line).text).toContain('renamed_call');
+    });
+
+    test('this_object()->query_self() resolves to the current file definition', async () => {
+        const source = [
+            'string query_self() {',
+            '    return "me";',
+            '}',
+            '',
+            'void demo() {',
+            '    this_object()->query_self();',
+            '}'
+        ].join('\n');
+        const fileName = path.join(fixtureRoot, 'self.c');
+        const document = createDocument(fileName, source);
+        const objectInferenceService = {
+            inferObjectAccess: jest.fn().mockResolvedValue({
+                receiver: 'this_object()',
+                memberName: 'query_self',
+                inference: {
+                    status: 'resolved',
+                    candidates: [{ path: fileName, source: 'builtin-call' }]
+                }
+            })
+        };
+        const provider = new LPCDefinitionProvider(
+            macroManager as any,
+            efunDocsManager as any,
+            objectInferenceService as any
+        );
+        const expectedLocation = new vscode.Location(vscode.Uri.file(fileName), new vscode.Position(0, 0));
+        const findMethodSpy = jest.spyOn(provider as any, 'findMethodInTargetChain').mockResolvedValue(expectedLocation);
+
+        const definition = await provider.provideDefinition(
+            document,
+            positionAtSubstring(document, source, 'query_self();'),
+            { isCancellationRequested: false } as vscode.CancellationToken
+        ) as vscode.Location;
+
+        expect(definition).toBeDefined();
+        expect(normalizeFsPath(definition.uri.fsPath)).toBe(fileName);
+        expect(definition.range.line).toBe(0);
+        expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethodSpy).toHaveBeenCalledWith(document, fileName, 'query_self');
+    });
+
+    test('merged candidates from if/else return two locations when each file implements query_name', async () => {
+        const swordFile = path.join(fixtureRoot, 'adm', 'objects', 'sword.c');
+        const shieldFile = path.join(fixtureRoot, 'adm', 'objects', 'shield.c');
+        const source = [
+            'void demo(int flag) {',
+            '    object ob;',
+            '    if (flag) {',
+            '        ob = load_object("/adm/objects/sword");',
+            '    } else {',
+            '        ob = load_object("/adm/objects/shield");',
+            '    }',
+            '    ob->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'branch.c'), source);
+        const objectInferenceService = {
+            inferObjectAccess: jest.fn().mockResolvedValue({
+                receiver: 'ob',
+                memberName: 'query_name',
+                inference: {
+                    status: 'multiple',
+                    candidates: [
+                        { path: swordFile, source: 'builtin-call' },
+                        { path: shieldFile, source: 'builtin-call' }
+                    ]
+                }
+            })
+        };
+        const injectedProvider = new LPCDefinitionProvider(
+            macroManager as any,
+            efunDocsManager as any,
+            objectInferenceService as any
+        );
+        const swordLocation = new vscode.Location(vscode.Uri.file(swordFile), new vscode.Position(0, 0));
+        const shieldLocation = new vscode.Location(vscode.Uri.file(shieldFile), new vscode.Position(0, 0));
+        const findMethodSpy = jest.spyOn(injectedProvider as any, 'findMethodInTargetChain').mockImplementation(
+            async (_document: vscode.TextDocument, targetFilePath: string) => {
+                if (targetFilePath === swordFile) {
+                    return swordLocation;
+                }
+
+                if (targetFilePath === shieldFile) {
+                    return shieldLocation;
+                }
+
+                return undefined;
+            }
+        );
+
+        const definition = await injectedProvider.provideDefinition(
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            { isCancellationRequested: false } as vscode.CancellationToken
+        ) as vscode.Location[];
+
+        expect(Array.isArray(definition)).toBe(true);
+        expect(definition).toHaveLength(2);
+        expect(definition.map((location) => normalizeFsPath(location.uri.fsPath)).sort()).toEqual([
+            shieldFile,
+            swordFile
+        ]);
+        expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethodSpy).toHaveBeenCalledTimes(2);
+    });
+
+    test('unsupported arr[0]->query() returns undefined and does not trigger simul_efun scanning', async () => {
+        efunDocsManager.getSimulatedDoc.mockImplementation((name: string) => (
+            name === 'query' ? { name: 'query' } : undefined
+        ));
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((key: string) => (key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined))
+        });
+
+        const source = [
+            'void demo(object *arr) {',
+            '    arr[0]->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'unsupported-index.c'), source);
+        const objectInferenceService = {
+            inferObjectAccess: jest.fn().mockResolvedValue({
+                receiver: 'arr[0]',
+                memberName: 'query',
+                inference: {
+                    status: 'unsupported',
+                    reason: 'unsupported-expression',
+                    candidates: []
+                }
+            })
+        };
+        const provider = new LPCDefinitionProvider(
+            macroManager as any,
+            efunDocsManager as any,
+            objectInferenceService as any
+        );
+
+        const definition = await provider.provideDefinition(
+            document,
+            positionAtSubstring(document, source, 'query();'),
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        expect(definition).toBeUndefined();
+        expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
+        expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
     });
 
     test('definition does not fall back to simul_efun when object method resolution fails', async () => {

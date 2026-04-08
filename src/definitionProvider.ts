@@ -5,31 +5,30 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { ASTManager } from './ast/astManager';
 import { Symbol, SymbolType } from './ast/symbolTable';
+import { ObjectInferenceService } from './objectInference/ObjectInferenceService';
+import { InferredObjectAccess } from './objectInference/types';
 import { SemanticSnapshot } from './semantic/semanticSnapshot';
-import { SyntaxDocument, SyntaxKind, SyntaxNode } from './syntax/types';
 import { resolveVisibleSymbol } from './symbolReferenceResolver';
-
-interface ObjectAccessInfo {
-    objectExpression?: string;  // 对象表达式（可能是标识符、字符串字面量等）
-    methodName: string;        // 方法名
-    isMethodCall: boolean;     // 是否是方法调用（带括号）
-    objectIsString: boolean;   // 对象是否是字符串字面量
-    objectIsMacro: boolean;    // 对象是否是宏
-}
 
 export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private macroManager: MacroManager;
     private efunDocsManager: EfunDocsManager;
     private astManager: ASTManager;
+    private objectInferenceService: ObjectInferenceService;
     private processedFiles: Set<string> = new Set();
     private functionDefinitions: Map<string, vscode.Location> = new Map();
     private includeFileCache = new Map<string, string[]>(); // 缓存文件的include列表
     private headerFunctionCache = new Map<string, Map<string, vscode.Location>>(); // 缓存头文件中的函数定义
 
-    constructor(macroManager: MacroManager, efunDocsManager: EfunDocsManager) {
+    constructor(
+        macroManager: MacroManager,
+        efunDocsManager: EfunDocsManager,
+        objectInferenceService: ObjectInferenceService = new ObjectInferenceService(macroManager)
+    ) {
         this.macroManager = macroManager;
         this.efunDocsManager = efunDocsManager;
         this.astManager = ASTManager.getInstance();
+        this.objectInferenceService = objectInferenceService;
         
         // 监听文件变化，清除相关缓存
         vscode.workspace.onDidChangeTextDocument((event) => {
@@ -59,9 +58,9 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         const word = document.getText(wordRange);
-        const objectAccess = this.analyzeObjectAccessWithAST(document, position, word);
-        if (objectAccess) {
-            return this.handleObjectMethodCall(document, objectAccess);
+        const inferredObjectAccess = await this.objectInferenceService.inferObjectAccess(document, position);
+        if (inferredObjectAccess?.memberName === word) {
+            return this.handleInferredObjectMethodCall(document, inferredObjectAccess);
         }
 
         const directDefinition = await this.resolveDirectDefinition(document, position, word);
@@ -181,61 +180,42 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         return path.isAbsolute(configPath) ? configPath : path.join(workspaceRoot, configPath);
     }
 
-    /**
-     * 现代化AST分析：基于语法树的对象访问检测
-     * 支持 OBJECT->method、"path"->method、OBJECT::method 等语法
-     */
-    private analyzeObjectAccessWithAST(
+    private async handleInferredObjectMethodCall(
         document: vscode.TextDocument,
-        position: vscode.Position,
-        targetWord: string
-    ): ObjectAccessInfo | undefined {
-        const syntax = this.getSyntaxDocument(document);
-        if (!syntax) {
+        objectAccess: InferredObjectAccess
+    ): Promise<vscode.Location | vscode.Location[] | undefined> {
+        if (objectAccess.inference.status === 'unknown' || objectAccess.inference.status === 'unsupported') {
             return undefined;
         }
 
-        const candidates = this.getContainingSyntaxNodes(syntax, position);
+        const locations: vscode.Location[] = [];
+        const seenLocations = new Set<string>();
 
-        for (const node of candidates) {
-            if (node.kind === SyntaxKind.CallExpression) {
-                const info = this.tryBuildObjectAccessInfo(node.children[0], targetWord, true);
-                if (info) {
-                    return info;
-                }
+        for (const candidate of objectAccess.inference.candidates) {
+            const location = await this.findMethodInTargetChain(document, candidate.path, objectAccess.memberName);
+            if (!location) {
+                continue;
             }
+
+            const locationPosition = this.getLocationPosition(location);
+            const key = `${location.uri.fsPath}:${locationPosition.line}:${locationPosition.character}`;
+            if (seenLocations.has(key)) {
+                continue;
+            }
+
+            seenLocations.add(key);
+            locations.push(location);
         }
 
-        for (const node of candidates) {
-            const info = this.tryBuildObjectAccessInfo(node, targetWord, false);
-            if (info) {
-                return info;
-            }
-        }
-
-        return undefined;
-    }
-
-    /**
-     * 处理对象方法调用的定义跳转
-     */
-    private async handleObjectMethodCall(
-        document: vscode.TextDocument, 
-        objectAccess: ObjectAccessInfo
-    ): Promise<vscode.Location | undefined> {
-        const targetFilePath = this.resolveObjectAccessTargetPath(objectAccess);
-        if (!targetFilePath) {
+        if (locations.length === 0) {
             return undefined;
         }
 
-        return this.findMethodInTargetChain(document, targetFilePath, objectAccess.methodName);
+        return locations.length === 1 ? locations[0] : locations;
     }
 
-    /**
-     * 解析字符串路径
-     */
-    private parseStringPath(pathString: string): string {
-        return this.ensureExtension(pathString.replace(/^"(.*)"$/, '$1'), '.c');
+    private getLocationPosition(location: vscode.Location): vscode.Position {
+        return 'line' in location.range ? location.range : location.range.start;
     }
 
     /**
@@ -246,6 +226,10 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         targetFilePath: string,
         methodName: string
     ): Promise<vscode.Location | undefined> {
+        if (path.resolve(targetFilePath) === path.resolve(currentDocument.uri.fsPath)) {
+            return this.findFunctionInSemanticSnapshot(currentDocument, methodName);
+        }
+
         const targetDoc = await this.openWorkspaceDocument(currentDocument, targetFilePath);
         return targetDoc ? this.findFunctionInSemanticSnapshot(targetDoc, methodName) : undefined;
     }
@@ -418,23 +402,6 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         return this.findMethodInIncludedFiles(currentDocument, targetFilePath, methodName);
     }
 
-    private resolveObjectAccessTargetPath(objectAccess: ObjectAccessInfo): string | undefined {
-        if (!objectAccess.objectExpression) {
-            return undefined;
-        }
-
-        if (objectAccess.objectIsString) {
-            return this.parseStringPath(objectAccess.objectExpression);
-        }
-
-        if (!objectAccess.objectIsMacro) {
-            return undefined;
-        }
-
-        const macro = this.macroManager.getMacro(objectAccess.objectExpression);
-        return macro?.value ? this.parseStringPath(macro.value) : undefined;
-    }
-
     private async findInheritedVariableDefinition(
         document: vscode.TextDocument,
         variableName: string
@@ -503,20 +470,6 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         return this.astManager.getSemanticSnapshot(document, useCache);
     }
 
-    private getSyntaxDocument(document: vscode.TextDocument, useCache: boolean = true): SyntaxDocument | undefined {
-        return this.astManager.getSyntaxDocument(document, useCache);
-    }
-
-    private getContainingSyntaxNodes(syntax: SyntaxDocument, position: vscode.Position): SyntaxNode[] {
-        return [...syntax.nodes]
-            .filter((node) => node.range.contains(position))
-            .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range));
-    }
-
-    private getRangeSize(range: vscode.Range): number {
-        return (range.end.line - range.start.line) * 10_000 + (range.end.character - range.start.character);
-    }
-
     private resolveExistingIncludeFiles(document: vscode.TextDocument): string[] {
         const includeFiles: string[] = [];
 
@@ -528,64 +481,6 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         return includeFiles;
-    }
-
-    private tryBuildObjectAccessInfo(
-        node: SyntaxNode | undefined,
-        targetWord: string,
-        isMethodCall: boolean
-    ): ObjectAccessInfo | undefined {
-        if (!node || node.kind !== SyntaxKind.MemberAccessExpression || node.children.length < 2) {
-            return undefined;
-        }
-
-        const memberNode = node.children[1];
-        if (memberNode.kind !== SyntaxKind.Identifier || memberNode.name !== targetWord) {
-            return undefined;
-        }
-
-        const receiver = this.extractObjectReceiver(node.children[0]);
-
-        return {
-            objectExpression: receiver?.objectExpression,
-            methodName: targetWord,
-            isMethodCall,
-            objectIsString: receiver?.objectIsString ?? false,
-            objectIsMacro: receiver?.objectIsMacro ?? false
-        };
-    }
-
-    private extractObjectReceiver(node: SyntaxNode): {
-        objectExpression: string;
-        objectIsString: boolean;
-        objectIsMacro: boolean;
-    } | undefined {
-        if (node.kind === SyntaxKind.ParenthesizedExpression && node.children[0]) {
-            return this.extractObjectReceiver(node.children[0]);
-        }
-
-        if (node.kind === SyntaxKind.Identifier && node.name) {
-            return {
-                objectExpression: node.name,
-                objectIsString: false,
-                objectIsMacro: /^[A-Z][A-Z0-9_]*$/.test(node.name)
-            };
-        }
-
-        if (node.kind === SyntaxKind.Literal) {
-            const rawText = typeof node.metadata?.text === 'string'
-                ? node.metadata.text
-                : '';
-            if (rawText.startsWith('"') && rawText.endsWith('"')) {
-                return {
-                    objectExpression: rawText,
-                    objectIsString: true,
-                    objectIsMacro: false
-                };
-            }
-        }
-
-        return undefined;
     }
 
     private findFunctionInSemanticSnapshot(document: vscode.TextDocument, functionName: string): vscode.Location | undefined {
@@ -690,12 +585,17 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     }
 
     private resolveWorkspaceFileUri(document: vscode.TextDocument, filePath: string): vscode.Uri | undefined {
+        if (path.isAbsolute(filePath)) {
+            return vscode.Uri.file(filePath);
+        }
+
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
         if (!workspaceFolder) {
             return undefined;
         }
 
-        return vscode.Uri.joinPath(workspaceFolder.uri, filePath.startsWith('/') ? filePath.substring(1) : filePath);
+        const relativePath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+        return vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, relativePath));
     }
 
     private async openWorkspaceDocument(
