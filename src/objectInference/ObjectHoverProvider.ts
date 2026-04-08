@@ -1,9 +1,24 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
+import { ASTManager } from '../ast/astManager';
+import { MacroManager } from '../macroManager';
 import { parseFunctionDocs } from '../efun/docParser';
 import { ObjectInferenceService } from './ObjectInferenceService';
 
+interface MethodDocResult {
+    path: string;
+    syntax: string;
+    description: string;
+}
+
 export class ObjectHoverProvider implements vscode.HoverProvider {
-    public constructor(private readonly objectInferenceService: ObjectInferenceService) {}
+    private readonly astManager = ASTManager.getInstance();
+
+    public constructor(
+        private readonly objectInferenceService: ObjectInferenceService,
+        private readonly macroManager?: MacroManager
+    ) {}
 
     public async provideHover(
         document: vscode.TextDocument,
@@ -23,13 +38,13 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
             return undefined;
         }
 
-        const resolvedDocs = await this.loadMethodDocs(inference.candidates.map((candidate) => candidate.path), memberName);
-        if (resolvedDocs.length === 1 && inference.candidates.length === 1) {
+        const resolvedDocs = await this.loadMethodDocsFromCandidates(inference.candidates.map((c) => c.path), memberName);
+        if (resolvedDocs.length === 1) {
             return this.createMethodHover(resolvedDocs[0].syntax, resolvedDocs[0].description);
         }
 
         if (resolvedDocs.length > 1 || inference.candidates.length > 1 || inference.status === 'multiple') {
-            return this.createMultipleCandidatesHover(memberName, inference.candidates.map((candidate) => candidate.path));
+            return this.createMultipleCandidatesHover(memberName, inference.candidates.map((c) => c.path));
         }
 
         return undefined;
@@ -44,24 +59,100 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
         return Boolean(wordRange) && document.getText(wordRange) === memberName;
     }
 
-    private async loadMethodDocs(paths: string[], memberName: string) {
-        const docs: Array<{ path: string; syntax: string; description: string }> = [];
+    private async loadMethodDocsFromCandidates(paths: string[], memberName: string): Promise<MethodDocResult[]> {
+        const results: MethodDocResult[] = [];
+        const seenPaths = new Set<string>();
 
-        for (const targetPath of paths) {
-            const targetDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(targetPath));
-            const methodDoc = parseFunctionDocs(targetDocument.getText(), '对象方法').get(memberName);
-            if (!methodDoc) {
+        for (const candidatePath of paths) {
+            const docs = await this.findMethodDocsInChain(candidatePath, memberName, new Set<string>());
+            for (const doc of docs) {
+                if (seenPaths.has(doc.path)) {
+                    continue;
+                }
+                seenPaths.add(doc.path);
+                results.push(doc);
+            }
+        }
+
+        return results;
+    }
+
+    private async findMethodDocsInChain(
+        targetPath: string,
+        memberName: string,
+        visited: Set<string>
+    ): Promise<MethodDocResult[]> {
+        if (visited.has(targetPath)) {
+            return [];
+        }
+        visited.add(targetPath);
+
+        const directDoc = await this.loadMethodDocFromFile(targetPath, memberName);
+        if (directDoc) {
+            return [directDoc];
+        }
+
+        const targetDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(targetPath));
+        const snapshot = this.astManager.getSemanticSnapshot(targetDocument, true);
+        if (!snapshot) {
+            return [];
+        }
+
+        for (const inheritStatement of snapshot.inheritStatements) {
+            const inheritedPath = this.resolveInheritedFilePath(targetDocument, inheritStatement.value);
+            if (!inheritedPath || !fs.existsSync(inheritedPath)) {
                 continue;
             }
 
-            docs.push({
-                path: targetPath,
-                syntax: methodDoc.syntax,
-                description: methodDoc.description
-            });
+            const inheritedDocs = await this.findMethodDocsInChain(inheritedPath, memberName, visited);
+            if (inheritedDocs.length > 0) {
+                return inheritedDocs;
+            }
         }
 
-        return docs;
+        return [];
+    }
+
+    private async loadMethodDocFromFile(filePath: string, memberName: string): Promise<MethodDocResult | undefined> {
+        const targetDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+        const methodDoc = parseFunctionDocs(targetDocument.getText(), '对象方法').get(memberName);
+        if (!methodDoc) {
+            return undefined;
+        }
+
+        return {
+            path: filePath,
+            syntax: methodDoc.syntax,
+            description: methodDoc.description
+        };
+    }
+
+    private resolveInheritedFilePath(document: vscode.TextDocument, inheritValue: string): string | undefined {
+        let resolvedValue = inheritValue;
+
+        if (/^[A-Z_][A-Z0-9_]*$/.test(resolvedValue)) {
+            const macro = this.macroManager?.getMacro(resolvedValue);
+            if (!macro?.value) {
+                return undefined;
+            }
+
+            resolvedValue = macro.value.replace(/^"(.*)"$/, '$1');
+        }
+
+        if (!resolvedValue.endsWith('.c')) {
+            resolvedValue = `${resolvedValue}.c`;
+        }
+
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+        if (!workspaceFolder) {
+            return undefined;
+        }
+
+        if (resolvedValue.startsWith('/')) {
+            return path.join(workspaceFolder.uri.fsPath, resolvedValue.substring(1));
+        }
+
+        return path.resolve(path.dirname(document.uri.fsPath), resolvedValue);
     }
 
     private createMethodHover(syntax: string, description: string): vscode.Hover {
@@ -78,7 +169,7 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
     private createMultipleCandidatesHover(memberName: string, paths: string[]): vscode.Hover {
         const content = new vscode.MarkdownString();
         const summary = paths.length > 0
-            ? paths.map((path) => `\`${path}\``).join('、')
+            ? paths.map((p) => `\`${p}\``).join('、')
             : '多个对象';
         content.appendMarkdown(`可能来自多个对象的 \`${memberName}\`() 实现：${summary}`);
         return new vscode.Hover(content);
