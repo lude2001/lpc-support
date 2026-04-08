@@ -204,6 +204,113 @@ describe('LPCCompletionItemProvider', () => {
         await expectObjectMethods(10, '    arr[0]->');
     });
 
+    test('returns the real current-file method for this_object()->query_', async () => {
+        const content = [
+            'string query_self() {',
+            '    return "me";',
+            '}',
+            '',
+            'void demo() {',
+            '    this_object()->query_',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'self.c'), content);
+
+        const result = await provider.provideCompletionItems(
+            document,
+            new vscode.Position(5, '    this_object()->query_'.length),
+            { isCancellationRequested: false } as vscode.CancellationToken,
+            {} as vscode.CompletionContext
+        ) as vscode.CompletionItem[];
+
+        expect(result.map(item => item.label)).toContain('query_self');
+        expect(result.map(item => item.label)).not.toContain('query');
+    });
+
+    test('returns real methods from the resolved COMBAT_D target file', async () => {
+        const combatDaemon = path.join(fixtureRoot, 'system', 'daemons', 'combat_d.c');
+        fs.mkdirSync(path.dirname(combatDaemon), { recursive: true });
+        fs.writeFileSync(combatDaemon, [
+            'string query_enemy() {',
+            '    return "orc";',
+            '}',
+            '',
+            'int start_combat() {',
+            '    return 1;',
+            '}'
+        ].join('\n'), 'utf8');
+        (macroManager.getMacro as jest.Mock).mockImplementation((name: string) => (
+            name === 'COMBAT_D' ? { name: 'COMBAT_D', value: '"/system/daemons/combat_d"' } : undefined
+        ));
+
+        const content = [
+            'void demo() {',
+            '    COMBAT_D->query_',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'combat.c'), content);
+
+        const result = await provider.provideCompletionItems(
+            document,
+            new vscode.Position(1, '    COMBAT_D->query_'.length),
+            { isCancellationRequested: false } as vscode.CancellationToken,
+            {} as vscode.CompletionContext
+        ) as vscode.CompletionItem[];
+
+        expect(result.map(item => item.label)).toContain('query_enemy');
+        expect(result.map(item => item.label)).not.toContain('query');
+    });
+
+    test('merged object candidates place shared methods ahead of candidate-specific methods', async () => {
+        const objectRoot = path.join(fixtureRoot, 'adm', 'objects');
+        fs.mkdirSync(objectRoot, { recursive: true });
+        fs.writeFileSync(path.join(objectRoot, 'common.c'), [
+            'string query_shared() {',
+            '    return "shared";',
+            '}'
+        ].join('\n'), 'utf8');
+        fs.writeFileSync(path.join(objectRoot, 'sword.c'), [
+            'inherit "/adm/objects/common";',
+            '',
+            'string query_sword() {',
+            '    return "sword";',
+            '}'
+        ].join('\n'), 'utf8');
+        fs.writeFileSync(path.join(objectRoot, 'shield.c'), [
+            'inherit "/adm/objects/common";',
+            '',
+            'string query_shield() {',
+            '    return "shield";',
+            '}'
+        ].join('\n'), 'utf8');
+
+        const content = [
+            'void demo(int flag) {',
+            '    object ob;',
+            '    if (flag) {',
+            '        ob = load_object("/adm/objects/sword");',
+            '    } else {',
+            '        ob = load_object("/adm/objects/shield");',
+            '    }',
+            '    ob->query_',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'branch.c'), content);
+
+        const result = await provider.provideCompletionItems(
+            document,
+            new vscode.Position(7, '    ob->query_'.length),
+            { isCancellationRequested: false } as vscode.CancellationToken,
+            {} as vscode.CompletionContext
+        ) as vscode.CompletionItem[];
+
+        const labels = result.map(item => item.label);
+        expect(labels).toEqual(expect.arrayContaining(['query_shared', 'query_sword', 'query_shield']));
+        expect(labels.indexOf('query_shared')).toBeGreaterThanOrEqual(0);
+        expect(labels.indexOf('query_shared')).toBeLessThan(labels.indexOf('query_sword'));
+        expect(labels.indexOf('query_shared')).toBeLessThan(labels.indexOf('query_shield'));
+    });
+
     test('resolves efun documentation lazily', async () => {
         const document = createDocument(path.join(fixtureRoot, 'main.c'), 'wri');
 
