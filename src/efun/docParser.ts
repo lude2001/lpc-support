@@ -78,7 +78,7 @@ function extractFirstCommentLine(normalizedComment: string): string | undefined 
 
 export function extractTagBlock(docComment: string, tag: string): string | undefined {
     const normalizedComment = normalizeDocComment(docComment);
-    const regex = new RegExp(`(?:^|\\n)@${tag}\\s+([\\s\\S]*?)(?=\\n@\\w+|$)`, 'i');
+    const regex = new RegExp(`(?:^|\\n)@${tag}\\s+([\\s\\S]*?)(?=\\n@[A-Za-z][A-Za-z0-9-]*|$)`, 'i');
     const match = normalizedComment.match(regex);
 
     if (!match) {
@@ -92,6 +92,21 @@ export function extractTagBlock(docComment: string, tag: string): string | undef
         .trim();
 
     return value || undefined;
+}
+
+export function parseReturnObjects(docComment: string): string[] | undefined {
+    const tagValue = extractTagBlock(docComment, 'lpc-return-objects');
+    if (!tagValue) {
+        return undefined;
+    }
+
+    const match = tagValue.match(/^\{([\s\S]*)\}$/);
+    if (!match) {
+        return undefined;
+    }
+
+    const values = Array.from(match[1].matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"/g), item => item[1]);
+    return values.length > 0 ? values : undefined;
 }
 
 export function parseFunctionDocs(
@@ -141,6 +156,11 @@ export function parseFunctionDocs(
             const returnValue = extractTagBlock(docComment, 'return');
             if (returnValue) {
                 doc.returnValue = returnValue;
+            }
+
+            const returnObjects = parseReturnObjects(docComment);
+            if (returnObjects) {
+                doc.returnObjects = returnObjects;
             }
 
             docs.set(funcName, doc);
