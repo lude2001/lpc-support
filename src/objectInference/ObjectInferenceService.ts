@@ -65,10 +65,16 @@ export class ObjectInferenceService {
     private findMemberAccess(syntax: SyntaxDocument, position: vscode.Position): SyntaxNode | undefined {
         return [...syntax.nodes]
             .filter((node) => node.kind === SyntaxKind.MemberAccessExpression)
+            .filter((node) => this.getMemberAccessOperator(node) === '->')
             .filter((node) => node.range.contains(position))
             .filter((node) => node.children.length >= 2)
             .filter((node) => node.children[1].kind === SyntaxKind.Identifier)
             .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range))[0];
+    }
+
+    private getMemberAccessOperator(node: SyntaxNode): string | undefined {
+        const operator = node.metadata?.operator;
+        return typeof operator === 'string' ? operator : undefined;
     }
 
     private async resolveCandidates(

@@ -8,7 +8,7 @@ export class ObjectCandidateResolver {
         const dedupedCandidates = this.dedupeByPath(candidates);
 
         if (dedupedCandidates.length === 0) {
-            if (reason === 'array-element' || reason === 'unsupported-expression') {
+            if (reason === 'unsupported-expression') {
                 return {
                     status: 'unsupported',
                     reason,

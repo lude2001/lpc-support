@@ -255,6 +255,32 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('dot member access does not produce object inference', async () => {
+        const source = [
+            'void demo() {',
+            '    foo.bar();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'dot-member-access.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'bar'));
+
+        expect(result).toBeUndefined();
+    });
+
+    test('scope member access does not produce object inference', async () => {
+        const source = [
+            'void demo() {',
+            '    Foo::bar();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'scope-member-access.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'bar'));
+
+        expect(result).toBeUndefined();
+    });
+
     test('find_object() and clone_object() use the same path rule', async () => {
         const source = [
             'void demo() {',
@@ -337,7 +363,7 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('arr[0]->query() stays conservatively unsupported', async () => {
+    test('arr[0]->query() stays conservatively unsupported with unsupported-expression reason', async () => {
         const source = [
             'void demo() {',
             '    mixed *arr;',

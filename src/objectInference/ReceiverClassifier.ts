@@ -12,7 +12,7 @@ export class ReceiverClassifier {
         if (node.kind === SyntaxKind.IndexExpression) {
             return {
                 kind: 'index',
-                reason: this.classifyIndexReason(node),
+                reason: 'unsupported-expression',
                 nodeText: this.getNodeText(node)
             };
         }
@@ -61,10 +61,6 @@ export class ReceiverClassifier {
             reason: 'unsupported-expression',
             nodeText: this.getNodeText(node)
         };
-    }
-
-    private classifyIndexReason(node: SyntaxNode): 'array-element' | 'unsupported-expression' {
-        return 'unsupported-expression';
     }
 
     private getRecoverableArgumentText(node: SyntaxNode): string {
