@@ -4,6 +4,63 @@
 
 ## [Changelog]
 
+## [0.33.0] - 2026-04-09
+
+### 对象方法智能推导
+
+写 `obj->method()` 时，扩展现在能自动推断 `obj` 指向哪个对象文件，从而在**跳转到定义**、**成员补全**和**悬停提示**中提供精确的对象方法信息。
+
+**支持的推导方式：**
+
+- 字符串路径：`"/adm/daemons/user"->query_name()`
+- 宏路径：`USER_D->query_name()`（从宏定义展开路径）
+- 内置函数：`this_object()->method()`、`load_object("/path")->method()`、`find_object("/path")->method()`、`clone_object("/path")->method()`
+- 玩家对象：`this_player()->method()`（需在 `lpc-support.json` 中配置 `playerObjectPath`）
+- 变量追踪：`ob = load_object("/obj/npc"); ob->query_name()` 可沿赋值链推导
+- 分支合并：`if/else` 中对同一变量赋不同对象时，合并为多候选
+- 文档标注：通过 `@lpc-return-objects` 注释标注自定义函数的返回对象
+
+**三条链路增强：**
+
+- **跳转到定义**：`obj->method()` 的 F12 现在跳转到真实对象文件中的方法定义，沿继承链递归查找
+- **成员补全**：`obj->` 后展示真实对象方法，多候选共享的方法排在前面
+- **悬停提示**：在方法名上悬停显示对象方法的签名和文档，支持继承链查找
+
+**新增配置项：**
+
+- `lpc-support.json` 新增 `playerObjectPath` 字段，用于指定 `this_player()` 返回的玩家对象路径。未配置时 `this_player()` 不参与推导。
+
+  ```json
+  {
+    "version": 1,
+    "configHellPath": "config.hell",
+    "playerObjectPath": "/obj/user"
+  }
+  ```
+
+**新增文档注释标签：**
+
+- `@lpc-return-objects` — 标注自定义函数返回的对象路径，支持多个对象
+
+  ```c
+  /**
+   * @lpc-return-objects /obj/weapon /obj/armor
+   */
+  object get_equipment(string type);
+  ```
+
+**首版限制：**
+
+- 不支持 `arr[i]->method()` 等数组下标访问
+- 不支持动态路径拼接（如 `load_object("/obj/" + name)`）
+- 变量追踪仅限于当前函数内部
+
+### 语言服务修复
+
+- 修复 `对象->方法()` 悬停时错误回退到模拟函数库或 efun 文档的问题
+- 修复 `对象->方法()` "转到定义"时对象目标解析失败后错误回退到模拟函数库的问题
+- 成员补全不再混入同前缀的 efun 候选项
+
 ## [0.32.1] - 2026-04-08
 
 ### 语言服务修复
