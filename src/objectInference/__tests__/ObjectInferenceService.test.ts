@@ -142,6 +142,27 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('direct string literal receiver resolves to fixture file', async () => {
+        const source = [
+            'void demo() {',
+            '    "/adm/daemons/combat_d"->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'string-literal.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'literal'
+                }
+            ]
+        });
+    });
+
     test('macro object path resolves when macro manager returns a path', async () => {
         macroManager.getMacro.mockReturnValue({
             name: 'COMBAT_D',
@@ -193,6 +214,65 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('unresolved path-like receivers remain unknown', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'MISSING_D',
+            value: '/adm/daemons/missing_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'void demo() {',
+            '    "/adm/daemons/missing_d"->start();',
+            '    MISSING_D->start();',
+            '    load_object("/adm/daemons/missing_d")->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'missing-paths.c'), source);
+
+        const literalResult = await service.inferObjectAccess(document, positionAfter(source, '"/adm/daemons/missing_d"->start'));
+        const macroResult = await service.inferObjectAccess(document, positionAfter(source, 'MISSING_D->start'));
+        const builtinResult = await service.inferObjectAccess(document, positionAfter(source, 'load_object("/adm/daemons/missing_d")->start'));
+
+        expect(literalResult?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+        expect(macroResult?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+        expect(builtinResult?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('invalid literal receivers are unsupported instead of unknown', async () => {
+        const source = [
+            'void demo() {',
+            '    123->query();',
+            "    'x'->query();",
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'invalid-literal.c'), source);
+
+        const integerResult = await service.inferObjectAccess(document, positionAfter(source, '123->query'));
+        const charResult = await service.inferObjectAccess(document, positionAfter(source, "'x'->query"));
+
+        expect(integerResult?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+        expect(charResult?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
     test('arr[0]->query() yields unsupported array-element inference', async () => {
         const source = [
             'void demo() {',
@@ -207,6 +287,23 @@ describe('ObjectInferenceService', () => {
         expect(result?.inference).toEqual({
             status: 'unsupported',
             reason: 'array-element',
+            candidates: []
+        });
+    });
+
+    test('mapping subscript receiver is unsupported instead of array-element', async () => {
+        const source = [
+            'void demo() {',
+            '    (["combat": "/adm/daemons/combat_d"])["combat"]->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'mapping-subscript.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
             candidates: []
         });
     });

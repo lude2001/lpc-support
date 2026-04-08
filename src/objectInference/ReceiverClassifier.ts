@@ -10,11 +10,24 @@ export class ReceiverClassifier {
         }
 
         if (node.kind === SyntaxKind.IndexExpression) {
-            return { kind: 'index', nodeText: this.getNodeText(node) };
+            return {
+                kind: 'index',
+                reason: this.classifyIndexReason(node),
+                nodeText: this.getNodeText(node)
+            };
         }
 
         if (node.kind === SyntaxKind.Literal) {
             const expression = typeof node.metadata?.text === 'string' ? node.metadata.text : this.getNodeText(node);
+
+            if (!this.isStringLiteral(expression)) {
+                return {
+                    kind: 'unsupported',
+                    reason: 'unsupported-expression',
+                    nodeText: this.getNodeText(node)
+                };
+            }
+
             return { kind: 'literal', expression, nodeText: this.getNodeText(node) };
         }
 
@@ -48,6 +61,20 @@ export class ReceiverClassifier {
             reason: 'unsupported-expression',
             nodeText: this.getNodeText(node)
         };
+    }
+
+    private classifyIndexReason(node: SyntaxNode): 'array-element' | 'unsupported-expression' {
+        const indexNode = node.children[1];
+        if (!indexNode || indexNode.kind === SyntaxKind.ExpressionList) {
+            return 'unsupported-expression';
+        }
+
+        const indexText = this.getNodeText(indexNode);
+        return /^\d+$/.test(indexText) ? 'array-element' : 'unsupported-expression';
+    }
+
+    private isStringLiteral(expression: string): boolean {
+        return expression.length >= 2 && expression.startsWith('"') && expression.endsWith('"');
     }
 
     private getNodeText(node: SyntaxNode): string {

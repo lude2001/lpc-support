@@ -2,6 +2,8 @@ export type ObjectCandidateSource = 'literal' | 'macro' | 'builtin-call' | 'assi
 
 export type ObjectInferenceStatus = 'resolved' | 'multiple' | 'unknown' | 'unsupported';
 
+export type ObjectInferenceReason = 'array-element' | 'unsupported-expression';
+
 export interface ObjectCandidate {
     path: string;
     source: ObjectCandidateSource;
@@ -10,7 +12,7 @@ export interface ObjectCandidate {
 export interface ObjectInferenceResult {
     status: ObjectInferenceStatus;
     candidates: ObjectCandidate[];
-    reason?: 'array-element' | 'unsupported-expression';
+    reason?: ObjectInferenceReason;
 }
 
 export type ClassifiedReceiver =
@@ -18,8 +20,8 @@ export type ClassifiedReceiver =
     | { kind: 'macro'; expression: string; nodeText: string }
     | { kind: 'identifier'; expression: string; nodeText: string }
     | { kind: 'call'; calleeName: string; firstArgument?: string; nodeText: string }
-    | { kind: 'index'; nodeText: string }
-    | { kind: 'unsupported'; reason: 'unsupported-expression'; nodeText: string };
+    | { kind: 'index'; reason: ObjectInferenceReason; nodeText: string }
+    | { kind: 'unsupported'; reason: ObjectInferenceReason; nodeText: string };
 
 export interface InferredObjectAccess {
     receiver: string;

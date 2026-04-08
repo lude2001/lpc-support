@@ -46,7 +46,7 @@ export class ObjectInferenceService {
             return {
                 receiver: this.getNodeText(document, receiverNode),
                 memberName: memberNode.name,
-                inference: this.candidateResolver.resolve([], 'array-element')
+                inference: this.candidateResolver.resolve([], classifiedReceiver.reason)
             };
         }
 

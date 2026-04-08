@@ -1,9 +1,9 @@
-import { ObjectCandidate, ObjectInferenceResult } from './types';
+import { ObjectCandidate, ObjectInferenceReason, ObjectInferenceResult } from './types';
 
 export class ObjectCandidateResolver {
     public resolve(
         candidates: readonly ObjectCandidate[],
-        reason?: 'array-element' | 'unsupported-expression'
+        reason?: ObjectInferenceReason
     ): ObjectInferenceResult {
         const dedupedCandidates = this.dedupeByPath(candidates);
 
