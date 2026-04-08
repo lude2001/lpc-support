@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { parseFunctionDocs } from '../efun/docParser';
 import { MacroManager } from '../macroManager';
+import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { PathResolver } from '../utils/pathResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
@@ -16,7 +17,7 @@ export class ReturnObjectResolver {
 
     constructor(
         private readonly macroManager?: MacroManager,
-        private readonly playerObjectPath?: string
+        private readonly playerObjectPathOrProjectConfig?: string | LpcProjectConfigService
     ) {}
 
     public async resolveExpression(
@@ -95,11 +96,12 @@ export class ReturnObjectResolver {
                 return [];
             }
 
-            if (!this.playerObjectPath) {
+            const resolvedPlayerPath = await this.resolveConfiguredPlayerObjectPath(document);
+            if (!resolvedPlayerPath) {
                 return [];
             }
 
-            return [{ path: this.playerObjectPath, source: 'builtin-call' }];
+            return [{ path: resolvedPlayerPath, source: 'builtin-call' }];
         }
 
         if (!['load_object', 'find_object', 'clone_object'].includes(receiver.calleeName)) {
@@ -161,6 +163,32 @@ export class ReturnObjectResolver {
 
     private isStringLiteral(value: string): boolean {
         return value.length >= 2 && value.startsWith('"') && value.endsWith('"');
+    }
+
+    private async resolveConfiguredPlayerObjectPath(document: vscode.TextDocument): Promise<string | undefined> {
+        let playerObjectPath: string | undefined;
+
+        if (typeof this.playerObjectPathOrProjectConfig === 'string') {
+            playerObjectPath = this.playerObjectPathOrProjectConfig;
+        } else if (this.playerObjectPathOrProjectConfig) {
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+            if (!workspaceFolder) {
+                return undefined;
+            }
+
+            const projectConfig = await this.playerObjectPathOrProjectConfig.loadForWorkspace(workspaceFolder.uri.fsPath);
+            playerObjectPath = projectConfig?.playerObjectPath;
+        }
+
+        if (!playerObjectPath) {
+            return undefined;
+        }
+
+        return PathResolver.resolveObjectPath(
+            document,
+            this.toObjectPathExpression(playerObjectPath),
+            this.macroManager
+        );
     }
 
     private toObjectPathExpression(objectPath: string): string {

@@ -20,16 +20,8 @@ export async function registerLanguageProviders(registry: ServiceRegistry, conte
     const efunDocsManager = registry.get(Services.EfunDocs);
     const macroManager = registry.get(Services.MacroManager);
     const completionInstrumentation = registry.get(Services.CompletionInstrumentation);
-
     const projectConfigService = registry.get(Services.ProjectConfig);
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    let playerObjectPath: string | undefined;
-    if (workspaceFolder) {
-        const projectConfig = await projectConfigService.loadForWorkspace(workspaceFolder.uri.fsPath);
-        playerObjectPath = projectConfig?.playerObjectPath;
-    }
-
-    const objectInferenceService = new ObjectInferenceService(macroManager, playerObjectPath);
+    const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService);
 
     const completionProvider = new LPCCompletionItemProvider(
         efunDocsManager,

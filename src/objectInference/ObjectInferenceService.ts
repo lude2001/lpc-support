@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { MacroManager } from '../macroManager';
+import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { PathResolver } from '../utils/pathResolver';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
@@ -18,9 +19,9 @@ export class ObjectInferenceService {
 
     constructor(
         private readonly macroManager?: MacroManager,
-        private readonly playerObjectPath?: string
+        playerObjectPathOrProjectConfig?: string | LpcProjectConfigService
     ) {
-        this.returnObjectResolver = new ReturnObjectResolver(macroManager, playerObjectPath);
+        this.returnObjectResolver = new ReturnObjectResolver(macroManager, playerObjectPathOrProjectConfig);
         this.traceService = new ReceiverTraceService(this.returnObjectResolver);
     }
 

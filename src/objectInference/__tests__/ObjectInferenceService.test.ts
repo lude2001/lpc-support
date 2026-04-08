@@ -77,6 +77,7 @@ describe('ObjectInferenceService', () => {
         fs.mkdirSync(path.join(fixtureRoot, 'adm', 'objects'), { recursive: true });
         fs.mkdirSync(path.join(fixtureRoot, 'room'), { recursive: true });
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'), 'void start() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'player.c'), 'void query_name() {}\n', 'utf8');
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'sword.c'), 'void query() {}\n', 'utf8');
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'shield.c'), 'void query() {}\n', 'utf8');
 
@@ -125,7 +126,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('this_player() resolves when playerObjectPath is configured', async () => {
-        const playerService = new ObjectInferenceService(macroManager as any, '/adm/objects/player.c');
+        const playerService = new ObjectInferenceService(macroManager as any, '/adm/objects/player');
         const source = [
             'void demo() {',
             '    this_player()->query_name();',
@@ -142,12 +143,57 @@ describe('ObjectInferenceService', () => {
                 status: 'resolved',
                 candidates: [
                     {
-                        path: '/adm/objects/player.c',
+                        path: path.join(fixtureRoot, 'adm', 'objects', 'player.c'),
                         source: 'builtin-call'
                     }
                 ]
             }
         });
+    });
+
+    test('this_player() resolves playerObjectPath using the current document workspace', async () => {
+        const secondFixtureRoot = path.join(process.cwd(), '.tmp-object-inference-second');
+        fs.rmSync(secondFixtureRoot, { recursive: true, force: true });
+        fs.mkdirSync(path.join(secondFixtureRoot, 'adm', 'objects'), { recursive: true });
+        fs.mkdirSync(path.join(secondFixtureRoot, 'room'), { recursive: true });
+        fs.writeFileSync(path.join(secondFixtureRoot, 'adm', 'objects', 'second_player.c'), 'void query_name() {}\n', 'utf8');
+
+        (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({
+            uri: { fsPath: secondFixtureRoot }
+        });
+
+        const projectConfigService = {
+            loadForWorkspace: jest.fn(async (workspaceRoot: string) => ({
+                version: 1 as const,
+                configHellPath: 'config.hell',
+                playerObjectPath: workspaceRoot === secondFixtureRoot
+                    ? '/adm/objects/second_player'
+                    : '/adm/objects/player'
+            }))
+        };
+
+        const playerService = new ObjectInferenceService(macroManager as any, projectConfigService as any);
+        const source = [
+            'void demo() {',
+            '    this_player()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(secondFixtureRoot, 'room', 'player.c'), source);
+
+        const result = await playerService.inferObjectAccess(document, positionAfter(source, 'query_name'));
+
+        expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith(secondFixtureRoot);
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(secondFixtureRoot, 'adm', 'objects', 'second_player.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+
+        fs.rmSync(secondFixtureRoot, { recursive: true, force: true });
     });
 
     test('this_player() without playerObjectPath returns empty candidates', async () => {
@@ -167,7 +213,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('this_player with arguments does not resolve', async () => {
-        const playerService = new ObjectInferenceService(macroManager as any, '/adm/objects/player.c');
+        const playerService = new ObjectInferenceService(macroManager as any, '/adm/objects/player');
         const source = [
             'void demo() {',
             '    this_player(1)->query_name();',

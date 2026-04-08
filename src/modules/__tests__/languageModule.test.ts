@@ -152,7 +152,7 @@ describe('registerLanguageProviders', () => {
             completionInstrumentation,
             objectInferenceService
         );
-        expect(ObjectInferenceService).toHaveBeenCalledWith(macroManager, undefined);
+        expect(ObjectInferenceService).toHaveBeenCalledWith(macroManager, projectConfigService);
         expect(registry.get(Services.Completion)).toBe(completionProvider);
         expect(vscode.languages.registerCompletionItemProvider)
             .toHaveBeenCalledWith('lpc', completionProvider, '>', '#');
@@ -235,18 +235,13 @@ describe('registerLanguageProviders', () => {
         expect(((unresolvedHover as vscode.Hover).contents as vscode.MarkdownString).value || (unresolvedHover as any).contents).toContain('USER_D');
     });
 
-    test('passes playerObjectPath from project config to ObjectInferenceService', async () => {
-        projectConfigService.loadForWorkspace.mockResolvedValue({
-            version: 1,
-            configHellPath: 'config.hell',
-            playerObjectPath: '/obj/user.c'
-        });
-        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: '/workspace' } }];
+    test('passes project config service to ObjectInferenceService without eagerly binding the first workspace', async () => {
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: '/workspace-a' } }, { uri: { fsPath: '/workspace-b' } }];
 
         await registerLanguageProviders(registry, context);
 
-        expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('/workspace');
-        expect(ObjectInferenceService).toHaveBeenCalledWith(macroManager, '/obj/user.c');
+        expect(projectConfigService.loadForWorkspace).not.toHaveBeenCalled();
+        expect(ObjectInferenceService).toHaveBeenCalledWith(macroManager, projectConfigService);
     });
 });
 
