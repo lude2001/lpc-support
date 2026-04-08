@@ -1,8 +1,6 @@
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { ClassifiedReceiver } from './types';
 
-const MACRO_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
-
 export class ReceiverClassifier {
     public classify(node: SyntaxNode): ClassifiedReceiver {
         if (node.kind === SyntaxKind.ParenthesizedExpression && node.children[0]) {
@@ -32,10 +30,6 @@ export class ReceiverClassifier {
         }
 
         if (node.kind === SyntaxKind.Identifier && node.name) {
-            if (MACRO_NAME_PATTERN.test(node.name)) {
-                return { kind: 'macro', expression: node.name, nodeText: node.name };
-            }
-
             return { kind: 'identifier', expression: node.name, nodeText: node.name };
         }
 
@@ -44,13 +38,14 @@ export class ReceiverClassifier {
             if (callee?.kind === SyntaxKind.Identifier && callee.name) {
                 const argumentList = node.children[1];
                 const firstArgument = argumentList?.children[0]
-                    ? this.getRecoverableArgumentText(argumentList.children[0])
+                    ? this.getRecoverableArgument(argumentList.children[0])
                     : undefined;
 
                 return {
                     kind: 'call',
                     calleeName: callee.name,
-                    firstArgument,
+                    firstArgument: firstArgument?.text,
+                    unsupportedReason: firstArgument?.reason,
                     nodeText: this.getNodeText(node)
                 };
             }
@@ -63,12 +58,23 @@ export class ReceiverClassifier {
         };
     }
 
-    private getRecoverableArgumentText(node: SyntaxNode): string {
+    private getRecoverableArgument(node: SyntaxNode): { text?: string; reason?: 'unsupported-expression' } {
         if (node.kind === SyntaxKind.ParenthesizedExpression && node.children[0]) {
-            return this.getRecoverableArgumentText(node.children[0]);
+            return this.getRecoverableArgument(node.children[0]);
         }
 
-        return this.getNodeText(node);
+        if (node.kind === SyntaxKind.Identifier) {
+            return { text: this.getNodeText(node) };
+        }
+
+        if (node.kind === SyntaxKind.Literal) {
+            const text = this.getNodeText(node);
+            return this.isStringLiteral(text)
+                ? { text }
+                : { reason: 'unsupported-expression' };
+        }
+
+        return { reason: 'unsupported-expression' };
     }
 
     private isStringLiteral(expression: string): boolean {

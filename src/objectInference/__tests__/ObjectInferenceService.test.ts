@@ -206,6 +206,41 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('load_object rejects numeric builtin arguments as unsupported', async () => {
+        const source = [
+            'void demo() {',
+            '    load_object(123)->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'load-object-invalid-number.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
+    test('load_object rejects indexed builtin arguments as unsupported', async () => {
+        const source = [
+            'void demo() {',
+            '    mixed *arr;',
+            '    load_object(arr[0])->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'load-object-invalid-index.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
     test('direct string literal receiver resolves to fixture file', async () => {
         const source = [
             'void demo() {',
@@ -253,6 +288,23 @@ describe('ObjectInferenceService', () => {
                 }
             ]
         });
+    });
+
+    test('uppercase local receivers stay on identifier flow instead of macro-only resolution', async () => {
+        const source = [
+            'void demo(object COMBAT_D) {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'uppercase-local.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+        expect(macroManager.getMacro).not.toHaveBeenCalled();
     });
 
     test('dot member access does not produce object inference', async () => {

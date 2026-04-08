@@ -19,7 +19,13 @@ export type ClassifiedReceiver =
     | { kind: 'literal'; expression: string; nodeText: string }
     | { kind: 'macro'; expression: string; nodeText: string }
     | { kind: 'identifier'; expression: string; nodeText: string }
-    | { kind: 'call'; calleeName: string; firstArgument?: string; nodeText: string }
+    | {
+        kind: 'call';
+        calleeName: string;
+        firstArgument?: string;
+        unsupportedReason?: ObjectInferenceReason;
+        nodeText: string;
+    }
     | { kind: 'index'; reason: ObjectInferenceReason; nodeText: string }
     | { kind: 'unsupported'; reason: ObjectInferenceReason; nodeText: string };
 

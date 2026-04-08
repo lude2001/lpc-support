@@ -50,14 +50,15 @@ export class ObjectInferenceService {
             };
         }
 
-        const candidates = await this.resolveCandidates(document, receiverNode, classifiedReceiver);
+        const candidates = await this.resolveCandidates(document, syntax, receiverNode, classifiedReceiver);
+        const inferenceReason = this.getInferenceReason(classifiedReceiver);
 
         return {
             receiver: this.getNodeText(document, receiverNode),
             memberName: memberNode.name,
             inference: this.candidateResolver.resolve(
                 candidates,
-                classifiedReceiver.kind === 'unsupported' ? classifiedReceiver.reason : undefined
+                inferenceReason
             )
         };
     }
@@ -79,6 +80,7 @@ export class ObjectInferenceService {
 
     private async resolveCandidates(
         document: vscode.TextDocument,
+        syntax: SyntaxDocument,
         receiverNode: SyntaxNode,
         receiver: ClassifiedReceiver
     ): Promise<ObjectCandidate[]> {
@@ -95,10 +97,60 @@ export class ObjectInferenceService {
         }
 
         if (receiver.kind === 'identifier') {
-            return (await this.traceService.traceIdentifier(document, receiverNode)) ?? [];
+            const tracedCandidates = (await this.traceService.traceIdentifier(document, receiverNode)) ?? [];
+            if (tracedCandidates.length > 0 || this.hasEnclosingLocalDeclaration(syntax, receiverNode)) {
+                return tracedCandidates;
+            }
+
+            return this.resolvePathCandidate(document, receiver.expression, 'macro');
         }
 
         return [];
+    }
+
+    private getInferenceReason(receiver: ClassifiedReceiver) {
+        if (receiver.kind === 'unsupported' || receiver.kind === 'index') {
+            return receiver.reason;
+        }
+
+        if (receiver.kind === 'call') {
+            return receiver.unsupportedReason;
+        }
+
+        return undefined;
+    }
+
+    private hasEnclosingLocalDeclaration(syntax: SyntaxDocument, receiverNode: SyntaxNode): boolean {
+        if (!receiverNode.name) {
+            return false;
+        }
+
+        const enclosingFunction = [...syntax.nodes]
+            .filter((node) => node.kind === SyntaxKind.FunctionDeclaration)
+            .filter((node) => node.range.contains(receiverNode.range.start))
+            .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range))[0];
+
+        if (!enclosingFunction) {
+            return false;
+        }
+
+        return syntax.nodes.some((node) => {
+            if (!this.isLocalDeclarationNode(node, receiverNode.name!)) {
+                return false;
+            }
+
+            return enclosingFunction.range.contains(node.range.start)
+                && this.isBeforeOrEqual(node.range.start, receiverNode.range.start);
+        });
+    }
+
+    private isLocalDeclarationNode(node: SyntaxNode, name: string): boolean {
+        return (node.kind === SyntaxKind.ParameterDeclaration || node.kind === SyntaxKind.VariableDeclarator)
+            && node.name === name;
+    }
+
+    private isBeforeOrEqual(left: vscode.Position, right: vscode.Position): boolean {
+        return left.isBefore(right) || left.isEqual(right);
     }
 
     private async resolvePathCandidate(
