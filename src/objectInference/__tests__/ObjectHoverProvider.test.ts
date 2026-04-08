@@ -173,10 +173,6 @@ describe('ObjectHoverProvider', () => {
         (vscode.workspace.openTextDocument as jest.Mock)
             .mockResolvedValueOnce({
                 uri: vscode.Uri.file('D:/code/lpc/obj/child.c'),
-                getText: () => 'void setup() {}'
-            })
-            .mockResolvedValueOnce({
-                uri: vscode.Uri.file('D:/code/lpc/obj/child.c'),
                 getText: () => 'inherit "/obj/parent.c";\nvoid setup() {}'
             })
             .mockResolvedValueOnce({
@@ -251,19 +247,11 @@ describe('ObjectHoverProvider', () => {
         (vscode.workspace.openTextDocument as jest.Mock)
             .mockResolvedValueOnce({
                 uri: vscode.Uri.file('D:/code/lpc/obj/childA.c'),
-                getText: () => childContent
-            })
-            .mockResolvedValueOnce({
-                uri: vscode.Uri.file('D:/code/lpc/obj/childA.c'),
                 getText: () => snapshotContent
             })
             .mockResolvedValueOnce({
                 uri: vscode.Uri.file('D:/code/lpc/obj/parent.c'),
                 getText: () => parentContent
-            })
-            .mockResolvedValueOnce({
-                uri: vscode.Uri.file('D:/code/lpc/obj/childB.c'),
-                getText: () => childContent
             })
             .mockResolvedValueOnce({
                 uri: vscode.Uri.file('D:/code/lpc/obj/childB.c'),

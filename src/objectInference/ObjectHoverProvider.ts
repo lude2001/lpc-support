@@ -87,12 +87,18 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
         }
         visited.add(targetPath);
 
-        const directDoc = await this.loadMethodDocFromFile(targetPath, memberName);
-        if (directDoc) {
-            return [directDoc];
+        let targetDocument: vscode.TextDocument;
+        try {
+            targetDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(targetPath));
+        } catch {
+            return [];
         }
 
-        const targetDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(targetPath));
+        const methodDoc = parseFunctionDocs(targetDocument.getText(), '对象方法').get(memberName);
+        if (methodDoc) {
+            return [{ path: targetPath, syntax: methodDoc.syntax, description: methodDoc.description }];
+        }
+
         const snapshot = this.astManager.getSemanticSnapshot(targetDocument, true);
         if (!snapshot) {
             return [];
@@ -111,20 +117,6 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
         }
 
         return [];
-    }
-
-    private async loadMethodDocFromFile(filePath: string, memberName: string): Promise<MethodDocResult | undefined> {
-        const targetDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-        const methodDoc = parseFunctionDocs(targetDocument.getText(), '对象方法').get(memberName);
-        if (!methodDoc) {
-            return undefined;
-        }
-
-        return {
-            path: filePath,
-            syntax: methodDoc.syntax,
-            description: methodDoc.description
-        };
     }
 
     private resolveInheritedFilePath(document: vscode.TextDocument, inheritValue: string): string | undefined {
