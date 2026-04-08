@@ -15,15 +15,6 @@ export interface ObjectInferenceResult {
     reason?: ObjectInferenceReason;
 }
 
-export interface ObjectResolutionOutcome {
-    candidates: ObjectCandidate[];
-    reason?: ObjectInferenceReason;
-}
-
-export interface TracedReceiverResult extends ObjectResolutionOutcome {
-    hasVisibleBinding: boolean;
-}
-
 export type ClassifiedReceiver =
     | { kind: 'literal'; expression: string; nodeText: string }
     | { kind: 'macro'; expression: string; nodeText: string }

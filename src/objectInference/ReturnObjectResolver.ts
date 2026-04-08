@@ -4,7 +4,12 @@ import { MacroManager } from '../macroManager';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { PathResolver } from '../utils/pathResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
-import { ClassifiedReceiver, ObjectCandidate, ObjectResolutionOutcome } from './types';
+import { ClassifiedReceiver, ObjectCandidate, ObjectInferenceReason } from './types';
+
+export interface ObjectResolutionOutcome {
+    candidates: ObjectCandidate[];
+    reason?: ObjectInferenceReason;
+}
 
 export class ReturnObjectResolver {
     private readonly classifier = new ReceiverClassifier();

@@ -1,7 +1,11 @@
 import * as vscode from 'vscode';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
-import { ObjectCandidate, ObjectInferenceReason, ObjectResolutionOutcome, TracedReceiverResult } from './types';
-import { ReturnObjectResolver } from './ReturnObjectResolver';
+import { ObjectCandidate, ObjectInferenceReason } from './types';
+import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
+
+export interface TracedReceiverResult extends ObjectResolutionOutcome {
+    hasVisibleBinding: boolean;
+}
 
 interface FlowState {
     expressions: SyntaxNode[];

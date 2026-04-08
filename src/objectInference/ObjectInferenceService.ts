@@ -6,8 +6,8 @@ import { PathResolver } from '../utils/pathResolver';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ReceiverTraceService } from './ReceiverTraceService';
-import { ReturnObjectResolver } from './ReturnObjectResolver';
-import { ClassifiedReceiver, InferredObjectAccess, ObjectCandidate, ObjectResolutionOutcome } from './types';
+import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
+import { ClassifiedReceiver, InferredObjectAccess, ObjectCandidate } from './types';
 
 export class ObjectInferenceService {
     private readonly astManager = ASTManager.getInstance();
