@@ -243,12 +243,12 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         targetFilePath: string,
         methodName: string
     ): Promise<vscode.Location | undefined> {
-        const fileUri = this.resolveWorkspaceFileUri(currentDocument, targetFilePath);
-        if (!fileUri || !fs.existsSync(fileUri.fsPath)) {
+        const resolvedFilePath = this.resolveWorkspaceFilePath(currentDocument, targetFilePath);
+        if (!resolvedFilePath || !fs.existsSync(resolvedFilePath)) {
             return undefined;
         }
 
-        const includeFiles = await this.getIncludeFiles(fileUri.fsPath);
+        const includeFiles = await this.getIncludeFiles(resolvedFilePath);
 
         for (const includeFile of includeFiles) {
             const location = await this.findMethodInFile(currentDocument, includeFile, methodName);
@@ -395,12 +395,49 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         targetFilePath: string,
         methodName: string
     ): Promise<vscode.Location | undefined> {
+        this.processedFiles.clear();
+        return this.findMethodInTargetChainRecursive(currentDocument, targetFilePath, methodName);
+    }
+
+    private async findMethodInTargetChainRecursive(
+        currentDocument: vscode.TextDocument,
+        targetFilePath: string,
+        methodName: string
+    ): Promise<vscode.Location | undefined> {
         const directLocation = await this.findMethodInFile(currentDocument, targetFilePath, methodName);
         if (directLocation) {
             return directLocation;
         }
 
-        return this.findMethodInIncludedFiles(currentDocument, targetFilePath, methodName);
+        const includeLocation = await this.findMethodInIncludedFiles(currentDocument, targetFilePath, methodName);
+        if (includeLocation) {
+            return includeLocation;
+        }
+
+        const targetDocument = path.resolve(targetFilePath) === path.resolve(currentDocument.uri.fsPath)
+            ? currentDocument
+            : await this.openWorkspaceDocument(currentDocument, targetFilePath);
+        if (!targetDocument) {
+            return undefined;
+        }
+
+        for (const inheritStatement of this.getSemanticSnapshot(targetDocument).inheritStatements) {
+            const inheritedDocument = await this.openInheritedDocument(targetDocument, inheritStatement.value);
+            if (!inheritedDocument) {
+                continue;
+            }
+
+            const inheritedLocation = await this.findMethodInTargetChainRecursive(
+                inheritedDocument,
+                inheritedDocument.uri.fsPath,
+                methodName
+            );
+            if (inheritedLocation) {
+                return inheritedLocation;
+            }
+        }
+
+        return undefined;
     }
 
     private async findInheritedVariableDefinition(
@@ -585,9 +622,9 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         return this.tryOpenTextDocument(inheritedFile);
     }
 
-    private resolveWorkspaceFileUri(document: vscode.TextDocument, filePath: string): vscode.Uri | undefined {
+    private resolveWorkspaceFilePath(document: vscode.TextDocument, filePath: string): string | undefined {
         if (path.isAbsolute(filePath)) {
-            return vscode.Uri.file(filePath);
+            return filePath;
         }
 
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
@@ -596,19 +633,19 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         const relativePath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
-        return vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, relativePath));
+        return path.join(workspaceFolder.uri.fsPath, relativePath);
     }
 
     private async openWorkspaceDocument(
         document: vscode.TextDocument,
         filePath: string
     ): Promise<vscode.TextDocument | undefined> {
-        const fileUri = this.resolveWorkspaceFileUri(document, filePath);
-        if (!fileUri || !fs.existsSync(fileUri.fsPath)) {
+        const resolvedFilePath = this.resolveWorkspaceFilePath(document, filePath);
+        if (!resolvedFilePath || !fs.existsSync(resolvedFilePath)) {
             return undefined;
         }
 
-        return this.tryOpenTextDocument(fileUri);
+        return this.tryOpenTextDocument(resolvedFilePath);
     }
 
     private async tryOpenTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument | undefined> {

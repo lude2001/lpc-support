@@ -345,6 +345,63 @@ describe('provider integration regression', () => {
         expect(findMethodSpy).toHaveBeenCalledTimes(2);
     });
 
+    test('definition follows inherited object methods for inferred targets', async () => {
+        const parentFile = path.join(fixtureRoot, 'lib', 'parent.c');
+        const childFile = path.join(fixtureRoot, 'lib', 'child.c');
+        fs.writeFileSync(parentFile, [
+            'string query_name() {',
+            '    return "parent";',
+            '}'
+        ].join('\n'));
+        fs.writeFileSync(childFile, [
+            'inherit "/lib/parent";',
+            '',
+            'void child_only() {',
+            '}'
+        ].join('\n'));
+
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
+            const filePath = typeof target === 'string' ? target : target.fsPath;
+            if (!filePath || !fs.existsSync(filePath)) {
+                return undefined;
+            }
+
+            return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
+        });
+
+        const source = [
+            'void demo() {',
+            '    load_object("/lib/child")->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'inferred-inherit.c'), source);
+        const objectInferenceService = {
+            inferObjectAccess: jest.fn().mockResolvedValue({
+                receiver: 'load_object("/lib/child")',
+                memberName: 'query_name',
+                inference: {
+                    status: 'resolved',
+                    candidates: [{ path: childFile, source: 'builtin-call' }]
+                }
+            })
+        };
+        const provider = new LPCDefinitionProvider(
+            macroManager as any,
+            efunDocsManager as any,
+            objectInferenceService as any
+        );
+
+        const definition = await provider.provideDefinition(
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            { isCancellationRequested: false } as vscode.CancellationToken
+        ) as vscode.Location;
+
+        expect(definition).toBeDefined();
+        expect(normalizeFsPath(definition.uri.fsPath)).toBe(parentFile);
+        expect(definition.range.line).toBe(0);
+    });
+
     test('unsupported arr[0]->query() returns undefined and does not trigger simul_efun scanning', async () => {
         efunDocsManager.getSimulatedDoc.mockImplementation((name: string) => (
             name === 'query' ? { name: 'query' } : undefined
