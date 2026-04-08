@@ -7,13 +7,13 @@ import { registerLanguageProviders } from './modules/languageModule';
 import { registerUI } from './modules/uiModule';
 import { disposeGlobalParsedDocumentService } from './parser/ParsedDocumentService';
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const registry = new ServiceRegistry();
     context.subscriptions.push(registry);
 
     registerCoreServices(registry, context);
     registerDiagnostics(registry, context);
-    registerLanguageProviders(registry, context);
+    await registerLanguageProviders(registry, context);
     registerUI(registry, context);
     registerCommands(registry, context);
 }

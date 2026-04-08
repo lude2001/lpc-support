@@ -55,6 +55,7 @@ describe('extension entrypoint', () => {
         });
         (registerLanguageProviders as jest.Mock).mockReset().mockImplementation(() => {
             registrationOrder.push('language');
+            return Promise.resolve();
         });
         (registerUI as jest.Mock).mockReset().mockImplementation(() => {
             registrationOrder.push('ui');
@@ -65,8 +66,8 @@ describe('extension entrypoint', () => {
         (disposeGlobalParsedDocumentService as jest.Mock).mockReset();
     });
 
-    test('activate creates a registry, tracks it, and delegates registration in module order', () => {
-        activate(context);
+    test('activate creates a registry, tracks it, and delegates registration in module order', async () => {
+        await activate(context);
 
         expect(ServiceRegistry).toHaveBeenCalledTimes(1);
         expect(context.subscriptions).toContain(registry);
