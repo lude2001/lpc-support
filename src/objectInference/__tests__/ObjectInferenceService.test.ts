@@ -142,6 +142,70 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('load_object(COMBAT_D) resolves when builtin argument is a macro', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/combat_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'void demo() {',
+            '    load_object(COMBAT_D)->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'load-object-macro.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('load_object preserves parenthesized literal and macro arguments', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/combat_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'void demo() {',
+            '    load_object(("/adm/daemons/combat_d"))->start();',
+            '    load_object((COMBAT_D))->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'load-object-parenthesized.c'), source);
+        const expectedPath = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
+
+        const literalResult = await service.inferObjectAccess(
+            document,
+            positionAfter(source, 'load_object(("/adm/daemons/combat_d"))->start')
+        );
+        const macroResult = await service.inferObjectAccess(
+            document,
+            positionAfter(source, 'load_object((COMBAT_D))->start')
+        );
+
+        expect(literalResult?.inference).toEqual({
+            status: 'resolved',
+            candidates: [{ path: expectedPath, source: 'builtin-call' }]
+        });
+        expect(macroResult?.inference).toEqual({
+            status: 'resolved',
+            candidates: [{ path: expectedPath, source: 'builtin-call' }]
+        });
+    });
+
     test('direct string literal receiver resolves to fixture file', async () => {
         const source = [
             'void demo() {',
@@ -273,7 +337,7 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('arr[0]->query() yields unsupported array-element inference', async () => {
+    test('arr[0]->query() stays conservatively unsupported', async () => {
         const source = [
             'void demo() {',
             '    mixed *arr;',
@@ -286,7 +350,24 @@ describe('ObjectInferenceService', () => {
 
         expect(result?.inference).toEqual({
             status: 'unsupported',
-            reason: 'array-element',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
+    test('numeric-key mapping subscript receiver is unsupported instead of array-element', async () => {
+        const source = [
+            'void demo() {',
+            '    ([1: "/adm/daemons/combat_d"])[1]->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'numeric-mapping-subscript.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
             candidates: []
         });
     });

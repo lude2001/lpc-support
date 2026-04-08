@@ -44,7 +44,7 @@ export class ReceiverClassifier {
             if (callee?.kind === SyntaxKind.Identifier && callee.name) {
                 const argumentList = node.children[1];
                 const firstArgument = argumentList?.children[0]
-                    ? this.getNodeText(argumentList.children[0])
+                    ? this.getRecoverableArgumentText(argumentList.children[0])
                     : undefined;
 
                 return {
@@ -64,13 +64,15 @@ export class ReceiverClassifier {
     }
 
     private classifyIndexReason(node: SyntaxNode): 'array-element' | 'unsupported-expression' {
-        const indexNode = node.children[1];
-        if (!indexNode || indexNode.kind === SyntaxKind.ExpressionList) {
-            return 'unsupported-expression';
+        return 'unsupported-expression';
+    }
+
+    private getRecoverableArgumentText(node: SyntaxNode): string {
+        if (node.kind === SyntaxKind.ParenthesizedExpression && node.children[0]) {
+            return this.getRecoverableArgumentText(node.children[0]);
         }
 
-        const indexText = this.getNodeText(indexNode);
-        return /^\d+$/.test(indexText) ? 'array-element' : 'unsupported-expression';
+        return this.getNodeText(node);
     }
 
     private isStringLiteral(expression: string): boolean {
