@@ -71,42 +71,99 @@ export class ReceiverTraceService {
         identifierName: string,
         usagePosition: vscode.Position
     ): SyntaxNode[] {
-        const expressions: SyntaxNode[] = [];
+        const body = functionNode.children.find((child) => child.kind === SyntaxKind.Block);
+        if (!body) {
+            return [];
+        }
 
-        const visit = (node: SyntaxNode, isRoot = false): void => {
-            if (!this.isBeforeOrEqual(node.range.start, usagePosition)) {
-                return;
+        return this.collectFlowExpressions(body, identifierName, usagePosition, []);
+    }
+
+    private collectFlowExpressions(
+        node: SyntaxNode,
+        identifierName: string,
+        usagePosition: vscode.Position,
+        currentExpressions: SyntaxNode[]
+    ): SyntaxNode[] {
+        if (!this.isBeforeOrEqual(node.range.start, usagePosition)) {
+            return currentExpressions;
+        }
+
+        if (node.kind === SyntaxKind.FunctionDeclaration) {
+            return currentExpressions;
+        }
+
+        if (this.isUnsupportedControlFlow(node)) {
+            return currentExpressions;
+        }
+
+        if (node.kind === SyntaxKind.IfStatement) {
+            return this.collectIfFlowExpressions(node, identifierName, usagePosition, currentExpressions);
+        }
+
+        if (node.kind === SyntaxKind.VariableDeclarator && node.name === identifierName && node.children[1]) {
+            return [node.children[1]];
+        }
+
+        if (
+            node.kind === SyntaxKind.AssignmentExpression
+            && node.metadata?.operator === '='
+            && node.children[0]?.kind === SyntaxKind.Identifier
+            && node.children[0].name === identifierName
+            && node.children[1]
+        ) {
+            return [node.children[1]];
+        }
+
+        let expressions = currentExpressions;
+        for (const child of node.children) {
+            if (!this.isBeforeOrEqual(child.range.start, usagePosition)) {
+                break;
             }
 
-            if (!isRoot && node.kind === SyntaxKind.FunctionDeclaration) {
-                return;
-            }
+            expressions = this.collectFlowExpressions(child, identifierName, usagePosition, expressions);
+        }
 
-            if (this.isUnsupportedControlFlow(node)) {
-                return;
-            }
-
-            if (node.kind === SyntaxKind.VariableDeclarator && node.name === identifierName && node.children[1]) {
-                expressions.push(node.children[1]);
-            }
-
-            if (
-                node.kind === SyntaxKind.AssignmentExpression
-                && node.metadata?.operator === '='
-                && node.children[0]?.kind === SyntaxKind.Identifier
-                && node.children[0].name === identifierName
-                && node.children[1]
-            ) {
-                expressions.push(node.children[1]);
-            }
-
-            for (const child of node.children) {
-                visit(child);
-            }
-        };
-
-        visit(functionNode, true);
         return expressions;
+    }
+
+    private collectIfFlowExpressions(
+        node: SyntaxNode,
+        identifierName: string,
+        usagePosition: vscode.Position,
+        currentExpressions: SyntaxNode[]
+    ): SyntaxNode[] {
+        const thenBranch = node.children[1];
+        const elseBranch = node.children[2];
+
+        if (thenBranch?.range.contains(usagePosition)) {
+            return this.collectFlowExpressions(thenBranch, identifierName, usagePosition, currentExpressions);
+        }
+
+        if (elseBranch?.range.contains(usagePosition)) {
+            return this.collectFlowExpressions(elseBranch, identifierName, usagePosition, currentExpressions);
+        }
+
+        const thenExpressions = thenBranch
+            ? this.collectFlowExpressions(thenBranch, identifierName, usagePosition, currentExpressions)
+            : currentExpressions;
+        const elseExpressions = elseBranch
+            ? this.collectFlowExpressions(elseBranch, identifierName, usagePosition, currentExpressions)
+            : currentExpressions;
+
+        return this.mergeExpressions(thenExpressions, elseExpressions);
+    }
+
+    private mergeExpressions(left: SyntaxNode[], right: SyntaxNode[]): SyntaxNode[] {
+        const merged = [...left];
+
+        for (const expression of right) {
+            if (!merged.some((candidate) => candidate === expression)) {
+                merged.push(expression);
+            }
+        }
+
+        return merged;
     }
 
     private async resolveSourceExpression(

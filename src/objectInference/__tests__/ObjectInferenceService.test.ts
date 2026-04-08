@@ -575,6 +575,68 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('current-function tracing keeps straight-line overwrites but merges if else branches', async () => {
+        const sequentialSource = [
+            'void demo() {',
+            '    object ob;',
+            '    ob = load_object("/adm/objects/sword");',
+            '    ob = load_object("/adm/objects/shield");',
+            '    ob->query();',
+            '}'
+        ].join('\n');
+        const sequentialDocument = createDocument(
+            path.join(fixtureRoot, 'room', 'sequential-overwrite.c'),
+            sequentialSource
+        );
+
+        const sequentialResult = await service.inferObjectAccess(
+            sequentialDocument,
+            positionAfter(sequentialSource, 'ob->query')
+        );
+
+        expect(sequentialResult?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'shield.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+
+        const branchSource = [
+            'void demo(int flag) {',
+            '    object daemon;',
+            '    if (flag) {',
+            '        daemon = load_object("/adm/daemons/combat_d");',
+            '    } else {',
+            '        daemon = load_object("/adm/objects/sword");',
+            '    }',
+            '    daemon->query();',
+            '}'
+        ].join('\n');
+        const branchDocument = createDocument(path.join(fixtureRoot, 'room', 'if-else-assignment-merge.c'), branchSource);
+
+        const branchResult = await service.inferObjectAccess(
+            branchDocument,
+            positionAfter(branchSource, 'daemon->query')
+        );
+
+        expect(branchResult?.inference).toEqual({
+            status: 'multiple',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                },
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
     test('documented custom function return objects resolve on chained member access', async () => {
         const source = [
             '/**',
