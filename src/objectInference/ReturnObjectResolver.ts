@@ -11,6 +11,10 @@ export class ReturnObjectResolver {
         receiver: Extract<ClassifiedReceiver, { kind: 'call' }>
     ): Promise<ObjectCandidate[]> {
         if (receiver.calleeName === 'this_object') {
+            if (receiver.argumentCount !== 0) {
+                return [];
+            }
+
             return [{ path: document.fileName, source: 'builtin-call' }];
         }
 
@@ -18,7 +22,7 @@ export class ReturnObjectResolver {
             return [];
         }
 
-        if (!receiver.firstArgument) {
+        if (receiver.argumentCount !== 1 || !receiver.firstArgument) {
             return [];
         }
 

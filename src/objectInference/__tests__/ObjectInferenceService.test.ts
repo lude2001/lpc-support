@@ -241,6 +241,58 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('this_object with extra arguments does not resolve to current document path', async () => {
+        const source = [
+            'void demo() {',
+            '    this_object(123)->query();',
+            '}'
+        ].join('\n');
+        const fileName = path.join(fixtureRoot, 'room', 'this-object-invalid-arity.c');
+        const document = createDocument(fileName, source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
+    test('load_object with extra arguments does not resolve', async () => {
+        const source = [
+            'void demo() {',
+            '    load_object("/adm/daemons/combat_d", foo)->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'load-object-extra-args.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
+    test('non-builtin calls with unsupported-looking arguments stay unknown', async () => {
+        const source = [
+            'void demo() {',
+            '    mixed *arr;',
+            '    foo(arr[0])->bar();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'non-builtin-call-index-arg.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'bar'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
     test('direct string literal receiver resolves to fixture file', async () => {
         const source = [
             'void demo() {',

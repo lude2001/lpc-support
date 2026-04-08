@@ -22,6 +22,7 @@ export type ClassifiedReceiver =
     | {
         kind: 'call';
         calleeName: string;
+        argumentCount: number;
         firstArgument?: string;
         unsupportedReason?: ObjectInferenceReason;
         nodeText: string;
