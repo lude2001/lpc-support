@@ -48,7 +48,7 @@ export function extractReturnType(syntax: string | undefined, funcName: string):
 
 function extractParamDescriptions(normalizedComment: string): string[] {
     const params: string[] = [];
-    const paramPattern = /(?:^|\n)@param\s+(\S+)\s+(\S+)\s+([\s\S]*?)(?=\n@\w+|$)/g;
+    const paramPattern = /(?:^|\n)@param\s+(\S+)\s+(\S+)\s+([\s\S]*?)(?=\n@[A-Za-z][A-Za-z0-9-]*|$)/g;
 
     let match: RegExpExecArray | null;
     while ((match = paramPattern.exec(normalizedComment)) !== null) {
@@ -105,7 +105,18 @@ export function parseReturnObjects(docComment: string): string[] | undefined {
         return undefined;
     }
 
-    const values = Array.from(match[1].matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"/g), item => item[1]);
+    const content = match[1].trim();
+    if (!content) {
+        return undefined;
+    }
+
+    const itemPattern = /"([^"\\]*(?:\\.[^"\\]*)*)"/g;
+    const strictListPattern = /^\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*(,\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*)*$/;
+    if (!strictListPattern.test(content)) {
+        return undefined;
+    }
+
+    const values = Array.from(content.matchAll(itemPattern), item => item[1]);
     return values.length > 0 ? values : undefined;
 }
 
