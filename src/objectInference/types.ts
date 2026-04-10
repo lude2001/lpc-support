@@ -4,6 +4,15 @@ export type ObjectInferenceStatus = 'resolved' | 'multiple' | 'unknown' | 'unsup
 
 export type ObjectInferenceReason = 'unsupported-expression';
 
+export type ObjectInferenceDiagnosticCode = 'missing-return-annotation';
+
+export interface MissingReturnAnnotationDiagnostic {
+    code: 'missing-return-annotation';
+    methodName: string;
+}
+
+export type ObjectInferenceDiagnostic = MissingReturnAnnotationDiagnostic;
+
 export interface ObjectCandidate {
     path: string;
     source: ObjectCandidateSource;
@@ -13,6 +22,7 @@ export interface ObjectInferenceResult {
     status: ObjectInferenceStatus;
     candidates: ObjectCandidate[];
     reason?: ObjectInferenceReason;
+    diagnostics?: ObjectInferenceDiagnostic[];
 }
 
 export type ClassifiedReceiver =

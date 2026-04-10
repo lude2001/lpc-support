@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ASTManager } from '../../ast/astManager';
+import { SymbolType } from '../../ast/symbolTable';
 import { ObjectInferenceService } from '../ObjectInferenceService';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
@@ -80,6 +81,12 @@ describe('ObjectInferenceService', () => {
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'player.c'), 'void query_name() {}\n', 'utf8');
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'sword.c'), 'void query() {}\n', 'utf8');
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'shield.c'), 'void query() {}\n', 'utf8');
+
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
+            const filePath = typeof target === 'string' ? target : target.fsPath;
+            const normalizedPath = filePath.replace(/^\/(\w:\/)/, '$1');
+            return createDocument(normalizedPath, fs.readFileSync(normalizedPath, 'utf8'));
+        });
 
         (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({
             uri: { fsPath: fixtureRoot }
@@ -926,6 +933,535 @@ describe('ObjectInferenceService', () => {
                 }
             ]
         });
+    });
+
+    test('single-candidate object method return objects propagate through assignment tracing', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'factory.c'),
+            [
+                '/**',
+                ' * @brief build a sword',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const source = [
+            'void demo() {',
+            '    object factory = load_object("/adm/objects/factory");',
+            '    object weapon = factory->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'method-return-assignment.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('single-candidate object method return objects propagate through direct chained receivers', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'factory-direct-chain.c'),
+            [
+                '/**',
+                ' * @brief build a sword',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const source = [
+            'void demo() {',
+            '    object factory = load_object("/adm/objects/factory-direct-chain");',
+            '    factory->method()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'method-return-direct-chain.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'factory->method()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('single-candidate object method return tracing reports missing return annotations', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'factory-no-doc.c'),
+            [
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const source = [
+            'void demo() {',
+            '    object factory = load_object("/adm/objects/factory-no-doc");',
+            '    object weapon = factory->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'method-return-missing-doc.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: [],
+            diagnostics: [
+                {
+                    code: 'missing-return-annotation',
+                    methodName: 'method'
+                }
+            ]
+        });
+    });
+
+    test('shared inherited implementation is deduped across multiple receiver candidates', async () => {
+        const baseFactoryPath = path.join(fixtureRoot, 'adm', 'objects', 'base-factory.c');
+        fs.writeFileSync(
+            baseFactoryPath,
+            [
+                '/**',
+                ' * @brief build a sword from the shared base implementation',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'left-factory.c'),
+            'inherit "/adm/objects/base-factory";\n',
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'right-factory.c'),
+            'inherit "/adm/objects/base-factory";\n',
+            'utf8'
+        );
+
+        const source = [
+            'void demo(int flag) {',
+            '    object factory;',
+            '    if (flag) {',
+            '        factory = load_object("/adm/objects/left-factory");',
+            '    } else {',
+            '        factory = load_object("/adm/objects/right-factory");',
+            '    }',
+            '    object weapon = factory->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'shared-inherited-method.c'), source);
+        (vscode.workspace.openTextDocument as jest.Mock).mockClear();
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('method return inference reflects updated inherited implementations without stale cached docs', async () => {
+        const baseFactoryPath = path.join(fixtureRoot, 'adm', 'objects', 'refreshable-base-factory.c');
+        fs.writeFileSync(
+            baseFactoryPath,
+            [
+                '/**',
+                ' * @brief initial implementation',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'refreshable-child-factory.c'),
+            'inherit "/adm/objects/refreshable-base-factory";\n',
+            'utf8'
+        );
+
+        const source = [
+            'void demo() {',
+            '    object factory = load_object("/adm/objects/refreshable-child-factory");',
+            '    object weapon = factory->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'refreshable-method-resolution.c'), source);
+
+        const initialResult = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(initialResult?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+
+        fs.writeFileSync(
+            baseFactoryPath,
+            [
+                '/**',
+                ' * @brief updated implementation',
+                ' * @return object armor',
+                ' * @lpc-return-objects {"/adm/objects/shield"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/shield");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const updatedResult = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(updatedResult?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'shield.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('multiple receiver candidates keep distinct override implementations', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'base-override-factory.c'),
+            [
+                '/**',
+                ' * @brief default implementation',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'left-override-factory.c'),
+            'inherit "/adm/objects/base-override-factory";\n',
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'right-override-factory.c'),
+            [
+                'inherit "/adm/objects/base-override-factory";',
+                '/**',
+                ' * @brief override implementation',
+                ' * @return object shield',
+                ' * @lpc-return-objects {"/adm/objects/shield"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/shield");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const source = [
+            'void demo(int flag) {',
+            '    object factory;',
+            '    if (flag) {',
+            '        factory = load_object("/adm/objects/left-override-factory");',
+            '    } else {',
+            '        factory = load_object("/adm/objects/right-override-factory");',
+            '    }',
+            '    object weapon = factory->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'override-methods.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'multiple',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                },
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'shield.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('multiple receiver candidates downgrade to unknown when one implementation lacks return docs', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'left-documented-factory.c'),
+            [
+                '/**',
+                ' * @brief documented implementation',
+                ' * @return object sword',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'right-undocumented-factory.c'),
+            [
+                'object method() {',
+                '    return clone_object("/adm/objects/shield");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const source = [
+            'void demo(int flag) {',
+            '    object factory;',
+            '    if (flag) {',
+            '        factory = load_object("/adm/objects/left-documented-factory");',
+            '    } else {',
+            '        factory = load_object("/adm/objects/right-undocumented-factory");',
+            '    }',
+            '    object weapon = factory->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'method-missing-doc-in-branch.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: [],
+            diagnostics: [
+                {
+                    code: 'missing-return-annotation',
+                    methodName: 'method'
+                }
+            ]
+        });
+    });
+
+    test('inherited method implementations resolve return-object annotations', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'inherited-base-factory.c'),
+            [
+                '/**',
+                ' * @brief inherited implementation',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'inherited-child-factory.c'),
+            'inherit "/adm/objects/inherited-base-factory";\n',
+            'utf8'
+        );
+
+        const source = [
+            'void demo() {',
+            '    object factory = load_object("/adm/objects/inherited-child-factory");',
+            '    object weapon = factory->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'inherited-method-resolution.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('include-backed method implementations resolve return-object annotations', async () => {
+        const includeDir = path.join(fixtureRoot, 'adm', 'objects', 'include');
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(includeDir, 'factory-method.c'),
+            [
+                '/**',
+                ' * @brief include-backed implementation',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'include-child-factory.c'),
+            'include "/adm/objects/include/factory-method.c";\n',
+            'utf8'
+        );
+
+        const source = [
+            'void demo() {',
+            '    object factory = load_object("/adm/objects/include-child-factory");',
+            '    object weapon = factory->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'include-method-resolution.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('system include-backed method implementations resolve via project config include directories', async () => {
+        const configuredIncludeDir = path.join(fixtureRoot, 'configured', 'include');
+        const includeFilePath = path.join(configuredIncludeDir, 'factory_method.h');
+        const childFactoryPath = path.join(fixtureRoot, 'adm', 'objects', 'configured-include-child-factory.c');
+        fs.mkdirSync(configuredIncludeDir, { recursive: true });
+        fs.writeFileSync(
+            includeFilePath,
+            [
+                '/**',
+                ' * @brief include-backed implementation from configured include directory',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method();'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            childFactoryPath,
+            'include <factory_method.h>;\n',
+            'utf8'
+        );
+
+        const astManager = ASTManager.getInstance();
+        const originalGetSemanticSnapshot = astManager.getSemanticSnapshot.bind(astManager);
+        jest.spyOn(astManager, 'getSemanticSnapshot').mockImplementation((targetDocument: vscode.TextDocument, useCache?: boolean) => {
+            const targetPath = targetDocument.uri.fsPath.replace(/^\/+([A-Za-z]:[\\/])/, '$1');
+            if (path.resolve(targetPath) === path.resolve(childFactoryPath)) {
+                return {
+                    includeStatements: [{ value: 'factory_method.h', isSystemInclude: true }],
+                    inheritStatements: [],
+                    symbolTable: {
+                        getAllSymbols: () => []
+                    }
+                } as any;
+            }
+
+            if (path.resolve(targetPath) === path.resolve(includeFilePath)) {
+                return {
+                    includeStatements: [],
+                    inheritStatements: [],
+                    symbolTable: {
+                        getAllSymbols: () => [{
+                            type: SymbolType.FUNCTION,
+                            name: 'method',
+                            range: new vscode.Range(5, 0, 5, 15),
+                            selectionRange: new vscode.Range(5, 0, 5, 15)
+                        }]
+                    }
+                } as any;
+            }
+
+            return originalGetSemanticSnapshot(targetDocument, useCache);
+        });
+
+        const projectConfigService = {
+            loadForWorkspace: jest.fn(async () => ({
+                version: 1 as const,
+                configHellPath: 'config.hell'
+            })),
+            getIncludeDirectoriesForWorkspace: jest.fn(async () => [configuredIncludeDir])
+        };
+        const projectConfiguredService = new ObjectInferenceService(macroManager as any, projectConfigService as any);
+        const source = [
+            'void demo() {',
+            '    object factory = load_object("/adm/objects/configured-include-child-factory");',
+            '    object weapon = factory->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'configured-include-method-resolution.c'), source);
+
+        const result = await projectConfiguredService.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+        expect(projectConfigService.getIncludeDirectoriesForWorkspace).toHaveBeenCalledWith(fixtureRoot);
     });
 
     test('bare object parameters remain unknown', async () => {

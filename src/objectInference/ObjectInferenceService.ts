@@ -3,8 +3,10 @@ import { ASTManager } from '../ast/astManager';
 import { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
+import { TargetMethodLookup } from '../targetMethodLookup';
 import { PathResolver } from '../utils/pathResolver';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
+import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ReceiverTraceService } from './ReceiverTraceService';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
@@ -15,14 +17,20 @@ export class ObjectInferenceService {
     private readonly classifier = new ReceiverClassifier();
     private readonly candidateResolver = new ObjectCandidateResolver();
     private readonly returnObjectResolver: ReturnObjectResolver;
+    private readonly objectMethodReturnResolver: ObjectMethodReturnResolver;
     private readonly traceService: ReceiverTraceService;
 
     constructor(
         private readonly macroManager?: MacroManager,
         playerObjectPathOrProjectConfig?: string | LpcProjectConfigService
     ) {
+        const projectConfigService = typeof playerObjectPathOrProjectConfig === 'string'
+            ? undefined
+            : playerObjectPathOrProjectConfig;
+        const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
         this.returnObjectResolver = new ReturnObjectResolver(macroManager, playerObjectPathOrProjectConfig);
-        this.traceService = new ReceiverTraceService(this.returnObjectResolver);
+        this.objectMethodReturnResolver = new ObjectMethodReturnResolver(this.returnObjectResolver, targetMethodLookup);
+        this.traceService = new ReceiverTraceService(this.returnObjectResolver, this.objectMethodReturnResolver);
     }
 
     public async inferObjectAccess(
@@ -63,7 +71,8 @@ export class ObjectInferenceService {
             memberName: memberNode.name,
             inference: this.candidateResolver.resolve(
                 resolution.candidates,
-                inferenceReason
+                inferenceReason,
+                resolution.diagnostics
             )
         };
     }
@@ -89,6 +98,17 @@ export class ObjectInferenceService {
         receiverNode: SyntaxNode,
         receiver: ClassifiedReceiver
     ): Promise<ObjectResolutionOutcome> {
+        if (
+            receiverNode.kind === SyntaxKind.CallExpression
+            && receiverNode.children[0]?.kind === SyntaxKind.MemberAccessExpression
+            && receiverNode.children[0].metadata?.operator === '->'
+        ) {
+            const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
+            if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
+                return tracedOutcome;
+            }
+        }
+
         if (receiver.kind === 'literal') {
             return {
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'literal')
@@ -102,6 +122,11 @@ export class ObjectInferenceService {
         }
 
         if (receiver.kind === 'call') {
+            const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
+            if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
+                return tracedOutcome;
+            }
+
             return this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
         }
 

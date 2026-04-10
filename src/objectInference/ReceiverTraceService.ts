@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
+import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ObjectCandidate, ObjectInferenceReason } from './types';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
 
@@ -13,7 +14,10 @@ interface FlowState {
 }
 
 export class ReceiverTraceService {
-    constructor(private readonly returnObjectResolver: ReturnObjectResolver) {}
+    constructor(
+        private readonly returnObjectResolver: ReturnObjectResolver,
+        private readonly objectMethodReturnResolver: ObjectMethodReturnResolver
+    ) {}
 
     public async traceIdentifier(
         document: vscode.TextDocument,
@@ -38,6 +42,25 @@ export class ReceiverTraceService {
             identifierNode.range.start,
             new Set<string>(),
             binding
+        );
+    }
+
+    public async traceExpressionOutcome(
+        document: vscode.TextDocument,
+        syntax: SyntaxDocument,
+        expression: SyntaxNode
+    ): Promise<ObjectResolutionOutcome> {
+        const containingFunction = this.findContainingFunction(syntax, expression.range.start);
+        if (!containingFunction) {
+            return this.returnObjectResolver.resolveExpressionOutcome(document, expression);
+        }
+
+        return this.resolveSourceExpression(
+            document,
+            containingFunction,
+            expression,
+            expression.range.start,
+            new Set<string>()
         );
     }
 
@@ -68,6 +91,7 @@ export class ReceiverTraceService {
 
         const sourceState = this.collectSourceExpressions(functionNode, identifierName, usagePosition, binding);
         const candidates: ObjectCandidate[] = [];
+        const diagnostics = [] as NonNullable<ObjectResolutionOutcome['diagnostics']>;
         let reason: ObjectInferenceReason | undefined;
         let hasUnknownSource = sourceState.isConservativeUnknown;
 
@@ -80,11 +104,12 @@ export class ReceiverTraceService {
                 visited
             );
 
-            if (outcome.candidates.length === 0 && !outcome.reason) {
+            if (outcome.candidates.length === 0 && !outcome.reason && !outcome.diagnostics?.length) {
                 hasUnknownSource = true;
             }
 
             candidates.push(...outcome.candidates);
+            diagnostics.push(...(outcome.diagnostics ?? []));
             reason = reason ?? outcome.reason;
         }
 
@@ -92,6 +117,7 @@ export class ReceiverTraceService {
             return {
                 candidates: [],
                 reason,
+                diagnostics: diagnostics.length > 0 ? diagnostics : undefined,
                 hasVisibleBinding: binding !== undefined
             };
         }
@@ -99,6 +125,7 @@ export class ReceiverTraceService {
         return {
             candidates,
             reason,
+            diagnostics: diagnostics.length > 0 ? diagnostics : undefined,
             hasVisibleBinding: binding !== undefined
         };
     }
@@ -228,6 +255,17 @@ export class ReceiverTraceService {
             return this.resolveSourceExpression(document, functionNode, expression.children[0], usagePosition, visited);
         }
 
+        const memberMethodOutcome = await this.resolveMemberMethodCallExpression(
+            document,
+            functionNode,
+            expression,
+            usagePosition,
+            visited
+        );
+        if (memberMethodOutcome) {
+            return memberMethodOutcome;
+        }
+
         if (expression.kind === SyntaxKind.Identifier && expression.name) {
             const tracedIdentifier = await this.traceIdentifierInFunction(
                 document,
@@ -242,11 +280,88 @@ export class ReceiverTraceService {
         }
 
         const directResolution = await this.returnObjectResolver.resolveExpressionOutcome(document, expression);
-        if (directResolution.candidates.length > 0 || directResolution.reason) {
+        if (directResolution.candidates.length > 0 || directResolution.reason || directResolution.diagnostics?.length) {
             return directResolution;
         }
 
         return { candidates: [] };
+    }
+
+    private async resolveMemberMethodCallExpression(
+        document: vscode.TextDocument,
+        functionNode: SyntaxNode,
+        expression: SyntaxNode,
+        usagePosition: vscode.Position,
+        visited: Set<string>
+    ): Promise<ObjectResolutionOutcome | undefined> {
+        if (expression.kind !== SyntaxKind.CallExpression) {
+            return undefined;
+        }
+
+        const callee = expression.children[0];
+        if (
+            callee?.kind !== SyntaxKind.MemberAccessExpression
+            || callee.metadata?.operator !== '->'
+            || callee.children[0] === undefined
+            || callee.children[1]?.kind !== SyntaxKind.Identifier
+            || !callee.children[1].name
+        ) {
+            return undefined;
+        }
+
+        const receiverOutcome = await this.resolveReceiverExpression(
+            document,
+            functionNode,
+            callee.children[0],
+            usagePosition,
+            visited
+        );
+        if (receiverOutcome.candidates.length === 0) {
+            if (receiverOutcome.reason || receiverOutcome.diagnostics?.length) {
+                return receiverOutcome;
+            }
+
+            return { candidates: [] };
+        }
+
+        const methodOutcome = await this.objectMethodReturnResolver.resolveMethodReturnOutcome(
+            document,
+            receiverOutcome.candidates,
+            callee.children[1].name
+        );
+
+        if (methodOutcome.candidates.length > 0 || methodOutcome.diagnostics?.length) {
+            return methodOutcome;
+        }
+
+        return { candidates: [] };
+    }
+
+    private async resolveReceiverExpression(
+        document: vscode.TextDocument,
+        functionNode: SyntaxNode,
+        expression: SyntaxNode,
+        usagePosition: vscode.Position,
+        visited: Set<string>
+    ): Promise<ObjectResolutionOutcome> {
+        if (expression.kind === SyntaxKind.ParenthesizedExpression && expression.children[0]) {
+            return this.resolveReceiverExpression(document, functionNode, expression.children[0], usagePosition, visited);
+        }
+
+        if (expression.kind === SyntaxKind.Identifier && expression.name) {
+            const tracedIdentifier = await this.traceIdentifierInFunction(
+                document,
+                functionNode,
+                expression.name,
+                expression.range.start,
+                visited
+            );
+            if (tracedIdentifier.candidates.length > 0 || tracedIdentifier.reason || tracedIdentifier.diagnostics?.length || tracedIdentifier.hasVisibleBinding) {
+                return tracedIdentifier;
+            }
+        }
+
+        return this.returnObjectResolver.resolveExpressionOutcome(document, expression);
     }
 
     private resolveVisibleBinding(

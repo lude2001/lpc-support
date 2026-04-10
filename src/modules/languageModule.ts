@@ -15,6 +15,7 @@ import { LPCRenameProvider } from '../renameProvider';
 import { LPCFoldingRangeProvider } from '../foldingProvider';
 import { ObjectHoverProvider } from '../objectInference/ObjectHoverProvider';
 import { ObjectInferenceService } from '../objectInference/ObjectInferenceService';
+import { TargetMethodLookup } from '../targetMethodLookup';
 
 export async function registerLanguageProviders(registry: ServiceRegistry, context: vscode.ExtensionContext): Promise<void> {
     const efunDocsManager = registry.get(Services.EfunDocs);
@@ -22,6 +23,7 @@ export async function registerLanguageProviders(registry: ServiceRegistry, conte
     const completionInstrumentation = registry.get(Services.CompletionInstrumentation);
     const projectConfigService = registry.get(Services.ProjectConfig);
     const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService);
+    const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
 
     const completionProvider = new LPCCompletionItemProvider(
         efunDocsManager,
@@ -32,8 +34,13 @@ export async function registerLanguageProviders(registry: ServiceRegistry, conte
     registry.register(Services.Completion, completionProvider);
 
     const formattingProvider = new LPCFormattingProvider();
-    const definitionProvider = new LPCDefinitionProvider(macroManager, efunDocsManager, objectInferenceService);
-    const objectHoverProvider = new ObjectHoverProvider(objectInferenceService, macroManager);
+    const definitionProvider = new LPCDefinitionProvider(
+        macroManager,
+        efunDocsManager,
+        objectInferenceService,
+        targetMethodLookup
+    );
+    const objectHoverProvider = new ObjectHoverProvider(objectInferenceService, macroManager, targetMethodLookup);
     const macroHoverProvider: vscode.HoverProvider = {
         provideHover: async (document, position) => {
             const range = document.getWordRangeAtPosition(position);
