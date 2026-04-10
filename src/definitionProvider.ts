@@ -9,6 +9,8 @@ import { ObjectInferenceService } from './objectInference/ObjectInferenceService
 import { InferredObjectAccess } from './objectInference/types';
 import { SemanticSnapshot } from './semantic/semanticSnapshot';
 import { resolveVisibleSymbol } from './symbolReferenceResolver';
+import { TargetMethodLookup } from './targetMethodLookup';
+import type { LpcProjectConfigService } from './projectConfig/LpcProjectConfigService';
 
 export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private macroManager: MacroManager;
@@ -19,16 +21,20 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
     private functionDefinitions: Map<string, vscode.Location> = new Map();
     private includeFileCache = new Map<string, string[]>(); // 缓存文件的include列表
     private headerFunctionCache = new Map<string, Map<string, vscode.Location>>(); // 缓存头文件中的函数定义
+    private targetMethodLookup: TargetMethodLookup;
 
     constructor(
         macroManager: MacroManager,
         efunDocsManager: EfunDocsManager,
-        objectInferenceService: ObjectInferenceService = new ObjectInferenceService(macroManager)
+        objectInferenceService?: ObjectInferenceService,
+        targetMethodLookup?: TargetMethodLookup,
+        projectConfigService?: LpcProjectConfigService
     ) {
         this.macroManager = macroManager;
         this.efunDocsManager = efunDocsManager;
         this.astManager = ASTManager.getInstance();
-        this.objectInferenceService = objectInferenceService;
+        this.objectInferenceService = objectInferenceService ?? new ObjectInferenceService(macroManager, projectConfigService);
+        this.targetMethodLookup = targetMethodLookup ?? new TargetMethodLookup(macroManager, projectConfigService);
         
         // 监听文件变化，清除相关缓存
         vscode.workspace.onDidChangeTextDocument((event) => {
@@ -395,49 +401,8 @@ export class LPCDefinitionProvider implements vscode.DefinitionProvider {
         targetFilePath: string,
         methodName: string
     ): Promise<vscode.Location | undefined> {
-        this.processedFiles.clear();
-        return this.findMethodInTargetChainRecursive(currentDocument, targetFilePath, methodName);
-    }
-
-    private async findMethodInTargetChainRecursive(
-        currentDocument: vscode.TextDocument,
-        targetFilePath: string,
-        methodName: string
-    ): Promise<vscode.Location | undefined> {
-        const directLocation = await this.findMethodInFile(currentDocument, targetFilePath, methodName);
-        if (directLocation) {
-            return directLocation;
-        }
-
-        const includeLocation = await this.findMethodInIncludedFiles(currentDocument, targetFilePath, methodName);
-        if (includeLocation) {
-            return includeLocation;
-        }
-
-        const targetDocument = path.resolve(targetFilePath) === path.resolve(currentDocument.uri.fsPath)
-            ? currentDocument
-            : await this.openWorkspaceDocument(currentDocument, targetFilePath);
-        if (!targetDocument) {
-            return undefined;
-        }
-
-        for (const inheritStatement of this.getSemanticSnapshot(targetDocument).inheritStatements) {
-            const inheritedDocument = await this.openInheritedDocument(targetDocument, inheritStatement.value);
-            if (!inheritedDocument) {
-                continue;
-            }
-
-            const inheritedLocation = await this.findMethodInTargetChainRecursive(
-                inheritedDocument,
-                inheritedDocument.uri.fsPath,
-                methodName
-            );
-            if (inheritedLocation) {
-                return inheritedLocation;
-            }
-        }
-
-        return undefined;
+        const resolvedMethod = await this.targetMethodLookup.findMethod(currentDocument, targetFilePath, methodName);
+        return resolvedMethod?.location;
     }
 
     private async findInheritedVariableDefinition(

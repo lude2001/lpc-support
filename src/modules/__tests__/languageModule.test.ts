@@ -167,8 +167,13 @@ describe('registerLanguageProviders', () => {
             .toHaveBeenCalledWith('lpc', formattingProviderInstanceA);
         expect(vscode.languages.registerDefinitionProvider)
             .toHaveBeenCalledWith('lpc', definitionProvider);
-        expect(LPCDefinitionProvider).toHaveBeenCalledWith(macroManager, efunDocsManager, objectInferenceService);
-        expect(ObjectHoverProvider).toHaveBeenCalledWith(objectInferenceService, macroManager);
+        expect(LPCDefinitionProvider).toHaveBeenCalledWith(
+            macroManager,
+            efunDocsManager,
+            objectInferenceService,
+            expect.anything()
+        );
+        expect(ObjectHoverProvider).toHaveBeenCalledWith(objectInferenceService, macroManager, expect.anything());
         expect(vscode.languages.registerDocumentSemanticTokensProvider)
             .toHaveBeenCalledWith(
                 { language: 'lpc' },

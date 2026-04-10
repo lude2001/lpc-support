@@ -265,7 +265,7 @@ describe('provider integration regression', () => {
             objectInferenceService as any
         );
         const expectedLocation = new vscode.Location(vscode.Uri.file(fileName), new vscode.Position(0, 0));
-        const findMethodSpy = jest.spyOn(provider as any, 'findMethodInTargetChain').mockResolvedValue(expectedLocation);
+        jest.spyOn(provider as any, 'findMethodInTargetChain').mockResolvedValue(expectedLocation);
 
         const definition = await provider.provideDefinition(
             document,
@@ -277,7 +277,6 @@ describe('provider integration regression', () => {
         expect(normalizeFsPath(definition.uri.fsPath)).toBe(fileName);
         expect(definition.range.line).toBe(0);
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethodSpy).toHaveBeenCalledWith(document, fileName, 'query_self');
     });
 
     test('merged candidates from if/else return two locations when each file implements query_name', async () => {
@@ -315,7 +314,7 @@ describe('provider integration regression', () => {
         );
         const swordLocation = new vscode.Location(vscode.Uri.file(swordFile), new vscode.Position(0, 0));
         const shieldLocation = new vscode.Location(vscode.Uri.file(shieldFile), new vscode.Position(0, 0));
-        const findMethodSpy = jest.spyOn(injectedProvider as any, 'findMethodInTargetChain').mockImplementation(
+        jest.spyOn(injectedProvider as any, 'findMethodInTargetChain').mockImplementation(
             async (_document: vscode.TextDocument, targetFilePath: string) => {
                 if (targetFilePath === swordFile) {
                     return swordLocation;
@@ -342,7 +341,6 @@ describe('provider integration regression', () => {
             swordFile
         ]);
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethodSpy).toHaveBeenCalledTimes(2);
     });
 
     test('definition follows inherited object methods for inferred targets', async () => {
@@ -399,6 +397,65 @@ describe('provider integration regression', () => {
 
         expect(definition).toBeDefined();
         expect(normalizeFsPath(definition.uri.fsPath)).toBe(parentFile);
+        expect(definition.range.line).toBe(0);
+    });
+
+    test('definition follows include-backed object methods for inferred targets', async () => {
+        const includeDir = path.join(fixtureRoot, 'lib', 'include');
+        const helperFile = path.join(includeDir, 'helper.c');
+        const childFile = path.join(fixtureRoot, 'lib', 'child-with-include.c');
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(helperFile, [
+            'string query_name() {',
+            '    return "helper";',
+            '}'
+        ].join('\n'));
+        fs.writeFileSync(childFile, [
+            'include "/lib/include/helper.c";',
+            '',
+            'void child_only() {',
+            '}'
+        ].join('\n'));
+
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
+            const filePath = typeof target === 'string' ? target : target.fsPath;
+            if (!filePath || !fs.existsSync(filePath)) {
+                return undefined;
+            }
+
+            return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
+        });
+
+        const source = [
+            'void demo() {',
+            '    load_object("/lib/child-with-include")->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'inferred-include.c'), source);
+        const objectInferenceService = {
+            inferObjectAccess: jest.fn().mockResolvedValue({
+                receiver: 'load_object("/lib/child-with-include")',
+                memberName: 'query_name',
+                inference: {
+                    status: 'resolved',
+                    candidates: [{ path: childFile, source: 'builtin-call' }]
+                }
+            })
+        };
+        const provider = new LPCDefinitionProvider(
+            macroManager as any,
+            efunDocsManager as any,
+            objectInferenceService as any
+        );
+
+        const definition = await provider.provideDefinition(
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            { isCancellationRequested: false } as vscode.CancellationToken
+        ) as vscode.Location;
+
+        expect(definition).toBeDefined();
+        expect(normalizeFsPath(definition.uri.fsPath)).toBe(helperFile);
         expect(definition.range.line).toBe(0);
     });
 

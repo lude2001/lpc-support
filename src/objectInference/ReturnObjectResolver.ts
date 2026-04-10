@@ -5,11 +5,12 @@ import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigS
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { PathResolver } from '../utils/pathResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
-import { ClassifiedReceiver, ObjectCandidate, ObjectInferenceReason } from './types';
+import { ClassifiedReceiver, ObjectCandidate, ObjectInferenceDiagnostic, ObjectInferenceReason } from './types';
 
 export interface ObjectResolutionOutcome {
     candidates: ObjectCandidate[];
     reason?: ObjectInferenceReason;
+    diagnostics?: ObjectInferenceDiagnostic[];
 }
 
 export class ReturnObjectResolver {
@@ -79,6 +80,39 @@ export class ReturnObjectResolver {
         };
     }
 
+    public async resolveDocumentedReturnOutcome(
+        document: vscode.TextDocument,
+        functionName: string,
+        options?: {
+            contextLabel?: string;
+            requireAnnotation?: boolean;
+            diagnosticMethodName?: string;
+        }
+    ): Promise<ObjectResolutionOutcome> {
+        const returnObjects = this.getDocumentedReturnObjects(
+            document,
+            functionName,
+            options?.contextLabel ?? '当前文件'
+        );
+        if (!returnObjects || returnObjects.length === 0) {
+            if (!options?.requireAnnotation) {
+                return { candidates: [] };
+            }
+
+            return {
+                candidates: [],
+                diagnostics: [{
+                    code: 'missing-return-annotation',
+                    methodName: options.diagnosticMethodName ?? functionName
+                }]
+            };
+        }
+
+        return {
+            candidates: await this.resolveDocumentedObjectCandidates(document, returnObjects)
+        };
+    }
+
     public async resolveCall(
         document: vscode.TextDocument,
         receiver: Extract<ClassifiedReceiver, { kind: 'call' }>
@@ -124,24 +158,7 @@ export class ReturnObjectResolver {
         document: vscode.TextDocument,
         functionName: string
     ): Promise<ObjectCandidate[]> {
-        const returnObjects = parseFunctionDocs(document.getText(), '当前文件').get(functionName)?.returnObjects;
-        if (!returnObjects || returnObjects.length === 0) {
-            return [];
-        }
-
-        const candidates: ObjectCandidate[] = [];
-        for (const objectPath of returnObjects) {
-            const resolvedPath = await PathResolver.resolveObjectPath(
-                document,
-                this.toObjectPathExpression(objectPath),
-                this.macroManager
-            );
-            if (resolvedPath) {
-                candidates.push({ path: resolvedPath, source: 'doc' });
-            }
-        }
-
-        return candidates;
+        return (await this.resolveDocumentedReturnOutcome(document, functionName)).candidates;
     }
 
     private async resolvePathCandidate(
@@ -155,6 +172,33 @@ export class ReturnObjectResolver {
         }
 
         return [{ path: resolvedPath, source }];
+    }
+
+    private getDocumentedReturnObjects(
+        document: vscode.TextDocument,
+        functionName: string,
+        contextLabel: string
+    ): string[] | undefined {
+        return parseFunctionDocs(document.getText(), contextLabel).get(functionName)?.returnObjects;
+    }
+
+    private async resolveDocumentedObjectCandidates(
+        document: vscode.TextDocument,
+        returnObjects: readonly string[]
+    ): Promise<ObjectCandidate[]> {
+        const candidates: ObjectCandidate[] = [];
+        for (const objectPath of returnObjects) {
+            const resolvedPath = await PathResolver.resolveObjectPath(
+                document,
+                this.toObjectPathExpression(objectPath),
+                this.macroManager
+            );
+            if (resolvedPath) {
+                candidates.push({ path: resolvedPath, source: 'doc' });
+            }
+        }
+
+        return candidates;
     }
 
     private isBuiltinCall(name: string): boolean {
