@@ -4,6 +4,27 @@
 
 ## [Changelog]
 
+## [Unreleased]
+
+### 项目配置切换
+
+- 扩展已移除旧版 `lpc.includePath`、`lpc.simulatedEfunsPath` 与 `lpc.migrateProjectConfig` 迁移入口。
+- 宏目录与模拟函数入口文件现在统一写入 `lpc-support.json`，不再回退到 VS Code legacy setting。
+- include 解析、模拟函数文档扫描与相关定义跳转现在只消费 `lpc-support.json` / workspace config sync。
+
+### LSP Spec C 单一路径切换
+
+- `diagnostics` 已迁入 LSP runtime，并由 shared diagnostics service、server publish path 与 host UX bridge 共同支撑。
+- 文档格式化与选区格式化已迁入 LSP runtime，classic provider 只剩迁移期薄适配职责，不再是公开生产入口。
+- 扩展公开入口现已固定为单一路径 LSP；用户侧不再暴露 `lpc.experimental.lspMode` 多模式配置。
+- README、Spec C 文档和实现计划已同步到单一路径 LSP 口径。
+- 最终验证通过：
+  - `npx jest --runInBand src/lsp/__tests__/singlePathCutover.test.ts`
+  - `npx jest --runInBand src/lsp/__tests__/modeSwitch.test.ts src/lsp/__tests__/LspClientManager.test.ts src/lsp/__tests__/languageParity.test.ts src/lsp/server/__tests__/completionHandler.test.ts src/lsp/server/__tests__/navigationHandlers.test.ts src/lsp/server/__tests__/structureHandlers.test.ts src/lsp/server/__tests__/DocumentStore.test.ts src/lsp/server/__tests__/WorkspaceSession.test.ts src/lsp/server/__tests__/healthHandler.test.ts src/__tests__/completionProvider.test.ts src/__tests__/providerIntegration.test.ts src/__tests__/semanticTokensProvider.test.ts src/__tests__/extension.test.ts`
+  - `npx jest --runInBand src/lsp/__tests__/LspClientManager.test.ts src/lsp/__tests__/diagnosticsParity.test.ts src/lsp/__tests__/formattingParity.test.ts src/lsp/__tests__/spawnedRuntime.integration.test.ts src/lsp/__tests__/singlePathCutover.test.ts src/lsp/server/__tests__/diagnosticsHandlers.test.ts src/lsp/server/__tests__/formattingHandlers.test.ts src/lsp/server/__tests__/serverBundle.test.ts src/__tests__/providerIntegration.test.ts src/__tests__/formatterIntegration.test.ts src/__tests__/rangeFormatting.test.ts src/__tests__/yifengDebug.test.ts src/__tests__/extension.test.ts`
+  - `npx tsc --noEmit`
+  - `node esbuild.mjs`
+
 ## [0.34.0] - 2026-04-09
 
 ### 对象方法返回传播

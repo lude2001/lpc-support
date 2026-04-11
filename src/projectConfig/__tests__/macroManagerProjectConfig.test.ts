@@ -23,7 +23,7 @@ describe('MacroManager project config integration', () => {
         });
     });
 
-    test('MacroManager prefers includeDirectories from lpc-support.json over legacy setting', async () => {
+    test('MacroManager uses includeDirectories from lpc-support.json and ignores legacy setting', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-macro-project-config-'));
         const includeDir = path.join(workspaceRoot, 'include');
         const configPath = path.join(workspaceRoot, 'lpc-support.json');
@@ -46,13 +46,18 @@ describe('MacroManager project config integration', () => {
         expect(manager.getIncludePath()).toBe(includeDir);
     });
 
-    test('MacroManager does not auto-use legacy includePath when workspace has no lpc-support.json', async () => {
-        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-macro-no-project-config-'));
+    test('MacroManager does not fall back to legacy includePath even when lpc-support.json exists without includeDirectories', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-macro-legacy-disabled-'));
         const legacyIncludeDir = path.join(workspaceRoot, 'legacy-include');
+        const configPath = path.join(workspaceRoot, 'lpc-support.json');
         const projectConfigService = new LpcProjectConfigService();
 
         fs.mkdirSync(legacyIncludeDir, { recursive: true });
         fs.writeFileSync(path.join(legacyIncludeDir, 'globals.h'), '#define TEST_D "/test"\n');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }, null, 2));
 
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((key: string, defaultValue?: unknown) => key === 'includePath' ? 'legacy-include' : defaultValue),
@@ -65,6 +70,36 @@ describe('MacroManager project config integration', () => {
 
         expect(manager.getIncludePath()).toBeUndefined();
         expect(manager.getAllMacros()).toEqual([]);
+    });
+
+    test('configurePath persists includeDirectories into lpc-support.json instead of workspace settings', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-macro-configure-project-config-'));
+        const includeDir = path.join(workspaceRoot, 'include');
+        const configPath = path.join(workspaceRoot, 'lpc-support.json');
+        const projectConfigService = new LpcProjectConfigService();
+
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }, null, 2));
+
+        const configUpdate = jest.fn().mockResolvedValue(undefined);
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((_: string, defaultValue?: unknown) => defaultValue),
+            update: configUpdate
+        });
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.window.showInputBox as jest.Mock).mockResolvedValue(includeDir);
+
+        const manager = new MacroManager(projectConfigService);
+        await (manager as any).initializationPromise;
+
+        await manager.configurePath();
+
+        const written = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        expect(written.resolved?.includeDirectories).toEqual([path.join('.', 'include')]);
+        expect(configUpdate).not.toHaveBeenCalled();
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

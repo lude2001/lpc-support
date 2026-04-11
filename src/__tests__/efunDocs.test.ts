@@ -3,11 +3,11 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { LPCCompletionItemProvider } from '../completionProvider';
 import { ASTManager } from '../ast/astManager';
 import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManager';
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
+import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { TestHelper } from './utils/TestHelper';
 
 jest.mock('axios', () => ({
@@ -53,26 +53,59 @@ describe('EfunDocsManager', () => {
         expect(EfunDocsManager).toBe(FacadeEfunDocsManager);
     });
 
-    test('should build completion documentation from bundled docs synchronously', () => {
+    test('should build bundled efun completion documentation through the shared completion service', async () => {
         const context = {
             subscriptions: [],
             extensionPath: process.cwd()
         } as unknown as vscode.ExtensionContext;
 
         const manager = new EfunDocsManager(context);
-        const provider = new LPCCompletionItemProvider(manager, {
+        const service = new QueryBackedLanguageCompletionService(manager, {
             getMacro: jest.fn(),
+            getAllMacros: jest.fn(() => []),
+            getMacroHoverContent: jest.fn(),
             scanMacros: jest.fn().mockResolvedValue(undefined),
             getIncludePath: jest.fn()
         } as any);
-
-        const staticItems = (provider as any).staticItems as Array<{ label: string; documentation?: { value: string } }>;
-        const allocateItem = staticItems.find(item => item.label === 'allocate');
+        const document = TestHelper.createMockDocument('allo');
+        const completion = await service.provideCompletion({
+            context: {
+                document,
+                workspace: {
+                    workspaceRoot: process.cwd()
+                },
+                mode: 'lsp',
+                cancellation: {
+                    isCancellationRequested: false
+                }
+            },
+            position: {
+                line: 0,
+                character: 4
+            },
+            triggerKind: vscode.CompletionTriggerKind.Invoke
+        });
+        const allocateItem = completion.items.find(item => item.label === 'allocate');
 
         expect(allocateItem).toBeDefined();
-        expect(allocateItem?.documentation?.value).toContain('varargs mixed *allocate');
-        expect(allocateItem?.documentation?.value).toContain('**Return Type:** `mixed *`');
-        expect(allocateItem?.documentation?.value).toContain('配置一个有 `size` 个元素的数组');
+
+        const resolved = await service.resolveCompletionItem?.({
+            context: {
+                document,
+                workspace: {
+                    workspaceRoot: process.cwd()
+                },
+                mode: 'lsp',
+                cancellation: {
+                    isCancellationRequested: false
+                }
+            },
+            item: allocateItem!
+        });
+
+        expect(resolved?.documentation?.value).toContain('varargs mixed *allocate');
+        expect(resolved?.documentation?.value).toContain('**Return Type:** `mixed *`');
+        expect(resolved?.documentation?.value).toContain('配置一个有 `size` 个元素的数组');
     });
 
     test('should fetch MudWiki docs on demand when bundled doc is missing', async () => {
@@ -272,29 +305,31 @@ describe('SimulatedEfunScanner', () => {
             version: 1,
             configHellPath: 'config.hell'
         }, null, 2));
-        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-            get: jest.fn((key: string) => key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined)
-        });
         (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
-        (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([{ fsPath: path.join(workspaceRoot, 'simul_efuns', 'foo.c') }]);
-        (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValueOnce(Buffer.from([
+        const simulFile = path.join(workspaceRoot, 'adm', 'single', 'simul_efun.c');
+        fs.mkdirSync(path.dirname(simulFile), { recursive: true });
+        fs.writeFileSync(simulFile, [
             '/**',
             ' * @brief simulated helper',
             ' */',
             'int sim_helper()'
-        ].join('\n')));
+        ].join('\n'));
+        const scannerWithProjectConfig = new SimulatedEfunScanner({
+            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(simulFile),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' })
+        } as any);
 
-        await scanner.loadSimulatedEfuns();
-        expect(scanner.get('sim_helper')).toBeDefined();
+        await scannerWithProjectConfig.loadSimulatedEfuns();
+        expect(scannerWithProjectConfig.get('sim_helper')).toBeDefined();
 
         (vscode.workspace.workspaceFolders as unknown) = [];
-        await scanner.loadSimulatedEfuns();
+        await scannerWithProjectConfig.loadSimulatedEfuns();
 
-        expect(scanner.get('sim_helper')).toBeUndefined();
-        expect(scanner.getAllNames()).toEqual([]);
+        expect(scannerWithProjectConfig.get('sim_helper')).toBeUndefined();
+        expect(scannerWithProjectConfig.getAllNames()).toEqual([]);
     });
 
-    test('loads simulated efun docs from project config simulatedEfunFile before legacy settings', async () => {
+    test('loads simulated efun docs from project config simulatedEfunFile without consulting legacy settings', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-direct-'));
         const entryDir = path.join(workspaceRoot, 'adm', 'single');
         const entryFile = path.join(entryDir, 'simul_efun.c');
@@ -325,20 +360,46 @@ describe('SimulatedEfunScanner', () => {
         expect(scanner.get('sim_helper')).toBeDefined();
     });
 
-    test('does not auto-scan legacy simulated efun path when workspace has no lpc-support.json', async () => {
-        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-no-project-config-'));
+    test('does not auto-scan legacy simulated efun path when project config has no simulatedEfunFile', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-no-configured-file-'));
         const scanner = new SimulatedEfunScanner(new (await import('../projectConfig/LpcProjectConfigService')).LpcProjectConfigService());
+        fs.writeFileSync(path.join(workspaceRoot, 'lpc-support.json'), JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }, null, 2));
 
         (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
-        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-            get: jest.fn((key: string) => key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined),
-            update: jest.fn().mockResolvedValue(undefined)
-        });
 
         await scanner.loadSimulatedEfuns();
 
         expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
         expect(scanner.getAllNames()).toEqual([]);
+    });
+
+    test('configureSimulatedEfuns persists simulatedEfunFile into lpc-support.json', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-configure-project-config-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+        const { LpcProjectConfigService } = await import('../projectConfig/LpcProjectConfigService');
+        const projectConfigService = new LpcProjectConfigService();
+        const scanner = new SimulatedEfunScanner(projectConfigService);
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.writeFileSync(entryFile, 'int sim_helper() { return 1; }');
+        fs.writeFileSync(path.join(workspaceRoot, 'lpc-support.json'), JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }, null, 2));
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.window.showOpenDialog as jest.Mock).mockResolvedValue([
+            { fsPath: entryFile }
+        ]);
+
+        await scanner.configureSimulatedEfuns();
+
+        const written = JSON.parse(fs.readFileSync(path.join(workspaceRoot, 'lpc-support.json'), 'utf8'));
+        expect(written.resolved?.simulatedEfunFile).toBe(path.join('adm', 'single', 'simul_efun.c'));
     });
 
     test('project config simulated efun path without extension should resolve to the real .c file', async () => {

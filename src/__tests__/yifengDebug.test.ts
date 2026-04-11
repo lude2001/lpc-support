@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { FormattingService } from '../formatter/FormattingService';
+import { createLanguageFormattingService } from '../language/services/formatting/LanguageFormattingService';
 import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { SyntaxBuilder } from '../syntax/SyntaxBuilder';
 import { TestHelper } from './utils/TestHelper';
@@ -14,6 +15,24 @@ mapping *action = ({ (["action" : "$N使一式「花随风移」，手中$w嗡�
 `;
 
 describe('yifeng-jian formatter regression', () => {
+    test('shared formatting service keeps the collapsed action mapping block layout', async () => {
+        clearGlobalParsedDocumentService();
+
+        const document = TestHelper.createMockDocument(COLLAPSED_ACTION_SOURCE, 'lpc', 'collapsed-yifeng-jian.c');
+        const service = createLanguageFormattingService(new FormattingService());
+        const edits = await service.formatDocument({
+            document: {
+                uri: document.uri.toString(),
+                version: document.version,
+                getText: () => document.getText()
+            }
+        });
+        const output = edits[0]?.newText ?? COLLAPSED_ACTION_SOURCE;
+
+        expect(edits).toHaveLength(1);
+        expect(output.replace(/\r\n/g, '\n')).toContain('mapping *action = ({\n([');
+    });
+
     test('keeps action mapping array in block layout for the real fixture', async () => {
         clearGlobalParsedDocumentService();
 

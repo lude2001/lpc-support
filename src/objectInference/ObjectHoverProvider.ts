@@ -1,156 +1,101 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
-import { parseFunctionDocs } from '../efun/docParser';
 import { TargetMethodLookup } from '../targetMethodLookup';
+import {
+    type LanguageHoverResult,
+    LanguageHoverService,
+    ObjectInferenceLanguageHoverService
+} from '../language/services/navigation/LanguageHoverService';
 import { ObjectInferenceService } from './ObjectInferenceService';
 
-interface MethodDocResult {
-    path: string;
-    syntax: string;
-    description: string;
-    relatedCandidatePaths: string[];
-}
-
 export class ObjectHoverProvider implements vscode.HoverProvider {
+    private readonly hoverService: LanguageHoverService;
+
     public constructor(
-        private readonly objectInferenceService: ObjectInferenceService,
+        objectInferenceService: ObjectInferenceService,
         macroManager?: MacroManager,
         targetMethodLookup?: TargetMethodLookup,
-        projectConfigService?: LpcProjectConfigService
+        projectConfigService?: LpcProjectConfigService,
+        hoverService?: LanguageHoverService
     ) {
-        this.targetMethodLookup = targetMethodLookup ?? new TargetMethodLookup(macroManager, projectConfigService);
+        this.hoverService = hoverService ?? new ObjectInferenceLanguageHoverService(
+            objectInferenceService,
+            macroManager,
+            targetMethodLookup,
+            projectConfigService
+        );
     }
-
-    private readonly targetMethodLookup: TargetMethodLookup;
 
     public async provideHover(
         document: vscode.TextDocument,
-        position: vscode.Position
+        position: vscode.Position,
+        token?: vscode.CancellationToken
     ): Promise<vscode.Hover | undefined> {
-        const objectAccess = await this.objectInferenceService.inferObjectAccess(document, position);
-        if (!objectAccess) {
-            return undefined;
-        }
+        const cancellationToken = token ?? ({
+            isCancellationRequested: false,
+            onCancellationRequested: () => ({ dispose: () => undefined })
+        } as unknown as vscode.CancellationToken);
+        return toVsCodeHover(await this.hoverService.provideHover({
+            context: {
+                document: document as unknown as any,
+                workspace: {
+                    workspaceRoot: resolveWorkspaceRoot(document)
+                },
+                mode: 'lsp',
+                cancellation: cancellationToken
+            },
+            position: {
+                line: position.line,
+                character: position.character
+            }
+        }));
+    }
 
-        const { inference, memberName } = objectAccess;
-        if (inference.status === 'unknown' || inference.status === 'unsupported') {
-            return undefined;
-        }
+    public getLanguageHoverService(): LanguageHoverService {
+        return this.hoverService;
+    }
+}
 
-        if (!this.isHoveringMemberName(document, position, memberName)) {
-            return undefined;
-        }
+function resolveWorkspaceRoot(document: vscode.TextDocument): string {
+    const workspaceRoot = document.uri
+        ? vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath
+        : undefined;
+    if (workspaceRoot) {
+        return workspaceRoot;
+    }
 
-        const resolvedDocs = await this.loadMethodDocsFromCandidates(
-            document,
-            inference.candidates.map((candidate) => candidate.path),
-            memberName
-        );
-        if (resolvedDocs.length === 1 && resolvedDocs[0].relatedCandidatePaths.length === 1) {
-            return this.createMethodHover(resolvedDocs[0].syntax, resolvedDocs[0].description);
-        }
+    if (typeof document.fileName === 'string' && document.fileName.length > 0) {
+        return path.dirname(document.fileName);
+    }
 
-        if (resolvedDocs.length > 0) {
-            return this.createResolvedCandidatesHover(resolvedDocs);
-        }
+    return process.cwd();
+}
 
-        if (inference.candidates.length > 1 || inference.status === 'multiple') {
-            return this.createMultipleCandidatesHover(memberName, inference.candidates.map((candidate) => candidate.path));
-        }
-
+function toVsCodeHover(result: LanguageHoverResult | undefined): vscode.Hover | undefined {
+    if (!result || result.contents.length === 0) {
         return undefined;
     }
 
-    private isHoveringMemberName(
-        document: vscode.TextDocument,
-        position: vscode.Position,
-        memberName: string
-    ): boolean {
-        const wordRange = document.getWordRangeAtPosition(position);
-        return Boolean(wordRange) && document.getText(wordRange) === memberName;
+    const contents = result.contents.length === 1
+        ? toVsCodeMarkupContent(result.contents[0])
+        : result.contents.map((content) => toVsCodeMarkupContent(content));
+
+    return new vscode.Hover(contents, result.range ? toVsCodeRange(result.range) : undefined);
+}
+
+function toVsCodeMarkupContent(content: LanguageHoverResult['contents'][number]): vscode.MarkdownString | string {
+    if (content.kind === 'markdown') {
+        return new vscode.MarkdownString(content.value);
     }
 
-    private async loadMethodDocsFromCandidates(
-        document: vscode.TextDocument,
-        candidatePaths: string[],
-        memberName: string
-    ): Promise<MethodDocResult[]> {
-        const docsByImplementationPath = new Map<string, MethodDocResult>();
+    return content.value;
+}
 
-        for (const candidatePath of candidatePaths) {
-            const resolvedMethod = await this.targetMethodLookup.findMethod(document, candidatePath, memberName);
-            if (!resolvedMethod) {
-                continue;
-            }
-
-            const methodDoc = parseFunctionDocs(resolvedMethod.document.getText(), '对象方法').get(memberName);
-            if (!methodDoc) {
-                continue;
-            }
-
-            const existing = docsByImplementationPath.get(resolvedMethod.path);
-            if (existing) {
-                if (!existing.relatedCandidatePaths.includes(candidatePath)) {
-                    existing.relatedCandidatePaths.push(candidatePath);
-                }
-                continue;
-            }
-
-            docsByImplementationPath.set(resolvedMethod.path, {
-                path: resolvedMethod.path,
-                syntax: methodDoc.syntax,
-                description: methodDoc.description,
-                relatedCandidatePaths: [candidatePath]
-            });
-        }
-
-        return [...docsByImplementationPath.values()];
-    }
-
-    private createMethodHover(syntax: string, description: string): vscode.Hover {
-        const content = new vscode.MarkdownString();
-        content.appendCodeblock(syntax, 'lpc');
-
-        if (description) {
-            content.appendMarkdown(`\n\n${description}`);
-        }
-
-        return new vscode.Hover(content);
-    }
-
-    private createResolvedCandidatesHover(docs: MethodDocResult[]): vscode.Hover {
-        const content = new vscode.MarkdownString();
-
-        docs.forEach((doc, index) => {
-            if (index > 0) {
-                content.appendMarkdown('\n\n---\n\n');
-            }
-
-            content.appendMarkdown(`实现：\`${doc.path}\``);
-            content.appendCodeblock(doc.syntax, 'lpc');
-
-            if (doc.description) {
-                content.appendMarkdown(`\n\n${doc.description}`);
-            }
-
-            const alternateCandidates = doc.relatedCandidatePaths.filter((candidatePath) => candidatePath !== doc.path);
-            if (alternateCandidates.length > 0) {
-                content.appendMarkdown(
-                    `\n\n部分分支继续沿用该实现：${alternateCandidates.map((candidatePath) => `\`${candidatePath}\``).join('、')}`
-                );
-            }
-        });
-
-        return new vscode.Hover(content);
-    }
-
-    private createMultipleCandidatesHover(memberName: string, paths: string[]): vscode.Hover {
-        const content = new vscode.MarkdownString();
-        const summary = paths.length > 0
-            ? paths.map((filePath) => `\`${filePath}\``).join('、')
-            : '多个对象';
-        content.appendMarkdown(`可能来自多个对象的 \`${memberName}\`() 实现：${summary}`);
-        return new vscode.Hover(content);
-    }
+function toVsCodeRange(range: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+}): vscode.Range {
+    return new vscode.Range(range.start.line, range.start.character, range.end.line, range.end.character);
 }

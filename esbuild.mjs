@@ -1,6 +1,6 @@
 import { build } from 'esbuild';
 import { copyFileSync, mkdirSync, existsSync } from 'fs';
-import { dirname } from 'path';
+import { dirname, resolve } from 'path';
 
 // 复制文件的辅助函数
 function copyFile(src, dest) {
@@ -28,17 +28,10 @@ const copyTemplatesPlugin = {
   }
 };
 
-build({
-  entryPoints: ['src/extension.ts'],
+const sharedOptions = {
   bundle: true,
-  outfile: 'dist/extension.js',
   platform: 'node',
   target: 'node16',
-  external: [
-    'vscode'
-    // 只排除 VS Code API，其他依赖都要打包进bundle
-    // antlr4ts, axios, cheerio 必须被打包，否则运行时找不到
-  ],
   format: 'cjs',
   sourcemap: process.env.NODE_ENV === 'development' ? true : 'external',
   minify: process.env.NODE_ENV === 'production',
@@ -49,15 +42,57 @@ build({
   conditions: ['node'],
   mainFields: ['main', 'module'],
   keepNames: false,
-  metafile: true,
-  plugins: [copyTemplatesPlugin]
-}).then(result => {
-  if (result.metafile) {
+  metafile: true
+};
+
+const extensionBuildOptions = {
+  ...sharedOptions,
+  external: [
+    'vscode'
+    // 只排除 VS Code API，其他依赖都要打包进bundle
+    // antlr4ts, axios, cheerio 必须被打包，否则运行时找不到
+  ]
+};
+
+const serverBuildOptions = {
+  ...sharedOptions,
+  alias: {
+    vscode: resolve('src/lsp/server/runtime/vscodeShim.ts')
+  }
+};
+
+const builds = [
+  build({
+    ...extensionBuildOptions,
+    entryPoints: ['src/extension.ts'],
+    outfile: 'dist/extension.js',
+    plugins: [copyTemplatesPlugin]
+  })
+];
+
+if (existsSync('src/lsp/server/main.ts')) {
+  builds.push(build({
+    ...serverBuildOptions,
+    entryPoints: ['src/lsp/server/main.ts'],
+    outfile: 'dist/lsp/server.js'
+  }));
+} else {
+  console.warn('⏭️ Skipping dist/lsp/server.js because src/lsp/server/main.ts does not exist yet');
+}
+
+Promise.all(builds).then(results => {
+  const metafiles = results
+    .map(result => result.metafile)
+    .filter(Boolean);
+
+  if (metafiles.length > 0) {
     console.log('📦 Bundle analysis:');
-    const outputs = Object.entries(result.metafile.outputs);
-    outputs.forEach(([path, info]) => {
-      console.log(`${path}: ${(info.bytes / 1024).toFixed(1)}KB`);
-    });
+    for (const metafile of metafiles) {
+      const outputs = Object.entries(metafile.outputs);
+      outputs.forEach(([path, info]) => {
+        console.log(`${path}: ${(info.bytes / 1024).toFixed(1)}KB`);
+      });
+    }
   }
 }).catch((err) => {
   console.error('❌ Build failed:', err);

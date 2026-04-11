@@ -56,7 +56,6 @@ describe('registerCommands', () => {
         'lpc.manageServers',
         'lpc.compileFile',
         'lpc.configureMacroPath',
-        'lpc.migrateProjectConfig',
         'lpc.startDriver'
     ];
 
@@ -64,7 +63,6 @@ describe('registerCommands', () => {
     let context: vscode.ExtensionContext;
     let macroManager: { showMacrosList: jest.Mock; configurePath: jest.Mock };
     let diagnostics: { analyzeDocument: jest.Mock; scanFolder: jest.Mock };
-    let completionProvider: { scanInheritance: jest.Mock; clearCache: jest.Mock };
     let completionInstrumentation: {
         showReport: jest.Mock;
         formatSummary: jest.Mock;
@@ -116,10 +114,6 @@ describe('registerCommands', () => {
         diagnostics = {
             analyzeDocument: jest.fn(),
             scanFolder: jest.fn()
-        };
-        completionProvider = {
-            scanInheritance: jest.fn(),
-            clearCache: jest.fn()
         };
         completionInstrumentation = {
             showReport: jest.fn(),
@@ -193,7 +187,6 @@ describe('registerCommands', () => {
 
         registry.register(Services.MacroManager, macroManager as any);
         registry.register(Services.Diagnostics, diagnostics as any);
-        registry.register(Services.Completion, completionProvider as any);
         registry.register(Services.CompletionInstrumentation, completionInstrumentation as any);
         registry.register(Services.ConfigManager, configManager as any);
         registry.register(Services.Compiler, compiler as any);
@@ -270,7 +263,6 @@ describe('registerCommands', () => {
         await handlers.get('lpc.compileFile')?.();
         await handlers.get('lpc.compileFolder')?.({ fsPath: 'D:/workspace/project' } as vscode.Uri);
         handlers.get('lpc.configureMacroPath')?.();
-        await handlers.get('lpc.migrateProjectConfig')?.();
         handlers.get('lpc.errorTree.refresh')?.();
 
         expect(diagnostics.scanFolder).toHaveBeenCalledTimes(1);
@@ -280,8 +272,7 @@ describe('registerCommands', () => {
         expect(macroManager.configurePath).toHaveBeenCalledTimes(1);
         expect(projectConfigService.ensureConfigForWorkspace).toHaveBeenCalledWith('D:/workspace', 'config.hell');
         expect(projectConfigService.getCompileConfigForWorkspace).toHaveBeenCalledWith('D:/workspace');
-        expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(2);
-        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('已创建并同步 lpc-support.json');
+        expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
     });
 
     test('compileFolder shows an error and skips compiler setup when no workspace folders are open', async () => {

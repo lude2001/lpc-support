@@ -34,7 +34,7 @@ export class LpcProjectConfigService {
             return undefined;
         }
 
-        const configHellPath = path.join(workspaceRoot, loadedConfig.configHellPath);
+        const configHellPath = this.resolveWorkspacePath(workspaceRoot, loadedConfig.configHellPath);
         if (!fs.existsSync(configHellPath)) {
             return loadedConfig;
         }
@@ -42,7 +42,7 @@ export class LpcProjectConfigService {
         try {
             const source = await fs.promises.readFile(configHellPath, 'utf8');
             const resolved = parseConfigHell(source);
-            const hasResolvedChanged = JSON.stringify(loadedConfig.resolved ?? {}) !== JSON.stringify(resolved);
+            const hasResolvedChanged = !this.areResolvedConfigsEqual(loadedConfig.resolved, resolved);
             if (!hasResolvedChanged) {
                 return loadedConfig;
             }
@@ -137,6 +137,26 @@ export class LpcProjectConfigService {
         return nextConfig;
     }
 
+    public async updateResolvedConfigForWorkspace(
+        workspaceRoot: string,
+        updater: (resolvedConfig: LpcResolvedConfig) => LpcResolvedConfig
+    ): Promise<LpcProjectConfig | undefined> {
+        const configPath = this.getProjectConfigPath(workspaceRoot);
+        const existing = await this.readConfigFile(configPath);
+
+        if (!existing) {
+            return undefined;
+        }
+
+        const nextConfig: LpcProjectConfig = {
+            ...existing,
+            resolved: updater(existing.resolved ?? {})
+        };
+
+        await this.writeConfigFile(configPath, nextConfig);
+        return nextConfig;
+    }
+
     public async getResolvedForWorkspace(workspaceRoot: string): Promise<LpcResolvedConfig | undefined> {
         const config = await this.loadForWorkspace(workspaceRoot);
         return config?.resolved;
@@ -182,7 +202,7 @@ export class LpcProjectConfigService {
     }
 
     public resolveWorkspacePath(workspaceRoot: string, targetPath: string): string {
-        if (/^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\')) {
+        if (this.isAbsolutePath(targetPath)) {
             return targetPath;
         }
 
@@ -222,6 +242,10 @@ export class LpcProjectConfigService {
     }
 
     private ensureCompileConfig(config: LpcProjectConfig): LpcProjectConfig {
+        if (config.compile?.remote?.servers) {
+            return config;
+        }
+
         const nextCompile: LpcCompileConfig = {
             ...config.compile,
             remote: {
@@ -230,13 +254,20 @@ export class LpcProjectConfigService {
             }
         };
 
-        if (config.compile?.remote?.servers) {
-            return config;
-        }
-
         return {
             ...config,
             compile: nextCompile
         };
+    }
+
+    private isAbsolutePath(targetPath: string): boolean {
+        return /^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\');
+    }
+
+    private areResolvedConfigsEqual(
+        left: LpcResolvedConfig | undefined,
+        right: LpcResolvedConfig | undefined
+    ): boolean {
+        return JSON.stringify(left ?? {}) === JSON.stringify(right ?? {});
     }
 }

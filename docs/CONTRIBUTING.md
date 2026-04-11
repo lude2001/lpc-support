@@ -19,13 +19,13 @@
    - 构建入口：`src/semantic/SemanticModelBuilder.ts`
    - 职责：在 syntax 层之上构建符号表、作用域、类型摘要、继承摘要和语义诊断输入
 4. Provider / orchestration
-   - 典型入口：`src/completionProvider.ts`、`src/definitionProvider.ts`、`src/semanticTokensProvider.ts`、`src/diagnostics/DiagnosticsOrchestrator.ts`
-   - 职责：只做 VS Code 适配，不再自建 parser、cache 或伪 AST 真源
+   - 典型入口：`src/modules/languageModule.ts`、`src/lsp/server/bootstrap/registerCapabilities.ts`、`src/diagnostics/DiagnosticsOrchestrator.ts`
+   - 职责：LSP server 与宿主侧装配只做能力接线，不再自建 parser、cache 或伪 AST 真源
 
 ### 当前主路径约束
 
 - 生产主路径不得新增 `new LPCLexer(...)` / `new LPCParser(...)`
-- 生产主路径不得新增对 `src/parseCache.ts` 或 `src/core/ParseCache.ts` 的新依赖
+- 生产主路径不得重新引入任何 legacy parse cache facade
 - 生产主路径不得新增 `document.getText().indexOf(...)` 一类范围反推逻辑
 - 生产主路径不得依赖 `SimpleASTManager` 或 `LPCParserUtil`
 
@@ -72,12 +72,10 @@
   - 已明确为 legacy 兼容/实验模块
   - 禁止新功能依赖
 
-### legacy 兼容层
+### 已移除的 legacy parse cache facade
 
-- `src/parseCache.ts`
-  - 仅保留给旧测试和次级工具的兼容 facade
-- `src/core/ParseCache.ts`
-  - 仅保留给旧 `ParseCache` 形状调用方的兼容 wrapper
+- 历史上的 `src/parseCache.ts` 与 `src/core/ParseCache.ts` 已移除
+- 不要以“临时兼容”名义重新恢复这两层 facade
 - `src/parser/LPCParserUtil.ts`
   - 仅限 parse-tree 调试辅助
 
@@ -85,7 +83,7 @@
 
 1. 先看能否从 `ASTManager.parseDocument()` 获取
 2. 再看能否直接通过 `ParsedDocumentService` 获取
-3. 不要直接回退到 legacy facade
+3. 不要重新引入任何 parse cache facade
 
 ## 命名约定
 
@@ -162,9 +160,9 @@
 - `src/__tests__/semanticModelBuilder.test.ts`
   - 锁定 symbol / scope / type / inherit 摘要
 - `src/__tests__/providerIntegration.test.ts`
-  - 锁定生产主路径 Provider 不回退到 legacy `parseCache`
-- `src/__tests__/parseCacheLifecycle.test.ts`
-  - 锁定 legacy facade 的兼容生命周期
+  - 锁定生产主路径不回退到 legacy parse cache 思路
+- `src/lsp/__tests__/singlePathCutover.test.ts`
+  - 锁定公开运行面不再暴露 classic / hybrid 多模式入口
 
 新增语言基础设施或 Provider 变更时，至少覆盖下面之一：
 
@@ -175,9 +173,7 @@
 
 ## formatter 接入边界
 
-本仓库当前没有完整 formatter，但底层接口已经按 formatter-ready 方向收敛。
-
-后续 formatter 接入时应遵守：
+本仓库 formatter 已经落在正式主路径上，后续修改时应遵守：
 
 - 结构来源以 `SyntaxDocument` 为主
 - 注释、空白、换行和指令来源以 `TokenTriviaIndex` / trivia 模型为主

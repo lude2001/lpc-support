@@ -124,25 +124,25 @@ export class CompletionInstrumentation implements vscode.Disposable {
         this.recentMetrics.length = 0;
     }
 
-    public formatSummary(parseCacheStats: { size: number; memory: number }): string {
-        const memoryMB = (parseCacheStats.memory / 1024 / 1024).toFixed(2);
+    public formatSummary(documentCacheStats: { size: number; memory: number }): string {
+        const memoryMB = (documentCacheStats.memory / 1024 / 1024).toFixed(2);
         const metrics = this.recentMetrics;
 
         if (metrics.length === 0) {
-            return `LPC 性能统计: 解析缓存 ${parseCacheStats.size} 项，内存 ${memoryMB} MB；暂无补全样本`;
+            return `LPC 性能统计: 解析文档缓存 ${documentCacheStats.size} 项，内存 ${memoryMB} MB；暂无补全样本`;
         }
 
         const averageDuration = metrics.reduce((sum, metric) => sum + metric.totalDurationMs, 0) / metrics.length;
         const averageCandidates = metrics.reduce((sum, metric) => sum + metric.totalCandidates, 0) / metrics.length;
         const latest = metrics[0];
 
-        return `LPC 性能统计: 解析缓存 ${parseCacheStats.size} 项，内存 ${memoryMB} MB；最近 ${metrics.length} 次补全平均 ${averageDuration.toFixed(1)}ms / ${averageCandidates.toFixed(1)} 候选，最近一次 ${latest.contextKind} ${latest.totalDurationMs.toFixed(1)}ms`;
+        return `LPC 性能统计: 解析文档缓存 ${documentCacheStats.size} 项，内存 ${memoryMB} MB；最近 ${metrics.length} 次补全平均 ${averageDuration.toFixed(1)}ms / ${averageCandidates.toFixed(1)} 候选，最近一次 ${latest.contextKind} ${latest.totalDurationMs.toFixed(1)}ms`;
     }
 
-    public showReport(parseCacheStats: { size: number; memory: number }): void {
+    public showReport(documentCacheStats: { size: number; memory: number }): void {
         this.outputChannel.clear();
 
-        for (const line of this.buildReport(parseCacheStats)) {
+        for (const line of this.buildReport(documentCacheStats)) {
             this.outputChannel.appendLine(line);
         }
 
@@ -162,8 +162,8 @@ export class CompletionInstrumentation implements vscode.Disposable {
         return Date.now();
     }
 
-    private buildReport(parseCacheStats: { size: number; memory: number }): string[] {
-        const lines = [this.formatSummary(parseCacheStats), ''];
+    private buildReport(documentCacheStats: { size: number; memory: number }): string[] {
+        const lines = [this.formatSummary(documentCacheStats), ''];
         const metrics = this.recentMetrics;
 
         if (metrics.length === 0) {
@@ -174,16 +174,7 @@ export class CompletionInstrumentation implements vscode.Disposable {
         lines.push('最近补全请求:');
         for (const metric of metrics.slice(0, 10)) {
             const stageSummary = metric.stages
-                .map(stage => {
-                    const extras = [
-                        typeof stage.cacheHit === 'boolean' ? `cache=${stage.cacheHit ? 'hit' : 'miss'}` : undefined,
-                        typeof stage.candidateCount === 'number' ? `candidates=${stage.candidateCount}` : undefined
-                    ].filter(Boolean).join(', ');
-
-                    return extras
-                        ? `${stage.stage}=${stage.durationMs.toFixed(1)}ms (${extras})`
-                        : `${stage.stage}=${stage.durationMs.toFixed(1)}ms`;
-                })
+                .map((stage) => this.formatStageMetric(stage))
                 .join(' | ');
 
             lines.push(
@@ -199,5 +190,16 @@ export class CompletionInstrumentation implements vscode.Disposable {
             ...metrics,
             stages: metrics.stages.map(stage => ({ ...stage }))
         };
+    }
+
+    private formatStageMetric(stage: CompletionStageMetric): string {
+        const extras = [
+            typeof stage.cacheHit === 'boolean' ? `cache=${stage.cacheHit ? 'hit' : 'miss'}` : undefined,
+            typeof stage.candidateCount === 'number' ? `candidates=${stage.candidateCount}` : undefined
+        ].filter(Boolean).join(', ');
+
+        return extras
+            ? `${stage.stage}=${stage.durationMs.toFixed(1)}ms (${extras})`
+            : `${stage.stage}=${stage.durationMs.toFixed(1)}ms`;
     }
 }

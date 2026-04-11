@@ -5,11 +5,6 @@ import {
     disposeGlobalParsedDocumentService,
     getGlobalParsedDocumentService
 } from '../parser/ParsedDocumentService';
-import {
-    clearParseCache,
-    disposeParseCache,
-    getParsed
-} from '../parseCache';
 
 function createDocument(
     content: string,
@@ -28,8 +23,6 @@ function createDocument(
 
 describe('ParsedDocumentService', () => {
     afterEach(() => {
-        clearParseCache();
-        disposeParseCache();
         clearGlobalParsedDocumentService();
         disposeGlobalParsedDocumentService();
         jest.restoreAllMocks();
@@ -60,22 +53,6 @@ describe('ParsedDocumentService', () => {
         expect(stats.parseCount).toBe(1);
         expect(stats.size).toBe(1);
         expect(stats.hits).toBeGreaterThanOrEqual(1);
-    });
-
-    test('legacy parseCache facade forwards to the global parsed document singleton', () => {
-        const document = createDocument('int demo() { return 1; }', '/virtual/facade.c');
-
-        const facadeResult = getParsed(document);
-        const singletonResult = getGlobalParsedDocumentService().get(document);
-
-        expect(singletonResult).toBe(facadeResult);
-        expect(getGlobalParsedDocumentService().getStats().parseCount).toBe(1);
-
-        clearParseCache();
-
-        const reparsed = getParsed(document);
-        expect(reparsed).not.toBe(facadeResult);
-        expect(getGlobalParsedDocumentService().getStats().parseCount).toBe(1);
     });
 
     test('disposing the global parsed document service recreates a fresh singleton on next access', () => {

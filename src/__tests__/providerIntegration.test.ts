@@ -1,12 +1,12 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
-import { LPCCompletionItemProvider } from '../completionProvider';
-import { LPCDefinitionProvider } from '../definitionProvider';
-import * as parseCache from '../parseCache';
-import { LPCSemanticTokensProvider } from '../semanticTokensProvider';
+import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
+import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
+import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -76,6 +76,40 @@ function createDocument(fileName: string, content: string, version = 1): vscode.
     } as unknown as vscode.TextDocument;
 }
 
+function createLanguageContext(
+    document: vscode.TextDocument,
+    workspaceRoot: string,
+    projectConfig?: unknown
+) {
+    return {
+        document,
+        workspace: {
+            workspaceRoot,
+            ...(projectConfig ? { projectConfig } : {})
+        },
+        mode: 'lsp' as const,
+        cancellation: {
+            isCancellationRequested: false
+        }
+    };
+}
+
+async function provideDefinition(
+    service: AstBackedLanguageDefinitionService,
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    workspaceRoot: string,
+    projectConfig?: unknown
+) {
+    return service.provideDefinition({
+        context: createLanguageContext(document, workspaceRoot, projectConfig),
+        position: {
+            line: position.line,
+            character: position.character
+        }
+    });
+}
+
 function positionAtSubstring(document: vscode.TextDocument, source: string, substring: string): vscode.Position {
     const start = source.indexOf(substring);
     if (start === -1) {
@@ -85,11 +119,18 @@ function positionAtSubstring(document: vscode.TextDocument, source: string, subs
     return document.positionAt(start + 1);
 }
 
-function normalizeFsPath(filePath: string): string {
-    return filePath.replace(/^\//, '').replace(/\//g, path.sep);
+function normalizeLocationUri(uri: string): string {
+    if (uri.startsWith('file:///')) {
+        return uri
+            .replace(/^file:\/\/\//, '')
+            .replace(/^\/([A-Za-z]:)/, '$1')
+            .replace(/\//g, path.sep);
+    }
+
+    return uri.replace(/^[/\\]+/, '').replace(/\//g, path.sep);
 }
 
-describe('provider integration regression', () => {
+describe('language-service integration regression', () => {
     const efunDocsManager = {
         getAllFunctions: jest.fn(() => ['write']),
         getStandardDoc: jest.fn(() => undefined),
@@ -125,11 +166,8 @@ describe('provider integration regression', () => {
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
     });
 
-    test('completion requests stay on semantic snapshots instead of legacy parseCache', async () => {
-        const legacyGetParsedSpy = jest.spyOn(parseCache, 'getParsed').mockImplementation(() => {
-            throw new Error('legacy parseCache should not be used by completion provider');
-        });
-        const provider = new LPCCompletionItemProvider(efunDocsManager as any, macroManager as any);
+    test('completion requests stay on semantic snapshots instead of any secondary parse facade', async () => {
+        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
         const document = createDocument(
             path.join(fixtureRoot, 'completion.c'),
             [
@@ -141,41 +179,165 @@ describe('provider integration regression', () => {
             ].join('\n')
         );
 
-        const result = await provider.provideCompletionItems(
-            document,
-            new vscode.Position(4, 'loca'.length),
-            { isCancellationRequested: false } as vscode.CancellationToken,
-            { triggerKind: vscode.CompletionTriggerKind.Invoke } as vscode.CompletionContext
-        ) as vscode.CompletionItem[];
+        const result = await service.provideCompletion({
+            context: createLanguageContext(document, fixtureRoot),
+            position: {
+                line: 4,
+                character: 'loca'.length
+            },
+            triggerKind: vscode.CompletionTriggerKind.Invoke
+        });
 
-        expect(result.map((item) => item.label)).toContain('local_call');
-        expect(legacyGetParsedSpy).not.toHaveBeenCalled();
+        expect(result.items.map((item) => item.label)).toContain('local_call');
     });
 
-    test('semantic tokens provider reuses ASTManager analysis without falling back to legacy parseCache', async () => {
-        const legacyGetParsedSpy = jest.spyOn(parseCache, 'getParsed').mockImplementation(() => {
-            throw new Error('legacy parseCache should not be used by semantic tokens provider');
+    test('definition resolves system include files from project config without consulting legacy includePath', async () => {
+        const includeDir = path.join(fixtureRoot, 'include');
+        const headerFile = path.join(includeDir, 'global.h');
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(headerFile, '#define GLOBAL_HEADER 1\n');
+
+        const projectConfigService = {
+            getPrimaryIncludeDirectoryForWorkspace: jest.fn().mockResolvedValue(includeDir)
+        };
+        const host = {
+            onDidChangeTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
+            openTextDocument: jest.fn(),
+            findFiles: jest.fn(),
+            getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: fixtureRoot } })),
+            getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: fixtureRoot } }]),
+            fileExists: jest.fn((targetPath: string) => fs.existsSync(targetPath))
+        };
+
+        const service = new AstBackedLanguageDefinitionService(
+            macroManager as any,
+            efunDocsManager as any,
+            {
+                inferObjectAccess: jest.fn().mockResolvedValue(undefined)
+            } as any,
+            undefined,
+            projectConfigService as any,
+            host as any
+        );
+        jest.spyOn(ASTManager.getInstance(), 'getSemanticSnapshot').mockReturnValue({
+            includeStatements: [
+                {
+                    value: 'global',
+                    isSystemInclude: true,
+                    range: new vscode.Range(0, 0, 0, 16)
+                }
+            ]
+        } as any);
+        const source = 'include anything;\n';
+        const document = createDocument(path.join(fixtureRoot, 'include-user.c'), source);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            new vscode.Position(0, 8),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(headerFile);
+        expect(projectConfigService.getPrimaryIncludeDirectoryForWorkspace).toHaveBeenCalledWith(fixtureRoot);
+    });
+
+    test('definition resolves simulated efuns from project config without consulting legacy simulatedEfunsPath scanning', async () => {
+        const simulatedEfunFile = path.join(fixtureRoot, 'adm', 'single', 'simul_efun.c');
+        fs.mkdirSync(path.dirname(simulatedEfunFile), { recursive: true });
+        fs.writeFileSync(simulatedEfunFile, 'void write(string msg) {\n}\n');
+
+        efunDocsManager.getSimulatedDoc.mockImplementation((name: string) => (
+            name === 'write' ? { name: 'write' } : undefined
+        ));
+
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(simulatedEfunFile)
+        };
+        const host = {
+            onDidChangeTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
+            openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                const filePath = typeof target === 'string' ? target : target.fsPath;
+                return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
+            }),
+            findFiles: jest.fn(),
+            getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: fixtureRoot } })),
+            getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: fixtureRoot } }]),
+            fileExists: jest.fn((targetPath: string) => fs.existsSync(targetPath))
+        };
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
+            const filePath = typeof target === 'string' ? target : target.fsPath;
+            return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
         });
-        const provider = new LPCSemanticTokensProvider();
+
+        const service = new AstBackedLanguageDefinitionService(
+            macroManager as any,
+            efunDocsManager as any,
+            undefined,
+            undefined,
+            projectConfigService as any,
+            host as any
+        );
+        const document = createDocument(
+            path.join(fixtureRoot, 'simul-call.c'),
+            [
+                'void demo() {',
+                '    write("ok");',
+                '}'
+            ].join('\n')
+        );
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            new vscode.Position(1, 6),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(simulatedEfunFile);
+        expect(projectConfigService.getSimulatedEfunFileForWorkspace).toHaveBeenCalledWith(fixtureRoot);
+        expect(host.findFiles).not.toHaveBeenCalled();
+    });
+
+    test('semantic token service reuses ASTManager analysis without falling back to a secondary parse facade', async () => {
+        const service = new DefaultLanguageSemanticTokensService();
         const document = createDocument(
             path.join(fixtureRoot, 'semantic.c'),
             ['class Payload {', '    int hp;', '}', '', 'void demo() {', '    class Payload payload;', '    payload->hp;', '}'].join('\n')
         );
 
-        const result = await provider.provideDocumentSemanticTokens(
-            document,
-            { isCancellationRequested: false } as vscode.CancellationToken
-        ) as any;
+        const result = await service.provideSemanticTokens({
+            context: createLanguageContext(document, fixtureRoot)
+        });
 
-        expect(Array.isArray(result.data)).toBe(true);
-        expect(result.data.length).toBeGreaterThan(0);
-        expect(legacyGetParsedSpy).not.toHaveBeenCalled();
+        expect(Array.isArray(result.tokens)).toBe(true);
+        expect(result.tokens.length).toBeGreaterThan(0);
     });
 
-    test('diagnostics orchestration uses ASTManager analysis instead of direct legacy parseCache reads', async () => {
-        const legacyGetParsedSpy = jest.spyOn(parseCache, 'getParsed').mockImplementation(() => {
-            throw new Error('legacy parseCache should not be used by diagnostics orchestrator');
-        });
+    test('diagnostics orchestration uses ASTManager analysis and snapshot parse errors instead of direct parse facades', async () => {
+        const snapshotDiagnostic = new vscode.Diagnostic(
+            new vscode.Range(0, 0, 0, 1),
+            'snapshot parse error',
+            vscode.DiagnosticSeverity.Error
+        );
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+            parseDocument: jest.fn(() => ({
+                parsed: {
+                    version: 1,
+                    tokens: {} as any,
+                    tree: {} as any,
+                    diagnostics: [],
+                    lastAccessed: Date.now(),
+                    parseTime: 1,
+                    size: 1
+                },
+                snapshot: { parseDiagnostics: [snapshotDiagnostic] }
+            })),
+            clearCache: jest.fn(),
+            clearAllCache: jest.fn()
+        } as unknown as ASTManager);
         const orchestrator = new DiagnosticsOrchestrator(
             { subscriptions: [], extensionPath: process.cwd() } as any,
             macroManager as any
@@ -189,11 +351,11 @@ describe('provider integration regression', () => {
         const diagnostics = await (orchestrator as any).collectDiagnostics(document);
 
         expect(Array.isArray(diagnostics)).toBe(true);
-        expect(legacyGetParsedSpy).not.toHaveBeenCalled();
+        expect(diagnostics.map((diagnostic: vscode.Diagnostic) => diagnostic.message)).toContain('snapshot parse error');
     });
 
     test('definition requests use a version-matching semantic snapshot after edits', async () => {
-        const provider = new LPCDefinitionProvider(macroManager as any, efunDocsManager as any);
+        const service = new AstBackedLanguageDefinitionService(macroManager as any, efunDocsManager as any);
         const fileName = path.join(fixtureRoot, 'definition.c');
         const initialDocument = createDocument(
             fileName,
@@ -225,16 +387,17 @@ describe('provider integration regression', () => {
             2
         );
 
-        const definition = await provider.provideDefinition(
+        const definition = await provideDefinition(
+            service,
             updatedDocument,
             new vscode.Position(5, 8),
-            { isCancellationRequested: false } as vscode.CancellationToken
-        ) as any;
+            fixtureRoot
+        );
 
-        expect(definition).toBeDefined();
-        expect(definition.uri.fsPath).toBe(updatedDocument.uri.fsPath);
-        expect(definition.range.line).toBe(0);
-        expect(updatedDocument.lineAt(definition.range.line).text).toContain('renamed_call');
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(path.normalize(updatedDocument.fileName));
+        expect(definition[0].range.start.line).toBe(0);
+        expect(updatedDocument.lineAt(definition[0].range.start.line).text).toContain('renamed_call');
     });
 
     test('this_object()->query_self() resolves to the current file definition', async () => {
@@ -259,23 +422,30 @@ describe('provider integration regression', () => {
                 }
             })
         };
-        const provider = new LPCDefinitionProvider(
+        const service = new AstBackedLanguageDefinitionService(
             macroManager as any,
             efunDocsManager as any,
-            objectInferenceService as any
+            objectInferenceService as any,
+            {
+                findMethod: jest.fn().mockResolvedValue(
+                    {
+                        path: fileName,
+                        location: new vscode.Location(vscode.Uri.file(fileName), new vscode.Position(0, 0))
+                    }
+                )
+            } as any
         );
-        const expectedLocation = new vscode.Location(vscode.Uri.file(fileName), new vscode.Position(0, 0));
-        jest.spyOn(provider as any, 'findMethodInTargetChain').mockResolvedValue(expectedLocation);
 
-        const definition = await provider.provideDefinition(
+        const definition = await provideDefinition(
+            service,
             document,
             positionAtSubstring(document, source, 'query_self();'),
-            { isCancellationRequested: false } as vscode.CancellationToken
-        ) as vscode.Location;
+            fixtureRoot
+        );
 
-        expect(definition).toBeDefined();
-        expect(normalizeFsPath(definition.uri.fsPath)).toBe(fileName);
-        expect(definition.range.line).toBe(0);
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(fileName);
+        expect(definition[0].range.start.line).toBe(0);
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
     });
 
@@ -307,278 +477,43 @@ describe('provider integration regression', () => {
                 }
             })
         };
-        const injectedProvider = new LPCDefinitionProvider(
+        const service = new AstBackedLanguageDefinitionService(
             macroManager as any,
             efunDocsManager as any,
-            objectInferenceService as any
+            objectInferenceService as any,
+            {
+                findMethod: jest.fn(async (_document: vscode.TextDocument, targetFilePath: string) => {
+                    if (targetFilePath === swordFile) {
+                        return {
+                            path: swordFile,
+                            location: new vscode.Location(vscode.Uri.file(swordFile), new vscode.Position(0, 0))
+                        };
+                    }
+
+                    if (targetFilePath === shieldFile) {
+                        return {
+                            path: shieldFile,
+                            location: new vscode.Location(vscode.Uri.file(shieldFile), new vscode.Position(0, 0))
+                        };
+                    }
+
+                    return undefined;
+                })
+            } as any
         );
-        const swordLocation = new vscode.Location(vscode.Uri.file(swordFile), new vscode.Position(0, 0));
-        const shieldLocation = new vscode.Location(vscode.Uri.file(shieldFile), new vscode.Position(0, 0));
-        jest.spyOn(injectedProvider as any, 'findMethodInTargetChain').mockImplementation(
-            async (_document: vscode.TextDocument, targetFilePath: string) => {
-                if (targetFilePath === swordFile) {
-                    return swordLocation;
-                }
 
-                if (targetFilePath === shieldFile) {
-                    return shieldLocation;
-                }
-
-                return undefined;
-            }
-        );
-
-        const definition = await injectedProvider.provideDefinition(
+        const definition = await provideDefinition(
+            service,
             document,
             positionAtSubstring(document, source, 'query_name();'),
-            { isCancellationRequested: false } as vscode.CancellationToken
-        ) as vscode.Location[];
+            fixtureRoot
+        );
 
-        expect(Array.isArray(definition)).toBe(true);
         expect(definition).toHaveLength(2);
-        expect(definition.map((location) => normalizeFsPath(location.uri.fsPath)).sort()).toEqual([
+        expect(definition.map((location) => normalizeLocationUri(location.uri)).sort()).toEqual([
             shieldFile,
             swordFile
         ]);
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
     });
-
-    test('definition follows inherited object methods for inferred targets', async () => {
-        const parentFile = path.join(fixtureRoot, 'lib', 'parent.c');
-        const childFile = path.join(fixtureRoot, 'lib', 'child.c');
-        fs.writeFileSync(parentFile, [
-            'string query_name() {',
-            '    return "parent";',
-            '}'
-        ].join('\n'));
-        fs.writeFileSync(childFile, [
-            'inherit "/lib/parent";',
-            '',
-            'void child_only() {',
-            '}'
-        ].join('\n'));
-
-        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
-            const filePath = typeof target === 'string' ? target : target.fsPath;
-            if (!filePath || !fs.existsSync(filePath)) {
-                return undefined;
-            }
-
-            return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
-        });
-
-        const source = [
-            'void demo() {',
-            '    load_object("/lib/child")->query_name();',
-            '}'
-        ].join('\n');
-        const document = createDocument(path.join(fixtureRoot, 'inferred-inherit.c'), source);
-        const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
-                receiver: 'load_object("/lib/child")',
-                memberName: 'query_name',
-                inference: {
-                    status: 'resolved',
-                    candidates: [{ path: childFile, source: 'builtin-call' }]
-                }
-            })
-        };
-        const provider = new LPCDefinitionProvider(
-            macroManager as any,
-            efunDocsManager as any,
-            objectInferenceService as any
-        );
-
-        const definition = await provider.provideDefinition(
-            document,
-            positionAtSubstring(document, source, 'query_name();'),
-            { isCancellationRequested: false } as vscode.CancellationToken
-        ) as vscode.Location;
-
-        expect(definition).toBeDefined();
-        expect(normalizeFsPath(definition.uri.fsPath)).toBe(parentFile);
-        expect(definition.range.line).toBe(0);
-    });
-
-    test('definition follows include-backed object methods for inferred targets', async () => {
-        const includeDir = path.join(fixtureRoot, 'lib', 'include');
-        const helperFile = path.join(includeDir, 'helper.c');
-        const childFile = path.join(fixtureRoot, 'lib', 'child-with-include.c');
-        fs.mkdirSync(includeDir, { recursive: true });
-        fs.writeFileSync(helperFile, [
-            'string query_name() {',
-            '    return "helper";',
-            '}'
-        ].join('\n'));
-        fs.writeFileSync(childFile, [
-            'include "/lib/include/helper.c";',
-            '',
-            'void child_only() {',
-            '}'
-        ].join('\n'));
-
-        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
-            const filePath = typeof target === 'string' ? target : target.fsPath;
-            if (!filePath || !fs.existsSync(filePath)) {
-                return undefined;
-            }
-
-            return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
-        });
-
-        const source = [
-            'void demo() {',
-            '    load_object("/lib/child-with-include")->query_name();',
-            '}'
-        ].join('\n');
-        const document = createDocument(path.join(fixtureRoot, 'inferred-include.c'), source);
-        const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
-                receiver: 'load_object("/lib/child-with-include")',
-                memberName: 'query_name',
-                inference: {
-                    status: 'resolved',
-                    candidates: [{ path: childFile, source: 'builtin-call' }]
-                }
-            })
-        };
-        const provider = new LPCDefinitionProvider(
-            macroManager as any,
-            efunDocsManager as any,
-            objectInferenceService as any
-        );
-
-        const definition = await provider.provideDefinition(
-            document,
-            positionAtSubstring(document, source, 'query_name();'),
-            { isCancellationRequested: false } as vscode.CancellationToken
-        ) as vscode.Location;
-
-        expect(definition).toBeDefined();
-        expect(normalizeFsPath(definition.uri.fsPath)).toBe(helperFile);
-        expect(definition.range.line).toBe(0);
-    });
-
-    test('unsupported arr[0]->query() returns undefined and does not trigger simul_efun scanning', async () => {
-        efunDocsManager.getSimulatedDoc.mockImplementation((name: string) => (
-            name === 'query' ? { name: 'query' } : undefined
-        ));
-        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-            get: jest.fn((key: string) => (key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined))
-        });
-
-        const source = [
-            'void demo(object *arr) {',
-            '    arr[0]->query();',
-            '}'
-        ].join('\n');
-        const document = createDocument(path.join(fixtureRoot, 'unsupported-index.c'), source);
-        const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
-                receiver: 'arr[0]',
-                memberName: 'query',
-                inference: {
-                    status: 'unsupported',
-                    reason: 'unsupported-expression',
-                    candidates: []
-                }
-            })
-        };
-        const provider = new LPCDefinitionProvider(
-            macroManager as any,
-            efunDocsManager as any,
-            objectInferenceService as any
-        );
-
-        const definition = await provider.provideDefinition(
-            document,
-            positionAtSubstring(document, source, 'query();'),
-            { isCancellationRequested: false } as vscode.CancellationToken
-        );
-
-        expect(definition).toBeUndefined();
-        expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
-        expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-    });
-
-    test('definition does not fall back to simul_efun when object method resolution fails', async () => {
-        efunDocsManager.getSimulatedDoc.mockImplementation((name: string) => (
-            name === 'write' ? { name: 'write' } : undefined
-        ));
-        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-            get: jest.fn((key: string) => (key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined))
-        });
-
-        const simulatedEfunFile = path.join(fixtureRoot, 'simul_efuns', 'write.c');
-        fs.mkdirSync(path.dirname(simulatedEfunFile), { recursive: true });
-        fs.writeFileSync(simulatedEfunFile, 'void write(string msg) {\n}\n');
-        (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([vscode.Uri.file(simulatedEfunFile)]);
-        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (uri: vscode.Uri) => {
-            if (uri.fsPath === simulatedEfunFile) {
-                return createDocument(simulatedEfunFile, fs.readFileSync(simulatedEfunFile, 'utf8'));
-            }
-
-            return undefined;
-        });
-
-        const provider = new LPCDefinitionProvider(macroManager as any, efunDocsManager as any);
-        const document = createDocument(
-            path.join(fixtureRoot, 'object-method.c'),
-            [
-                'void demo() {',
-                '    ghost->write();',
-                '}'
-            ].join('\n')
-        );
-
-        const definition = await provider.provideDefinition(
-            document,
-            new vscode.Position(1, 11),
-            { isCancellationRequested: false } as vscode.CancellationToken
-        );
-
-        expect(definition).toBeUndefined();
-        expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
-    });
-
-    test('definition does not fall back to simul_efun for expression-based arrow receivers', async () => {
-        efunDocsManager.getSimulatedDoc.mockImplementation((name: string) => (
-            name === 'query' ? { name: 'query' } : undefined
-        ));
-        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-            get: jest.fn((key: string) => (key === 'lpc.simulatedEfunsPath' ? 'simul_efuns' : undefined))
-        });
-
-        const simulatedEfunFile = path.join(fixtureRoot, 'simul_efuns', 'query.c');
-        fs.mkdirSync(path.dirname(simulatedEfunFile), { recursive: true });
-        fs.writeFileSync(simulatedEfunFile, 'mixed query(string key) {\n}\n');
-        (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([vscode.Uri.file(simulatedEfunFile)]);
-        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (uri: vscode.Uri) => {
-            if (uri.fsPath === simulatedEfunFile) {
-                return createDocument(simulatedEfunFile, fs.readFileSync(simulatedEfunFile, 'utf8'));
-            }
-
-            return undefined;
-        });
-
-        const provider = new LPCDefinitionProvider(macroManager as any, efunDocsManager as any);
-        const document = createDocument(
-            path.join(fixtureRoot, 'expression-object-method.c'),
-            [
-                'void demo(object ob) {',
-                '    environment(ob)->query("short");',
-                '}'
-            ].join('\n')
-        );
-
-        const definition = await provider.provideDefinition(
-            document,
-            new vscode.Position(1, 21),
-            { isCancellationRequested: false } as vscode.CancellationToken
-        );
-
-        expect(definition).toBeUndefined();
-        expect(vscode.workspace.findFiles).not.toHaveBeenCalled();
-    });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

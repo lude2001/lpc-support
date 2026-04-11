@@ -11,8 +11,11 @@ import { ASTManager } from '../ast/astManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 
+let registeredProjectConfigService: LpcProjectConfigService | undefined;
+
 export function registerCoreServices(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const projectConfigService = new LpcProjectConfigService();
+    registeredProjectConfigService = projectConfigService;
     registry.register(Services.ProjectConfig, projectConfigService);
 
     const macroManager = new MacroManager(projectConfigService);
@@ -39,4 +42,8 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
         getGlobalParsedDocumentService().invalidate(uri);
         ASTManager.getInstance().clearCache(uri.toString());
     });
+}
+
+export function getRegisteredProjectConfigService(): LpcProjectConfigService | undefined {
+    return registeredProjectConfigService;
 }

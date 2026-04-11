@@ -1,12 +1,11 @@
 import type { CompletionInstrumentation } from '../completion/completionInstrumentation';
-import type { DiagnosticsOrchestrator } from '../diagnostics';
-import type { ErrorTreeDataProvider } from '../errorTreeDataProvider';
-import type { LPCCompletionItemProvider } from '../completionProvider';
-import type { EfunDocsManager } from '../efunDocs';
-import type { LPCConfigManager } from '../config';
 import type { LPCCompiler } from '../compiler';
-import type { MacroManager } from '../macroManager';
+import type { LPCConfigManager } from '../config';
+import type { DiagnosticsOrchestrator } from '../diagnostics';
 import type { DocumentLifecycleService } from './DocumentLifecycleService';
+import type { EfunDocsManager } from '../efunDocs';
+import type { ErrorTreeDataProvider } from '../errorTreeDataProvider';
+import type { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { ServiceKey } from './ServiceRegistry';
 
@@ -18,7 +17,6 @@ export const Services = {
     ProjectConfig: new ServiceKey<LpcProjectConfigService>('ProjectConfig'),
     Lifecycle: new ServiceKey<DocumentLifecycleService>('Lifecycle'),
     Diagnostics: new ServiceKey<DiagnosticsOrchestrator>('Diagnostics'),
-    Completion: new ServiceKey<LPCCompletionItemProvider>('Completion'),
     ErrorTree: new ServiceKey<ErrorTreeDataProvider>('ErrorTree'),
     CompletionInstrumentation: new ServiceKey<CompletionInstrumentation>('CompletionInstrumentation')
 };

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { FormattingService } from '../formatter/FormattingService';
+import { createLanguageFormattingService } from '../language/services/formatting/LanguageFormattingService';
 import * as parsedDocumentModule from '../parser/ParsedDocumentService';
 import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import * as rangeResolver from '../formatter/range/findFormatTarget';
@@ -438,6 +439,40 @@ const MERIDIAND_ARRAY_LITERAL_CASES = [
 describe('FormattingService range formatting', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+    });
+
+    test('shared formatting service preserves range output on a real fixture', async () => {
+        clearGlobalParsedDocumentService();
+        const source = [
+            'void test()',
+            '{',
+            '    if(x){foo();}',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'shared-range.c');
+        const service = createLanguageFormattingService(new FormattingService());
+        const edits = await service.formatRange({
+            document: {
+                uri: document.uri.toString(),
+                version: document.version,
+                getText: () => document.getText()
+            },
+            range: {
+                start: { line: 2, character: 4 },
+                end: { line: 2, character: 17 }
+            }
+        });
+
+        expect(edits).toHaveLength(1);
+        expect(applyEdit(document, edits[0])).toBe([
+            'void test()',
+            '{',
+            '    if (x)',
+            '    {',
+            '        foo();',
+            '    }',
+            '}'
+        ].join('\n'));
     });
 
     test('选区不覆盖完整节点时拒绝格式化', async () => {

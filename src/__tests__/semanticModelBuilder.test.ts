@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { clearParseCache, getParsed } from '../parseCache';
+import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { SemanticModelBuilder } from '../semantic/SemanticModelBuilder';
 import { SyntaxBuilder } from '../syntax/SyntaxBuilder';
 import { DocumentSemanticSnapshotService } from '../completion/documentSemanticSnapshotService';
@@ -57,7 +57,7 @@ function createDocument(content: string, fileName: string = '/virtual/semantic.c
 describe('SemanticModelBuilder', () => {
     afterEach(() => {
         DocumentSemanticSnapshotService.getInstance().clear();
-        clearParseCache();
+        clearGlobalParsedDocumentService();
     });
 
     test('builds symbols, scopes, type summaries, and directives from syntax nodes', () => {
@@ -83,7 +83,7 @@ describe('SemanticModelBuilder', () => {
             '}'
         ].join('\n');
         const document = createDocument(source);
-        const parsed = getParsed(document);
+        const parsed = getGlobalParsedDocumentService().get(document);
         const syntax = new SyntaxBuilder(parsed).build();
         const snapshot = new SemanticModelBuilder().build(syntax);
 
@@ -136,7 +136,7 @@ describe('SemanticModelBuilder', () => {
             'int demo();'
         ].join('\n');
         const document = createDocument(source, '/virtual/prototype-precedence.c');
-        const parsed = getParsed(document);
+        const parsed = getGlobalParsedDocumentService().get(document);
         const syntax = new SyntaxBuilder(parsed).build();
         const snapshot = new SemanticModelBuilder().build(syntax);
 

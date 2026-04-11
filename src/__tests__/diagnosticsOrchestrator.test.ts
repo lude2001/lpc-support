@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
 import * as parsedDocumentService from '../parser/ParsedDocumentService';
+import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 
 jest.mock('fs', () => {
     const actual = jest.requireActual('fs');
@@ -237,6 +238,98 @@ describe('DiagnosticsOrchestrator', () => {
             syntax: syntaxDocument,
             semantic: semanticSnapshot
         });
+    });
+
+    test('preserves async batching and yield scheduling when analyzeDocumentAsync uses enableAsyncDiagnostics', async () => {
+        const parseDocumentSpy = jest.fn(() => ({
+            parsed: {
+                version: 1,
+                tokens: {} as any,
+                tree: {} as any,
+                diagnostics: [],
+                lastAccessed: Date.now(),
+                parseTime: 1,
+                size: 1
+            },
+            syntax: { nodes: [] } as any,
+            semantic: {
+                parseDiagnostics: []
+            } as any,
+            snapshot: { parseDiagnostics: [] }
+        }));
+        const diagnosticCollection = {
+            set: jest.fn(),
+            delete: jest.fn(),
+            clear: jest.fn(),
+            dispose: jest.fn()
+        };
+        const collectors = [
+            {
+                name: 'collector-one',
+                collect: jest.fn().mockResolvedValue([
+                    new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), 'one', vscode.DiagnosticSeverity.Warning)
+                ])
+            },
+            {
+                name: 'collector-two',
+                collect: jest.fn().mockResolvedValue([
+                    new vscode.Diagnostic(new vscode.Range(0, 1, 0, 2), 'two', vscode.DiagnosticSeverity.Warning)
+                ])
+            }
+        ];
+
+        (vscode.languages.createDiagnosticCollection as jest.Mock).mockReturnValue(diagnosticCollection);
+        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+            parseDocument: parseDocumentSpy,
+            clearCache: jest.fn()
+        } as unknown as ASTManager);
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((key: string) => {
+                if (key === 'enableAsyncDiagnostics') {
+                    return true;
+                }
+
+                if (key === 'batchSize') {
+                    return 1;
+                }
+
+                if (key === 'debounceDelay') {
+                    return 0;
+                }
+
+                return undefined;
+            })
+        });
+        (vscode.workspace as any).getWorkspaceFolder = jest.fn().mockReturnValue({
+            uri: vscode.Uri.file('/workspace/project')
+        });
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+
+        const orchestrator = new DiagnosticsOrchestrator(
+            { subscriptions: [], extensionPath: process.cwd() } as any,
+            { getMacro: jest.fn(), getMacroHoverContent: jest.fn(), canResolveMacro: jest.fn() } as any
+        );
+        (orchestrator as any).collectors = collectors;
+        (orchestrator as any).diagnosticsService = createSharedDiagnosticsService(
+            ASTManager.getInstance(),
+            collectors as any
+        );
+        (orchestrator as any).yieldToMainThread = jest.fn().mockResolvedValue(undefined);
+
+        const document = createDocument('int async_demo() { return 1; }', '/workspace/project/src/async.c');
+        await (orchestrator as any).analyzeDocumentAsync(document, { showMessage: false });
+
+        expect(parseDocumentSpy).toHaveBeenCalledTimes(1);
+        expect((orchestrator as any).yieldToMainThread).toHaveBeenCalledTimes(2);
+        expect(collectors[0].collect).toHaveBeenCalledTimes(1);
+        expect(collectors[1].collect).toHaveBeenCalledTimes(1);
+        expect(diagnosticCollection.set).toHaveBeenCalledWith(
+            document.uri,
+            expect.arrayContaining([
+                expect.objectContaining({ message: 'one' }),
+                expect.objectContaining({ message: 'two' })
+            ])
+        );
     });
 
     test('delegates show variables command to variable inspector for active lpc documents', async () => {

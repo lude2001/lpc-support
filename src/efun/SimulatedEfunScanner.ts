@@ -9,7 +9,6 @@ import { parseFunctionDocs } from './docParser';
 import type { EfunDoc } from './types';
 
 export class SimulatedEfunScanner {
-    private static readonly SIMULATED_EFUNS_PATH_CONFIG = 'lpc.simulatedEfunsPath';
     private docs: Map<string, EfunDoc> = new Map();
 
     constructor(private readonly projectConfigService?: LpcProjectConfigService) {}
@@ -31,65 +30,44 @@ export class SimulatedEfunScanner {
     }
 
     public async configureSimulatedEfuns(): Promise<void> {
-        const options: vscode.OpenDialogOptions = {
-            canSelectFiles: false,
-            canSelectFolders: true,
-            canSelectMany: false,
-            openLabel: '选择模拟函数库目录'
-        };
-
-        const folders = await vscode.window.showOpenDialog(options);
-        if (!folders || !folders[0]) {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!workspaceRoot || !this.projectConfigService) {
+            vscode.window.showErrorMessage('当前工作区缺少可写入的 lpc-support.json，无法配置模拟函数入口文件。');
             return;
         }
 
-        await vscode.workspace.getConfiguration().update(
-            SimulatedEfunScanner.SIMULATED_EFUNS_PATH_CONFIG,
-            folders[0].fsPath,
-            vscode.ConfigurationTarget.Global
-        );
+        const selectedFile = await this.selectSimulatedEfunEntryFile();
+        if (!selectedFile) {
+            return;
+        }
+
+        const workspaceRelativePath = this.projectConfigService.toWorkspaceRelativePath(workspaceRoot, selectedFile.fsPath);
+        await this.projectConfigService.updateResolvedConfigForWorkspace(workspaceRoot, (resolvedConfig) => ({
+            ...resolvedConfig,
+            simulatedEfunFile: workspaceRelativePath
+        }));
 
         await this.loadSimulatedEfuns();
-        vscode.window.showInformationMessage('模拟函数库目录已更新');
+        vscode.window.showInformationMessage('模拟函数入口文件已更新');
     }
 
     public async loadSimulatedEfuns(): Promise<void> {
         this.docs.clear();
 
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!workspaceRoot) {
             return;
         }
 
-        const hasProjectConfig = fs.existsSync(path.join(workspaceFolder.uri.fsPath, 'lpc-support.json'));
-        const projectConfigPath = this.projectConfigService
-            ? await this.projectConfigService.getSimulatedEfunFileForWorkspace(workspaceFolder.uri.fsPath)
+        const simulatedEfunEntryFile = this.projectConfigService
+            ? await this.projectConfigService.getSimulatedEfunFileForWorkspace(workspaceRoot)
             : undefined;
-        const config = vscode.workspace.getConfiguration();
-        const legacyConfigPath = config.get<string>(SimulatedEfunScanner.SIMULATED_EFUNS_PATH_CONFIG);
-
-        if (!projectConfigPath && (!legacyConfigPath || !hasProjectConfig)) {
+        if (!simulatedEfunEntryFile) {
             return;
         }
 
         try {
-            this.docs.clear();
-
-            if (projectConfigPath) {
-                await this.loadFromProjectConfigEntry(workspaceFolder.uri.fsPath, projectConfigPath);
-                return;
-            }
-
-            const files = await vscode.workspace.findFiles(
-                new vscode.RelativePattern(
-                    this.resolveProjectPath(workspaceFolder.uri.fsPath, legacyConfigPath!),
-                    '**/*.{c,h}'
-                )
-            );
-
-            for (const file of files) {
-                await this.loadDocFile(file.fsPath);
-            }
+            await this.loadFromProjectConfigEntry(workspaceRoot, simulatedEfunEntryFile);
         } catch (error) {
             console.error('加载模拟函数库文档失败:', error);
         }
@@ -137,18 +115,20 @@ export class SimulatedEfunScanner {
         const document = this.createSyntheticDocument(currentFilePath, content);
         const analysis = ASTManager.getInstance().parseDocument(document, false);
         const relatedFiles = [
-            ...analysis.snapshot.includeStatements.map((statement) => this.resolveIncludeDirective(statement, currentFilePath, mudlibRoot)),
-            ...this.extractDirectiveIncludeFiles(analysis.parsed?.tokenTriviaIndex.getAllTrivia() ?? [], currentFilePath, mudlibRoot),
-            ...analysis.snapshot.inheritStatements.map((statement) => this.resolveInheritDirective(statement, currentFilePath, mudlibRoot))
+            ...analysis.snapshot.includeStatements.map((statement) =>
+                this.resolveIncludeDirective(statement, currentFilePath, mudlibRoot)
+            ),
+            ...this.extractDirectiveIncludeFiles(
+                analysis.parsed?.tokenTriviaIndex.getAllTrivia() ?? [],
+                currentFilePath,
+                mudlibRoot
+            ),
+            ...analysis.snapshot.inheritStatements.map((statement) =>
+                this.resolveInheritDirective(statement, currentFilePath, mudlibRoot)
+            )
         ];
 
         return relatedFiles.filter((filePath): filePath is string => Boolean(filePath));
-    }
-
-    private async loadDocFile(filePath: string): Promise<void> {
-        const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
-        const text = Buffer.from(content).toString('utf8');
-        this.storeParsedDocs(text);
     }
 
     private storeParsedDocs(text: string): void {
@@ -159,21 +139,9 @@ export class SimulatedEfunScanner {
         }
     }
 
-    public resolveProjectPath(workspaceRoot: string, configPath: string): string {
-        if (path.isAbsolute(configPath)) {
-            return configPath;
-        }
-
-        return path.join(workspaceRoot, configPath);
-    }
-
     private createSyntheticDocument(filePath: string, content: string): vscode.TextDocument {
-        const lineStarts = [0];
-        for (let index = 0; index < content.length; index += 1) {
-            if (content[index] === '\n') {
-                lineStarts.push(index + 1);
-            }
-        }
+        const lineStarts = this.buildLineStarts(content);
+        const lines = content.split(/\r?\n/);
 
         const offsetAt = (position: vscode.Position): number => {
             const lineStart = lineStarts[position.line] ?? content.length;
@@ -211,7 +179,7 @@ export class SimulatedEfunScanner {
                 return content.slice(offsetAt(range.start), offsetAt(range.end));
             },
             lineAt: (line: number) => ({
-                text: content.split(/\r?\n/)[line] ?? ''
+                text: lines[line] ?? ''
             }),
             positionAt,
             offsetAt,
@@ -280,5 +248,34 @@ export class SimulatedEfunScanner {
 
         const match = trimmed.match(/^#?include\s+[<"]([^>"]+)[>"]/);
         return match?.[1];
+    }
+
+    private getWorkspaceRoot(): string | undefined {
+        return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    }
+
+    private async selectSimulatedEfunEntryFile(): Promise<vscode.Uri | undefined> {
+        const files = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            openLabel: '选择模拟函数入口文件',
+            filters: {
+                'LPC Files': ['c', 'h']
+            }
+        });
+
+        return files?.[0];
+    }
+
+    private buildLineStarts(content: string): number[] {
+        const lineStarts = [0];
+        for (let index = 0; index < content.length; index += 1) {
+            if (content[index] === '\n') {
+                lineStarts.push(index + 1);
+            }
+        }
+
+        return lineStarts;
     }
 }

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
-import { clearParseCache, getParsed } from '../parseCache';
+import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { SyntaxBuilder } from '../syntax/SyntaxBuilder';
 import { SyntaxKind } from '../syntax/types';
 import { DocumentSemanticSnapshotService } from '../completion/documentSemanticSnapshotService';
@@ -59,7 +59,7 @@ describe('SyntaxBuilder', () => {
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
-        clearParseCache();
+        clearGlobalParsedDocumentService();
     });
 
     test('builds structured syntax nodes for declarations, control flow, and expressions', () => {
@@ -76,7 +76,7 @@ describe('SyntaxBuilder', () => {
             '}'
         ].join('\n');
         const document = createDocument(source);
-        const syntaxDocument = new SyntaxBuilder(getParsed(document)).build();
+        const syntaxDocument = new SyntaxBuilder(getGlobalParsedDocumentService().get(document)).build();
         const kinds = syntaxDocument.nodes.map((node) => node.kind);
 
         expect(syntaxDocument.root.children.map((node) => node.kind)).toEqual([
