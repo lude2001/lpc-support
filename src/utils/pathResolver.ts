@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from '../macroManager';
+import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 
 /**
  * LPC 文件路径解析器
@@ -16,6 +17,7 @@ export class PathResolver {
     private static workspaceConfigCache: Map<string, string> = new Map();
     private static cacheTimeout = 5000; // 5秒缓存
     private static lastCacheTime = 0;
+    private static readonly projectConfigService = new LpcProjectConfigService();
 
     /**
      * 解析 include 路径
@@ -51,11 +53,14 @@ export class PathResolver {
             fileName += '.h';
         }
 
-        let targetPath: string;
+        let targetPath: string | undefined;
 
         if (isGlobalInclude) {
             // 全局包含路径：#include <command.h>
             const globalIncludePath = await this.getGlobalIncludePath(workspaceFolder);
+            if (!globalIncludePath) {
+                return undefined;
+            }
             targetPath = path.join(globalIncludePath, fileName);
         } else {
             // 本地包含路径：#include "path.h"
@@ -310,7 +315,7 @@ export class PathResolver {
      */
     private static async getGlobalIncludePath(
         workspaceFolder: vscode.WorkspaceFolder
-    ): Promise<string> {
+    ): Promise<string | undefined> {
         // 检查缓存
         const now = Date.now();
         if (now - this.lastCacheTime < this.cacheTimeout) {
@@ -320,16 +325,9 @@ export class PathResolver {
             }
         }
 
-        // 读取配置
-        const config = vscode.workspace.getConfiguration('lpc');
-        let includePath = config.get<string>('includePath');
-
+        const includePath = (await this.projectConfigService.getIncludeDirectoriesForWorkspace(workspaceFolder.uri.fsPath))?.[0];
         if (!includePath) {
-            // 默认使用工作区根目录下的 include 文件夹
-            includePath = path.join(workspaceFolder.uri.fsPath, 'include');
-        } else {
-            // 支持相对于项目根目录的路径
-            includePath = this.resolveProjectPath(workspaceFolder.uri.fsPath, includePath);
+            return undefined;
         }
 
         // 更新缓存
@@ -386,17 +384,6 @@ export class PathResolver {
         }
 
         return possiblePaths;
-    }
-
-    /**
-     * 解析项目相对路径
-     */
-    private static resolveProjectPath(workspaceRoot: string, configPath: string): string {
-        if (path.isAbsolute(configPath)) {
-            return configPath;
-        } else {
-            return path.join(workspaceRoot, configPath);
-        }
     }
 
     /**

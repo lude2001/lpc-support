@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ObjectHoverProvider } from '../ObjectHoverProvider';
+import type { LanguageHoverService } from '../../language/services/navigation/LanguageHoverService';
 
 const mockGetSemanticSnapshot = jest.fn();
 
@@ -18,6 +19,50 @@ jest.mock('fs', () => ({
 describe('ObjectHoverProvider', () => {
     beforeEach(() => {
         (vscode.workspace.openTextDocument as jest.Mock).mockReset();
+    });
+
+    test('delegates hover requests through LanguageHoverService without changing the returned markdown', async () => {
+        const stubService: LanguageHoverService = {
+            provideHover: jest.fn().mockResolvedValue({
+                contents: [
+                    {
+                        kind: 'markdown',
+                        value: '```lpc\nstring query_name()\n```\n\nshared docs'
+                    }
+                ]
+            })
+        };
+        const provider = new ObjectHoverProvider({ inferObjectAccess: jest.fn() } as any, undefined, undefined, undefined, stubService);
+        const document = {
+            uri: vscode.Uri.file('D:/code/lpc/obj/test.c'),
+            fileName: 'D:/code/lpc/obj/test.c',
+            version: 3,
+            getText: jest.fn(() => 'target->query_name();')
+        } as unknown as vscode.TextDocument;
+
+        const hover = await provider.provideHover(
+            document,
+            new vscode.Position(0, 10)
+        );
+
+        expect(stubService.provideHover).toHaveBeenCalledTimes(1);
+        expect(stubService.provideHover).toHaveBeenCalledWith({
+            context: expect.objectContaining({
+                document: document,
+                mode: 'lsp',
+                workspace: expect.objectContaining({
+                    workspaceRoot: expect.any(String)
+                })
+            }),
+            position: {
+                line: 0,
+                character: 10
+            }
+        });
+        expect(hover).toBeInstanceOf(vscode.Hover);
+        const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        expect(hoverContent.value).toContain('string query_name()');
+        expect(hoverContent.value).toContain('shared docs');
     });
 
     test('hovering the receiver side of USER_D->query_name() does not return object-method hover', async () => {

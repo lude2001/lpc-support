@@ -4,11 +4,17 @@ import * as fs from 'fs';
 import { MacroManager } from '../macroManager';
 import { ASTManager } from '../ast/astManager';
 import { Debouncer } from '../utils/debounce';
-import { DiagnosticContext, IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './types';
+import { IDiagnosticCollector, DiagnosticCollectionOptions } from './types';
 import { VariableAnalyzer } from './analyzers/VariableAnalyzer';
-import { ParsedDocument } from '../parser/types';
 import { VariableInspectorPanel } from './VariableInspectorPanel';
 import { FolderScanner } from './FolderScanner';
+import { toVsCodeDiagnostics } from '../language/adapters/vscode/diagnosticsAdapter';
+import type { LanguageDocument } from '../language/contracts/LanguageDocument';
+import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
+import type {
+    LanguageDiagnosticsRequest,
+    LanguageDiagnosticsService
+} from '../language/services/diagnostics/LanguageDiagnosticsService';
 
 // 导入现有的收集器
 import { StringLiteralCollector } from '../collectors/StringLiteralCollector';
@@ -31,6 +37,30 @@ interface LPCConfig {
     efuns: { [key: string]: { snippet: string; detail: string } };
 }
 
+interface DiagnosticsOrchestratorOptions {
+    registerDocumentLifecycle?: boolean;
+    collectors?: IDiagnosticCollector[];
+    diagnosticsService?: LanguageDiagnosticsService;
+}
+
+interface DiagnosticsPerformanceSettings {
+    debounceDelay: number;
+    enableAsyncDiagnostics: boolean;
+    batchSize: number;
+}
+
+export function createDefaultDiagnosticsCollectors(macroManager: MacroManager): IDiagnosticCollector[] {
+    return [
+        new StringLiteralCollector(),
+        new FileNamingCollector(),
+        new UnusedVariableCollector(),
+        new GlobalVariableCollector(),
+        new LocalVariableDeclarationCollector(),
+        new ObjectAccessCollector(macroManager),
+        new MacroUsageCollector(macroManager),
+    ];
+}
+
 /**
  * 诊断协调器
  * 负责管理和协调所有诊断收集器的执行
@@ -40,6 +70,7 @@ export class DiagnosticsOrchestrator {
     private macroManager: MacroManager;
     private astManager: ASTManager;
     private collectors: IDiagnosticCollector[];
+    private diagnosticsService: LanguageDiagnosticsService;
     private variableAnalyzer: VariableAnalyzer;
     private variableInspector: VariableInspectorPanel;
     private folderScanner: FolderScanner;
@@ -52,11 +83,19 @@ export class DiagnosticsOrchestrator {
     private debouncer = new Debouncer();
     private isAnalyzing = new Set<string>();
     private lastAnalysisVersion = new Map<string, number>();
+    private readonly registerDocumentLifecycle: boolean;
+    private readonly externalDiagnosticsService?: LanguageDiagnosticsService;
 
-    constructor(context: vscode.ExtensionContext, macroManager: MacroManager) {
+    constructor(
+        context: vscode.ExtensionContext,
+        macroManager: MacroManager,
+        options: DiagnosticsOrchestratorOptions = {}
+    ) {
         this.macroManager = macroManager;
         this.astManager = ASTManager.getInstance();
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
+        this.registerDocumentLifecycle = options.registerDocumentLifecycle ?? true;
+        this.externalDiagnosticsService = options.diagnosticsService;
         context.subscriptions.push(this.diagnosticCollection);
 
         // 加载配置
@@ -79,7 +118,8 @@ export class DiagnosticsOrchestrator {
         );
 
         // 初始化收集器
-        this.collectors = this.initializeCollectors();
+        this.collectors = options.collectors ?? this.initializeCollectors();
+        this.diagnosticsService = this.createDiagnosticsService();
 
         // 注册命令和事件
         this.registerCommandsAndEvents(context);
@@ -89,19 +129,7 @@ export class DiagnosticsOrchestrator {
      * 初始化所有收集器
      */
     private initializeCollectors(): IDiagnosticCollector[] {
-        return [
-            // 现有的收集器
-            new StringLiteralCollector(),
-            new FileNamingCollector(),
-            new UnusedVariableCollector(),
-            new GlobalVariableCollector(),
-            new LocalVariableDeclarationCollector(),
-
-            // 新的收集器
-            new ObjectAccessCollector(this.macroManager),
-            new MacroUsageCollector(this.macroManager),
-            // FunctionCallCollector已移除 - 使用AST解析器检测语法错误,避免误报
-        ];
+        return createDefaultDiagnosticsCollectors(this.macroManager);
     }
 
     /**
@@ -117,6 +145,10 @@ export class DiagnosticsOrchestrator {
                 }
             })
         );
+
+        if (!this.registerDocumentLifecycle) {
+            return;
+        }
 
         // 注册文档更改事件
         context.subscriptions.push(
@@ -145,14 +177,11 @@ export class DiagnosticsOrchestrator {
      */
     private onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent): void {
         if (event.document.languageId === 'lpc') {
-            const config = vscode.workspace.getConfiguration('lpc.performance');
-            const debounceDelay = config.get<number>('debounceDelay', 300);
-
             const documentKey = event.document.uri.toString();
             const debouncedAnalyze = this.debouncer.debounce(
                 documentKey,
                 () => this.analyzeDocument(event.document, false),
-                debounceDelay
+                this.getPerformanceSettings().debounceDelay
             );
             debouncedAnalyze();
         }
@@ -231,11 +260,7 @@ export class DiagnosticsOrchestrator {
             return [];
         }
 
-        const config = vscode.workspace.getConfiguration('lpc.performance');
-        const enableAsync = config.get<boolean>('enableAsyncDiagnostics', true);
-        const diagnostics = enableAsync
-            ? await this.collectDiagnosticsAsync(document, { showMessage })
-            : await this.collectDiagnostics(document);
+        const diagnostics = await this.collectDiagnosticsForDocument(document, { showMessage });
 
         this.diagnosticCollection.set(document.uri, diagnostics);
         if (showMessage && diagnostics.length === 0) {
@@ -252,12 +277,7 @@ export class DiagnosticsOrchestrator {
         document: vscode.TextDocument,
         options: DiagnosticCollectionOptions = {}
     ): Promise<void> {
-        const config = vscode.workspace.getConfiguration('lpc.performance');
-        const enableAsync = config.get<boolean>('enableAsyncDiagnostics', true);
-
-        const diagnostics = enableAsync
-            ? await this.collectDiagnosticsAsync(document, options)
-            : await this.collectDiagnostics(document);
+        const diagnostics = await this.collectDiagnosticsForDocument(document, options);
 
         this.diagnosticCollection.set(document.uri, diagnostics);
 
@@ -270,37 +290,8 @@ export class DiagnosticsOrchestrator {
      * 同步收集诊断
      */
     private async collectDiagnostics(document: vscode.TextDocument): Promise<vscode.Diagnostic[]> {
-        const diagnostics: vscode.Diagnostic[] = [];
-        const analysis = this.astManager.parseDocument(document);
-        const parsed = analysis.parsed;
-        const snapshot = analysis.snapshot;
-
-        if (!parsed) {
-            return [...snapshot.parseDiagnostics];
-        }
-
-        const diagnosticContext = this.createDiagnosticContext(parsed, analysis);
-
-        // 执行所有收集器
-        for (const collector of this.collectors) {
-            try {
-                const result = await collector.collect(document, parsed, diagnosticContext);
-                diagnostics.push(...result);
-            } catch (error) {
-                console.error(`收集器 ${collector.name} 执行失败:`, error);
-            }
-        }
-
-        // 收集语法错误
-        try {
-            diagnostics.push(...snapshot.parseDiagnostics);
-        } catch (err) {
-            if (err instanceof Error) {
-                vscode.window.showErrorMessage(`解析 LPC 失败: ${err.message}`);
-            }
-        }
-
-        return diagnostics;
+        const diagnostics = await this.getDiagnosticsService().collectDiagnostics(this.createDiagnosticsRequest(document));
+        return toVsCodeDiagnostics(diagnostics);
     }
 
     /**
@@ -310,73 +301,71 @@ export class DiagnosticsOrchestrator {
         document: vscode.TextDocument,
         options: DiagnosticCollectionOptions = {}
     ): Promise<vscode.Diagnostic[]> {
-        const diagnostics: vscode.Diagnostic[] = [];
-        const analysis = this.astManager.parseDocument(document);
-        const parsed = analysis.parsed;
-        const snapshot = analysis.snapshot;
-
-        if (!parsed) {
-            return [...snapshot.parseDiagnostics];
-        }
-
-        const config = vscode.workspace.getConfiguration('lpc.performance');
-        const batchSize = options.batchSize || config.get<number>('batchSize', 3);
-        const diagnosticContext = this.createDiagnosticContext(parsed, analysis);
-
-        // 分批处理收集器
-        for (let i = 0; i < this.collectors.length; i += batchSize) {
-            const batch = this.collectors.slice(i, i + batchSize);
-
-            // 并行处理当前批次
-            const results = await Promise.allSettled(
-                batch.map(async (collector) => {
-                    await this.yieldToMainThread();
-                    const startTime = Date.now();
-                    const result = await collector.collect(document, parsed, diagnosticContext);
-                    const duration = Date.now() - startTime;
-
-                    return {
-                        collectorName: collector.name,
-                        diagnostics: result,
-                        duration
-                    } as CollectorResult;
-                })
-            );
-
-            for (const result of results) {
-                if (result.status === 'fulfilled') {
-                    diagnostics.push(...result.value.diagnostics);
-                } else {
-                    console.error('收集器执行失败:', result.reason);
-                }
+        const batchSize = options.batchSize || this.getPerformanceSettings().batchSize;
+        const diagnostics = await this.getDiagnosticsService().collectDiagnostics(
+            this.createDiagnosticsRequest(document),
+            {
+                batchSize,
+                yieldToMainThread: this.yieldToMainThread.bind(this)
             }
+        );
+
+        return toVsCodeDiagnostics(diagnostics);
+    }
+
+    private async collectDiagnosticsForDocument(
+        document: vscode.TextDocument,
+        options: DiagnosticCollectionOptions = {}
+    ): Promise<vscode.Diagnostic[]> {
+        if (!this.getPerformanceSettings().enableAsyncDiagnostics) {
+            return this.collectDiagnostics(document);
         }
 
-        // 收集语法错误
-        try {
-            diagnostics.push(...snapshot.parseDiagnostics);
-        } catch (err) {
-            if (err instanceof Error) {
-                vscode.window.showErrorMessage(`解析 LPC 失败: ${err.message}`);
-            }
-        }
-
-        return diagnostics;
+        return this.collectDiagnosticsAsync(document, options);
     }
 
     public async scanFolder(): Promise<void> {
         await this.folderScanner.scanFolder();
     }
 
-    private createDiagnosticContext(
-        parsed: ParsedDocument,
-        analysis: { syntax?: DiagnosticContext['syntax']; semantic?: DiagnosticContext['semantic'] }
-    ): DiagnosticContext {
-        return {
-            parsed,
-            syntax: analysis.syntax,
-            semantic: analysis.semantic
+    private getDiagnosticsService(): LanguageDiagnosticsService {
+        const currentService = this.diagnosticsService as LanguageDiagnosticsService & {
+            __collectorSource?: IDiagnosticCollector[];
         };
+
+        if (currentService.__collectorSource !== this.collectors) {
+            this.diagnosticsService = this.createDiagnosticsService();
+        }
+
+        return this.diagnosticsService;
+    }
+
+    private createDiagnosticsRequest(document: vscode.TextDocument): LanguageDiagnosticsRequest {
+        return {
+            context: {
+                document: {
+                    uri: document.uri.toString(),
+                    version: document.version,
+                    getText: () => document.getText()
+                },
+                workspace: {
+                    workspaceRoot: this.resolveWorkspaceRoot(document)
+                },
+                mode: 'lsp'
+            }
+        };
+    }
+
+    private createDiagnosticsService(): LanguageDiagnosticsService {
+        if (this.externalDiagnosticsService) {
+            return this.externalDiagnosticsService;
+        }
+
+        const service = createSharedDiagnosticsService(this.astManager, this.collectors) as LanguageDiagnosticsService & {
+            __collectorSource?: IDiagnosticCollector[];
+        };
+        service.__collectorSource = this.collectors;
+        return service;
     }
 
     /**
@@ -409,12 +398,12 @@ export class DiagnosticsOrchestrator {
             return false;
         }
 
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-        if (!workspaceFolder) {
+        const workspaceRoot = this.tryGetWorkspaceRoot(document);
+        if (!workspaceRoot) {
             return false;
         }
 
-        return fs.existsSync(path.join(workspaceFolder.uri.fsPath, 'lpc-support.json'));
+        return fs.existsSync(path.join(workspaceRoot, 'lpc-support.json'));
     }
 
     private clearDocumentAnalysisState(document: vscode.TextDocument): void {
@@ -428,6 +417,23 @@ export class DiagnosticsOrchestrator {
      */
     private async yieldToMainThread(): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    private getPerformanceSettings(): DiagnosticsPerformanceSettings {
+        const config = vscode.workspace.getConfiguration('lpc.performance');
+        return {
+            debounceDelay: config.get<number>('debounceDelay', 300),
+            enableAsyncDiagnostics: config.get<boolean>('enableAsyncDiagnostics', true),
+            batchSize: config.get<number>('batchSize', 3)
+        };
+    }
+
+    private resolveWorkspaceRoot(document: vscode.TextDocument): string {
+        return this.tryGetWorkspaceRoot(document) ?? path.dirname(document.fileName);
+    }
+
+    private tryGetWorkspaceRoot(document: vscode.TextDocument): string | undefined {
+        return vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath;
     }
 
     /**

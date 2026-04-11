@@ -19,19 +19,14 @@ export function resolveSymbolReferences(
     document: vscode.TextDocument,
     position: vscode.Position
 ): ResolvedSymbolReferences | undefined {
-    const wordRange = document.getWordRangeAtPosition(position);
-    if (!wordRange) {
-        return undefined;
-    }
-
-    const symbolName = document.getText(wordRange);
-    if (!symbolName) {
+    const resolvedWord = resolveWordAtPosition(document, position);
+    if (!resolvedWord) {
         return undefined;
     }
 
     const analysis = ASTManager.getInstance().parseDocument(document);
     const symbolTable = analysis.symbolTable;
-    const targetSymbol = resolveVisibleSymbol(symbolTable, symbolName, position);
+    const targetSymbol = resolveVisibleSymbol(symbolTable, resolvedWord.symbolName, position);
     if (!targetSymbol) {
         return undefined;
     }
@@ -45,19 +40,15 @@ export function resolveSymbolReferences(
     const matches: SymbolReferenceMatch[] = [];
 
     for (const token of tokenStream.getTokens()) {
-        if (token.channel !== LPCLexer.DEFAULT_TOKEN_CHANNEL) {
+        if (!isMatchingIdentifierToken(token, resolvedWord.symbolName)) {
             continue;
         }
 
-        if (token.type !== LPCLexer.Identifier || token.text !== symbolName) {
-            continue;
-        }
-
-        const range = new vscode.Range(
+        const range = createCompatibleRange(
             document.positionAt(token.startIndex),
             document.positionAt(token.stopIndex + 1)
         );
-        const resolvedSymbol = resolveVisibleSymbol(symbolTable, symbolName, range.start);
+        const resolvedSymbol = resolveVisibleSymbol(symbolTable, resolvedWord.symbolName, range.start);
         const isDeclaration = rangesEqual(range, declarationRange);
 
         if (resolvedSymbol === targetSymbol || isDeclaration) {
@@ -71,9 +62,54 @@ export function resolveSymbolReferences(
 
     return {
         symbol: targetSymbol,
-        wordRange,
+        wordRange: resolvedWord.wordRange,
         matches
     };
+}
+
+function resolveWordAtPosition(
+    document: vscode.TextDocument,
+    position: vscode.Position
+): { wordRange: vscode.Range; symbolName: string } | undefined {
+    const wordRange = document.getWordRangeAtPosition(position);
+    if (!wordRange) {
+        return undefined;
+    }
+
+    const symbolName = document.getText(wordRange);
+    if (!symbolName) {
+        return undefined;
+    }
+
+    return {
+        wordRange,
+        symbolName
+    };
+}
+
+function createCompatibleRange(
+    start: vscode.Position | { line: number; character: number },
+    end: vscode.Position | { line: number; character: number }
+): vscode.Range {
+    return new vscode.Range(
+        toVsCodePosition(start),
+        toVsCodePosition(end)
+    );
+}
+
+function toVsCodePosition(position: vscode.Position | { line: number; character: number }): vscode.Position {
+    return position instanceof vscode.Position
+        ? position
+        : new vscode.Position(position.line, position.character);
+}
+
+function isMatchingIdentifierToken(
+    token: { channel: number; type: number; text?: string | null },
+    symbolName: string
+): boolean {
+    return token.channel === LPCLexer.DEFAULT_TOKEN_CHANNEL
+        && token.type === LPCLexer.Identifier
+        && token.text === symbolName;
 }
 
 export function resolveVisibleSymbol(

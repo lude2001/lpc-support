@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { FormattingService } from '../formatter/FormattingService';
+import { createLanguageFormattingService } from '../language/services/formatting/LanguageFormattingService';
 import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { TestHelper } from './utils/TestHelper';
 
@@ -37,7 +38,46 @@ function normalizeLineEndings(text: string): string {
     return text.replace(/\r\n/g, '\n');
 }
 
+function applyEdit(document: ReturnType<typeof TestHelper.createMockDocument>, edit: vscode.TextEdit): string {
+    const source = document.getText();
+    const startOffset = document.offsetAt(edit.range.start);
+    const endOffset = document.offsetAt(edit.range.end);
+
+    return `${source.slice(0, startOffset)}${edit.newText}${source.slice(endOffset)}`;
+}
+
 describe('formatter integration', () => {
+    test('shared formatting service preserves full-document output on integration fixtures', async () => {
+        clearGlobalParsedDocumentService();
+        const source = [
+            'void test()',
+            '{',
+            '    if(x){foo();}',
+            '}'
+        ].join('\n');
+        const document = TestHelper.createMockDocument(source, 'lpc', 'shared-format.c');
+        const service = createLanguageFormattingService(new FormattingService());
+
+        const edits = await service.formatDocument({
+            document: {
+                uri: document.uri.toString(),
+                version: document.version,
+                getText: () => document.getText()
+            }
+        });
+
+        expect(edits).toHaveLength(1);
+        expect(applyEdit(document, edits[0])).toBe([
+            'void test()',
+            '{',
+            '    if (x)',
+            '    {',
+            '        foo();',
+            '    }',
+            '}'
+        ].join('\n'));
+    });
+
     test('仅包含 include 指令的文件不会被格式化清空', async () => {
         const source = '#include "/sys/test.h"\n';
 

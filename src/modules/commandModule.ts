@@ -3,35 +3,72 @@ import * as vscode from 'vscode';
 import { Services } from '../core/ServiceKeys';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { FunctionDocPanel } from '../functionDocPanel';
-import {
-    migrateLegacyCompilationConfigForWorkspace,
-    migrateProjectConfigForWorkspace,
-    shouldPromptProjectConfigMigration
-} from '../projectConfig/projectConfigMigration';
 import { getLpcprjStartCommand, hasLpcprjCommand } from '../utils/lpcprj';
+
+type CompilationMode = 'local' | 'remote';
+
+interface RemoteCompileServer {
+    name: string;
+    url: string;
+    description?: string;
+}
+
+interface CompileConfig {
+    mode?: CompilationMode;
+    local?: {
+        useSystemCommand?: boolean;
+        lpccpPath?: string;
+    };
+    remote?: {
+        activeServer?: string;
+        servers?: RemoteCompileServer[];
+    };
+}
+
+interface ProjectConfigFile {
+    version?: number;
+    configHellPath?: string;
+}
+
+interface ProjectConfigServiceLike {
+    loadForWorkspace(workspaceRoot: string): Promise<ProjectConfigFile | undefined>;
+    ensureConfigForWorkspace(workspaceRoot: string, defaultConfigHellPath: string): Promise<unknown>;
+    getCompileConfigForWorkspace(workspaceRoot: string): Promise<CompileConfig | undefined>;
+    updateCompileConfigForWorkspace(
+        workspaceRoot: string,
+        updater: (currentConfig: CompileConfig) => CompileConfig
+    ): Promise<unknown>;
+    toWorkspaceRelativePath(workspaceRoot: string, targetPath: string): string;
+    resolveWorkspacePath(workspaceRoot: string, targetPath: string): string;
+    readConfigFile(configPath: string): Promise<ProjectConfigFile | undefined>;
+    getProjectConfigPath(workspaceRoot: string): string;
+}
+
+interface ErrorTreeItem {
+    file: string;
+    line: number;
+    type?: string;
+    fullError?: string;
+}
+
+interface ServerQuickPickItem extends vscode.QuickPickItem {
+    server: RemoteCompileServer;
+}
+
+interface ModeQuickPickItem extends vscode.QuickPickItem {
+    value: CompilationMode;
+}
+
+interface ActionQuickPickItem extends vscode.QuickPickItem {
+    action: string;
+}
 
 export function registerCommands(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const macroManager = registry.get(Services.MacroManager);
     const diagnostics = registry.get(Services.Diagnostics);
-    const completionProvider = registry.get(Services.Completion);
-    const completionInstrumentation = registry.get(Services.CompletionInstrumentation);
-    const configManager = registry.get(Services.ConfigManager);
     const compiler = registry.get(Services.Compiler);
-    const projectConfigService = registry.get(Services.ProjectConfig);
+    const projectConfigService = registry.get(Services.ProjectConfig) as ProjectConfigServiceLike;
     const errorTreeProvider = registry.get(Services.ErrorTree);
-
-    register(context, 'lpc.migrateProjectConfig', async () => {
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
-            vscode.window.showErrorMessage('请先打开一个工作区');
-            return;
-        }
-
-        await migrateProjectConfigForWorkspace(projectConfigService, workspaceRoot);
-        await migrateLegacyCompilationConfigForWorkspace(projectConfigService, workspaceRoot, configManager);
-        errorTreeProvider.refresh();
-        vscode.window.showInformationMessage('已创建并同步 lpc-support.json');
-    });
 
     register(context, 'lpc.scanFolder', () => {
         diagnostics.scanFolder();
@@ -44,15 +81,13 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     register(context, 'lpc.errorTree.refresh', () => errorTreeProvider.refresh());
     register(context, 'lpc.errorTree.clear', () => errorTreeProvider.clearErrors());
 
-    register(context, 'lpc.errorTree.openErrorLocation', async (errorItem: any) => {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            vscode.window.showErrorMessage('请先打开一个工作区');
+    register(context, 'lpc.errorTree.openErrorLocation', async (errorItem: ErrorTreeItem) => {
+        const workspaceRoot = requireWorkspaceRoot();
+        if (!workspaceRoot) {
             return;
         }
 
-        const rootPath = workspaceFolders[0].uri.fsPath;
-        const filePath = path.join(rootPath, errorItem.file);
+        const filePath = path.join(workspaceRoot, errorItem.file);
         const fileUri = vscode.Uri.file(filePath);
 
         try {
@@ -67,14 +102,20 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         }
     });
 
-    register(context, 'lpc.errorTree.copyError', async (errorItem: any) => {
-        if (!errorItem || !errorItem.fullError) {
+    register(context, 'lpc.errorTree.copyError', async (errorItem: ErrorTreeItem) => {
+        if (!errorItem?.fullError) {
             vscode.window.showErrorMessage('无法复制错误信息：错误项无效');
             return;
         }
 
         try {
-            const errorInfo = `文件: ${errorItem.file}\n行号: ${errorItem.line}\n错误类型: ${errorItem.type === 'compile' ? '编译错误' : '运行时错误'}\n错误信息: ${errorItem.fullError}`;
+            const errorType = errorItem.type === 'compile' ? '编译错误' : '运行时错误';
+            const errorInfo = [
+                `文件: ${errorItem.file}`,
+                `行号: ${errorItem.line}`,
+                `错误类型: ${errorType}`,
+                `错误信息: ${errorItem.fullError}`
+            ].join('\n');
             await vscode.env.clipboard.writeText(errorInfo);
             vscode.window.showInformationMessage('错误信息已复制到剪贴板');
         } catch {
@@ -83,93 +124,58 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     });
 
     register(context, 'lpc.compileFolder', async (uri?: vscode.Uri) => {
-        let targetFolder: string;
-        let workspaceRoot: string | undefined;
-
-        if (uri) {
-            targetFolder = uri.fsPath;
-            workspaceRoot = vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
-        } else {
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (!workspaceFolders || workspaceFolders.length === 0) {
-                vscode.window.showErrorMessage('请先打开一个工作区');
-                return;
-            }
-
-            const folders = workspaceFolders.map(folder => ({
-                label: folder.name,
-                description: folder.uri.fsPath,
-                uri: folder.uri
-            }));
-
-            if (folders.length === 1) {
-                targetFolder = folders[0].uri.fsPath;
-                workspaceRoot = folders[0].uri.fsPath;
-            } else {
-                const selected = await vscode.window.showQuickPick(folders, {
-                    placeHolder: '选择要编译的文件夹'
-                });
-
-                if (!selected) {
-                    return;
-                }
-
-                targetFolder = selected.uri.fsPath;
-                workspaceRoot = selected.uri.fsPath;
-            }
-        }
-
-        if (workspaceRoot) {
-            await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
-        }
-
-        await compiler.compileFolder(targetFolder);
-    });
-
-    register(context, 'lpc.addServer', async () => {
-        const workspaceRoot = getWorkspaceRoot();
-        if (!workspaceRoot) {
-            vscode.window.showErrorMessage('请先打开一个工作区');
+        const target = await resolveCompileFolderTarget(uri);
+        if (!target) {
             return;
         }
 
-        await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
+        if (target.workspaceRoot) {
+            await ensureCompilationConfigForWorkspace(projectConfigService, target.workspaceRoot);
+        }
+
+        await compiler.compileFolder(target.targetFolder);
+    });
+
+    register(context, 'lpc.addServer', async () => {
+        const workspaceRoot = requireWorkspaceRoot();
+        if (!workspaceRoot) {
+            return;
+        }
+
+        await ensureCompilationConfigForWorkspace(projectConfigService, workspaceRoot);
         await addRemoteServer(projectConfigService, workspaceRoot);
         errorTreeProvider.refresh();
     });
 
     register(context, 'lpc.selectServer', async () => {
-        const workspaceRoot = getWorkspaceRoot();
+        const workspaceRoot = requireWorkspaceRoot();
         if (!workspaceRoot) {
-            vscode.window.showErrorMessage('请先打开一个工作区');
             return;
         }
 
-        await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
+        await ensureCompilationConfigForWorkspace(projectConfigService, workspaceRoot);
         await selectRemoteServer(projectConfigService, workspaceRoot);
         errorTreeProvider.refresh();
     });
 
     register(context, 'lpc.removeServer', async () => {
-        const workspaceRoot = getWorkspaceRoot();
+        const workspaceRoot = requireWorkspaceRoot();
         if (!workspaceRoot) {
-            vscode.window.showErrorMessage('请先打开一个工作区');
             return;
         }
 
-        await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
+        await ensureCompilationConfigForWorkspace(projectConfigService, workspaceRoot);
         await removeRemoteServer(projectConfigService, workspaceRoot);
         errorTreeProvider.refresh();
     });
 
     register(context, 'lpc.manageCompilation', async () => {
-        const workspaceRoot = getWorkspaceRoot();
+        const workspaceRoot = requireWorkspaceRoot();
         if (!workspaceRoot) {
-            vscode.window.showErrorMessage('请先打开一个工作区');
             return;
         }
 
-        await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
+        await ensureCompilationConfigForWorkspace(projectConfigService, workspaceRoot);
         await showCompilationManager(projectConfigService, workspaceRoot);
         errorTreeProvider.refresh();
     });
@@ -183,8 +189,9 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         if (editor && editor.document.languageId === 'lpc') {
             const workspaceRoot = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath;
             if (workspaceRoot) {
-                await ensureCompilationConfigForWorkspace(projectConfigService, configManager, workspaceRoot);
+                await ensureCompilationConfigForWorkspace(projectConfigService, workspaceRoot);
             }
+
             await compiler.compileFile(editor.document.fileName);
         }
     });
@@ -192,9 +199,8 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     register(context, 'lpc.configureMacroPath', () => macroManager.configurePath());
 
     register(context, 'lpc.startDriver', async () => {
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const workspaceRoot = requireWorkspaceRoot();
         if (!workspaceRoot) {
-            vscode.window.showErrorMessage('请先打开一个工作区');
             return;
         }
 
@@ -221,8 +227,6 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         terminal.sendText(getLpcprjStartCommand(resolvedConfigPath));
         terminal.show();
     });
-
-    void promptProjectConfigMigrationIfNeeded(projectConfigService);
 }
 
 function register(
@@ -233,48 +237,86 @@ function register(
     context.subscriptions.push(vscode.commands.registerCommand(commandId, handler));
 }
 
-async function promptProjectConfigMigrationIfNeeded(projectConfigService: any): Promise<void> {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) {
-        return;
-    }
-
-    const config = vscode.workspace.getConfiguration('lpc');
-    const shouldPrompt = await shouldPromptProjectConfigMigration(projectConfigService, workspaceRoot, config);
-    if (!shouldPrompt) {
-        return;
-    }
-
-    const selection = await vscode.window.showInformationMessage(
-        '当前项目仍在使用旧版 LPC Support 配置。建议迁移到项目根目录的 lpc-support.json。',
-        '立即迁移'
-    );
-
-    if (selection === '立即迁移') {
-        await vscode.commands.executeCommand('lpc.migrateProjectConfig');
-    }
-}
-
 function getWorkspaceRoot(): string | undefined {
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
+function requireWorkspaceRoot(): string | undefined {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) {
+        vscode.window.showErrorMessage('请先打开一个工作区');
+    }
+
+    return workspaceRoot;
+}
+
+async function resolveCompileFolderTarget(uri?: vscode.Uri): Promise<{ targetFolder: string; workspaceRoot?: string } | undefined> {
+    if (uri) {
+        return {
+            targetFolder: uri.fsPath,
+            workspaceRoot: vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath
+        };
+    }
+
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        vscode.window.showErrorMessage('请先打开一个工作区');
+        return undefined;
+    }
+
+    if (workspaceFolders.length === 1) {
+        return {
+            targetFolder: workspaceFolders[0].uri.fsPath,
+            workspaceRoot: workspaceFolders[0].uri.fsPath
+        };
+    }
+
+    const selected = await vscode.window.showQuickPick(
+        workspaceFolders.map((folder) => ({
+            label: folder.name,
+            description: folder.uri.fsPath,
+            uri: folder.uri
+        })),
+        {
+            placeHolder: '选择要编译的文件夹'
+        }
+    );
+
+    if (!selected) {
+        return undefined;
+    }
+
+    return {
+        targetFolder: selected.uri.fsPath,
+        workspaceRoot: selected.uri.fsPath
+    };
+}
+
 async function ensureCompilationConfigForWorkspace(
-    projectConfigService: any,
-    configManager: any,
+    projectConfigService: ProjectConfigServiceLike,
     workspaceRoot: string
-) {
+): Promise<CompileConfig | undefined> {
     await projectConfigService.ensureConfigForWorkspace(workspaceRoot, 'config.hell');
-    await migrateLegacyCompilationConfigForWorkspace(projectConfigService, workspaceRoot, configManager);
     return projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
 }
 
-async function showCompilationManager(projectConfigService: any, workspaceRoot: string): Promise<void> {
+async function showCompilationManager(
+    projectConfigService: ProjectConfigServiceLike,
+    workspaceRoot: string
+): Promise<void> {
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
-    const selectedMode = await vscode.window.showQuickPick(
+    const selectedMode = await vscode.window.showQuickPick<ModeQuickPickItem>(
         [
-            { label: '本地编译 (lpccp)', value: 'local', description: compileConfig?.mode === 'local' ? '当前模式' : '' },
-            { label: '远程编译 (HTTP)', value: 'remote', description: compileConfig?.mode === 'remote' ? '当前模式' : '' }
+            {
+                label: '本地编译 (lpccp)',
+                value: 'local',
+                description: compileConfig?.mode === 'local' ? '当前模式' : ''
+            },
+            {
+                label: '远程编译 (HTTP)',
+                value: 'remote',
+                description: compileConfig?.mode === 'remote' ? '当前模式' : ''
+            }
         ],
         { placeHolder: '选择编译模式' }
     );
@@ -283,7 +325,7 @@ async function showCompilationManager(projectConfigService: any, workspaceRoot: 
         return;
     }
 
-    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig: any) => ({
+    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig) => ({
         ...currentConfig,
         mode: selectedMode.value
     }));
@@ -296,9 +338,12 @@ async function showCompilationManager(projectConfigService: any, workspaceRoot: 
     await showRemoteCompilationManager(projectConfigService, workspaceRoot);
 }
 
-async function showLocalCompilationManager(projectConfigService: any, workspaceRoot: string): Promise<void> {
+async function showLocalCompilationManager(
+    projectConfigService: ProjectConfigServiceLike,
+    workspaceRoot: string
+): Promise<void> {
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
-    const selectedAction = await vscode.window.showQuickPick(
+    const selectedAction = await vscode.window.showQuickPick<ActionQuickPickItem>(
         [
             { label: '切换为使用系统命令', action: 'toggleSystemCommand' },
             { label: '设置 lpccp 路径', action: 'setLpccpPath' },
@@ -312,7 +357,7 @@ async function showLocalCompilationManager(projectConfigService: any, workspaceR
     }
 
     if (selectedAction.action === 'toggleSystemCommand') {
-        await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig: any) => ({
+        await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig) => ({
             ...currentConfig,
             mode: 'local',
             local: {
@@ -330,7 +375,9 @@ async function showLocalCompilationManager(projectConfigService: any, workspaceR
             canSelectMany: false,
             openLabel: '选择 lpccp 可执行文件',
             defaultUri: compileConfig?.local?.lpccpPath
-                ? vscode.Uri.file(projectConfigService.resolveWorkspacePath(workspaceRoot, compileConfig.local.lpccpPath))
+                ? vscode.Uri.file(
+                    projectConfigService.resolveWorkspacePath(workspaceRoot, compileConfig.local.lpccpPath)
+                )
                 : undefined
         });
 
@@ -339,7 +386,7 @@ async function showLocalCompilationManager(projectConfigService: any, workspaceR
             return;
         }
 
-        await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig: any) => ({
+        await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig) => ({
             ...currentConfig,
             mode: 'local',
             local: {
@@ -353,13 +400,14 @@ async function showLocalCompilationManager(projectConfigService: any, workspaceR
     const projectConfig = await projectConfigService.readConfigFile(
         projectConfigService.getProjectConfigPath(workspaceRoot)
     );
-    await vscode.window.showInformationMessage(
-        `当前模式: local\nuseSystemCommand: ${compileConfig?.local?.useSystemCommand ? 'true' : 'false'}\nlpccpPath: ${compileConfig?.local?.lpccpPath || '(系统命令)'}\nconfigHellPath: ${projectConfig?.configHellPath || '(未设置)'}`
-    );
+    await vscode.window.showInformationMessage(formatLocalCompilationSummary(compileConfig, projectConfig));
 }
 
-async function showRemoteCompilationManager(projectConfigService: any, workspaceRoot: string): Promise<void> {
-    const selectedAction = await vscode.window.showQuickPick(
+async function showRemoteCompilationManager(
+    projectConfigService: ProjectConfigServiceLike,
+    workspaceRoot: string
+): Promise<void> {
+    const selectedAction = await vscode.window.showQuickPick<ActionQuickPickItem>(
         [
             { label: '选择活动服务器', action: 'selectServer' },
             { label: '添加服务器', action: 'addServer' },
@@ -395,12 +443,13 @@ async function showRemoteCompilationManager(projectConfigService: any, workspace
     }
 
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
-    await vscode.window.showInformationMessage(
-        `当前模式: remote\n活动服务器: ${compileConfig?.remote?.activeServer || '(未设置)'}\n服务器数量: ${compileConfig?.remote?.servers?.length || 0}`
-    );
+    await vscode.window.showInformationMessage(formatRemoteCompilationSummary(compileConfig));
 }
 
-async function addRemoteServer(projectConfigService: any, workspaceRoot: string): Promise<void> {
+async function addRemoteServer(
+    projectConfigService: ProjectConfigServiceLike,
+    workspaceRoot: string
+): Promise<void> {
     const name = await vscode.window.showInputBox({ prompt: '输入服务器名称' });
     if (!name) {
         return;
@@ -413,7 +462,7 @@ async function addRemoteServer(projectConfigService: any, workspaceRoot: string)
 
     const description = await vscode.window.showInputBox({ prompt: '输入服务器描述（可选）' });
 
-    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig: any) => ({
+    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig) => ({
         ...currentConfig,
         mode: 'remote',
         remote: {
@@ -427,7 +476,10 @@ async function addRemoteServer(projectConfigService: any, workspaceRoot: string)
     }));
 }
 
-async function selectRemoteServer(projectConfigService: any, workspaceRoot: string): Promise<void> {
+async function selectRemoteServer(
+    projectConfigService: ProjectConfigServiceLike,
+    workspaceRoot: string
+): Promise<void> {
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
     const servers = compileConfig?.remote?.servers ?? [];
     if (servers.length === 0) {
@@ -435,13 +487,8 @@ async function selectRemoteServer(projectConfigService: any, workspaceRoot: stri
         return;
     }
 
-    const serverItems = servers.map((server: any) => ({
-        label: server.name,
-        description: server.description || '',
-        detail: server.url
-    }));
-    const selected = await vscode.window.showQuickPick<typeof serverItems[number]>(
-        serverItems,
+    const selected = await vscode.window.showQuickPick<ServerQuickPickItem>(
+        createServerQuickPickItems(servers),
         { placeHolder: '选择活动服务器' }
     );
 
@@ -449,18 +496,26 @@ async function selectRemoteServer(projectConfigService: any, workspaceRoot: stri
         return;
     }
 
-    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig: any) => ({
+    const targetServer = resolveSelectedServer(selected, servers);
+    if (!targetServer) {
+        return;
+    }
+
+    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig) => ({
         ...currentConfig,
         mode: 'remote',
         remote: {
             ...currentConfig.remote,
-            activeServer: selected.label,
+            activeServer: targetServer.name,
             servers: currentConfig.remote?.servers ?? []
         }
     }));
 }
 
-async function removeRemoteServer(projectConfigService: any, workspaceRoot: string): Promise<void> {
+async function removeRemoteServer(
+    projectConfigService: ProjectConfigServiceLike,
+    workspaceRoot: string
+): Promise<void> {
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
     const servers = compileConfig?.remote?.servers ?? [];
     if (servers.length === 0) {
@@ -468,13 +523,8 @@ async function removeRemoteServer(projectConfigService: any, workspaceRoot: stri
         return;
     }
 
-    const serverItems = servers.map((server: any) => ({
-        label: server.name,
-        description: server.description || '',
-        detail: server.url
-    }));
-    const selected = await vscode.window.showQuickPick<typeof serverItems[number]>(
-        serverItems,
+    const selected = await vscode.window.showQuickPick<ServerQuickPickItem>(
+        createServerQuickPickItems(servers),
         { placeHolder: '选择要删除的服务器' }
     );
 
@@ -482,14 +532,22 @@ async function removeRemoteServer(projectConfigService: any, workspaceRoot: stri
         return;
     }
 
-    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig: any) => {
-        const nextServers = (currentConfig.remote?.servers ?? []).filter((server: any) => server.name !== selected.label);
+    const targetServer = resolveSelectedServer(selected, servers);
+    if (!targetServer) {
+        return;
+    }
+
+    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig) => {
+        const nextServers = (currentConfig.remote?.servers ?? []).filter(
+            (server) => server.name !== targetServer.name
+        );
+
         return {
             ...currentConfig,
             mode: 'remote',
             remote: {
                 ...currentConfig.remote,
-                activeServer: currentConfig.remote?.activeServer === selected.label
+                activeServer: currentConfig.remote?.activeServer === targetServer.name
                     ? nextServers[0]?.name
                     : currentConfig.remote?.activeServer,
                 servers: nextServers
@@ -498,7 +556,10 @@ async function removeRemoteServer(projectConfigService: any, workspaceRoot: stri
     });
 }
 
-async function editRemoteServer(projectConfigService: any, workspaceRoot: string): Promise<void> {
+async function editRemoteServer(
+    projectConfigService: ProjectConfigServiceLike,
+    workspaceRoot: string
+): Promise<void> {
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
     const servers = compileConfig?.remote?.servers ?? [];
     if (servers.length === 0) {
@@ -506,13 +567,8 @@ async function editRemoteServer(projectConfigService: any, workspaceRoot: string
         return;
     }
 
-    const serverItems = servers.map((server: any) => ({
-        label: server.name,
-        description: server.description || '',
-        detail: server.url
-    }));
-    const selected = await vscode.window.showQuickPick<typeof serverItems[number]>(
-        serverItems,
+    const selected = await vscode.window.showQuickPick<ServerQuickPickItem>(
+        createServerQuickPickItems(servers),
         { placeHolder: '选择要编辑的服务器' }
     );
 
@@ -520,35 +576,81 @@ async function editRemoteServer(projectConfigService: any, workspaceRoot: string
         return;
     }
 
-    const current = servers.find((server: any) => server.name === selected.label);
-    const nextName = await vscode.window.showInputBox({ prompt: '输入服务器名称', value: current?.name });
+    const current = resolveSelectedServer(selected, servers);
+    if (!current) {
+        return;
+    }
+    const nextName = await vscode.window.showInputBox({ prompt: '输入服务器名称', value: current.name });
     if (!nextName) {
         return;
     }
 
-    const nextUrl = await vscode.window.showInputBox({ prompt: '输入服务器URL', value: current?.url });
+    const nextUrl = await vscode.window.showInputBox({ prompt: '输入服务器URL', value: current.url });
     if (!nextUrl) {
         return;
     }
 
     const nextDescription = await vscode.window.showInputBox({
         prompt: '输入服务器描述（可选）',
-        value: current?.description
+        value: current.description
     });
 
-    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig: any) => ({
+    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig) => ({
         ...currentConfig,
         mode: 'remote',
         remote: {
             ...currentConfig.remote,
-            activeServer: currentConfig.remote?.activeServer === selected.label
+            activeServer: currentConfig.remote?.activeServer === current.name
                 ? nextName
                 : currentConfig.remote?.activeServer,
-            servers: (currentConfig.remote?.servers ?? []).map((server: any) =>
-                server.name === selected.label
+            servers: (currentConfig.remote?.servers ?? []).map((server) =>
+                server.name === current.name
                     ? { name: nextName, url: nextUrl, description: nextDescription || undefined }
                     : server
             )
         }
     }));
+}
+
+function createServerQuickPickItems(servers: RemoteCompileServer[]): ServerQuickPickItem[] {
+    return servers.map((server) => ({
+        label: server.name,
+        description: server.description || '',
+        detail: server.url,
+        server
+    }));
+}
+
+function resolveSelectedServer(
+    selected: Pick<ServerQuickPickItem, 'server' | 'label' | 'detail' | 'description'>,
+    servers: RemoteCompileServer[]
+): RemoteCompileServer | undefined {
+    if (selected.server) {
+        return selected.server;
+    }
+
+    return servers.find((server) => server.name === selected.label)
+        ?? (selected.detail
+            ? servers.find((server) => server.url === selected.detail)
+            : undefined);
+}
+
+function formatLocalCompilationSummary(
+    compileConfig: CompileConfig | undefined,
+    projectConfig: ProjectConfigFile | undefined
+): string {
+    return [
+        '当前模式: local',
+        `useSystemCommand: ${compileConfig?.local?.useSystemCommand ? 'true' : 'false'}`,
+        `lpccpPath: ${compileConfig?.local?.lpccpPath || '(系统命令)'}`,
+        `configHellPath: ${projectConfig?.configHellPath || '(未设置)'}`
+    ].join('\n');
+}
+
+function formatRemoteCompilationSummary(compileConfig: CompileConfig | undefined): string {
+    return [
+        '当前模式: remote',
+        `活动服务器: ${compileConfig?.remote?.activeServer || '(未设置)'}`,
+        `服务器数量: ${compileConfig?.remote?.servers?.length || 0}`
+    ].join('\n');
 }

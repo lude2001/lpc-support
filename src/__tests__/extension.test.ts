@@ -1,11 +1,13 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import type * as vscode from 'vscode';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { activate, deactivate } from '../extension';
+import { activateLspClient } from '../lsp/client/activateLspClient';
+import { registerCommands } from '../modules/commandModule';
 import { registerCoreServices } from '../modules/coreModule';
 import { registerDiagnostics } from '../modules/diagnosticsModule';
-import { registerLanguageProviders } from '../modules/languageModule';
+import { registerHostLanguageAffordances } from '../modules/languageModule';
 import { registerUI } from '../modules/uiModule';
-import { registerCommands } from '../modules/commandModule';
 import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 
 jest.mock('../core/ServiceRegistry', () => ({
@@ -21,7 +23,7 @@ jest.mock('../modules/diagnosticsModule', () => ({
 }));
 
 jest.mock('../modules/languageModule', () => ({
-    registerLanguageProviders: jest.fn()
+    registerHostLanguageAffordances: jest.fn()
 }));
 
 jest.mock('../modules/uiModule', () => ({
@@ -35,6 +37,12 @@ jest.mock('../modules/commandModule', () => ({
 jest.mock('../parser/ParsedDocumentService', () => ({
     disposeGlobalParsedDocumentService: jest.fn()
 }));
+
+jest.mock('../lsp/client/activateLspClient', () => ({
+    activateLspClient: jest.fn()
+}));
+
+jest.mock('vscode', () => ({}), { virtual: true });
 
 describe('extension entrypoint', () => {
     let context: vscode.ExtensionContext;
@@ -53,7 +61,7 @@ describe('extension entrypoint', () => {
         (registerDiagnostics as jest.Mock).mockReset().mockImplementation(() => {
             registrationOrder.push('diagnostics');
         });
-        (registerLanguageProviders as jest.Mock).mockReset().mockImplementation(() => {
+        (registerHostLanguageAffordances as jest.Mock).mockReset().mockImplementation(() => {
             registrationOrder.push('language');
             return Promise.resolve();
         });
@@ -63,19 +71,21 @@ describe('extension entrypoint', () => {
         (registerCommands as jest.Mock).mockReset().mockImplementation(() => {
             registrationOrder.push('commands');
         });
+        (activateLspClient as jest.Mock).mockReset().mockResolvedValue(undefined);
         (disposeGlobalParsedDocumentService as jest.Mock).mockReset();
     });
 
-    test('activate creates a registry, tracks it, and delegates registration in module order', async () => {
+    test('activate always wires the single public LSP path', async () => {
         await activate(context);
 
         expect(ServiceRegistry).toHaveBeenCalledTimes(1);
         expect(context.subscriptions).toContain(registry);
         expect(registerCoreServices).toHaveBeenCalledWith(registry, context);
         expect(registerDiagnostics).toHaveBeenCalledWith(registry, context);
-        expect(registerLanguageProviders).toHaveBeenCalledWith(registry, context);
+        expect(registerHostLanguageAffordances).toHaveBeenCalledWith(registry, context);
         expect(registerUI).toHaveBeenCalledWith(registry, context);
         expect(registerCommands).toHaveBeenCalledWith(registry, context);
+        expect(activateLspClient).toHaveBeenCalledWith(context);
         expect(registrationOrder).toEqual(['core', 'diagnostics', 'language', 'ui', 'commands']);
     });
 
@@ -85,4 +95,3 @@ describe('extension entrypoint', () => {
         expect(disposeGlobalParsedDocumentService).toHaveBeenCalledTimes(1);
     });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

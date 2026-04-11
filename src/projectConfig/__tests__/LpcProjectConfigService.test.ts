@@ -190,5 +190,33 @@ describe('LpcProjectConfigService', () => {
         expect(service.toWorkspaceRelativePath(workspaceRoot, path.resolve(workspaceRoot, 'etc', 'config.test')))
             .toBe(path.join('etc', 'config.test'));
     });
+
+    test('updates resolved project config fields without touching compile settings', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-resolved-update-'));
+        const configPath = path.join(workspaceRoot, 'lpc-support.json');
+        const service = new LpcProjectConfigService();
+
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell',
+            compile: {
+                mode: 'remote',
+                remote: {
+                    activeServer: 'Alpha',
+                    servers: [{ name: 'Alpha', url: 'http://127.0.0.1:8080' }]
+                }
+            }
+        }, null, 2));
+
+        const result = await service.updateResolvedConfigForWorkspace(workspaceRoot, (resolved) => ({
+            ...resolved,
+            includeDirectories: ['/include'],
+            simulatedEfunFile: '/adm/single/simul_efun.c'
+        }));
+
+        expect(result?.compile?.remote?.activeServer).toBe('Alpha');
+        expect(result?.resolved?.includeDirectories).toEqual(['/include']);
+        expect(result?.resolved?.simulatedEfunFile).toBe('/adm/single/simul_efun.c');
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

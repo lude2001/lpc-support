@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { BundledEfunLoader } from './BundledEfunLoader';
-import { EfunHoverProvider } from './EfunHoverProvider';
+import { buildEfunHoverMarkdown, createEfunHover } from './EfunHoverContent';
 import { FileFunctionDocTracker } from './FileFunctionDocTracker';
 import { RemoteEfunFetcher } from './RemoteEfunFetcher';
 import { SimulatedEfunScanner } from './SimulatedEfunScanner';
@@ -9,7 +9,6 @@ import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigServic
 
 export class EfunDocsManager {
     private bundledLoader: BundledEfunLoader;
-    private hoverProvider: EfunHoverProvider;
     private fileFunctionDocTracker: FileFunctionDocTracker;
     private remoteFetcher: RemoteEfunFetcher;
     private simulatedEfunScanner: SimulatedEfunScanner;
@@ -23,51 +22,66 @@ export class EfunDocsManager {
         this.fileFunctionDocTracker = new FileFunctionDocTracker();
         this.remoteFetcher = new RemoteEfunFetcher();
         this.simulatedEfunScanner = new SimulatedEfunScanner(projectConfigService);
-        this.hoverProvider = new EfunHoverProvider(this);
-        this.efunDocs = new Map(
-            this.bundledLoader.getAllNames().map(name => [name, this.bundledLoader.get(name)!])
-        );
-        this.efunCategories = new Map(
-            Array.from(this.bundledLoader.getCategories().entries(), ([category, names]) => [category, [...names]])
-        );
+        this.efunDocs = this.createBundledDocsMap();
+        this.efunCategories = this.createBundledCategoriesMap();
 
-        // 注册悬停提供程序
-        context.subscriptions.push(
-            vscode.languages.registerHoverProvider('lpc', this.hoverProvider)
-        );
+        this.registerSimulatedEfunCommand(context);
 
-        // 注册模拟函数库配置命令
-        context.subscriptions.push(
-            vscode.commands.registerCommand('lpc.configureSimulatedEfuns', () => this.simulatedEfunScanner.configure())
-        );
-
-        // 加载模拟函数库文档
         this.runBackgroundTask(this.simulatedEfunScanner.load(), '加载模拟函数库文档失败');
 
-        // 添加文件变更事件监听
-        context.subscriptions.push(
-            vscode.workspace.onDidChangeTextDocument(e => {
-                if (e.document.languageId === 'lpc' || e.document.fileName.endsWith('.c')) {
-                    this.refreshCurrentFileDocs(e.document);
-                }
-            }),
-            vscode.window.onDidChangeActiveTextEditor(editor => {
-                if (editor && (editor.document.languageId === 'lpc' || editor.document.fileName.endsWith('.c'))) {
-                    this.refreshCurrentFileDocs(editor.document);
-                }
-            })
-        );
+        this.registerDocumentListeners(context);
 
-        // 如果已经有活动编辑器，则立即更新当前文件的文档
-        if (vscode.window.activeTextEditor &&
-            (vscode.window.activeTextEditor.document.languageId === 'lpc' ||
-             vscode.window.activeTextEditor.document.fileName.endsWith('.c'))) {
-            this.refreshCurrentFileDocs(vscode.window.activeTextEditor.document);
-        }
+        this.refreshActiveFileDocs();
     }
 
     private refreshCurrentFileDocs(document: vscode.TextDocument): void {
         this.runBackgroundTask(this.updateCurrentFileDocs(document), '更新当前文件函数文档失败');
+    }
+
+    private refreshActiveFileDocs(): void {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor || !this.isRelevantDocument(activeEditor.document)) {
+            return;
+        }
+
+        this.refreshCurrentFileDocs(activeEditor.document);
+    }
+
+    private registerDocumentListeners(context: vscode.ExtensionContext): void {
+        context.subscriptions.push(
+            vscode.workspace.onDidChangeTextDocument((event) => {
+                if (this.isRelevantDocument(event.document)) {
+                    this.refreshCurrentFileDocs(event.document);
+                }
+            }),
+            vscode.window.onDidChangeActiveTextEditor((editor) => {
+                if (editor && this.isRelevantDocument(editor.document)) {
+                    this.refreshCurrentFileDocs(editor.document);
+                }
+            })
+        );
+    }
+
+    private registerSimulatedEfunCommand(context: vscode.ExtensionContext): void {
+        context.subscriptions.push(
+            vscode.commands.registerCommand('lpc.configureSimulatedEfuns', () => this.simulatedEfunScanner.configure())
+        );
+    }
+
+    private createBundledDocsMap(): Map<string, EfunDoc> {
+        return new Map(
+            this.bundledLoader.getAllNames().map((name) => [name, this.bundledLoader.get(name)!])
+        );
+    }
+
+    private createBundledCategoriesMap(): Map<string, string[]> {
+        return new Map(
+            Array.from(this.bundledLoader.getCategories().entries(), ([category, names]) => [category, [...names]])
+        );
+    }
+
+    private isRelevantDocument(document: vscode.TextDocument): boolean {
+        return document.languageId === 'lpc' || document.fileName.endsWith('.c');
     }
 
     private runBackgroundTask(task: Promise<void>, message: string): void {
@@ -148,15 +162,8 @@ export class EfunDocsManager {
         await this.fileFunctionDocTracker.update(document);
     }
 
-    public async provideHover(
-        document: vscode.TextDocument,
-        position: vscode.Position
-    ): Promise<vscode.Hover | undefined> {
-        return this.hoverProvider.provideHover(document, position);
-    }
-
     public createHoverContent(doc: EfunDoc): vscode.Hover {
-        return this.hoverProvider.createHoverContent(doc);
+        return createEfunHover(buildEfunHoverMarkdown(doc));
     }
 
     public getCategories(): Map<string, string[]> {

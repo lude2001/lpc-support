@@ -1,10 +1,26 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
-import { LPCReferenceProvider } from '../referenceProvider';
-import { LPCRenameProvider } from '../renameProvider';
-import { disposeParseCache } from '../parseCache';
+import { AstBackedLanguageReferenceService } from '../language/services/navigation/LanguageReferenceService';
+import { AstBackedLanguageRenameService } from '../language/services/navigation/LanguageRenameService';
+import { AstBackedLanguageSymbolService } from '../language/services/navigation/LanguageSymbolService';
+import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { resolveSymbolReferences } from '../symbolReferenceResolver';
+import { ASTManager as SharedASTManager } from '../ast/astManager';
 import { TestHelper } from './utils/TestHelper';
+
+function createContext(document: vscode.TextDocument) {
+    return {
+        document,
+        workspace: {
+            workspaceRoot: process.cwd()
+        },
+        mode: 'lsp' as const,
+        cancellation: {
+            isCancellationRequested: false
+        }
+    };
+}
 
 describe('local symbol references', () => {
     const source = [
@@ -37,7 +53,7 @@ describe('local symbol references', () => {
     });
 
     afterAll(() => {
-        disposeParseCache();
+        disposeGlobalParsedDocumentService();
     });
 
     test('resolves only references bound to the local variable in the current function', () => {
@@ -48,33 +64,136 @@ describe('local symbol references', () => {
         expect(references?.matches.every(match => match.range.start.line < 5)).toBe(true);
     });
 
-    test('reference provider excludes same-named locals from other functions', async () => {
+    test('reference service excludes same-named locals from other functions', async () => {
         const document = TestHelper.createMockDocument(source);
-        const provider = new LPCReferenceProvider();
-        const locations = await provider.provideReferences(
-            document,
-            getRoundPosition(2),
-            { includeDeclaration: true } as vscode.ReferenceContext,
-            {} as vscode.CancellationToken
-        );
+        const service = new AstBackedLanguageReferenceService();
+        const locations = await service.provideReferences({
+            context: createContext(document),
+            position: {
+                line: 2,
+                character: 5
+            },
+            includeDeclaration: true
+        });
 
         expect(locations.map(location => location.range.start.line)).toEqual([1, 2]);
     });
 
-    test('rename provider only edits the selected local variable scope', async () => {
+    test('rename service only edits the selected local variable scope', async () => {
         const document = TestHelper.createMockDocument(source);
-        const provider = new LPCRenameProvider();
-        const edits = await provider.provideRenameEdits(
-            document,
-            getRoundPosition(2),
-            'turn',
-            {} as vscode.CancellationToken
-        );
+        const service = new AstBackedLanguageRenameService();
+        const edits = await service.provideRenameEdits({
+            context: createContext(document),
+            position: {
+                line: 2,
+                character: 5
+            },
+            newName: 'turn'
+        });
 
-        const [, changes] = edits.entries()[0];
-
+        const changes = edits.changes[document.uri.toString()];
         expect(changes.map(change => change.range.start.line)).toEqual([1, 2]);
         expect(changes.every(change => change.newText === 'turn')).toBe(true);
     });
+
+    test('reference service preserves includeDeclaration filtering for current-file references', async () => {
+        const document = TestHelper.createMockDocument(source);
+        const service = new AstBackedLanguageReferenceService();
+
+        const references = await service.provideReferences({
+            context: createContext(document),
+            position: {
+                line: 2,
+                character: 6
+            },
+            includeDeclaration: false
+        });
+
+        expect(references.map((reference) => reference.range.start.line)).toEqual([2]);
+    });
+
+    test('rename service returns precise same-file edit ranges from resolved references', async () => {
+        const document = TestHelper.createMockDocument(source);
+        const service = new AstBackedLanguageRenameService();
+
+        const edit = await service.provideRenameEdits({
+            context: createContext(document),
+            position: {
+                line: 2,
+                character: 6
+            },
+            newName: 'turn'
+        });
+
+        expect(edit.changes[document.uri.toString()].map((change) => change.range.start.line)).toEqual([1, 2]);
+        expect(edit.changes[document.uri.toString()].every((change) => change.newText === 'turn')).toBe(true);
+    });
+
+    test('symbol service reuses semantic summaries for classes, structs, functions, and child members', async () => {
+        const document = TestHelper.createMockDocument(source);
+        const service = new AstBackedLanguageSymbolService();
+        jest.spyOn(SharedASTManager.getInstance(), 'getBestAvailableSnapshot').mockReturnValue({
+            typeDefinitions: [
+                {
+                    name: 'Payload',
+                    kind: 'class',
+                    members: [
+                        {
+                            name: 'query_name',
+                            dataType: 'string',
+                            parameters: [{ name: 'who', dataType: 'object', range: new vscode.Range(0, 0, 0, 0) }],
+                            range: new vscode.Range(0, 0, 0, 0)
+                        },
+                        {
+                            name: 'query_id',
+                            dataType: 'string',
+                            parameters: [],
+                            range: new vscode.Range(0, 0, 0, 0)
+                        },
+                        {
+                            name: 'hp',
+                            dataType: 'int',
+                            range: new vscode.Range(0, 0, 0, 0)
+                        }
+                    ],
+                    sourceUri: document.uri.toString(),
+                    range: new vscode.Range(0, 0, 1, 0)
+                },
+                {
+                    name: 'Stats',
+                    kind: 'struct',
+                    members: [
+                        {
+                            name: 'mp',
+                            dataType: 'int',
+                            range: new vscode.Range(0, 0, 0, 0)
+                        }
+                    ],
+                    sourceUri: document.uri.toString(),
+                    range: new vscode.Range(2, 0, 3, 0)
+                }
+            ],
+            exportedFunctions: [
+                {
+                    name: 'alpha',
+                    returnType: 'void',
+                    parameters: [],
+                    modifiers: [],
+                    sourceUri: document.uri.toString(),
+                    origin: 'local',
+                    range: new vscode.Range(4, 0, 5, 0)
+                }
+            ]
+        } as any);
+
+        const symbols = await service.provideDocumentSymbols({
+            context: createContext(document)
+        });
+
+        expect(symbols.map((symbol) => symbol.name)).toEqual(['Payload', 'Stats', 'alpha']);
+        expect(symbols[0].children?.map((child) => child.name)).toEqual(['query_name', 'query_id', 'hp']);
+        expect(symbols[0].children?.[0].kind).toBe('method');
+        expect(symbols[0].children?.[1].kind).toBe('method');
+        expect(symbols[1].children?.[0].kind).toBe('field');
+    });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

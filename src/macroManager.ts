@@ -8,7 +8,6 @@ export class MacroManager {
     private macros: Map<string, MacroDefinition> = new Map();
     private includePath: string | undefined;
     private watcher: vscode.FileSystemWatcher | undefined;
-    private scanningComplete: boolean = false;
     private scanningPromise: Promise<void> | null = null;
     private readonly initializationPromise: Promise<void>;
 
@@ -22,71 +21,71 @@ export class MacroManager {
         await this.startInitialScan();
     }
 
-    private async loadIncludePath() {
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        const config = vscode.workspace.getConfiguration('lpc');
-        const configPath = config.get<string>('includePath');
-        const hasProjectConfig = workspaceRoot ? fs.existsSync(path.join(workspaceRoot, 'lpc-support.json')) : false;
+    private async loadIncludePath(): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot();
 
         if (workspaceRoot && this.projectConfigService) {
-            const projectIncludePath = await this.projectConfigService.getPrimaryIncludeDirectoryForWorkspace(workspaceRoot);
-            if (projectIncludePath) {
-                this.includePath = projectIncludePath;
-            }
-        }
-
-        if (!this.includePath && !configPath && hasProjectConfig && workspaceRoot) {
-            this.includePath = path.join(workspaceRoot, 'include');
-        } else if (!this.includePath && configPath && hasProjectConfig && workspaceRoot) {
-            this.includePath = this.resolveProjectPath(workspaceRoot, configPath);
+            this.includePath = await this.projectConfigService.getPrimaryIncludeDirectoryForWorkspace(workspaceRoot);
         }
 
         console.log(`MacroManager: 配置的包含路径: ${this.includePath || '未配置'}`);
-        
-        if (this.includePath) {
-            if (fs.existsSync(this.includePath)) {
-                console.log(`MacroManager: 包含路径存在，开始扫描宏定义`);
-                await this.scanMacros();
-            } else {
-                console.warn(`MacroManager: 包含路径不存在: ${this.includePath}`);
-            }
-        } else {
+
+        if (!this.includePath) {
             console.warn(`MacroManager: 未配置包含路径，无法扫描宏定义`);
+            return;
         }
+
+        if (!this.hasValidIncludePath()) {
+            console.warn(`MacroManager: 包含路径不存在: ${this.includePath}`);
+            return;
+        }
+
+        console.log(`MacroManager: 包含路径存在，开始扫描宏定义`);
+        await this.scanMacros();
     }
 
-    private setupFileWatcher() {
-        if (this.includePath) {
-            // 监听头文件变化
-            this.watcher?.dispose();
-            this.watcher = vscode.workspace.createFileSystemWatcher(
-                new vscode.RelativePattern(this.includePath, '**/*.h')
-            );
+    private setupFileWatcher(): void {
+        this.watcher?.dispose();
 
-            this.watcher.onDidChange(() => this.scanMacros());
-            this.watcher.onDidCreate(() => this.scanMacros());
-            this.watcher.onDidDelete(() => this.scanMacros());
+        if (!this.includePath) {
+            return;
         }
+
+        this.watcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(this.includePath, '**/*.h')
+        );
+
+        this.watcher.onDidChange(() => void this.refreshMacros());
+        this.watcher.onDidCreate(() => void this.refreshMacros());
+        this.watcher.onDidDelete(() => void this.refreshMacros());
     }
 
-    public async setIncludePath(newPath: string) {
+    public async setIncludePath(newPath: string): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!workspaceRoot || !this.projectConfigService) {
+            throw new Error('当前工作区缺少可写入的 lpc-support.json，无法保存宏目录。');
+        }
+
+        const workspaceRelativePath = this.projectConfigService.toWorkspaceRelativePath(workspaceRoot, newPath);
+        await this.projectConfigService.updateResolvedConfigForWorkspace(workspaceRoot, (resolvedConfig) => ({
+            ...resolvedConfig,
+            includeDirectories: [workspaceRelativePath]
+        }));
         this.includePath = newPath;
         await this.scanMacros();
         this.setupFileWatcher();
-        
-        // 保存配置
-        await vscode.workspace.getConfiguration('lpc').update('includePath', newPath, true);
     }
 
     public async scanMacros(progress?: vscode.Progress<{ message?: string }>) {
         this.macros.clear();
-        if (!this.includePath || !fs.existsSync(this.includePath)) {
+        if (!this.hasValidIncludePath()) {
             console.warn(`MacroManager: 无法扫描宏定义 - 路径无效: ${this.includePath}`);
             return;
         }
 
+        const includePath = this.includePath!;
         const startTime = Date.now();
-        await this.scanDirectory(this.includePath, progress);
+        await this.scanDirectory(includePath, progress);
         const endTime = Date.now();
         
         console.log(`MacroManager: 扫描完成，共找到 ${this.macros.size} 个宏定义，耗时 ${endTime - startTime}ms`);
@@ -98,7 +97,7 @@ export class MacroManager {
         }
     }
 
-    private async scanDirectory(dirPath: string, progress?: vscode.Progress<{ message?: string }>) {
+    private async scanDirectory(dirPath: string, progress?: vscode.Progress<{ message?: string }>): Promise<void> {
         const files = await fs.promises.readdir(dirPath);
         
         for (const file of files) {
@@ -117,7 +116,7 @@ export class MacroManager {
         }
     }
 
-    private async scanFile(filePath: string) {
+    private async scanFile(filePath: string): Promise<void> {
         try {
             const content = await fs.promises.readFile(filePath, 'utf8');
             const lines = content.split('\n');
@@ -162,7 +161,7 @@ export class MacroManager {
                     macrosFoundInFile++;
                     currentComment = ''; // 重置注释
                 } else if (line.length > 0) {
-                    currentComment = ''; // 如果遇到非空行且不是宏定义，重置注释
+                    currentComment = '';
                 }
             }
             
@@ -183,7 +182,7 @@ export class MacroManager {
         return Array.from(this.macros.values());
     }
 
-    public async showMacrosList() {
+    public async showMacrosList(): Promise<void> {
         const items = this.getAllMacros().map(macro => ({
             label: macro.name,
             description: macro.value,
@@ -206,18 +205,23 @@ export class MacroManager {
         }
     }
 
-    public async configurePath() {
+    public async configurePath(): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!workspaceRoot || !this.projectConfigService) {
+            vscode.window.showErrorMessage('当前工作区缺少可写入的 lpc-support.json，无法配置宏目录。');
+            return;
+        }
+
         const currentPath = this.includePath || '';
-        
+
         const newPath = await vscode.window.showInputBox({
-            prompt: '设置宏定义包含目录路径',
+            prompt: '设置写入 lpc-support.json 的宏定义包含目录路径',
             value: currentPath,
             placeHolder: '例如: /path/to/your/include'
         });
 
         if (newPath) {
             await this.setIncludePath(newPath);
-            await this.scanMacros();
             vscode.window.showInformationMessage(`已更新宏定义目录: ${newPath}`);
         }
     }
@@ -226,7 +230,7 @@ export class MacroManager {
         return this.includePath;
     }
 
-    public dispose() {
+    public dispose(): void {
         this.watcher?.dispose();
     }
 
@@ -249,8 +253,7 @@ export class MacroManager {
         return this.getMacro(macroName) !== undefined;
     }
 
-    private async startInitialScan() {
-        this.scanningComplete = false;
+    private async startInitialScan(): Promise<void> {
         const progressOptions = {
             location: vscode.ProgressLocation.Window,
             title: "正在扫描宏定义..."
@@ -259,7 +262,6 @@ export class MacroManager {
         this.scanningPromise = Promise.resolve(
             vscode.window.withProgress(progressOptions, async (progress) => {
                 await this.scanMacros(progress);
-                this.scanningComplete = true;
             })
         );
 
@@ -282,26 +284,21 @@ export class MacroManager {
         }
         
         // 添加文件位置信息
-        const relativePath = this.includePath ? 
-            path.relative(this.includePath, macro.file) : 
-            macro.file;
+        const relativePath = this.includePath
+            ? path.relative(this.includePath, macro.file)
+            : macro.file;
         content.appendMarkdown(`\n\n*定义于 [${relativePath}:${macro.line}](${vscode.Uri.file(macro.file).toString()})*`);
         
         content.isTrusted = true;
         return content;
     }
 
-    /**
-     * 解析项目相对路径
-     * 支持相对于项目根目录的路径配置
-     */
-    private resolveProjectPath(workspaceRoot: string, configPath: string): string {
-        if (path.isAbsolute(configPath)) {
-            // 绝对路径直接返回
-            return configPath;
-        } else {
-            // 相对路径，相对于项目根目录
-            return path.join(workspaceRoot, configPath);
-        }
+    private getWorkspaceRoot(): string | undefined {
+        return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     }
-} 
+
+    private hasValidIncludePath(): boolean {
+        return Boolean(this.includePath && fs.existsSync(this.includePath));
+    }
+
+}

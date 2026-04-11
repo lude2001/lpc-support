@@ -27,7 +27,7 @@
     "programming-language"
   ],
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Programming Languages"
@@ -37,7 +37,10 @@
   "dependencies": {
     "@types/vscode": "^1.95.0",
     "antlr4ts": "^0.5.0-alpha.4",
-    "axios": "^1.13.6"
+    "axios": "^1.13.6",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
@@ -136,17 +139,12 @@
       },
       {
         "command": "lpc.configureMacroPath",
-        "title": "配置宏定义目录",
+        "title": "配置宏定义目录到 lpc-support.json",
         "category": "LPC"
       },
       {
         "command": "lpc.configureSimulatedEfuns",
-        "title": "配置模拟函数库目录",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.migrateProjectConfig",
-        "title": "迁移项目配置到 lpc-support.json",
+        "title": "配置模拟函数入口文件到 lpc-support.json",
         "category": "LPC"
       },
       {
@@ -262,16 +260,6 @@
       "type": "object",
       "title": "LPC Support Configuration",
       "properties": {
-        "lpc.includePath": {
-          "type": "string",
-          "default": "",
-          "description": "LPC宏定义包含目录的路径"
-        },
-        "lpc.simulatedEfunsPath": {
-          "type": "string",
-          "default": "",
-          "description": "LPC模拟函数库目录的路径"
-        },
         "lpc.enableUnusedGlobalVarCheck": {
           "type": "boolean",
           "default": true,

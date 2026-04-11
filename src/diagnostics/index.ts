@@ -4,7 +4,7 @@
  */
 
 // 主协调器
-export { DiagnosticsOrchestrator } from './DiagnosticsOrchestrator';
+export { DiagnosticsOrchestrator, createDefaultDiagnosticsCollectors } from './DiagnosticsOrchestrator';
 
 // 类型定义
 export type { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './types';

@@ -3,9 +3,14 @@ import { ServiceRegistry } from '../../core/ServiceRegistry';
 import { Services } from '../../core/ServiceKeys';
 import { registerDiagnostics } from '../diagnosticsModule';
 import { DiagnosticsOrchestrator } from '../../diagnostics';
+import { createSharedDiagnosticsService } from '../../language/services/diagnostics/createSharedDiagnosticsService';
 
 jest.mock('../../diagnostics', () => ({
-    DiagnosticsOrchestrator: jest.fn()
+    DiagnosticsOrchestrator: jest.fn(),
+    createDefaultDiagnosticsCollectors: jest.fn(() => ['collector'])
+}));
+jest.mock('../../language/services/diagnostics/createSharedDiagnosticsService', () => ({
+    createSharedDiagnosticsService: jest.fn(() => ({ collectDiagnostics: jest.fn() }))
 }));
 
 describe('registerDiagnostics', () => {
@@ -29,7 +34,7 @@ describe('registerDiagnostics', () => {
         (vscode.window as any).activeTextEditor = originalActiveTextEditor;
     });
 
-    test('registers diagnostics service, tracks lifecycle, and analyzes active lpc document', () => {
+    test('registers diagnostics service, tracks lifecycle, and disables host document diagnostics on the public path', () => {
         const activeDocument = { fileName: 'test.c', languageId: 'lpc' } as vscode.TextDocument;
         (vscode.window as any).activeTextEditor = {
             document: activeDocument
@@ -40,10 +45,18 @@ describe('registerDiagnostics', () => {
         registerDiagnostics(registry, context);
 
         expect(DiagnosticsOrchestrator).toHaveBeenCalledTimes(1);
-        expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(context, macroManager);
+        expect(createSharedDiagnosticsService).toHaveBeenCalledTimes(1);
+        expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(
+            context,
+            macroManager,
+            expect.objectContaining({
+                registerDocumentLifecycle: false,
+                diagnosticsService: expect.anything(),
+                collectors: expect.any(Array)
+            })
+        );
         expect(registry.get(Services.Diagnostics)).toBe(diagnosticsOrchestrator);
-        expect(diagnosticsOrchestrator.analyzeDocument).toHaveBeenCalledTimes(1);
-        expect(diagnosticsOrchestrator.analyzeDocument).toHaveBeenCalledWith(activeDocument);
+        expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
 
         registry.dispose();
         expect(diagnosticsOrchestrator.dispose).toHaveBeenCalledTimes(1);
@@ -69,6 +82,30 @@ describe('registerDiagnostics', () => {
 
         registerDiagnostics(registry, context);
 
+        expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
+    });
+
+    test('keeps diagnostics UX registered while host document lifecycle stays disabled', () => {
+        const activeDocument = { fileName: 'test.c', languageId: 'lpc' } as vscode.TextDocument;
+        (vscode.window as any).activeTextEditor = {
+            document: activeDocument
+        };
+
+        registry.register(Services.MacroManager, macroManager);
+
+        registerDiagnostics(registry, context);
+
+        expect(createSharedDiagnosticsService).toHaveBeenCalledTimes(1);
+        expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(
+            context,
+            macroManager,
+            expect.objectContaining({
+                registerDocumentLifecycle: false,
+                diagnosticsService: expect.anything(),
+                collectors: expect.any(Array)
+            })
+        );
+        expect(registry.get(Services.Diagnostics)).toBe(diagnosticsOrchestrator);
         expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
     });
 });
