@@ -101,7 +101,7 @@ describe('registerCompletionHandler', () => {
             connection,
             documentStore,
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession,
             completionService
         });
@@ -115,7 +115,7 @@ describe('registerCompletionHandler', () => {
             },
             serverInfo: {
                 name: 'lpc-support-phase-a',
-                version: '0.34.0-test'
+                version: '0.40.0-test'
             }
         });
 
@@ -224,7 +224,7 @@ describe('registerCompletionHandler', () => {
             connection,
             documentStore,
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession,
             completionService
         });
@@ -290,7 +290,7 @@ describe('registerCompletionHandler', () => {
             connection,
             documentStore,
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession,
             completionService
         });
@@ -377,7 +377,7 @@ describe('registerCompletionHandler', () => {
             connection,
             documentStore,
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession,
             completionService
         });
@@ -443,7 +443,7 @@ describe('registerCompletionHandler', () => {
             connection,
             documentStore,
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession,
             completionService
         });
@@ -500,7 +500,7 @@ describe('registerCompletionHandler', () => {
             connection,
             documentStore,
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession,
             completionService
         });

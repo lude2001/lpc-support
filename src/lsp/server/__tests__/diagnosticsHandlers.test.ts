@@ -105,7 +105,7 @@ describe('diagnostics session and handlers', () => {
             connection,
             documentStore,
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession,
             diagnosticsSession: diagnosticsSession as any
         });

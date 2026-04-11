@@ -1,29 +1,27 @@
-﻿# 更新日志
+# 更新日志
 
-所有 LPC Support 扩展的重要变更都会记录在此文件中。
+所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
-## [Changelog]
+## [0.40.0] - 2026-04-12
 
-## [Unreleased]
+### 重大更新
 
-### 项目配置切换
+- 扩展已经完成单一路径 LSP 切换，补全、悬停、跳转、引用、重命名、诊断、语义高亮和格式化现在统一由同一条 LSP 语言服务链路提供。
+- 项目配置全面收敛到 `lpc-support.json`，不再继续使用旧版 VS Code 路径设置作为兼容入口。
 
-- 扩展已移除旧版 `lpc.includePath`、`lpc.simulatedEfunsPath` 与 `lpc.migrateProjectConfig` 迁移入口。
-- 宏目录与模拟函数入口文件现在统一写入 `lpc-support.json`，不再回退到 VS Code legacy setting。
-- include 解析、模拟函数文档扫描与相关定义跳转现在只消费 `lpc-support.json` / workspace config sync。
+### 新增与改进
 
-### LSP Spec C 单一路径切换
+- 补全、悬停、定义跳转、引用查找、重命名、文档大纲、代码折叠、语义高亮统一到 LSP。
+- 文档格式化和选区格式化统一到 LSP，编辑器体验更一致。
+- `code action`、宏相关悬停和 efun / 文件函数悬停已并入统一语言服务主链。
+- 模拟函数入口文件和宏目录配置现在统一写入 `lpc-support.json`。
+- 编译管理继续支持本地 `lpccp` 和远程 HTTP 两种模式。
 
-- `diagnostics` 已迁入 LSP runtime，并由 shared diagnostics service、server publish path 与 host UX bridge 共同支撑。
-- 文档格式化与选区格式化已迁入 LSP runtime，classic provider 只剩迁移期薄适配职责，不再是公开生产入口。
-- 扩展公开入口现已固定为单一路径 LSP；用户侧不再暴露 `lpc.experimental.lspMode` 多模式配置。
-- README、Spec C 文档和实现计划已同步到单一路径 LSP 口径。
-- 最终验证通过：
-  - `npx jest --runInBand src/lsp/__tests__/singlePathCutover.test.ts`
-  - `npx jest --runInBand src/lsp/__tests__/modeSwitch.test.ts src/lsp/__tests__/LspClientManager.test.ts src/lsp/__tests__/languageParity.test.ts src/lsp/server/__tests__/completionHandler.test.ts src/lsp/server/__tests__/navigationHandlers.test.ts src/lsp/server/__tests__/structureHandlers.test.ts src/lsp/server/__tests__/DocumentStore.test.ts src/lsp/server/__tests__/WorkspaceSession.test.ts src/lsp/server/__tests__/healthHandler.test.ts src/__tests__/completionProvider.test.ts src/__tests__/providerIntegration.test.ts src/__tests__/semanticTokensProvider.test.ts src/__tests__/extension.test.ts`
-  - `npx jest --runInBand src/lsp/__tests__/LspClientManager.test.ts src/lsp/__tests__/diagnosticsParity.test.ts src/lsp/__tests__/formattingParity.test.ts src/lsp/__tests__/spawnedRuntime.integration.test.ts src/lsp/__tests__/singlePathCutover.test.ts src/lsp/server/__tests__/diagnosticsHandlers.test.ts src/lsp/server/__tests__/formattingHandlers.test.ts src/lsp/server/__tests__/serverBundle.test.ts src/__tests__/providerIntegration.test.ts src/__tests__/formatterIntegration.test.ts src/__tests__/rangeFormatting.test.ts src/__tests__/yifengDebug.test.ts src/__tests__/extension.test.ts`
-  - `npx tsc --noEmit`
-  - `node esbuild.mjs`
+### 兼容性调整
+
+- 移除旧版 `lpc.includePath`、`lpc.simulatedEfunsPath` 和 `lpc.migrateProjectConfig` 配置/迁移入口。
+- 不再公开 `lpc.experimental.lspMode` 多模式切换配置。
+- 项目现在默认要求通过 `lpc-support.json` 提供 LPC 工作区配置。
 
 ## [0.34.0] - 2026-04-09
 
@@ -38,293 +36,142 @@
 
 ### 对象方法智能推导
 
-写 `obj->method()` 时，扩展现在能自动推断 `obj` 指向哪个对象文件，从而在**跳转到定义**、**成员补全**和**悬停提示**中提供精确的对象方法信息。
-
-**支持的推导方式：**
-
-- 字符串路径：`"/adm/daemons/user"->query_name()`
-- 宏路径：`USER_D->query_name()`（从宏定义展开路径）
-- 内置函数：`this_object()->method()`、`load_object("/path")->method()`、`find_object("/path")->method()`、`clone_object("/path")->method()`
-- 玩家对象：`this_player()->method()`（需在 `lpc-support.json` 中配置 `playerObjectPath`）
-- 变量追踪：`ob = load_object("/obj/npc"); ob->query_name()` 可沿赋值链推导
-- 分支合并：`if/else` 中对同一变量赋不同对象时，合并为多候选
-- 文档标注：通过 `@lpc-return-objects` 注释标注自定义函数的返回对象
-
-**三条链路增强：**
-
-- **跳转到定义**：`obj->method()` 的 F12 现在跳转到真实对象文件中的方法定义，沿继承链递归查找
-- **成员补全**：`obj->` 后展示真实对象方法，多候选共享的方法排在前面
-- **悬停提示**：在方法名上悬停显示对象方法的签名和文档，支持继承链查找
-
-**新增配置项：**
-
-- `lpc-support.json` 新增 `playerObjectPath` 字段，用于指定 `this_player()` 返回的玩家对象路径。未配置时 `this_player()` 不参与推导。
-
-  ```json
-  {
-    "version": 1,
-    "configHellPath": "config.hell",
-    "playerObjectPath": "/obj/user"
-  }
-  ```
-
-**新增文档注释标签：**
-
-- `@lpc-return-objects` — 标注自定义函数返回的对象路径，支持多个对象
-
-  ```c
-  /**
-   * @lpc-return-objects {"/obj/weapon", "/obj/armor"}
-   */
-  object get_equipment(string type);
-  ```
-
-**首版限制：**
-
-- 不支持 `arr[i]->method()` 等数组下标访问
-- 不支持动态路径拼接（如 `load_object("/obj/" + name)`）
-- 变量追踪仅限于当前函数内部
-
-### 语言服务修复
-
-- 修复 `对象->方法()` 悬停时错误回退到模拟函数库或 efun 文档的问题
-- 修复 `对象->方法()` "转到定义"时对象目标解析失败后错误回退到模拟函数库的问题
-- 成员补全不再混入同前缀的 efun 候选项
+- `obj->method()` 现在可以根据字符串路径、宏路径、内置函数和当前函数内变量赋值链推导对象来源。
+- 基于对象推导结果，成员补全、跳转到定义和悬停提示的准确性明显提升。
+- 新增 `playerObjectPath` 配置，用于支持 `this_player()` 的对象推导。
+- 支持通过 `@lpc-return-objects` 为自定义函数标注返回对象。
 
 ## [0.32.1] - 2026-04-08
 
-### 语言服务修复
+### 修复
 
-- 修复 `对象->方法()` 在悬停说明中被错误回退到模拟函数库或系统函数库文档的问题，避免显示与对象调用无关的 efun 信息。
-- 修复 `对象->方法()` 在“转到定义”链路中对象目标解析失败后仍错误回退到模拟函数库定义的问题。
-- 补充成员补全回归测试，锁定 `->` 成员上下文不会混入同前缀 efun 候选。
+- 修复 `对象->方法()` 悬停时错误回退到模拟函数库或标准 efun 文档的问题。
+- 修复 `对象->方法()` 跳转到定义时错误回退到模拟函数库的问题。
+- 修复成员补全混入同前缀 efun 候选的问题。
 
-### 测试稳定性
-
-- 调整部分 formatter 真实样例回归测试：当本地未提供被忽略的私有夹具文件时，相关测试会显式跳过，避免在新工作区或 CI 环境中因缺少样例文件而误报失败。
-
-## [0.32] - 2026-03-27
+## [0.32.0] - 2026-03-27
 
 ### 启动驱动调整
 
-- “启动 MUD 驱动”命令改为固定通过系统命令 `lpcprj config` 启动开发驱动。
-- 当系统中未检测到 `lpcprj` 时，扩展不再尝试旧版启动逻辑，而是提示用户前往 GitHub 获取开发驱动环境（预览版）安装包。
-- 移除旧版 `lpc.driver.command` 启动配置项及其相关兼容逻辑。
-- `driver.command` 不再参与项目配置迁移判定，避免把旧启动方式继续带入新的项目配置流。
+- “启动 MUD 驱动”命令改为固定通过 `lpcprj config` 启动。
+- 当系统中未检测到 `lpcprj` 时，扩展会提示用户先安装开发驱动环境。
+- 移除旧版 `lpc.driver.command` 启动配置项及相关兼容逻辑。
 
 ## [0.3.1] - 2026-03-23
 
 ### 稳定性修复
 
-- 修复打开工作区时 `loadForWorkspace()` 在 `config.hell` 解析结果未变化的情况下仍反复回写 `lpc-support.json` 的问题，减少无意义文件写入与相关副作用。
-- 修复无 `lpc-support.json` 的普通工作区也会自动使用全局旧版 `lpc.includePath` / `lpc.simulatedEfunsPath` 触发大范围初始化扫描的问题。
-- 限制宏扫描与模拟函数库扫描的 legacy 自动初始化范围，避免在非 LPC 项目或无项目配置工作区中引发 PowerShell 提示符反复刷新、卡顿和内存异常上涨。
+- 修复 `lpc-support.json` 在 `config.hell` 未变化时仍被重复回写的问题。
+- 修复无项目配置工作区仍触发宏扫描和模拟函数扫描的问题。
 
 ## [0.3.0] - 2026-03-22
 
 ### 项目级配置
 
-- 新增项目根目录配置文件 `lpc-support.json`，用于统一管理 LPC Support 的项目配置。
-- 扩展现在可以根据 `lpc-support.json` 自动读取并同步 `config.hell` 中的关键字段。
-- 宏扫描与模拟函数库文档加载开始优先使用项目级配置，而不是要求用户手工维护旧版路径设置。
-- 新增“迁移项目配置到 `lpc-support.json`”命令，帮助旧项目从 `lpc.includePath`、`lpc.simulatedEfunsPath` 等旧设置迁移。
-- 升级到本版本后，如检测到旧版项目配置仍在使用，扩展会提示迁移，但旧设置在兼容期内仍可继续工作。
-- 增加 legacy 编译服务器迁移逻辑，可将旧的全局服务器配置惰性导入当前工作区的 `lpc-support.json`。
+- 新增项目根目录配置文件 `lpc-support.json`。
+- 扩展开始根据 `lpc-support.json` 自动同步 `config.hell` 中的关键字段。
+- 宏扫描、模拟函数文档加载、编译配置逐步收敛到项目级配置。
 
 ### 编译管理
 
-- 将“管理编译服务器”升级为统一的“编译管理”入口。
-- 新增本地 `lpccp` 编译模式，支持使用系统命令或显式配置 `lpccp` 路径。
-- 远程编译服务器与本地 `lpccp` 配置统一收敛到项目级 `lpc-support.json`。
-- `compileFile` / `compileFolder` 现已按配置模式自动选择远程 HTTP 或本地 `lpccp` 后端。
-- 对仍保存在 legacy 全局存储中的远程编译服务器，扩展会在工作区中惰性迁移到 `lpc-support.json`。
-- 本地目录编译现在可直接使用 `lpccp` 的目录级 JSON 返回，而不是仅依赖逐文件 fan-out。
-- 本地 `lpccp` 模式不再要求单独配置 driver config 路径，而是自动使用 `lpc-support.json` 中的 `configHellPath`。
-- 设置 `lpccp` 路径时改为使用文件选择器，减少手工输入路径错误。
-
-### 命令收敛
-
-- 编辑器右键菜单中的编译入口已切换到“编译管理”。
-- 保留 `lpc.manageServers` 作为兼容入口，并转发到新的编译管理流程。
-- README 与命令文案已同步更新到新的项目级配置与编译管理模型。
-
-### 诊断行为调整
-
-- 工作区内的 `.c` / `.h` 文件现在只有在对应工作区根目录存在 `lpc-support.json` 时，才会运行 LPC 诊断。
-- 若工作区根目录缺少 `lpc-support.json`，扩展会跳过这类文件的 LPC 诊断并清理已有的 LPC 诊断结果，以减少与 C / C++ 扩展的冲突。
-- 错误诊断中心现在直接复用 `lpc-support.json` 中的远程编译服务器与活动服务器配置，不再单独维护错误树服务器设置。
-- 移除错误诊断中心中的独立服务器管理入口，避免编译管理与错误树出现双配置源。
-
-## [0.2.9] - 2026-03-22
-
-### 项目级配置
-
-- 新增项目根目录配置文件 `lpc-support.json`，用于统一管理 LPC Support 的项目配置。
-- 扩展现在可以根据 `lpc-support.json` 自动读取并同步 `config.hell` 中的关键字段。
-- 宏扫描与模拟函数库文档加载开始优先使用项目级配置，而不是要求用户手工维护旧版路径设置。
-- 新增“迁移项目配置到 `lpc-support.json`”命令，帮助旧项目从 `lpc.includePath`、`lpc.simulatedEfunsPath` 等旧设置迁移。
-- 升级到本版本后，如检测到旧版项目配置仍在使用，扩展会提示迁移，但旧设置在兼容期内仍可继续工作。
+- “管理编译服务器”升级为统一的“编译管理”入口。
+- 新增本地 `lpccp` 编译模式。
+- 远程 HTTP 编译和本地 `lpccp` 配置统一收敛到 `lpc-support.json`。
 
 ## [0.2.8] - 2026-03-22
 
 ### 格式化修复
 
-- 修复部分真实 LPC 文件中 `mapping *action = ({ ([ ... ]), ... })` 被错误压成单行的问题，格式化后会保持稳定的多行块状布局。
-- 修复已经被压扁成单行的同类代码再次格式化时无法恢复的问题。
-- 调整独立 `if` 语句之间的空行规则：当两个同级 `if` 之间没有 `else` 关系时，会自动插入一个空行以提升可读性。
-- 修复字符串拼接中相邻宏标识符的空格被错误移除的问题，避免 `ZJBR NOR` 这类写法在格式化后变成语法错误。
-- 提升 formatter 在真实工作区文件上的一致性，减少“测试样例正常、扩展里格式化结果异常”的情况。
+- 修复复杂 `mapping` 和数组结构被错误压成单行的问题。
+- 修复字符串拼接中必要空格被移除的问题。
+- 改进独立 `if` 语句之间的空行规则。
 
 ## [0.2.7] - 2026-03-15
 
 ### 首版格式化支持
 
-- 新增 LPC 文档格式化与选区格式化入口，扩展激活后会为 `lpc` 语言注册对应 provider。
-- 新增基于语法模型的首版 formatter，支持函数、`if/else`、循环、匿名函数、`struct/class`、`switch` 范围标签和常见 `foreach` 头部的 Allman 风格输出。
-- 新增结构化数据布局，支持 `mapping`、数组、嵌套集合以及 `new(..., field : value)` 的块状展开。
-- 新增 `lpc.format.indentSize` 配置项，用于控制 formatter 缩进宽度。
-
-### 格式化稳定性与兼容性
-
-- 增加注释归属与保留规则，支持函数前注释跟随、Javadoc 星号对齐、行尾注释提升和文件尾部注释块保留。
-- 对 heredoc、复杂多行宏等高风险文本块采用保守守卫策略，避免破坏原始 token 顺序、正文内容与结束标记位置。
-- 修复 `foreach(ref ...)` 场景下的已知解析器误报影响，整文格式化和选区格式化在仅存在该误报时仍可继续工作。
-- 修复包含尾随换行、行尾注释和缺失 token 邻接标点的选区命中问题，减少范围格式化误判与无效拒绝。
-- 保留原文件换行风格与尾部换行，兼容 LF / CRLF 文件。
+- 新增 LPC 文档格式化与选区格式化。
+- 支持函数、循环、匿名函数、`struct/class`、`mapping`、数组等常见结构的格式化整理。
+- 新增 `lpc.format.indentSize` 配置项。
 
 ## [0.2.6] - 2026-03-09
 
 ### 补全体验修复
 
-- 修复局部变量补全右侧详情在多变量声明场景下错误混入整条声明内容的问题。
-- 变量补全文档改为展示当前变量自身的声明片段，避免出现 `stringname,exp,file,*msg` 这类无空格且不准确的内容。
-- 补充变量补全文档回归测试，覆盖同一条声明内多个变量的提示展示。
+- 修复多变量声明场景下局部变量补全文档显示错误的问题。
 
 ## [0.2.5] - 2026-03-09
 
 ### 符号重构修复
 
-- 修复重命名符号时错误串联不同函数内同名局部变量的问题。
-- 修复查看引用时错误聚合不同函数内同名局部变量引用的问题。
-- 引入基于作用域解析的符号引用定位逻辑，按声明绑定结果精确筛选重命名与引用结果。
-
-### 工程与发布修复
-
-- 修复补全查询引擎中的 `CompletionCandidate` 类型收窄问题，恢复 `tsc` 无报错构建。
-- 移除诊断模块中对已删除 `FunctionCallCollector` 的残留导出。
-- 调整扩展打包白名单，重新包含 `README.md` 与 `CHANGELOG.md`，避免发布包缺失文档元数据。
+- 修复不同函数内同名局部变量在重命名和引用查找中被错误串联的问题。
 
 ## [0.2.4] - 2026-03-09
 
 ### 补全性能优化
 
-- 引入基于文档语义快照的补全查询链路，减少重复解析与重复符号扫描。
-- 补全请求优先复用最近成功的文档快照和项目符号索引，降低大文件场景下的延迟。
-- 新增补全性能指标采集与最近请求统计，可观察 `snapshot-load`、索引查询与候选构建等阶段耗时。
-- 语义高亮改为复用解析缓存与符号表结果，避免重复词法分析造成的额外开销。
-
-### 补全体验改进
-
-- 新增项目级继承符号聚合，可统一补全当前文件与继承文件中的函数、类型和成员信息。
-- 恢复未预先打开父文件时的继承补全能力，支持按需预热和回填继承快照。
-- 恢复对象风格 `->` 补全，覆盖 `object ob->`、`this_object()->`、`previous_object()->`、`foo()->`、`arr[i]->` 等常见场景。
-- 改进复杂接收者表达式的上下文识别，增强成员补全触发稳定性。
-
-### 稳定性修复
-
-- 修复重构后继承补全依赖父文件预索引导致的回归问题。
-- 修复对象接收者在查询引擎重构后无法返回通用对象方法的回归问题。
-- 改进 Windows 路径归一化与测试环境兼容性，避免继承文件按需索引失败。
-- 简化语义高亮与快照服务内部实现，在保持行为一致的前提下提升可维护性。
-
-### 测试
-
-- 新增并补强补全上下文分析、查询引擎、继承补全、对象成员补全、语义高亮与快照缓存相关回归测试。
-- 完整回归测试通过：13 个测试套件、54 个测试全部通过。
+- 引入基于文档语义快照的补全查询链路。
+- 补全和语义高亮开始复用统一的解析/语义结果，减少重复分析开销。
 
 ## [0.2.3] - 2026-03-07
 
 ### 发布整理
 
-- 更新扩展图标，使用新的 `LPC` 图标样式。
-- 重写 `README.md`，补充当前功能、命令、配置项和服务集成说明。
-- 修复 VSIX 打包流程，改为使用 `npx @vscode/vsce package`，并移除与 `package.json.files` 冲突的 `.vscodeignore` 配置。
+- 更新扩展图标。
+- 重写 README，补充功能、命令和配置说明。
+- 修复 VSIX 打包流程。
 
 ## [0.2.2] - 2026-03-07
 
 ### Efun 文档离线化
 
-- 标准 efun 文档改为构建时从 `mud.wiki` 抓取并打包到扩展内置资源。
-- 运行时不再联网刷新标准 efun 文档，补全和悬停直接读取离线数据。
-- 保留模拟函数库的本地扫描支持。
+- 标准 efun 文档改为随扩展离线打包。
+- 运行时默认直接使用内置文档。
 
 ## [0.2.1] - 2026-03-04
 
 ### 诊断规则可配置化
 
-- 新增配置项 `lpc.enforceLocalVariableDeclarationAtBlockStart`，默认值为 `false`。
-- “局部变量必须定义在代码块开头” 规则改为可选开关。
-- 兼容较新 FluffOS 版本中允许在代码块任意位置声明局部变量的行为。
+- 新增 `lpc.enforceLocalVariableDeclarationAtBlockStart` 配置项。
 
 ## [0.2.0] - 2025-10-06
 
-### 性能提升
+### 性能与稳定性
 
-- 显著提升解析、分析和诊断响应速度。
-- 优化缓存策略，降低内存占用。
-- 统一 include 与 inherit 路径解析逻辑，提升导航效率。
-
-### 功能改进
-
-- 增强对象访问、宏使用和函数调用相关诊断能力。
-- 引入 LRU、TTL 和内存感知清理等更智能的缓存策略。
-- 提升补全稳定性与整体响应速度。
-
-### 问题修复
-
-- 修复多种场景下的路径解析失败问题。
-- 减少误报诊断。
-- 改进扩展启动速度和稳定性。
+- 提升解析、分析和诊断响应速度。
+- 优化缓存策略。
+- 改进路径解析和扩展稳定性。
 
 ## [0.1.8] - 2024-09-27
 
 ### 语法支持增强
 
-- 新增二进制字面量、右索引表达式、switch 范围匹配、增强函数指针、数组展开语法和分隔符数据块支持。
-- 提升相关语法处理的可读性与兼容性。
+- 新增多种 LPC 语法支持，包括二进制字面量、右索引表达式、switch 范围匹配等。
 
 ## [0.1.7] - 2025-09-04
 
 ### 重要修复
 
 - 修复局部变量和函数参数补全缺失的问题。
-- 提升基于作用域的补全准确性，覆盖局部变量、全局变量、参数和结构体成员。
 
 ## [0.1.6] - 2025-09-04
 
 ### 新增
 
-- 支持 include 文件跳转，可从 `#include <...>` 和 `include "..."` 直接跳转到目标文件。
-- 自动补全 `.h` 扩展名以提升 include 导航体验。
-
-### 改进
-
-- 增强项目相对路径配置能力，便于团队协作。
-- 修复全局 include 路径解析问题。
+- 支持 include 文件跳转。
 
 ## [0.1.5] - 2025-09-03
 
 ### 修复
 
-- 支持函数内部的 `class` 局部变量声明，例如 `class item ca;`。
-- 改进 `new("/path/" + name)` 等动态路径表达式的解析能力。
+- 支持函数内部 `class` 局部变量声明。
+- 改进动态路径表达式解析。
 
 ## [0.1.4] - 2025-01-15
 
 ### 改进
 
-- 增强跨文件函数跳转能力，支持 `.h` 声明跳转并增加缓存优化。
-- 同时支持 C 风格 `#include` 与 LPC 风格 `include` 语句。
+- 增强跨文件函数跳转能力。
 
 ## [0.1.3] - 2025-01-15
 
@@ -342,45 +189,27 @@
 
 ### 改进
 
-- 移除函数参数使用检查，减少不必要的警告。
+- 移除函数参数使用检查，减少不必要警告。
 
 ## [0.0.4] - 2025-05-31
 
-### 新增
+### 新增与改进
 
 - 扩展模拟函数库文档支持。
 - 增强继承链支持。
-- 新增基于继承链检索的文档速览面板。
+- 新增基于继承链检索的函数文档面板。
 - 新增 `Ctrl+F5` 编译快捷键。
-
-### 修复
-
-- 改进代码格式化行为。
-- 修复扩展名检查误报问题。
-
-### 改进
-
-- 改进变量定位和函数跳转。
-- 细化语义高亮分类。
-- 加强未使用变量检测。
 
 ## [0.0.3] - 2025-02-25
 
-### 新增
+### 新增与修复
 
-- 增强代码补全，支持作用域变量、继承函数和 Javadoc 相关提示。
+- 增强代码补全。
 - 改进服务管理界面。
-
-### 修复
-
 - 修复宏定义处理和部分诊断误报。
-- 修复编译文件路径处理问题。
 
 ## [0.0.2] - 2025-01-25
 
 ### 初始版本
 
-- 提供语法高亮、代码补全和诊断能力。
-- 提供服务管理功能。
-- 支持宏定义与 Efun 文档。
-- 支持快速修复。
+- 提供语法高亮、代码补全、诊断、宏定义和 Efun 文档支持。

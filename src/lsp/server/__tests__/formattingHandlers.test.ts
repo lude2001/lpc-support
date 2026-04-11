@@ -98,7 +98,7 @@ describe('formatting handlers', () => {
             connection,
             documentStore,
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession,
             formattingService
         });
@@ -111,7 +111,7 @@ describe('formatting handlers', () => {
             },
             serverInfo: {
                 name: 'lpc-support-phase-a',
-                version: '0.34.0-test'
+                version: '0.40.0-test'
             }
         });
 
@@ -170,7 +170,7 @@ describe('formatting handlers', () => {
             connection,
             documentStore: new DocumentStore(),
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession
         });
 
@@ -180,7 +180,7 @@ describe('formatting handlers', () => {
             },
             serverInfo: {
                 name: 'lpc-support-phase-a',
-                version: '0.34.0-test'
+                version: '0.40.0-test'
             }
         });
     });

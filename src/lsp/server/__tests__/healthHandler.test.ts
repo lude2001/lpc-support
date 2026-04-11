@@ -22,7 +22,7 @@ describe('createHealthHandler', () => {
         const store = new DocumentStore();
         const handleHealth = createHealthHandler({
             documentStore: store,
-            serverVersion: '0.34.0-test'
+            serverVersion: '0.40.0-test'
         });
 
         const result = await handleHealth();
@@ -30,7 +30,7 @@ describe('createHealthHandler', () => {
         expect(result).toEqual({
             status: 'ok',
             mode: 'phase-a',
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             documentCount: 0
         });
     });
@@ -86,7 +86,7 @@ describe('registerCapabilities', () => {
             connection,
             documentStore,
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession
         });
 
@@ -96,7 +96,7 @@ describe('registerCapabilities', () => {
             },
             serverInfo: {
                 name: 'lpc-support-phase-a',
-                version: '0.34.0-test'
+                version: '0.40.0-test'
             }
         });
 
@@ -158,7 +158,7 @@ describe('registerCapabilities', () => {
         expect(await registeredHealthHandler?.()).toEqual({
             status: 'ok',
             mode: 'phase-a',
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             documentCount: 1
         });
 

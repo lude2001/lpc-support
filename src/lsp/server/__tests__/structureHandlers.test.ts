@@ -218,7 +218,7 @@ describe('structure handlers', () => {
             connection,
             documentStore: new DocumentStore(),
             logger,
-            serverVersion: '0.34.0-test',
+            serverVersion: '0.40.0-test',
             workspaceSession
         });
 
@@ -236,7 +236,7 @@ describe('structure handlers', () => {
             },
             serverInfo: {
                 name: 'lpc-support-phase-a',
-                version: '0.34.0-test'
+                version: '0.40.0-test'
             }
         });
         expect(connection.onFoldingRanges).toHaveBeenCalledTimes(1);
