@@ -17,6 +17,7 @@ import {
 import { UnifiedLanguageHoverService } from '../../../language/services/navigation/UnifiedLanguageHoverService';
 import { AstBackedLanguageReferenceService } from '../../../language/services/navigation/LanguageReferenceService';
 import { AstBackedLanguageRenameService } from '../../../language/services/navigation/LanguageRenameService';
+import { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import { AstBackedLanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
 import { FormattingService } from '../../../formatter/FormattingService';
 import {
@@ -71,6 +72,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const referenceService = new AstBackedLanguageReferenceService();
     const renameService = new AstBackedLanguageRenameService();
     const symbolService = new AstBackedLanguageSymbolService();
+    const signatureHelpService = new LanguageSignatureHelpService({
+        efunDocsManager,
+        objectInferenceService,
+        targetMethodLookup
+    });
     const foldingService = new DefaultLanguageFoldingService();
     const semanticTokensService = new DefaultLanguageSemanticTokensService();
 
@@ -93,6 +99,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         diagnosticsService,
         formattingService,
         navigationService,
+        signatureHelpService,
         structureService
     };
 }

@@ -31,6 +31,7 @@ import type { LanguageCompletionService } from '../../../language/services/compl
 import type { LanguageCodeActionService } from '../../../language/services/codeActions/LanguageCodeActionService';
 import type { LanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
 import type { LanguageNavigationService } from '../../../language/services/navigation/LanguageHoverService';
+import type { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import { HealthRequest } from '../../shared/protocol/health';
 import {
     WorkspaceConfigSyncNotification,
@@ -45,6 +46,7 @@ import { registerDocumentSymbolHandler } from '../handlers/navigation/registerDo
 import { registerHoverHandler } from '../handlers/navigation/registerHoverHandler';
 import { registerReferencesHandler } from '../handlers/navigation/registerReferencesHandler';
 import { registerRenameHandler } from '../handlers/navigation/registerRenameHandler';
+import { registerSignatureHelpHandler } from '../handlers/signatureHelp/registerSignatureHelpHandler';
 import { registerFoldingRangeHandler } from '../handlers/structure/registerFoldingRangeHandler';
 import { registerSemanticTokensHandler } from '../handlers/structure/registerSemanticTokensHandler';
 import { DiagnosticsSession } from '../runtime/DiagnosticsSession';
@@ -79,6 +81,7 @@ export type ServerConnection = Pick<
         type: NotificationType<WorkspaceConfigSyncPayload>,
         handler: (params: WorkspaceConfigSyncPayload) => void
     ) => unknown;
+    onSignatureHelp?: Connection['onSignatureHelp'];
     onDocumentFormatting?: Connection['onDocumentFormatting'];
     onDocumentRangeFormatting?: Connection['onDocumentRangeFormatting'];
 };
@@ -101,6 +104,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         workspaceSession.toLanguageWorkspaceContext('').services?.navigationService;
     const effectiveCodeActionsService = codeActionsService
         ?? workspaceSession.toLanguageWorkspaceContext('').services?.codeActionsService;
+    const signatureHelpService: LanguageSignatureHelpService | undefined =
+        workspaceSession.toLanguageWorkspaceContext('').services?.signatureHelpService;
     const structureService = workspaceSession.toLanguageWorkspaceContext('').services?.structureService;
     const formattingService = context.formattingService
         ?? workspaceSession.toLanguageWorkspaceContext('').services?.formattingService;
@@ -136,6 +141,12 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
                 ...(supportsFormattingHandlers && formattingService ? {
                     documentFormattingProvider: true,
                     documentRangeFormattingProvider: true
+                } : {}),
+                ...(signatureHelpService && connection.onSignatureHelp ? {
+                    signatureHelpProvider: {
+                        triggerCharacters: ['(', ','],
+                        retriggerCharacters: [',']
+                    }
                 } : {}),
                 ...(structureService ? {
                     foldingRangeProvider: true,
@@ -244,6 +255,15 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             documentStore,
             workspaceSession,
             navigationService
+        });
+    }
+
+    if (signatureHelpService && connection.onSignatureHelp) {
+        registerSignatureHelpHandler({
+            connection: connection as Pick<Connection, 'onSignatureHelp'>,
+            documentStore,
+            workspaceSession,
+            signatureHelpService
         });
     }
 

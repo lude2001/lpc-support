@@ -94,15 +94,31 @@ export class EfunDocsManager {
         return this.fileFunctionDocTracker.getDoc(funcName);
     }
 
+    public async getCurrentFileDocForDocument(
+        document: vscode.TextDocument,
+        funcName: string
+    ): Promise<EfunDoc | undefined> {
+        return this.fileFunctionDocTracker.getDocForDocument(document, funcName);
+    }
+
     public getInheritedFileDoc(funcName: string): EfunDoc | undefined {
         return this.fileFunctionDocTracker.getDocFromInherited(funcName);
     }
 
+    public async getInheritedFileDocForDocument(
+        document: vscode.TextDocument,
+        funcName: string,
+        options?: { forceFresh?: boolean }
+    ): Promise<EfunDoc | undefined> {
+        return this.fileFunctionDocTracker.getDocFromInheritedForDocument(document, funcName, options);
+    }
+
     public async getIncludedFileDoc(
         document: vscode.TextDocument,
-        funcName: string
+        funcName: string,
+        options?: { forceFresh?: boolean }
     ): Promise<EfunDoc | undefined> {
-        return this.fileFunctionDocTracker.getDocFromIncludes(document, funcName);
+        return this.fileFunctionDocTracker.getDocFromIncludes(document, funcName, options);
     }
 
     public getStandardDoc(funcName: string): EfunDoc | undefined {
