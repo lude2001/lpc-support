@@ -64,5 +64,28 @@ describe('parseFunctionDocs', () => {
 
         expect(docs.get('helper')?.returnObjects).toBeUndefined();
     });
+
+    test('records source location metadata when parsing simulated efun docs', () => {
+        const docs = parseFunctionDocs([
+            '/**',
+            ' * @brief action docs',
+            ' */',
+            'varargs void message_vision(string msg, object me, object you)',
+            '{',
+            '}'
+        ].join('\n'), '模拟函数库', {
+            isSimulated: true,
+            sourceFile: 'D:/workspace/adm/simul_efun/message.c'
+        });
+
+        expect(docs.get('message_vision')).toMatchObject({
+            name: 'message_vision',
+            sourceFile: 'D:/workspace/adm/simul_efun/message.c',
+            sourceRange: {
+                start: { line: 3, character: 0 },
+                end: { line: 3, character: 62 }
+            }
+        });
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

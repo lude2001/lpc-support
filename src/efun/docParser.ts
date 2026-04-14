@@ -2,6 +2,7 @@ import type { EfunDoc } from './types';
 
 export interface ParseFunctionDocsOptions {
     isSimulated?: boolean;
+    sourceFile?: string;
 }
 
 function normalizeDocComment(docComment: string): string {
@@ -143,6 +144,16 @@ export function parseFunctionDocs(
                 category
             };
 
+            if (options.sourceFile) {
+                const startOffset = match.index + match[0].lastIndexOf(funcDecl);
+                const endOffset = startOffset + funcDecl.length;
+                doc.sourceFile = options.sourceFile;
+                doc.sourceRange = {
+                    start: offsetToPosition(content, startOffset),
+                    end: offsetToPosition(content, endOffset)
+                };
+            }
+
             if (options.isSimulated) {
                 doc.isSimulated = true;
             } else {
@@ -181,4 +192,14 @@ export function parseFunctionDocs(
     }
 
     return docs;
+}
+
+function offsetToPosition(content: string, offset: number): { line: number; character: number } {
+    const normalizedOffset = Math.max(0, Math.min(offset, content.length));
+    const precedingContent = content.slice(0, normalizedOffset);
+    const lines = precedingContent.split('\n');
+    const line = lines.length - 1;
+    const character = lines[lines.length - 1]?.length ?? 0;
+
+    return { line, character };
 }

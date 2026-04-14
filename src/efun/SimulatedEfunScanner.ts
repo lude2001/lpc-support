@@ -88,7 +88,7 @@ export class SimulatedEfunScanner {
             visited.add(normalized);
 
             const text = await fs.promises.readFile(currentFile, 'utf8');
-            this.storeParsedDocs(text);
+            this.storeParsedDocs(currentFile, text);
 
             for (const relationFile of this.extractRelatedSourceFiles(currentFile, text, mudlibRoot)) {
                 if (!visited.has(path.normalize(relationFile))) {
@@ -131,8 +131,11 @@ export class SimulatedEfunScanner {
         return relatedFiles.filter((filePath): filePath is string => Boolean(filePath));
     }
 
-    private storeParsedDocs(text: string): void {
-        const functionDocs = parseFunctionDocs(text, '模拟函数库', { isSimulated: true });
+    private storeParsedDocs(filePath: string, text: string): void {
+        const functionDocs = parseFunctionDocs(text, '模拟函数库', {
+            isSimulated: true,
+            sourceFile: filePath
+        });
 
         for (const [funcName, doc] of functionDocs) {
             this.docs.set(funcName, doc);

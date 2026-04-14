@@ -250,11 +250,33 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         workspaceRoot: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.Location | undefined> {
-        if (!this.efunDocsManager.getSimulatedDoc(word)) {
+        const simulatedDoc = this.efunDocsManager.getSimulatedDoc(word);
+        if (!simulatedDoc) {
             return undefined;
         }
 
+        const simulatedDocLocation = this.toSimulatedDocLocation(simulatedDoc);
+        if (simulatedDocLocation) {
+            return simulatedDocLocation;
+        }
+
         return this.findInSimulatedEfuns(word, workspaceRoot, projectConfig);
+    }
+
+    private toSimulatedDocLocation(simulatedDoc: { sourceFile?: string; sourceRange?: LanguageLocation['range'] }): vscode.Location | undefined {
+        if (!simulatedDoc.sourceFile || !simulatedDoc.sourceRange) {
+            return undefined;
+        }
+
+        return new vscode.Location(
+            vscode.Uri.file(simulatedDoc.sourceFile),
+            new vscode.Range(
+                simulatedDoc.sourceRange.start.line,
+                simulatedDoc.sourceRange.start.character,
+                simulatedDoc.sourceRange.end.line,
+                simulatedDoc.sourceRange.end.character
+            )
+        );
     }
 
     private async findFunctionDefinition(
@@ -434,8 +456,58 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     ): Promise<vscode.Location | undefined> {
         const configuredFile = await this.getConfiguredSimulatedEfunFile(workspaceRoot, projectConfig);
         return configuredFile
-            ? this.findFunctionInFileByAST(configuredFile, word)
+            ? this.findFunctionInSimulatedEfunGraph(configuredFile, word, projectConfig)
             : undefined;
+    }
+
+    private async findFunctionInSimulatedEfunGraph(
+        entryFile: string,
+        functionName: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<vscode.Location | undefined> {
+        const queue = [entryFile];
+        const visited = new Set<string>();
+
+        while (queue.length > 0) {
+            const currentFile = queue.shift()!;
+            const normalizedFile = path.normalize(currentFile);
+            if (visited.has(normalizedFile)) {
+                continue;
+            }
+
+            visited.add(normalizedFile);
+
+            const location = await this.findFunctionInFileByAST(currentFile, functionName);
+            if (location) {
+                return location;
+            }
+
+            const document = await this.tryOpenTextDocument(currentFile);
+            if (!document) {
+                continue;
+            }
+
+            for (const includeFile of await this.resolveExistingIncludeFiles(document, projectConfig)) {
+                const normalizedInclude = path.normalize(includeFile);
+                if (!visited.has(normalizedInclude)) {
+                    queue.push(includeFile);
+                }
+            }
+
+            for (const inheritStatement of this.findInherits(document)) {
+                const inheritedFile = this.resolveInheritedFilePath(document, inheritStatement);
+                if (!inheritedFile || !this.host.fileExists(inheritedFile)) {
+                    continue;
+                }
+
+                const normalizedInherited = path.normalize(inheritedFile);
+                if (!visited.has(normalizedInherited)) {
+                    queue.push(inheritedFile);
+                }
+            }
+        }
+
+        return undefined;
     }
 
     private async findFunctionInFileByAST(
@@ -569,7 +641,10 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         return this.astManager.getSemanticSnapshot(document, useCache);
     }
 
-    private async resolveExistingIncludeFiles(document: vscode.TextDocument): Promise<string[]> {
+    private async resolveExistingIncludeFiles(
+        document: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<string[]> {
         const includeFiles: string[] = [];
         const workspaceRoot = this.getWorkspaceRoot(document);
 
@@ -578,7 +653,8 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
                 document,
                 includeStatement.value,
                 includeStatement.isSystemInclude,
-                workspaceRoot
+                workspaceRoot,
+                projectConfig
             );
             if (resolvedPath && this.host.fileExists(resolvedPath)) {
                 includeFiles.push(resolvedPath);
@@ -775,8 +851,31 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         return this.host.getWorkspaceFolder(document.uri)?.uri.fsPath ?? path.dirname(document.uri.fsPath);
     }
 
-    private resolveProjectPath(workspaceRoot: string, configPath: string): string {
-        return path.isAbsolute(configPath) ? configPath : path.join(workspaceRoot, configPath);
+    private resolveProjectPath(
+        workspaceRoot: string,
+        configPath: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): string {
+        if (this.isWorkspaceAbsolutePath(configPath)) {
+            return configPath;
+        }
+
+        const mudlibDirectory = projectConfig?.resolvedConfig?.mudlibDirectory;
+        const mudlibRoot = mudlibDirectory
+            ? this.resolveWorkspacePath(workspaceRoot, mudlibDirectory)
+            : workspaceRoot;
+        const normalizedPath = configPath.startsWith('/') ? configPath.substring(1) : configPath;
+        return path.join(mudlibRoot, normalizedPath);
+    }
+
+    private isWorkspaceAbsolutePath(targetPath: string): boolean {
+        return /^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\');
+    }
+
+    private resolveWorkspacePath(workspaceRoot: string, targetPath: string): string {
+        return this.isWorkspaceAbsolutePath(targetPath)
+            ? targetPath
+            : path.resolve(workspaceRoot, targetPath);
     }
 
     private async getPrimaryIncludeDirectory(
@@ -785,7 +884,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     ): Promise<string | undefined> {
         const fromContext = projectConfig?.resolvedConfig?.includeDirectories?.[0];
         if (fromContext) {
-            return this.resolveProjectPath(workspaceRoot, fromContext);
+            return this.resolveProjectPath(workspaceRoot, fromContext, projectConfig);
         }
 
         const fromService = await this.projectConfigService?.getPrimaryIncludeDirectoryForWorkspace(workspaceRoot);
@@ -801,7 +900,9 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     ): Promise<string | undefined> {
         const fromContext = projectConfig?.resolvedConfig?.simulatedEfunFile;
         if (fromContext) {
-            return this.resolveExistingCodePath(this.resolveProjectPath(workspaceRoot, fromContext));
+            return this.resolveExistingCodePath(
+                this.resolveProjectPath(workspaceRoot, fromContext, projectConfig)
+            );
         }
 
         const fromService = await this.projectConfigService?.getSimulatedEfunFileForWorkspace(workspaceRoot);

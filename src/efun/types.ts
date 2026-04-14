@@ -2,6 +2,11 @@ export interface EfunDoc {
     name: string;
     syntax: string;
     description: string;
+    sourceFile?: string;
+    sourceRange?: {
+        start: { line: number; character: number };
+        end: { line: number; character: number };
+    };
     returnType?: string;
     returnValue?: string;
     returnObjects?: string[];
