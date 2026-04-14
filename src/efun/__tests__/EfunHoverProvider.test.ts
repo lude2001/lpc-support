@@ -73,6 +73,76 @@ describe('EfunHoverProvider', () => {
         mockGetSyntaxDocument.mockReset();
     });
 
+    test('prefers current-file callable docs over inherited, include, simulated, and standard efun sources', async () => {
+        const content = 'shared_call();';
+        mockGetSyntaxDocument.mockReturnValue(undefined);
+        const manager = {
+            prepareHoverLookup: jest.fn().mockResolvedValue(undefined),
+            getCurrentFileDoc: jest.fn().mockReturnValue({
+                name: 'shared_call',
+                syntax: 'int shared_call()',
+                description: 'current-file docs'
+            }),
+            getInheritedFileDoc: jest.fn().mockReturnValue({
+                name: 'shared_call',
+                syntax: 'int shared_call()',
+                description: 'inherited docs'
+            }),
+            getIncludedFileDoc: jest.fn().mockResolvedValue({
+                name: 'shared_call',
+                syntax: 'int shared_call()',
+                description: 'include docs'
+            }),
+            getSimulatedDoc: jest.fn().mockReturnValue({
+                name: 'shared_call',
+                syntax: 'int shared_call()',
+                description: 'simulated docs'
+            }),
+            getStandardCallableDoc: jest.fn().mockReturnValue({
+                name: 'shared_call',
+                declarationKey: 'efun:shared_call',
+                sourceKind: 'efun',
+                signatures: [{
+                    label: 'int shared_call()',
+                    returnType: 'int',
+                    parameters: [],
+                    isVariadic: false
+                }],
+                summary: 'standard efun docs'
+            }),
+            getEfunDoc: jest.fn()
+        } as any;
+
+        const provider = new EfunHoverProvider(manager);
+        const document = {
+            getWordRangeAtPosition: jest.fn().mockReturnValue(new vscode.Range(0, 0, 0, 11)),
+            getText: jest.fn((range?: vscode.Range) => {
+                if (!range) {
+                    return content;
+                }
+
+                return content.slice(range.start.character, range.end.character);
+            })
+        } as unknown as vscode.TextDocument;
+
+        const hover = await provider.provideHover(document, new vscode.Position(0, 2));
+
+        expect(hover).toBeInstanceOf(vscode.Hover);
+        const markdown = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        expect(markdown.value).toContain('current-file docs');
+        expect(markdown.value).not.toContain('inherited docs');
+        expect(markdown.value).not.toContain('include docs');
+        expect(markdown.value).not.toContain('simulated docs');
+        expect(markdown.value).not.toContain('standard efun docs');
+        expect(manager.prepareHoverLookup).toHaveBeenCalledTimes(1);
+        expect(manager.getCurrentFileDoc).toHaveBeenCalledWith('shared_call');
+        expect(manager.getInheritedFileDoc).not.toHaveBeenCalled();
+        expect(manager.getIncludedFileDoc).not.toHaveBeenCalled();
+        expect(manager.getSimulatedDoc).not.toHaveBeenCalled();
+        expect(manager.getStandardCallableDoc).not.toHaveBeenCalled();
+        expect(manager.getEfunDoc).not.toHaveBeenCalled();
+    });
+
     test('does not fall back to simulated or standard efun docs for arrow member access', async () => {
         const content = 'target->write();';
         mockGetSyntaxDocument.mockReturnValue(createMemberAccessSyntaxDocument('write', 8, 13));
