@@ -1,16 +1,21 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { extractReturnType } from './docParser';
-import type { BundledEfunDocBundle, EfunDoc, LegacyEfunConfig } from './types';
+import type {
+    EfunDoc,
+    StructuredEfunDoc,
+    StructuredEfunDocBundle,
+    StructuredEfunParameter,
+    StructuredEfunSignature
+} from './types';
 
 const BUNDLED_DOCS_FILE = 'efun-docs.json';
-const LEGACY_CONFIG_FILE = 'lpc-config.json';
 
 export const DEFAULT_EFUN_CATEGORY = '标准 Efun';
 
 export class BundledEfunLoader {
     private docs: Map<string, EfunDoc> = new Map();
+    private structuredDocs: Map<string, StructuredEfunDoc> = new Map();
     private categories: Map<string, string[]> = new Map();
 
     constructor(context: vscode.ExtensionContext) {
@@ -19,6 +24,10 @@ export class BundledEfunLoader {
 
     public get(name: string): EfunDoc | undefined {
         return this.docs.get(name);
+    }
+
+    public getStructuredDoc(name: string): StructuredEfunDoc | undefined {
+        return this.structuredDocs.get(name);
     }
 
     public getAllNames(): string[] {
@@ -30,97 +39,274 @@ export class BundledEfunLoader {
     }
 
     private loadBundledDocs(context: vscode.ExtensionContext): void {
-        for (const basePath of this.getConfigSearchRoots(context)) {
-            const bundledDocsPath = path.join(basePath, 'config', BUNDLED_DOCS_FILE);
+        const bundledDocsPath = this.getBundledDocsPath(context);
 
-            try {
-                if (!fs.existsSync(bundledDocsPath)) {
-                    continue;
-                }
-
-                const bundle = JSON.parse(fs.readFileSync(bundledDocsPath, 'utf8')) as BundledEfunDocBundle;
-                this.docs = new Map(
-                    Object.entries(bundle.docs ?? {}).map(([name, doc]) => [name, { ...doc, name } as EfunDoc])
-                );
-                this.categories = new Map(
-                    Object.entries(bundle.categories ?? {}).map(([category, names]) => [category, [...names]])
-                );
-                return;
-            } catch (error) {
-                console.error('加载内置 Efun 文档失败:', error);
-            }
+        if (!fs.existsSync(bundledDocsPath)) {
+            console.error(`未找到内置 Efun 文档文件: ${bundledDocsPath}`);
+            this.docs = new Map();
+            this.structuredDocs = new Map();
+            this.categories = new Map();
+            return;
         }
 
-        this.loadLegacyBundledDocs(context);
-    }
-
-    private loadLegacyBundledDocs(context: vscode.ExtensionContext): void {
-        for (const basePath of this.getConfigSearchRoots(context)) {
-            const legacyConfigPath = path.join(basePath, 'config', LEGACY_CONFIG_FILE);
-
-            try {
-                if (!fs.existsSync(legacyConfigPath)) {
-                    continue;
-                }
-
-                const config = JSON.parse(fs.readFileSync(legacyConfigPath, 'utf8')) as LegacyEfunConfig;
-                const docs = new Map<string, EfunDoc>();
-                const categories = new Map<string, string[]>();
-
-                Object.entries(config.efuns ?? {})
-                    .sort(([left], [right]) => left.localeCompare(right))
-                    .forEach(([name, entry]) => {
-                        const category = entry.category?.trim() || DEFAULT_EFUN_CATEGORY;
-                        const list = categories.get(category) ?? [];
-                        list.push(name);
-                        categories.set(category, list);
-
-                        const syntax = this.normalizeSnippet(entry.snippet, name);
-                        docs.set(name, {
-                            name,
-                            syntax,
-                            description: entry.description?.trim() || entry.detail?.trim() || `${name} 内置函数`,
-                            returnType: extractReturnType(syntax, name),
-                            returnValue: this.cleanText(entry.returnValue),
-                            details: this.cleanText(entry.details),
-                            reference: Array.isArray(entry.reference) ? entry.reference.filter(Boolean) : undefined,
-                            category,
-                            note: this.cleanText(entry.note)
-                        });
-                    });
-
-                this.docs = docs;
-                this.categories = categories;
-                return;
-            } catch (error) {
-                console.error('加载备用 Efun 文档失败:', error);
-            }
+        let parsedBundle: unknown;
+        try {
+            parsedBundle = JSON.parse(fs.readFileSync(bundledDocsPath, 'utf8'));
+        } catch (error) {
+            console.error('加载内置 Efun 文档失败: JSON 解析错误', error);
+            this.docs = new Map();
+            this.structuredDocs = new Map();
+            this.categories = new Map();
+            return;
         }
+
+        if (!isRecord(parsedBundle) || !isRecord(parsedBundle.docs)) {
+            console.error('加载内置 Efun 文档失败: 缺少合法的 docs 对象');
+            this.docs = new Map();
+            this.structuredDocs = new Map();
+            this.categories = new Map();
+            return;
+        }
+
+        const bundle = parsedBundle as StructuredEfunDocBundle;
+        const docs = new Map<string, EfunDoc>();
+        const structuredDocs = new Map<string, StructuredEfunDoc>();
+
+        for (const [docKey, docValue] of Object.entries(bundle.docs)) {
+            const normalized = normalizeStructuredDoc(docKey, docValue);
+            if (!normalized) {
+                continue;
+            }
+
+            docs.set(docKey, createCompatEfunDoc(normalized));
+            structuredDocs.set(docKey, cloneStructuredDoc(normalized));
+        }
+
+        this.docs = docs;
+        this.structuredDocs = structuredDocs;
+        this.categories = this.loadCategories(bundle.categories, docs);
     }
 
-    private getConfigSearchRoots(context: vscode.ExtensionContext): string[] {
-        const roots = new Set<string>();
+    private loadCategories(
+        rawCategories: unknown,
+        docs: Map<string, EfunDoc>
+    ): Map<string, string[]> {
+        if (!isRecord(rawCategories)) {
+            console.error('加载内置 Efun 文档失败: 缺少合法的 categories 对象');
+            return new Map();
+        }
+
+        const categories = new Map<string, string[]>();
+        for (const [category, refs] of Object.entries(rawCategories)) {
+            if (!Array.isArray(refs)) {
+                console.warn(`忽略非法的 Efun 分类引用列表: ${category}`);
+                categories.set(category, []);
+                continue;
+            }
+
+            const validRefs = refs.filter((docKey): docKey is string => {
+                if (typeof docKey !== 'string' || !docs.has(docKey)) {
+                    console.warn(`忽略不存在的 Efun 分类引用: ${category} -> ${String(docKey)}`);
+                    return false;
+                }
+                return true;
+            });
+
+            categories.set(category, validRefs);
+        }
+
+        return categories;
+    }
+
+    private getBundledDocsPath(context: vscode.ExtensionContext): string {
         if (context?.extensionPath) {
-            roots.add(context.extensionPath);
+            return path.join(context.extensionPath, 'config', BUNDLED_DOCS_FILE);
         }
-        roots.add(path.resolve(__dirname, '..', '..'));
-        return Array.from(roots);
+
+        return path.join(path.resolve(__dirname, '..', '..'), 'config', BUNDLED_DOCS_FILE);
+    }
+}
+
+function normalizeStructuredDoc(docKey: string, value: unknown): StructuredEfunDoc | undefined {
+    if (!isRecord(value)) {
+        console.warn(`忽略非法的 Efun 文档条目: ${docKey}`);
+        return undefined;
     }
 
-    private normalizeSnippet(snippet: string | undefined, funcName: string): string {
-        const template = (snippet?.trim() || `${funcName}()`)
-            .replace(/\$\{\d+\|([^}]+)\|\}/g, (_, options: string) => options.split(',')[0]?.trim() ?? '')
-            .replace(/\$\{\d+:([^}]+)\}/g, '$1')
-            .replace(/\$\{\d+\}/g, '')
-            .replace(/\$\d+/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        return template || `${funcName}()`;
+    if (typeof value.name !== 'string' || !value.name.trim()) {
+        console.warn(`忽略缺少 name 的 Efun 文档条目: ${docKey}`);
+        return undefined;
     }
 
-    private cleanText(value: string | undefined): string | undefined {
-        const cleaned = value?.trim();
-        return cleaned ? cleaned : undefined;
+    if (value.name.trim() !== docKey) {
+        console.warn(`忽略 key 与 name 不一致的 Efun 文档条目: ${docKey} -> ${value.name.trim()}`);
+        return undefined;
     }
+
+    if (typeof value.category !== 'string' || !value.category.trim()) {
+        console.warn(`忽略缺少 category 的 Efun 文档条目: ${docKey}`);
+        return undefined;
+    }
+
+    if (!Array.isArray(value.signatures) || value.signatures.length === 0) {
+        console.warn(`忽略缺少 signatures 的 Efun 文档条目: ${docKey}`);
+        return undefined;
+    }
+
+    const signatures: StructuredEfunSignature[] = [];
+    for (const signature of value.signatures) {
+        const normalizedSignature = normalizeSignature(docKey, signature);
+        if (!normalizedSignature) {
+            return undefined;
+        }
+        signatures.push(normalizedSignature);
+    }
+
+    return {
+        name: value.name.trim(),
+        summary: normalizeOptionalText(value.summary),
+        details: normalizeOptionalText(value.details),
+        note: normalizeOptionalText(value.note),
+        reference: Array.isArray(value.reference)
+            ? value.reference
+                .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+                .map((item) => item.trim())
+            : undefined,
+        category: value.category.trim() || DEFAULT_EFUN_CATEGORY,
+        signatures
+    };
+}
+
+function normalizeSignature(docKey: string, value: unknown): StructuredEfunSignature | undefined {
+    if (!isRecord(value)) {
+        console.warn(`忽略非法的 Efun 签名条目: ${docKey}`);
+        return undefined;
+    }
+
+    if (typeof value.label !== 'string' || !value.label.trim()) {
+        console.warn(`忽略缺少 label 的 Efun 文档条目: ${docKey}`);
+        return undefined;
+    }
+
+    if (typeof value.isVariadic !== 'boolean') {
+        console.warn(`忽略缺少 isVariadic 的 Efun 文档条目: ${docKey}`);
+        return undefined;
+    }
+
+    if (!Array.isArray(value.parameters)) {
+        console.warn(`忽略缺少 parameters 的 Efun 文档条目: ${docKey}`);
+        return undefined;
+    }
+
+    const parameters: StructuredEfunParameter[] = [];
+    for (const parameter of value.parameters) {
+        const normalizedParameter = normalizeParameter(docKey, parameter);
+        if (!normalizedParameter) {
+            return undefined;
+        }
+        parameters.push(normalizedParameter);
+    }
+
+    return {
+        label: value.label.trim(),
+        returnType: normalizeOptionalText(value.returnType),
+        isVariadic: value.isVariadic,
+        parameters
+    };
+}
+
+function normalizeParameter(docKey: string, value: unknown): StructuredEfunParameter | undefined {
+    if (!isRecord(value)) {
+        console.warn(`忽略非法的 Efun 参数条目: ${docKey}`);
+        return undefined;
+    }
+
+    if (typeof value.name !== 'string' || !value.name.trim()) {
+        console.warn(`忽略缺少 name 的 Efun 参数条目: ${docKey}`);
+        return undefined;
+    }
+
+    return {
+        name: value.name.trim(),
+        type: normalizeOptionalText(value.type),
+        description: normalizeOptionalText(value.description),
+        optional: value.optional === true ? true : undefined,
+        variadic: value.variadic === true ? true : undefined
+    };
+}
+
+function createCompatEfunDoc(structuredDoc: StructuredEfunDoc): EfunDoc {
+    const syntax = structuredDoc.signatures.map(signature => signature.label).join('\n');
+
+    return {
+        name: structuredDoc.name,
+        syntax,
+        description: structuredDoc.summary ?? '',
+        returnType: deriveCompatReturnType(structuredDoc.signatures),
+        details: structuredDoc.details,
+        note: structuredDoc.note,
+        reference: structuredDoc.reference,
+        category: structuredDoc.category,
+        signatures: structuredDoc.signatures.map(cloneStructuredSignature)
+    };
+}
+
+function deriveCompatReturnType(signatures: StructuredEfunSignature[]): string | undefined {
+    if (signatures.length === 0) {
+        return undefined;
+    }
+
+    if (signatures.length === 1) {
+        return signatures[0].returnType;
+    }
+
+    const returnTypes = signatures.map((signature) => signature.returnType?.trim()).filter(Boolean);
+    if (returnTypes.length !== signatures.length) {
+        return undefined;
+    }
+
+    const [firstReturnType, ...restReturnTypes] = returnTypes;
+    return restReturnTypes.every((returnType) => returnType === firstReturnType)
+        ? firstReturnType
+        : undefined;
+}
+
+function cloneStructuredDoc(structuredDoc: StructuredEfunDoc): StructuredEfunDoc {
+    return {
+        name: structuredDoc.name,
+        summary: structuredDoc.summary,
+        details: structuredDoc.details,
+        note: structuredDoc.note,
+        reference: structuredDoc.reference ? [...structuredDoc.reference] : undefined,
+        category: structuredDoc.category,
+        signatures: structuredDoc.signatures.map(cloneStructuredSignature)
+    };
+}
+
+function cloneStructuredSignature(signature: StructuredEfunSignature): StructuredEfunSignature {
+    return {
+        label: signature.label,
+        returnType: signature.returnType,
+        isVariadic: signature.isVariadic,
+        parameters: signature.parameters.map(parameter => ({
+            name: parameter.name,
+            type: parameter.type,
+            description: parameter.description,
+            optional: parameter.optional,
+            variadic: parameter.variadic
+        }))
+    };
+}
+
+function normalizeOptionalText(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

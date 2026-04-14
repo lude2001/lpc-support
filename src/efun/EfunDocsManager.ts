@@ -2,25 +2,21 @@ import * as vscode from 'vscode';
 import { BundledEfunLoader } from './BundledEfunLoader';
 import { buildEfunHoverMarkdown, createEfunHover } from './EfunHoverContent';
 import { FileFunctionDocTracker } from './FileFunctionDocTracker';
-import { RemoteEfunFetcher } from './RemoteEfunFetcher';
 import { SimulatedEfunScanner } from './SimulatedEfunScanner';
-import type { EfunDoc } from './types';
+import type { EfunDoc, StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
+import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 
 export class EfunDocsManager {
     private bundledLoader: BundledEfunLoader;
     private fileFunctionDocTracker: FileFunctionDocTracker;
-    private remoteFetcher: RemoteEfunFetcher;
     private simulatedEfunScanner: SimulatedEfunScanner;
     private efunDocs: Map<string, EfunDoc> = new Map();
     private efunCategories: Map<string, string[]> = new Map();
-    private remoteDocFetches: Map<string, Promise<EfunDoc | undefined>> = new Map();
-    private missingRemoteDocs = new Set<string>();
 
     constructor(context: vscode.ExtensionContext, projectConfigService?: LpcProjectConfigService) {
         this.bundledLoader = new BundledEfunLoader(context);
         this.fileFunctionDocTracker = new FileFunctionDocTracker();
-        this.remoteFetcher = new RemoteEfunFetcher();
         this.simulatedEfunScanner = new SimulatedEfunScanner(projectConfigService);
         this.efunDocs = this.createBundledDocsMap();
         this.efunCategories = this.createBundledCategoriesMap();
@@ -113,45 +109,13 @@ export class EfunDocsManager {
         return this.efunDocs.get(funcName);
     }
 
-    public async getEfunDoc(funcName: string): Promise<EfunDoc | undefined> {
-        const bundledDoc = this.getStandardDoc(funcName);
-        if (bundledDoc) {
-            return bundledDoc;
-        }
-
-        return this.fetchMissingMudWikiDoc(funcName);
+    public getStandardCallableDoc(funcName: string): CallableDoc | undefined {
+        const structuredDoc = this.bundledLoader.getStructuredDoc(funcName);
+        return structuredDoc ? materializeCallableDoc(structuredDoc) : undefined;
     }
 
-    private async fetchMissingMudWikiDoc(funcName: string): Promise<EfunDoc | undefined> {
-        if (this.missingRemoteDocs.has(funcName)) {
-            return undefined;
-        }
-
-        const pendingFetch = this.remoteDocFetches.get(funcName);
-        if (pendingFetch) {
-            return pendingFetch;
-        }
-
-        const request = this.remoteFetcher.fetchDoc(funcName)
-            .then(doc => {
-                if (doc) {
-                    this.efunDocs.set(funcName, doc);
-                    this.missingRemoteDocs.delete(funcName);
-                } else {
-                    this.missingRemoteDocs.add(funcName);
-                }
-                return doc;
-            })
-            .catch(() => {
-                this.missingRemoteDocs.delete(funcName);
-                return undefined;
-            })
-            .finally(() => {
-                this.remoteDocFetches.delete(funcName);
-            });
-
-        this.remoteDocFetches.set(funcName, request);
-        return request;
+    public async getEfunDoc(funcName: string): Promise<EfunDoc | undefined> {
+        return this.getStandardDoc(funcName);
     }
 
     /**
@@ -181,4 +145,36 @@ export class EfunDocsManager {
     public getSimulatedDoc(funcName: string): EfunDoc | undefined {
         return this.simulatedEfunScanner.get(funcName);
     }
+}
+
+function materializeCallableDoc(structuredDoc: StructuredEfunDoc): CallableDoc {
+    return {
+        name: structuredDoc.name,
+        declarationKey: `efun:${structuredDoc.name}`,
+        signatures: structuredDoc.signatures.map(materializeCallableSignature),
+        summary: structuredDoc.summary,
+        details: structuredDoc.details,
+        note: structuredDoc.note,
+        sourceKind: 'efun'
+    };
+}
+
+function materializeCallableSignature(signature: StructuredEfunSignature): CallableSignature {
+    return {
+        label: signature.label,
+        returnType: signature.returnType,
+        parameters: signature.parameters.map(materializeCallableParameter),
+        isVariadic: signature.isVariadic,
+        rawSyntax: signature.label
+    };
+}
+
+function materializeCallableParameter(parameter: StructuredEfunParameter): CallableParameter {
+    return {
+        name: parameter.name,
+        type: parameter.type,
+        description: parameter.description,
+        optional: parameter.optional,
+        variadic: parameter.variadic
+    };
 }

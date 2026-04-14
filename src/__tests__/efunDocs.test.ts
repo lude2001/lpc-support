@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import axios from 'axios';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -10,14 +9,10 @@ import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { TestHelper } from './utils/TestHelper';
 
-jest.mock('axios', () => ({
-    __esModule: true,
-    default: {
-        get: jest.fn()
-    }
-}));
-
 describe('EfunDocsManager', () => {
+    let errorSpy: jest.SpyInstance;
+    let warnSpy: jest.SpyInstance;
+
     beforeEach(() => {
         jest.clearAllMocks();
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
@@ -26,27 +21,195 @@ describe('EfunDocsManager', () => {
         });
         (vscode.workspace.workspaceFolders as unknown[]) = [];
         (vscode.window.activeTextEditor as unknown) = undefined;
+        errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     });
 
-    test('should load bundled efun docs without network access', async () => {
-        const context = {
+    afterEach(() => {
+        errorSpy.mockRestore();
+        warnSpy.mockRestore();
+    });
+
+    function createContext(extensionPath: string): vscode.ExtensionContext {
+        return {
             subscriptions: [],
-            extensionPath: process.cwd()
+            extensionPath
         } as unknown as vscode.ExtensionContext;
+    }
 
-        const manager = new EfunDocsManager(context);
-        const doc = await manager.getEfunDoc('allocate');
+    function writeBundleFile(extensionPath: string, value: unknown | string): void {
+        const configDir = path.join(extensionPath, 'config');
+        fs.mkdirSync(configDir, { recursive: true });
+        const serialized = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        fs.writeFileSync(path.join(configDir, 'efun-docs.json'), serialized, 'utf8');
+    }
 
-        expect(manager.getAllFunctions()).toContain('allocate');
-        expect(manager.getCategories().get('数组相关函数（Arrays）')).toContain('allocate');
-        expect(doc).toMatchObject({
+    function createStructuredBundle(overrides?: {
+        docs?: Record<string, unknown>;
+        categories?: Record<string, string[]>;
+    }): Record<string, unknown> {
+        return {
+            generatedAt: '2026-04-14T00:00:00.000Z',
+            categories: overrides?.categories ?? {
+                '调用相关函数（Calls）': ['call_out', 'call_other'],
+                '数组相关函数（Arrays）': ['allocate', 'minimal_doc']
+            },
+            docs: overrides?.docs ?? {
+                allocate: {
+                    name: 'allocate',
+                    summary: '分配一个指定大小的数组。',
+                    details: '第二个签名允许用固定值或函数初始化元素。',
+                    note: '数组大小必须在驱动限制范围内。',
+                    reference: ['sizeof', 'allocate_mapping'],
+                    category: '数组相关函数（Arrays）',
+                    signatures: [
+                        {
+                            label: 'mixed *allocate(int size)',
+                            returnType: 'mixed *',
+                            isVariadic: false,
+                            parameters: [
+                                {
+                                    name: 'size',
+                                    type: 'int',
+                                    description: '数组长度'
+                                }
+                            ]
+                        },
+                        {
+                            label: 'mixed *allocate(int size, mixed value)',
+                            returnType: 'mixed *',
+                            isVariadic: false,
+                            parameters: [
+                                {
+                                    name: 'size',
+                                    type: 'int',
+                                    description: '数组长度'
+                                },
+                                {
+                                    name: 'value',
+                                    type: 'mixed',
+                                    description: '初始值'
+                                }
+                            ]
+                        }
+                    ]
+                },
+                call_other: {
+                    name: 'call_other',
+                    summary: '调用另一个对象上的函数。',
+                    category: '调用相关函数（Calls）',
+                    signatures: [
+                        {
+                            label: 'mixed call_other(object ob, string func, mixed arg)',
+                            returnType: 'mixed',
+                            isVariadic: false,
+                            parameters: [
+                                { name: 'ob', type: 'object', description: '目标对象' },
+                                { name: 'func', type: 'string', description: '函数名' },
+                                { name: 'arg', type: 'mixed', description: '单个参数' }
+                            ]
+                        },
+                        {
+                            label: 'mixed call_other(object ob, string func, mixed ...args)',
+                            returnType: 'mixed',
+                            isVariadic: true,
+                            parameters: [
+                                { name: 'ob', type: 'object', description: '目标对象' },
+                                { name: 'func', type: 'string', description: '函数名' },
+                                { name: 'args', type: 'mixed', description: '附加参数', variadic: true }
+                            ]
+                        }
+                    ]
+                },
+                call_out: {
+                    name: 'call_out',
+                    summary: '设置延迟调用。',
+                    details: 'delay 支持 int 或 float。',
+                    note: '返回的句柄可用于 remove_call_out。',
+                    reference: ['remove_call_out', 'find_call_out'],
+                    category: '调用相关函数（Calls）',
+                    signatures: [
+                        {
+                            label: 'int call_out(string | function fun, int | float delay, mixed ...args)',
+                            returnType: 'int',
+                            isVariadic: true,
+                            parameters: [
+                                { name: 'fun', type: 'string | function', description: '要调用的函数或函数指针' },
+                                { name: 'delay', type: 'int | float', description: '延迟秒数' },
+                                { name: 'args', type: 'mixed', description: '传递给 fun 的附加参数', variadic: true }
+                            ]
+                        }
+                    ]
+                },
+                minimal_doc: {
+                    name: 'minimal_doc',
+                    category: '数组相关函数（Arrays）',
+                    signatures: [
+                        {
+                            label: 'void minimal_doc()',
+                            returnType: 'void',
+                            isVariadic: false,
+                            parameters: []
+                        }
+                    ]
+                },
+                orphan_doc: {
+                    name: 'orphan_doc',
+                    summary: '即使没有分类引用也应该加载。',
+                    category: '未引用分类',
+                    signatures: [
+                        {
+                            label: 'int orphan_doc()',
+                            returnType: 'int',
+                            isVariadic: false,
+                            parameters: []
+                        }
+                    ]
+                }
+            }
+        };
+    }
+
+    test('loads structured local efun docs with simple, overloaded, variadic, and minimal entries', async () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-structured-'));
+        writeBundleFile(extensionPath, createStructuredBundle());
+
+        const manager = new EfunDocsManager(createContext(extensionPath));
+        const allocateDoc = await manager.getEfunDoc('allocate');
+        const callOtherDoc = await manager.getEfunDoc('call_other');
+        const callOutDoc = await manager.getEfunDoc('call_out');
+        const minimalDoc = manager.getStandardDoc('minimal_doc');
+
+        expect(manager.getAllFunctions()).toEqual(expect.arrayContaining([
+            'allocate',
+            'call_other',
+            'call_out',
+            'minimal_doc',
+            'orphan_doc'
+        ]));
+        expect(manager.getCategories().get('数组相关函数（Arrays）')).toEqual(['allocate', 'minimal_doc']);
+        expect(allocateDoc).toMatchObject({
             name: 'allocate',
             returnType: 'mixed *',
             category: '数组相关函数（Arrays）'
         });
-        expect(doc?.syntax).toContain('varargs mixed *allocate');
-        expect(doc?.description).toContain('配置一个有 `size` 个元素的数组');
-        expect(doc?.returnValue).toContain('allocate() 返回数组');
+        expect(allocateDoc?.syntax).toContain('mixed *allocate(int size)');
+        expect(allocateDoc?.syntax).toContain('mixed *allocate(int size, mixed value)');
+        expect(callOtherDoc?.syntax).toContain('mixed call_other(object ob, string func, mixed arg)');
+        expect(callOtherDoc?.syntax).toContain('mixed call_other(object ob, string func, mixed ...args)');
+        expect(callOutDoc?.syntax).toBe('int call_out(string | function fun, int | float delay, mixed ...args)');
+        expect(callOutDoc?.description).toContain('设置延迟调用。');
+        expect(callOutDoc?.details).toContain('delay 支持 int 或 float。');
+        expect(callOutDoc?.note).toContain('remove_call_out');
+        expect(callOutDoc?.reference).toEqual(['remove_call_out', 'find_call_out']);
+        expect(minimalDoc).toMatchObject({
+            name: 'minimal_doc',
+            syntax: 'void minimal_doc()',
+            returnType: 'void',
+            category: '数组相关函数（Arrays）'
+        });
+        expect(minimalDoc?.description).toBe('');
+        expect(errorSpy).not.toHaveBeenCalled();
     });
 
     test('re-export shim exposes the facade manager class', () => {
@@ -54,12 +217,9 @@ describe('EfunDocsManager', () => {
     });
 
     test('should build bundled efun completion documentation through the shared completion service', async () => {
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-
-        const manager = new EfunDocsManager(context);
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-completion-'));
+        writeBundleFile(extensionPath, createStructuredBundle());
+        const manager = new EfunDocsManager(createContext(extensionPath));
         const service = new QueryBackedLanguageCompletionService(manager, {
             getMacro: jest.fn(),
             getAllMacros: jest.fn(() => []),
@@ -103,61 +263,242 @@ describe('EfunDocsManager', () => {
             item: allocateItem!
         });
 
-        expect(resolved?.documentation?.value).toContain('varargs mixed *allocate');
+        expect(resolved?.documentation?.value).toContain('mixed *allocate(int size)');
+        expect(resolved?.documentation?.value).toContain('mixed *allocate(int size, mixed value)');
         expect(resolved?.documentation?.value).toContain('**Return Type:** `mixed *`');
-        expect(resolved?.documentation?.value).toContain('配置一个有 `size` 个元素的数组');
+        expect(resolved?.documentation?.value).toContain('分配一个指定大小的数组。');
     });
 
-    test('should fetch MudWiki docs on demand when bundled doc is missing', async () => {
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-        const manager = new EfunDocsManager(context);
-        const mudWikiHtml = `
-            <div id="mw-content-text">
-                <div class="mw-parser-output">
-                    <h3><span class="mw-headline">语法</span></h3>
-                    <pre>int valid_read( string file, object user, string func );</pre>
-                    <h3><span class="mw-headline">描述</span></h3>
-                    <pre>检查读取权限。</pre>
-                    <h3><span class="mw-headline">返回值</span></h3>
-                    <pre>成功返回 1，失败返回 0。</pre>
-                    <h3><span class="mw-headline">参考</span></h3>
-                    <pre><a href="/Valid_write">valid_write</a></pre>
-                </div>
-            </div>
-            <div class="printfooter"></div>
-        `;
+    test('returns empty docs and categories when the configured structured bundle is malformed JSON', async () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-malformed-'));
+        writeBundleFile(extensionPath, '{ invalid json');
 
-        (manager as any).efunDocs.delete('valid_read');
-        (axios.get as jest.Mock).mockResolvedValue({
-            data: mudWikiHtml
+        const manager = new EfunDocsManager(createContext(extensionPath));
+
+        expect(manager.getAllFunctions()).toEqual([]);
+        expect(manager.getCategories().size).toBe(0);
+        await expect(manager.getEfunDoc('allocate')).resolves.toBeUndefined();
+        expect(errorSpy).toHaveBeenCalled();
+    });
+
+    test('returns empty docs and categories when docs is missing', () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-missing-docs-'));
+        writeBundleFile(extensionPath, {
+            generatedAt: '2026-04-14T00:00:00.000Z',
+            categories: {
+                '调用相关函数（Calls）': ['call_out']
+            }
         });
 
-        const doc = await manager.getEfunDoc('valid_read');
+        const manager = new EfunDocsManager(createContext(extensionPath));
 
-        expect(axios.get).toHaveBeenCalled();
-        expect(doc).toMatchObject({
-            name: 'valid_read',
-            syntax: 'int valid_read( string file, object user, string func );',
-            returnType: 'int',
-            description: '检查读取权限。',
-            returnValue: '成功返回 1，失败返回 0。'
+        expect(manager.getAllFunctions()).toEqual([]);
+        expect(manager.getCategories().size).toBe(0);
+        expect(errorSpy).toHaveBeenCalled();
+    });
+
+    test('loads docs but returns empty categories when categories is missing', () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-missing-categories-'));
+        writeBundleFile(extensionPath, {
+            generatedAt: '2026-04-14T00:00:00.000Z',
+            docs: {
+                call_out: {
+                    name: 'call_out',
+                    summary: '设置延迟调用。',
+                    category: '调用相关函数（Calls）',
+                    signatures: [
+                        {
+                            label: 'int call_out(string fun, int delay, mixed ...args)',
+                            returnType: 'int',
+                            isVariadic: true,
+                            parameters: [
+                                { name: 'fun', type: 'string' },
+                                { name: 'delay', type: 'int' },
+                                { name: 'args', type: 'mixed', variadic: true }
+                            ]
+                        }
+                    ]
+                }
+            }
         });
-        expect(doc?.reference).toEqual(['valid_write']);
-        expect(manager.getStandardDoc('valid_read')).toMatchObject({
+
+        const manager = new EfunDocsManager(createContext(extensionPath));
+
+        expect(manager.getAllFunctions()).toEqual(['call_out']);
+        expect(manager.getStandardDoc('call_out')).toMatchObject({
+            name: 'call_out',
             returnType: 'int'
         });
+        expect(manager.getCategories().size).toBe(0);
+        expect(errorSpy).toHaveBeenCalled();
+    });
+
+    test('ignores missing category references and keeps unreferenced docs loadable', () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-missing-category-ref-'));
+        writeBundleFile(extensionPath, createStructuredBundle({
+            categories: {
+                '调用相关函数（Calls）': ['call_out', 'missing_doc']
+            }
+        }));
+
+        const manager = new EfunDocsManager(createContext(extensionPath));
+
+        expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual(['call_out']);
+        expect(manager.getAllFunctions()).toEqual(expect.arrayContaining(['call_out', 'allocate', 'orphan_doc']));
+        expect(manager.getStandardDoc('missing_doc')).toBeUndefined();
+        expect(warnSpy).toHaveBeenCalled();
+    });
+
+    test('rejects docs whose key does not match the declared name', () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-key-name-mismatch-'));
+        writeBundleFile(extensionPath, createStructuredBundle({
+            docs: {
+                wrong_key: {
+                    name: 'actual_name',
+                    summary: '名字不一致的条目不应被加载。',
+                    category: '调用相关函数（Calls）',
+                    signatures: [
+                        {
+                            label: 'void actual_name()',
+                            returnType: 'void',
+                            isVariadic: false,
+                            parameters: []
+                        }
+                    ]
+                }
+            },
+            categories: {
+                '调用相关函数（Calls）': ['wrong_key']
+            }
+        }));
+
+        const manager = new EfunDocsManager(createContext(extensionPath));
+
+        expect(manager.getAllFunctions()).toEqual([]);
+        expect(manager.getStandardDoc('wrong_key')).toBeUndefined();
+        expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
+        expect(warnSpy).toHaveBeenCalled();
+    });
+
+    test('compatibility returnType is omitted when overloaded signatures disagree or are incomplete', async () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-return-type-compat-'));
+        writeBundleFile(extensionPath, createStructuredBundle({
+            docs: {
+                mixed_returns: {
+                    name: 'mixed_returns',
+                    summary: '重载返回类型不一致时不暴露兼容 returnType。',
+                    category: '调用相关函数（Calls）',
+                    signatures: [
+                        {
+                            label: 'int mixed_returns(int arg)',
+                            returnType: 'int',
+                            isVariadic: false,
+                            parameters: [{ name: 'arg', type: 'int' }]
+                        },
+                        {
+                            label: 'string mixed_returns(string arg)',
+                            returnType: 'string',
+                            isVariadic: false,
+                            parameters: [{ name: 'arg', type: 'string' }]
+                        }
+                    ]
+                },
+                late_only_return_type: {
+                    name: 'late_only_return_type',
+                    summary: '只有后续重载声明返回类型时也不应猜测。',
+                    category: '调用相关函数（Calls）',
+                    signatures: [
+                        {
+                            label: 'late_only_return_type()',
+                            isVariadic: false,
+                            parameters: []
+                        },
+                        {
+                            label: 'int late_only_return_type(int arg)',
+                            returnType: 'int',
+                            isVariadic: false,
+                            parameters: [{ name: 'arg', type: 'int' }]
+                        }
+                    ]
+                }
+            },
+            categories: {
+                '调用相关函数（Calls）': ['mixed_returns', 'late_only_return_type']
+            }
+        }));
+
+        const manager = new EfunDocsManager(createContext(extensionPath));
+        const mixedReturnsDoc = await manager.getEfunDoc('mixed_returns');
+        const lateOnlyDoc = await manager.getEfunDoc('late_only_return_type');
+
+        expect(mixedReturnsDoc?.returnType).toBeUndefined();
+        expect(lateOnlyDoc?.returnType).toBeUndefined();
+        expect(mixedReturnsDoc?.syntax).toContain('int mixed_returns(int arg)');
+        expect(mixedReturnsDoc?.syntax).toContain('string mixed_returns(string arg)');
+    });
+
+    test('drops invalid docs when a signature is missing label', () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-invalid-signature-'));
+        writeBundleFile(extensionPath, createStructuredBundle({
+            docs: {
+                bad_signature: {
+                    name: 'bad_signature',
+                    category: '调用相关函数（Calls）',
+                    signatures: [
+                        {
+                            returnType: 'void',
+                            isVariadic: false,
+                            parameters: []
+                        }
+                    ]
+                }
+            },
+            categories: {
+                '调用相关函数（Calls）': ['bad_signature']
+            }
+        }));
+
+        const manager = new EfunDocsManager(createContext(extensionPath));
+
+        expect(manager.getAllFunctions()).toEqual([]);
+        expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
+    });
+
+    test('drops invalid docs when a parameter is missing name', () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-invalid-param-'));
+        writeBundleFile(extensionPath, createStructuredBundle({
+            docs: {
+                bad_param: {
+                    name: 'bad_param',
+                    category: '调用相关函数（Calls）',
+                    signatures: [
+                        {
+                            label: 'void bad_param(string value)',
+                            returnType: 'void',
+                            isVariadic: false,
+                            parameters: [
+                                {
+                                    type: 'string',
+                                    description: '缺少参数名'
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            categories: {
+                '调用相关函数（Calls）': ['bad_param']
+            }
+        }));
+
+        const manager = new EfunDocsManager(createContext(extensionPath));
+
+        expect(manager.getAllFunctions()).toEqual([]);
+        expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
     });
 
     test('hover markdown is not trusted and preserves pointer-like parameter types in the table', () => {
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-
-        const manager = new EfunDocsManager(context) as any;
+        const manager = new EfunDocsManager(createContext(process.cwd())) as any;
         const hover = manager.createHoverContent({
             name: 'demo',
             syntax: 'mixed demo(mixed * items, string* label)',
@@ -171,12 +512,7 @@ describe('EfunDocsManager', () => {
     });
 
     test('hover parameter table escapes markdown-breaking pipe characters', () => {
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-
-        const manager = new EfunDocsManager(context) as any;
+        const manager = new EfunDocsManager(createContext(process.cwd())) as any;
         const hover = manager.createHoverContent({
             name: 'demo',
             syntax: 'void demo(string value)',
@@ -186,103 +522,6 @@ describe('EfunDocsManager', () => {
         const content = hover.contents as vscode.MarkdownString;
         expect(content.value).toContain('| `value` | `string` | foo \\| bar |');
     });
-
-    test('missing remote docs are negatively cached after the first miss', async () => {
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-        const manager = new EfunDocsManager(context);
-
-        (axios.get as jest.Mock).mockRejectedValue({ response: { status: 404 } });
-        (manager as any).efunDocs.delete('totally_missing_efun');
-
-        const first = await manager.getEfunDoc('totally_missing_efun');
-        const firstCallCount = (axios.get as jest.Mock).mock.calls.length;
-        const second = await manager.getEfunDoc('totally_missing_efun');
-
-        expect(first).toBeUndefined();
-        expect(second).toBeUndefined();
-        expect(firstCallCount).toBeGreaterThan(0);
-        expect((axios.get as jest.Mock).mock.calls.length).toBe(firstCallCount);
-    });
-
-    test('transient remote fetch failures are retried on the next request', async () => {
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-        const manager = new EfunDocsManager(context);
-
-        (axios.get as jest.Mock)
-            .mockRejectedValueOnce(new Error('temporary outage'))
-            .mockResolvedValueOnce({
-                data: `
-                    <div id="mw-content-text">
-                        <div class="mw-parser-output">
-                            <h3><span class="mw-headline">语法</span></h3>
-                            <pre>int retry_doc();</pre>
-                            <h3><span class="mw-headline">描述</span></h3>
-                            <pre>retry ok</pre>
-                        </div>
-                    </div>
-                    <div class="printfooter"></div>
-                `
-            });
-
-        (manager as any).efunDocs.delete('retry_doc');
-
-        const first = await manager.getEfunDoc('retry_doc');
-        const second = await manager.getEfunDoc('retry_doc');
-
-        expect(first).toBeUndefined();
-        expect(second).toMatchObject({
-            name: 'retry_doc',
-            description: 'retry ok'
-        });
-        expect((axios.get as jest.Mock).mock.calls.length).toBeGreaterThan(1);
-    });
-
-    test('unparseable 200 responses are not permanently negative-cached', async () => {
-        const context = {
-            subscriptions: [],
-            extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext;
-        const manager = new EfunDocsManager(context);
-
-        let requestCount = 0;
-        (axios.get as jest.Mock).mockImplementation(() => {
-            requestCount += 1;
-            if (requestCount <= 3) {
-                return Promise.resolve({ data: '<html><body>unexpected layout</body></html>' });
-            }
-
-            return Promise.resolve({
-                data: `
-                    <div id="mw-content-text">
-                        <div class="mw-parser-output">
-                            <h3><span class="mw-headline">语法</span></h3>
-                            <pre>int retry_parse();</pre>
-                            <h3><span class="mw-headline">描述</span></h3>
-                            <pre>parse ok</pre>
-                        </div>
-                    </div>
-                    <div class="printfooter"></div>
-                `
-            });
-        });
-
-        const first = await manager.getEfunDoc('retry_parse');
-        const second = await manager.getEfunDoc('retry_parse');
-
-        expect(first).toBeUndefined();
-        expect(second).toMatchObject({
-            name: 'retry_parse',
-            description: 'parse ok'
-        });
-        expect((axios.get as jest.Mock).mock.calls.length).toBeGreaterThan(1);
-    });
-
 });
 
 describe('SimulatedEfunScanner', () => {
