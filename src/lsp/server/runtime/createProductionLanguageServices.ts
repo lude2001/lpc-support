@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as fs from 'fs';
 import type { ExtensionContext } from 'vscode';
 import { ASTManager } from '../../../ast/astManager';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
@@ -107,6 +108,25 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
 function createServerExtensionContext(): ExtensionContext {
     return {
         subscriptions: [],
-        extensionPath: path.resolve(__dirname, '..', '..', '..', '..')
+        extensionPath: resolveServerExtensionPath()
     } as unknown as ExtensionContext;
+}
+
+export function resolveServerExtensionPath(startDir: string = __dirname): string {
+    let currentDir = path.resolve(startDir);
+
+    while (true) {
+        const packageJsonPath = path.join(currentDir, 'package.json');
+        const efunDocsPath = path.join(currentDir, 'config', 'efun-docs.json');
+        if (fs.existsSync(packageJsonPath) && fs.existsSync(efunDocsPath)) {
+            return currentDir;
+        }
+
+        const parentDir = path.dirname(currentDir);
+        if (parentDir === currentDir) {
+            return path.resolve(startDir, '..', '..', '..', '..');
+        }
+
+        currentDir = parentDir;
+    }
 }

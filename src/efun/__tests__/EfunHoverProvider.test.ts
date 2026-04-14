@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { EfunDocsManager } from '../../efunDocs';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { EfunHoverProvider } from '../EfunHoverProvider';
 
@@ -71,6 +73,37 @@ function createMemberAccessSyntaxDocument(memberName: string, memberStart: numbe
 describe('EfunHoverProvider', () => {
     beforeEach(() => {
         mockGetSyntaxDocument.mockReset();
+    });
+
+    test('renders bundled standard efun documentation when no source-backed docs match', async () => {
+        const content = 'write("hello");';
+        mockGetSyntaxDocument.mockReturnValue(undefined);
+        const manager = new EfunDocsManager({
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext);
+        const provider = new EfunHoverProvider(manager);
+        const document = {
+            uri: vscode.Uri.file('D:/code/lpc/room/test.c'),
+            languageId: 'lpc',
+            fileName: 'D:/code/lpc/room/test.c',
+            version: 1,
+            getWordRangeAtPosition: jest.fn().mockReturnValue(new vscode.Range(0, 0, 0, 5)),
+            getText: jest.fn((range?: vscode.Range) => {
+                if (!range) {
+                    return content;
+                }
+
+                return content.slice(range.start.character, range.end.character);
+            })
+        } as unknown as vscode.TextDocument;
+
+        const hover = await provider.provideHover(document, new vscode.Position(0, 2));
+
+        expect(hover).toBeInstanceOf(vscode.Hover);
+        const markdown = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        expect(markdown.value).toContain('void write(mixed str)');
+        expect(markdown.value).toContain('对当前玩家显示');
     });
 
     test('prefers current-file callable docs over inherited, include, simulated, and standard efun sources', async () => {
@@ -208,4 +241,3 @@ describe('EfunHoverProvider', () => {
         expect(manager.getEfunDoc).not.toHaveBeenCalled();
     });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

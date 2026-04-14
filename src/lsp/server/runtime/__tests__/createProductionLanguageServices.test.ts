@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 describe('createProductionLanguageServices', () => {
     afterEach(() => {
@@ -127,6 +130,27 @@ describe('createProductionLanguageServices', () => {
             expect(foldingService.provideFoldingRanges).toHaveBeenCalledWith(request);
             expect(semanticTokensService.provideSemanticTokens).toHaveBeenCalledWith(request);
             expect(codeActionsService.provideCodeActions).toHaveBeenCalledWith(request);
+        });
+    });
+
+    test('resolves the extension root from both src and dist-style runtime directories', () => {
+        jest.isolateModules(() => {
+            const moduleUnderTest = require('../createProductionLanguageServices') as typeof import('../createProductionLanguageServices');
+            const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-runtime-root-'));
+            const extensionRoot = path.join(tempRoot, 'extension');
+            const srcRuntimeDir = path.join(extensionRoot, 'src', 'lsp', 'server', 'runtime');
+            const distRuntimeDir = path.join(extensionRoot, 'dist', 'lsp');
+
+            fs.mkdirSync(path.join(extensionRoot, 'config'), { recursive: true });
+            fs.mkdirSync(srcRuntimeDir, { recursive: true });
+            fs.mkdirSync(distRuntimeDir, { recursive: true });
+            fs.writeFileSync(path.join(extensionRoot, 'package.json'), '{"name":"lpc-support"}', 'utf8');
+            fs.writeFileSync(path.join(extensionRoot, 'config', 'efun-docs.json'), '{"docs":{},"categories":{}}', 'utf8');
+
+            expect(moduleUnderTest.resolveServerExtensionPath(srcRuntimeDir)).toBe(extensionRoot);
+            expect(moduleUnderTest.resolveServerExtensionPath(distRuntimeDir)).toBe(extensionRoot);
+
+            fs.rmSync(tempRoot, { recursive: true, force: true });
         });
     });
 });

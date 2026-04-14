@@ -2,6 +2,16 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.40.1] - 2026-04-14
+
+### callable-documentation 与签名帮助升级
+
+- 新增统一的 callable-documentation 主链：当前文件、继承文件、include 文件、模拟函数库、标准 efun 与对象方法文档现在共享同一套结构化文档模型。
+- 新增签名帮助能力，支持当前文件、继承文件、include 文件、模拟函数库、标准 efun 与对象方法调用。
+- 标准 efun 文档切换为完全本地、结构化的内置 bundle，运行时不再请求 `mud.wiki`。
+- 函数文档悬停、函数文档面板与 `@lpc-return-objects` 返回对象传播统一复用共享文档服务。
+- 补充 callable-documentation / signature help / formatter parity / object inference 回归覆盖，并修复全量测试中的 fixture 与缓存稳定性问题。
+
 ## [0.40.0] - 2026-04-12
 
 ### 重大更新
