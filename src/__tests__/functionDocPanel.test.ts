@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { FunctionDocPanel } from '../functionDocPanel';
 import { LPCFunctionParser } from '../functionParser';

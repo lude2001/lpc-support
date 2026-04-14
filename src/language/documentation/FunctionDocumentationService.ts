@@ -40,6 +40,7 @@ interface PendingTag {
 
 interface CachedDocumentDocsEntry {
     version: number;
+    text: string;
     docs: DocumentCallableDocs;
 }
 
@@ -75,15 +76,21 @@ export class FunctionDocumentationService {
 
     private getOrBuildDocumentDocs(document: vscode.TextDocument): DocumentCallableDocs {
         const uri = document.uri.toString();
+        const text = document.getText();
         const cachedEntry = this.documentCache.get(uri);
 
-        if (cachedEntry && cachedEntry.version === document.version) {
+        if (cachedEntry && cachedEntry.version === document.version && cachedEntry.text === text) {
             return cachedEntry.docs;
+        }
+
+        if (cachedEntry && cachedEntry.text !== text) {
+            getGlobalParsedDocumentService().invalidate(document.uri);
         }
 
         const builtDocs = this.buildDocumentDocs(document);
         this.documentCache.set(uri, {
             version: document.version,
+            text,
             docs: builtDocs
         });
         return builtDocs;

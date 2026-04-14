@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as docParser from '../../efun/docParser';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { PathResolver } from '../../utils/pathResolver';

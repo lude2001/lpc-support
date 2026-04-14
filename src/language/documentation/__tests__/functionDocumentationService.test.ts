@@ -178,7 +178,7 @@ describe('FunctionDocumentationService', () => {
         expect(callableDoc.returnObjects).toBeUndefined();
     });
 
-    test('rebuilds a document after invalidate(uri)', () => {
+    test('rebuilds a document after invalidate(uri) and auto-refreshes same-version text changes', () => {
         const originalDocument = createDocument([
             '/**',
             ' * @brief Original summary',
@@ -198,10 +198,10 @@ describe('FunctionDocumentationService', () => {
         const service = new FunctionDocumentationService();
 
         const originalDoc = service.getDocsByName(originalDocument, 'cached_doc')[0];
-        const staleDoc = service.getDocsByName(updatedDocument, 'cached_doc')[0];
+        const refreshedDoc = service.getDocsByName(updatedDocument, 'cached_doc')[0];
 
         expect(originalDoc.summary).toBe('Original summary');
-        expect(staleDoc.summary).toBe('Original summary');
+        expect(refreshedDoc.summary).toBe('Updated summary');
 
         service.invalidate(updatedDocument.uri.toString());
 
