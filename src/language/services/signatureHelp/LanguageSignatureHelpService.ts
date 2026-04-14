@@ -38,6 +38,7 @@ export interface CallableDiscoveryRequest {
     callExpressionRange: vscode.Range;
     calleeName: string;
     callKind: 'function' | 'objectMethod';
+    calleeLookupPosition?: vscode.Position;
 }
 
 export interface ResolvedCallableTarget {
@@ -228,6 +229,7 @@ class SyntaxAwareCallSiteAnalyzer implements CallSiteAnalyzer {
                 callExpressionRange: candidate.range,
                 calleeName: calleeInfo.name,
                 callKind: calleeInfo.callKind,
+                calleeLookupPosition: getCalleeLookupPosition(callee),
                 parsed,
                 callExpression: candidate,
                 callee,
@@ -302,7 +304,10 @@ class DefaultCallableTargetDiscoveryService implements CallableTargetDiscoverySe
             return [];
         }
 
-        const inferredAccess = await this.objectInferenceService.inferObjectAccess(request.document, request.position);
+        const inferredAccess = await this.objectInferenceService.inferObjectAccess(
+            request.document,
+            request.calleeLookupPosition ?? request.callExpressionRange.start
+        );
         if (!isResolvedObjectAccess(inferredAccess, request.calleeName)) {
             return [];
         }
@@ -673,6 +678,18 @@ function getCalleeInfo(
     }
 
     return undefined;
+}
+
+function getCalleeLookupPosition(callee: SyntaxNode | undefined): vscode.Position | undefined {
+    if (!callee) {
+        return undefined;
+    }
+
+    if (callee.kind === SyntaxKind.MemberAccessExpression && callee.children.length >= 2) {
+        return callee.children[1].range.start;
+    }
+
+    return callee.range.start;
 }
 
 function isPositionInsideCallArguments(

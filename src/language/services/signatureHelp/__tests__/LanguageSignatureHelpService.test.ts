@@ -872,6 +872,14 @@ describe('LanguageSignatureHelpService', () => {
             location: new vscode.Location(targetDocument.uri, new vscode.Position(1, 0)),
             declarationRange: new vscode.Range(1, 0, 1, 33)
         }));
+        const inferObjectAccess = jest.fn(async () => ({
+            memberName: 'query_name',
+            receiver: 'ob',
+            inference: {
+                status: 'resolved',
+                candidates: [{ path: '/obj/npc.c', source: 'literal' }]
+            }
+        }));
         const service = new LanguageSignatureHelpService({
             documentationService: {
                 getDocumentDocs: jest.fn(),
@@ -881,14 +889,7 @@ describe('LanguageSignatureHelpService', () => {
                 clear: jest.fn()
             } as any,
             objectInferenceService: {
-                inferObjectAccess: jest.fn(async () => ({
-                    memberName: 'query_name',
-                    receiver: 'ob',
-                    inference: {
-                        status: 'resolved',
-                        candidates: [{ path: '/obj/npc.c', source: 'literal' }]
-                    }
-                }))
+                inferObjectAccess
             } as any,
             targetMethodLookup: {
                 findMethod
@@ -914,6 +915,7 @@ describe('LanguageSignatureHelpService', () => {
             label: 'string query_name(int mode, int flags)',
             sourceLabel: 'object-method'
         }));
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, new vscode.Position(1, 8));
         expect(getDocsByName).not.toHaveBeenCalled();
         expect(findMethod).toHaveBeenCalledWith(
             document,
@@ -926,6 +928,73 @@ describe('LanguageSignatureHelpService', () => {
             targetDocument,
             `${targetDocument.uri.toString()}#1:0-1:33`
         );
+    });
+
+    test('uses the called member position for chained object-method signature help discovery', async () => {
+        const source = 'void test(object ob) {\n    ob->foo()->bar(1);\n}';
+        const document = createDocument(source);
+        const inferObjectAccess = jest.fn(async () => ({
+            memberName: 'bar',
+            receiver: 'ob->foo()',
+            inference: {
+                status: 'resolved',
+                candidates: [{ path: '/obj/npc.c', source: 'literal' }]
+            }
+        }));
+        const docResolver: CallableDocResolver = {
+            resolveFromTarget: jest.fn(async () => createCallableDoc('bar', 'objectMethod', 'decl:bar', [{
+                label: 'void bar(int value)',
+                returnType: 'void',
+                isVariadic: false,
+                parameters: [{ name: 'value', type: 'int', description: 'Bar value' }]
+            }]))
+        };
+        const service = new LanguageSignatureHelpService({
+            objectInferenceService: {
+                inferObjectAccess
+            } as any,
+            targetMethodLookup: {
+                findMethod: jest.fn(async () => ({
+                    path: 'D:/workspace/obj/npc.c',
+                    document: createDocument('void bar(int value) {}\n', 'D:/workspace/obj/npc.c'),
+                    location: new vscode.Location(vscode.Uri.file('D:/workspace/obj/npc.c'), new vscode.Position(0, 0)),
+                    declarationRange: new vscode.Range(0, 0, 0, 19)
+                }))
+            } as any,
+            documentationService: {
+                getDocumentDocs: jest.fn(),
+                getDocsByName: jest.fn(),
+                getDocForDeclaration: jest.fn(() => createCallableDoc('bar', 'local', 'file:///D:/workspace/obj/npc.c#0:0-0:19', [{
+                    label: 'void bar(int value)',
+                    returnType: 'void',
+                    isVariadic: false,
+                    parameters: [{ name: 'value', type: 'int', description: 'Bar value' }]
+                }])),
+                invalidate: jest.fn(),
+                clear: jest.fn()
+            } as any,
+            host: {
+                openTextDocument: jest.fn(async (target) => createDocument('void bar(int value) {}\n', 'D:/workspace/obj/npc.c'))
+            },
+            docResolver
+        });
+
+        const result = await service.provideSignatureHelp({
+            context: createContext(document),
+            position: (() => {
+                const position = positionAfter(source, '1');
+                return {
+                    line: position.line,
+                    character: position.character
+                };
+            })()
+        });
+
+        expect(result?.signatures[0]).toEqual(expect.objectContaining({
+            label: 'void bar(int value)',
+            sourceLabel: 'object-method'
+        }));
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, new vscode.Position(1, 15));
     });
 
     test('returns undefined when the callable target cannot be resolved', async () => {
