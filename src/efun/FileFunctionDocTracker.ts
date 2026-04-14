@@ -1,10 +1,18 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseFunctionDocs } from './docParser';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import type { CallableDoc, CallableSignature } from '../language/documentation/types';
 import type { EfunDoc } from './types';
 
 export class FileFunctionDocTracker {
+    private readonly documentationService = new FunctionDocumentationService();
+    private readonly documentLookupCache = new Map<string, {
+        version: number;
+        text: string;
+        currentFileDocs: Map<string, EfunDoc>;
+        inheritedFileDocs: Map<string, Map<string, EfunDoc>>;
+    }>();
     private currentFileDocs: Map<string, EfunDoc> = new Map();
     private inheritedFileDocs: Map<string, Map<string, EfunDoc>> = new Map();
     private currentFilePath = '';
@@ -31,9 +39,33 @@ export class FileFunctionDocTracker {
 
     public async getDocFromIncludes(
         document: vscode.TextDocument,
+        name: string,
+        options?: { forceFresh?: boolean }
+    ): Promise<EfunDoc | undefined> {
+        return this.findFunctionDocInIncludes(document, name, options);
+    }
+
+    public async getDocForDocument(
+        document: vscode.TextDocument,
         name: string
     ): Promise<EfunDoc | undefined> {
-        return this.findFunctionDocInIncludes(document, name);
+        return (await this.getOrBuildDocumentLookup(document)).currentFileDocs.get(name);
+    }
+
+    public async getDocFromInheritedForDocument(
+        document: vscode.TextDocument,
+        name: string,
+        options?: { forceFresh?: boolean }
+    ): Promise<EfunDoc | undefined> {
+        const lookup = await this.getOrBuildDocumentLookup(document, options);
+        for (const funcDocs of lookup.inheritedFileDocs.values()) {
+            const inheritedDoc = funcDocs.get(name);
+            if (inheritedDoc) {
+                return inheritedDoc;
+            }
+        }
+
+        return undefined;
     }
 
     public async update(
@@ -66,7 +98,7 @@ export class FileFunctionDocTracker {
         const updateVersion = ++this.currentFileUpdateVersion;
         const currentFilePath = document.uri.fsPath;
         const content = document.getText();
-        const currentFileDocs = parseFunctionDocs(content, '当前文件');
+        const currentFileDocs = this.buildCompatDocsForDocument(document, '当前文件');
         const inheritedFiles = this.parseInheritStatements(content);
         const inheritedFileDocs = await this.loadInheritedFileDocs(currentFilePath, inheritedFiles);
 
@@ -79,6 +111,53 @@ export class FileFunctionDocTracker {
         this.currentFileDocs = currentFileDocs;
         this.inheritedFiles = [...inheritedFiles];
         this.inheritedFileDocs = inheritedFileDocs;
+        this.documentLookupCache.set(document.uri.toString(), {
+            version: document.version,
+            text: content,
+            currentFileDocs,
+            inheritedFileDocs
+        });
+    }
+
+    private async getOrBuildDocumentLookup(
+        document: vscode.TextDocument,
+        options?: { forceFresh?: boolean }
+    ): Promise<{
+        currentFileDocs: Map<string, EfunDoc>;
+        inheritedFileDocs: Map<string, Map<string, EfunDoc>>;
+    }>;
+    private async getOrBuildDocumentLookup(
+        document: vscode.TextDocument,
+        options?: { forceFresh?: boolean }
+    ): Promise<{
+        currentFileDocs: Map<string, EfunDoc>;
+        inheritedFileDocs: Map<string, Map<string, EfunDoc>>;
+    }> {
+        const uri = document.uri.toString();
+        const text = document.getText();
+        const cached = this.documentLookupCache.get(uri);
+        if (!options?.forceFresh && cached && cached.version === document.version && cached.text === text) {
+            return {
+                currentFileDocs: cached.currentFileDocs,
+                inheritedFileDocs: cached.inheritedFileDocs
+            };
+        }
+
+        const currentFileDocs = this.buildCompatDocsForDocument(document, '当前文件', { forceFresh: true });
+        const inheritedFileDocs = await this.loadInheritedFileDocs(document.uri.fsPath, this.parseInheritStatements(text), {
+            forceFresh: true
+        });
+        this.documentLookupCache.set(uri, {
+            version: document.version,
+            text,
+            currentFileDocs,
+            inheritedFileDocs
+        });
+
+        return {
+            currentFileDocs,
+            inheritedFileDocs
+        };
     }
 
     private parseInheritStatements(content: string): string[] {
@@ -96,7 +175,8 @@ export class FileFunctionDocTracker {
 
     private async loadInheritedFileDocs(
         currentFilePath: string,
-        inheritedFiles: readonly string[]
+        inheritedFiles: readonly string[],
+        options?: { forceFresh?: boolean }
     ): Promise<Map<string, Map<string, EfunDoc>>> {
         const inheritedFileDocs = new Map<string, Map<string, EfunDoc>>();
         if (!inheritedFiles.length) {
@@ -119,9 +199,13 @@ export class FileFunctionDocTracker {
                 for (const filePath of possiblePaths) {
                     try {
                         if (fs.existsSync(filePath)) {
-                            const content = fs.readFileSync(filePath, 'utf8');
                             const fileName = path.basename(filePath);
-                            const funcDocs = parseFunctionDocs(content, `继承自 ${fileName}`);
+                            const inheritedDocument = await vscode.workspace.openTextDocument(filePath);
+                            const funcDocs = this.buildCompatDocsForDocument(
+                                inheritedDocument,
+                                `继承自 ${fileName}`,
+                                options
+                            );
                             inheritedFileDocs.set(filePath, funcDocs);
                             break;
                         }
@@ -139,7 +223,8 @@ export class FileFunctionDocTracker {
 
     public async findFunctionDocInIncludes(
         document: vscode.TextDocument,
-        functionName: string
+        functionName: string,
+        options?: { forceFresh?: boolean }
     ): Promise<EfunDoc | undefined> {
         try {
             const includeFiles = await this.getIncludeFiles(document);
@@ -150,9 +235,13 @@ export class FileFunctionDocTracker {
                 }
 
                 try {
-                    const content = await fs.promises.readFile(includeFile, 'utf-8');
+                    const includeDocument = await vscode.workspace.openTextDocument(includeFile);
                     const fileName = path.basename(includeFile);
-                    const funcDocs = parseFunctionDocs(content, `包含自 ${fileName}`);
+                    const funcDocs = this.buildCompatDocsForDocument(
+                        includeDocument,
+                        `包含自 ${fileName}`,
+                        options
+                    );
                     const doc = funcDocs.get(functionName);
                     if (doc) {
                         return doc;
@@ -238,4 +327,76 @@ export class FileFunctionDocTracker {
 
         return matchingFolders[0] ?? workspaceFolders[0].uri.fsPath;
     }
+
+    private buildCompatDocsForDocument(
+        document: vscode.TextDocument,
+        category: string,
+        options?: { forceFresh?: boolean }
+    ): Map<string, EfunDoc> {
+        if (options?.forceFresh) {
+            this.documentationService.invalidate(document.uri.toString());
+        }
+        const documentDocs = this.documentationService.getDocumentDocs(document);
+        const docs = new Map<string, EfunDoc>();
+
+        for (const declarationKey of documentDocs.declarationOrder) {
+            const callableDoc = documentDocs.byDeclaration.get(declarationKey);
+            if (!callableDoc || docs.has(callableDoc.name)) {
+                continue;
+            }
+
+            docs.set(callableDoc.name, this.materializeCompatDoc(callableDoc, category));
+        }
+
+        return docs;
+    }
+
+    private materializeCompatDoc(callableDoc: CallableDoc, category: string): EfunDoc {
+        return {
+            name: callableDoc.name,
+            syntax: callableDoc.signatures.map((signature) => signature.label).join('\n'),
+            description: callableDoc.summary ?? '',
+            sourceFile: callableDoc.sourcePath,
+            sourceRange: callableDoc.sourceRange,
+            returnType: deriveCompatReturnType(callableDoc.signatures),
+            returnValue: callableDoc.returns?.description,
+            returnObjects: callableDoc.returnObjects ? [...callableDoc.returnObjects] : undefined,
+            details: callableDoc.details,
+            note: callableDoc.note,
+            category,
+            lastUpdated: Date.now(),
+            signatures: callableDoc.signatures.map((signature) => ({
+                label: signature.label,
+                returnType: signature.returnType,
+                isVariadic: signature.isVariadic,
+                parameters: signature.parameters.map((parameter) => ({
+                    name: parameter.name,
+                    type: parameter.type,
+                    description: parameter.description,
+                    optional: parameter.optional,
+                    variadic: parameter.variadic
+                }))
+            }))
+        };
+    }
+}
+
+function deriveCompatReturnType(signatures: CallableSignature[]): string | undefined {
+    if (signatures.length === 0) {
+        return undefined;
+    }
+
+    if (signatures.length === 1) {
+        return signatures[0].returnType;
+    }
+
+    const returnTypes = signatures.map((signature) => signature.returnType?.trim()).filter(Boolean);
+    if (returnTypes.length !== signatures.length) {
+        return undefined;
+    }
+
+    const [firstReturnType, ...restReturnTypes] = returnTypes;
+    return restReturnTypes.every((returnType) => returnType === firstReturnType)
+        ? firstReturnType
+        : undefined;
 }

@@ -11,6 +11,11 @@ export interface ResolvedTargetMethod {
     path: string;
     document: vscode.TextDocument;
     location: vscode.Location;
+    declarationRange: vscode.Range;
+}
+
+export interface TargetMethodLookupOptions {
+    useFreshSnapshots?: boolean;
 }
 
 export class TargetMethodLookup {
@@ -24,16 +29,18 @@ export class TargetMethodLookup {
     public async findMethod(
         currentDocument: vscode.TextDocument,
         targetFilePath: string,
-        methodName: string
+        methodName: string,
+        options?: TargetMethodLookupOptions
     ): Promise<ResolvedTargetMethod | undefined> {
-        return this.findMethodRecursive(currentDocument, targetFilePath, methodName, new Set<string>());
+        return this.findMethodRecursive(currentDocument, targetFilePath, methodName, new Set<string>(), options);
     }
 
     private async findMethodRecursive(
         currentDocument: vscode.TextDocument,
         targetFilePath: string,
         methodName: string,
-        visitedFiles: Set<string>
+        visitedFiles: Set<string>,
+        options?: TargetMethodLookupOptions
     ): Promise<ResolvedTargetMethod | undefined> {
         const resolvedTargetPath = this.resolveWorkspaceFilePath(currentDocument, targetFilePath);
         if (!resolvedTargetPath || visitedFiles.has(resolvedTargetPath)) {
@@ -41,14 +48,15 @@ export class TargetMethodLookup {
         }
 
         visitedFiles.add(resolvedTargetPath);
-        return this.resolveMethodRecursive(currentDocument, resolvedTargetPath, methodName, visitedFiles);
+        return this.resolveMethodRecursive(currentDocument, resolvedTargetPath, methodName, visitedFiles, options);
     }
 
     private async resolveMethodRecursive(
         currentDocument: vscode.TextDocument,
         resolvedTargetPath: string,
         methodName: string,
-        visitedFiles: Set<string>
+        visitedFiles: Set<string>,
+        options?: TargetMethodLookupOptions
     ): Promise<ResolvedTargetMethod | undefined> {
         const targetDocument = path.resolve(resolvedTargetPath) === path.resolve(currentDocument.uri.fsPath)
             ? currentDocument
@@ -57,21 +65,29 @@ export class TargetMethodLookup {
             return undefined;
         }
 
-        const directLocation = this.findFunctionInSemanticSnapshot(targetDocument, methodName);
-        if (directLocation) {
+        const directRange = this.findFunctionRangeInSemanticSnapshot(
+            targetDocument,
+            methodName,
+            options?.useFreshSnapshots === true ? false : true
+        );
+        if (directRange) {
             return {
                 path: targetDocument.uri.fsPath,
                 document: targetDocument,
-                location: directLocation
+                location: new vscode.Location(targetDocument.uri, directRange.start),
+                declarationRange: directRange
             };
         }
 
-        const includeLocation = await this.findMethodInIncludedFiles(targetDocument, methodName);
+        const includeLocation = await this.findMethodInIncludedFiles(targetDocument, methodName, options);
         if (includeLocation) {
             return includeLocation;
         }
 
-        for (const inheritStatement of this.getSemanticSnapshot(targetDocument).inheritStatements) {
+        for (const inheritStatement of this.getSemanticSnapshot(
+            targetDocument,
+            options?.useFreshSnapshots === true ? false : true
+        ).inheritStatements) {
             const inheritedFile = this.resolveInheritedFilePath(targetDocument, inheritStatement.value);
             if (!inheritedFile || !fs.existsSync(inheritedFile) || visitedFiles.has(inheritedFile)) {
                 continue;
@@ -81,7 +97,8 @@ export class TargetMethodLookup {
                 targetDocument,
                 inheritedFile,
                 methodName,
-                visitedFiles
+                visitedFiles,
+                options
             );
             if (inheritedLocation) {
                 return inheritedLocation;
@@ -93,9 +110,13 @@ export class TargetMethodLookup {
 
     private async findMethodInIncludedFiles(
         document: vscode.TextDocument,
-        methodName: string
+        methodName: string,
+        options?: TargetMethodLookupOptions
     ): Promise<ResolvedTargetMethod | undefined> {
-        for (const includeStatement of this.getSemanticSnapshot(document).includeStatements) {
+        for (const includeStatement of this.getSemanticSnapshot(
+            document,
+            options?.useFreshSnapshots === true ? false : true
+        ).includeStatements) {
             const includeFiles = await this.resolveIncludeFilePaths(
                 document,
                 includeStatement.value,
@@ -112,12 +133,17 @@ export class TargetMethodLookup {
                     continue;
                 }
 
-                const location = this.findFunctionInSemanticSnapshot(includeDocument, methodName);
-                if (location) {
+                const declarationRange = this.findFunctionRangeInSemanticSnapshot(
+                    includeDocument,
+                    methodName,
+                    options?.useFreshSnapshots === true ? false : true
+                );
+                if (declarationRange) {
                     return {
                         path: includeDocument.uri.fsPath,
                         document: includeDocument,
-                        location
+                        location: new vscode.Location(includeDocument.uri, declarationRange.start),
+                        declarationRange
                     };
                 }
             }
@@ -126,8 +152,12 @@ export class TargetMethodLookup {
         return undefined;
     }
 
-    private findFunctionInSemanticSnapshot(document: vscode.TextDocument, functionName: string): vscode.Location | undefined {
-        const symbol = this.getSemanticSnapshot(document).symbolTable
+    private findFunctionRangeInSemanticSnapshot(
+        document: vscode.TextDocument,
+        functionName: string,
+        useCache: boolean = true
+    ): vscode.Range | undefined {
+        const symbol = this.getSemanticSnapshot(document, useCache).symbolTable
             .getAllSymbols()
             .find((candidate) => candidate.type === SymbolType.FUNCTION && candidate.name === functionName);
 
@@ -135,8 +165,7 @@ export class TargetMethodLookup {
             return undefined;
         }
 
-        const targetRange = symbol.selectionRange ?? symbol.range;
-        return new vscode.Location(document.uri, targetRange.start);
+        return symbol.selectionRange ?? symbol.range;
     }
 
     private getSemanticSnapshot(document: vscode.TextDocument, useCache: boolean = true): SemanticSnapshot {

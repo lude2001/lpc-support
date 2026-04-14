@@ -11,7 +11,9 @@ import type {
     LanguageWorkspaceEdit
 } from './LanguageRenameService';
 import type { LanguageDocumentSymbol, LanguageSymbolRequest } from './LanguageSymbolService';
-import { parseFunctionDocs } from '../../../efun/docParser';
+import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
+import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
+import type { CallableDoc } from '../../documentation/types';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { InferredObjectAccess } from '../../../objectInference/types';
@@ -52,6 +54,7 @@ interface HoverDocument {
 interface HoverResolvedMethod {
     path: string;
     documentText: string;
+    document?: vscode.TextDocument;
 }
 
 interface HoverObjectAccessProvider {
@@ -79,12 +82,13 @@ export interface HoverServiceDependencies {
     documentAdapter?: HoverDocumentAdapter;
     objectAccessProvider?: HoverObjectAccessProvider;
     methodResolver?: HoverMethodResolver;
+    documentationService?: FunctionDocumentationService;
+    renderer?: CallableDocRenderer;
 }
 
 interface MethodDocResult {
     path: string;
-    syntax: string;
-    description: string;
+    doc: CallableDoc;
     relatedCandidatePaths: string[];
 }
 
@@ -176,7 +180,8 @@ class VsCodeHoverMethodResolver implements HoverMethodResolver {
 
         return {
             path: resolvedMethod.path,
-            documentText: resolvedMethod.document.getText()
+            documentText: resolvedMethod.document.getText(),
+            document: resolvedMethod.document
         };
     }
 }
@@ -185,6 +190,8 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
     private readonly documentAdapter: HoverDocumentAdapter;
     private readonly objectAccessProvider: HoverObjectAccessProvider;
     private readonly methodResolver: HoverMethodResolver;
+    private readonly documentationService: FunctionDocumentationService;
+    private readonly renderer: CallableDocRenderer;
 
     public constructor(
         objectInferenceService: ObjectInferenceService,
@@ -197,6 +204,8 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
         this.documentAdapter = dependencies?.documentAdapter ?? new VsCodeHoverDocumentAdapter();
         this.objectAccessProvider = dependencies?.objectAccessProvider ?? new VsCodeHoverObjectAccessProvider(objectInferenceService);
         this.methodResolver = dependencies?.methodResolver ?? new VsCodeHoverMethodResolver(effectiveLookup);
+        this.documentationService = dependencies?.documentationService ?? new FunctionDocumentationService();
+        this.renderer = dependencies?.renderer ?? new CallableDocRenderer();
     }
 
     public async provideHover(request: LanguageHoverRequest): Promise<LanguageHoverResult | undefined> {
@@ -222,7 +231,7 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
             memberName
         );
         if (resolvedDocs.length === 1 && resolvedDocs[0].relatedCandidatePaths.length === 1) {
-            return this.createMarkdownHover(this.renderMethodHover(resolvedDocs[0].syntax, resolvedDocs[0].description));
+            return this.createMarkdownHover(this.renderMethodHover(resolvedDocs[0].doc));
         }
 
         if (resolvedDocs.length > 0) {
@@ -273,7 +282,9 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
                 continue;
             }
 
-            const methodDoc = parseFunctionDocs(resolvedMethod.documentText, '对象方法').get(memberName);
+            const resolvedDocument = toDocumentationTextDocument(resolvedMethod);
+            const methodDoc = this.documentationService
+                .getDocsByName(resolvedDocument, memberName)[0];
             if (!methodDoc) {
                 continue;
             }
@@ -288,8 +299,11 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
 
             docsByImplementationPath.set(resolvedMethod.path, {
                 path: resolvedMethod.path,
-                syntax: methodDoc.syntax,
-                description: methodDoc.description,
+                doc: {
+                    ...methodDoc,
+                    sourceKind: 'objectMethod',
+                    sourcePath: resolvedMethod.path
+                },
                 relatedCandidatePaths: [candidatePath]
             });
         }
@@ -297,22 +311,13 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
         return [...docsByImplementationPath.values()];
     }
 
-    private renderMethodHover(syntax: string, description: string): string {
-        return description
-            ? `\`\`\`lpc\n${syntax}\n\`\`\`\n\n${description}`
-            : `\`\`\`lpc\n${syntax}\n\`\`\``;
+    private renderMethodHover(doc: CallableDoc): string {
+        return this.renderer.renderHover(doc);
     }
 
     private renderResolvedCandidatesHover(docs: MethodDocResult[]): string {
         return docs.map((doc) => {
-            const parts = [
-                `实现：\`${doc.path}\``,
-                `\`\`\`lpc\n${doc.syntax}\n\`\`\``
-            ];
-
-            if (doc.description) {
-                parts.push(doc.description);
-            }
+            const parts = [this.renderer.renderHover(doc.doc, { sourceLabel: doc.path })];
 
             const alternateCandidates = doc.relatedCandidatePaths.filter((candidatePath) => candidatePath !== doc.path);
             if (alternateCandidates.length > 0) {
@@ -331,4 +336,110 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
             : '多个对象';
         return `可能来自多个对象的 \`${memberName}\`() 实现：${summary}`;
     }
+}
+
+function toDocumentationTextDocument(resolvedMethod: HoverResolvedMethod): vscode.TextDocument {
+    const candidate = resolvedMethod.document as Partial<vscode.TextDocument> | undefined;
+    if (isCompleteTextDocument(candidate)) {
+        return candidate;
+    }
+
+    return createCompletedTextDocumentShim(
+        resolvedMethod.path,
+        resolvedMethod.documentText,
+        candidate
+    );
+}
+
+function isCompleteTextDocument(document: Partial<vscode.TextDocument> | undefined): document is vscode.TextDocument {
+    return Boolean(
+        document
+        && typeof document.getText === 'function'
+        && typeof document.fileName === 'string'
+        && typeof document.version === 'number'
+        && document.uri
+        && typeof document.uri.toString === 'function'
+    );
+}
+
+function createCompletedTextDocumentShim(
+    filePath: string,
+    fallbackContent: string,
+    baseDocument?: Partial<vscode.TextDocument>
+): vscode.TextDocument {
+    const rawContent = typeof baseDocument?.getText === 'function'
+        ? baseDocument.getText()
+        : fallbackContent;
+    const normalized = rawContent.replace(/\r\n/g, '\n');
+    const lineStarts = [0];
+    const lines = normalized.split('\n');
+    const hash = createSyntheticDocumentHash(normalized);
+    const uri = createSyntheticDocumentationUri(filePath, hash);
+
+    for (let index = 0; index < normalized.length; index += 1) {
+        if (normalized[index] === '\n') {
+            lineStarts.push(index + 1);
+        }
+    }
+
+    const offsetAt = (position: vscode.Position): number => {
+        const lineStart = lineStarts[position.line] ?? normalized.length;
+        return Math.min(lineStart + position.character, normalized.length);
+    };
+
+    const positionAt = (offset: number): vscode.Position => {
+        let line = 0;
+        for (let index = 0; index < lineStarts.length; index += 1) {
+            if (lineStarts[index] <= offset) {
+                line = index;
+            } else {
+                break;
+            }
+        }
+
+        return new vscode.Position(line, offset - lineStarts[line]);
+    };
+
+    return {
+        uri,
+        fileName: filePath,
+        languageId: baseDocument?.languageId ?? 'lpc',
+        version: typeof baseDocument?.version === 'number' ? baseDocument.version : hash,
+        lineCount: lineStarts.length,
+        isDirty: false,
+        isClosed: false,
+        isUntitled: false,
+        eol: vscode.EndOfLine.LF,
+        getText: (range?: vscode.Range) => {
+            if (!range) {
+                return normalized;
+            }
+
+            return normalized.slice(offsetAt(range.start), offsetAt(range.end));
+        },
+        lineAt: (line: number) => ({
+            text: lines[line] ?? ''
+        }),
+        positionAt,
+        offsetAt,
+        save: async () => true,
+        validateRange: (range: vscode.Range) => range,
+        validatePosition: (position: vscode.Position) => position
+    } as unknown as vscode.TextDocument;
+}
+
+function createSyntheticDocumentHash(content: string): number {
+    let hash = 0;
+    for (let index = 0; index < content.length; index += 1) {
+        hash = ((hash * 31) + content.charCodeAt(index)) >>> 0;
+    }
+
+    return hash;
+}
+
+function createSyntheticDocumentationUri(filePath: string, hash: number): vscode.Uri {
+    return {
+        fsPath: filePath,
+        toString: () => `lpc-hover-synthetic://${encodeURIComponent(filePath)}?v=${hash}`
+    } as unknown as vscode.Uri;
 }

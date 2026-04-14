@@ -83,6 +83,7 @@ import {
     LPCParser
 } from '../antlr/LPCParser';
 import { ParsedDocument, Trivia } from '../parser/types';
+import { AttachedDocComment } from '../language/documentation/types';
 import {
     createSyntaxDocument,
     createSyntaxNode,
@@ -116,7 +117,6 @@ import {
     buildModifierList,
     buildParameter,
     buildParameterList,
-    buildPrototypeDeclaration,
     buildStructDeclaration,
     buildStructMembers,
     buildTypeReference,
@@ -163,11 +163,18 @@ export class SyntaxBuilder {
     }
 
     public buildFunctionDeclaration(ctx: FunctionDefContext | PrototypeStatementContext): SyntaxNode {
-        return buildFunctionDeclaration(this, ctx);
+        const node = buildFunctionDeclaration(this, ctx) as SyntaxNode;
+        const attachedDocComment = this.findAttachedDocComment(ctx);
+
+        if (attachedDocComment) {
+            node.attachedDocComment = attachedDocComment;
+        }
+
+        return node;
     }
 
     public buildPrototypeDeclaration(ctx: PrototypeStatementContext): SyntaxNode {
-        return buildPrototypeDeclaration(this, ctx);
+        return this.buildFunctionDeclaration(ctx);
     }
 
     public buildVariableDeclaration(
@@ -628,6 +635,63 @@ export class SyntaxBuilder {
 
     public collectNodes(nodes: Array<SyntaxNode | undefined>): SyntaxNode[] {
         return nodes.filter((node): node is SyntaxNode => Boolean(node));
+    }
+
+    private findAttachedDocComment(ctx: FunctionDefContext | PrototypeStatementContext): AttachedDocComment | undefined {
+        const startToken = ctx.start;
+        if (!startToken) {
+            return undefined;
+        }
+
+        const leadingTrivia = this.parsed.tokenTriviaIndex.getLeadingTrivia(startToken.tokenIndex);
+        if (leadingTrivia.length === 0) {
+            return undefined;
+        }
+
+        let candidateIndex = -1;
+        for (let index = leadingTrivia.length - 1; index >= 0; index -= 1) {
+            const trivia = leadingTrivia[index];
+
+            if (trivia.kind === 'newline' || trivia.kind === 'whitespace') {
+                continue;
+            }
+
+            if (trivia.kind === 'block-comment' && trivia.text.startsWith('/**')) {
+                candidateIndex = index;
+            }
+
+            break;
+        }
+
+        if (candidateIndex < 0) {
+            return undefined;
+        }
+
+        const candidate = leadingTrivia[candidateIndex];
+        const interveningTrivia = leadingTrivia.slice(candidateIndex + 1);
+        if (interveningTrivia.some((trivia) => trivia.kind === 'line-comment' || trivia.kind === 'block-comment' || trivia.kind === 'directive')) {
+            return undefined;
+        }
+
+        const newlineCount = interveningTrivia.filter((trivia) => trivia.kind === 'newline').length;
+        if (newlineCount > 2) {
+            return undefined;
+        }
+
+        return {
+            kind: 'javadoc',
+            range: {
+                start: {
+                    line: candidate.range.start.line,
+                    character: candidate.range.start.character
+                },
+                end: {
+                    line: candidate.range.end.line,
+                    character: candidate.range.end.character
+                }
+            },
+            text: candidate.text
+        };
     }
 
     public asArray<T>(value: T[] | T | undefined): T[] {

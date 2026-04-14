@@ -1,8 +1,9 @@
+import type { AttachedDocComment } from '../language/documentation/types';
 import { ParsedDocument } from '../parser/types';
 import {
+    SyntaxNode as BaseSyntaxNode,
     getTokenRangeKey,
-    SourceFileSyntaxNode,
-    SyntaxNode
+    SourceFileSyntaxNode as BaseSourceFileSyntaxNode
 } from './syntaxNode';
 import { SyntaxTrivia } from './trivia';
 
@@ -12,6 +13,12 @@ export interface SyntaxDocumentMetadata {
     opaqueNodeCount: number;
     missingNodeCount: number;
 }
+
+export interface SyntaxNode extends BaseSyntaxNode {
+    attachedDocComment?: AttachedDocComment;
+}
+
+export type SourceFileSyntaxNode = BaseSourceFileSyntaxNode;
 
 export interface SyntaxDocument {
     uri: string;
@@ -87,8 +94,6 @@ export {
 } from './trivia';
 
 export type {
-    SourceFileSyntaxNode,
-    SyntaxNode,
     SyntaxNodeCategory,
     TokenRange
 } from './syntaxNode';

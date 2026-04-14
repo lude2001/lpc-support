@@ -3,6 +3,7 @@ import type { LanguageCodeActionService } from '../services/codeActions/Language
 import type { LanguageDiagnosticsService } from '../services/diagnostics/LanguageDiagnosticsService';
 import type { LanguageFormattingService } from '../services/formatting/LanguageFormattingService';
 import type { LanguageNavigationService } from '../services/navigation/LanguageHoverService';
+import type { LanguageSignatureHelpService } from '../services/signatureHelp/LanguageSignatureHelpService';
 import type { LanguageStructureService } from '../services/structure/LanguageFoldingService';
 
 export interface LanguageFeatureServices {
@@ -11,5 +12,6 @@ export interface LanguageFeatureServices {
     diagnosticsService?: LanguageDiagnosticsService;
     formattingService?: LanguageFormattingService;
     navigationService?: LanguageNavigationService;
+    signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
 }

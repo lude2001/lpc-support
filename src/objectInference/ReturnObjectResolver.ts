@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { parseFunctionDocs } from '../efun/docParser';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
@@ -15,11 +15,15 @@ export interface ObjectResolutionOutcome {
 
 export class ReturnObjectResolver {
     private readonly classifier = new ReceiverClassifier();
+    private readonly documentationService: FunctionDocumentationService;
 
     constructor(
         private readonly macroManager?: MacroManager,
-        private readonly playerObjectPathOrProjectConfig?: string | LpcProjectConfigService
-    ) {}
+        private readonly playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
+        documentationService?: FunctionDocumentationService
+    ) {
+        this.documentationService = documentationService ?? new FunctionDocumentationService();
+    }
 
     public async resolveExpression(
         document: vscode.TextDocument,
@@ -177,9 +181,9 @@ export class ReturnObjectResolver {
     private getDocumentedReturnObjects(
         document: vscode.TextDocument,
         functionName: string,
-        contextLabel: string
+        _contextLabel: string
     ): string[] | undefined {
-        return parseFunctionDocs(document.getText(), contextLabel).get(functionName)?.returnObjects;
+        return this.documentationService.getDocsByName(document, functionName)[0]?.returnObjects;
     }
 
     private async resolveDocumentedObjectCandidates(

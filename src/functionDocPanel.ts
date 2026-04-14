@@ -3,8 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { MacroManager } from './macroManager';
 import { FunctionInfo } from './types/functionInfo';
-import { LPCFunctionParser } from './functionParser';
-import { JavaDocProcessor } from './utils/javaDocProcessor';
+import { FunctionDocumentationService } from './language/documentation/FunctionDocumentationService';
+import type { CallableDoc } from './language/documentation/types';
 import { FunctionUtils } from './utils/functionUtils';
 import { getGlobalParsedDocumentService } from './parser/ParsedDocumentService';
 
@@ -18,11 +18,11 @@ export class FunctionDocPanel {
     private disposables: vscode.Disposable[] = [];
     private macroManager: MacroManager;
     private filePathCache: Map<string, string> = new Map();
-    private functionCache: Map<string, FunctionInfo[]> = new Map();
     private currentDocument: vscode.TextDocument | undefined;
     private currentFunctions: FunctionInfo[] = [];
     private inheritedFunctions: Map<string, FunctionInfo[]> = new Map();
     private processedFiles: Set<string> = new Set();
+    private readonly documentationService = new FunctionDocumentationService();
 
     /**
      * 创建或显示函数文档面板
@@ -135,8 +135,7 @@ export class FunctionDocPanel {
         source: string,
         filePath: string
     ): Promise<FunctionInfo[]> {
-        // 使用统一的函数解析器
-        const functions = LPCFunctionParser.parseAllFunctions(document, source, filePath);
+        const functions = this.buildFunctionInfosFromDocument(document, source, filePath);
         
         // 如果是当前文件，保存到当前函数列表
         if (source === '当前文件') {
@@ -145,6 +144,35 @@ export class FunctionDocPanel {
             this.inheritedFunctions.set(source, functions);
         }
         
+        return functions;
+    }
+
+    private buildFunctionInfosFromDocument(
+        document: vscode.TextDocument,
+        source: string,
+        filePath: string
+    ): FunctionInfo[] {
+        const documentDocs = this.documentationService.getDocumentDocs(document);
+        const functions: FunctionInfo[] = [];
+
+        for (const declarationKey of documentDocs.declarationOrder) {
+            const callableDoc = documentDocs.byDeclaration.get(declarationKey);
+            if (!callableDoc) {
+                continue;
+            }
+
+            functions.push({
+                name: callableDoc.name,
+                definition: callableDoc.signatures.map((signature) => signature.label).join('\n'),
+                returnType: callableDoc.signatures[0]?.returnType,
+                comment: this.renderDocComment(callableDoc),
+                briefDescription: callableDoc.summary ?? '',
+                source,
+                filePath,
+                line: callableDoc.sourceRange?.start.line ?? 0
+            });
+        }
+
         return functions;
     }
 
@@ -557,13 +585,6 @@ export class FunctionDocPanel {
         return FunctionUtils.sanitizeId(str);
     }
 
-    /**
-     * 处理 JavaDoc 风格的注释
-     */
-    private processJavaDocComment(comment: string): string {
-        return JavaDocProcessor.processToMarkdown(comment);
-    }
-
     private gotoDefinition(filePath: string, line: number) {
         vscode.workspace.openTextDocument(filePath).then(doc => {
             vscode.window.showTextDocument(doc, {preview: false}).then(editor => {
@@ -618,5 +639,57 @@ export class FunctionDocPanel {
                 disposable.dispose();
             }
         }
+    }
+
+    private renderDocComment(doc: CallableDoc): string {
+        const hasDocumentation = Boolean(
+            doc.summary
+            || doc.details
+            || doc.note
+            || doc.returns?.description
+            || doc.signatures.some((signature) => signature.parameters.some((parameter) => parameter.description))
+        );
+        if (!hasDocumentation) {
+            return '';
+        }
+
+        const lines: string[] = ['/**'];
+
+        if (doc.summary) {
+            lines.push(` * @brief ${doc.summary}`);
+        }
+
+        for (const signature of doc.signatures) {
+            for (const parameter of signature.parameters) {
+                const parts = [' * @param'];
+                if (parameter.type) {
+                    parts.push(parameter.type);
+                }
+                parts.push(parameter.name);
+                if (parameter.description) {
+                    parts.push(parameter.description);
+                }
+                lines.push(parts.join(' '));
+            }
+        }
+
+        if (doc.returns?.description) {
+            lines.push(` * @return ${doc.returns.description}`);
+        }
+
+        if (doc.details) {
+            for (const [index, line] of doc.details.split('\n').entries()) {
+                lines.push(` * ${index === 0 ? '@details ' : ''}${line}`.trimEnd());
+            }
+        }
+
+        if (doc.note) {
+            for (const [index, line] of doc.note.split('\n').entries()) {
+                lines.push(` * ${index === 0 ? '@note ' : ''}${line}`.trimEnd());
+            }
+        }
+
+        lines.push(' */');
+        return lines.join('\n');
     }
 }
