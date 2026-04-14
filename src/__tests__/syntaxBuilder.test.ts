@@ -55,6 +55,14 @@ function createDocument(content: string, fileName: string = '/virtual/syntax.c',
     } as unknown as vscode.TextDocument;
 }
 
+function buildSyntaxDocument(document: vscode.TextDocument): any {
+    return ASTManager.getInstance().parseDocument(document, false).syntax!;
+}
+
+function getFunctionDeclarations(syntaxDocument: any): any[] {
+    return syntaxDocument.root.children.filter((node: any) => node.kind === SyntaxKind.FunctionDeclaration);
+}
+
 describe('SyntaxBuilder', () => {
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
@@ -108,6 +116,136 @@ describe('SyntaxBuilder', () => {
         expect(alphaNodes[1].range.start.line).toBe(1);
         expect(alphaNodes[2].range.start.line).toBe(1);
         expect(alphaNodes[1].range.start.character).toBeLessThan(alphaNodes[2].range.start.character);
+    });
+
+    test('attaches Javadoc blocks directly above modifiers', () => {
+        const source = [
+            '/**',
+            ' * @brief direct binding',
+            ' */',
+            'public nomask int direct_case() {',
+            '    return 1;',
+            '}'
+        ].join('\n');
+        const syntaxDocument = buildSyntaxDocument(createDocument(source, '/virtual/direct-binding.c'));
+        const [functionNode] = getFunctionDeclarations(syntaxDocument);
+        const attachedDocComment = functionNode.attachedDocComment;
+
+        expect(attachedDocComment).toBeDefined();
+        expect(attachedDocComment.kind).toBe('javadoc');
+        expect(attachedDocComment.text).toBe('/**\n * @brief direct binding\n */');
+        expect(attachedDocComment.range.start).toEqual({ line: 0, character: 0 });
+        expect(attachedDocComment.range.end).toEqual({ line: 2, character: 3 });
+    });
+
+    test('attaches Javadoc blocks across exactly one blank line', () => {
+        const source = [
+            '/**',
+            ' * @brief blank line binding',
+            ' */',
+            '',
+            'private int blank_line_case() {',
+            '    return 1;',
+            '}'
+        ].join('\n');
+        const syntaxDocument = buildSyntaxDocument(createDocument(source, '/virtual/blank-line-binding.c'));
+        const [functionNode] = getFunctionDeclarations(syntaxDocument);
+        const attachedDocComment = functionNode.attachedDocComment;
+
+        expect(attachedDocComment).toBeDefined();
+        expect(attachedDocComment.kind).toBe('javadoc');
+        expect(attachedDocComment.text).toBe('/**\n * @brief blank line binding\n */');
+        expect(attachedDocComment.range.start).toEqual({ line: 0, character: 0 });
+        expect(attachedDocComment.range.end).toEqual({ line: 2, character: 3 });
+    });
+
+    test('does not attach Javadoc blocks across preprocessor directives', () => {
+        const source = [
+            '/**',
+            ' * @brief directive gap',
+            ' */',
+            '#define FOO 1',
+            'int directive_gap_case() {',
+            '    return 1;',
+            '}'
+        ].join('\n');
+        const syntaxDocument = buildSyntaxDocument(createDocument(source, '/virtual/directive-gap.c'));
+        const [functionNode] = getFunctionDeclarations(syntaxDocument);
+
+        expect(functionNode.attachedDocComment).toBeUndefined();
+    });
+
+    test('does not attach Javadoc blocks across two blank lines', () => {
+        const source = [
+            '/**',
+            ' * @brief too far',
+            ' */',
+            '',
+            '',
+            'int too_far_case() {',
+            '    return 1;',
+            '}'
+        ].join('\n');
+        const syntaxDocument = buildSyntaxDocument(createDocument(source, '/virtual/two-blank-lines.c'));
+        const [functionNode] = getFunctionDeclarations(syntaxDocument);
+
+        expect(functionNode.attachedDocComment).toBeUndefined();
+    });
+
+    test('prefers the nearest Javadoc block when multiple blocks precede one declaration', () => {
+        const source = [
+            '/**',
+            ' * @brief older block',
+            ' */',
+            '/**',
+            ' * @brief newer block',
+            ' */',
+            'public int nearest_block_case() {',
+            '    return 1;',
+            '}'
+        ].join('\n');
+        const syntaxDocument = buildSyntaxDocument(createDocument(source, '/virtual/nearest-block.c'));
+        const [functionNode] = getFunctionDeclarations(syntaxDocument);
+        const attachedDocComment = functionNode.attachedDocComment;
+
+        expect(attachedDocComment).toBeDefined();
+        expect(attachedDocComment.text).toBe('/**\n * @brief newer block\n */');
+    });
+
+    test('binds a Javadoc block only to the first following declaration', () => {
+        const source = [
+            '/**',
+            ' * @brief one-shot block',
+            ' */',
+            'int first_attached() {',
+            '    return 1;',
+            '}',
+            'int second_unattached() {',
+            '    return 2;',
+            '}'
+        ].join('\n');
+        const syntaxDocument = buildSyntaxDocument(createDocument(source, '/virtual/one-shot-block.c'));
+        const [firstFunction, secondFunction] = getFunctionDeclarations(syntaxDocument);
+
+        expect(firstFunction.attachedDocComment).toBeDefined();
+        expect(firstFunction.attachedDocComment.text).toBe('/**\n * @brief one-shot block\n */');
+        expect(secondFunction.attachedDocComment).toBeUndefined();
+    });
+
+    test('attaches Javadoc blocks to prototype declarations as well', () => {
+        const source = [
+            '/**',
+            ' * @brief prototype binding',
+            ' */',
+            'public int prototype_case(int value);'
+        ].join('\n');
+        const syntaxDocument = buildSyntaxDocument(createDocument(source, '/virtual/prototype-binding.c'));
+        const [functionNode] = getFunctionDeclarations(syntaxDocument);
+        const attachedDocComment = functionNode.attachedDocComment;
+
+        expect(attachedDocComment).toBeDefined();
+        expect(attachedDocComment.kind).toBe('javadoc');
+        expect(attachedDocComment.text).toBe('/**\n * @brief prototype binding\n */');
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
