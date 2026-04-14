@@ -100,6 +100,9 @@ describe('EfunHoverProvider', () => {
         const hover = await provider.provideHover(document, new vscode.Position(0, 10));
 
         expect(hover).toBeUndefined();
+        expect(manager.getCurrentFileDoc).not.toHaveBeenCalled();
+        expect(manager.getInheritedFileDoc).not.toHaveBeenCalled();
+        expect(manager.getIncludedFileDoc).not.toHaveBeenCalled();
         expect(manager.getSimulatedDoc).not.toHaveBeenCalled();
         expect(manager.getEfunDoc).not.toHaveBeenCalled();
     });

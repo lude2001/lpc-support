@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseFunctionDocs } from './docParser';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import type { CallableDoc, CallableSignature } from '../language/documentation/types';
 import type { EfunDoc } from './types';
 
 export class FileFunctionDocTracker {
+    private readonly documentationService = new FunctionDocumentationService();
     private currentFileDocs: Map<string, EfunDoc> = new Map();
     private inheritedFileDocs: Map<string, Map<string, EfunDoc>> = new Map();
     private currentFilePath = '';
@@ -66,7 +68,7 @@ export class FileFunctionDocTracker {
         const updateVersion = ++this.currentFileUpdateVersion;
         const currentFilePath = document.uri.fsPath;
         const content = document.getText();
-        const currentFileDocs = parseFunctionDocs(content, '当前文件');
+        const currentFileDocs = this.buildCompatDocsForDocument(document, '当前文件');
         const inheritedFiles = this.parseInheritStatements(content);
         const inheritedFileDocs = await this.loadInheritedFileDocs(currentFilePath, inheritedFiles);
 
@@ -119,9 +121,9 @@ export class FileFunctionDocTracker {
                 for (const filePath of possiblePaths) {
                     try {
                         if (fs.existsSync(filePath)) {
-                            const content = fs.readFileSync(filePath, 'utf8');
                             const fileName = path.basename(filePath);
-                            const funcDocs = parseFunctionDocs(content, `继承自 ${fileName}`);
+                            const inheritedDocument = await vscode.workspace.openTextDocument(filePath);
+                            const funcDocs = this.buildCompatDocsForDocument(inheritedDocument, `继承自 ${fileName}`);
                             inheritedFileDocs.set(filePath, funcDocs);
                             break;
                         }
@@ -150,9 +152,9 @@ export class FileFunctionDocTracker {
                 }
 
                 try {
-                    const content = await fs.promises.readFile(includeFile, 'utf-8');
+                    const includeDocument = await vscode.workspace.openTextDocument(includeFile);
                     const fileName = path.basename(includeFile);
-                    const funcDocs = parseFunctionDocs(content, `包含自 ${fileName}`);
+                    const funcDocs = this.buildCompatDocsForDocument(includeDocument, `包含自 ${fileName}`);
                     const doc = funcDocs.get(functionName);
                     if (doc) {
                         return doc;
@@ -238,4 +240,72 @@ export class FileFunctionDocTracker {
 
         return matchingFolders[0] ?? workspaceFolders[0].uri.fsPath;
     }
+
+    private buildCompatDocsForDocument(
+        document: vscode.TextDocument,
+        category: string
+    ): Map<string, EfunDoc> {
+        const documentDocs = this.documentationService.getDocumentDocs(document);
+        const docs = new Map<string, EfunDoc>();
+
+        for (const declarationKey of documentDocs.declarationOrder) {
+            const callableDoc = documentDocs.byDeclaration.get(declarationKey);
+            if (!callableDoc || docs.has(callableDoc.name)) {
+                continue;
+            }
+
+            docs.set(callableDoc.name, this.materializeCompatDoc(callableDoc, category));
+        }
+
+        return docs;
+    }
+
+    private materializeCompatDoc(callableDoc: CallableDoc, category: string): EfunDoc {
+        return {
+            name: callableDoc.name,
+            syntax: callableDoc.signatures.map((signature) => signature.label).join('\n'),
+            description: callableDoc.summary ?? '',
+            sourceFile: callableDoc.sourcePath,
+            sourceRange: callableDoc.sourceRange,
+            returnType: deriveCompatReturnType(callableDoc.signatures),
+            returnValue: callableDoc.returns?.description,
+            returnObjects: callableDoc.returnObjects ? [...callableDoc.returnObjects] : undefined,
+            details: callableDoc.details,
+            note: callableDoc.note,
+            category,
+            lastUpdated: Date.now(),
+            signatures: callableDoc.signatures.map((signature) => ({
+                label: signature.label,
+                returnType: signature.returnType,
+                isVariadic: signature.isVariadic,
+                parameters: signature.parameters.map((parameter) => ({
+                    name: parameter.name,
+                    type: parameter.type,
+                    description: parameter.description,
+                    optional: parameter.optional,
+                    variadic: parameter.variadic
+                }))
+            }))
+        };
+    }
+}
+
+function deriveCompatReturnType(signatures: CallableSignature[]): string | undefined {
+    if (signatures.length === 0) {
+        return undefined;
+    }
+
+    if (signatures.length === 1) {
+        return signatures[0].returnType;
+    }
+
+    const returnTypes = signatures.map((signature) => signature.returnType?.trim()).filter(Boolean);
+    if (returnTypes.length !== signatures.length) {
+        return undefined;
+    }
+
+    const [firstReturnType, ...restReturnTypes] = returnTypes;
+    return restReturnTypes.every((returnType) => returnType === firstReturnType)
+        ? firstReturnType
+        : undefined;
 }

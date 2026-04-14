@@ -1,13 +1,15 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../../../ast/astManager';
-import { buildEfunHoverMarkdown } from '../../../efun/EfunHoverContent';
 import type { EfunDocsManager } from '../../../efunDocs';
 import type { EfunDoc } from '../../../efun/types';
+import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
+import type { CallableDoc, CallableSignature } from '../../documentation/types';
 import { SyntaxKind, type SyntaxDocument, type SyntaxNode } from '../../../syntax/types';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
 
 export class EfunLanguageHoverService implements LanguageHoverService {
     private readonly astManager = ASTManager.getInstance();
+    private readonly renderer = new CallableDocRenderer();
 
     public constructor(private readonly efunDocsManager: EfunDocsManager) {}
 
@@ -20,42 +22,48 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         }
 
         const word = document.getText(wordRange);
-        const hoverDoc = await this.resolveHoverDoc(document, position, word);
-        return hoverDoc ? createHoverResult(wordRange, buildEfunHoverMarkdown(hoverDoc)) : undefined;
+        const hoverMarkdown = await this.resolveHoverMarkdown(document, position, word);
+        return hoverMarkdown ? createHoverResult(wordRange, hoverMarkdown) : undefined;
     }
 
-    private async resolveHoverDoc(
+    private async resolveHoverMarkdown(
         document: vscode.TextDocument,
         position: vscode.Position,
         word: string
-    ): Promise<EfunDoc | undefined> {
-        await this.efunDocsManager.prepareHoverLookup(document);
-
-        const currentDoc = this.efunDocsManager.getCurrentFileDoc(word);
-        if (currentDoc) {
-            return currentDoc;
-        }
-
-        const inheritedDoc = this.efunDocsManager.getInheritedFileDoc(word);
-        if (inheritedDoc) {
-            return inheritedDoc;
-        }
-
-        const includeDoc = await this.efunDocsManager.getIncludedFileDoc(document, word);
-        if (includeDoc) {
-            return includeDoc;
-        }
-
+    ): Promise<string | undefined> {
         if (this.isArrowMemberAccess(document, position, word)) {
             return undefined;
         }
 
-        const simulatedDoc = this.efunDocsManager.getSimulatedDoc(word);
-        if (simulatedDoc) {
-            return simulatedDoc;
+        await this.efunDocsManager.prepareHoverLookup(document);
+
+        const currentDoc = this.efunDocsManager.getCurrentFileDoc(word);
+        if (currentDoc) {
+            return this.renderer.renderHover(materializeCallableDoc(currentDoc, 'local'));
         }
 
-        return this.efunDocsManager.getEfunDoc(word);
+        const inheritedDoc = this.efunDocsManager.getInheritedFileDoc(word);
+        if (inheritedDoc) {
+            return this.renderer.renderHover(materializeCallableDoc(inheritedDoc, 'inherit'));
+        }
+
+        const includeDoc = await this.efunDocsManager.getIncludedFileDoc(document, word);
+        if (includeDoc) {
+            return this.renderer.renderHover(materializeCallableDoc(includeDoc, 'include'));
+        }
+
+        const simulatedDoc = this.efunDocsManager.getSimulatedDoc(word);
+        if (simulatedDoc) {
+            return this.renderer.renderHover(materializeCallableDoc(simulatedDoc, 'simulEfun'));
+        }
+
+        const standardCallableDoc = this.efunDocsManager.getStandardCallableDoc(word);
+        if (standardCallableDoc) {
+            return this.renderer.renderHover(standardCallableDoc, { sourceLabel: '标准 Efun' });
+        }
+
+        const standardDoc = await this.efunDocsManager.getEfunDoc(word);
+        return standardDoc ? this.renderer.renderHover(materializeCallableDoc(standardDoc, 'efun')) : undefined;
     }
 
     private isArrowMemberAccess(document: vscode.TextDocument, position: vscode.Position, word: string): boolean {
@@ -98,6 +106,49 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         const memberNode = node.children[1];
         return memberNode.kind === SyntaxKind.Identifier && memberNode.name === word;
     }
+}
+
+function materializeCallableDoc(doc: EfunDoc, sourceKind: CallableDoc['sourceKind']): CallableDoc {
+    const signatures = doc.signatures?.length
+        ? doc.signatures.map((signature): CallableSignature => ({
+            label: signature.label,
+            returnType: signature.returnType,
+            parameters: signature.parameters.map((parameter) => ({
+                name: parameter.name,
+                type: parameter.type,
+                description: parameter.description,
+                optional: parameter.optional,
+                variadic: parameter.variadic
+            })),
+            isVariadic: signature.isVariadic,
+            rawSyntax: signature.label
+        }))
+        : [{
+            label: doc.syntax || `${doc.name}()`,
+            returnType: doc.returnType,
+            parameters: [],
+            isVariadic: false,
+            rawSyntax: doc.syntax || `${doc.name}()`
+        }];
+
+    return {
+        name: doc.name,
+        declarationKey: `${sourceKind}:${doc.name}`,
+        signatures,
+        summary: doc.description || undefined,
+        details: doc.details,
+        note: doc.note,
+        returns: doc.returnValue
+            ? {
+                type: doc.returnType,
+                description: doc.returnValue
+            }
+            : undefined,
+        returnObjects: doc.returnObjects ? [...doc.returnObjects] : undefined,
+        sourceKind,
+        sourcePath: doc.sourceFile,
+        sourceRange: doc.sourceRange
+    };
 }
 
 function createHoverResult(range: vscode.Range, value: string): LanguageHoverResult {

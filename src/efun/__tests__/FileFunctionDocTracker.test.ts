@@ -4,10 +4,71 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { FileFunctionDocTracker } from '../FileFunctionDocTracker';
 
+function createTextDocument(filePath: string, content: string): vscode.TextDocument {
+    const normalized = content.replace(/\r\n/g, '\n');
+    const lineStarts = [0];
+    const lines = normalized.split('\n');
+
+    for (let index = 0; index < normalized.length; index += 1) {
+        if (normalized[index] === '\n') {
+            lineStarts.push(index + 1);
+        }
+    }
+
+    const offsetAt = (position: vscode.Position): number => {
+        const lineStart = lineStarts[position.line] ?? normalized.length;
+        return Math.min(lineStart + position.character, normalized.length);
+    };
+
+    const positionAt = (offset: number): vscode.Position => {
+        let line = 0;
+        for (let index = 0; index < lineStarts.length; index += 1) {
+            if (lineStarts[index] <= offset) {
+                line = index;
+            } else {
+                break;
+            }
+        }
+
+        return new vscode.Position(line, offset - lineStarts[line]);
+    };
+
+    return {
+        uri: vscode.Uri.file(filePath),
+        fileName: filePath,
+        languageId: filePath.endsWith('.h') || filePath.endsWith('.c') ? 'lpc' : 'plaintext',
+        version: 1,
+        lineCount: lineStarts.length,
+        isDirty: false,
+        isClosed: false,
+        isUntitled: false,
+        eol: vscode.EndOfLine.LF,
+        getText: (range?: vscode.Range) => {
+            if (!range) {
+                return normalized;
+            }
+
+            return normalized.slice(offsetAt(range.start), offsetAt(range.end));
+        },
+        lineAt: (line: number) => ({
+            text: lines[line] ?? ''
+        }),
+        positionAt,
+        offsetAt,
+        save: async () => true,
+        validateRange: (range: vscode.Range) => range,
+        validatePosition: (position: vscode.Position) => position
+    } as unknown as vscode.TextDocument;
+}
+
 describe('FileFunctionDocTracker', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         (vscode.workspace.workspaceFolders as unknown) = [];
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string) => {
+            const filePath = typeof target === 'string' ? target : target.fsPath;
+            return createTextDocument(filePath, fs.readFileSync(filePath, 'utf8'));
+        });
     });
 
     test('only the latest async update wins when updates overlap', async () => {
@@ -62,9 +123,9 @@ describe('FileFunctionDocTracker', () => {
             includeFile,
             [
                 '/**',
-                ' * live include helper',
+                ' * @brief live include helper',
                 ' */',
-                'int helper_live()'
+                'int helper_live();'
             ].join('\n')
         );
 
@@ -80,7 +141,9 @@ describe('FileFunctionDocTracker', () => {
 
         expect(doc).toMatchObject({
             name: 'helper_live',
-            category: '包含自 helper.h'
+            category: '包含自 helper.h',
+            description: 'live include helper',
+            syntax: 'int helper_live();'
         });
 
         fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -99,9 +162,9 @@ describe('FileFunctionDocTracker', () => {
             includeFile,
             [
                 '/**',
-                ' * multi root helper',
+                ' * @brief multi root helper',
                 ' */',
-                'int helper_multi_root()'
+                'int helper_multi_root();'
             ].join('\n')
         );
 
@@ -120,7 +183,9 @@ describe('FileFunctionDocTracker', () => {
 
         expect(doc).toMatchObject({
             name: 'helper_multi_root',
-            category: '包含自 helper.h'
+            category: '包含自 helper.h',
+            description: 'multi root helper',
+            syntax: 'int helper_multi_root();'
         });
 
         fs.rmSync(rootA, { recursive: true, force: true });

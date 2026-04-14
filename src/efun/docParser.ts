@@ -1,5 +1,10 @@
 import type { EfunDoc } from './types';
 
+/**
+ * @deprecated Legacy helper kept only for transitional callers such as simulated-efun scanning and focused tests.
+ * New hover/panel/return-object production paths should use FunctionDocumentationService + CallableDoc instead.
+ */
+
 export interface ParseFunctionDocsOptions {
     isSimulated?: boolean;
     sourceFile?: string;

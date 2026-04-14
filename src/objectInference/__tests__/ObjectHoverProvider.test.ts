@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as docParser from '../../efun/docParser';
+import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { ObjectHoverProvider } from '../ObjectHoverProvider';
 import type { LanguageHoverService } from '../../language/services/navigation/LanguageHoverService';
 
@@ -105,8 +107,10 @@ describe('ObjectHoverProvider', () => {
         expect(hover).toBeUndefined();
     });
 
-    test('resolved target file shows method syntax from parsed object docs', async () => {
+    test('resolved target file shows method syntax and structured shared docs without legacy reparsing', async () => {
         const content = 'target->query_name();';
+        const getDocsByNameSpy = jest.spyOn(FunctionDocumentationService.prototype, 'getDocsByName');
+        const parseFunctionDocsSpy = jest.spyOn(docParser, 'parseFunctionDocs');
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
                 receiver: 'target',
@@ -118,22 +122,33 @@ describe('ObjectHoverProvider', () => {
             })
         };
         const targetMethodLookup = {
+            resolvedDocument: {
+                uri: vscode.Uri.file('D:/code/lpc/obj/npc.c'),
+                fileName: 'D:/code/lpc/obj/npc.c',
+                version: 7,
+                getText: () => [
+                    '/**',
+                    ' * @brief 返回名字。',
+                    ' * @param string style 显示风格。',
+                    ' * @details 这是对象方法的详细说明。',
+                    ' * @note 支持共享文档渲染。',
+                    ' */',
+                    'string query_name(string style) {',
+                    '    return "npc";',
+                    '}'
+                ].join('\n')
+            },
             findMethod: jest.fn().mockResolvedValue({
                 path: 'D:/code/lpc/obj/npc.c',
-                document: {
-                    uri: vscode.Uri.file('D:/code/lpc/obj/npc.c'),
-                    getText: () => [
-                        '/**',
-                        ' * @brief 返回名字。',
-                        ' */',
-                        'string query_name() {',
-                        '    return "npc";',
-                        '}'
-                    ].join('\n')
-                },
+                document: undefined,
                 location: new vscode.Location(vscode.Uri.file('D:/code/lpc/obj/npc.c'), new vscode.Position(3, 0))
             })
         };
+        targetMethodLookup.findMethod.mockResolvedValue({
+            path: 'D:/code/lpc/obj/npc.c',
+            document: targetMethodLookup.resolvedDocument,
+            location: new vscode.Location(vscode.Uri.file('D:/code/lpc/obj/npc.c'), new vscode.Position(3, 0))
+        });
 
         const provider = new (ObjectHoverProvider as any)(objectInferenceService as any, undefined, targetMethodLookup as any);
         const document = {
@@ -151,10 +166,18 @@ describe('ObjectHoverProvider', () => {
 
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
         expect(hover).toBeInstanceOf(vscode.Hover);
+        expect(getDocsByNameSpy).toHaveBeenCalledWith(targetMethodLookup.resolvedDocument, 'query_name');
+        expect(parseFunctionDocsSpy).not.toHaveBeenCalled();
 
         const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
-        expect(hoverContent.value).toContain('string query_name()');
+        expect(hoverContent.value).toContain('string query_name(');
         expect(hoverContent.value).toContain('返回名字。');
+        expect(hoverContent.value).toContain('#### Parameters');
+        expect(hoverContent.value).toContain('显示风格');
+        expect(hoverContent.value).toContain('#### Details');
+        expect(hoverContent.value).toContain('这是对象方法的详细说明');
+        expect(hoverContent.value).toContain('Note');
+        expect(hoverContent.value).toContain('支持共享文档渲染');
     });
 
     test('merged candidates without unique implementation return a conservative summary containing 可能来自多个对象', async () => {
