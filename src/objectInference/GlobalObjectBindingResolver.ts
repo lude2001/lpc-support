@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { Symbol } from '../ast/symbolTable';
+import { InheritanceResolver } from '../completion/inheritanceResolver';
+import { MacroManager } from '../macroManager';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
@@ -31,18 +33,23 @@ export interface GlobalBindingResolveContext {
 
 export class GlobalObjectBindingResolver {
     private readonly astManager = ASTManager.getInstance();
+    private readonly inheritanceResolver: InheritanceResolver;
 
     constructor(
         private readonly returnObjectResolver: ReturnObjectResolver,
-        private readonly objectMethodReturnResolver: ObjectMethodReturnResolver
-    ) {}
+        private readonly objectMethodReturnResolver: ObjectMethodReturnResolver,
+        macroManager?: MacroManager
+    ) {
+        this.inheritanceResolver = new InheritanceResolver(macroManager);
+    }
 
     public async resolveVisibleBinding(
         document: vscode.TextDocument,
         identifierName: string,
-        _position: vscode.Position
+        _position: vscode.Position,
+        options?: FileScopeBindingResolveOptions
     ): Promise<GlobalBindingResolution | undefined> {
-        return this.resolveFileScopeBinding(document, identifierName);
+        return this.resolveFileScopeBinding(document, identifierName, options);
     }
 
     public async resolveFileScopeBinding(
@@ -155,6 +162,13 @@ export class GlobalObjectBindingResolver {
                 if (inheritedBinding) {
                     return inheritedBinding;
                 }
+
+                if (await this.hasInheritedVisibleBinding(context.document, unwrappedInitializer.name)) {
+                    return {
+                        candidates: [],
+                        hasVisibleBinding: true
+                    };
+                }
             }
         }
 
@@ -251,10 +265,60 @@ export class GlobalObjectBindingResolver {
                         diagnostics: inheritedBinding.diagnostics
                     };
                 }
+
+                if (await this.hasInheritedVisibleBinding(context.document, unwrappedReceiver.name)) {
+                    return { candidates: [] };
+                }
             }
         }
 
         return this.returnObjectResolver.resolveExpressionOutcome(context.document, unwrappedReceiver);
+    }
+
+    private async hasInheritedVisibleBinding(
+        document: vscode.TextDocument,
+        identifierName: string,
+        visitedUris: Set<string> = new Set([document.uri.toString()])
+    ): Promise<boolean> {
+        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const resolvedTargets = this.inheritanceResolver.resolveInheritTargets(snapshot);
+
+        for (const target of resolvedTargets) {
+            if (!target.resolvedUri || visitedUris.has(target.resolvedUri)) {
+                continue;
+            }
+
+            const branchVisitedUris = new Set(visitedUris);
+            branchVisitedUris.add(target.resolvedUri);
+
+            try {
+                const parentDocument = await vscode.workspace.openTextDocument(
+                    this.toWorkspaceFilePath(target.resolvedUri)
+                );
+                const parentSnapshot = this.astManager.getSemanticSnapshot(parentDocument, false);
+                const parentSymbol = this.findGlobalScopeSymbol(parentSnapshot, identifierName);
+                const globalScope = parentSnapshot.symbolTable.getGlobalScope();
+                if (
+                    parentSymbol
+                    && parentSymbol.type === 'variable'
+                    && parentSymbol.scope === globalScope
+                ) {
+                    return true;
+                }
+
+                if (await this.hasInheritedVisibleBinding(parentDocument, identifierName, branchVisitedUris)) {
+                    return true;
+                }
+            } catch {
+                continue;
+            }
+        }
+
+        return false;
+    }
+
+    private toWorkspaceFilePath(uri: string): string {
+        return vscode.Uri.parse(uri).fsPath.replace(/^[/\\]+([A-Za-z]:[\\/])/, '$1');
     }
 
     private getVisitKey(document: vscode.TextDocument, symbol: Symbol, identifierName: string): string {

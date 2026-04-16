@@ -7,6 +7,7 @@ import { TargetMethodLookup } from '../targetMethodLookup';
 import { PathResolver } from '../utils/pathResolver';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
 import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
+import { InheritedGlobalObjectBindingResolver } from './InheritedGlobalObjectBindingResolver';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ReceiverTraceService } from './ReceiverTraceService';
@@ -21,6 +22,7 @@ export class ObjectInferenceService {
     private readonly objectMethodReturnResolver: ObjectMethodReturnResolver;
     private readonly traceService: ReceiverTraceService;
     private readonly globalBindingResolver: GlobalObjectBindingResolver;
+    private readonly inheritedGlobalBindingResolver: InheritedGlobalObjectBindingResolver;
 
     constructor(
         private readonly macroManager?: MacroManager,
@@ -34,12 +36,18 @@ export class ObjectInferenceService {
         this.objectMethodReturnResolver = new ObjectMethodReturnResolver(this.returnObjectResolver, targetMethodLookup);
         this.globalBindingResolver = new GlobalObjectBindingResolver(
             this.returnObjectResolver,
-            this.objectMethodReturnResolver
+            this.objectMethodReturnResolver,
+            macroManager
+        );
+        this.inheritedGlobalBindingResolver = new InheritedGlobalObjectBindingResolver(
+            macroManager,
+            this.globalBindingResolver
         );
         this.traceService = new ReceiverTraceService(
             this.returnObjectResolver,
             this.objectMethodReturnResolver,
-            this.globalBindingResolver
+            this.globalBindingResolver,
+            this.inheritedGlobalBindingResolver
         );
     }
 
@@ -149,10 +157,27 @@ export class ObjectInferenceService {
             const globalBindingResult = await this.globalBindingResolver.resolveVisibleBinding(
                 document,
                 receiver.expression,
-                receiverNode.range.start
+                receiverNode.range.start,
+                {
+                    resolveInheritedIdentifier: (parentFile, name, visitedBindings) =>
+                        this.inheritedGlobalBindingResolver.resolveInheritedBinding(
+                            parentFile,
+                            name,
+                            undefined,
+                            visitedBindings
+                        )
+                }
             );
             if (globalBindingResult && (globalBindingResult.candidates.length > 0 || globalBindingResult.hasVisibleBinding)) {
                 return globalBindingResult;
+            }
+
+            const inheritedBindingResult = await this.inheritedGlobalBindingResolver.resolveInheritedBinding(
+                document,
+                receiver.expression
+            );
+            if (inheritedBindingResult && (inheritedBindingResult.candidates.length > 0 || inheritedBindingResult.hasVisibleBinding)) {
+                return inheritedBindingResult;
             }
 
             return {
