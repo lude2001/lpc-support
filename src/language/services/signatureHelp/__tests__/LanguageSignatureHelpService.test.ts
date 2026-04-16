@@ -17,6 +17,8 @@ import {
     type ResolvedCallableTarget
 } from '../LanguageSignatureHelpService';
 
+const originalWorkspaceFolders = vscode.workspace.workspaceFolders;
+
 function createDocument(
     content: string,
     filePath = 'D:/workspace/signature-help.c',
@@ -185,6 +187,7 @@ describe('LanguageSignatureHelpService', () => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
         clearGlobalParsedDocumentService();
+        (vscode.workspace as any).workspaceFolders = originalWorkspaceFolders;
         jest.restoreAllMocks();
     });
 
