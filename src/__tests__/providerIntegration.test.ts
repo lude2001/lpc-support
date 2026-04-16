@@ -249,6 +249,65 @@ describe('language-service integration regression', () => {
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
     });
 
+    test('completion resolves inherited file-scope global object receivers through inferred target files', async () => {
+        const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
+        fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+        fs.writeFileSync(
+            targetFile,
+            [
+                'string query_name(int mode, int flags) {',
+                '    return "combat-d";',
+                '}'
+            ].join('\n')
+        );
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");\n'
+        );
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'void demo() {',
+            '    COMBAT_D->qu',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'inherited-global-completion.c'), source);
+        const objectInferenceService = new ObjectInferenceService(macroManager as any);
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
+            const filePath = typeof target === 'string' ? target : target.fsPath;
+            const normalizedPath = filePath
+                .replace(/^[/\\]+([A-Za-z]:[\\/])/, '$1')
+                .replace(/\//g, path.sep);
+            return createDocument(normalizedPath, fs.readFileSync(normalizedPath, 'utf8'));
+        });
+        const service = new QueryBackedLanguageCompletionService(
+            efunDocsManager as any,
+            macroManager as any,
+            undefined,
+            objectInferenceService as any,
+            {
+                clear: jest.fn(),
+                show: jest.fn(),
+                appendLine: jest.fn()
+            }
+        );
+
+        const result = await service.provideCompletion({
+            context: createLanguageContext(document, fixtureRoot),
+            position: positionAtSubstringEnd(document, source, 'COMBAT_D->qu'),
+            triggerKind: vscode.CompletionTriggerKind.Invoke
+        });
+
+        expect(result.items.map((item) => item.label)).toContain('query_name');
+        expect(result.items).toHaveLength(1);
+        expect(result.items.find((item) => item.label === 'query_name')?.kind).toBe('method');
+        expect(result.items[0].detail).toBe('string query_name');
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+    });
+
     test('definition resolves system include files from project config without consulting legacy includePath', async () => {
         const includeDir = path.join(fixtureRoot, 'include');
         const headerFile = path.join(includeDir, 'global.h');
@@ -534,6 +593,63 @@ describe('language-service integration regression', () => {
         (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
             return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
+        });
+        const service = new AstBackedLanguageDefinitionService(
+            macroManager as any,
+            efunDocsManager as any,
+            objectInferenceService as any,
+            targetMethodLookup as any
+        );
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name(1, 2);'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
+        expect(definition[0].range.start.line).toBe(0);
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name');
+    });
+
+    test('definition resolves inherited file-scope global object receivers to the current-file target', async () => {
+        const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
+        fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+        fs.writeFileSync(
+            targetFile,
+            [
+                'string query_name(int mode, int flags) {',
+                '    return "combat-d";',
+                '}'
+            ].join('\n')
+        );
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");\n'
+        );
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'void demo() {',
+            '    COMBAT_D->query_name(1, 2);',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'inherited-global-definition.c'), source);
+        const objectInferenceService = new ObjectInferenceService(macroManager as any);
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const targetMethodLookup = new TargetMethodLookup(macroManager as any);
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
+            const filePath = typeof target === 'string' ? target : target.fsPath;
+            const normalizedPath = filePath
+                .replace(/^[/\\]+([A-Za-z]:[\\/])/, '$1')
+                .replace(/\//g, path.sep);
+            return createDocument(normalizedPath, fs.readFileSync(normalizedPath, 'utf8'));
         });
         const service = new AstBackedLanguageDefinitionService(
             macroManager as any,

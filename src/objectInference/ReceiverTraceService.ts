@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
+import { InheritedGlobalObjectBindingResolver } from './InheritedGlobalObjectBindingResolver';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ObjectCandidate, ObjectInferenceReason } from './types';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
@@ -18,7 +19,8 @@ export class ReceiverTraceService {
     constructor(
         private readonly returnObjectResolver: ReturnObjectResolver,
         private readonly objectMethodReturnResolver: ObjectMethodReturnResolver,
-        private readonly globalBindingResolver: GlobalObjectBindingResolver
+        private readonly globalBindingResolver: GlobalObjectBindingResolver,
+        private readonly inheritedGlobalBindingResolver: InheritedGlobalObjectBindingResolver
     ) {}
 
     public async traceIdentifier(
@@ -378,7 +380,16 @@ export class ReceiverTraceService {
         const globalBindingResult = await this.globalBindingResolver.resolveVisibleBinding(
             document,
             expression.name!,
-            expression.range.start
+            expression.range.start,
+            {
+                resolveInheritedIdentifier: (parentFile, name, visitedBindings) =>
+                    this.inheritedGlobalBindingResolver.resolveInheritedBinding(
+                        parentFile,
+                        name,
+                        undefined,
+                        visitedBindings
+                    )
+            }
         );
         if (
             globalBindingResult
@@ -390,6 +401,22 @@ export class ReceiverTraceService {
             )
         ) {
             return globalBindingResult;
+        }
+
+        const inheritedBindingResult = await this.inheritedGlobalBindingResolver.resolveInheritedBinding(
+            document,
+            expression.name!
+        );
+        if (
+            inheritedBindingResult
+            && (
+                inheritedBindingResult.candidates.length > 0
+                || inheritedBindingResult.reason
+                || inheritedBindingResult.diagnostics?.length
+                || inheritedBindingResult.hasVisibleBinding
+            )
+        ) {
+            return inheritedBindingResult;
         }
 
         const directResolution = await this.returnObjectResolver.resolveExpressionOutcome(document, expression);
