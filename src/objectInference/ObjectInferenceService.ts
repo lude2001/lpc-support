@@ -6,7 +6,6 @@ import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { PathResolver } from '../utils/pathResolver';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
-import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ReceiverTraceService } from './ReceiverTraceService';
@@ -19,7 +18,6 @@ export class ObjectInferenceService {
     private readonly candidateResolver = new ObjectCandidateResolver();
     private readonly returnObjectResolver: ReturnObjectResolver;
     private readonly objectMethodReturnResolver: ObjectMethodReturnResolver;
-    private readonly globalObjectBindingResolver: GlobalObjectBindingResolver;
     private readonly traceService: ReceiverTraceService;
 
     constructor(
@@ -32,10 +30,6 @@ export class ObjectInferenceService {
         const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
         this.returnObjectResolver = new ReturnObjectResolver(macroManager, playerObjectPathOrProjectConfig);
         this.objectMethodReturnResolver = new ObjectMethodReturnResolver(this.returnObjectResolver, targetMethodLookup);
-        this.globalObjectBindingResolver = new GlobalObjectBindingResolver(
-            this.returnObjectResolver,
-            this.objectMethodReturnResolver
-        );
         this.traceService = new ReceiverTraceService(this.returnObjectResolver, this.objectMethodReturnResolver);
     }
 
@@ -140,15 +134,6 @@ export class ObjectInferenceService {
             const tracedResult = await this.traceService.traceIdentifier(document, syntax, receiverNode);
             if (tracedResult && (tracedResult.candidates.length > 0 || tracedResult.hasVisibleBinding)) {
                 return tracedResult;
-            }
-
-            const globalOutcome = await this.globalObjectBindingResolver.resolveIdentifierOutcome(
-                document,
-                receiver.expression,
-                receiverNode.range.start
-            );
-            if (globalOutcome.hasVisibleBinding) {
-                return globalOutcome.outcome;
             }
 
             return {
