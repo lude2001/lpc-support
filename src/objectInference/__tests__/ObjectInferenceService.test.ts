@@ -1663,6 +1663,24 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('visible file-scope global with non-load_object initializer stays unknown in task 3', async () => {
+        const source = [
+            'object COMBAT_D = find_object("/adm/daemons/combat_d");',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-find-object-stays-unknown.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
     test('local object bindings still shadow file-scope globals', async () => {
         const source = [
             'object COMBAT_D = load_object("/adm/daemons/combat_d");',

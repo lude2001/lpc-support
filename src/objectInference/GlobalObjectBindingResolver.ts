@@ -111,6 +111,13 @@ export class GlobalObjectBindingResolver {
             );
         }
 
+        if (!this.isSupportedGlobalInitializer(unwrappedInitializer)) {
+            return {
+                candidates: [],
+                hasVisibleBinding: true
+            };
+        }
+
         const outcome = await this.returnObjectResolver.resolveExpressionOutcome(document, unwrappedInitializer);
         return {
             ...outcome,
@@ -137,6 +144,12 @@ export class GlobalObjectBindingResolver {
         }
 
         return node;
+    }
+
+    private isSupportedGlobalInitializer(node: SyntaxNode): boolean {
+        return node.kind === SyntaxKind.CallExpression
+            && node.children[0]?.kind === SyntaxKind.Identifier
+            && node.children[0].name === 'load_object';
     }
 
     private getVisitKey(symbol: Symbol, identifierName: string): string {
