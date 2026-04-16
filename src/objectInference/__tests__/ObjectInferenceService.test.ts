@@ -1586,6 +1586,36 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('macro-backed file-scope global object aliases still resolve through the macro initializer', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_PATH',
+            value: '/adm/daemons/combat_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'object COMBAT_D = COMBAT_PATH;',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-alias-from-macro.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'macro'
+                }
+            ]
+        });
+    });
+
     test('global aliases degrade to unknown when file-scope aliases recurse in a cycle', async () => {
         macroManager.getMacro.mockReturnValue({
             name: 'COMBAT_D',
@@ -1628,6 +1658,31 @@ describe('ObjectInferenceService', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'global-no-initializer-stays-unknown.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('visible non-object file-scope globals block same-name macro fallback', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/combat_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'int COMBAT_D = 1;',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-non-object-blocks-macro.c'), source);
 
         const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
 

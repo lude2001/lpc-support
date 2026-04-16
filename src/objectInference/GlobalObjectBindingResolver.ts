@@ -24,8 +24,20 @@ export class GlobalObjectBindingResolver {
         position: vscode.Position
     ): Promise<GlobalBindingResolution | undefined> {
         const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const globalScope = snapshot.symbolTable.getGlobalScope();
         const symbol = resolveVisibleSymbol(snapshot.symbolTable, identifierName, position);
-        if (!symbol || !this.isVisibleGlobalObjectSymbol(snapshot.symbolTable.getGlobalScope(), symbol)) {
+        if (!symbol) {
+            return undefined;
+        }
+
+        if (symbol.type === 'variable' && symbol.scope === globalScope && symbol.dataType !== 'object') {
+            return {
+                candidates: [],
+                hasVisibleBinding: true
+            };
+        }
+
+        if (!this.isVisibleGlobalObjectSymbol(globalScope, symbol)) {
             return undefined;
         }
 
@@ -98,21 +110,17 @@ export class GlobalObjectBindingResolver {
                 symbol.scope,
                 unwrappedInitializer.name
             );
-            if (!aliasSymbol) {
-                return {
-                    candidates: [],
-                    hasVisibleBinding: true
-                };
-            }
 
-            return this.resolveGlobalBindingFromSymbol(
-                document,
-                symbolTable,
-                nodes,
-                aliasSymbol,
-                unwrappedInitializer.name,
-                visited
-            );
+            if (aliasSymbol) {
+                return this.resolveGlobalBindingFromSymbol(
+                    document,
+                    symbolTable,
+                    nodes,
+                    aliasSymbol,
+                    unwrappedInitializer.name,
+                    visited
+                );
+            }
         }
 
         const methodInitializerOutcome = await this.resolveMemberMethodInitializer(
