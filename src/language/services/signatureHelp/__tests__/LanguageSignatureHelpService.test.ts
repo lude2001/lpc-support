@@ -1,10 +1,14 @@
 import * as vscode from 'vscode';
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../completion/documentSemanticSnapshotService';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
+import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
 import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
 import type { CallableDoc } from '../../../documentation/types';
+import { TargetMethodLookup } from '../../../../targetMethodLookup';
 import {
     LanguageSignatureHelpService,
     type CallableDiscoveryRequest,
@@ -520,6 +524,80 @@ describe('LanguageSignatureHelpService', () => {
             sourceLabel: 'object-method'
         }));
         expect(result?.activeParameter).toBe(1);
+    });
+
+    test('returns signature help for file-scope global object inference', async () => {
+        const fixtureRoot = path.join(process.cwd(), '.tmp-signature-help-global-object');
+        const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
+        const source = [
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");',
+            '',
+            'void demo() {',
+            '    COMBAT_D->query_name(1, 2);',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, path.join(fixtureRoot, 'room', 'global-object-signature-help.c'));
+        fs.rmSync(fixtureRoot, { recursive: true, force: true });
+        fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+        fs.writeFileSync(
+            targetFile,
+            [
+                'string query_name(int mode, int flags) {',
+                '    return "combat-d";',
+                '}'
+            ].join('\n')
+        );
+        (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({
+            uri: { fsPath: fixtureRoot }
+        });
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: fixtureRoot } }];
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
+            const filePath = typeof target === 'string' ? target : target.fsPath;
+            return createDocument(fs.readFileSync(filePath, 'utf8'), filePath);
+        });
+        const objectInferenceService = new ObjectInferenceService();
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const targetMethodLookup = new TargetMethodLookup();
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        const docResolver: CallableDocResolver = {
+            resolveFromTarget: jest.fn(async (target) => {
+                if (target.kind !== 'objectMethod') {
+                    return undefined;
+                }
+
+                return createCallableDoc('query_name', 'objectMethod', target.declarationKey ?? 'decl:query_name', [{
+                    label: 'string query_name(int mode, int flags)',
+                    returnType: 'string',
+                    isVariadic: false,
+                    parameters: [
+                        { name: 'mode', type: 'int', description: 'Mode selector' },
+                        { name: 'flags', type: 'int', description: 'Dispatch flags' }
+                    ]
+                }]);
+            })
+        };
+        const service = new LanguageSignatureHelpService({
+            objectInferenceService,
+            targetMethodLookup,
+            docResolver
+        });
+
+        try {
+            const result = await service.provideSignatureHelp({
+                context: createContext(document),
+                position: positionAfter(source, '2')
+            });
+
+            expect(result?.signatures[0]).toEqual(expect.objectContaining({
+                label: 'string query_name(int mode, int flags)',
+                sourceLabel: 'object-method'
+            }));
+            expect(result?.activeParameter).toBe(1);
+            expect(inferObjectAccess).toHaveBeenCalledWith(document, document.positionAt(source.indexOf('query_name')));
+            expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', { useFreshSnapshots: true });
+        } finally {
+            fs.rmSync(fixtureRoot, { recursive: true, force: true });
+        }
     });
 
     test('ignores commas and parens inside comments when computing the active parameter', async () => {

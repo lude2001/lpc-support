@@ -7,6 +7,8 @@ import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator'
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
 import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
+import { ObjectInferenceService } from '../objectInference/ObjectInferenceService';
+import { TargetMethodLookup } from '../targetMethodLookup';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -119,6 +121,15 @@ function positionAtSubstring(document: vscode.TextDocument, source: string, subs
     return document.positionAt(start + 1);
 }
 
+function positionAtSubstringEnd(document: vscode.TextDocument, source: string, substring: string): vscode.Position {
+    const start = source.indexOf(substring);
+    if (start === -1) {
+        throw new Error(`Substring not found: ${substring}`);
+    }
+
+    return document.positionAt(start + substring.length);
+}
+
 function normalizeLocationUri(uri: string): string {
     if (uri.startsWith('file:///')) {
         return uri
@@ -189,6 +200,53 @@ describe('language-service integration regression', () => {
         });
 
         expect(result.items.map((item) => item.label)).toContain('local_call');
+    });
+
+    test('completion resolves file-scope global object receivers through inferred target files', async () => {
+        const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
+        fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+        fs.writeFileSync(
+            targetFile,
+            [
+                'string query_name(int mode, int flags) {',
+                '    return "combat-d";',
+                '}'
+            ].join('\n')
+        );
+
+        const source = [
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");',
+            '',
+            'void demo() {',
+            '    COMBAT_D->qu',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-object-completion.c'), source);
+        const objectInferenceService = new ObjectInferenceService(macroManager as any);
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const service = new QueryBackedLanguageCompletionService(
+            efunDocsManager as any,
+            macroManager as any,
+            undefined,
+            objectInferenceService as any,
+            {
+                clear: jest.fn(),
+                show: jest.fn(),
+                appendLine: jest.fn()
+            }
+        );
+
+        const result = await service.provideCompletion({
+            context: createLanguageContext(document, fixtureRoot),
+            position: positionAtSubstringEnd(document, source, 'COMBAT_D->qu'),
+            triggerKind: vscode.CompletionTriggerKind.Invoke
+        });
+
+        expect(result.items.map((item) => item.label)).toContain('query_name');
+        expect(result.items).toHaveLength(1);
+        expect(result.items.find((item) => item.label === 'query_name')?.kind).toBe('method');
+        expect(result.items[0].detail).toBe('string query_name');
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
     });
 
     test('definition resolves system include files from project config without consulting legacy includePath', async () => {
@@ -447,6 +505,55 @@ describe('language-service integration regression', () => {
         expect(normalizeLocationUri(definition[0].uri)).toBe(fileName);
         expect(definition[0].range.start.line).toBe(0);
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+    });
+
+    test('definition resolves file-scope global object receivers to the current-file target', async () => {
+        const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
+        fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+        fs.writeFileSync(
+            targetFile,
+            [
+                'string query_name(int mode, int flags) {',
+                '    return "combat-d";',
+                '}'
+            ].join('\n')
+        );
+
+        const source = [
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");',
+            '',
+            'void demo() {',
+            '    COMBAT_D->query_name(1, 2);',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-object-definition.c'), source);
+        const objectInferenceService = new ObjectInferenceService(macroManager as any);
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const targetMethodLookup = new TargetMethodLookup(macroManager as any);
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
+            const filePath = typeof target === 'string' ? target : target.fsPath;
+            return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
+        });
+        const service = new AstBackedLanguageDefinitionService(
+            macroManager as any,
+            efunDocsManager as any,
+            objectInferenceService as any,
+            targetMethodLookup as any
+        );
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name(1, 2);'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
+        expect(definition[0].range.start.line).toBe(0);
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name');
     });
 
     test('merged candidates from if/else return two locations when each file implements query_name', async () => {
