@@ -235,17 +235,21 @@ export class GlobalObjectBindingResolver {
     ): Promise<ObjectResolutionOutcome> {
         const unwrappedReceiver = this.unwrapParenthesizedExpression(receiver);
         if (unwrappedReceiver.kind === SyntaxKind.Identifier && unwrappedReceiver.name) {
-            const receiverSymbol = this.findVisibleGlobalObjectSymbolByName(
+            const visibleReceiverSymbol = resolveVisibleSymbol(
                 symbolTable,
-                globalScope,
-                unwrappedReceiver.name
+                unwrappedReceiver.name,
+                unwrappedReceiver.range.start
             );
-            if (receiverSymbol) {
+            if (visibleReceiverSymbol?.type === 'variable' && visibleReceiverSymbol.scope === globalScope) {
+                if (!this.isVisibleGlobalObjectSymbol(globalScope, visibleReceiverSymbol)) {
+                    return { candidates: [] };
+                }
+
                 const bindingOutcome = await this.resolveGlobalBindingFromSymbol(
                     document,
                     symbolTable,
                     nodes,
-                    receiverSymbol,
+                    visibleReceiverSymbol,
                     unwrappedReceiver.name,
                     visited
                 );

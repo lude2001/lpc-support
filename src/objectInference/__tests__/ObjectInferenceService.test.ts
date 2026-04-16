@@ -1837,6 +1837,48 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('global object method initializer stays unknown when receiver is a visible non-object global despite same-name macro', async () => {
+        macroManager.getMacro.mockImplementation((name: string) => name === 'FACTORY'
+            ? {
+                name: 'FACTORY',
+                value: '/adm/objects/documented-factory-macro-receiver',
+                file: path.join(fixtureRoot, 'include', 'factory.h'),
+                line: 1
+            }
+            : undefined);
+
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'documented-factory-macro-receiver.c'),
+            [
+                '/**',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const source = [
+            'int FACTORY = 1;',
+            'object weapon = FACTORY->method();',
+            '',
+            'void demo() {',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-method-receiver-non-object-stays-unknown.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
     test('local aliases trace through file-scope global object method initializers', async () => {
         fs.writeFileSync(
             path.join(fixtureRoot, 'adm', 'objects', 'documented-factory-local-alias.c'),
