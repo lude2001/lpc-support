@@ -1562,6 +1562,107 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('global aliases recurse through file-scope object bindings', async () => {
+        const source = [
+            'object TARGET_D = load_object("/adm/daemons/combat_d");',
+            'object COMBAT_D = TARGET_D;',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-alias-recurses.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('global aliases degrade to unknown when file-scope aliases recurse in a cycle', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/objects/shield',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'object COMBAT_D = OTHER_D;',
+            'object OTHER_D = COMBAT_D;',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-alias-cycle.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('visible file-scope global with no initializer stays unknown instead of falling back to macros', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/combat_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'object COMBAT_D;',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-no-initializer-stays-unknown.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('visible file-scope global with unsupported initializer stays unsupported instead of falling back to macros', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/combat_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'object COMBAT_D = load_object(1);',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-unsupported-initializer.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
     test('local object bindings still shadow file-scope globals', async () => {
         const source = [
             'object COMBAT_D = load_object("/adm/daemons/combat_d");',
