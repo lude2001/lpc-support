@@ -1509,6 +1509,77 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('file-scope global object initialized by load_object resolves before macro fallback', async () => {
+        const source = [
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-load-object.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('visible file-scope global object wins over same-name macro fallback', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/objects/shield',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-vs-macro.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference?.candidates).toEqual([
+            {
+                path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                source: 'builtin-call'
+            }
+        ]);
+    });
+
+    test('local object bindings still shadow file-scope globals', async () => {
+        const source = [
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");',
+            '',
+            'void demo() {',
+            '    object COMBAT_D = load_object("/adm/objects/sword");',
+            '    COMBAT_D->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-shadowed-by-local.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->query'));
+
+        expect(result?.inference?.candidates).toEqual([
+            {
+                path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                source: 'builtin-call'
+            }
+        ]);
+    });
+
     test('nested identifier rhs tracing prefers visible uppercase local bindings over macro fallback', async () => {
         macroManager.getMacro.mockReturnValue({
             name: 'COMBAT_D',
