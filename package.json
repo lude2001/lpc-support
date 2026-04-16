@@ -37,7 +37,7 @@
   "dependencies": {
     "@types/vscode": "^1.95.0",
     "antlr4ts": "^0.5.0-alpha.4",
-    "axios": "^1.13.6",
+    "axios": "^1.15.0",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11"
@@ -56,6 +56,12 @@
     "rimraf": "^5.0.10",
     "ts-jest": "^29.1.1",
     "typescript": "^5.0.0"
+  },
+  "overrides": {
+    "follow-redirects": "1.16.0",
+    "handlebars": "4.7.9",
+    "picomatch": "2.3.2",
+    "undici": "7.24.0"
   },
   "contributes": {
     "languages": [
