@@ -189,7 +189,9 @@ describe('structure handlers', () => {
         builder.push(1, 4, 2, legend.tokenTypes.indexOf('property'), 0);
 
         expect(structureService.provideSemanticTokens).toHaveBeenCalledTimes(1);
-        expect(result).toEqual(builder.build());
+        expect(result).toBeDefined();
+        expect(result?.data).toEqual(builder.build().data);
+        expect(result?.resultId).toEqual(expect.any(String));
     });
 
     test('registerCapabilities and createServer expose only structure capabilities when structure service is provided', () => {
