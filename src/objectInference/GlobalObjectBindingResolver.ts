@@ -1,13 +1,27 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
-import { Symbol, SymbolTable } from '../ast/symbolTable';
-import { resolveVisibleSymbol } from '../symbolReferenceResolver';
+import { Symbol } from '../ast/symbolTable';
+import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
 
-interface GlobalBindingResolution extends ObjectResolutionOutcome {
+export interface GlobalBindingResolution extends ObjectResolutionOutcome {
     hasVisibleBinding: boolean;
+}
+
+export type InheritedIdentifierResolver = (
+    document: vscode.TextDocument,
+    identifierName: string,
+    visited: Set<string>
+) => Promise<GlobalBindingResolution | undefined>;
+
+export interface GlobalBindingResolveContext {
+    document: vscode.TextDocument;
+    snapshot: SemanticSnapshot;
+    identifierName: string;
+    visited: Set<string>;
+    resolveInheritedIdentifier?: InheritedIdentifierResolver;
 }
 
 export class GlobalObjectBindingResolver {
@@ -21,11 +35,31 @@ export class GlobalObjectBindingResolver {
     public async resolveVisibleBinding(
         document: vscode.TextDocument,
         identifierName: string,
-        position: vscode.Position
+        _position: vscode.Position
+    ): Promise<GlobalBindingResolution | undefined> {
+        return this.resolveFileScopeBinding(document, identifierName);
+    }
+
+    public async resolveFileScopeBinding(
+        document: vscode.TextDocument,
+        identifierName: string,
+        options?: { resolveInheritedIdentifier?: InheritedIdentifierResolver }
     ): Promise<GlobalBindingResolution | undefined> {
         const snapshot = this.astManager.getSemanticSnapshot(document, false);
-        const globalScope = snapshot.symbolTable.getGlobalScope();
-        const symbol = resolveVisibleSymbol(snapshot.symbolTable, identifierName, position);
+        return this.resolveNamedBindingInSnapshot({
+            document,
+            snapshot,
+            identifierName,
+            visited: new Set(),
+            resolveInheritedIdentifier: options?.resolveInheritedIdentifier
+        });
+    }
+
+    public async resolveNamedBindingInSnapshot(
+        context: GlobalBindingResolveContext
+    ): Promise<GlobalBindingResolution | undefined> {
+        const globalScope = context.snapshot.symbolTable.getGlobalScope();
+        const symbol = this.findGlobalScopeSymbol(context.snapshot, context.identifierName);
         if (!symbol) {
             return undefined;
         }
@@ -41,20 +75,17 @@ export class GlobalObjectBindingResolver {
             return undefined;
         }
 
-        return this.resolveGlobalBindingFromSymbol(
-            document,
-            snapshot.symbolTable,
-            snapshot.syntax.nodes,
-            symbol,
-            identifierName,
-            new Set()
-        );
+        return this.resolveGlobalBindingFromSymbol(context, symbol, context.identifierName);
     }
 
     private isVisibleGlobalObjectSymbol(globalScope: Symbol['scope'], symbol: Symbol): boolean {
         return symbol.type === 'variable'
             && symbol.scope === globalScope
             && symbol.dataType === 'object';
+    }
+
+    private findGlobalScopeSymbol(snapshot: SemanticSnapshot, identifierName: string): Symbol | undefined {
+        return snapshot.symbolTable.getGlobalScope().symbols.get(identifierName);
     }
 
     private findDeclarator(
@@ -70,24 +101,21 @@ export class GlobalObjectBindingResolver {
     }
 
     private async resolveGlobalBindingFromSymbol(
-        document: vscode.TextDocument,
-        symbolTable: SymbolTable,
-        nodes: readonly SyntaxNode[],
+        context: GlobalBindingResolveContext,
         symbol: Symbol,
-        identifierName: string,
-        visited: Set<string>
+        identifierName: string
     ): Promise<GlobalBindingResolution> {
-        const visitKey = this.getVisitKey(symbol, identifierName);
-        if (visited.has(visitKey)) {
+        const visitKey = this.getVisitKey(context.document, symbol, identifierName);
+        if (context.visited.has(visitKey)) {
             return {
                 candidates: [],
                 hasVisibleBinding: true
             };
         }
 
-        visited.add(visitKey);
+        context.visited.add(visitKey);
 
-        const declarator = this.findDeclarator(nodes, symbol, identifierName);
+        const declarator = this.findDeclarator(context.snapshot.syntax.nodes, symbol, identifierName);
         if (!declarator) {
             return {
                 candidates: [],
@@ -105,46 +133,29 @@ export class GlobalObjectBindingResolver {
 
         const unwrappedInitializer = this.unwrapParenthesizedExpression(initializer);
         if (unwrappedInitializer.kind === SyntaxKind.Identifier && unwrappedInitializer.name) {
-            const visibleGlobalSymbol = resolveVisibleSymbol(
-                symbolTable,
-                unwrappedInitializer.name,
-                unwrappedInitializer.range.start
-            );
-            if (
-                visibleGlobalSymbol?.type === 'variable'
-                && visibleGlobalSymbol.scope === symbol.scope
-                && !this.isVisibleGlobalObjectSymbol(symbol.scope, visibleGlobalSymbol)
-            ) {
-                return {
-                    candidates: [],
-                    hasVisibleBinding: true
-                };
+            const sameFileBinding = await this.resolveNamedBindingInSnapshot({
+                ...context,
+                identifierName: unwrappedInitializer.name
+            });
+            if (sameFileBinding) {
+                return sameFileBinding;
             }
 
-            const aliasSymbol = this.findVisibleGlobalObjectSymbolByName(
-                symbolTable,
-                symbol.scope,
-                unwrappedInitializer.name
-            );
-            if (aliasSymbol) {
-                return this.resolveGlobalBindingFromSymbol(
-                    document,
-                    symbolTable,
-                    nodes,
-                    aliasSymbol,
+            if (context.resolveInheritedIdentifier) {
+                const inheritedBinding = await context.resolveInheritedIdentifier(
+                    context.document,
                     unwrappedInitializer.name,
-                    visited
+                    context.visited
                 );
+                if (inheritedBinding) {
+                    return inheritedBinding;
+                }
             }
         }
 
         const methodInitializerOutcome = await this.resolveMemberMethodInitializer(
-            document,
-            symbolTable,
-            nodes,
-            symbol.scope,
-            unwrappedInitializer,
-            visited
+            context,
+            unwrappedInitializer
         );
         if (methodInitializerOutcome) {
             return {
@@ -153,24 +164,11 @@ export class GlobalObjectBindingResolver {
             };
         }
 
-        const outcome = await this.returnObjectResolver.resolveExpressionOutcome(document, unwrappedInitializer);
+        const outcome = await this.returnObjectResolver.resolveExpressionOutcome(context.document, unwrappedInitializer);
         return {
             ...outcome,
             hasVisibleBinding: true
         };
-    }
-
-    private findVisibleGlobalObjectSymbolByName(
-        symbolTable: SymbolTable,
-        globalScope: Symbol['scope'],
-        identifierName: string
-    ): Symbol | undefined {
-        const symbol = symbolTable.getGlobalScope().symbols.get(identifierName);
-        if (!symbol || !this.isVisibleGlobalObjectSymbol(globalScope, symbol)) {
-            return undefined;
-        }
-
-        return symbol;
     }
 
     private unwrapParenthesizedExpression(node: SyntaxNode): SyntaxNode {
@@ -182,12 +180,8 @@ export class GlobalObjectBindingResolver {
     }
 
     private async resolveMemberMethodInitializer(
-        document: vscode.TextDocument,
-        symbolTable: SymbolTable,
-        nodes: readonly SyntaxNode[],
-        globalScope: Symbol['scope'],
-        initializer: SyntaxNode,
-        visited: Set<string>
+        context: GlobalBindingResolveContext,
+        initializer: SyntaxNode
     ): Promise<ObjectResolutionOutcome | undefined> {
         if (initializer.kind !== SyntaxKind.CallExpression) {
             return undefined;
@@ -205,12 +199,8 @@ export class GlobalObjectBindingResolver {
         }
 
         const receiverOutcome = await this.resolveMethodReceiverOutcome(
-            document,
-            symbolTable,
-            nodes,
-            globalScope,
-            callee.children[0],
-            visited
+            context,
+            callee.children[0]
         );
         if (receiverOutcome.candidates.length === 0) {
             return receiverOutcome.reason || receiverOutcome.diagnostics?.length
@@ -219,53 +209,51 @@ export class GlobalObjectBindingResolver {
         }
 
         return this.objectMethodReturnResolver.resolveMethodReturnOutcome(
-            document,
+            context.document,
             receiverOutcome.candidates,
             callee.children[1].name
         );
     }
 
     private async resolveMethodReceiverOutcome(
-        document: vscode.TextDocument,
-        symbolTable: SymbolTable,
-        nodes: readonly SyntaxNode[],
-        globalScope: Symbol['scope'],
-        receiver: SyntaxNode,
-        visited: Set<string>
+        context: GlobalBindingResolveContext,
+        receiver: SyntaxNode
     ): Promise<ObjectResolutionOutcome> {
         const unwrappedReceiver = this.unwrapParenthesizedExpression(receiver);
         if (unwrappedReceiver.kind === SyntaxKind.Identifier && unwrappedReceiver.name) {
-            const visibleReceiverSymbol = resolveVisibleSymbol(
-                symbolTable,
-                unwrappedReceiver.name,
-                unwrappedReceiver.range.start
-            );
-            if (visibleReceiverSymbol?.type === 'variable' && visibleReceiverSymbol.scope === globalScope) {
-                if (!this.isVisibleGlobalObjectSymbol(globalScope, visibleReceiverSymbol)) {
-                    return { candidates: [] };
-                }
-
-                const bindingOutcome = await this.resolveGlobalBindingFromSymbol(
-                    document,
-                    symbolTable,
-                    nodes,
-                    visibleReceiverSymbol,
-                    unwrappedReceiver.name,
-                    visited
-                );
+            const sameFileBinding = await this.resolveNamedBindingInSnapshot({
+                ...context,
+                identifierName: unwrappedReceiver.name
+            });
+            if (sameFileBinding) {
                 return {
-                    candidates: bindingOutcome.candidates,
-                    reason: bindingOutcome.reason,
-                    diagnostics: bindingOutcome.diagnostics
+                    candidates: sameFileBinding.candidates,
+                    reason: sameFileBinding.reason,
+                    diagnostics: sameFileBinding.diagnostics
                 };
+            }
+
+            if (context.resolveInheritedIdentifier) {
+                const inheritedBinding = await context.resolveInheritedIdentifier(
+                    context.document,
+                    unwrappedReceiver.name,
+                    context.visited
+                );
+                if (inheritedBinding) {
+                    return {
+                        candidates: inheritedBinding.candidates,
+                        reason: inheritedBinding.reason,
+                        diagnostics: inheritedBinding.diagnostics
+                    };
+                }
             }
         }
 
-        return this.returnObjectResolver.resolveExpressionOutcome(document, unwrappedReceiver);
+        return this.returnObjectResolver.resolveExpressionOutcome(context.document, unwrappedReceiver);
     }
 
-    private getVisitKey(symbol: Symbol, identifierName: string): string {
-        return `${identifierName}:${symbol.range.start.line}:${symbol.range.start.character}:${symbol.range.end.line}:${symbol.range.end.character}`;
+    private getVisitKey(document: vscode.TextDocument, symbol: Symbol, identifierName: string): string {
+        return `${document.uri.toString()}:${identifierName}:${symbol.range.start.line}:${symbol.range.start.character}:${symbol.range.end.line}:${symbol.range.end.character}`;
     }
 
     private rangesEqual(left: vscode.Range, right: vscode.Range): boolean {
