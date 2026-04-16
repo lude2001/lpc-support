@@ -76,8 +76,16 @@ describe('ObjectInferenceService', () => {
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
         fs.mkdirSync(path.join(fixtureRoot, 'adm', 'daemons'), { recursive: true });
         fs.mkdirSync(path.join(fixtureRoot, 'adm', 'objects'), { recursive: true });
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
         fs.mkdirSync(path.join(fixtureRoot, 'room'), { recursive: true });
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'), 'void start() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'left_d.c'), 'void start() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'right_d.c'), 'void start() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'deep_d.c'), 'void start() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'parent_d.c'), 'void start() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'local_d.c'), 'void start() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'macro_d.c'), 'void start() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'daemons', 'far_d.c'), 'void start() {}\n', 'utf8');
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'player.c'), 'void query_name() {}\n', 'utf8');
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'sword.c'), 'void query() {}\n', 'utf8');
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'shield.c'), 'void query() {}\n', 'utf8');
@@ -1915,6 +1923,325 @@ describe('ObjectInferenceService', () => {
                 }
             ]
         });
+    });
+
+    test('direct inherit file-scope global object resolves in child receivers', async () => {
+        const parentFile = path.join(fixtureRoot, 'std', 'room.c');
+        fs.mkdirSync(path.dirname(parentFile), { recursive: true });
+        fs.writeFileSync(
+            parentFile,
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");\n',
+            'utf8'
+        );
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'city', 'room.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('multi-level inherited global object bindings resolve through declaration-order DFS', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'base_room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");\n',
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            'inherit "/std/base_room";\n',
+            'utf8'
+        );
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'forest', 'room.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference?.candidates).toEqual([
+            {
+                path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                source: 'builtin-call'
+            }
+        ]);
+    });
+
+    test('direct inherit declaration order wins for same-name inherited globals', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'left_room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/left_d");\n',
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'right_room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/right_d");\n',
+            'utf8'
+        );
+
+        const source = [
+            'inherit "/std/left_room";',
+            'inherit "/std/right_room";',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'forest', 'inherit-order-room.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference?.candidates).toEqual([
+            {
+                path: path.join(fixtureRoot, 'adm', 'daemons', 'left_d.c'),
+                source: 'builtin-call'
+            }
+        ]);
+    });
+
+    test('declaration-order DFS prefers the first direct inherit branch over later direct siblings', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'deep_parent.c'),
+            'object COMBAT_D = load_object("/adm/daemons/deep_d");\n',
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'left_room.c'),
+            'inherit "/std/deep_parent";\n',
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'right_room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/right_d");\n',
+            'utf8'
+        );
+
+        const source = [
+            'inherit "/std/left_room";',
+            'inherit "/std/right_room";',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'forest', 'inherit-dfs-vs-bfs.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference?.candidates).toEqual([
+            {
+                path: path.join(fixtureRoot, 'adm', 'daemons', 'deep_d.c'),
+                source: 'builtin-call'
+            }
+        ]);
+    });
+
+    test('current-file global object still wins over inherited same-name global object', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/parent_d");\n',
+            'utf8'
+        );
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'object COMBAT_D = load_object("/adm/daemons/local_d");',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'city', 'shadow-object.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference?.candidates).toEqual([
+            {
+                path: path.join(fixtureRoot, 'adm', 'daemons', 'local_d.c'),
+                source: 'builtin-call'
+            }
+        ]);
+    });
+
+    test('current-file file-scope global declared after use still blocks inherited globals and macros', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/parent_d");\n',
+            'utf8'
+        );
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/macro_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}',
+            '',
+            'object COMBAT_D = load_object("/adm/daemons/local_d");'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'city', 'shadow-after-use.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference?.candidates).toEqual([
+            {
+                path: path.join(fixtureRoot, 'adm', 'daemons', 'local_d.c'),
+                source: 'builtin-call'
+            }
+        ]);
+    });
+
+    test('current-file non-object global blocks inherited same-name object and macro fallback', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/parent_d");\n',
+            'utf8'
+        );
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/macro_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'int COMBAT_D = 1;',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'city', 'shadow-non-object.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('current-file non-object global declared after use still blocks inherited globals and macros', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/parent_d");\n',
+            'utf8'
+        );
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/macro_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}',
+            '',
+            'int COMBAT_D = 1;'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'city', 'shadow-non-object-after-use.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('closer inherited non-object global blocks farther inherited object bindings and macros', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'base_room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/far_d");\n',
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            'inherit "/std/base_room";\nint COMBAT_D = 1;\n',
+            'utf8'
+        );
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_D',
+            value: '/adm/daemons/macro_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'city', 'closer-parent-blocks.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('local aliases trace through inherited file-scope global object bindings', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");\n',
+            'utf8'
+        );
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'void demo() {',
+            '    object ob = COMBAT_D;',
+            '    ob->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'd', 'city', 'local-alias-through-inherit.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'ob->start'));
+
+        expect(result?.inference?.candidates).toEqual([
+            {
+                path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                source: 'builtin-call'
+            }
+        ]);
     });
 
     test('global object method initializer resolves via project config include directories', async () => {
