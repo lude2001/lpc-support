@@ -32,10 +32,14 @@ export class ObjectInferenceService {
         const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
         this.returnObjectResolver = new ReturnObjectResolver(macroManager, playerObjectPathOrProjectConfig);
         this.objectMethodReturnResolver = new ObjectMethodReturnResolver(this.returnObjectResolver, targetMethodLookup);
-        this.traceService = new ReceiverTraceService(this.returnObjectResolver, this.objectMethodReturnResolver);
         this.globalBindingResolver = new GlobalObjectBindingResolver(
             this.returnObjectResolver,
             this.objectMethodReturnResolver
+        );
+        this.traceService = new ReceiverTraceService(
+            this.returnObjectResolver,
+            this.objectMethodReturnResolver,
+            this.globalBindingResolver
         );
     }
 

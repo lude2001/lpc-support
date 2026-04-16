@@ -1532,6 +1532,30 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('local aliases trace through visible file-scope global object bindings', async () => {
+        const source = [
+            'object COMBAT_D = load_object("/adm/daemons/combat_d");',
+            '',
+            'void demo() {',
+            '    object ob = COMBAT_D;',
+            '    ob->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'local-alias-from-global-load-object.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'ob->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
     test('visible file-scope global object wins over same-name macro fallback', async () => {
         macroManager.getMacro.mockReturnValue({
             name: 'COMBAT_D',
@@ -1718,6 +1742,32 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('same-file non-object globals inside global initializers block macro fallback', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'COMBAT_PATH',
+            value: '/adm/daemons/combat_d',
+            file: path.join(fixtureRoot, 'include', 'daemons.h'),
+            line: 1
+        });
+
+        const source = [
+            'int COMBAT_PATH = 1;',
+            'object COMBAT_D = COMBAT_PATH;',
+            '',
+            'void demo() {',
+            '    COMBAT_D->start();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-initializer-non-object-blocks-macro.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
     test('documented-return initializer resolves visible file-scope global object', async () => {
         const source = [
             '/**',
@@ -1773,6 +1823,44 @@ describe('ObjectInferenceService', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'global-object-method-initializer.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('local aliases trace through file-scope global object method initializers', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'documented-factory-local-alias.c'),
+            [
+                '/**',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const source = [
+            'object FACTORY = load_object("/adm/objects/documented-factory-local-alias");',
+            '',
+            'void demo() {',
+            '    object weapon = FACTORY->method();',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'local-alias-from-global-method-initializer.c'), source);
 
         const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
 

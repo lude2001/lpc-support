@@ -105,12 +105,27 @@ export class GlobalObjectBindingResolver {
 
         const unwrappedInitializer = this.unwrapParenthesizedExpression(initializer);
         if (unwrappedInitializer.kind === SyntaxKind.Identifier && unwrappedInitializer.name) {
+            const visibleGlobalSymbol = resolveVisibleSymbol(
+                symbolTable,
+                unwrappedInitializer.name,
+                unwrappedInitializer.range.start
+            );
+            if (
+                visibleGlobalSymbol?.type === 'variable'
+                && visibleGlobalSymbol.scope === symbol.scope
+                && !this.isVisibleGlobalObjectSymbol(symbol.scope, visibleGlobalSymbol)
+            ) {
+                return {
+                    candidates: [],
+                    hasVisibleBinding: true
+                };
+            }
+
             const aliasSymbol = this.findVisibleGlobalObjectSymbolByName(
                 symbolTable,
                 symbol.scope,
                 unwrappedInitializer.name
             );
-
             if (aliasSymbol) {
                 return this.resolveGlobalBindingFromSymbol(
                     document,
