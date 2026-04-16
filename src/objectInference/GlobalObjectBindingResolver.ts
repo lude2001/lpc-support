@@ -16,6 +16,11 @@ export type InheritedIdentifierResolver = (
     visited: Set<string>
 ) => Promise<GlobalBindingResolution | undefined>;
 
+export interface FileScopeBindingResolveOptions {
+    visited?: Set<string>;
+    resolveInheritedIdentifier?: InheritedIdentifierResolver;
+}
+
 export interface GlobalBindingResolveContext {
     document: vscode.TextDocument;
     snapshot: SemanticSnapshot;
@@ -43,14 +48,14 @@ export class GlobalObjectBindingResolver {
     public async resolveFileScopeBinding(
         document: vscode.TextDocument,
         identifierName: string,
-        options?: { resolveInheritedIdentifier?: InheritedIdentifierResolver }
+        options?: FileScopeBindingResolveOptions
     ): Promise<GlobalBindingResolution | undefined> {
         const snapshot = this.astManager.getSemanticSnapshot(document, false);
         return this.resolveNamedBindingInSnapshot({
             document,
             snapshot,
             identifierName,
-            visited: new Set(),
+            visited: options?.visited ?? new Set(),
             resolveInheritedIdentifier: options?.resolveInheritedIdentifier
         });
     }
