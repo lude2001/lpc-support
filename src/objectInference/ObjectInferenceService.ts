@@ -6,6 +6,7 @@ import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { PathResolver } from '../utils/pathResolver';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
+import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ReceiverTraceService } from './ReceiverTraceService';
@@ -19,6 +20,7 @@ export class ObjectInferenceService {
     private readonly returnObjectResolver: ReturnObjectResolver;
     private readonly objectMethodReturnResolver: ObjectMethodReturnResolver;
     private readonly traceService: ReceiverTraceService;
+    private readonly globalBindingResolver: GlobalObjectBindingResolver;
 
     constructor(
         private readonly macroManager?: MacroManager,
@@ -30,7 +32,15 @@ export class ObjectInferenceService {
         const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
         this.returnObjectResolver = new ReturnObjectResolver(macroManager, playerObjectPathOrProjectConfig);
         this.objectMethodReturnResolver = new ObjectMethodReturnResolver(this.returnObjectResolver, targetMethodLookup);
-        this.traceService = new ReceiverTraceService(this.returnObjectResolver, this.objectMethodReturnResolver);
+        this.globalBindingResolver = new GlobalObjectBindingResolver(
+            this.returnObjectResolver,
+            this.objectMethodReturnResolver
+        );
+        this.traceService = new ReceiverTraceService(
+            this.returnObjectResolver,
+            this.objectMethodReturnResolver,
+            this.globalBindingResolver
+        );
     }
 
     public async inferObjectAccess(
@@ -134,6 +144,15 @@ export class ObjectInferenceService {
             const tracedResult = await this.traceService.traceIdentifier(document, syntax, receiverNode);
             if (tracedResult && (tracedResult.candidates.length > 0 || tracedResult.hasVisibleBinding)) {
                 return tracedResult;
+            }
+
+            const globalBindingResult = await this.globalBindingResolver.resolveVisibleBinding(
+                document,
+                receiver.expression,
+                receiverNode.range.start
+            );
+            if (globalBindingResult && (globalBindingResult.candidates.length > 0 || globalBindingResult.hasVisibleBinding)) {
+                return globalBindingResult;
             }
 
             return {

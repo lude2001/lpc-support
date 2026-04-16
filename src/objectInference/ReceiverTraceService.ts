@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
+import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ObjectCandidate, ObjectInferenceReason } from './types';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
@@ -16,7 +17,8 @@ interface FlowState {
 export class ReceiverTraceService {
     constructor(
         private readonly returnObjectResolver: ReturnObjectResolver,
-        private readonly objectMethodReturnResolver: ObjectMethodReturnResolver
+        private readonly objectMethodReturnResolver: ObjectMethodReturnResolver,
+        private readonly globalBindingResolver: GlobalObjectBindingResolver
     ) {}
 
     public async traceIdentifier(
@@ -267,16 +269,12 @@ export class ReceiverTraceService {
         }
 
         if (expression.kind === SyntaxKind.Identifier && expression.name) {
-            const tracedIdentifier = await this.traceIdentifierInFunction(
+            return this.resolveIdentifierSourceOutcome(
                 document,
                 functionNode,
-                expression.name,
-                expression.range.start,
+                expression,
                 visited
             );
-            if (tracedIdentifier.candidates.length > 0 || tracedIdentifier.reason || tracedIdentifier.hasVisibleBinding) {
-                return tracedIdentifier;
-            }
         }
 
         const directResolution = await this.returnObjectResolver.resolveExpressionOutcome(document, expression);
@@ -349,19 +347,57 @@ export class ReceiverTraceService {
         }
 
         if (expression.kind === SyntaxKind.Identifier && expression.name) {
-            const tracedIdentifier = await this.traceIdentifierInFunction(
-                document,
-                functionNode,
-                expression.name,
-                expression.range.start,
-                visited
-            );
-            if (tracedIdentifier.candidates.length > 0 || tracedIdentifier.reason || tracedIdentifier.diagnostics?.length || tracedIdentifier.hasVisibleBinding) {
-                return tracedIdentifier;
-            }
+            return this.resolveIdentifierSourceOutcome(document, functionNode, expression, visited);
         }
 
         return this.returnObjectResolver.resolveExpressionOutcome(document, expression);
+    }
+
+    private async resolveIdentifierSourceOutcome(
+        document: vscode.TextDocument,
+        functionNode: SyntaxNode,
+        expression: SyntaxNode,
+        visited: Set<string>
+    ): Promise<ObjectResolutionOutcome> {
+        const tracedIdentifier = await this.traceIdentifierInFunction(
+            document,
+            functionNode,
+            expression.name!,
+            expression.range.start,
+            visited
+        );
+        if (
+            tracedIdentifier.candidates.length > 0
+            || tracedIdentifier.reason
+            || tracedIdentifier.diagnostics?.length
+            || tracedIdentifier.hasVisibleBinding
+        ) {
+            return tracedIdentifier;
+        }
+
+        const globalBindingResult = await this.globalBindingResolver.resolveVisibleBinding(
+            document,
+            expression.name!,
+            expression.range.start
+        );
+        if (
+            globalBindingResult
+            && (
+                globalBindingResult.candidates.length > 0
+                || globalBindingResult.reason
+                || globalBindingResult.diagnostics?.length
+                || globalBindingResult.hasVisibleBinding
+            )
+        ) {
+            return globalBindingResult;
+        }
+
+        const directResolution = await this.returnObjectResolver.resolveExpressionOutcome(document, expression);
+        if (directResolution.candidates.length > 0 || directResolution.reason || directResolution.diagnostics?.length) {
+            return directResolution;
+        }
+
+        return { candidates: [] };
     }
 
     private resolveVisibleBinding(
