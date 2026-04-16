@@ -31,35 +31,40 @@ export class InheritedGlobalObjectBindingResolver {
 
             const branchVisitedUris = new Set(visitedUris);
             branchVisitedUris.add(target.resolvedUri);
+            const branchVisitedBindings = new Set(visitedBindings);
 
-            const parentDocument = await vscode.workspace.openTextDocument(vscode.Uri.parse(target.resolvedUri));
-            const parentBinding = await this.globalBindingResolver.resolveFileScopeBinding(
-                parentDocument,
-                identifierName,
-                {
-                    visited: visitedBindings,
-                    resolveInheritedIdentifier: (parentFile, name, nestedVisitedBindings) =>
-                        this.resolveInheritedBinding(
-                            parentFile,
-                            name,
-                            new Set([...branchVisitedUris, parentFile.uri.toString()]),
-                            nestedVisitedBindings
-                        )
+            try {
+                const parentDocument = await vscode.workspace.openTextDocument(vscode.Uri.parse(target.resolvedUri));
+                const parentBinding = await this.globalBindingResolver.resolveFileScopeBinding(
+                    parentDocument,
+                    identifierName,
+                    {
+                        visited: branchVisitedBindings,
+                        resolveInheritedIdentifier: (parentFile, name, nestedVisitedBindings) =>
+                            this.resolveInheritedBinding(
+                                parentFile,
+                                name,
+                                new Set([...branchVisitedUris, parentFile.uri.toString()]),
+                                new Set(nestedVisitedBindings)
+                            )
+                    }
+                );
+
+                if (parentBinding) {
+                    return parentBinding;
                 }
-            );
 
-            if (parentBinding) {
-                return parentBinding;
-            }
-
-            const nestedBinding = await this.resolveInheritedBinding(
-                parentDocument,
-                identifierName,
-                branchVisitedUris,
-                visitedBindings
-            );
-            if (nestedBinding) {
-                return nestedBinding;
+                const nestedBinding = await this.resolveInheritedBinding(
+                    parentDocument,
+                    identifierName,
+                    branchVisitedUris,
+                    branchVisitedBindings
+                );
+                if (nestedBinding) {
+                    return nestedBinding;
+                }
+            } catch {
+                continue;
             }
         }
 
