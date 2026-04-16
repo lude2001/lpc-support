@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
+import { TargetMethodLookup } from '../targetMethodLookup';
 import { Symbol, SymbolTable } from '../ast/symbolTable';
 import { resolveVisibleSymbol } from '../symbolReferenceResolver';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
+import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
 
 interface GlobalBindingResolution extends ObjectResolutionOutcome {
@@ -11,8 +13,14 @@ interface GlobalBindingResolution extends ObjectResolutionOutcome {
 
 export class GlobalObjectBindingResolver {
     private readonly astManager = ASTManager.getInstance();
+    private readonly objectMethodReturnResolver: ObjectMethodReturnResolver;
 
-    constructor(private readonly returnObjectResolver: ReturnObjectResolver) {}
+    constructor(private readonly returnObjectResolver: ReturnObjectResolver) {
+        this.objectMethodReturnResolver = new ObjectMethodReturnResolver(
+            returnObjectResolver,
+            new TargetMethodLookup()
+        );
+    }
 
     public async resolveVisibleBinding(
         document: vscode.TextDocument,
@@ -111,9 +119,17 @@ export class GlobalObjectBindingResolver {
             );
         }
 
-        if (!this.isSupportedGlobalInitializer(unwrappedInitializer)) {
+        const methodInitializerOutcome = await this.resolveMemberMethodInitializer(
+            document,
+            symbolTable,
+            nodes,
+            symbol.scope,
+            unwrappedInitializer,
+            visited
+        );
+        if (methodInitializerOutcome) {
             return {
-                candidates: [],
+                ...methodInitializerOutcome,
                 hasVisibleBinding: true
             };
         }
@@ -146,10 +162,83 @@ export class GlobalObjectBindingResolver {
         return node;
     }
 
-    private isSupportedGlobalInitializer(node: SyntaxNode): boolean {
-        return node.kind === SyntaxKind.CallExpression
-            && node.children[0]?.kind === SyntaxKind.Identifier
-            && node.children[0].name === 'load_object';
+    private async resolveMemberMethodInitializer(
+        document: vscode.TextDocument,
+        symbolTable: SymbolTable,
+        nodes: readonly SyntaxNode[],
+        globalScope: Symbol['scope'],
+        initializer: SyntaxNode,
+        visited: Set<string>
+    ): Promise<ObjectResolutionOutcome | undefined> {
+        if (initializer.kind !== SyntaxKind.CallExpression) {
+            return undefined;
+        }
+
+        const callee = initializer.children[0];
+        if (
+            callee?.kind !== SyntaxKind.MemberAccessExpression
+            || callee.metadata?.operator !== '->'
+            || callee.children[0] === undefined
+            || callee.children[1]?.kind !== SyntaxKind.Identifier
+            || !callee.children[1].name
+        ) {
+            return undefined;
+        }
+
+        const receiverOutcome = await this.resolveMethodReceiverOutcome(
+            document,
+            symbolTable,
+            nodes,
+            globalScope,
+            callee.children[0],
+            visited
+        );
+        if (receiverOutcome.candidates.length === 0) {
+            return receiverOutcome.reason || receiverOutcome.diagnostics?.length
+                ? receiverOutcome
+                : { candidates: [] };
+        }
+
+        return this.objectMethodReturnResolver.resolveMethodReturnOutcome(
+            document,
+            receiverOutcome.candidates,
+            callee.children[1].name
+        );
+    }
+
+    private async resolveMethodReceiverOutcome(
+        document: vscode.TextDocument,
+        symbolTable: SymbolTable,
+        nodes: readonly SyntaxNode[],
+        globalScope: Symbol['scope'],
+        receiver: SyntaxNode,
+        visited: Set<string>
+    ): Promise<ObjectResolutionOutcome> {
+        const unwrappedReceiver = this.unwrapParenthesizedExpression(receiver);
+        if (unwrappedReceiver.kind === SyntaxKind.Identifier && unwrappedReceiver.name) {
+            const receiverSymbol = this.findVisibleGlobalObjectSymbolByName(
+                symbolTable,
+                globalScope,
+                unwrappedReceiver.name
+            );
+            if (receiverSymbol) {
+                const bindingOutcome = await this.resolveGlobalBindingFromSymbol(
+                    document,
+                    symbolTable,
+                    nodes,
+                    receiverSymbol,
+                    unwrappedReceiver.name,
+                    visited
+                );
+                return {
+                    candidates: bindingOutcome.candidates,
+                    reason: bindingOutcome.reason,
+                    diagnostics: bindingOutcome.diagnostics
+                };
+            }
+        }
+
+        return this.returnObjectResolver.resolveExpressionOutcome(document, unwrappedReceiver);
     }
 
     private getVisitKey(symbol: Symbol, identifierName: string): string {

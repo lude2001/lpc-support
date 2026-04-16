@@ -1663,21 +1663,72 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('visible file-scope global with non-load_object initializer stays unknown in task 3', async () => {
+    test('documented-return initializer resolves visible file-scope global object', async () => {
         const source = [
-            'object COMBAT_D = find_object("/adm/daemons/combat_d");',
+            '/**',
+            ' * @return object daemon',
+            ' * @lpc-return-objects {"/adm/daemons/combat_d"}',
+            ' */',
+            'object create_combat_daemon() {',
+            '    return load_object("/adm/daemons/combat_d");',
+            '}',
+            '',
+            'object COMBAT_D = create_combat_daemon();',
             '',
             'void demo() {',
             '    COMBAT_D->start();',
             '}'
         ].join('\n');
-        const document = createDocument(path.join(fixtureRoot, 'room', 'global-find-object-stays-unknown.c'), source);
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-documented-return-initializer.c'), source);
 
         const result = await service.inferObjectAccess(document, positionAfter(source, 'COMBAT_D->start'));
 
         expect(result?.inference).toEqual({
-            status: 'unknown',
-            candidates: []
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('global object method initializer resolves visible file-scope global object', async () => {
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'objects', 'documented-factory.c'),
+            [
+                '/**',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method() {',
+                '    return clone_object("/adm/objects/sword");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const source = [
+            'object FACTORY = load_object("/adm/objects/documented-factory");',
+            'object weapon = FACTORY->method();',
+            '',
+            'void demo() {',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-object-method-initializer.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
         });
     });
 
