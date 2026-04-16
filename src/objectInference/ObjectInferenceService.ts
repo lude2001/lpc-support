@@ -33,7 +33,10 @@ export class ObjectInferenceService {
         this.returnObjectResolver = new ReturnObjectResolver(macroManager, playerObjectPathOrProjectConfig);
         this.objectMethodReturnResolver = new ObjectMethodReturnResolver(this.returnObjectResolver, targetMethodLookup);
         this.traceService = new ReceiverTraceService(this.returnObjectResolver, this.objectMethodReturnResolver);
-        this.globalBindingResolver = new GlobalObjectBindingResolver(this.returnObjectResolver);
+        this.globalBindingResolver = new GlobalObjectBindingResolver(
+            this.returnObjectResolver,
+            this.objectMethodReturnResolver
+        );
     }
 
     public async inferObjectAccess(

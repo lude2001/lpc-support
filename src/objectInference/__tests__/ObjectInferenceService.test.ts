@@ -1732,6 +1732,93 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('global object method initializer resolves via project config include directories', async () => {
+        const configuredIncludeDir = path.join(fixtureRoot, 'configured', 'include');
+        const includeFilePath = path.join(configuredIncludeDir, 'factory_method.h');
+        const childFactoryPath = path.join(fixtureRoot, 'adm', 'objects', 'configured-global-include-child-factory.c');
+        fs.mkdirSync(configuredIncludeDir, { recursive: true });
+        fs.writeFileSync(
+            includeFilePath,
+            [
+                '/**',
+                ' * @brief include-backed implementation from configured include directory',
+                ' * @return object weapon',
+                ' * @lpc-return-objects {"/adm/objects/sword"}',
+                ' */',
+                'object method();'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            childFactoryPath,
+            'include <factory_method.h>;\n',
+            'utf8'
+        );
+
+        const astManager = ASTManager.getInstance();
+        const originalGetSemanticSnapshot = astManager.getSemanticSnapshot.bind(astManager);
+        jest.spyOn(astManager, 'getSemanticSnapshot').mockImplementation((targetDocument: vscode.TextDocument, useCache?: boolean) => {
+            const targetPath = targetDocument.uri.fsPath.replace(/^\/+([A-Za-z]:[\\/])/, '$1');
+            if (path.resolve(targetPath) === path.resolve(childFactoryPath)) {
+                return {
+                    includeStatements: [{ value: 'factory_method.h', isSystemInclude: true }],
+                    inheritStatements: [],
+                    symbolTable: {
+                        getAllSymbols: () => []
+                    }
+                } as any;
+            }
+
+            if (path.resolve(targetPath) === path.resolve(includeFilePath)) {
+                return {
+                    includeStatements: [],
+                    inheritStatements: [],
+                    symbolTable: {
+                        getAllSymbols: () => [{
+                            type: SymbolType.FUNCTION,
+                            name: 'method',
+                            range: new vscode.Range(5, 0, 5, 15),
+                            selectionRange: new vscode.Range(5, 0, 5, 15)
+                        }]
+                    }
+                } as any;
+            }
+
+            return originalGetSemanticSnapshot(targetDocument, useCache);
+        });
+
+        const projectConfigService = {
+            loadForWorkspace: jest.fn(async () => ({
+                version: 1 as const,
+                configHellPath: 'config.hell'
+            })),
+            getIncludeDirectoriesForWorkspace: jest.fn(async () => [configuredIncludeDir])
+        };
+        const projectConfiguredService = new ObjectInferenceService(macroManager as any, projectConfigService as any);
+        const source = [
+            'object FACTORY = load_object("/adm/objects/configured-global-include-child-factory");',
+            'object weapon = FACTORY->method();',
+            '',
+            'void demo() {',
+            '    weapon->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'global-configured-include-method-resolution.c'), source);
+
+        const result = await projectConfiguredService.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+        expect(projectConfigService.getIncludeDirectoriesForWorkspace).toHaveBeenCalledWith(fixtureRoot);
+    });
+
     test('local object bindings still shadow file-scope globals', async () => {
         const source = [
             'object COMBAT_D = load_object("/adm/daemons/combat_d");',

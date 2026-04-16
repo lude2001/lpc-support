@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
-import { TargetMethodLookup } from '../targetMethodLookup';
 import { Symbol, SymbolTable } from '../ast/symbolTable';
 import { resolveVisibleSymbol } from '../symbolReferenceResolver';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
@@ -13,14 +12,11 @@ interface GlobalBindingResolution extends ObjectResolutionOutcome {
 
 export class GlobalObjectBindingResolver {
     private readonly astManager = ASTManager.getInstance();
-    private readonly objectMethodReturnResolver: ObjectMethodReturnResolver;
 
-    constructor(private readonly returnObjectResolver: ReturnObjectResolver) {
-        this.objectMethodReturnResolver = new ObjectMethodReturnResolver(
-            returnObjectResolver,
-            new TargetMethodLookup()
-        );
-    }
+    constructor(
+        private readonly returnObjectResolver: ReturnObjectResolver,
+        private readonly objectMethodReturnResolver: ObjectMethodReturnResolver
+    ) {}
 
     public async resolveVisibleBinding(
         document: vscode.TextDocument,
