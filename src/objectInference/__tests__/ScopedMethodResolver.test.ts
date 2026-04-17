@@ -78,6 +78,7 @@ function positionAfter(source: string, marker: string): vscode.Position {
 describe('ScopedMethodResolver', () => {
     let fixtureRoot: string;
     let macroManager: { getMacro: jest.Mock };
+    let previousWorkspaceFolders: readonly vscode.WorkspaceFolder[] | undefined;
 
     function fixturePath(relativePath: string): string {
         return path.join(fixtureRoot, relativePath.replace(/^[/\\]+/, ''));
@@ -92,6 +93,7 @@ describe('ScopedMethodResolver', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        previousWorkspaceFolders = vscode.workspace.workspaceFolders;
         fixtureRoot = path.join(process.cwd(), '.tmp-scoped-method-resolver');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
         fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
@@ -119,6 +121,7 @@ describe('ScopedMethodResolver', () => {
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        (vscode.workspace as any).workspaceFolders = previousWorkspaceFolders;
         jest.restoreAllMocks();
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
     });
