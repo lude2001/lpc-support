@@ -1,7 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
+import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
 import type { LanguageDocument } from '../../../contracts/LanguageDocument';
 import type { LanguagePosition, LanguageRange } from '../../../contracts/LanguagePosition';
+import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import {
     ObjectInferenceLanguageHoverService,
     type LanguageHoverService
@@ -76,6 +78,40 @@ function createDocument(source: string): RangeCapableLanguageDocument {
     };
 }
 
+function createScopedMethodResolverStub(
+    resolution: Awaited<ReturnType<ScopedMethodResolver['resolveCallAt']>>
+): Pick<ScopedMethodResolver, 'resolveCallAt'> {
+    return {
+        resolveCallAt: jest.fn().mockResolvedValue(resolution)
+    };
+}
+
+function createVsCodeTextDocument(filePath: string, source: string): vscode.TextDocument {
+    const lines = source.split(/\r?\n/);
+
+    return {
+        uri: vscode.Uri.file(filePath),
+        fileName: filePath,
+        version: 1,
+        getText: jest.fn(() => source),
+        lineAt: jest.fn((line: number) => ({ text: lines[line] ?? '' }))
+    } as unknown as vscode.TextDocument;
+}
+
+function createCallableDoc(name: string, label: string, summary: string) {
+    return {
+        name,
+        declarationKey: `${name}-declaration`,
+        signatures: [{
+            label,
+            parameters: [],
+            isVariadic: false
+        }],
+        summary,
+        sourceKind: 'scopedMethod' as const
+    };
+}
+
 describe('navigation services', () => {
     test('hover service can operate on host-agnostic documents via injected boundaries', async () => {
         const document = createDocument('target->query_name();');
@@ -117,6 +153,107 @@ describe('navigation services', () => {
         expect(hover).toBeDefined();
         expect(hover?.contents[0].value).toContain('string query_name()');
         expect(hover?.contents[0].value).toContain('返回名字');
+    });
+
+    test('hover service can render bare ::create() docs through injected scoped boundaries', async () => {
+        const document = createDocument('::create();');
+        const targetDocument = createVsCodeTextDocument(
+            'D:/workspace/std/base_room.c',
+            [
+                '/**',
+                ' * @brief 父类创建。',
+                ' */',
+                'void create() {}'
+            ].join('\n')
+        );
+        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+            {} as any,
+            undefined,
+            undefined,
+            undefined,
+            {
+                scopedMethodResolver: createScopedMethodResolverStub({
+                    status: 'resolved',
+                    methodName: 'create',
+                    targets: [{
+                        path: 'D:/workspace/std/base_room.c',
+                        methodName: 'create',
+                        declarationRange: new vscode.Range(3, 5, 3, 11),
+                        location: new vscode.Location(
+                            vscode.Uri.file('D:/workspace/std/base_room.c'),
+                            new vscode.Range(3, 5, 3, 11)
+                        ),
+                        document: targetDocument,
+                        sourceLabel: 'D:/workspace/std/base_room.c'
+                    }]
+                }),
+                objectAccessProvider: { inferObjectAccess: jest.fn().mockResolvedValue(undefined) },
+                documentationService: {
+                    getDocForDeclaration: jest.fn().mockReturnValue(
+                        createCallableDoc('create', 'void create()', '父类创建')
+                    )
+                } as any
+            } as any
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document),
+            position: { line: 0, character: 4 }
+        });
+
+        expect(hover?.contents[0].value).toContain('父类创建');
+        expect(hover?.contents[0].value).toContain('void create()');
+    });
+
+    test('hover service can render room::init() docs from the uniquely matched named scope branch', async () => {
+        const document = createDocument('room::init();');
+        const targetDocument = createVsCodeTextDocument(
+            'D:/workspace/std/room.c',
+            [
+                '/**',
+                ' * @brief 房间初始化。',
+                ' */',
+                'void init() {}'
+            ].join('\n')
+        );
+        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+            {} as any,
+            undefined,
+            undefined,
+            undefined,
+            {
+                scopedMethodResolver: createScopedMethodResolverStub({
+                    status: 'resolved',
+                    qualifier: 'room',
+                    methodName: 'init',
+                    targets: [{
+                        path: 'D:/workspace/std/room.c',
+                        methodName: 'init',
+                        declarationRange: new vscode.Range(3, 5, 3, 9),
+                        location: new vscode.Location(
+                            vscode.Uri.file('D:/workspace/std/room.c'),
+                            new vscode.Range(3, 5, 3, 9)
+                        ),
+                        document: targetDocument,
+                        sourceLabel: 'D:/workspace/std/room.c'
+                    }]
+                }),
+                objectAccessProvider: { inferObjectAccess: jest.fn().mockResolvedValue(undefined) },
+                documentationService: {
+                    getDocForDeclaration: jest.fn().mockReturnValue(
+                        createCallableDoc('init', 'void init()', '房间初始化')
+                    )
+                } as any
+            } as any
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document),
+            position: { line: 0, character: 8 }
+        });
+
+        expect(hover?.contents[0].value).toContain('房间初始化');
+        expect(hover?.contents[0].value).toContain('void init()');
     });
 
     test('unified hover service resolves macro hovers before other hover sources', async () => {

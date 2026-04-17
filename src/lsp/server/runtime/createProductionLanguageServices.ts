@@ -28,6 +28,7 @@ import {
 import { DefaultLanguageSemanticTokensService } from '../../../language/services/structure/LanguageSemanticTokensService';
 import { MacroManager } from '../../../macroManager';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
+import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { setServerWorkspaceRoots } from './serverHostState';
@@ -40,6 +41,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const efunDocsManager = new EfunDocsManager(createServerExtensionContext(), projectConfigService);
     const completionInstrumentation = new CompletionInstrumentation();
     const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService);
+    const scopedMethodResolver = new ScopedMethodResolver(macroManager, [process.cwd()]);
     const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
 
     const completionService = new QueryBackedLanguageCompletionService(
@@ -56,7 +58,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         objectInferenceService,
         macroManager,
         targetMethodLookup,
-        projectConfigService
+        projectConfigService,
+        { scopedMethodResolver }
     );
     const hoverService = new UnifiedLanguageHoverService(
         objectHoverService,
@@ -68,7 +71,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         efunDocsManager,
         objectInferenceService,
         targetMethodLookup,
-        projectConfigService
+        projectConfigService,
+        { scopedMethodResolver }
     );
     const referenceService = new AstBackedLanguageReferenceService();
     const renameService = new AstBackedLanguageRenameService();
@@ -76,7 +80,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const signatureHelpService = new LanguageSignatureHelpService({
         efunDocsManager,
         objectInferenceService,
-        targetMethodLookup
+        targetMethodLookup,
+        scopedMethodResolver
     });
     const foldingService = new DefaultLanguageFoldingService();
     const semanticTokensService = new DefaultLanguageSemanticTokensService();

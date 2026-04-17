@@ -8,6 +8,7 @@ import { QueryBackedLanguageCompletionService } from '../language/services/compl
 import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
 import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
 import { ObjectInferenceService } from '../objectInference/ObjectInferenceService';
+import { ScopedMethodResolver } from '../objectInference/ScopedMethodResolver';
 import { TargetMethodLookup } from '../targetMethodLookup';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
@@ -139,6 +140,16 @@ function normalizeLocationUri(uri: string): string {
     }
 
     return uri.replace(/^[/\\]+/, '').replace(/\//g, path.sep);
+}
+
+function installWorkspaceOpenTextDocumentFixture(): void {
+    (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
+        const filePath = typeof target === 'string' ? target : target.fsPath;
+        const normalizedPath = filePath
+            .replace(/^[/\\]+([A-Za-z]:[\\/])/, '$1')
+            .replace(/\//g, path.sep);
+        return createDocument(normalizedPath, fs.readFileSync(normalizedPath, 'utf8'));
+    });
 }
 
 describe('language-service integration regression', () => {
@@ -738,5 +749,138 @@ describe('language-service integration regression', () => {
             swordFile
         ]);
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+    });
+
+    test('definition resolves bare ::create() to the inherited implementation in a real workspace', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
+        fs.writeFileSync(path.join(fixtureRoot, 'std', 'base_room.c'), 'void create() {}\n');
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'inherit "/std/base_room";',
+            '',
+            'void create() {',
+            '    ::create();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room.c'), source);
+        const service = new AstBackedLanguageDefinitionService(
+            macroManager as any,
+            efunDocsManager as any,
+            undefined,
+            undefined,
+            undefined,
+            {
+                scopedMethodResolver: new ScopedMethodResolver(macroManager as any, [fixtureRoot])
+            } as any
+        );
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'create();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(path.join(fixtureRoot, 'std', 'base_room.c'));
+    });
+
+    test('documented return propagation from ::factory() feeds downstream object-method definition', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
+        fs.mkdirSync(path.join(fixtureRoot, 'obj'), { recursive: true });
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'base_room.c'),
+            [
+                '/**',
+                ' * @lpc-return-objects {"/obj/sword"}',
+                ' */',
+                'object factory() {',
+                '    return 0;',
+                '}'
+            ].join('\n')
+        );
+        fs.writeFileSync(path.join(fixtureRoot, 'obj', 'sword.c'), 'string query_name() { return "sword"; }\n');
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'inherit "/std/base_room";',
+            '',
+            'void demo() {',
+            '    object ob = ::factory();',
+            '    ob->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room-scoped-factory.c'), source);
+        const service = new AstBackedLanguageDefinitionService(
+            macroManager as any,
+            efunDocsManager as any,
+            new ObjectInferenceService(macroManager as any) as any,
+            undefined,
+            undefined,
+            {
+                scopedMethodResolver: new ScopedMethodResolver(macroManager as any, [fixtureRoot])
+            } as any
+        );
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(path.join(fixtureRoot, 'obj', 'sword.c'));
+    });
+
+    test('documented return propagation from room::factory() feeds downstream object-method definition', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
+        fs.mkdirSync(path.join(fixtureRoot, 'obj'), { recursive: true });
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            [
+                '/**',
+                ' * @lpc-return-objects {"/obj/room_item"}',
+                ' */',
+                'object factory() {',
+                '    return 0;',
+                '}'
+            ].join('\n')
+        );
+        fs.writeFileSync(path.join(fixtureRoot, 'std', 'combat.c'), 'object factory() { return 0; }\n');
+        fs.writeFileSync(path.join(fixtureRoot, 'obj', 'room_item.c'), 'string query_name() { return "room-item"; }\n');
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'inherit "/std/room";',
+            'inherit "/std/combat";',
+            '',
+            'void demo() {',
+            '    object ob = room::factory();',
+            '    ob->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'named-room.c'), source);
+        const service = new AstBackedLanguageDefinitionService(
+            macroManager as any,
+            efunDocsManager as any,
+            new ObjectInferenceService(macroManager as any) as any,
+            undefined,
+            undefined,
+            {
+                scopedMethodResolver: new ScopedMethodResolver(macroManager as any, [fixtureRoot])
+            } as any
+        );
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(path.join(fixtureRoot, 'obj', 'room_item.c'));
     });
 });

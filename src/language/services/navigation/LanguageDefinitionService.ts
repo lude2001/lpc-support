@@ -9,6 +9,7 @@ import { EfunDocsManager } from '../../../efunDocs';
 import { ASTManager } from '../../../ast/astManager';
 import { Symbol, SymbolType } from '../../../ast/symbolTable';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
+import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { InferredObjectAccess } from '../../../objectInference/types';
 import { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
@@ -61,6 +62,7 @@ interface DefinitionSemanticAdapter {
 interface LanguageDefinitionDependencies {
     host?: LanguageDefinitionHost;
     semanticAdapter?: DefinitionSemanticAdapter;
+    scopedMethodResolver?: ScopedMethodResolver;
 }
 
 const defaultDefinitionHost: LanguageDefinitionHost = {
@@ -87,6 +89,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     private readonly targetMethodLookup: TargetMethodLookup;
     private readonly host: LanguageDefinitionHost;
     private readonly semanticAdapter?: DefinitionSemanticAdapter;
+    private readonly scopedMethodResolver?: ScopedMethodResolver;
 
     public constructor(
         macroManager: MacroManager,
@@ -105,6 +108,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         const dependencies = this.resolveDependencies(hostOrDependencies);
         this.host = dependencies.host;
         this.semanticAdapter = dependencies.semanticAdapter;
+        this.scopedMethodResolver = dependencies.scopedMethodResolver;
 
         this.host.onDidChangeTextDocument((event) => {
             const filePath = event.document.uri.fsPath;
@@ -123,7 +127,11 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
 
     private resolveDependencies(
         hostOrDependencies: LanguageDefinitionHost | LanguageDefinitionDependencies
-    ): { host: LanguageDefinitionHost; semanticAdapter?: DefinitionSemanticAdapter } {
+    ): {
+        host: LanguageDefinitionHost;
+        semanticAdapter?: DefinitionSemanticAdapter;
+        scopedMethodResolver?: ScopedMethodResolver;
+    } {
         if ('onDidChangeTextDocument' in hostOrDependencies) {
             return {
                 host: hostOrDependencies
@@ -132,7 +140,8 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
 
         return {
             host: hostOrDependencies.host ?? defaultDefinitionHost,
-            semanticAdapter: hostOrDependencies.semanticAdapter
+            semanticAdapter: hostOrDependencies.semanticAdapter,
+            scopedMethodResolver: hostOrDependencies.scopedMethodResolver
         };
     }
 
@@ -148,6 +157,15 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         }
 
         const word = document.getText(wordRange);
+        const scopedResolution = await this.scopedMethodResolver?.resolveCallAt(document, position);
+        if (scopedResolution) {
+            if (scopedResolution.status === 'resolved' || scopedResolution.status === 'multiple') {
+                return this.toLanguageLocations(scopedResolution.targets.map((target) => target.location));
+            }
+
+            return [];
+        }
+
         const inferredObjectAccess = await this.objectInferenceService.inferObjectAccess(document, position);
         if (inferredObjectAccess?.memberName === word) {
             return this.toLanguageLocations(await this.handleInferredObjectMethodCall(document, inferredObjectAccess));

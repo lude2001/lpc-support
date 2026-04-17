@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, tes
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { AstBackedLanguageDefinitionService } from '../LanguageDefinitionService';
+import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 
 function createDeferred<T = void>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -32,6 +33,18 @@ function createDocument(filePath: string, symbolName: string): vscode.TextDocume
 
 function createTextDocument(filePath: string, source: string): vscode.TextDocument {
     const lines = source.split(/\r?\n/);
+    const lineStarts = [0];
+
+    for (let index = 0; index < source.length; index += 1) {
+        if (source[index] === '\n') {
+            lineStarts.push(index + 1);
+        }
+    }
+
+    const offsetAt = (position: vscode.Position): number => {
+        const lineStart = lineStarts[position.line] ?? source.length;
+        return Math.min(lineStart + position.character, source.length);
+    };
 
     return {
         uri: vscode.Uri.file(filePath),
@@ -42,13 +55,38 @@ function createTextDocument(filePath: string, source: string): vscode.TextDocume
                 return source;
             }
 
-            const start = range.start.line === 0 ? range.start.character : 0;
-            const end = range.end.line === 0 ? range.end.character : source.length;
-            return source.slice(start, end);
+            return source.slice(offsetAt(range.start), offsetAt(range.end));
         }),
         lineAt: jest.fn((line: number) => ({ text: lines[line] ?? '' })),
-        getWordRangeAtPosition: jest.fn()
+        getWordRangeAtPosition: jest.fn((position: vscode.Position) => {
+            const lineText = lines[position.line] ?? '';
+            const isWordCharacter = (char: string | undefined) => Boolean(char && /[A-Za-z0-9_]/.test(char));
+
+            let start = position.character;
+            while (start > 0 && isWordCharacter(lineText[start - 1])) {
+                start -= 1;
+            }
+
+            let end = position.character;
+            while (end < lineText.length && isWordCharacter(lineText[end])) {
+                end += 1;
+            }
+
+            if (start === end) {
+                return undefined;
+            }
+
+            return new vscode.Range(position.line, start, position.line, end);
+        })
     } as unknown as vscode.TextDocument;
+}
+
+function createScopedMethodResolverStub(
+    resolution: Awaited<ReturnType<ScopedMethodResolver['resolveCallAt']>>
+): Pick<ScopedMethodResolver, 'resolveCallAt'> {
+    return {
+        resolveCallAt: jest.fn().mockResolvedValue(resolution)
+    };
 }
 
 describe('AstBackedLanguageDefinitionService', () => {
@@ -383,5 +421,189 @@ describe('AstBackedLanguageDefinitionService', () => {
                 }
             }
         ]);
+    });
+
+    test('definition service resolves bare ::create() before ordinary function fallback', async () => {
+        const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    ::create();\n}\n');
+        const service = new AstBackedLanguageDefinitionService(
+            {} as any,
+            { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
+            undefined,
+            undefined,
+            {
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: jest.fn(),
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn(),
+                    getWorkspaceFolders: jest.fn(),
+                    fileExists: jest.fn().mockReturnValue(false)
+                },
+                semanticAdapter: {
+                    getIncludeStatements: jest.fn().mockReturnValue([]),
+                    getInheritStatements: jest.fn().mockReturnValue([]),
+                    getExportedFunctionNames: jest.fn().mockReturnValue(['create']),
+                    findFunctionLocation: jest.fn().mockReturnValue({
+                        uri: document.uri.toString(),
+                        range: {
+                            start: { line: 0, character: 0 },
+                            end: { line: 0, character: 4 }
+                        }
+                    }),
+                    resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
+                },
+                scopedMethodResolver: createScopedMethodResolverStub({
+                    status: 'resolved',
+                    methodName: 'create',
+                    targets: [{
+                        path: 'D:\\workspace\\std\\base_room.c',
+                        methodName: 'create',
+                        declarationRange: new vscode.Range(0, 5, 0, 11),
+                        location: new vscode.Location(
+                            vscode.Uri.file('D:\\workspace\\std\\base_room.c'),
+                            new vscode.Range(0, 5, 0, 11)
+                        ),
+                        document: createTextDocument('D:\\workspace\\std\\base_room.c', 'void create() {}\n'),
+                        sourceLabel: 'D:\\workspace\\std\\base_room.c'
+                    }]
+                })
+            }
+        );
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 1, character: 6 }
+        });
+
+        expect(definition).toEqual([
+            {
+                uri: vscode.Uri.file('D:\\workspace\\std\\base_room.c').toString(),
+                range: {
+                    start: { line: 0, character: 5 },
+                    end: { line: 0, character: 11 }
+                }
+            }
+        ]);
+    });
+
+    test('definition service resolves room::init() to the uniquely matched direct inherit branch', async () => {
+        const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    room::init();\n}\n');
+        const service = new AstBackedLanguageDefinitionService(
+            {} as any,
+            { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
+            undefined,
+            undefined,
+            {
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: jest.fn(),
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn(),
+                    getWorkspaceFolders: jest.fn(),
+                    fileExists: jest.fn().mockReturnValue(false)
+                },
+                semanticAdapter: {
+                    getIncludeStatements: jest.fn().mockReturnValue([]),
+                    getInheritStatements: jest.fn().mockReturnValue([]),
+                    getExportedFunctionNames: jest.fn().mockReturnValue([]),
+                    findFunctionLocation: jest.fn().mockReturnValue(undefined),
+                    resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
+                },
+                scopedMethodResolver: createScopedMethodResolverStub({
+                    status: 'resolved',
+                    qualifier: 'room',
+                    methodName: 'init',
+                    targets: [{
+                        path: 'D:\\workspace\\std\\room.c',
+                        methodName: 'init',
+                        declarationRange: new vscode.Range(1, 5, 1, 9),
+                        location: new vscode.Location(
+                            vscode.Uri.file('D:\\workspace\\std\\room.c'),
+                            new vscode.Range(1, 5, 1, 9)
+                        ),
+                        document: createTextDocument('D:\\workspace\\std\\room.c', 'void init() {}\n'),
+                        sourceLabel: 'D:\\workspace\\std\\room.c'
+                    }]
+                })
+            }
+        );
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 1, character: 10 }
+        });
+
+        expect(definition).toEqual([
+            {
+                uri: vscode.Uri.file('D:\\workspace\\std\\room.c').toString(),
+                range: {
+                    start: { line: 1, character: 5 },
+                    end: { line: 1, character: 9 }
+                }
+            }
+        ]);
+    });
+
+    test('definition service returns no result for ambiguous room::init() instead of falling back', async () => {
+        const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    room::init();\n}\n');
+        const fallbackSpy = jest.fn().mockReturnValue({
+            uri: document.uri.toString(),
+            range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 4 }
+            }
+        });
+        const service = new AstBackedLanguageDefinitionService(
+            {} as any,
+            { getSimulatedDoc: jest.fn().mockReturnValue({ name: 'init' }) } as any,
+            { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
+            undefined,
+            undefined,
+            {
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: jest.fn(),
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn(),
+                    getWorkspaceFolders: jest.fn(),
+                    fileExists: jest.fn().mockReturnValue(false)
+                },
+                semanticAdapter: {
+                    getIncludeStatements: jest.fn().mockReturnValue([]),
+                    getInheritStatements: jest.fn().mockReturnValue([]),
+                    getExportedFunctionNames: jest.fn().mockReturnValue(['init']),
+                    findFunctionLocation: fallbackSpy,
+                    resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
+                },
+                scopedMethodResolver: createScopedMethodResolverStub({
+                    status: 'unknown',
+                    qualifier: 'room',
+                    methodName: 'init',
+                    targets: []
+                })
+            }
+        );
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 1, character: 10 }
+        });
+
+        expect(definition).toEqual([]);
+        expect(fallbackSpy).not.toHaveBeenCalled();
     });
 });

@@ -16,6 +16,7 @@ import { FunctionDocumentationService } from '../../documentation/FunctionDocume
 import type { CallableDoc } from '../../documentation/types';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
+import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import type { InferredObjectAccess } from '../../../objectInference/types';
 import { MacroManager } from '../../../macroManager';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
@@ -84,6 +85,7 @@ export interface HoverServiceDependencies {
     methodResolver?: HoverMethodResolver;
     documentationService?: FunctionDocumentationService;
     renderer?: CallableDocRenderer;
+    scopedMethodResolver?: ScopedMethodResolver;
 }
 
 interface MethodDocResult {
@@ -192,6 +194,7 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
     private readonly methodResolver: HoverMethodResolver;
     private readonly documentationService: FunctionDocumentationService;
     private readonly renderer: CallableDocRenderer;
+    private readonly scopedMethodResolver?: ScopedMethodResolver;
 
     public constructor(
         objectInferenceService: ObjectInferenceService,
@@ -206,10 +209,30 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
         this.methodResolver = dependencies?.methodResolver ?? new VsCodeHoverMethodResolver(effectiveLookup);
         this.documentationService = dependencies?.documentationService ?? new FunctionDocumentationService();
         this.renderer = dependencies?.renderer ?? new CallableDocRenderer();
+        this.scopedMethodResolver = dependencies?.scopedMethodResolver;
     }
 
     public async provideHover(request: LanguageHoverRequest): Promise<LanguageHoverResult | undefined> {
         const document = this.documentAdapter.fromLanguageDocument(request.context.document);
+        const scopedResolution = await this.scopedMethodResolver?.resolveCallAt(
+            ensureVsCodeBackedDocument(document),
+            toVsCodePosition(request.position)
+        );
+        if (scopedResolution) {
+            if (scopedResolution.status === 'unknown' || scopedResolution.status === 'unsupported') {
+                return undefined;
+            }
+
+            const renderedDocs = scopedResolution.targets
+                .map((target) => this.loadScopedMethodDoc(target.document, target.declarationRange))
+                .filter((doc): doc is CallableDoc => Boolean(doc))
+                .map((doc) => this.renderer.renderHover(doc));
+
+            return renderedDocs.length > 0
+                ? this.createMarkdownHover(renderedDocs.join('\n\n---\n\n'))
+                : undefined;
+        }
+
         const objectAccess = await this.objectAccessProvider.inferObjectAccess(request.context, document, request.position);
         if (!objectAccess) {
             return undefined;
@@ -336,6 +359,24 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
             : '多个对象';
         return `可能来自多个对象的 \`${memberName}\`() 实现：${summary}`;
     }
+
+    private loadScopedMethodDoc(
+        document: vscode.TextDocument,
+        declarationRange: vscode.Range
+    ): CallableDoc | undefined {
+        const declarationKey = buildDeclarationKey(document.uri.toString(), fromVsCodeRange(declarationRange));
+        const callableDoc = this.documentationService.getDocForDeclaration(document, declarationKey);
+        return callableDoc
+            ? {
+                ...callableDoc,
+                sourceKind: 'scopedMethod'
+            }
+            : undefined;
+    }
+}
+
+function buildDeclarationKey(uri: string, range: LanguageRange): string {
+    return `${uri}#${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}`;
 }
 
 function toDocumentationTextDocument(resolvedMethod: HoverResolvedMethod): vscode.TextDocument {
