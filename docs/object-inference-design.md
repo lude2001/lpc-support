@@ -31,6 +31,8 @@
     │ load_object() │
     │ find_object() │
     │ clone_object()│
+    │ 当前文件全局绑定 │  GlobalObjectBindingResolver
+    │ 继承链全局绑定 │  InheritedGlobalObjectBindingResolver
     │ 变量追踪      │  ReceiverTraceService
     │ doc 返回对象   │  @lpc-return-objects
     └────┬─────────┘
@@ -53,7 +55,7 @@
 2. Provider 调用 `ObjectInferenceService.inferObjectAccess(document, position)`
 3. 服务从 `SyntaxDocument` 中定位最近的 `MemberAccessExpression` 节点（限定 `->` 运算符）
 4. 将接收者表达式交给 `ReceiverClassifier` 分类
-5. 根据分类结果，分别走字面量解析、宏展开、内建调用解析、变量追踪等路径
+5. 根据分类结果，分别走字面量解析、宏展开、内建调用解析、当前文件全局绑定、继承链全局绑定、变量追踪等路径
 6. 收集到的候选经 `ObjectCandidateResolver` 去重后生成最终结果
 7. 各 Provider 根据结果状态（`resolved` / `multiple` / `unknown` / `unsupported`）决定后续行为
 
@@ -373,11 +375,12 @@ get_helper()->query();   // 候选：combat_d 和 health_d → status: multiple
 
 ## 8. 已知限制与后续方向
 
-**V1 不支持的场景**
+**当前仍不支持的场景**
 
 - `arr[i]->method()` — 数组索引访问无法静态确定具体对象
 - 跨函数变量追踪 — 当前仅追踪同一函数内的赋值链，不跨函数边界
 - 动态路径拼接 — 如 `"/adm/" + name + "_d"` 形式的路径无法静态解析
+- 动态 inherit 路径或运行时才能确定的 inherit 目标
 - `previous_object()` 等运行时依赖的 efun — 需要调用栈信息，不适合静态推导
 
 **代码重复**

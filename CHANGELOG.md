@@ -2,6 +2,24 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.42.0] - 2026-04-17
+
+### 对象方法推导增强
+
+- 新增“继承链静态全局对象绑定”推导能力：子对象现在可以继承父对象中声明点可静态证明的文件级 `object` 绑定，并把它用于对象方法补全、定义跳转、悬停和签名帮助。
+- 对象推导优先级升级为：局部绑定 > 当前文件全局对象绑定 > 继承链全局对象绑定 > 宏 fallback，减少 inherited global 被同名宏错误抢走的情况。
+- 新增继承链中的全局别名链、对象方法 initializer、unsupported / no-initializer blocker 和跨文件 alias cycle 回归覆盖，继承分支下的保守降级语义更稳定。
+- 补充 inherited global 的 completion / definition / signature help consumer 回归，确保核心推导结果能稳定透传到语言服务入口。
+
+## [0.41.0] - 2026-04-17
+
+### 对象方法推导增强
+
+- 新增“当前文件静态全局对象绑定”推导能力：`object COMBAT_D = load_object(...); COMBAT_D->method()` 这类写法现在可以稳定参与对象方法推导。
+- 当前文件中由声明点静态可证明的文件级 `object` 变量，现在会自动服务于成员补全、定义跳转、悬停和签名帮助。
+- 当前文件可见的全局 `object` 绑定现在优先于同名宏；当全局绑定存在但来源无法静态证明时，系统会保守保持 `unknown/unsupported`，不再错误回退到宏路径。
+- 新增文件级全局对象别名、documented-return initializer、对象方法 initializer 和相关 consumer 回归覆盖，进一步提升对象方法链路的稳定性。
+
 ## [0.40.1] - 2026-04-14
 
 ### callable-documentation 与签名帮助升级
