@@ -19,6 +19,7 @@ export class CompletionContextAnalyzer {
     public analyze(document: vscode.TextDocument, position: vscode.Position): CompletionQueryContext {
         const lineText = document.lineAt(position).text;
         const linePrefix = lineText.slice(0, position.character);
+        const documentPrefix = this.extractDocumentPrefix(document, position);
         const trimmedPrefix = linePrefix.trimLeft();
         const currentWord = this.extractCurrentWord(linePrefix);
 
@@ -40,7 +41,7 @@ export class CompletionContextAnalyzer {
             };
         }
 
-        const scopedContext = this.extractScopedContext(linePrefix);
+        const scopedContext = this.extractScopedContext(linePrefix, documentPrefix);
         if (scopedContext) {
             return {
                 kind: 'scoped-member',
@@ -93,11 +94,21 @@ export class CompletionContextAnalyzer {
         return match ? match[1] : '';
     }
 
-    private extractScopedContext(linePrefix: string): ScopedContext | undefined {
+    private extractDocumentPrefix(document: vscode.TextDocument, position: vscode.Position): string {
+        const lines: string[] = [];
+        for (let line = 0; line < position.line; line += 1) {
+            lines.push(document.lineAt(line).text);
+        }
+
+        lines.push(document.lineAt(position).text.slice(0, position.character));
+        return lines.join('\n');
+    }
+
+    private extractScopedContext(linePrefix: string, documentPrefix: string): ScopedContext | undefined {
         const bareMatch = linePrefix.match(/(?:^|[\s([{\],;:=])::([A-Za-z_][A-Za-z0-9_]*)$/);
         if (bareMatch) {
             const scopedStart = bareMatch.index! + bareMatch[0].lastIndexOf('::');
-            if (this.isInsideCallArguments(linePrefix, scopedStart)) {
+            if (this.isInsideCallArguments(this.extractPrefixBeforeScoped(documentPrefix, linePrefix, scopedStart))) {
                 return undefined;
             }
 
@@ -110,7 +121,7 @@ export class CompletionContextAnalyzer {
         const namedMatch = linePrefix.match(/([A-Za-z_][A-Za-z0-9_]*)::([A-Za-z_][A-Za-z0-9_]*)$/);
         if (namedMatch) {
             const scopedStart = namedMatch.index!;
-            if (this.isInsideCallArguments(linePrefix, scopedStart)) {
+            if (this.isInsideCallArguments(this.extractPrefixBeforeScoped(documentPrefix, linePrefix, scopedStart))) {
                 return undefined;
             }
 
@@ -123,13 +134,23 @@ export class CompletionContextAnalyzer {
         return undefined;
     }
 
-    private isInsideCallArguments(linePrefix: string, scopedStart: number): boolean {
-        const unmatchedParenIndex = this.findLastUnmatchedParen(linePrefix.slice(0, scopedStart));
-        if (unmatchedParenIndex < 0) {
-            return false;
+    private extractPrefixBeforeScoped(documentPrefix: string, linePrefix: string, scopedStart: number): string {
+        const scopedSuffixLength = linePrefix.length - scopedStart;
+        return documentPrefix.slice(0, documentPrefix.length - scopedSuffixLength);
+    }
+
+    private isInsideCallArguments(prefixBeforeScoped: string): boolean {
+        for (const unmatchedParenIndex of this.findUnmatchedParenIndices(prefixBeforeScoped)) {
+            if (this.isCallArgumentParen(prefixBeforeScoped, unmatchedParenIndex)) {
+                return true;
+            }
         }
 
-        const beforeParen = linePrefix.slice(0, unmatchedParenIndex).trimEnd();
+        return false;
+    }
+
+    private isCallArgumentParen(text: string, openParenIndex: number): boolean {
+        const beforeParen = text.slice(0, openParenIndex).trimEnd();
         if (!beforeParen) {
             return false;
         }
@@ -147,9 +168,8 @@ export class CompletionContextAnalyzer {
         return !NON_CALL_PAREN_KEYWORDS.has(tokenMatch[1]);
     }
 
-    private findLastUnmatchedParen(text: string): number {
-        let depth = 0;
-        let lastUnmatchedIndex = -1;
+    private findUnmatchedParenIndices(text: string): number[] {
+        const stack: number[] = [];
         let inSingleQuote = false;
         let inDoubleQuote = false;
         let escaped = false;
@@ -181,20 +201,16 @@ export class CompletionContextAnalyzer {
             }
 
             if (character === '(') {
-                depth += 1;
-                lastUnmatchedIndex = index;
+                stack.push(index);
                 continue;
             }
 
-            if (character === ')' && depth > 0) {
-                depth -= 1;
-                if (depth === 0) {
-                    lastUnmatchedIndex = -1;
-                }
+            if (character === ')' && stack.length > 0) {
+                stack.pop();
             }
         }
 
-        return depth > 0 ? lastUnmatchedIndex : -1;
+        return stack;
     }
 
     private extractReceiverContext(linePrefix: string): ReceiverContext {

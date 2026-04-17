@@ -128,4 +128,56 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         expect(resolved.documentation?.value ?? '').toContain('object create()');
         expect(resolved.documentation?.value ?? '').toContain('Base room create');
     });
+
+    test('scoped completion resolveCompletionItem does not fabricate docs for ambiguous merged candidates', async () => {
+        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any) as any;
+        const targetDocument = createDocument(
+            path.join(process.cwd(), '.tmp-scoped-method-completion', 'std', 'room.c'),
+            'void init() {}\n'
+        );
+        const scopedDocumentLoader = jest.fn();
+        const documentationService = {
+            getDocForDeclaration: jest.fn()
+        };
+        const applyStructuredDocumentation = jest.spyOn(service, 'applyStructuredDocumentation');
+        service.scopedDocumentLoader = scopedDocumentLoader;
+        service.documentationService = documentationService;
+
+        const resolved = await service.resolveCompletionItem({
+            context: {
+                document: targetDocument,
+                workspace: { workspaceRoot: process.cwd() },
+                cancellation: { isCancellationRequested: false }
+            } as any,
+            item: {
+                label: 'init',
+                data: {
+                    candidate: {
+                        key: 'scoped-method:multiple:init',
+                        label: 'init',
+                        kind: vscode.CompletionItemKind.Method,
+                        detail: 'void init',
+                        sortGroup: 'inherited',
+                        metadata: {
+                            sourceType: 'scoped-method'
+                        }
+                    },
+                    context: {
+                        kind: 'scoped-member',
+                        receiverChain: [],
+                        receiverExpression: '::',
+                        currentWord: 'in',
+                        linePrefix: '::in'
+                    },
+                    documentUri: targetDocument.uri.toString(),
+                    documentVersion: targetDocument.version
+                }
+            } as any
+        });
+
+        expect(scopedDocumentLoader).not.toHaveBeenCalled();
+        expect(documentationService.getDocForDeclaration).not.toHaveBeenCalled();
+        expect(applyStructuredDocumentation).not.toHaveBeenCalled();
+        expect(resolved.documentation).toBeUndefined();
+    });
 });

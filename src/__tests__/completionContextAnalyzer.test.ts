@@ -91,10 +91,17 @@ describe('CompletionContextAnalyzer', () => {
     });
 
     test('does not classify scoped prefixes when the cursor is already inside outer call arguments', () => {
-        const document = createDocument('call(room::in');
+        const document = createDocument([
+            'call((::cr',
+            'call(',
+            '    room::in'
+        ].join('\n'));
 
-        const nestedArgument = analyzer.analyze(document, new vscode.Position(0, 'call(room::in'.length));
-        expect(nestedArgument.kind).toBe('identifier');
+        const nestedGroupedArgument = analyzer.analyze(document, new vscode.Position(0, 'call((::cr'.length));
+        expect(nestedGroupedArgument.kind).toBe('identifier');
+
+        const multilineArgument = analyzer.analyze(document, new vscode.Position(2, '    room::in'.length));
+        expect(multilineArgument.kind).toBe('identifier');
     });
 
     test('keeps grouped scoped prefixes available outside call-argument contexts', () => {

@@ -55,29 +55,29 @@ export class ScopedMethodCompletionSupport {
             ? currentDocumentOrUri
             : currentDocumentOrUri.uri.toString();
         const normalizedPrefix = prefix.toLowerCase();
+        const matchingMethods = discovery.methods.filter((method) => !normalizedPrefix || method.name.toLowerCase().startsWith(normalizedPrefix));
+        const labelCounts = new Map<string, number>();
+        for (const method of matchingMethods) {
+            labelCounts.set(method.name, (labelCounts.get(method.name) ?? 0) + 1);
+        }
 
         const candidatesByLabel = new Map<string, CompletionCandidate>();
-        for (const method of discovery.methods) {
-            if (normalizedPrefix && !method.name.toLowerCase().startsWith(normalizedPrefix)) {
+        for (const method of matchingMethods) {
+            const candidate = (labelCounts.get(method.name) ?? 0) > 1
+                ? this.buildAmbiguousCandidate(method)
+                : this.buildUniqueCandidate(method);
+            const existing = candidatesByLabel.get(candidate.label);
+            if (!existing) {
+                candidatesByLabel.set(candidate.label, candidate);
                 continue;
             }
 
-            const candidate: CompletionCandidate = {
-                key: `scoped-method:${method.documentUri}:${method.name}:${this.buildDeclarationKey(method.documentUri, method.declarationRange)}`,
-                label: method.name,
-                kind: vscode.CompletionItemKind.Method,
-                detail: `${normalizeLpcType(method.returnType ?? 'mixed')} ${method.name}`.trim(),
-                insertText: buildFunctionSnippet(method.name, method.parameters),
-                sortGroup: 'inherited',
-                metadata: {
-                    sourceUri: method.documentUri,
-                    sourceType: 'scoped-method',
-                    declarationKey: this.buildDeclarationKey(method.documentUri, method.declarationRange),
-                    documentationRef: method.name
-                }
-            };
-            const existing = candidatesByLabel.get(candidate.label);
-            if (!existing || (candidate.metadata.sourceUri === currentUri && existing.metadata.sourceUri !== currentUri)) {
+            if (!candidate.metadata.declarationKey) {
+                candidatesByLabel.set(candidate.label, candidate);
+                continue;
+            }
+
+            if (candidate.metadata.sourceUri === currentUri && existing.metadata.sourceUri !== currentUri) {
                 candidatesByLabel.set(candidate.label, candidate);
             }
         }
@@ -92,6 +92,37 @@ export class ScopedMethodCompletionSupport {
 
                 return left.label.localeCompare(right.label);
             });
+    }
+
+    private buildUniqueCandidate(method: ScopedMethodDiscoveryResult['methods'][number]): CompletionCandidate {
+        return {
+            key: `scoped-method:${method.documentUri}:${method.name}:${this.buildDeclarationKey(method.documentUri, method.declarationRange)}`,
+            label: method.name,
+            kind: vscode.CompletionItemKind.Method,
+            detail: `${normalizeLpcType(method.returnType ?? 'mixed')} ${method.name}`.trim(),
+            insertText: buildFunctionSnippet(method.name, method.parameters),
+            sortGroup: 'inherited',
+            metadata: {
+                sourceUri: method.documentUri,
+                sourceType: 'scoped-method',
+                declarationKey: this.buildDeclarationKey(method.documentUri, method.declarationRange),
+                documentationRef: method.name
+            }
+        };
+    }
+
+    private buildAmbiguousCandidate(method: ScopedMethodDiscoveryResult['methods'][number]): CompletionCandidate {
+        return {
+            key: `scoped-method:multiple:${method.name}`,
+            label: method.name,
+            kind: vscode.CompletionItemKind.Method,
+            detail: `${normalizeLpcType(method.returnType ?? 'mixed')} ${method.name}`.trim(),
+            insertText: buildFunctionSnippet(method.name, method.parameters),
+            sortGroup: 'inherited',
+            metadata: {
+                sourceType: 'scoped-method'
+            }
+        };
     }
 
     public async applyScopedDocumentation(

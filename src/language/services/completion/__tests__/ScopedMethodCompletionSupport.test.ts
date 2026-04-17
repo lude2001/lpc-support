@@ -118,6 +118,68 @@ describe('ScopedMethodCompletionSupport', () => {
         expect(doc?.value ?? doc).toContain('Base room create');
     });
 
+    test('ambiguous merged scoped candidates do not keep a single declaration-based doc binding', async () => {
+        const ScopedMethodCompletionSupport = loadSupport();
+        const roomDocument = createDocument(
+            path.join(process.cwd(), '.tmp-scoped-method-completion', 'std', 'room.c'),
+            'void init() {}\n'
+        );
+        const combatDocument = createDocument(
+            path.join(process.cwd(), '.tmp-scoped-method-completion', 'std', 'combat.c'),
+            'void init() {}\n'
+        );
+        const documentLoader = jest.fn(async (uri: string) => {
+            if (uri === roomDocument.uri.toString()) {
+                return roomDocument;
+            }
+
+            if (uri === combatDocument.uri.toString()) {
+                return combatDocument;
+            }
+
+            return undefined;
+        });
+        const documentationService = {
+            getDocForDeclaration: jest.fn()
+        };
+        const support = new ScopedMethodCompletionSupport({
+            documentLoader,
+            documentationService
+        });
+        const discovery: ScopedMethodDiscoveryResult = {
+            status: 'multiple',
+            methods: [
+                {
+                    name: 'init',
+                    path: roomDocument.uri.fsPath,
+                    documentUri: roomDocument.uri.toString(),
+                    declarationRange: new vscode.Range(0, 0, 0, 14),
+                    returnType: 'void',
+                    parameters: []
+                },
+                {
+                    name: 'init',
+                    path: combatDocument.uri.fsPath,
+                    documentUri: combatDocument.uri.toString(),
+                    declarationRange: new vscode.Range(0, 0, 0, 14),
+                    returnType: 'void',
+                    parameters: []
+                }
+            ]
+        };
+
+        const [candidate] = support.buildCandidates(discovery, roomDocument, 'in');
+
+        expect(candidate.label).toBe('init');
+        expect(candidate.metadata.sourceType).toBe('scoped-method');
+        expect(candidate.metadata.sourceUri).toBeUndefined();
+        expect(candidate.metadata.declarationKey).toBeUndefined();
+
+        await expect(support.applyScopedDocumentation({ label: 'init' } as any, candidate)).resolves.toEqual({ label: 'init' });
+        expect(documentLoader).not.toHaveBeenCalled();
+        expect(documentationService.getDocForDeclaration).not.toHaveBeenCalled();
+    });
+
     test('scoped completion unknown or unsupported discovery results produce no candidates or fallback docs', async () => {
         const ScopedMethodCompletionSupport = loadSupport();
         const document = createDocument(
