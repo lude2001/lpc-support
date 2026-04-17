@@ -366,7 +366,7 @@ describe('language-service integration regression', () => {
         fs.writeFileSync(
             path.join(fixtureRoot, 'std', 'combat.c'),
             [
-                'void init() {',
+                'void influence() {',
                 '}'
             ].join('\n')
         );
@@ -390,6 +390,7 @@ describe('language-service integration regression', () => {
         });
 
         expect(result.items.map((item) => item.label)).toContain('init');
+        expect(result.items.map((item) => item.label)).not.toContain('influence');
         expect(result.items).toHaveLength(1);
         expect(result.items[0].detail).toBe('void init');
     });
@@ -410,6 +411,26 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'ambiguous-scoped-completion.c'), source);
+        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
+
+        const result = await service.provideCompletion({
+            context: createLanguageContext(document, fixtureRoot),
+            position: positionAtSubstringEnd(document, source, 'room::in'),
+            triggerKind: vscode.CompletionTriggerKind.Invoke
+        });
+
+        expect(result.items).toHaveLength(0);
+    });
+
+    test('scoped completion stays empty when unresolved direct inherit leaves discovery incomplete', async () => {
+        const source = [
+            'inherit ROOM_BASE;',
+            '',
+            'void demo() {',
+            '    room::in',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'unresolved-scoped-completion.c'), source);
         const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
 
         const result = await service.provideCompletion({
