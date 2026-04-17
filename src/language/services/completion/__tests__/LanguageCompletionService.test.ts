@@ -62,7 +62,6 @@ describe('LanguageCompletionService scoped completion resolve', () => {
     };
 
     test('scoped completion resolveCompletionItem loads callable docs by declaration key', async () => {
-        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any) as any;
         const targetDocument = createDocument(
             path.join(process.cwd(), '.tmp-scoped-method-completion', 'std', 'base_room.c'),
             [
@@ -83,9 +82,18 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 documentation: 'Base room create'
             }))
         };
+        const service = new QueryBackedLanguageCompletionService(
+            efunDocsManager as any,
+            macroManager as any,
+            undefined,
+            undefined,
+            undefined,
+            {
+                documentationService: documentationService as any,
+                scopedDocumentLoader
+            }
+        ) as any;
         const applyStructuredDocumentation = jest.spyOn(service, 'applyStructuredDocumentation');
-        service.scopedDocumentLoader = scopedDocumentLoader;
-        service.documentationService = documentationService;
 
         const resolved = await service.resolveCompletionItem({
             context: {
@@ -130,7 +138,6 @@ describe('LanguageCompletionService scoped completion resolve', () => {
     });
 
     test('scoped completion resolveCompletionItem does not fabricate docs for ambiguous merged candidates', async () => {
-        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any) as any;
         const targetDocument = createDocument(
             path.join(process.cwd(), '.tmp-scoped-method-completion', 'std', 'room.c'),
             'void init() {}\n'
@@ -139,9 +146,18 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         const documentationService = {
             getDocForDeclaration: jest.fn()
         };
+        const service = new QueryBackedLanguageCompletionService(
+            efunDocsManager as any,
+            macroManager as any,
+            undefined,
+            undefined,
+            undefined,
+            {
+                documentationService: documentationService as any,
+                scopedDocumentLoader
+            }
+        ) as any;
         const applyStructuredDocumentation = jest.spyOn(service, 'applyStructuredDocumentation');
-        service.scopedDocumentLoader = scopedDocumentLoader;
-        service.documentationService = documentationService;
 
         const resolved = await service.resolveCompletionItem({
             context: {

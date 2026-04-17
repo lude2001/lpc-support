@@ -104,9 +104,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     private readonly objectInferenceService: ObjectInferenceService;
     private readonly inheritanceReporter: InheritanceReporter;
     private readonly scopedMethodDiscoveryService: ScopedMethodDiscoveryService;
-    private readonly scopedCompletionSupport?: ScopedMethodCompletionSupport;
-    private documentationService: FunctionDocumentationService;
-    private scopedDocumentLoader: (uri: string) => Promise<vscode.TextDocument | undefined>;
+    private readonly scopedCompletionSupport: ScopedMethodCompletionSupport;
 
     constructor(
         efunDocsManager: EfunDocsManager,
@@ -122,12 +120,14 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         this.instrumentation = instrumentation ?? new CompletionInstrumentation();
         this.objectInferenceService = objectInferenceService ?? new ObjectInferenceService(macroManager);
         this.inheritanceReporter = inheritanceReporter;
-        this.documentationService = dependencies?.documentationService ?? new FunctionDocumentationService();
-        this.scopedDocumentLoader = dependencies?.scopedDocumentLoader
-            ?? (async (uri: string) => this.getDocumentForUri(uri));
         this.scopedMethodDiscoveryService = dependencies?.scopedMethodDiscoveryService
             ?? new ScopedMethodDiscoveryService(macroManager);
-        this.scopedCompletionSupport = dependencies?.scopedCompletionSupport;
+        this.scopedCompletionSupport = dependencies?.scopedCompletionSupport
+            ?? new ScopedMethodCompletionSupport({
+                documentationService: dependencies?.documentationService ?? new FunctionDocumentationService(),
+                documentLoader: dependencies?.scopedDocumentLoader
+                    ?? (async (uri: string) => this.getDocumentForUri(uri))
+            });
         this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
         this.queryEngine = new CompletionQueryEngine({
             snapshotProvider: this.astManager,
@@ -220,7 +220,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
                     this.applyMacroDocumentation(resolvedItem, candidate.label);
                     break;
                 case 'scoped-method':
-                    await this.getScopedCompletionSupport().applyScopedDocumentation(resolvedItem, candidate);
+                    await this.scopedCompletionSupport.applyScopedDocumentation(resolvedItem, candidate);
                     break;
                 case 'local':
                 case 'inherited':
@@ -280,7 +280,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
                 return [];
             }
 
-            return this.getScopedCompletionSupport().buildCandidates(
+            return this.scopedCompletionSupport.buildCandidates(
                 discovery,
                 document,
                 result.context.currentWord
@@ -667,13 +667,6 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
 
     private getDocumentForUri(uri: string): vscode.TextDocument | undefined {
         return this.getOpenDocument(uri) || this.createReadonlyDocumentFromUri(uri);
-    }
-
-    private getScopedCompletionSupport(): ScopedMethodCompletionSupport {
-        return this.scopedCompletionSupport ?? new ScopedMethodCompletionSupport({
-            documentationService: this.documentationService,
-            documentLoader: this.scopedDocumentLoader
-        });
     }
 
     private getBestAvailableIndexSnapshot(document: vscode.TextDocument): IndexSnapshot {

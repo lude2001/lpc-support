@@ -26,20 +26,9 @@ export class ScopedMethodCompletionSupport {
     private readonly documentLoader: ScopedDocumentLoader;
     private readonly renderer = new CallableDocRenderer();
 
-    constructor(
-        documentationServiceOrDependencies?: DeclarationDocProvider | ScopedMethodCompletionSupportDependencies,
-        documentLoader?: ScopedDocumentLoader
-    ) {
-        if (this.isDependencyBag(documentationServiceOrDependencies)) {
-            this.documentationService = documentationServiceOrDependencies.documentationService
-                ?? new FunctionDocumentationService();
-            this.documentLoader = documentationServiceOrDependencies.documentLoader
-                ?? createDefaultDocumentLoader();
-            return;
-        }
-
-        this.documentationService = documentationServiceOrDependencies ?? new FunctionDocumentationService();
-        this.documentLoader = documentLoader ?? createDefaultDocumentLoader();
+    constructor(dependencies: ScopedMethodCompletionSupportDependencies = {}) {
+        this.documentationService = dependencies.documentationService ?? new FunctionDocumentationService();
+        this.documentLoader = dependencies.documentLoader ?? createDefaultDocumentLoader();
     }
 
     public buildCandidates(
@@ -186,16 +175,6 @@ export class ScopedMethodCompletionSupport {
             summary: callableDoc.summary ?? maybeLegacyDoc.documentation,
             sourceKind: 'scopedMethod'
         };
-    }
-
-    private isDependencyBag(
-        value: DeclarationDocProvider | ScopedMethodCompletionSupportDependencies | undefined
-    ): value is ScopedMethodCompletionSupportDependencies {
-        return Boolean(
-            value
-            && (Object.prototype.hasOwnProperty.call(value, 'documentationService')
-                || Object.prototype.hasOwnProperty.call(value, 'documentLoader'))
-        );
     }
 }
 
