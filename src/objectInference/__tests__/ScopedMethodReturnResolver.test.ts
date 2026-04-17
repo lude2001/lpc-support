@@ -183,4 +183,28 @@ describe('ScopedMethodReturnResolver', () => {
             { code: 'missing-return-annotation', methodName: 'factory' }
         ]);
     });
+
+    test('::factory() preserves earlier valid candidates when a later implementation returns empty candidates without diagnostics', async () => {
+        const document = createTextDocument(fixturePath('/d/city/room.c'), 'object ob = ::factory();\n');
+        const scopedTargets = [
+            scopedTarget(fixturePath('/std/base_room.c'), 'factory'),
+            scopedTarget(fixturePath('/std/weapon_room.c'), 'factory')
+        ];
+
+        const resolveDocumentedReturnOutcome = jest.fn()
+            .mockResolvedValueOnce({
+                candidates: [{ path: fixturePath('/obj/sword.c'), source: 'doc' }]
+            })
+            .mockResolvedValueOnce({
+                candidates: []
+            });
+        const resolver = new ScopedMethodReturnResolver(resolveDocumentedReturnOutcome);
+
+        const outcome = await resolver.resolveScopedMethodReturnOutcome(document, scopedTargets);
+
+        expect(outcome.candidates).toEqual([
+            { path: fixturePath('/obj/sword.c'), source: 'doc' }
+        ]);
+        expect(outcome.diagnostics).toBeUndefined();
+    });
 });

@@ -55,7 +55,7 @@ export class ScopedMethodReturnResolver {
                     };
                 }
 
-                return { candidates: [] };
+                continue;
             }
 
             mergedCandidates.push(...outcome.candidates);
