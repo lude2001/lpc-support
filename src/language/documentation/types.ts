@@ -20,7 +20,8 @@ export type CallableSourceKind =
     | 'include'
     | 'simulEfun'
     | 'efun'
-    | 'objectMethod';
+    | 'objectMethod'
+    | 'scopedMethod';
 
 export type CallableReturnObjects = string[];
 

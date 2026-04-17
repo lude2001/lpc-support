@@ -156,7 +156,7 @@ function createCallableDoc(
 }
 
 function createDiscoveryService(
-    factories: Partial<Record<'localOrInherited' | 'include' | 'objectMethod' | 'efun', (
+    factories: Partial<Record<'localOrInherited' | 'include' | 'objectMethod' | 'scopedMethod' | 'efun', (
         request: CallableDiscoveryRequest
     ) => Promise<ResolvedCallableTarget[]> | ResolvedCallableTarget[]>>
 ): CallableTargetDiscoveryService {
@@ -169,6 +169,9 @@ function createDiscoveryService(
             : []),
         discoverObjectMethodTargets: jest.fn(async (request) => factories.objectMethod
             ? factories.objectMethod(request)
+            : []),
+        discoverScopedMethodTargets: jest.fn(async (request) => factories.scopedMethod
+            ? factories.scopedMethod(request)
             : []),
         discoverEfunTargets: jest.fn(async (request) => factories.efun
             ? factories.efun(request)
@@ -527,6 +530,146 @@ describe('LanguageSignatureHelpService', () => {
             sourceLabel: 'object-method'
         }));
         expect(result?.activeParameter).toBe(1);
+    });
+
+    test('scoped method signature help resolves bare ::create()', async () => {
+        const source = 'void test() {\n    ::create(1);\n}';
+        const document = createDocument(source);
+        const targetDocument = createDocument(
+            'void create(int mode) {}\n',
+            'D:/workspace/std/base_room.c'
+        );
+        const scopedMethodResolver = {
+            resolveCallAt: jest.fn(async () => ({
+                status: 'resolved' as const,
+                methodName: 'create',
+                targets: [{
+                    path: 'D:/workspace/std/base_room.c',
+                    methodName: 'create',
+                    document: targetDocument,
+                    location: new vscode.Location(targetDocument.uri, new vscode.Position(0, 0)),
+                    declarationRange: new vscode.Range(0, 0, 0, 21),
+                    sourceLabel: 'D:/workspace/std/base_room.c'
+                }]
+            }))
+        };
+        const docResolver: CallableDocResolver = {
+            resolveFromTarget: jest.fn(async (target) => target.kind === 'scopedMethod'
+                ? createCallableDoc('create', 'scopedMethod', target.declarationKey!, [{
+                    label: 'void create(int mode)',
+                    returnType: 'void',
+                    isVariadic: false,
+                    parameters: [{ name: 'mode', type: 'int', description: 'Creation mode' }]
+                }])
+                : undefined)
+        };
+        const service = new LanguageSignatureHelpService({
+            scopedMethodResolver: scopedMethodResolver as any,
+            docResolver
+        });
+
+        const result = await service.provideSignatureHelp({
+            context: createContext(document),
+            position: positionAfter(source, '1')
+        });
+
+        expect(result?.signatures[0]).toEqual(expect.objectContaining({
+            label: 'void create(int mode)',
+            sourceLabel: 'scoped-method'
+        }));
+        expect(scopedMethodResolver.resolveCallAt).toHaveBeenCalledWith(document, new vscode.Position(1, 4));
+        expect(docResolver.resolveFromTarget).toHaveBeenCalledWith(expect.objectContaining({
+            kind: 'scopedMethod',
+            name: 'create',
+            sourceLabel: 'scoped-method'
+        }));
+    });
+
+    test('scoped method signature help does not fall back when room::init() is ambiguous', async () => {
+        const source = 'void test() {\n    room::init();\n}';
+        const document = createDocument(source);
+        const getStandardCallableDoc = jest.fn(() => createCallableDoc('init', 'efun', 'efun:init', [{
+            label: 'void init()',
+            returnType: 'void',
+            isVariadic: false,
+            parameters: []
+        }]));
+        const scopedMethodResolver = {
+            resolveCallAt: jest.fn(async () => ({
+                status: 'unknown' as const,
+                methodName: 'init',
+                qualifier: 'room',
+                targets: []
+            }))
+        };
+        const service = new LanguageSignatureHelpService({
+            scopedMethodResolver: scopedMethodResolver as any,
+            efunDocsManager: {
+                getCurrentFileDocForDocument: jest.fn(async () => undefined),
+                getInheritedFileDocForDocument: jest.fn(async () => undefined),
+                getIncludedFileDoc: jest.fn(async () => undefined),
+                getSimulatedDoc: jest.fn(() => undefined),
+                getStandardCallableDoc
+            } as any
+        });
+
+        const result = await service.provideSignatureHelp({
+            context: createContext(document),
+            position: positionAfter(source, 'room::init(')
+        });
+
+        expect(result).toBeUndefined();
+        expect(scopedMethodResolver.resolveCallAt).toHaveBeenCalledWith(document, new vscode.Position(1, 10));
+        expect(getStandardCallableDoc).not.toHaveBeenCalled();
+    });
+
+    test('scoped method signature help resolves room::init() through a unique named scope', async () => {
+        const source = 'void test() {\n    room::init("x");\n}';
+        const document = createDocument(source);
+        const targetDocument = createDocument(
+            'void init(string arg) {}\n',
+            'D:/workspace/std/room.c'
+        );
+        const scopedMethodResolver = {
+            resolveCallAt: jest.fn(async () => ({
+                status: 'resolved' as const,
+                qualifier: 'room',
+                methodName: 'init',
+                targets: [{
+                    path: 'D:/workspace/std/room.c',
+                    methodName: 'init',
+                    document: targetDocument,
+                    location: new vscode.Location(targetDocument.uri, new vscode.Position(0, 0)),
+                    declarationRange: new vscode.Range(0, 0, 0, 22),
+                    sourceLabel: 'D:/workspace/std/room.c'
+                }]
+            }))
+        };
+        const docResolver: CallableDocResolver = {
+            resolveFromTarget: jest.fn(async (target) => target.kind === 'scopedMethod'
+                ? createCallableDoc('init', 'scopedMethod', target.declarationKey!, [{
+                    label: 'void init(string arg)',
+                    returnType: 'void',
+                    isVariadic: false,
+                    parameters: [{ name: 'arg', type: 'string', description: 'Room argument' }]
+                }])
+                : undefined)
+        };
+        const service = new LanguageSignatureHelpService({
+            scopedMethodResolver: scopedMethodResolver as any,
+            docResolver
+        });
+
+        const result = await service.provideSignatureHelp({
+            context: createContext(document),
+            position: positionAfter(source, '"x"')
+        });
+
+        expect(result?.signatures[0]).toEqual(expect.objectContaining({
+            label: 'void init(string arg)',
+            sourceLabel: 'scoped-method'
+        }));
+        expect(scopedMethodResolver.resolveCallAt).toHaveBeenCalledWith(document, new vscode.Position(1, 10));
     });
 
     test('returns signature help for file-scope global object inference', async () => {

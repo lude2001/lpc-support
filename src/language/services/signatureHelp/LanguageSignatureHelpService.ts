@@ -10,6 +10,7 @@ import { ASTManager } from '../../../ast/astManager';
 import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
 import type { InferredObjectAccess } from '../../../objectInference/types';
 import type { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
+import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import type { TargetMethodLookup } from '../../../targetMethodLookup';
 
 export interface LanguageSignatureHelpRequest {
@@ -37,12 +38,12 @@ export interface CallableDiscoveryRequest {
     position: vscode.Position;
     callExpressionRange: vscode.Range;
     calleeName: string;
-    callKind: 'function' | 'objectMethod';
+    callKind: 'function' | 'objectMethod' | 'scopedMethod';
     calleeLookupPosition?: vscode.Position;
 }
 
 export interface ResolvedCallableTarget {
-    kind: 'local' | 'inherit' | 'include' | 'simulEfun' | 'efun' | 'objectMethod';
+    kind: 'local' | 'inherit' | 'include' | 'simulEfun' | 'efun' | 'objectMethod' | 'scopedMethod';
     name: string;
     targetKey: string;
     documentUri?: string;
@@ -55,6 +56,7 @@ export interface CallableTargetDiscoveryService {
     discoverLocalOrInheritedTargets(request: CallableDiscoveryRequest): Promise<ResolvedCallableTarget[]>;
     discoverIncludeTargets(request: CallableDiscoveryRequest): Promise<ResolvedCallableTarget[]>;
     discoverObjectMethodTargets(request: CallableDiscoveryRequest): Promise<ResolvedCallableTarget[]>;
+    discoverScopedMethodTargets(request: CallableDiscoveryRequest): Promise<ResolvedCallableTarget[]>;
     discoverEfunTargets(request: CallableDiscoveryRequest): Promise<ResolvedCallableTarget[]>;
 }
 
@@ -78,6 +80,7 @@ interface LanguageSignatureHelpDependencies {
     documentationService?: FunctionDocumentationService;
     efunDocsManager?: EfunDocsManager;
     objectInferenceService?: ObjectInferenceService;
+    scopedMethodResolver?: ScopedMethodResolver;
     targetMethodLookup?: TargetMethodLookup;
     host?: SignatureHelpDocumentHost;
 }
@@ -122,7 +125,8 @@ export class LanguageSignatureHelpService {
             ?? new DefaultCallableTargetDiscoveryService(
                 dependencies.efunDocsManager,
                 dependencies.objectInferenceService,
-                dependencies.targetMethodLookup
+                dependencies.targetMethodLookup,
+                dependencies.scopedMethodResolver
             );
         this.docResolver = dependencies.docResolver
             ?? new DefaultCallableDocResolver(documentationService, dependencies.efunDocsManager, host);
@@ -174,6 +178,10 @@ export class LanguageSignatureHelpService {
     }
 
     private async collectTargets(request: CallableDiscoveryRequest): Promise<ResolvedCallableTarget[]> {
+        if (request.callKind === 'scopedMethod') {
+            return this.discoveryService.discoverScopedMethodTargets(request);
+        }
+
         const [
             localOrInheritedTargets,
             includeTargets,
@@ -246,13 +254,14 @@ class DefaultCallableTargetDiscoveryService implements CallableTargetDiscoverySe
     public constructor(
         private readonly efunDocsManager?: EfunDocsManager,
         private readonly objectInferenceService?: ObjectInferenceService,
-        private readonly targetMethodLookup?: TargetMethodLookup
+        private readonly targetMethodLookup?: TargetMethodLookup,
+        private readonly scopedMethodResolver?: ScopedMethodResolver
     ) {}
 
     public async discoverLocalOrInheritedTargets(
         request: CallableDiscoveryRequest
     ): Promise<ResolvedCallableTarget[]> {
-        if (request.callKind === 'objectMethod' || !this.efunDocsManager) {
+        if (request.callKind === 'objectMethod' || request.callKind === 'scopedMethod' || !this.efunDocsManager) {
             return [];
         }
 
@@ -280,7 +289,7 @@ class DefaultCallableTargetDiscoveryService implements CallableTargetDiscoverySe
     public async discoverIncludeTargets(
         request: CallableDiscoveryRequest
     ): Promise<ResolvedCallableTarget[]> {
-        if (request.callKind === 'objectMethod' || !this.efunDocsManager) {
+        if (request.callKind === 'objectMethod' || request.callKind === 'scopedMethod' || !this.efunDocsManager) {
             return [];
         }
 
@@ -296,6 +305,10 @@ class DefaultCallableTargetDiscoveryService implements CallableTargetDiscoverySe
     public async discoverObjectMethodTargets(
         request: CallableDiscoveryRequest
     ): Promise<ResolvedCallableTarget[]> {
+        if (request.callKind === 'scopedMethod') {
+            return [];
+        }
+
         if (
             request.callKind !== 'objectMethod'
             || !this.objectInferenceService
@@ -342,10 +355,43 @@ class DefaultCallableTargetDiscoveryService implements CallableTargetDiscoverySe
         return targets;
     }
 
+    public async discoverScopedMethodTargets(
+        request: CallableDiscoveryRequest
+    ): Promise<ResolvedCallableTarget[]> {
+        if (request.callKind !== 'scopedMethod' || !this.scopedMethodResolver) {
+            return [];
+        }
+
+        const resolution = await this.scopedMethodResolver.resolveCallAt(
+            request.document,
+            request.calleeLookupPosition ?? request.callExpressionRange.start
+        );
+        if (!resolution || resolution.status === 'unknown' || resolution.status === 'unsupported') {
+            return [];
+        }
+
+        return resolution.targets.map((target) => {
+            const declarationKey = buildDeclarationKey(
+                target.document.uri.toString(),
+                fromVsCodeRange(target.declarationRange)
+            );
+
+            return {
+                kind: 'scopedMethod' as const,
+                name: request.calleeName,
+                targetKey: declarationKey,
+                documentUri: target.document.uri.toString(),
+                declarationKey,
+                sourceLabel: 'scoped-method',
+                priority: 4
+            };
+        });
+    }
+
     public async discoverEfunTargets(
         request: CallableDiscoveryRequest
     ): Promise<ResolvedCallableTarget[]> {
-        if (request.callKind === 'objectMethod' || !this.efunDocsManager) {
+        if (request.callKind === 'objectMethod' || request.callKind === 'scopedMethod' || !this.efunDocsManager) {
             return [];
         }
 
@@ -653,7 +699,7 @@ function toRangeSize(range: vscode.Range): number {
 
 function getCalleeInfo(
     callee: SyntaxNode | undefined
-): { name: string; callKind: 'function' | 'objectMethod' } | undefined {
+): { name: string; callKind: 'function' | 'objectMethod' | 'scopedMethod' } | undefined {
     if (!callee) {
         return undefined;
     }
@@ -661,19 +707,24 @@ function getCalleeInfo(
     if (callee.kind === SyntaxKind.Identifier && callee.name) {
         return {
             name: callee.name,
-            callKind: 'function'
+            callKind: callee.metadata?.scopeQualifier === '::' ? 'scopedMethod' : 'function'
         };
     }
 
     if (callee.kind === SyntaxKind.MemberAccessExpression && callee.children.length >= 2) {
-        const member = callee.children[1];
-        if (member.kind !== SyntaxKind.Identifier || !member.name) {
+        const operator = callee.metadata?.operator;
+        const memberNode = callee.children[1];
+        if (memberNode?.kind !== SyntaxKind.Identifier || !memberNode.name) {
             return undefined;
         }
 
         return {
-            name: member.name,
-            callKind: callee.metadata?.operator === '->' ? 'objectMethod' : 'function'
+            name: memberNode.name,
+            callKind: operator === '->'
+                ? 'objectMethod'
+                : operator === '::'
+                    ? 'scopedMethod'
+                    : 'function'
         };
     }
 

@@ -133,6 +133,116 @@ describe('createProductionLanguageServices', () => {
         });
     });
 
+    test('createProductionLanguageServices passes scopedMethodResolver into shipped hover, definition, and signature-help services', () => {
+        const macroManager = { kind: 'macro-manager' };
+        const scopedMethodResolver = { kind: 'scoped-method-resolver' };
+        const scopedMethodResolverCtor = jest.fn(() => scopedMethodResolver);
+        const hoverCtor = jest.fn(() => ({ provideHover: jest.fn() }));
+        const definitionCtor = jest.fn(() => ({ provideDefinition: jest.fn() }));
+        const signatureHelpCtor = jest.fn(() => ({ provideSignatureHelp: jest.fn() }));
+
+        jest.isolateModules(() => {
+            jest.doMock('../../../../projectConfig/LpcProjectConfigService', () => ({
+                LpcProjectConfigService: jest.fn(() => ({ kind: 'project-config' }))
+            }));
+            jest.doMock('../../../../macroManager', () => ({
+                MacroManager: jest.fn(() => macroManager)
+            }));
+            jest.doMock('../../../../efun/EfunDocsManager', () => ({
+                EfunDocsManager: jest.fn(() => ({ kind: 'efun-docs-manager' }))
+            }));
+            jest.doMock('../../../../completion/completionInstrumentation', () => ({
+                CompletionInstrumentation: jest.fn(() => ({ kind: 'completion-instrumentation' }))
+            }));
+            jest.doMock('../../../../ast/astManager', () => ({
+                ASTManager: {
+                    getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
+                }
+            }));
+            jest.doMock('../../../../diagnostics', () => ({
+                createDefaultDiagnosticsCollectors: jest.fn(() => ['diagnostics-collector'])
+            }));
+            jest.doMock('../../../../language/services/diagnostics/createSharedDiagnosticsService', () => ({
+                createSharedDiagnosticsService: jest.fn(() => ({ collectDiagnostics: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/formatting/LanguageFormattingService', () => ({
+                createLanguageFormattingService: jest.fn(() => ({ formatDocument: jest.fn(), formatRange: jest.fn() }))
+            }));
+            jest.doMock('../../../../formatter/FormattingService', () => ({
+                FormattingService: jest.fn()
+            }));
+            jest.doMock('../../../../objectInference/ObjectInferenceService', () => ({
+                ObjectInferenceService: jest.fn(() => ({ kind: 'object-inference-service' }))
+            }));
+            jest.doMock('../../../../objectInference/ScopedMethodResolver', () => ({
+                ScopedMethodResolver: scopedMethodResolverCtor
+            }));
+            jest.doMock('../../../../targetMethodLookup', () => ({
+                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
+            }));
+            jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
+                QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
+                ObjectInferenceLanguageHoverService: hoverCtor
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
+                AstBackedLanguageDefinitionService: definitionCtor
+            }));
+            jest.doMock('../../../../language/services/signatureHelp/LanguageSignatureHelpService', () => ({
+                LanguageSignatureHelpService: signatureHelpCtor
+            }));
+            jest.doMock('../../../../language/services/navigation/UnifiedLanguageHoverService', () => ({
+                UnifiedLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageReferenceService', () => ({
+                AstBackedLanguageReferenceService: jest.fn(() => ({ provideReferences: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageRenameService', () => ({
+                AstBackedLanguageRenameService: jest.fn(() => ({ prepareRename: jest.fn(), provideRenameEdits: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageSymbolService', () => ({
+                AstBackedLanguageSymbolService: jest.fn(() => ({ provideDocumentSymbols: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/codeActions/LanguageCodeActionService', () => ({
+                createLanguageCodeActionService: jest.fn(() => ({ provideCodeActions: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/structure/LanguageFoldingService', () => ({
+                DefaultLanguageFoldingService: jest.fn(() => ({ provideFoldingRanges: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/structure/LanguageSemanticTokensService', () => ({
+                DefaultLanguageSemanticTokensService: jest.fn(() => ({ provideSemanticTokens: jest.fn() }))
+            }));
+
+            const {
+                createProductionLanguageServices
+            } = require('../createProductionLanguageServices') as typeof import('../createProductionLanguageServices');
+
+            createProductionLanguageServices();
+
+            expect(scopedMethodResolverCtor).toHaveBeenCalledWith(macroManager);
+            expect(scopedMethodResolverCtor).not.toHaveBeenCalledWith(macroManager, [process.cwd()]);
+            expect(hoverCtor).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.objectContaining({ scopedMethodResolver })
+            );
+            expect(definitionCtor).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.objectContaining({ scopedMethodResolver })
+            );
+            expect(signatureHelpCtor).toHaveBeenCalledWith(
+                expect.objectContaining({ scopedMethodResolver })
+            );
+        });
+    });
+
     test('resolves the extension root from both src and dist-style runtime directories', () => {
         jest.isolateModules(() => {
             const moduleUnderTest = require('../createProductionLanguageServices') as typeof import('../createProductionLanguageServices');

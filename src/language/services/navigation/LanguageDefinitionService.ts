@@ -9,8 +9,10 @@ import { EfunDocsManager } from '../../../efunDocs';
 import { ASTManager } from '../../../ast/astManager';
 import { Symbol, SymbolType } from '../../../ast/symbolTable';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
+import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { InferredObjectAccess } from '../../../objectInference/types';
 import { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
+import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
@@ -61,6 +63,7 @@ interface DefinitionSemanticAdapter {
 interface LanguageDefinitionDependencies {
     host?: LanguageDefinitionHost;
     semanticAdapter?: DefinitionSemanticAdapter;
+    scopedMethodResolver?: ScopedMethodResolver;
 }
 
 const defaultDefinitionHost: LanguageDefinitionHost = {
@@ -87,6 +90,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     private readonly targetMethodLookup: TargetMethodLookup;
     private readonly host: LanguageDefinitionHost;
     private readonly semanticAdapter?: DefinitionSemanticAdapter;
+    private readonly scopedMethodResolver?: ScopedMethodResolver;
 
     public constructor(
         macroManager: MacroManager,
@@ -105,6 +109,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         const dependencies = this.resolveDependencies(hostOrDependencies);
         this.host = dependencies.host;
         this.semanticAdapter = dependencies.semanticAdapter;
+        this.scopedMethodResolver = dependencies.scopedMethodResolver;
 
         this.host.onDidChangeTextDocument((event) => {
             const filePath = event.document.uri.fsPath;
@@ -123,7 +128,11 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
 
     private resolveDependencies(
         hostOrDependencies: LanguageDefinitionHost | LanguageDefinitionDependencies
-    ): { host: LanguageDefinitionHost; semanticAdapter?: DefinitionSemanticAdapter } {
+    ): {
+        host: LanguageDefinitionHost;
+        semanticAdapter?: DefinitionSemanticAdapter;
+        scopedMethodResolver?: ScopedMethodResolver;
+    } {
         if ('onDidChangeTextDocument' in hostOrDependencies) {
             return {
                 host: hostOrDependencies
@@ -132,7 +141,8 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
 
         return {
             host: hostOrDependencies.host ?? defaultDefinitionHost,
-            semanticAdapter: hostOrDependencies.semanticAdapter
+            semanticAdapter: hostOrDependencies.semanticAdapter,
+            scopedMethodResolver: hostOrDependencies.scopedMethodResolver
         };
     }
 
@@ -148,6 +158,15 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         }
 
         const word = document.getText(wordRange);
+        const scopedResolution = await this.scopedMethodResolver?.resolveCallAt(document, position);
+        if (scopedResolution && this.isOnScopedMethodIdentifier(document, position, scopedResolution.methodName)) {
+            if (scopedResolution.status === 'resolved' || scopedResolution.status === 'multiple') {
+                return this.toLanguageLocations(scopedResolution.targets.map((target) => target.location));
+            }
+
+            return [];
+        }
+
         const inferredObjectAccess = await this.objectInferenceService.inferObjectAccess(document, position);
         if (inferredObjectAccess?.memberName === word) {
             return this.toLanguageLocations(await this.handleInferredObjectMethodCall(document, inferredObjectAccess));
@@ -166,6 +185,69 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         }
 
         return this.toLanguageLocations(await this.findFunctionDefinition(document, word, requestState));
+    }
+
+    private isOnScopedMethodIdentifier(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        methodName: string
+    ): boolean {
+        const methodIdentifier = this.findScopedMethodIdentifierAtPosition(document, position);
+        if (!methodIdentifier || methodIdentifier.name !== methodName) {
+            return false;
+        }
+
+        return methodIdentifier.range.contains(position);
+    }
+
+    private findScopedMethodIdentifierAtPosition(
+        document: vscode.TextDocument,
+        position: vscode.Position
+    ): SyntaxNode | undefined {
+        const syntax = this.astManager.getSyntaxDocument(document, false)
+            ?? this.astManager.getSyntaxDocument(document, true);
+        if (!syntax) {
+            return undefined;
+        }
+
+        const scopedCallCandidates = [...syntax.nodes]
+            .filter((node) => node.kind === SyntaxKind.CallExpression && node.range.contains(position))
+            .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range));
+
+        for (const candidate of scopedCallCandidates) {
+            const methodIdentifier = this.getScopedMethodIdentifier(candidate);
+            if (methodIdentifier) {
+                return methodIdentifier;
+            }
+        }
+
+        return undefined;
+    }
+
+    private getScopedMethodIdentifier(callExpression: SyntaxNode): SyntaxNode | undefined {
+        const callee = callExpression.children[0];
+        if (!callee) {
+            return undefined;
+        }
+
+        if (callee.kind === SyntaxKind.Identifier && callee.metadata?.scopeQualifier === '::' && callee.name) {
+            return callee;
+        }
+
+        if (callee.kind !== SyntaxKind.MemberAccessExpression || callee.metadata?.operator !== '::') {
+            return undefined;
+        }
+
+        const memberNode = callee.children[1];
+        if (memberNode?.kind !== SyntaxKind.Identifier || !memberNode.name) {
+            return undefined;
+        }
+
+        return memberNode;
+    }
+
+    private getRangeSize(range: vscode.Range): number {
+        return (range.end.line - range.start.line) * 10_000 + (range.end.character - range.start.character);
     }
 
     private createRequestState(): DefinitionRequestState {

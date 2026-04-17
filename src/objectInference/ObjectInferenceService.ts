@@ -12,6 +12,8 @@ import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ReceiverTraceService } from './ReceiverTraceService';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
+import { ScopedMethodResolver } from './ScopedMethodResolver';
+import { ScopedMethodReturnResolver } from './ScopedMethodReturnResolver';
 import { ClassifiedReceiver, InferredObjectAccess, ObjectCandidate } from './types';
 
 export class ObjectInferenceService {
@@ -32,7 +34,18 @@ export class ObjectInferenceService {
             ? undefined
             : playerObjectPathOrProjectConfig;
         const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
-        this.returnObjectResolver = new ReturnObjectResolver(macroManager, playerObjectPathOrProjectConfig);
+        const scopedMethodResolver = new ScopedMethodResolver(macroManager);
+        this.returnObjectResolver = new ReturnObjectResolver(
+            macroManager,
+            playerObjectPathOrProjectConfig,
+            undefined,
+            scopedMethodResolver
+        );
+        const scopedMethodReturnResolver = new ScopedMethodReturnResolver(
+            (document, functionName, options) =>
+                this.returnObjectResolver.resolveDocumentedReturnOutcome(document, functionName, options)
+        );
+        this.returnObjectResolver.attachScopedMethodReturnResolver(scopedMethodReturnResolver);
         this.objectMethodReturnResolver = new ObjectMethodReturnResolver(this.returnObjectResolver, targetMethodLookup);
         this.globalBindingResolver = new GlobalObjectBindingResolver(
             this.returnObjectResolver,
