@@ -118,6 +118,20 @@ describe('SyntaxBuilder', () => {
         expect(alphaNodes[1].range.start.character).toBeLessThan(alphaNodes[2].range.start.character);
     });
 
+    test('falls back to an opaque scope identifier node for malformed scoped syntax', () => {
+        const source = [
+            'void demo() {',
+            '    ::;',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/malformed-scope.c');
+        const syntaxDocument = new SyntaxBuilder(getGlobalParsedDocumentService().get(document)).build();
+        const opaqueNodes = syntaxDocument.nodes.filter((node) => node.kind === SyntaxKind.OpaqueExpression);
+
+        expect(opaqueNodes.length).toBeGreaterThan(0);
+        expect(opaqueNodes.some((node) => node.metadata?.reason === 'scope-identifier-fallback')).toBe(true);
+    });
+
     test('attaches Javadoc blocks directly above modifiers', () => {
         const source = [
             '/**',

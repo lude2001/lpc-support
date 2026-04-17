@@ -2,10 +2,16 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { LPCParser } from '../antlr/LPCParser';
 import { ASTManager } from '../ast/astManager';
-import { FunctionSummary, ResolvedInheritTarget } from '../completion/types';
+import { FunctionSummary } from '../completion/types';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
+import {
+    collectScopedBranchItems,
+    matchesScopedQualifier,
+    ResolvedScopedInheritTarget,
+    resolveScopedDirectInheritSeeds
+} from './scopedInheritanceTraversal';
 
 export interface ScopedDiscoveredMethod {
     name: string;
@@ -25,20 +31,10 @@ export interface ScopedMethodDiscoveryResult {
     reason?: string;
 }
 
-type ResolvedScopedInheritTarget = ResolvedInheritTarget & {
-    resolvedUri: string;
-    isResolved: true;
-};
-
 type ScopedDiscoveryShape =
     | { kind: 'bare'; prefix: string }
     | { kind: 'named'; prefix: string; qualifier: string }
     | { kind: 'unsupported'; prefix: string; qualifier?: string };
-
-interface ScopedSeedResolution {
-    resolvedTargets: ResolvedScopedInheritTarget[];
-    hasUnresolvedTargets: boolean;
-}
 
 interface ScopedMethodCollection {
     methods: ScopedDiscoveredMethod[];
@@ -87,7 +83,7 @@ export class ScopedMethodDiscoveryService {
         }
 
         const snapshot = this.astManager.getSemanticSnapshot(document, false);
-        const directSeeds = this.resolveDirectInheritSeeds(snapshot);
+        const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return {
                 status: 'unknown',
@@ -97,7 +93,7 @@ export class ScopedMethodDiscoveryService {
         }
 
         if (shape.kind === 'named') {
-            const matchedSeeds = directSeeds.resolvedTargets.filter((target) => this.matchesQualifier(target, shape.qualifier));
+            const matchedSeeds = directSeeds.resolvedTargets.filter((target) => matchesScopedQualifier(target, shape.qualifier));
             if (matchedSeeds.length !== 1) {
                 return {
                     status: 'unknown',
@@ -256,82 +252,27 @@ export class ScopedMethodDiscoveryService {
         };
     }
 
-    private resolveDirectInheritSeeds(
-        snapshot: Parameters<InheritanceResolver['resolveInheritTargets']>[0]
-    ): ScopedSeedResolution {
-        const resolvedTargets: ResolvedScopedInheritTarget[] = [];
-        let hasUnresolvedTargets = false;
-
-        for (const target of this.inheritanceResolver.resolveInheritTargets(snapshot)) {
-            if (!target.isResolved || !target.resolvedUri) {
-                hasUnresolvedTargets = true;
-                continue;
-            }
-
-            resolvedTargets.push({
-                ...target,
-                resolvedUri: target.resolvedUri,
-                isResolved: true
-            });
-        }
-
-        return {
-            resolvedTargets,
-            hasUnresolvedTargets
-        };
-    }
-
     private async collectMethodsFromSeed(
         seed: ResolvedScopedInheritTarget,
         prefix: string,
         visitedUris: Set<string>
     ): Promise<ScopedMethodCollection> {
-        if (visitedUris.has(seed.resolvedUri)) {
-            return {
-                methods: [],
-                hasUnresolvedTargets: false
-            };
-        }
-
-        visitedUris.add(seed.resolvedUri);
-
-        try {
-            const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(seed.resolvedUri));
-            const snapshot = this.astManager.getSemanticSnapshot(document, false);
-            const methods = snapshot.exportedFunctions
-                .filter((func) => func.name.startsWith(prefix))
-                .map((func) => this.toDiscoveredMethod(document, func));
-
-            const nestedSeeds = this.resolveDirectInheritSeeds(snapshot);
-            if (nestedSeeds.hasUnresolvedTargets) {
-                return {
-                    methods: [],
-                    hasUnresolvedTargets: true
-                };
+        const collection = await collectScopedBranchItems({
+            astManager: this.astManager,
+            inheritanceResolver: this.inheritanceResolver,
+            seed,
+            visitedUris,
+            collectFromDocument: (targetDocument, snapshot) => {
+                return snapshot.exportedFunctions
+                    .filter((func) => func.name.startsWith(prefix))
+                    .map((func) => this.toDiscoveredMethod(targetDocument, func));
             }
+        });
 
-            for (const nestedSeed of nestedSeeds.resolvedTargets) {
-                const nestedCollection = await this.collectMethodsFromSeed(nestedSeed, prefix, visitedUris);
-                if (nestedCollection.hasUnresolvedTargets) {
-                    return {
-                        methods: [],
-                        hasUnresolvedTargets: true
-                    };
-                }
-
-                methods.push(...nestedCollection.methods);
-            }
-
-            return {
-                methods,
-                hasUnresolvedTargets: false
-            };
-        } catch {
-            return {
-                methods: [],
-                hasUnresolvedTargets: false
-            };
-        }
+        return {
+            methods: collection.items,
+            hasUnresolvedTargets: collection.hasUnresolvedTargets
+        };
     }
 
     private normalizeDiscoveryResult(
@@ -395,10 +336,6 @@ export class ScopedMethodDiscoveryService {
         };
     }
 
-    private matchesQualifier(target: ResolvedScopedInheritTarget, qualifier: string): boolean {
-        return this.stripSourceExtension(this.normalizeFsPath(vscode.Uri.parse(target.resolvedUri).fsPath)) === qualifier;
-    }
-
     private getMethodKey(method: ScopedDiscoveredMethod): string {
         const range = method.declarationRange;
         return `${method.path}:${range.start.line}:${range.start.character}:${range.end.line}:${range.end.character}`;
@@ -406,11 +343,6 @@ export class ScopedMethodDiscoveryService {
 
     private rangeTouchesPosition(range: vscode.Range, position: vscode.Position): boolean {
         return range.contains(position) || range.end.isEqual(position);
-    }
-
-    private stripSourceExtension(filePath: string): string {
-        const baseName = path.basename(filePath);
-        return baseName.endsWith('.c') ? baseName.slice(0, -2) : baseName;
     }
 
     private normalizeFsPath(filePath: string): string {

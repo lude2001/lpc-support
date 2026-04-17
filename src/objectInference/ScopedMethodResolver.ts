@@ -3,8 +3,12 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
-import { ResolvedInheritTarget } from '../completion/types';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
+import {
+    collectScopedBranchItems,
+    matchesScopedQualifier,
+    resolveScopedDirectInheritSeeds
+} from './scopedInheritanceTraversal';
 
 export interface ScopedMethodTarget {
     path: string;
@@ -23,16 +27,6 @@ export interface ScopedMethodResolution {
     qualifier?: string;
     targets: ScopedMethodTarget[];
     reason?: 'unsupported-expression';
-}
-
-type ResolvedScopedInheritTarget = ResolvedInheritTarget & {
-    resolvedUri: string;
-    isResolved: true;
-};
-
-interface ScopedSeedResolution {
-    resolvedTargets: ResolvedScopedInheritTarget[];
-    hasUnresolvedTargets: boolean;
 }
 
 interface ScopedTargetCollection {
@@ -198,7 +192,7 @@ export class ScopedMethodResolver {
         methodName: string
     ): Promise<ScopedTargetCollection> {
         const snapshot = this.astManager.getSemanticSnapshot(document, false);
-        const directSeeds = this.resolveDirectInheritSeeds(snapshot);
+        const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return {
                 targets: [],
@@ -210,7 +204,16 @@ export class ScopedMethodResolver {
         const targets: ScopedMethodTarget[] = [];
 
         for (const seed of directSeeds.resolvedTargets) {
-            const branchResult = await this.collectTargetsFromSeed(seed, methodName, visitedUris);
+            const branchResult = await collectScopedBranchItems({
+                astManager: this.astManager,
+                inheritanceResolver: this.inheritanceResolver,
+                seed,
+                visitedUris,
+                collectFromDocument: (targetDocument, snapshot) => {
+                    const directTarget = this.findMethodTarget(targetDocument, snapshot, methodName);
+                    return directTarget ? [directTarget] : [];
+                }
+            });
             if (branchResult.hasUnresolvedTargets) {
                 return {
                     targets: [],
@@ -218,7 +221,7 @@ export class ScopedMethodResolver {
                 };
             }
 
-            targets.push(...branchResult.targets);
+            targets.push(...branchResult.items);
         }
 
         return {
@@ -233,7 +236,7 @@ export class ScopedMethodResolver {
         methodName: string
     ): Promise<ScopedTargetCollection> {
         const snapshot = this.astManager.getSemanticSnapshot(document, false);
-        const directSeeds = this.resolveDirectInheritSeeds(snapshot);
+        const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return {
                 targets: [],
@@ -241,7 +244,7 @@ export class ScopedMethodResolver {
             };
         }
 
-        const matchedSeeds = directSeeds.resolvedTargets.filter((seed) => this.matchesQualifier(seed, qualifier));
+        const matchedSeeds = directSeeds.resolvedTargets.filter((seed) => matchesScopedQualifier(seed, qualifier));
         if (matchedSeeds.length !== 1) {
             return {
                 targets: [],
@@ -249,93 +252,21 @@ export class ScopedMethodResolver {
             };
         }
 
-        return this.collectTargetsFromSeed(matchedSeeds[0], methodName, new Set<string>());
-    }
-
-    private resolveDirectInheritSeeds(
-        snapshot: Parameters<InheritanceResolver['resolveInheritTargets']>[0]
-    ): ScopedSeedResolution {
-        const resolvedTargets: ResolvedScopedInheritTarget[] = [];
-        let hasUnresolvedTargets = false;
-
-        for (const target of this.inheritanceResolver.resolveInheritTargets(snapshot)) {
-            if (!target.isResolved || !target.resolvedUri) {
-                hasUnresolvedTargets = true;
-                continue;
+        const matchedCollection = await collectScopedBranchItems({
+            astManager: this.astManager,
+            inheritanceResolver: this.inheritanceResolver,
+            seed: matchedSeeds[0],
+            visitedUris: new Set<string>(),
+            collectFromDocument: (targetDocument, snapshot) => {
+                const directTarget = this.findMethodTarget(targetDocument, snapshot, methodName);
+                return directTarget ? [directTarget] : [];
             }
-
-            resolvedTargets.push({
-                ...target,
-                isResolved: true,
-                resolvedUri: target.resolvedUri
-            });
-        }
+        });
 
         return {
-            resolvedTargets,
-            hasUnresolvedTargets
+            targets: matchedCollection.items,
+            hasUnresolvedTargets: matchedCollection.hasUnresolvedTargets
         };
-    }
-
-    private matchesQualifier(target: ResolvedScopedInheritTarget, qualifier: string): boolean {
-        return this.stripSourceExtension(this.normalizeFsPath(vscode.Uri.parse(target.resolvedUri).fsPath)) === qualifier;
-    }
-
-    private async collectTargetsFromSeed(
-        seed: ResolvedScopedInheritTarget,
-        methodName: string,
-        visitedUris: Set<string>
-    ): Promise<ScopedTargetCollection> {
-        const normalizedUri = seed.resolvedUri;
-        if (visitedUris.has(normalizedUri)) {
-            return {
-                targets: [],
-                hasUnresolvedTargets: false
-            };
-        }
-
-        visitedUris.add(normalizedUri);
-
-        try {
-            const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(normalizedUri));
-            const snapshot = this.astManager.getSemanticSnapshot(document, false);
-            const targets: ScopedMethodTarget[] = [];
-
-            const directTarget = this.findMethodTarget(document, snapshot, methodName);
-            if (directTarget) {
-                targets.push(directTarget);
-            }
-
-            const nestedSeeds = this.resolveDirectInheritSeeds(snapshot);
-            if (nestedSeeds.hasUnresolvedTargets) {
-                return {
-                    targets: [],
-                    hasUnresolvedTargets: true
-                };
-            }
-
-            for (const nestedSeed of nestedSeeds.resolvedTargets) {
-                const nestedResult = await this.collectTargetsFromSeed(nestedSeed, methodName, visitedUris);
-                if (nestedResult.hasUnresolvedTargets) {
-                    return {
-                        targets: [],
-                        hasUnresolvedTargets: true
-                    };
-                }
-
-                targets.push(...nestedResult.targets);
-            }
-
-            return {
-                targets,
-                hasUnresolvedTargets: false
-            };
-        } catch {
-            return {
-                targets: [],
-                hasUnresolvedTargets: false
-            };
-        }
     }
 
     private findMethodTarget(
@@ -426,11 +357,6 @@ export class ScopedMethodResolver {
     private getTargetKey(target: ScopedMethodTarget): string {
         const range = target.declarationRange;
         return `${target.path}:${range.start.line}:${range.start.character}:${range.end.line}:${range.end.character}`;
-    }
-
-    private stripSourceExtension(filePath: string): string {
-        const baseName = path.basename(filePath);
-        return baseName.endsWith('.c') ? baseName.slice(0, -2) : baseName;
     }
 
     private normalizeFsPath(filePath: string): string {

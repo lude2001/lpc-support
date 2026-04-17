@@ -84,17 +84,33 @@ describe('CompletionContextAnalyzer', () => {
         expect(scopedMethod.receiverExpression).toBe('room::');
 
         const qualifier = analyzer.analyze(document, new vscode.Position(0, 'room'.length));
-        expect(qualifier.kind).not.toBe('scoped-member');
+        expect(qualifier.kind).toBe('identifier');
 
         const argument = analyzer.analyze(document, new vscode.Position(0, 'room::init(arg'.length));
-        expect(argument.kind).not.toBe('scoped-member');
+        expect(argument.kind).toBe('identifier');
     });
 
     test('does not classify scoped prefixes when the cursor is already inside outer call arguments', () => {
         const document = createDocument('call(room::in');
 
         const nestedArgument = analyzer.analyze(document, new vscode.Position(0, 'call(room::in'.length));
-        expect(nestedArgument.kind).not.toBe('scoped-member');
+        expect(nestedArgument.kind).toBe('identifier');
+    });
+
+    test('keeps grouped scoped prefixes available outside call-argument contexts', () => {
+        const document = createDocument([
+            '(::cr',
+            'return (room::in'
+        ].join('\n'));
+
+        const groupedBare = analyzer.analyze(document, new vscode.Position(0, '(::cr'.length));
+        expect(groupedBare.kind).toBe('scoped-member');
+        expect(groupedBare.currentWord).toBe('cr');
+
+        const groupedNamed = analyzer.analyze(document, new vscode.Position(1, 'return (room::in'.length));
+        expect(groupedNamed.kind).toBe('scoped-member');
+        expect(groupedNamed.currentWord).toBe('in');
+        expect(groupedNamed.receiverExpression).toBe('room::');
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
