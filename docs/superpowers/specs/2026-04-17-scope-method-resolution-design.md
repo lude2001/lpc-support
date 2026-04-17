@@ -158,6 +158,9 @@ room::init()
 
 - 左侧不是标识符的 `::` 调用
 - qualifier 对应动态 / 未解析 inherit 的 `::` 调用
+
+以下形态虽然属于支持语义，但若解析失败则按后文统一保守降级：
+
 - 无法唯一确定 direct inherit 分支的具名限定调用
 
 ## 动态 inherit 的定义
@@ -302,6 +305,15 @@ P2-alpha 采用“两类 resolver + 一个新 callable target 种类”的设计
 
 P2-alpha 应让二者形成组合，而不是互相覆盖。
 
+但这种组合必须是受限组合：
+
+- `ScopedMethodResolver` 可以复用现有继承链遍历语义
+- 但不能直接无约束复用“从当前文件开始的通用方法查找入口”
+- 因为 `::` 的语义要求：
+  - 显式跳过当前文件自身实现
+  - 显式跳过 include 文件查找
+  - 只从 direct inherit seeds 开始做 inherit-only traversal
+
 ## 组件设计
 
 ### `ScopedMethodResolver`
@@ -369,7 +381,14 @@ P2-alpha 应让二者形成组合，而不是互相覆盖。
 - 从当前文件的 direct inherits 开始
 - 按现有 inherit 声明顺序遍历
 - 跳过当前文件自身实现
+- 跳过 include 文件查找
 - 在父链中查找同名方法
+
+实现约束：
+
+- 不允许把当前 document 直接交给“先查当前文件、再查 include、最后查 inherit”的完整 lookup 顺序
+- 必须从当前文件的 resolved direct inherit targets 作为起点
+- 之后只允许在 inherit 图内递归，不重新回到当前文件或 include 空间
 
 结果规则：
 
@@ -411,6 +430,8 @@ qualifier 只允许映射到 **当前文件 direct inherit**。
 qualifier 唯一命中后：
 
 - 只在该 direct inherit 分支及其继续向上的实现链中查方法
+- 跳过当前文件自身实现
+- 跳过 include 文件查找
 - 不扩大到其他 direct inherit sibling
 
 ### 3. qualifier 失败规则
@@ -525,6 +546,8 @@ P2-alpha 必须避免出现第四套 inherit 解析逻辑。
 
 - `ScopedMethodResolver` 使用与现有 `InheritanceResolver` 一致的 direct inherit 路径解析语义
 - `ScopedMethodResolver` 使用与现有 `TargetMethodLookup` 一致的父链遍历顺序
+- `ScopedMethodResolver` 不复用 `TargetMethodLookup.findMethod(...)` 的“当前文件自查 -> include -> inherit”完整顺序
+  - `::` 解析只允许 inherit-only traversal
 - 如果现有 `TargetMethodLookup` 的内部路径解析逻辑与 `InheritanceResolver` 不完全一致
   - 实现阶段应优先抽共享 helper 或显式复用 `InheritanceResolver`
   - 不允许 scoped 方法解析再复制一份私有路径规则
@@ -603,6 +626,8 @@ P2-alpha 必须避免出现第四套 inherit 解析逻辑。
 ### 3. 负向回归
 
 - 非支持形态的 `Foo::bar()` 不误入对象实例方法推导
+- 当前文件自身存在同名函数时，`::method()` 仍必须命中 scoped inherit 目标
+- include 文件存在同名函数时，`::method()` 仍不得被 include 查找抢走
 - 动态 inherit 保持 `unsupported/unknown`
 - `call_other`
 - `environment(ob)`
