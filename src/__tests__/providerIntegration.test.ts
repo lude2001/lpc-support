@@ -319,6 +319,108 @@ describe('language-service integration regression', () => {
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
     });
 
+    test('scoped completion resolves bare ::create through scoped discovery instead of object inference', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'base_room.c'),
+            [
+                'object create() {',
+                '    return 0;',
+                '}'
+            ].join('\n')
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'inherit "/std/base_room";',
+            '',
+            'void demo() {',
+            '    ::cr',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'bare-scoped-completion.c'), source);
+        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
+
+        const result = await service.provideCompletion({
+            context: createLanguageContext(document, fixtureRoot),
+            position: positionAtSubstringEnd(document, source, '::cr'),
+            triggerKind: vscode.CompletionTriggerKind.Invoke
+        });
+
+        expect(result.items.map((item) => item.label)).toContain('create');
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0].detail).toBe('object create');
+        expect(result.items[0].data?.candidate.metadata.sourceType).toBe('scoped-method');
+        expect(result.items[0].data?.candidate.metadata.declarationKey).toBeDefined();
+    });
+
+    test('scoped completion resolves room::init from the uniquely matched direct inherit branch only', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'room.c'),
+            [
+                'void init() {',
+                '}'
+            ].join('\n')
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'combat.c'),
+            [
+                'void init() {',
+                '}'
+            ].join('\n')
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'inherit "/std/room";',
+            'inherit "/std/combat";',
+            '',
+            'void demo() {',
+            '    room::in',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'named-scoped-completion.c'), source);
+        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
+
+        const result = await service.provideCompletion({
+            context: createLanguageContext(document, fixtureRoot),
+            position: positionAtSubstringEnd(document, source, 'room::in'),
+            triggerKind: vscode.CompletionTriggerKind.Invoke
+        });
+
+        expect(result.items.map((item) => item.label)).toContain('init');
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0].detail).toBe('void init');
+    });
+
+    test('scoped completion stays empty when named qualifier is ambiguous', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
+        fs.mkdirSync(path.join(fixtureRoot, 'domains'), { recursive: true });
+        fs.writeFileSync(path.join(fixtureRoot, 'std', 'room.c'), 'void init() {}\n');
+        fs.writeFileSync(path.join(fixtureRoot, 'domains', 'room.c'), 'void init() {}\n');
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'inherit "/std/room";',
+            'inherit "/domains/room";',
+            '',
+            'void demo() {',
+            '    room::in',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'ambiguous-scoped-completion.c'), source);
+        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
+
+        const result = await service.provideCompletion({
+            context: createLanguageContext(document, fixtureRoot),
+            position: positionAtSubstringEnd(document, source, 'room::in'),
+            triggerKind: vscode.CompletionTriggerKind.Invoke
+        });
+
+        expect(result.items).toHaveLength(0);
+    });
+
     test('definition resolves system include files from project config without consulting legacy includePath', async () => {
         const includeDir = path.join(fixtureRoot, 'include');
         const headerFile = path.join(includeDir, 'global.h');
