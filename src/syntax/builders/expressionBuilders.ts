@@ -312,9 +312,22 @@ export function buildPrimary(b: SyntaxBuilder, ctx: PrimaryContext): SyntaxNode 
     }
 
     if (ctx instanceof ScopeIdentifierContext) {
+        const scopeQualifier = ctx.SCOPE().text;
+        const rawText = b.getNodeText(ctx).trim();
+        const identifierName = rawText.startsWith(scopeQualifier)
+            ? rawText.slice(scopeQualifier.length).trim()
+            : rawText;
+
+        if (!identifierName || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifierName)) {
+            return b.createOpaqueNode(ctx, [], {
+                reason: 'scope-identifier-fallback',
+                text: rawText
+            });
+        }
+
         return b.createNode(SyntaxKind.Identifier, ctx, [], {
-            name: ctx.Identifier().text,
-            metadata: { scopeQualifier: ctx.SCOPE().text }
+            name: identifierName,
+            metadata: { scopeQualifier }
         });
     }
 

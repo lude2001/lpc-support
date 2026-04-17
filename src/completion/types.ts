@@ -4,6 +4,7 @@ import { Scope, Symbol, SymbolTable } from '../ast/symbolTable';
 export type CompletionContextKind =
     | 'identifier'
     | 'member'
+    | 'scoped-member'
     | 'preprocessor'
     | 'inherit-path'
     | 'include-path'
@@ -12,6 +13,7 @@ export type CompletionContextKind =
 export type CompletionCandidateSourceType =
     | 'local'
     | 'inherited'
+    | 'scoped-method'
     | 'struct-member'
     | 'efun'
     | 'simul-efun'
@@ -163,6 +165,7 @@ export interface CompletionCandidateMetadata {
     sourceUri?: string;
     sourceType: CompletionCandidateSourceType;
     documentationRef?: string;
+    declarationKey?: string;
     symbol?: Symbol;
     scope?: Scope;
 }

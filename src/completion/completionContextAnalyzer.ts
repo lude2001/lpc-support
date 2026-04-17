@@ -9,6 +9,11 @@ interface ReceiverContext {
     receiverExpression?: string;
 }
 
+interface ScopedContext {
+    currentWord: string;
+    receiverExpression: string;
+}
+
 export class CompletionContextAnalyzer {
     public analyze(document: vscode.TextDocument, position: vscode.Position): CompletionQueryContext {
         const lineText = document.lineAt(position).text;
@@ -30,6 +35,17 @@ export class CompletionContextAnalyzer {
                 kind: 'inherit-path',
                 receiverChain: [],
                 currentWord,
+                linePrefix
+            };
+        }
+
+        const scopedContext = this.extractScopedContext(linePrefix);
+        if (scopedContext) {
+            return {
+                kind: 'scoped-member',
+                receiverChain: [],
+                receiverExpression: scopedContext.receiverExpression,
+                currentWord: scopedContext.currentWord,
                 linePrefix
             };
         }
@@ -74,6 +90,26 @@ export class CompletionContextAnalyzer {
     private extractCurrentWord(linePrefix: string): string {
         const match = linePrefix.match(/([A-Za-z_][A-Za-z0-9_]*)$/);
         return match ? match[1] : '';
+    }
+
+    private extractScopedContext(linePrefix: string): ScopedContext | undefined {
+        const bareMatch = linePrefix.match(/(?:^|[\s([{\],;:=])::([A-Za-z_][A-Za-z0-9_]*)$/);
+        if (bareMatch) {
+            return {
+                currentWord: bareMatch[1],
+                receiverExpression: '::'
+            };
+        }
+
+        const namedMatch = linePrefix.match(/([A-Za-z_][A-Za-z0-9_]*)::([A-Za-z_][A-Za-z0-9_]*)$/);
+        if (namedMatch) {
+            return {
+                currentWord: namedMatch[2],
+                receiverExpression: `${namedMatch[1]}::`
+            };
+        }
+
+        return undefined;
     }
 
     private extractReceiverContext(linePrefix: string): ReceiverContext {
