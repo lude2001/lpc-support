@@ -57,5 +57,32 @@ describe('CompletionContextAnalyzer', () => {
         expect(analyzer.analyze(document, new vscode.Position(6, 'include "game/co'.length)).kind).toBe('include-path');
         expect(analyzer.analyze(document, new vscode.Position(7, 'class Pay'.length)).kind).toBe('type-position');
     });
+
+    test('classifies bare and named scoped prefixes as scoped-member contexts', () => {
+        const document = createDocument([
+            '::cr',
+            'room::in'
+        ].join('\n'));
+
+        const bareScoped = analyzer.analyze(document, new vscode.Position(0, '::cr'.length));
+        expect(bareScoped.kind).toBe('scoped-member');
+        expect(bareScoped.currentWord).toBe('cr');
+        expect(bareScoped.receiverExpression).toBe('::');
+
+        const namedScoped = analyzer.analyze(document, new vscode.Position(1, 'room::in'.length));
+        expect(namedScoped.kind).toBe('scoped-member');
+        expect(namedScoped.currentWord).toBe('in');
+        expect(namedScoped.receiverExpression).toBe('room::');
+    });
+
+    test('does not classify qualifier or argument positions as scoped-member', () => {
+        const document = createDocument('room::init(arg);');
+
+        const qualifier = analyzer.analyze(document, new vscode.Position(0, 'room'.length));
+        expect(qualifier.kind).not.toBe('scoped-member');
+
+        const argument = analyzer.analyze(document, new vscode.Position(0, 'room::init(arg'.length));
+        expect(argument.kind).not.toBe('scoped-member');
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
