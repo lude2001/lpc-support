@@ -48,6 +48,13 @@ export class ScopedMethodReturnResolver {
             }
 
             if (outcome.candidates.length === 0) {
+                if (diagnostics.length > 0) {
+                    return {
+                        candidates: [],
+                        diagnostics: this.dedupeDiagnostics(diagnostics)
+                    };
+                }
+
                 return { candidates: [] };
             }
 
