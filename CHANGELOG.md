@@ -2,6 +2,26 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.44.0] - 2026-04-18
+
+### Scoped 方法补全
+
+- 新增 `::method()` 与 `room::method()` 的 scoped 方法补全能力；输入显式父对象或具名 inherit 分支前缀时，现在可以直接获得 direct inherit 图中的方法候选。
+- scoped completion 统一复用 inherit-only 发现路径，不再错误回退到当前文件同名函数、include 文件、普通函数、模拟函数或 efun。
+- 当 qualifier 歧义、direct inherit 未解析、父链不完整或结构不受支持时，scoped completion 会保守返回空候选，避免给出错误补全。
+- scoped completion item resolve 现在走 declaration-based 文档链，补全项说明与既有 scoped definition、hover 和 signature help 保持一致。
+- 补充 scoped discovery、completion context、completion service、provider integration 与生产 runtime wiring 的回归覆盖，并修正参数区误触发和多目标 scoped 候选的保守元数据语义。
+
+## [0.43.0] - 2026-04-17
+
+### Scoped 方法解析
+
+- 新增 `::method()` 与 `room::method()` 的 scoped method 解析能力，显式父对象调用和具名 inherit 分支调用现在可以稳定进入定义跳转、悬停和签名帮助主链。
+- `::factory()` 与 `room::factory()` 现在可以继续复用 `@lpc-return-objects` 返回对象传播，后续 `ob->method()` 定义跳转能够顺着 scoped 调用结果继续落到真实对象实现。
+- scoped method 解析统一走 inherit-only 路径，不再错误回退到当前文件同名函数、include 文件、普通函数、模拟函数或 efun。
+- 当 direct inherit 图存在 qualifier 歧义、未解析 inherit 或不完整父链时，scoped method 结果会保守降级为 `unknown`，避免对部分已解析父链给出错误确定答案。
+- 补充 scoped resolver、documented-return、definition、hover、signature help、runtime wiring 与多行 `::` 调用边界的回归覆盖，并修复生产 runtime 中 scoped resolver 工作区根路径被冻结到启动 `cwd` 的问题。
+
 ## [0.42.0] - 2026-04-17
 
 ### 对象方法推导增强

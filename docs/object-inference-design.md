@@ -2,9 +2,11 @@
 
 ## 1. 概述
 
-对象推导（Object Inference）是 lpc-support 的核心能力之一，用于在 `obj->method()` 形式的成员访问表达式中，静态推导出 `obj` 所指向的 LPC 对象文件路径，从而为 Definition、Completion、Hover 三条 Provider 链提供精确的跳转、补全和文档查询基础。
+对象推导（Object Inference）是 lpc-support 的核心能力之一，用于在 `obj->method()` 形式的成员访问表达式中，静态推导出 `obj` 所指向的 LPC 对象文件路径，从而为 Definition、Completion、Hover 和 Signature Help 四条 Provider 链提供精确的跳转、补全和文档查询基础。
 
-核心设计原则是：统一的 `ObjectInferenceService` 作为唯一入口，被三个 Provider 共享调用，避免各 Provider 各自实现推导逻辑。
+核心设计原则是：统一的 `ObjectInferenceService` 作为唯一入口，被多个语言服务共享调用，避免各 Provider 各自实现推导逻辑。
+
+自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。
 
 ## 2. 架构总览
 
@@ -352,6 +354,38 @@ get_helper()->query();   // 候选：combat_d 和 health_d → status: multiple
 6. 单一文档来源时：显示方法签名 + 描述
 7. 多候选或多文档来源时：显示候选对象路径汇总提示
 
+### 5.4 Scoped 方法解析（0.43.0-0.44.0）
+
+`::method()` 与 `room::method()` 不属于 `obj->method()` 的对象接收者推导，但它们现在与对象推导共享同一套 syntax / semantic / callable-documentation 主路径。
+
+当前实现：
+
+- `src/objectInference/ScopedMethodResolver.ts`
+  - 负责解析裸 `::method()` 与具名 `room::method()`
+  - 只沿 inherit 图做查找，不回退到当前文件、include、普通函数、模拟函数或 efun
+  - qualifier 歧义、direct inherit 未解析或父链不完整时，保守降级为 `unknown`
+- `src/objectInference/ScopedMethodDiscoveryService.ts`
+  - 负责枚举裸 `::` 与具名 `room::` 前缀下可补全的方法候选
+  - 复用同一套 scoped inherit 遍历规则，不把“已写出的具体调用解析”与“前缀候选发现”混成一台装置
+- `src/objectInference/ScopedMethodReturnResolver.ts`
+  - 负责把 scoped 方法命中的实现继续接入 `@lpc-return-objects` 返回对象传播
+  - `::factory()` / `room::factory()` 的返回对象可以继续流向后续 `ob->method()` 对象方法解析
+- `src/language/services/completion/ScopedMethodCompletionSupport.ts`
+  - 负责把 scoped discovery 结果转换为补全候选，并为 completion item resolve 提供 declaration-based 文档装配
+
+消费侧：
+
+- Completion：支持 `::method()` / `room::method()` scoped 调用补全，且 discovery 仍严格保持 inherit-only 与 qualifier 唯一匹配语义
+- Definition：支持 `::method()` / `room::method()` 直接跳转到父实现或指定 inherit 分支实现
+- Hover：支持 scoped 方法文档悬停，且只在 callee 方法标识符位置触发
+- Signature Help：支持 scoped 调用进入统一 callable-documentation 签名帮助链
+
+当前这条链仍然是“保守可证明优先”：
+
+- 结构不支持的 `Foo::bar()` 继续返回 `unsupported`
+- qualifier 歧义、未解析 direct inherit、动态 inherit 或不完整父链返回 `unknown`
+- scoped completion 在上述失败场景下保守返回空候选，不回退到当前文件普通函数、模拟函数或 efun 候选
+
 ## 6. 配置
 
 推导系统依赖以下外部配置：
@@ -369,9 +403,15 @@ get_helper()->query();   // 候选：combat_d 和 health_d → status: multiple
 | 测试文件 | 覆盖范围 |
 |---------|---------|
 | `src/objectInference/__tests__/ObjectInferenceService.test.ts` | 推导服务完整流程：字面量、宏、内建调用、变量追踪、块作用域、if/else 合并、控制流降级、传递追踪、文档注释返回对象 — 38 个用例 |
+| `src/objectInference/__tests__/ScopedMethodResolver.test.ts` | scoped 方法解析：裸 `::method()`、`room::method()`、inherit-only 约束、多 direct inherit、未解析 inherit 保守降级 |
+| `src/objectInference/__tests__/ScopedMethodDiscoveryService.test.ts` | scoped 方法候选发现：裸 `::` / `room::` 前缀、多 direct inherit、qualifier 唯一匹配、未解析 inherit / 歧义保守失败 |
+| `src/objectInference/__tests__/ScopedMethodReturnResolver.test.ts` | scoped 方法返回对象传播：multi-target merge、missing-annotation blocker、空候选保守语义 |
 | `src/objectInference/__tests__/ObjectHoverProvider.test.ts` | Hover Provider：单一候选文档展示、多候选提示、无匹配方法回退 — 5 个用例 |
-| `src/__tests__/providerIntegration.test.ts` | Definition Provider 集成：推导结果到跳转定义的完整链路验证 |
+| `src/__tests__/providerIntegration.test.ts` | Definition Provider 集成：对象推导与 scoped 返回传播到真实跨文件定义的完整链路验证 |
 | `src/__tests__/completionProvider.test.ts` | Completion Provider 集成：推导结果到补全候选的完整链路验证 |
+| `src/__tests__/completionContextAnalyzer.test.ts` / `src/language/services/completion/__tests__/ScopedMethodCompletionSupport.test.ts` / `src/language/services/completion/__tests__/LanguageCompletionService.test.ts` | scoped completion 上下文识别、候选构建、declaration-based 文档 resolve 与 service 级保守降级 |
+| `src/language/services/signatureHelp/__tests__/LanguageSignatureHelpService.test.ts` | scoped method / object method / ordinary callable 的统一签名帮助行为 |
+| `src/language/services/navigation/__tests__/LanguageDefinitionService.test.ts` / `navigationServices.test.ts` | scoped definition / hover 的 consumer 边界、多行 `::` 与 qualifier / argument 防误触回归 |
 
 ## 8. 已知限制与后续方向
 
@@ -390,6 +430,5 @@ get_helper()->query();   // 候选：combat_d 和 health_d → status: multiple
 **后续增强方向**
 
 - 支持跨函数的变量类型传播（通过函数参数类型标注或全局变量追踪）
-- 支持 `::` 操作符的对象推导（父对象方法调用）
 - 利用 `SemanticSnapshot` 的函数签名信息增强参数对象推导
 - 对 `call_other` 等 efun 的特殊处理
