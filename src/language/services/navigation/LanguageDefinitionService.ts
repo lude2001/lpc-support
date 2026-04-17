@@ -12,6 +12,7 @@ import { ObjectInferenceService } from '../../../objectInference/ObjectInference
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { InferredObjectAccess } from '../../../objectInference/types';
 import { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
+import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
@@ -191,18 +192,62 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         position: vscode.Position,
         methodName: string
     ): boolean {
-        const wordRange = document.getWordRangeAtPosition(position);
-        if (!wordRange || document.getText(wordRange) !== methodName) {
+        const methodIdentifier = this.findScopedMethodIdentifierAtPosition(document, position);
+        if (!methodIdentifier || methodIdentifier.name !== methodName) {
             return false;
         }
 
-        const prefix = document.getText(new vscode.Range(
-            wordRange.start.line,
-            0,
-            wordRange.start.line,
-            wordRange.start.character
-        ));
-        return /::\s*$/.test(prefix);
+        return methodIdentifier.range.contains(position);
+    }
+
+    private findScopedMethodIdentifierAtPosition(
+        document: vscode.TextDocument,
+        position: vscode.Position
+    ): SyntaxNode | undefined {
+        const syntax = this.astManager.getSyntaxDocument(document, false)
+            ?? this.astManager.getSyntaxDocument(document, true);
+        if (!syntax) {
+            return undefined;
+        }
+
+        const scopedCallCandidates = [...syntax.nodes]
+            .filter((node) => node.kind === SyntaxKind.CallExpression && node.range.contains(position))
+            .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range));
+
+        for (const candidate of scopedCallCandidates) {
+            const methodIdentifier = this.getScopedMethodIdentifier(candidate);
+            if (methodIdentifier) {
+                return methodIdentifier;
+            }
+        }
+
+        return undefined;
+    }
+
+    private getScopedMethodIdentifier(callExpression: SyntaxNode): SyntaxNode | undefined {
+        const callee = callExpression.children[0];
+        if (!callee) {
+            return undefined;
+        }
+
+        if (callee.kind === SyntaxKind.Identifier && callee.metadata?.scopeQualifier === '::' && callee.name) {
+            return callee;
+        }
+
+        if (callee.kind !== SyntaxKind.MemberAccessExpression || callee.metadata?.operator !== '::') {
+            return undefined;
+        }
+
+        const memberNode = callee.children[1];
+        if (memberNode?.kind !== SyntaxKind.Identifier || !memberNode.name) {
+            return undefined;
+        }
+
+        return memberNode;
+    }
+
+    private getRangeSize(range: vscode.Range): number {
+        return (range.end.line - range.start.line) * 10_000 + (range.end.character - range.start.character);
     }
 
     private createRequestState(): DefinitionRequestState {
