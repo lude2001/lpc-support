@@ -58,3 +58,5 @@ test-output*
 .spec-workflow
 test/lpc_code/
 .worktrees/
+.agents/
+.codex/

@@ -209,7 +209,7 @@ Semantic 层只允许保存轻量关联信息，例如：
 3. 在候选注释结束位置与函数声明开始位置之间，只允许出现：
    - 空白字符
    - 换行
-   - 函数声明修饰词 token：`private` / `public` / `protected` / `static` / `nomask` / `varargs`
+   - grammar 已认可的函数声明前缀修饰词 token
 4. 以下内容一旦出现在候选注释与函数声明之间，绑定立即失效：
    - 预处理指令
    - 其他普通注释
@@ -221,6 +221,11 @@ Semantic 层只允许保存轻量关联信息，例如：
 9. 允许的修饰词 token 必须视为函数声明的一部分，而不是绑定中断项
 
 该规则必须以测试锁定，避免后续不同实现者各自理解。
+
+实现要求：
+
+- 不得在实现中维护一份独立于 grammar/syntax 的修饰词硬编码白名单
+- 应复用 grammar 或 syntax 层已经认可的函数声明前缀 token 集合
 
 #### 绑定示例 A：允许
 
@@ -476,21 +481,8 @@ export type CallableReturnObjects = string[];
 
 ### 9.1 新格式要求
 
-[`config/efun-docs.json`](D:/code/lpc-support/config/efun-docs.json:1) 本次任务内直接升级为结构化格式。建议最少包含：
-
-- `summary`
-- `signatures[]`
-- `details`
-- `note`
-- `reference`
-- `category`
-
-其中 `signatures[]` 每条至少包含：
-
-- `label`
-- `returnType`
-- `parameters[]`
-- `isVariadic`
+[`config/efun-docs.json`](D:/code/lpc-support/config/efun-docs.json:1) 本次任务内直接升级为结构化格式，并且必须满足第 20 节定义的 schema。  
+第 20 节是该文件格式的唯一真源。
 
 ### 9.2 不保留旧格式
 
@@ -742,6 +734,14 @@ export interface CallableDocRenderer {
 }
 ```
 
+其中：
+
+- `renderSignatureSummary(...)` 只消费已经由 `LanguageSignatureHelpService` 选定的 `signatureIndex` 与 `activeParameter`
+- renderer 不得参与：
+  - 候选排序
+  - dedupe / merge
+  - `activeSignature` 选择
+
 ### 10.2 缓存策略
 
 缓存粒度建议按文档：
@@ -781,6 +781,11 @@ Hover 展示目标应保留稳定层次：
 - `note`
 
 展示可以有来源差异，但信息结构不允许分裂成多套逻辑。
+
+### 11.3 多来源 precedence
+
+Hover 在多来源情况下必须复用第 14.7.1 节的来源 precedence 总表，以及第 14.11 节的跨 surface 缺失/冲突行为。  
+不得为 hover 单独定义另一套 precedence 或冲突处理规则。
 
 ## 12. 函数文档面板迁移要求
 
