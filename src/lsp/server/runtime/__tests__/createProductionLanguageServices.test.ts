@@ -134,7 +134,9 @@ describe('createProductionLanguageServices', () => {
     });
 
     test('createProductionLanguageServices passes scopedMethodResolver into shipped hover, definition, and signature-help services', () => {
+        const macroManager = { kind: 'macro-manager' };
         const scopedMethodResolver = { kind: 'scoped-method-resolver' };
+        const scopedMethodResolverCtor = jest.fn(() => scopedMethodResolver);
         const hoverCtor = jest.fn(() => ({ provideHover: jest.fn() }));
         const definitionCtor = jest.fn(() => ({ provideDefinition: jest.fn() }));
         const signatureHelpCtor = jest.fn(() => ({ provideSignatureHelp: jest.fn() }));
@@ -144,7 +146,7 @@ describe('createProductionLanguageServices', () => {
                 LpcProjectConfigService: jest.fn(() => ({ kind: 'project-config' }))
             }));
             jest.doMock('../../../../macroManager', () => ({
-                MacroManager: jest.fn(() => ({ kind: 'macro-manager' }))
+                MacroManager: jest.fn(() => macroManager)
             }));
             jest.doMock('../../../../efun/EfunDocsManager', () => ({
                 EfunDocsManager: jest.fn(() => ({ kind: 'efun-docs-manager' }))
@@ -173,7 +175,7 @@ describe('createProductionLanguageServices', () => {
                 ObjectInferenceService: jest.fn(() => ({ kind: 'object-inference-service' }))
             }));
             jest.doMock('../../../../objectInference/ScopedMethodResolver', () => ({
-                ScopedMethodResolver: jest.fn(() => scopedMethodResolver)
+                ScopedMethodResolver: scopedMethodResolverCtor
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
                 TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
@@ -218,6 +220,8 @@ describe('createProductionLanguageServices', () => {
 
             createProductionLanguageServices();
 
+            expect(scopedMethodResolverCtor).toHaveBeenCalledWith(macroManager);
+            expect(scopedMethodResolverCtor).not.toHaveBeenCalledWith(macroManager, [process.cwd()]);
             expect(hoverCtor).toHaveBeenCalledWith(
                 expect.anything(),
                 expect.anything(),

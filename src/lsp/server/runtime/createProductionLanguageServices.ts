@@ -41,7 +41,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const efunDocsManager = new EfunDocsManager(createServerExtensionContext(), projectConfigService);
     const completionInstrumentation = new CompletionInstrumentation();
     const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService);
-    const scopedMethodResolver = new ScopedMethodResolver(macroManager, [process.cwd()]);
+    const scopedMethodResolver = new ScopedMethodResolver(macroManager);
     const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
 
     const completionService = new QueryBackedLanguageCompletionService(
