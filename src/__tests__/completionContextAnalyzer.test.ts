@@ -75,8 +75,13 @@ describe('CompletionContextAnalyzer', () => {
         expect(namedScoped.receiverExpression).toBe('room::');
     });
 
-    test('does not classify qualifier or argument positions as scoped-member', () => {
+    test('classifies scoped method name positions while excluding qualifier and argument positions', () => {
         const document = createDocument('room::init(arg);');
+
+        const scopedMethod = analyzer.analyze(document, new vscode.Position(0, 'room::init'.length));
+        expect(scopedMethod.kind).toBe('scoped-member');
+        expect(scopedMethod.currentWord).toBe('init');
+        expect(scopedMethod.receiverExpression).toBe('room::');
 
         const qualifier = analyzer.analyze(document, new vscode.Position(0, 'room'.length));
         expect(qualifier.kind).not.toBe('scoped-member');
