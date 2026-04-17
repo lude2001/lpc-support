@@ -240,4 +240,55 @@ describe('EfunHoverProvider', () => {
         expect(manager.getSimulatedDoc).not.toHaveBeenCalled();
         expect(manager.getEfunDoc).not.toHaveBeenCalled();
     });
+
+    test('prefers the in-file implementation hover over a leading prototype with the same name', async () => {
+        const content = [
+            'private mapping execute_command(object actor, string arg);',
+            '',
+            'void demo() {',
+            '    execute_command(this_object(), "go");',
+            '}',
+            '',
+            '/**',
+            ' * @brief 执行最小正式突破命令的结构化逻辑。',
+            ' */',
+            'mapping execute_command(object actor, string arg) {',
+            '    return ([]);',
+            '}'
+        ].join('\n');
+        mockGetSyntaxDocument.mockReturnValue(undefined);
+        const manager = new EfunDocsManager({
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext);
+        const provider = new EfunHoverProvider(manager);
+        const document = {
+            uri: vscode.Uri.file('D:/workspace/prototype-hover.c'),
+            languageId: 'lpc',
+            fileName: 'D:/workspace/prototype-hover.c',
+            version: 1,
+            getWordRangeAtPosition: jest.fn().mockReturnValue(new vscode.Range(3, 4, 3, 19)),
+            getText: jest.fn((range?: vscode.Range) => {
+                if (!range) {
+                    return content;
+                }
+
+                const lines = content.split('\n');
+                const startOffset = lines.slice(0, range.start.line).reduce((sum, line) => sum + line.length + 1, 0) + range.start.character;
+                const endOffset = lines.slice(0, range.end.line).reduce((sum, line) => sum + line.length + 1, 0) + range.end.character;
+                return content.slice(startOffset, endOffset);
+            }),
+            positionAt: jest.fn(),
+            offsetAt: jest.fn(),
+            lineAt: jest.fn((line: number) => ({ text: content.split('\n')[line] ?? '' }))
+        } as unknown as vscode.TextDocument;
+
+        const hover = await provider.provideHover(document, new vscode.Position(3, 8));
+
+        expect(hover).toBeInstanceOf(vscode.Hover);
+        const markdown = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        expect(markdown.value).toContain('mapping execute_command(object actor, string arg)');
+        expect(markdown.value).toContain('执行最小正式突破命令的结构化逻辑');
+        expect(markdown.value).not.toContain('private mapping execute_command(object actor, string arg);');
+    });
 });

@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../completion/documentSemanticSnapshotService';
+import { EfunDocsManager } from '../../../../efunDocs';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
 import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
@@ -253,6 +254,48 @@ describe('LanguageSignatureHelpService', () => {
             activeSignature: 0,
             activeParameter: 1
         });
+    });
+
+    test('prefers the in-file implementation signature help over a leading prototype with the same name', async () => {
+        const source = [
+            'private mapping execute_command(object actor, string arg);',
+            '',
+            'void demo() {',
+            '    execute_command(this_object(), "go");',
+            '}',
+            '',
+            '/**',
+            ' * @brief 执行最小正式突破命令的结构化逻辑。',
+            ' */',
+            'mapping execute_command(object actor, string arg) {',
+            '    return ([]);',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, 'D:/workspace/prototype-signature.c');
+        const efunDocsManager = new EfunDocsManager({
+            subscriptions: [],
+            extensionPath: process.cwd()
+        } as unknown as vscode.ExtensionContext);
+        const service = new LanguageSignatureHelpService({
+            efunDocsManager,
+            host: {
+                openTextDocument: jest.fn(async () => document)
+            }
+        });
+
+        const result = await service.provideSignatureHelp({
+            context: createContext(document),
+            position: (() => {
+                const position = positionAfter(source, '"go"');
+                return {
+                    line: position.line,
+                    character: position.character
+                };
+            })()
+        });
+
+        expect(result?.signatures[0].label).toBe('mapping execute_command(object actor, string arg)');
+        expect(result?.signatures[0].documentation).toContain('执行最小正式突破命令的结构化逻辑');
     });
 
     test('returns signature help for inherited and include-backed calls with their own provenance', async () => {

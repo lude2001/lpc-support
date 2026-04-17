@@ -178,6 +178,29 @@ describe('FunctionDocumentationService', () => {
         expect(callableDoc.returnObjects).toBeUndefined();
     });
 
+    test('prefers an in-file implementation ahead of a leading prototype for same-name docs', () => {
+        const source = [
+            'private mapping execute_command(object actor, string arg);',
+            '',
+            '/**',
+            ' * @brief 执行最小正式突破命令的结构化逻辑。',
+            ' */',
+            'mapping execute_command(object actor, string arg) {',
+            '    return ([]);',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/prototype-leading-docs.c');
+        const service = new FunctionDocumentationService();
+
+        const docs = service.getDocsByName(document, 'execute_command');
+
+        expect(docs).toHaveLength(2);
+        expect(docs[0].summary).toBe('执行最小正式突破命令的结构化逻辑。');
+        expect(docs[0].signatures[0].label).toBe('mapping execute_command(object actor, string arg)');
+        expect(docs[1].summary).toBeUndefined();
+        expect(docs[1].signatures[0].label).toBe('private mapping execute_command(object actor, string arg);');
+    });
+
     test('rebuilds a document after invalidate(uri) and auto-refreshes same-version text changes', () => {
         const originalDocument = createDocument([
             '/**',

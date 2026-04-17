@@ -339,13 +339,18 @@ export class FileFunctionDocTracker {
         const documentDocs = this.documentationService.getDocumentDocs(document);
         const docs = new Map<string, EfunDoc>();
 
-        for (const declarationKey of documentDocs.declarationOrder) {
-            const callableDoc = documentDocs.byDeclaration.get(declarationKey);
-            if (!callableDoc || docs.has(callableDoc.name)) {
+        for (const [name, declarationKeys] of documentDocs.byName.entries()) {
+            const preferredDeclarationKey = declarationKeys[0];
+            if (!preferredDeclarationKey || docs.has(name)) {
                 continue;
             }
 
-            docs.set(callableDoc.name, this.materializeCompatDoc(callableDoc, category));
+            const callableDoc = documentDocs.byDeclaration.get(preferredDeclarationKey);
+            if (!callableDoc) {
+                continue;
+            }
+
+            docs.set(name, this.materializeCompatDoc(callableDoc, category));
         }
 
         return docs;

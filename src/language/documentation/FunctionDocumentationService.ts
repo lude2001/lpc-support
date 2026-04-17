@@ -44,6 +44,13 @@ interface CachedDocumentDocsEntry {
     docs: DocumentCallableDocs;
 }
 
+interface CallableDocEntry {
+    declarationKey: string;
+    callableDoc: CallableDoc;
+    hasBody: boolean;
+    order: number;
+}
+
 export class FunctionDocumentationService {
     private readonly documentCache = new Map<string, CachedDocumentDocsEntry>();
 
@@ -100,21 +107,35 @@ export class FunctionDocumentationService {
         const uri = document.uri.toString();
         const byDeclaration = new Map<string, CallableDoc>();
         const byName = new Map<string, string[]>();
+        const entriesByName = new Map<string, CallableDocEntry[]>();
         const parsed = getGlobalParsedDocumentService().get(document);
         const syntax = new SyntaxBuilder(parsed).build();
         const functionNodes = syntax.nodes
             .filter((node): node is SyntaxNode => node.kind === SyntaxKind.FunctionDeclaration)
             .sort(compareSyntaxNodeOrder);
 
-        for (const functionNode of functionNodes) {
+        for (const [order, functionNode] of functionNodes.entries()) {
             const declarationKey = buildDeclarationKey(uri, functionNode.range);
             const callableDoc = this.buildCallableDoc(document, functionNode, declarationKey);
+            const hasBody = this.hasFunctionBody(functionNode);
 
             byDeclaration.set(declarationKey, callableDoc);
 
-            const existingKeys = byName.get(callableDoc.name) ?? [];
-            existingKeys.push(declarationKey);
-            byName.set(callableDoc.name, existingKeys);
+            const existingEntries = entriesByName.get(callableDoc.name) ?? [];
+            existingEntries.push({
+                declarationKey,
+                callableDoc,
+                hasBody,
+                order
+            });
+            entriesByName.set(callableDoc.name, existingEntries);
+        }
+
+        for (const [name, entries] of entriesByName.entries()) {
+            const orderedKeys = [...entries]
+                .sort(compareCallableDocEntries)
+                .map((entry) => entry.declarationKey);
+            byName.set(name, orderedKeys);
         }
 
         return {
@@ -165,6 +186,11 @@ export class FunctionDocumentationService {
             isVariadic: parameters.some((parameter) => parameter.variadic === true),
             rawSyntax
         };
+    }
+
+    private hasFunctionBody(functionNode: SyntaxNode): boolean {
+        return functionNode.metadata?.hasBody === true
+            || functionNode.children.some((child) => child.kind === SyntaxKind.Block);
     }
 }
 
@@ -508,6 +534,14 @@ function compareSyntaxNodeOrder(left: SyntaxNode, right: SyntaxNode): number {
     }
 
     return left.range.end.character - right.range.end.character;
+}
+
+function compareCallableDocEntries(left: CallableDocEntry, right: CallableDocEntry): number {
+    if (left.hasBody !== right.hasBody) {
+        return left.hasBody ? -1 : 1;
+    }
+
+    return left.order - right.order;
 }
 
 function isSupportedTag(tagName: string): tagName is SupportedTag {

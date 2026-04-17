@@ -452,6 +452,60 @@ describe('AstBackedLanguageDefinitionService', () => {
         ]);
     });
 
+    test('definition service resolves a leading prototype name to the later in-file implementation', async () => {
+        const source = [
+            'private mapping execute_command(object actor, string arg);',
+            '',
+            'void demo() {',
+            '    execute_command(this_object(), "go");',
+            '}',
+            '',
+            '/**',
+            ' * @brief 执行最小正式突破命令的结构化逻辑。',
+            ' */',
+            'mapping execute_command(object actor, string arg) {',
+            '    return ([]);',
+            '}'
+        ].join('\n');
+        const document = createTextDocument('D:\\workspace\\prototype-definition.c', source);
+        const service = new AstBackedLanguageDefinitionService(
+            { getMacro: jest.fn().mockReturnValue(undefined) } as any,
+            { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
+            undefined,
+            undefined,
+            {
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: jest.fn(),
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:\\workspace' } })),
+                    getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:\\workspace' } }]),
+                    fileExists: jest.fn().mockReturnValue(false)
+                }
+            } as any
+        );
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 0, character: 18 }
+        });
+
+        expect(definition).toEqual([
+            {
+                uri: document.uri.toString(),
+                range: {
+                    start: { line: 9, character: 8 },
+                    end: { line: 9, character: 23 }
+                }
+            }
+        ]);
+    });
+
     test('definition service resolves bare ::create() before ordinary function fallback', async () => {
         const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    ::create();\n}\n');
         const service = new AstBackedLanguageDefinitionService(
