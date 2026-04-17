@@ -5,6 +5,8 @@ import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigS
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { PathResolver } from '../utils/pathResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
+import { ScopedMethodResolver } from './ScopedMethodResolver';
+import { ScopedMethodReturnResolver } from './ScopedMethodReturnResolver';
 import { ClassifiedReceiver, ObjectCandidate, ObjectInferenceDiagnostic, ObjectInferenceReason } from './types';
 
 export interface ObjectResolutionOutcome {
@@ -16,13 +18,19 @@ export interface ObjectResolutionOutcome {
 export class ReturnObjectResolver {
     private readonly classifier = new ReceiverClassifier();
     private readonly documentationService: FunctionDocumentationService;
+    private scopedMethodReturnResolver?: ScopedMethodReturnResolver;
 
     constructor(
         private readonly macroManager?: MacroManager,
         private readonly playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
-        documentationService?: FunctionDocumentationService
+        documentationService?: FunctionDocumentationService,
+        private readonly scopedMethodResolver?: ScopedMethodResolver
     ) {
         this.documentationService = documentationService ?? new FunctionDocumentationService();
+    }
+
+    public attachScopedMethodReturnResolver(resolver: ScopedMethodReturnResolver): void {
+        this.scopedMethodReturnResolver = resolver;
     }
 
     public async resolveExpression(
@@ -38,6 +46,13 @@ export class ReturnObjectResolver {
     ): Promise<ObjectResolutionOutcome> {
         if (expression.kind === SyntaxKind.ParenthesizedExpression && expression.children[0]) {
             return this.resolveExpressionOutcome(document, expression.children[0]);
+        }
+
+        if (expression.kind === SyntaxKind.CallExpression) {
+            const scopedOutcome = await this.resolveScopedExpressionOutcome(document, expression);
+            if (scopedOutcome) {
+                return scopedOutcome;
+            }
         }
 
         const classified = this.classifier.classify(expression);
@@ -163,6 +178,40 @@ export class ReturnObjectResolver {
         functionName: string
     ): Promise<ObjectCandidate[]> {
         return (await this.resolveDocumentedReturnOutcome(document, functionName)).candidates;
+    }
+
+    private async resolveScopedExpressionOutcome(
+        document: vscode.TextDocument,
+        expression: SyntaxNode
+    ): Promise<ObjectResolutionOutcome | undefined> {
+        if (!this.scopedMethodResolver || expression.kind !== SyntaxKind.CallExpression) {
+            return undefined;
+        }
+
+        const scopedResolution = await this.scopedMethodResolver.resolveCallAt(document, expression.range.start);
+        if (!scopedResolution) {
+            return undefined;
+        }
+
+        if (scopedResolution.status === 'unsupported') {
+            return {
+                candidates: [],
+                reason: 'unsupported-expression'
+            };
+        }
+
+        if (scopedResolution.status === 'unknown') {
+            return { candidates: [] };
+        }
+
+        if (!this.scopedMethodReturnResolver) {
+            return { candidates: [] };
+        }
+
+        return this.scopedMethodReturnResolver.resolveScopedMethodReturnOutcome(
+            document,
+            scopedResolution.targets
+        );
     }
 
     private async resolvePathCandidate(
