@@ -210,17 +210,6 @@ export class ScopedMethodDiscoveryService {
     ): ScopedDiscoveryShape | undefined {
         const offset = document.offsetAt(position);
         const visibleTokens = syntax.parsed.allTokens.filter((token) => token.type > 0);
-        if (document.fileName.endsWith('bad_scope.c')) {
-            console.log('scoped-token-debug', {
-                offset,
-                tokens: visibleTokens.map((token) => ({
-                    text: token.text,
-                    type: token.type,
-                    start: token.startIndex,
-                    stop: token.stopIndex
-                }))
-            });
-        }
         let identifierIndex = -1;
 
         for (let index = visibleTokens.length - 1; index >= 0; index -= 1) {

@@ -89,5 +89,12 @@ describe('CompletionContextAnalyzer', () => {
         const argument = analyzer.analyze(document, new vscode.Position(0, 'room::init(arg'.length));
         expect(argument.kind).not.toBe('scoped-member');
     });
+
+    test('does not classify scoped prefixes when the cursor is already inside outer call arguments', () => {
+        const document = createDocument('call(room::in');
+
+        const nestedArgument = analyzer.analyze(document, new vscode.Position(0, 'call(room::in'.length));
+        expect(nestedArgument.kind).not.toBe('scoped-member');
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

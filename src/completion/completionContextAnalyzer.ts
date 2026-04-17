@@ -93,6 +93,10 @@ export class CompletionContextAnalyzer {
     }
 
     private extractScopedContext(linePrefix: string): ScopedContext | undefined {
+        if (this.isInsideParenthesizedArguments(linePrefix)) {
+            return undefined;
+        }
+
         const bareMatch = linePrefix.match(/(?:^|[\s([{\],;:=])::([A-Za-z_][A-Za-z0-9_]*)$/);
         if (bareMatch) {
             return {
@@ -110,6 +114,50 @@ export class CompletionContextAnalyzer {
         }
 
         return undefined;
+    }
+
+    private isInsideParenthesizedArguments(linePrefix: string): boolean {
+        let depth = 0;
+        let inSingleQuote = false;
+        let inDoubleQuote = false;
+        let escaped = false;
+
+        for (const character of linePrefix) {
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+
+            if (character === '\\') {
+                escaped = true;
+                continue;
+            }
+
+            if (character === '\'' && !inDoubleQuote) {
+                inSingleQuote = !inSingleQuote;
+                continue;
+            }
+
+            if (character === '"' && !inSingleQuote) {
+                inDoubleQuote = !inDoubleQuote;
+                continue;
+            }
+
+            if (inSingleQuote || inDoubleQuote) {
+                continue;
+            }
+
+            if (character === '(') {
+                depth += 1;
+                continue;
+            }
+
+            if (character === ')' && depth > 0) {
+                depth -= 1;
+            }
+        }
+
+        return depth > 0;
     }
 
     private extractReceiverContext(linePrefix: string): ReceiverContext {
