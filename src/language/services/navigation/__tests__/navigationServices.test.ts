@@ -256,6 +256,92 @@ describe('navigation services', () => {
         expect(hover?.contents[0].value).toContain('void init()');
     });
 
+    test('hover service does not render room::init(arg) scoped docs when hovering the qualifier', async () => {
+        const document = createDocument('room::init(arg);');
+        const documentationService = {
+            getDocForDeclaration: jest.fn().mockReturnValue(
+                createCallableDoc('init', 'void init()', '房间初始化')
+            )
+        };
+        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+            {} as any,
+            undefined,
+            undefined,
+            undefined,
+            {
+                scopedMethodResolver: createScopedMethodResolverStub({
+                    status: 'resolved',
+                    qualifier: 'room',
+                    methodName: 'init',
+                    targets: [{
+                        path: 'D:/workspace/std/room.c',
+                        methodName: 'init',
+                        declarationRange: new vscode.Range(3, 5, 3, 9),
+                        location: new vscode.Location(
+                            vscode.Uri.file('D:/workspace/std/room.c'),
+                            new vscode.Range(3, 5, 3, 9)
+                        ),
+                        document: createVsCodeTextDocument('D:/workspace/std/room.c', 'void init() {}'),
+                        sourceLabel: 'D:/workspace/std/room.c'
+                    }]
+                }),
+                objectAccessProvider: { inferObjectAccess: jest.fn().mockResolvedValue(undefined) },
+                documentationService: documentationService as any
+            } as any
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document),
+            position: { line: 0, character: 2 }
+        });
+
+        expect(hover).toBeUndefined();
+        expect(documentationService.getDocForDeclaration).not.toHaveBeenCalled();
+    });
+
+    test('hover service does not render room::init(init) scoped docs when hovering the argument', async () => {
+        const document = createDocument('room::init(init);');
+        const documentationService = {
+            getDocForDeclaration: jest.fn().mockReturnValue(
+                createCallableDoc('init', 'void init()', '房间初始化')
+            )
+        };
+        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+            {} as any,
+            undefined,
+            undefined,
+            undefined,
+            {
+                scopedMethodResolver: createScopedMethodResolverStub({
+                    status: 'resolved',
+                    qualifier: 'room',
+                    methodName: 'init',
+                    targets: [{
+                        path: 'D:/workspace/std/room.c',
+                        methodName: 'init',
+                        declarationRange: new vscode.Range(3, 5, 3, 9),
+                        location: new vscode.Location(
+                            vscode.Uri.file('D:/workspace/std/room.c'),
+                            new vscode.Range(3, 5, 3, 9)
+                        ),
+                        document: createVsCodeTextDocument('D:/workspace/std/room.c', 'void init() {}'),
+                        sourceLabel: 'D:/workspace/std/room.c'
+                    }]
+                }),
+                objectAccessProvider: { inferObjectAccess: jest.fn().mockResolvedValue(undefined) },
+                documentationService: documentationService as any
+            } as any
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document),
+            position: { line: 0, character: 13 }
+        });
+
+        expect(hover).toBeUndefined();
+        expect(documentationService.getDocForDeclaration).not.toHaveBeenCalled();
+    });
+
     test('unified hover service resolves macro hovers before other hover sources', async () => {
         const document = createDocument('USER_D');
         const macroHoverContent = { value: 'macro docs' };

@@ -158,7 +158,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
 
         const word = document.getText(wordRange);
         const scopedResolution = await this.scopedMethodResolver?.resolveCallAt(document, position);
-        if (scopedResolution) {
+        if (scopedResolution && this.isOnScopedMethodIdentifier(document, position, scopedResolution.methodName)) {
             if (scopedResolution.status === 'resolved' || scopedResolution.status === 'multiple') {
                 return this.toLanguageLocations(scopedResolution.targets.map((target) => target.location));
             }
@@ -184,6 +184,25 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         }
 
         return this.toLanguageLocations(await this.findFunctionDefinition(document, word, requestState));
+    }
+
+    private isOnScopedMethodIdentifier(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        methodName: string
+    ): boolean {
+        const wordRange = document.getWordRangeAtPosition(position);
+        if (!wordRange || document.getText(wordRange) !== methodName) {
+            return false;
+        }
+
+        const prefix = document.getText(new vscode.Range(
+            wordRange.start.line,
+            0,
+            wordRange.start.line,
+            wordRange.start.character
+        ));
+        return /::\s*$/.test(prefix);
     }
 
     private createRequestState(): DefinitionRequestState {

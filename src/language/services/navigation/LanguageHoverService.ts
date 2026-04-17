@@ -218,7 +218,7 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
             ensureVsCodeBackedDocument(document),
             toVsCodePosition(request.position)
         );
-        if (scopedResolution) {
+        if (scopedResolution && this.isHoveringScopedMethodIdentifier(document, request.position, scopedResolution.methodName)) {
             if (scopedResolution.status === 'unknown' || scopedResolution.status === 'unsupported') {
                 return undefined;
             }
@@ -280,6 +280,26 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
             ],
             range
         };
+    }
+
+    private isHoveringScopedMethodIdentifier(
+        document: HoverDocument,
+        position: LanguagePosition,
+        methodName: string
+    ): boolean {
+        const wordRange = document.getWordRangeAtPosition(position);
+        if (!wordRange || document.getText(wordRange) !== methodName) {
+            return false;
+        }
+
+        const prefix = document.getText({
+            start: {
+                line: wordRange.start.line,
+                character: 0
+            },
+            end: wordRange.start
+        });
+        return /::\s*$/.test(prefix);
     }
 
     private isHoveringMemberName(

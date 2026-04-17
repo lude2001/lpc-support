@@ -606,4 +606,136 @@ describe('AstBackedLanguageDefinitionService', () => {
         expect(definition).toEqual([]);
         expect(fallbackSpy).not.toHaveBeenCalled();
     });
+
+    test('definition service does not resolve scoped room::init(arg) when the position is on the qualifier', async () => {
+        const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    room::init(arg);\n}\n');
+        const qualifierLocation = {
+            uri: document.uri.toString(),
+            range: {
+                start: { line: 1, character: 4 },
+                end: { line: 1, character: 8 }
+            }
+        };
+        const visibleVariableSpy = jest.fn((_: vscode.TextDocument, variableName: string) => (
+            variableName === 'room' ? qualifierLocation : undefined
+        ));
+        const service = new AstBackedLanguageDefinitionService(
+            {} as any,
+            { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
+            undefined,
+            undefined,
+            {
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: jest.fn(),
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn(),
+                    getWorkspaceFolders: jest.fn(),
+                    fileExists: jest.fn().mockReturnValue(false)
+                },
+                semanticAdapter: {
+                    getIncludeStatements: jest.fn().mockReturnValue([]),
+                    getInheritStatements: jest.fn().mockReturnValue([]),
+                    getExportedFunctionNames: jest.fn().mockReturnValue([]),
+                    findFunctionLocation: jest.fn().mockReturnValue(undefined),
+                    resolveVisibleVariableLocation: visibleVariableSpy
+                },
+                scopedMethodResolver: createScopedMethodResolverStub({
+                    status: 'resolved',
+                    qualifier: 'room',
+                    methodName: 'init',
+                    targets: [{
+                        path: 'D:\\workspace\\std\\room.c',
+                        methodName: 'init',
+                        declarationRange: new vscode.Range(1, 5, 1, 9),
+                        location: new vscode.Location(
+                            vscode.Uri.file('D:\\workspace\\std\\room.c'),
+                            new vscode.Range(1, 5, 1, 9)
+                        ),
+                        document: createTextDocument('D:\\workspace\\std\\room.c', 'void init() {}\n'),
+                        sourceLabel: 'D:\\workspace\\std\\room.c'
+                    }]
+                })
+            }
+        );
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 1, character: 6 }
+        });
+
+        expect(definition).toEqual([qualifierLocation]);
+        expect(visibleVariableSpy).toHaveBeenCalled();
+    });
+
+    test('definition service does not resolve scoped room::init(init) when the position is on the argument', async () => {
+        const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    room::init(init);\n}\n');
+        const argumentLocation = {
+            uri: document.uri.toString(),
+            range: {
+                start: { line: 1, character: 15 },
+                end: { line: 1, character: 19 }
+            }
+        };
+        const visibleVariableSpy = jest.fn((_: vscode.TextDocument, variableName: string) => (
+            variableName === 'init' ? argumentLocation : undefined
+        ));
+        const service = new AstBackedLanguageDefinitionService(
+            {} as any,
+            { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
+            undefined,
+            undefined,
+            {
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: jest.fn(),
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn(),
+                    getWorkspaceFolders: jest.fn(),
+                    fileExists: jest.fn().mockReturnValue(false)
+                },
+                semanticAdapter: {
+                    getIncludeStatements: jest.fn().mockReturnValue([]),
+                    getInheritStatements: jest.fn().mockReturnValue([]),
+                    getExportedFunctionNames: jest.fn().mockReturnValue([]),
+                    findFunctionLocation: jest.fn().mockReturnValue(undefined),
+                    resolveVisibleVariableLocation: visibleVariableSpy
+                },
+                scopedMethodResolver: createScopedMethodResolverStub({
+                    status: 'resolved',
+                    qualifier: 'room',
+                    methodName: 'init',
+                    targets: [{
+                        path: 'D:\\workspace\\std\\room.c',
+                        methodName: 'init',
+                        declarationRange: new vscode.Range(1, 5, 1, 9),
+                        location: new vscode.Location(
+                            vscode.Uri.file('D:\\workspace\\std\\room.c'),
+                            new vscode.Range(1, 5, 1, 9)
+                        ),
+                        document: createTextDocument('D:\\workspace\\std\\room.c', 'void init() {}\n'),
+                        sourceLabel: 'D:\\workspace\\std\\room.c'
+                    }]
+                })
+            }
+        );
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 1, character: 17 }
+        });
+
+        expect(definition).toEqual([argumentLocation]);
+        expect(visibleVariableSpy).toHaveBeenCalled();
+    });
 });
