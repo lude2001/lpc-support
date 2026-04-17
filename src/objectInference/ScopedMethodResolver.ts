@@ -30,6 +30,16 @@ type ResolvedScopedInheritTarget = ResolvedInheritTarget & {
     isResolved: true;
 };
 
+interface ScopedSeedResolution {
+    resolvedTargets: ResolvedScopedInheritTarget[];
+    hasUnresolvedTargets: boolean;
+}
+
+interface ScopedTargetCollection {
+    targets: ScopedMethodTarget[];
+    hasUnresolvedTargets: boolean;
+}
+
 type ScopedCallShape =
     | { kind: 'bare'; methodName: string }
     | { kind: 'named'; qualifier: string; methodName: string }
@@ -80,13 +90,13 @@ export class ScopedMethodResolver {
                 );
             }
 
-            const targets = scope.kind === 'bare'
+            const targetCollection = scope.kind === 'bare'
                 ? await this.resolveBareScopedTargets(document, scope.methodName)
                 : await this.resolveNamedScopedTargets(document, scope.qualifier, scope.methodName);
 
             return scope.kind === 'bare'
-                ? this.normalizeScopedResolution(scope.methodName, targets)
-                : this.normalizeScopedResolution(scope.methodName, targets, scope.qualifier);
+                ? this.normalizeScopedResolution(scope.methodName, targetCollection)
+                : this.normalizeScopedResolution(scope.methodName, targetCollection, scope.qualifier);
         }
 
         return undefined;
@@ -186,29 +196,57 @@ export class ScopedMethodResolver {
     private async resolveBareScopedTargets(
         document: vscode.TextDocument,
         methodName: string
-    ): Promise<ScopedMethodTarget[]> {
+    ): Promise<ScopedTargetCollection> {
         const snapshot = this.astManager.getSemanticSnapshot(document, false);
         const directSeeds = this.resolveDirectInheritSeeds(snapshot);
+        if (directSeeds.hasUnresolvedTargets) {
+            return {
+                targets: [],
+                hasUnresolvedTargets: true
+            };
+        }
+
         const visitedUris = new Set<string>();
         const targets: ScopedMethodTarget[] = [];
 
-        for (const seed of directSeeds) {
-            targets.push(...await this.collectTargetsFromSeed(seed, methodName, visitedUris));
+        for (const seed of directSeeds.resolvedTargets) {
+            const branchResult = await this.collectTargetsFromSeed(seed, methodName, visitedUris);
+            if (branchResult.hasUnresolvedTargets) {
+                return {
+                    targets: [],
+                    hasUnresolvedTargets: true
+                };
+            }
+
+            targets.push(...branchResult.targets);
         }
 
-        return targets;
+        return {
+            targets,
+            hasUnresolvedTargets: false
+        };
     }
 
     private async resolveNamedScopedTargets(
         document: vscode.TextDocument,
         qualifier: string,
         methodName: string
-    ): Promise<ScopedMethodTarget[]> {
+    ): Promise<ScopedTargetCollection> {
         const snapshot = this.astManager.getSemanticSnapshot(document, false);
         const directSeeds = this.resolveDirectInheritSeeds(snapshot);
-        const matchedSeeds = directSeeds.filter((seed) => this.matchesQualifier(seed, qualifier));
+        if (directSeeds.hasUnresolvedTargets) {
+            return {
+                targets: [],
+                hasUnresolvedTargets: true
+            };
+        }
+
+        const matchedSeeds = directSeeds.resolvedTargets.filter((seed) => this.matchesQualifier(seed, qualifier));
         if (matchedSeeds.length !== 1) {
-            return [];
+            return {
+                targets: [],
+                hasUnresolvedTargets: false
+            };
         }
 
         return this.collectTargetsFromSeed(matchedSeeds[0], methodName, new Set<string>());
@@ -216,11 +254,13 @@ export class ScopedMethodResolver {
 
     private resolveDirectInheritSeeds(
         snapshot: Parameters<InheritanceResolver['resolveInheritTargets']>[0]
-    ): ResolvedScopedInheritTarget[] {
+    ): ScopedSeedResolution {
         const resolvedTargets: ResolvedScopedInheritTarget[] = [];
+        let hasUnresolvedTargets = false;
 
         for (const target of this.inheritanceResolver.resolveInheritTargets(snapshot)) {
             if (!target.isResolved || !target.resolvedUri) {
+                hasUnresolvedTargets = true;
                 continue;
             }
 
@@ -231,7 +271,10 @@ export class ScopedMethodResolver {
             });
         }
 
-        return resolvedTargets;
+        return {
+            resolvedTargets,
+            hasUnresolvedTargets
+        };
     }
 
     private matchesQualifier(target: ResolvedScopedInheritTarget, qualifier: string): boolean {
@@ -242,10 +285,13 @@ export class ScopedMethodResolver {
         seed: ResolvedScopedInheritTarget,
         methodName: string,
         visitedUris: Set<string>
-    ): Promise<ScopedMethodTarget[]> {
+    ): Promise<ScopedTargetCollection> {
         const normalizedUri = seed.resolvedUri;
         if (visitedUris.has(normalizedUri)) {
-            return [];
+            return {
+                targets: [],
+                hasUnresolvedTargets: false
+            };
         }
 
         visitedUris.add(normalizedUri);
@@ -261,13 +307,34 @@ export class ScopedMethodResolver {
             }
 
             const nestedSeeds = this.resolveDirectInheritSeeds(snapshot);
-            for (const nestedSeed of nestedSeeds) {
-                targets.push(...await this.collectTargetsFromSeed(nestedSeed, methodName, visitedUris));
+            if (nestedSeeds.hasUnresolvedTargets) {
+                return {
+                    targets: [],
+                    hasUnresolvedTargets: true
+                };
             }
 
-            return targets;
+            for (const nestedSeed of nestedSeeds.resolvedTargets) {
+                const nestedResult = await this.collectTargetsFromSeed(nestedSeed, methodName, visitedUris);
+                if (nestedResult.hasUnresolvedTargets) {
+                    return {
+                        targets: [],
+                        hasUnresolvedTargets: true
+                    };
+                }
+
+                targets.push(...nestedResult.targets);
+            }
+
+            return {
+                targets,
+                hasUnresolvedTargets: false
+            };
         } catch {
-            return [];
+            return {
+                targets: [],
+                hasUnresolvedTargets: false
+            };
         }
     }
 
@@ -295,13 +362,22 @@ export class ScopedMethodResolver {
 
     private normalizeScopedResolution(
         methodName: string,
-        targets: ScopedMethodTarget[],
+        targetCollection: ScopedTargetCollection,
         qualifier?: string
     ): ScopedMethodResolution {
+        if (targetCollection.hasUnresolvedTargets) {
+            return {
+                status: 'unknown',
+                methodName,
+                qualifier,
+                targets: []
+            };
+        }
+
         const deduped: ScopedMethodTarget[] = [];
         const seen = new Set<string>();
 
-        for (const target of targets) {
+        for (const target of targetCollection.targets) {
             const key = this.getTargetKey(target);
             if (seen.has(key)) {
                 continue;

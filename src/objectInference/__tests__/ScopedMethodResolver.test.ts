@@ -214,6 +214,27 @@ describe('ScopedMethodResolver', () => {
         expect(result.targets).toEqual([]);
     });
 
+    test('bare ::init() is unknown when a direct inherit is unresolved even if a resolved direct inherit implements it', async () => {
+        writeFixture('/std/room.c', 'void init() {}\n');
+
+        const source = [
+            'inherit "/std/room";',
+            'inherit MISSING_PARENT;',
+            '',
+            'void demo() {',
+            '    ::init();',
+            '}'
+        ].join('\n');
+        writeFixture('/d/city/unresolved_direct_scope.c', source);
+        const document = createDocument(fixturePath('/d/city/unresolved_direct_scope.c'), source);
+
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const result = await resolver.resolveCallAt(document, positionAfter(source, '::init'));
+
+        expect(result.status).toBe('unknown');
+        expect(result.targets).toEqual([]);
+    });
+
     test('room::init() resolves uniquely matched direct inherit branch', async () => {
         writeFixture('/std/room.c', 'void init() {}\n');
         writeFixture('/std/combat.c', 'void init() {}\n');
@@ -250,6 +271,27 @@ describe('ScopedMethodResolver', () => {
         ].join('\n');
         writeFixture('/d/city/ambiguous_room.c', source);
         const document = createDocument(fixturePath('/d/city/ambiguous_room.c'), source);
+
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const result = await resolver.resolveCallAt(document, positionAfter(source, 'room::init'));
+
+        expect(result.status).toBe('unknown');
+        expect(result.targets).toEqual([]);
+    });
+
+    test('room::init() is unknown when a direct inherit is unresolved even if the resolved room branch matches and implements it', async () => {
+        writeFixture('/std/room.c', 'void init() {}\n');
+
+        const source = [
+            'inherit "/std/room";',
+            'inherit MISSING_PARENT;',
+            '',
+            'void demo() {',
+            '    room::init();',
+            '}'
+        ].join('\n');
+        writeFixture('/d/city/unresolved_named_scope.c', source);
+        const document = createDocument(fixturePath('/d/city/unresolved_named_scope.c'), source);
 
         const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
         const result = await resolver.resolveCallAt(document, positionAfter(source, 'room::init'));
@@ -297,5 +339,29 @@ describe('ScopedMethodResolver', () => {
             fixturePath('/std/room.c'),
             fixturePath('/std/combat.c')
         ]);
+    });
+
+    test('bare ::init() is unknown when a traversed parent has an unresolved direct inherit', async () => {
+        writeFixture('/std/base_room.c', 'void init() {}\n');
+        writeFixture('/std/room.c', [
+            'inherit MISSING_PARENT;',
+            'inherit "/std/base_room";'
+        ].join('\n'));
+
+        const source = [
+            'inherit "/std/room";',
+            '',
+            'void demo() {',
+            '    ::init();',
+            '}'
+        ].join('\n');
+        writeFixture('/d/city/unresolved_nested_scope.c', source);
+        const document = createDocument(fixturePath('/d/city/unresolved_nested_scope.c'), source);
+
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const result = await resolver.resolveCallAt(document, positionAfter(source, '::init'));
+
+        expect(result.status).toBe('unknown');
+        expect(result.targets).toEqual([]);
     });
 });
