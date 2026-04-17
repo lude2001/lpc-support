@@ -21,6 +21,11 @@ export interface ScopedMethodResolution {
     reason?: 'unsupported-expression';
 }
 
+type ResolvedScopedInheritTarget = ResolvedInheritTarget & {
+    resolvedUri: string;
+    isResolved: true;
+};
+
 type ScopedCallShape =
     | { kind: 'bare'; methodName: string }
     | { kind: 'named'; qualifier: string; methodName: string }
@@ -200,22 +205,20 @@ export class ScopedMethodResolver {
         return this.collectTargetsFromSeed(matchedSeeds[0], methodName, new Set<string>());
     }
 
-    private resolveDirectInheritSeeds(snapshot: Parameters<InheritanceResolver['resolveInheritTargets']>[0]): ResolvedInheritTarget[] {
+    private resolveDirectInheritSeeds(
+        snapshot: Parameters<InheritanceResolver['resolveInheritTargets']>[0]
+    ): ResolvedScopedInheritTarget[] {
         return this.inheritanceResolver
             .resolveInheritTargets(snapshot)
-            .filter((target): target is ResolvedInheritTarget & { resolvedUri: string } => Boolean(target.isResolved && target.resolvedUri));
+            .filter((target): target is ResolvedScopedInheritTarget => Boolean(target.isResolved && target.resolvedUri));
     }
 
-    private matchesQualifier(target: ResolvedInheritTarget, qualifier: string): boolean {
-        if (!target.resolvedUri) {
-            return false;
-        }
-
+    private matchesQualifier(target: ResolvedScopedInheritTarget, qualifier: string): boolean {
         return this.stripSourceExtension(this.normalizeFsPath(vscode.Uri.parse(target.resolvedUri).fsPath)) === qualifier;
     }
 
     private async collectTargetsFromSeed(
-        seed: ResolvedInheritTarget & { resolvedUri: string },
+        seed: ResolvedScopedInheritTarget,
         methodName: string,
         visitedUris: Set<string>
     ): Promise<ScopedMethodTarget[]> {
