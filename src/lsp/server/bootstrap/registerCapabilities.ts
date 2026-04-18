@@ -207,8 +207,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     if (completionService) {
         registerCompletionHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory,
             completionService
         });
     }

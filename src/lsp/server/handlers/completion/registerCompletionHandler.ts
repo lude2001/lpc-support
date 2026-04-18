@@ -12,29 +12,21 @@ import type {
     LanguageCompletionService
 } from '../../../../language/services/completion/LanguageCompletionService';
 import { toLspMarkupContent } from '../../../../language/adapters/lsp/conversions';
-import type { LanguageCapabilityContext } from '../../../../language/contracts/LanguageCapabilityContext';
-import { DocumentStore } from '../../runtime/DocumentStore';
-import { fromFileUri, resolveWorkspaceRootFromRoots } from '../../runtime/serverPathUtils';
-import { WorkspaceSession } from '../../runtime/WorkspaceSession';
+import { ServerLanguageContextFactory } from '../../runtime/ServerLanguageContextFactory';
 
 type CompletionConnection = Pick<Connection, 'onCompletion' | 'onCompletionResolve'>;
 
 export interface CompletionRegistrationContext {
     connection: CompletionConnection;
-    documentStore: DocumentStore;
-    workspaceSession: WorkspaceSession;
+    contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     completionService: LanguageCompletionService;
 }
 
 export function registerCompletionHandler(context: CompletionRegistrationContext): void {
-    const { connection, documentStore, workspaceSession, completionService } = context;
+    const { connection, contextFactory, completionService } = context;
 
     connection.onCompletion(async (params: CompletionParams): Promise<CompletionList> => {
-        const requestContext = createCapabilityContext(
-            params.textDocument.uri,
-            documentStore,
-            workspaceSession
-        );
+        const requestContext = contextFactory.createCapabilityContext(params.textDocument.uri);
         const result = await completionService.provideCompletion({
             context: requestContext,
             position: {
@@ -57,11 +49,7 @@ export function registerCompletionHandler(context: CompletionRegistrationContext
         }
 
         const documentUri = getCompletionData(item.data)?.documentUri;
-        const requestContext = createCapabilityContext(
-            documentUri,
-            documentStore,
-            workspaceSession
-        );
+        const requestContext = contextFactory.createCapabilityContext(documentUri);
         const resolved = await completionService.resolveCompletionItem({
             context: requestContext,
             item: fromLspCompletionItem(item)
@@ -70,130 +58,6 @@ export function registerCompletionHandler(context: CompletionRegistrationContext
         return toLspCompletionItem(resolved);
     });
 }
-
-function createCapabilityContext(
-    documentUri: string | undefined,
-    documentStore: DocumentStore,
-    workspaceSession: WorkspaceSession
-): LanguageCapabilityContext {
-    const storedDocument = documentUri ? documentStore.get(documentUri) : undefined;
-    const workspaceRoot = resolveWorkspaceRoot(documentUri, workspaceSession);
-
-    return {
-        document: createTextDocumentShim(documentUri, storedDocument),
-        workspace: workspaceSession.toLanguageWorkspaceContext(workspaceRoot),
-        mode: 'lsp',
-        cancellation: {
-            isCancellationRequested: false
-        }
-    };
-}
-
-function resolveWorkspaceRoot(documentUri: string | undefined, workspaceSession: WorkspaceSession): string {
-    return resolveWorkspaceRootFromRoots(documentUri, workspaceSession.getWorkspaceRoots());
-}
-
-function createTextDocumentShim(
-    documentUri: string | undefined,
-    storedDocument: Readonly<{ uri: string; version: number; text: string }> | undefined
-): LanguageCapabilityContext['document'] {
-    const uri = documentUri ?? '';
-    const text = storedDocument?.text ?? '';
-    const version = storedDocument?.version ?? 0;
-    const fileName = fromFileUri(uri);
-    const lines = text.split(/\r?\n/);
-    const lineStarts = buildLineStarts(text);
-    const uriLike = createUriLike(uri, fileName);
-
-    return {
-        uri: uriLike,
-        version,
-        fileName,
-        languageId: 'lpc',
-        lineCount: lines.length,
-        getText: (range?: { start: { line: number; character: number }; end: { line: number; character: number } }) => {
-            if (!range) {
-                return text;
-            }
-
-            return text.slice(offsetAt(range.start, lineStarts, text), offsetAt(range.end, lineStarts, text));
-        },
-        lineAt: (lineOrPosition: number | { line: number }) => {
-            const line = typeof lineOrPosition === 'number' ? lineOrPosition : lineOrPosition.line;
-            const lineText = lines[line] ?? '';
-            const lineStart = lineStarts[line] ?? text.length;
-            const lineEnd = lineStart + lineText.length;
-            const range = {
-                start: { line, character: 0 },
-                end: { line, character: lineText.length }
-            };
-
-            return {
-                lineNumber: line,
-                text: lineText,
-                range,
-                rangeIncludingLineBreak: {
-                    start: range.start,
-                    end: {
-                        line,
-                        character: text[lineEnd] === '\n' ? lineText.length + 1 : lineText.length
-                    }
-                },
-                firstNonWhitespaceCharacterIndex: lineText.search(/\S|$/),
-                isEmptyOrWhitespace: lineText.trim().length === 0
-            };
-        },
-        offsetAt: (position: { line: number; character: number }) => offsetAt(position, lineStarts, text),
-        positionAt: (offset: number) => {
-            const safeOffset = Math.max(0, Math.min(offset, text.length));
-            let line = 0;
-
-            for (let index = 0; index < lineStarts.length; index += 1) {
-                if (lineStarts[index] <= safeOffset) {
-                    line = index;
-                } else {
-                    break;
-                }
-            }
-
-            return {
-                line,
-                character: safeOffset - lineStarts[line]
-            };
-        }
-    } as unknown as LanguageCapabilityContext['document'];
-}
-
-function createUriLike(uri: string, fileName: string): { fsPath: string; path: string; scheme: string; toString(): string } {
-    return {
-        fsPath: fileName,
-        path: fileName.startsWith('/') ? fileName : `/${fileName}`,
-        scheme: uri.startsWith('file://') ? 'file' : '',
-        toString: () => uri
-    };
-}
-
-function offsetAt(
-    position: { line: number; character: number },
-    lineStarts: number[],
-    text: string
-): number {
-    const lineStart = lineStarts[position.line] ?? text.length;
-    return Math.min(lineStart + position.character, text.length);
-}
-
-function buildLineStarts(text: string): number[] {
-    const lineStarts = [0];
-
-    for (let index = 0; index < text.length; index += 1) {
-        if (text[index] === '\n') {
-            lineStarts.push(index + 1);
-        }
-    }
-
-    return lineStarts;
-}
-
 
 function toLspCompletionItem(item: LanguageCompletionItem): CompletionItem {
     return {

@@ -246,6 +246,80 @@ describe('registerCompletionHandler', () => {
         });
     });
 
+    test('keeps completion resolve stable when item data has no documentUri', async () => {
+        let resolveHandler: ((item: CompletionItem) => Promise<CompletionItem> | CompletionItem) | undefined;
+
+        const completionService: LanguageCompletionService = {
+            provideCompletion: jest.fn(async () => ({
+                isIncomplete: false,
+                items: []
+            })),
+            resolveCompletionItem: jest.fn(async (request) => {
+                expect(request.context.workspace.workspaceRoot).toBe('D:/workspace');
+                expect(request.context.document.getText()).toBe('');
+                expect(request.context.document.uri.toString()).toBe('');
+
+                return {
+                    ...request.item,
+                    documentation: {
+                        kind: 'markdown',
+                        value: 'fallback resolve'
+                    }
+                };
+            })
+        };
+
+        const connection: ServerConnection = {
+            onInitialize: jest.fn(() => Disposable.create(() => undefined)),
+            onDidOpenTextDocument: jest.fn(() => Disposable.create(() => undefined)),
+            onDidChangeTextDocument: jest.fn(() => Disposable.create(() => undefined)),
+            onDidCloseTextDocument: jest.fn(() => Disposable.create(() => undefined)),
+            onNotification: jest.fn(() => Disposable.create(() => undefined)),
+            onRequest: jest.fn(() => Disposable.create(() => undefined)),
+            onCompletion: jest.fn(() => Disposable.create(() => undefined)),
+            onCompletionResolve: jest.fn(handler => {
+                resolveHandler = handler;
+                return Disposable.create(() => undefined);
+            })
+        };
+        const documentStore = new DocumentStore();
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace']
+        });
+        const logger = new ServerLogger({
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            log: jest.fn()
+        });
+
+        registerCapabilities({
+            connection,
+            documentStore,
+            logger,
+            serverVersion: '0.40.0-test',
+            workspaceSession,
+            completionService
+        });
+
+        const resolved = await resolveHandler?.({
+            label: 'fallback_item',
+            kind: CompletionItemKind.Function,
+            data: {
+                resolved: false
+            }
+        });
+
+        expect(completionService.resolveCompletionItem).toHaveBeenCalledTimes(1);
+        expect(resolved).toEqual(expect.objectContaining({
+            label: 'fallback_item',
+            documentation: {
+                kind: 'markdown',
+                value: 'fallback resolve'
+            }
+        }));
+    });
+
     test('prefers the deepest matching workspace root for nested workspaces', async () => {
         let completionHandler: ((params: CompletionParams) => Promise<CompletionResult> | CompletionResult) | undefined;
 

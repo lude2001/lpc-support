@@ -1,8 +1,7 @@
 import type { LanguageDiagnostic, LanguageDiagnosticsService } from '../../../language/services/diagnostics/LanguageDiagnosticsService';
-import type { LanguageDocument } from '../../../language/contracts/LanguageDocument';
 import type { LanguageDiagnosticsRequest } from '../../../language/services/diagnostics/LanguageDiagnosticsService';
 import { DocumentStore } from './DocumentStore';
-import { resolveWorkspaceRootFromRoots } from './serverPathUtils';
+import { ServerLanguageContextFactory } from './ServerLanguageContextFactory';
 import { WorkspaceSession } from './WorkspaceSession';
 
 export interface DiagnosticsSessionOptions {
@@ -14,8 +13,14 @@ export interface DiagnosticsSessionOptions {
 
 export class DiagnosticsSession {
     private readonly latestDiagnostics = new Map<string, LanguageDiagnostic[]>();
+    private readonly contextFactory: ServerLanguageContextFactory;
 
-    public constructor(private readonly options: DiagnosticsSessionOptions) {}
+    public constructor(private readonly options: DiagnosticsSessionOptions) {
+        this.contextFactory = new ServerLanguageContextFactory(
+            options.documentStore,
+            options.workspaceSession
+        );
+    }
 
     public async refresh(uri: string): Promise<LanguageDiagnostic[]> {
         const storedDocument = this.options.documentStore.get(uri);
@@ -43,8 +48,7 @@ export class DiagnosticsSession {
     }
 
     private createRequest(storedDocument: Readonly<{ uri: string; version: number; text: string }>): LanguageDiagnosticsRequest {
-        const workspaceRoot = resolveWorkspaceRoot(storedDocument.uri, this.options.workspaceSession);
-        const document = createLanguageDocument(storedDocument);
+        const { document, workspaceRoot } = this.contextFactory.createDiagnosticsRequestContext(storedDocument.uri);
 
         return {
             context: {
@@ -56,16 +60,4 @@ export class DiagnosticsSession {
             }
         };
     }
-}
-
-function createLanguageDocument(storedDocument: Readonly<{ uri: string; version: number; text: string }>): LanguageDocument {
-    return {
-        uri: storedDocument.uri,
-        version: storedDocument.version,
-        getText: () => storedDocument.text
-    };
-}
-
-function resolveWorkspaceRoot(documentUri: string, workspaceSession: WorkspaceSession): string {
-    return resolveWorkspaceRootFromRoots(documentUri, workspaceSession.getWorkspaceRoots());
 }
