@@ -1,8 +1,6 @@
 import type { FoldingRange, FoldingRangeParams } from 'vscode-languageserver/node';
 import type { LanguageStructureService } from '../../../../language/services/structure/LanguageFoldingService';
-import { DocumentStore } from '../../runtime/DocumentStore';
-import { WorkspaceSession } from '../../runtime/WorkspaceSession';
-import { createNavigationCapabilityContext } from '../navigation/navigationHandlerContext';
+import type { ServerLanguageContextFactory } from '../../runtime/ServerLanguageContextFactory';
 
 type FoldingRangeConnection = {
     onFoldingRanges(handler: (params: FoldingRangeParams) => Promise<FoldingRange[] | undefined | null>): unknown;
@@ -10,21 +8,16 @@ type FoldingRangeConnection = {
 
 export interface FoldingRangeRegistrationContext {
     connection: FoldingRangeConnection;
-    documentStore: DocumentStore;
-    workspaceSession: WorkspaceSession;
+    contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     structureService: LanguageStructureService;
 }
 
 export function registerFoldingRangeHandler(context: FoldingRangeRegistrationContext): void {
-    const { connection, documentStore, workspaceSession, structureService } = context;
+    const { connection, contextFactory, structureService } = context;
 
     connection.onFoldingRanges(async (params: FoldingRangeParams): Promise<FoldingRange[] | undefined> => {
         return structureService.provideFoldingRanges({
-            context: createNavigationCapabilityContext(
-                params.textDocument.uri,
-                documentStore,
-                workspaceSession
-            )
+            context: contextFactory.createCapabilityContext(params.textDocument.uri)
         });
     });
 }

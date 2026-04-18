@@ -8,20 +8,19 @@ import {
 import type { LanguageCodeActionService } from '../../../../language/services/codeActions/LanguageCodeActionService';
 import type { LanguageDiagnostic } from '../../../../language/services/diagnostics/LanguageDiagnosticsService';
 import { DocumentStore } from '../../runtime/DocumentStore';
-import { WorkspaceSession } from '../../runtime/WorkspaceSession';
-import { createNavigationCapabilityContext } from '../navigation/navigationHandlerContext';
+import type { ServerLanguageContextFactory } from '../../runtime/ServerLanguageContextFactory';
 
 type CodeActionConnection = Pick<Connection, 'onCodeAction'>;
 
 export interface CodeActionRegistrationContext {
     connection: CodeActionConnection;
     documentStore: DocumentStore;
-    workspaceSession: WorkspaceSession;
+    contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     codeActionsService: LanguageCodeActionService;
 }
 
 export function registerCodeActionHandler(context: CodeActionRegistrationContext): void {
-    const { connection, documentStore, workspaceSession, codeActionsService } = context;
+    const { connection, documentStore, contextFactory, codeActionsService } = context;
 
     connection.onCodeAction(async (params: CodeActionParams): Promise<CodeAction[]> => {
         if (!documentStore.get(params.textDocument.uri)) {
@@ -29,11 +28,7 @@ export function registerCodeActionHandler(context: CodeActionRegistrationContext
         }
 
         const actions = await codeActionsService.provideCodeActions({
-            context: createNavigationCapabilityContext(
-                params.textDocument.uri,
-                documentStore,
-                workspaceSession
-            ),
+            context: contextFactory.createCapabilityContext(params.textDocument.uri),
             range: {
                 start: {
                     line: params.range.start.line,

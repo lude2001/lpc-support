@@ -5,9 +5,7 @@ import {
 } from 'vscode-languageserver/node';
 import type { LanguageStructureService } from '../../../../language/services/structure/LanguageFoldingService';
 import type { LanguageSemanticTokensResult } from '../../../../language/services/structure/LanguageSemanticTokensService';
-import { DocumentStore } from '../../runtime/DocumentStore';
-import { WorkspaceSession } from '../../runtime/WorkspaceSession';
-import { createNavigationCapabilityContext } from '../navigation/navigationHandlerContext';
+import type { ServerLanguageContextFactory } from '../../runtime/ServerLanguageContextFactory';
 
 type SemanticTokensConnection = {
     languages: {
@@ -19,21 +17,16 @@ type SemanticTokensConnection = {
 
 export interface SemanticTokensRegistrationContext {
     connection: SemanticTokensConnection;
-    documentStore: DocumentStore;
-    workspaceSession: WorkspaceSession;
+    contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     structureService: LanguageStructureService;
 }
 
 export function registerSemanticTokensHandler(context: SemanticTokensRegistrationContext): void {
-    const { connection, documentStore, workspaceSession, structureService } = context;
+    const { connection, contextFactory, structureService } = context;
 
     connection.languages.semanticTokens.on(async (params: SemanticTokensParams): Promise<SemanticTokens> => {
         const result = await structureService.provideSemanticTokens({
-            context: createNavigationCapabilityContext(
-                params.textDocument.uri,
-                documentStore,
-                workspaceSession
-            )
+            context: contextFactory.createCapabilityContext(params.textDocument.uri)
         });
 
         return toLspSemanticTokens(result);

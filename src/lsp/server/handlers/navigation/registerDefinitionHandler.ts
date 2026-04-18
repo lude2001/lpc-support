@@ -1,9 +1,7 @@
 import type { Definition, DefinitionParams } from 'vscode-languageserver/node';
 import { toLspLocation } from '../../../../language/adapters/lsp/conversions';
 import type { LanguageNavigationService } from '../../../../language/services/navigation/LanguageHoverService';
-import { DocumentStore } from '../../runtime/DocumentStore';
-import { WorkspaceSession } from '../../runtime/WorkspaceSession';
-import { createNavigationCapabilityContext } from './navigationHandlerContext';
+import type { ServerLanguageContextFactory } from '../../runtime/ServerLanguageContextFactory';
 
 type DefinitionConnection = {
     onDefinition(handler: (params: DefinitionParams) => Promise<Definition>): unknown;
@@ -11,21 +9,16 @@ type DefinitionConnection = {
 
 export interface DefinitionRegistrationContext {
     connection: DefinitionConnection;
-    documentStore: DocumentStore;
-    workspaceSession: WorkspaceSession;
+    contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     navigationService: LanguageNavigationService;
 }
 
 export function registerDefinitionHandler(context: DefinitionRegistrationContext): void {
-    const { connection, documentStore, workspaceSession, navigationService } = context;
+    const { connection, contextFactory, navigationService } = context;
 
     connection.onDefinition(async (params: DefinitionParams): Promise<Definition> => {
         const locations = await navigationService.provideDefinition({
-            context: createNavigationCapabilityContext(
-                params.textDocument.uri,
-                documentStore,
-                workspaceSession
-            ),
+            context: contextFactory.createCapabilityContext(params.textDocument.uri),
             position: {
                 line: params.position.line,
                 character: params.position.character

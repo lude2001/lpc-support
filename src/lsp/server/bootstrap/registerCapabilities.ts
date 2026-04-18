@@ -51,6 +51,7 @@ import { registerFoldingRangeHandler } from '../handlers/structure/registerFoldi
 import { registerSemanticTokensHandler } from '../handlers/structure/registerSemanticTokensHandler';
 import { DiagnosticsSession } from '../runtime/DiagnosticsSession';
 import { DocumentStore } from '../runtime/DocumentStore';
+import { ServerLanguageContextFactory } from '../runtime/ServerLanguageContextFactory';
 import {
     SERVER_LANGUAGE_SEMANTIC_TOKEN_MODIFIERS,
     SERVER_LANGUAGE_SEMANTIC_TOKEN_TYPES
@@ -101,6 +102,7 @@ export interface ServerRegistrationContext {
 
 export function registerCapabilities(context: ServerRegistrationContext): void {
     const { connection, documentStore, diagnosticsSession, logger, serverVersion, workspaceSession, completionService, codeActionsService } = context;
+    const contextFactory = new ServerLanguageContextFactory(documentStore, workspaceSession);
     const navigationService: LanguageNavigationService | undefined =
         workspaceSession.toLanguageWorkspaceContext('').services?.navigationService;
     const effectiveCodeActionsService = codeActionsService
@@ -215,7 +217,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         registerCodeActionHandler({
             connection,
             documentStore,
-            workspaceSession,
+            contextFactory,
             codeActionsService: effectiveCodeActionsService
         });
     }
@@ -232,32 +234,27 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     if (navigationService) {
         registerHoverHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory,
             navigationService
         });
         registerDefinitionHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory,
             navigationService
         });
         registerReferencesHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory,
             navigationService
         });
         registerRenameHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory,
             navigationService
         });
         registerDocumentSymbolHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory,
             navigationService
         });
     }
@@ -265,8 +262,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     if (signatureHelpService && connection.onSignatureHelp) {
         registerSignatureHelpHandler({
             connection: connection as Pick<Connection, 'onSignatureHelp'>,
-            documentStore,
-            workspaceSession,
+            contextFactory,
             signatureHelpService
         });
     }
@@ -274,14 +270,12 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     if (structureService) {
         registerFoldingRangeHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory,
             structureService
         });
         registerSemanticTokensHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory,
             structureService
         });
     }

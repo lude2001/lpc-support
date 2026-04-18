@@ -1,9 +1,7 @@
 import { SymbolKind, type DocumentSymbol, type DocumentSymbolParams } from 'vscode-languageserver/node';
 import { toLspRange } from '../../../../language/adapters/lsp/conversions';
 import type { LanguageNavigationService } from '../../../../language/services/navigation/LanguageHoverService';
-import { DocumentStore } from '../../runtime/DocumentStore';
-import { WorkspaceSession } from '../../runtime/WorkspaceSession';
-import { createNavigationCapabilityContext } from './navigationHandlerContext';
+import type { ServerLanguageContextFactory } from '../../runtime/ServerLanguageContextFactory';
 
 type DocumentSymbolConnection = {
     onDocumentSymbol(handler: (params: DocumentSymbolParams) => Promise<DocumentSymbol[]>): unknown;
@@ -11,21 +9,16 @@ type DocumentSymbolConnection = {
 
 export interface DocumentSymbolRegistrationContext {
     connection: DocumentSymbolConnection;
-    documentStore: DocumentStore;
-    workspaceSession: WorkspaceSession;
+    contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     navigationService: LanguageNavigationService;
 }
 
 export function registerDocumentSymbolHandler(context: DocumentSymbolRegistrationContext): void {
-    const { connection, documentStore, workspaceSession, navigationService } = context;
+    const { connection, contextFactory, navigationService } = context;
 
     connection.onDocumentSymbol(async (params: DocumentSymbolParams): Promise<DocumentSymbol[]> => {
         const symbols = await navigationService.provideDocumentSymbols({
-            context: createNavigationCapabilityContext(
-                params.textDocument.uri,
-                documentStore,
-                workspaceSession
-            )
+            context: contextFactory.createCapabilityContext(params.textDocument.uri)
         });
 
         return symbols.map(symbol => toLspDocumentSymbol(symbol));

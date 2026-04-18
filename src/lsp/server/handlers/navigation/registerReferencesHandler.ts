@@ -1,9 +1,7 @@
 import type { Location, ReferenceParams } from 'vscode-languageserver/node';
 import { toLspLocation } from '../../../../language/adapters/lsp/conversions';
 import type { LanguageNavigationService } from '../../../../language/services/navigation/LanguageHoverService';
-import { DocumentStore } from '../../runtime/DocumentStore';
-import { WorkspaceSession } from '../../runtime/WorkspaceSession';
-import { createNavigationCapabilityContext } from './navigationHandlerContext';
+import type { ServerLanguageContextFactory } from '../../runtime/ServerLanguageContextFactory';
 
 type ReferencesConnection = {
     onReferences(handler: (params: ReferenceParams) => Promise<Location[]>): unknown;
@@ -11,21 +9,16 @@ type ReferencesConnection = {
 
 export interface ReferencesRegistrationContext {
     connection: ReferencesConnection;
-    documentStore: DocumentStore;
-    workspaceSession: WorkspaceSession;
+    contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     navigationService: LanguageNavigationService;
 }
 
 export function registerReferencesHandler(context: ReferencesRegistrationContext): void {
-    const { connection, documentStore, workspaceSession, navigationService } = context;
+    const { connection, contextFactory, navigationService } = context;
 
     connection.onReferences(async (params: ReferenceParams): Promise<Location[]> => {
         const references = await navigationService.provideReferences({
-            context: createNavigationCapabilityContext(
-                params.textDocument.uri,
-                documentStore,
-                workspaceSession
-            ),
+            context: contextFactory.createCapabilityContext(params.textDocument.uri),
             position: {
                 line: params.position.line,
                 character: params.position.character

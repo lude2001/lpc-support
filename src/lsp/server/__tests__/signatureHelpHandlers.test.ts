@@ -10,6 +10,7 @@ import { describe, expect, jest, test } from '@jest/globals';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { registerSignatureHelpHandler } from '../handlers/signatureHelp/registerSignatureHelpHandler';
 import { DocumentStore } from '../runtime/DocumentStore';
+import { ServerLanguageContextFactory } from '../runtime/ServerLanguageContextFactory';
 import { ServerLogger } from '../runtime/ServerLogger';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
@@ -64,8 +65,7 @@ describe('signature help handlers', () => {
 
         registerSignatureHelpHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             signatureHelpService: signatureHelpService as any
         });
 

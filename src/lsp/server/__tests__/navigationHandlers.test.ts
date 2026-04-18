@@ -46,6 +46,7 @@ import { registerHoverHandler } from '../handlers/navigation/registerHoverHandle
 import { registerReferencesHandler } from '../handlers/navigation/registerReferencesHandler';
 import { registerRenameHandler } from '../handlers/navigation/registerRenameHandler';
 import { DocumentStore } from '../runtime/DocumentStore';
+import { ServerLanguageContextFactory } from '../runtime/ServerLanguageContextFactory';
 import { ServerLogger } from '../runtime/ServerLogger';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
@@ -156,8 +157,7 @@ describe('navigation handlers', () => {
 
         registerHoverHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -232,8 +232,7 @@ describe('navigation handlers', () => {
 
         registerHoverHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -286,8 +285,7 @@ describe('navigation handlers', () => {
 
         registerDefinitionHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -340,8 +338,7 @@ describe('navigation handlers', () => {
 
         registerReferencesHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -413,8 +410,7 @@ describe('navigation handlers', () => {
 
         registerReferencesHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -508,8 +504,7 @@ describe('navigation handlers', () => {
 
         registerRenameHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -617,8 +612,7 @@ describe('navigation handlers', () => {
 
         registerRenameHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -700,8 +694,7 @@ describe('navigation handlers', () => {
 
         registerRenameHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -777,8 +770,7 @@ describe('navigation handlers', () => {
 
         registerRenameHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -847,8 +839,7 @@ describe('navigation handlers', () => {
 
         registerRenameHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -943,8 +934,7 @@ describe('navigation handlers', () => {
 
         registerRenameHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -1057,8 +1047,7 @@ describe('navigation handlers', () => {
 
         registerDocumentSymbolHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             navigationService
         });
 
@@ -1202,37 +1191,45 @@ describe('navigation handlers', () => {
             })
         });
         const codeActionsService = {
-            provideCodeActions: jest.fn(async () => [
-                {
-                    title: '删除未使用的变量',
-                    kind: 'quickfix',
-                    diagnostics: [
-                        {
-                            range: {
-                                start: { line: 0, character: 0 },
-                                end: { line: 0, character: 3 }
-                            },
-                            severity: 'warning',
-                            message: 'unused',
-                            code: 'unusedVar',
-                            source: 'lpc'
-                        }
-                    ],
-                    edit: {
-                        changes: {
-                            'file:///D:/workspace/nav.c': [
-                                {
-                                    range: {
-                                        start: { line: 0, character: 0 },
-                                        end: { line: 0, character: 3 }
-                                    },
-                                    newText: ''
-                                }
-                            ]
+            provideCodeActions: jest.fn(async (request) => {
+                expect(request.context.workspace.workspaceRoot).toBe('D:/workspace');
+                expect(request.context.document.getText()).toBe('int foo;');
+                expect(request.context.document.getWordRangeAtPosition({ line: 0, character: 1 })).toEqual(
+                    new vscode.Range(0, 0, 0, 3)
+                );
+
+                return [
+                    {
+                        title: '删除未使用的变量',
+                        kind: 'quickfix',
+                        diagnostics: [
+                            {
+                                range: {
+                                    start: { line: 0, character: 0 },
+                                    end: { line: 0, character: 3 }
+                                },
+                                severity: 'warning',
+                                message: 'unused',
+                                code: 'unusedVar',
+                                source: 'lpc'
+                            }
+                        ],
+                        edit: {
+                            changes: {
+                                'file:///D:/workspace/nav.c': [
+                                    {
+                                        range: {
+                                            start: { line: 0, character: 0 },
+                                            end: { line: 0, character: 3 }
+                                        },
+                                        newText: ''
+                                    }
+                                ]
+                            }
                         }
                     }
-                }
-            ])
+                ];
+            })
         };
         const documentStore = new DocumentStore();
         documentStore.open('file:///D:/workspace/nav.c', 1, 'int foo;');

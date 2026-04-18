@@ -20,6 +20,7 @@ import { registerCapabilities, type ServerConnection } from '../bootstrap/regist
 import { registerFoldingRangeHandler } from '../handlers/structure/registerFoldingRangeHandler';
 import { registerSemanticTokensHandler } from '../handlers/structure/registerSemanticTokensHandler';
 import { DocumentStore } from '../runtime/DocumentStore';
+import { ServerLanguageContextFactory } from '../runtime/ServerLanguageContextFactory';
 import { ServerLogger } from '../runtime/ServerLogger';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
@@ -85,8 +86,7 @@ describe('structure handlers', () => {
 
         registerFoldingRangeHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             structureService
         });
 
@@ -174,8 +174,7 @@ describe('structure handlers', () => {
 
         registerSemanticTokensHandler({
             connection,
-            documentStore,
-            workspaceSession,
+            contextFactory: new ServerLanguageContextFactory(documentStore, workspaceSession),
             structureService
         });
 

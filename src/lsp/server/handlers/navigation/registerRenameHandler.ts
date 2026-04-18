@@ -1,9 +1,7 @@
 import type { PrepareRenameResult, PrepareRenameParams, RenameParams, WorkspaceEdit } from 'vscode-languageserver/node';
 import { toLspRange } from '../../../../language/adapters/lsp/conversions';
 import type { LanguageNavigationService } from '../../../../language/services/navigation/LanguageHoverService';
-import { DocumentStore } from '../../runtime/DocumentStore';
-import { WorkspaceSession } from '../../runtime/WorkspaceSession';
-import { createNavigationCapabilityContext } from './navigationHandlerContext';
+import type { ServerLanguageContextFactory } from '../../runtime/ServerLanguageContextFactory';
 
 type RenameConnection = {
     onPrepareRename(handler: (params: PrepareRenameParams) => Promise<PrepareRenameResult | undefined>): unknown;
@@ -12,21 +10,16 @@ type RenameConnection = {
 
 export interface RenameRegistrationContext {
     connection: RenameConnection;
-    documentStore: DocumentStore;
-    workspaceSession: WorkspaceSession;
+    contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     navigationService: LanguageNavigationService;
 }
 
 export function registerRenameHandler(context: RenameRegistrationContext): void {
-    const { connection, documentStore, workspaceSession, navigationService } = context;
+    const { connection, contextFactory, navigationService } = context;
 
     connection.onPrepareRename(async (params: PrepareRenameParams): Promise<PrepareRenameResult | undefined> => {
         const result = await navigationService.prepareRename({
-            context: createNavigationCapabilityContext(
-                params.textDocument.uri,
-                documentStore,
-                workspaceSession
-            ),
+            context: contextFactory.createCapabilityContext(params.textDocument.uri),
             position: {
                 line: params.position.line,
                 character: params.position.character
@@ -47,11 +40,7 @@ export function registerRenameHandler(context: RenameRegistrationContext): void 
 
     connection.onRenameRequest(async (params: RenameParams): Promise<WorkspaceEdit> => {
         const result = await navigationService.provideRenameEdits({
-            context: createNavigationCapabilityContext(
-                params.textDocument.uri,
-                documentStore,
-                workspaceSession
-            ),
+            context: contextFactory.createCapabilityContext(params.textDocument.uri),
             position: {
                 line: params.position.line,
                 character: params.position.character

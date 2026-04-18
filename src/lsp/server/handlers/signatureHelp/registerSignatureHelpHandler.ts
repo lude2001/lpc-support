@@ -1,9 +1,7 @@
 import type { SignatureHelp, SignatureHelpParams } from 'vscode-languageserver/node';
 import { toLspMarkupContent } from '../../../../language/adapters/lsp/conversions';
 import type { LanguageSignatureHelpService } from '../../../../language/services/signatureHelp/LanguageSignatureHelpService';
-import { DocumentStore } from '../../runtime/DocumentStore';
-import { WorkspaceSession } from '../../runtime/WorkspaceSession';
-import { createNavigationCapabilityContext } from '../navigation/navigationHandlerContext';
+import type { ServerLanguageContextFactory } from '../../runtime/ServerLanguageContextFactory';
 
 type SignatureHelpConnection = {
     onSignatureHelp(handler: (params: SignatureHelpParams) => Promise<SignatureHelp | undefined>): unknown;
@@ -11,21 +9,16 @@ type SignatureHelpConnection = {
 
 export interface SignatureHelpRegistrationContext {
     connection: SignatureHelpConnection;
-    documentStore: DocumentStore;
-    workspaceSession: WorkspaceSession;
+    contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     signatureHelpService: LanguageSignatureHelpService;
 }
 
 export function registerSignatureHelpHandler(context: SignatureHelpRegistrationContext): void {
-    const { connection, documentStore, workspaceSession, signatureHelpService } = context;
+    const { connection, contextFactory, signatureHelpService } = context;
 
     connection.onSignatureHelp(async (params: SignatureHelpParams): Promise<SignatureHelp | undefined> => {
         const result = await signatureHelpService.provideSignatureHelp({
-            context: createNavigationCapabilityContext(
-                params.textDocument.uri,
-                documentStore,
-                workspaceSession
-            ),
+            context: contextFactory.createCapabilityContext(params.textDocument.uri),
             position: {
                 line: params.position.line,
                 character: params.position.character
