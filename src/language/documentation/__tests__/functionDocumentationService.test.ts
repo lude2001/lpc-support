@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { afterEach, describe, expect, test } from '@jest/globals';
 import { ASTManager } from '../../../ast/astManager';
-import { DocumentSemanticSnapshotService } from '../../../completion/documentSemanticSnapshotService';
+import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { clearGlobalParsedDocumentService } from '../../../parser/ParsedDocumentService';
 import { FunctionDocumentationService } from '../FunctionDocumentationService';
 

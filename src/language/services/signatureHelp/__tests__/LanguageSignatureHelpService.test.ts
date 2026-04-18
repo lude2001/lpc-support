@@ -3,7 +3,7 @@ import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ASTManager } from '../../../../ast/astManager';
-import { DocumentSemanticSnapshotService } from '../../../../completion/documentSemanticSnapshotService';
+import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { EfunDocsManager } from '../../../../efunDocs';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';

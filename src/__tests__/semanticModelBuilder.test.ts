@@ -3,7 +3,7 @@ import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from
 import { SemanticModelBuilder } from '../semantic/SemanticModelBuilder';
 import { toDocumentSemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxBuilder } from '../syntax/SyntaxBuilder';
-import { DocumentSemanticSnapshotService } from '../completion/documentSemanticSnapshotService';
+import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 
 function createDocument(content: string, fileName: string = '/virtual/semantic.c', version: number = 1): vscode.TextDocument {
     const lineStarts = [0];

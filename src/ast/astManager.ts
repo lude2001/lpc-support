@@ -5,12 +5,13 @@ import {
     getGlobalParsedDocumentService
 } from '../parser/ParsedDocumentService';
 import { SymbolTable, SymbolType, Symbol as LPCSymbol } from './symbolTable';
-import { DocumentSemanticSnapshot } from '../completion/types';
 import { getTypeLookupName, normalizeLpcType } from './typeNormalization';
 import {
-    DocumentSemanticAnalysis,
-    DocumentSemanticSnapshotService
-} from '../completion/documentSemanticSnapshotService';
+    DocumentAnalysisService,
+    DocumentSemanticAnalysis
+} from '../semantic/documentAnalysisService';
+import { DocumentSemanticSnapshot } from '../semantic/documentSemanticTypes';
+import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxDocument } from '../syntax/types';
 import { ParsedDocument as ParsedDoc } from '../parser/types';
@@ -27,10 +28,10 @@ export interface ParseResult {
 
 export class ASTManager {
     private static instance: ASTManager;
-    private readonly snapshotService: DocumentSemanticSnapshotService;
+    private readonly snapshotService: DocumentAnalysisService;
 
-    private constructor() {
-        this.snapshotService = DocumentSemanticSnapshotService.getInstance();
+    private constructor(snapshotService: DocumentAnalysisService = DocumentSemanticSnapshotService.getInstance()) {
+        this.snapshotService = snapshotService;
     }
 
     public static getInstance(): ASTManager {
@@ -42,7 +43,7 @@ export class ASTManager {
 
     // 解析文档并构建AST和符号表
     public parseDocument(document: vscode.TextDocument, useCache: boolean = true): ParseResult {
-        const analysis = this.snapshotService.getAnalysis(document, useCache);
+        const analysis = this.snapshotService.parseDocument(document, useCache);
         return this.toParseResult(analysis);
     }
 
@@ -353,14 +354,14 @@ export class ASTManager {
 
     // 清除指定文档的缓存
     public clearCache(documentUri: string): void {
+        this.snapshotService.clearCache(documentUri);
         const uri = vscode.Uri.parse(documentUri);
-        this.snapshotService.invalidate(uri);
         getGlobalParsedDocumentService().invalidate(uri);
     }
 
     // 清除所有缓存
     public clearAllCache(): void {
-        this.snapshotService.clear();
+        this.snapshotService.clearAllCache();
         clearGlobalParsedDocumentService();
     }
 
@@ -415,8 +416,7 @@ export class ASTManager {
     }
 
     public getSyntaxDocument(document: vscode.TextDocument, useCache: boolean = true): SyntaxDocument | undefined {
-        const analysis = this.snapshotService.getAnalysis(document, useCache);
-        return analysis.syntax;
+        return this.snapshotService.getSyntaxDocument(document, useCache);
     }
 
     private toParseResult(analysis: DocumentSemanticAnalysis): ParseResult {

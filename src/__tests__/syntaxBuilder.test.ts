@@ -3,7 +3,7 @@ import { ASTManager } from '../ast/astManager';
 import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { SyntaxBuilder } from '../syntax/SyntaxBuilder';
 import { SyntaxKind } from '../syntax/types';
-import { DocumentSemanticSnapshotService } from '../completion/documentSemanticSnapshotService';
+import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 
 function createDocument(content: string, fileName: string = '/virtual/syntax.c', version: number = 1): vscode.TextDocument {
     const lineStarts = [0];

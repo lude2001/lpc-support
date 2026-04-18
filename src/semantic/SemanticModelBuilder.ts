@@ -8,7 +8,7 @@ import {
     InheritDirective,
     ScopeSummary,
     TypeDefinitionSummary
-} from '../completion/types';
+} from './documentSemanticTypes';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { SemanticSnapshot } from './semanticSnapshot';
 
