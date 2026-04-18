@@ -6,6 +6,7 @@ import { execFileSync, fork, type ChildProcess } from 'child_process';
 import {
     DidChangeTextDocumentNotification,
     DidOpenTextDocumentNotification,
+    DefinitionRequest,
     DocumentFormattingRequest,
     ExitNotification,
     InitializeRequest,
@@ -69,6 +70,74 @@ describe('spawned LSP runtime integration', () => {
             '{',
             '}'
         ].join('\n'));
+    }, 30000);
+
+    test('refreshes header-backed definition cache after a didChange on the dependency', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-definition-refresh-'));
+        const sourceDocumentPath = path.join(workspaceRoot, 'demo.c');
+        const headerDocumentPath = path.join(workspaceRoot, 'shared.h');
+
+        fs.writeFileSync(sourceDocumentPath, [
+            'include "shared.h";',
+            '',
+            'void demo() {',
+            '    shared_fn();',
+            '}'
+        ].join('\n'), 'utf8');
+        fs.writeFileSync(headerDocumentPath, [
+            'void shared_fn();'
+        ].join('\n'), 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+
+        await harness.openDocument(sourceDocumentPath, fs.readFileSync(sourceDocumentPath, 'utf8'));
+        await harness.openDocument(headerDocumentPath, fs.readFileSync(headerDocumentPath, 'utf8'));
+        await harness.connection.sendRequest(HealthRequest.type);
+
+        const firstDefinition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourceDocumentPath)
+            },
+            position: {
+                line: 3,
+                character: 10
+            }
+        });
+
+        expect(normalizeDefinitionLocations(firstDefinition)).toEqual([
+            {
+                uri: uriFromPath(headerDocumentPath),
+                range: {
+                    start: { line: 0, character: 5 },
+                    end: { line: 0, character: 14 }
+                }
+            }
+        ]);
+
+        await harness.changeDocument(headerDocumentPath, [
+            '',
+            'void shared_fn();'
+        ].join('\n'), 2);
+
+        const secondDefinition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourceDocumentPath)
+            },
+            position: {
+                line: 3,
+                character: 10
+            }
+        });
+
+        expect(normalizeDefinitionLocations(secondDefinition)).toEqual([
+            {
+                uri: uriFromPath(headerDocumentPath),
+                range: {
+                    start: { line: 1, character: 5 },
+                    end: { line: 1, character: 14 }
+                }
+            }
+        ]);
     }, 30000);
 
     test('rejects same-file function rename from the latest in-memory text', async () => {
@@ -407,6 +476,29 @@ function computeLineStarts(text: string): number[] {
 function offsetAt(lineStarts: readonly number[], line: number, character: number): number {
     const lineStart = lineStarts[line] ?? lineStarts[lineStarts.length - 1] ?? 0;
     return lineStart + character;
+}
+
+function normalizeDefinitionLocations(
+    definition: Awaited<ReturnType<ProtocolConnection['sendRequest']>>
+): Array<{ uri: string; range: { start: { line: number; character: number }; end: { line: number; character: number } } }> {
+    if (!definition) {
+        return [];
+    }
+
+    const locations = Array.isArray(definition) ? definition : [definition];
+    return locations.map((location) => ({
+        uri: location.uri,
+        range: {
+            start: {
+                line: location.range.start.line,
+                character: location.range.start.character
+            },
+            end: {
+                line: location.range.end.line,
+                character: location.range.end.character
+            }
+        }
+    }));
 }
 
 async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<void> {

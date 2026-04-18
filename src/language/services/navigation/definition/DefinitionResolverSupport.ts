@@ -4,6 +4,7 @@ import { Symbol, SymbolType } from '../../../../ast/symbolTable';
 import { SemanticSnapshot } from '../../../../semantic/semanticSnapshot';
 import type { LanguageLocation } from '../../../contracts/LanguagePosition';
 import type { LanguageWorkspaceProjectConfig } from '../../../contracts/LanguageWorkspaceContext';
+import { normalizeNavigationFsPath } from '../navigationPathUtils';
 import {
     DefinitionRequestState,
     DefinitionResolverContext,
@@ -20,11 +21,11 @@ export class DefinitionResolverSupport {
         'astManager' | 'host' | 'macroManager' | 'projectConfigService' | 'semanticAdapter'
     >) {
         this.context.host.onDidChangeTextDocument((event) => {
-            const filePath = event.document.uri.fsPath;
+            const filePath = this.normalizeCachePath(event.document.uri.fsPath);
             if (filePath.endsWith('.h')) {
                 this.headerFunctionCache.delete(filePath);
                 for (const [key, includes] of this.includeFileCache.entries()) {
-                    if (includes.includes(filePath)) {
+                    if (includes.some((includeFile) => this.normalizeCachePath(includeFile) === filePath)) {
                         this.includeFileCache.delete(key);
                     }
                 }
@@ -321,8 +322,9 @@ export class DefinitionResolverSupport {
         filePath: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string[]> {
-        if (this.includeFileCache.has(filePath)) {
-            return this.includeFileCache.get(filePath)!;
+        const cacheKey = this.normalizeCachePath(filePath);
+        if (this.includeFileCache.has(cacheKey)) {
+            return this.includeFileCache.get(cacheKey)!;
         }
 
         const document = await this.tryOpenTextDocument(filePath);
@@ -331,13 +333,14 @@ export class DefinitionResolverSupport {
         }
 
         const includeFiles = await this.resolveExistingIncludeFiles(document, projectConfig);
-        this.includeFileCache.set(filePath, includeFiles);
+        this.includeFileCache.set(cacheKey, includeFiles);
         return includeFiles;
     }
 
     public async getHeaderFunctionIndex(headerPath: string): Promise<Map<string, vscode.Location>> {
-        if (this.headerFunctionCache.has(headerPath)) {
-            return this.headerFunctionCache.get(headerPath)!;
+        const cacheKey = this.normalizeCachePath(headerPath);
+        if (this.headerFunctionCache.has(cacheKey)) {
+            return this.headerFunctionCache.get(cacheKey)!;
         }
 
         const functionIndex = new Map<string, vscode.Location>();
@@ -353,7 +356,7 @@ export class DefinitionResolverSupport {
             }
         }
 
-        this.headerFunctionCache.set(headerPath, functionIndex);
+        this.headerFunctionCache.set(cacheKey, functionIndex);
         return functionIndex;
     }
 
@@ -416,5 +419,9 @@ export class DefinitionResolverSupport {
         return this.isWorkspaceAbsolutePath(targetPath)
             ? targetPath
             : path.resolve(workspaceRoot, targetPath);
+    }
+
+    private normalizeCachePath(filePath: string): string {
+        return normalizeNavigationFsPath(filePath);
     }
 }
