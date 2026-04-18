@@ -506,6 +506,66 @@ describe('AstBackedLanguageDefinitionService', () => {
         ]);
     });
 
+    test('definition service short-circuits object-method hits before direct symbol and function-family lookup', async () => {
+        const document = createTextDocument('D:\\workspace\\obj\\demo.c', 'void demo() {\n    target->query_hp();\n}\n');
+        const service = new AstBackedLanguageDefinitionService(
+            { getMacro: jest.fn().mockReturnValue(undefined) } as any,
+            { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            {
+                inferObjectAccess: jest.fn().mockResolvedValue({
+                    memberName: 'query_hp',
+                    inference: {
+                        status: 'resolved',
+                        candidates: [{ path: 'D:\\workspace\\obj\\npc.c' }]
+                    }
+                })
+            } as any,
+            {
+                findMethod: jest.fn().mockResolvedValue({
+                    location: new vscode.Location(
+                        vscode.Uri.file('D:\\workspace\\obj\\npc.c'),
+                        new vscode.Range(4, 0, 4, 8)
+                    )
+                })
+            } as any,
+            undefined,
+            {
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: jest.fn(),
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:\\workspace' } })),
+                    getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:\\workspace' } }]),
+                    fileExists: jest.fn().mockReturnValue(false)
+                }
+            } as any
+        );
+
+        const directSpy = jest.spyOn(service as any, 'resolveDirectDefinition');
+        const functionSpy = jest.spyOn(service as any, 'findFunctionDefinition');
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 1, character: 14 }
+        });
+
+        expect(definition).toEqual([
+            {
+                uri: vscode.Uri.file('D:\\workspace\\obj\\npc.c').toString(),
+                range: {
+                    start: { line: 4, character: 0 },
+                    end: { line: 4, character: 8 }
+                }
+            }
+        ]);
+        expect(directSpy).not.toHaveBeenCalled();
+        expect(functionSpy).not.toHaveBeenCalled();
+    });
+
     test('definition service resolves bare ::create() before ordinary function fallback', async () => {
         const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    ::create();\n}\n');
         const service = new AstBackedLanguageDefinitionService(

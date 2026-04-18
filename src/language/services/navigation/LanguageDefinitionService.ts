@@ -17,11 +17,12 @@ import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { DefinitionResolverSupport } from './definition/DefinitionResolverSupport';
+import { ObjectMethodDefinitionResolver } from './definition/ObjectMethodDefinitionResolver';
+import { ScopedMethodDefinitionResolver } from './definition/ScopedMethodDefinitionResolver';
 import type {
     DefinitionRequestState,
     DefinitionSemanticAdapter,
     LanguageDefinitionHost,
-    VsCodeLocationWithSourceUri
 } from './definition/types';
 
 export interface LanguageDefinitionRequest {
@@ -63,6 +64,8 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     private readonly semanticAdapter?: DefinitionSemanticAdapter;
     private readonly scopedMethodResolver?: ScopedMethodResolver;
     private readonly support: DefinitionResolverSupport;
+    private readonly scopedDefinitionResolver: ScopedMethodDefinitionResolver;
+    private readonly objectMethodDefinitionResolver: ObjectMethodDefinitionResolver;
 
     public constructor(
         macroManager: MacroManager,
@@ -88,6 +91,15 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
             macroManager: this.macroManager,
             projectConfigService: this.projectConfigService,
             semanticAdapter: this.semanticAdapter
+        });
+        this.scopedDefinitionResolver = new ScopedMethodDefinitionResolver({
+            astManager: this.astManager,
+            scopedMethodResolver: this.scopedMethodResolver
+        });
+        this.objectMethodDefinitionResolver = new ObjectMethodDefinitionResolver({
+            support: this.support,
+            objectInferenceService: this.objectInferenceService,
+            targetMethodLookup: this.targetMethodLookup
         });
     }
 
@@ -123,18 +135,14 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         }
 
         const word = document.getText(wordRange);
-        const scopedResolution = await this.scopedMethodResolver?.resolveCallAt(document, position);
-        if (scopedResolution && this.isOnScopedMethodIdentifier(document, position, scopedResolution.methodName)) {
-            if (scopedResolution.status === 'resolved' || scopedResolution.status === 'multiple') {
-                return this.toLanguageLocations(scopedResolution.targets.map((target) => target.location));
-            }
-
-            return [];
+        const scopedDefinition = await this.scopedDefinitionResolver.resolve(document, position);
+        if (scopedDefinition !== undefined) {
+            return this.toLanguageLocations(scopedDefinition);
         }
 
-        const inferredObjectAccess = await this.objectInferenceService.inferObjectAccess(document, position);
-        if (inferredObjectAccess?.memberName === word) {
-            return this.toLanguageLocations(await this.handleInferredObjectMethodCall(document, inferredObjectAccess));
+        const objectMethodDefinition = await this.objectMethodDefinitionResolver.resolve(document, position, word);
+        if (objectMethodDefinition) {
+            return this.toLanguageLocations(objectMethodDefinition);
         }
 
         const directDefinition = await this.resolveDirectDefinition(
