@@ -128,21 +128,70 @@ function deriveWorkspaceRoots(files: string[], explicitRoots?: string[]): string
     return Array.from(new Set(files.map((fileUri) => path.dirname(vscode.Uri.parse(fileUri).fsPath))));
 }
 
+function escapeForRegex(value: string): string {
+    return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
+}
+
+function toRelativePatternRegex(globPattern: string): RegExp {
+    const normalizedPattern = globPattern.replace(/\\/g, '/');
+    let regexSource = '';
+
+    for (let index = 0; index < normalizedPattern.length; index += 1) {
+        const current = normalizedPattern[index];
+        const next = normalizedPattern[index + 1];
+
+        if (current === '*' && next === '*') {
+            regexSource += '.*';
+            index += 1;
+            continue;
+        }
+
+        if (current === '*') {
+            regexSource += '[^/]*';
+            continue;
+        }
+
+        if (current === '?') {
+            regexSource += '.';
+            continue;
+        }
+
+        regexSource += escapeForRegex(current);
+    }
+
+    return new RegExp(`^${regexSource}$`, 'i');
+}
+
+function matchesRelativePattern(uri: vscode.Uri, pattern: vscode.RelativePattern): boolean {
+    const base = typeof (pattern as any).base === 'string'
+        ? path.normalize((pattern as any).base)
+        : (pattern as any).baseUri?.fsPath
+            ? path.normalize((pattern as any).baseUri.fsPath)
+            : '';
+    const fsPath = path.normalize(uri.fsPath);
+    if (base && !fsPath.startsWith(base)) {
+        return false;
+    }
+
+    const rawPattern = typeof (pattern as any).pattern === 'string'
+        ? (pattern as any).pattern
+        : '**/*';
+    const relativePath = base
+        ? path.relative(base, fsPath).replace(/\\/g, '/')
+        : fsPath.replace(/\\/g, '/');
+
+    return toRelativePatternRegex(rawPattern).test(relativePath);
+}
+
 function createHost(options: HostFixtureOptions): WorkspaceSemanticIndexHost {
     const workspaceRoots = deriveWorkspaceRoots(options.files, options.workspaceRoots);
     setOpenDocuments(options.openDocuments);
 
     return {
         findFiles: jest.fn(async (pattern: vscode.RelativePattern) => {
-            const base = typeof (pattern as any).base === 'string'
-                ? path.normalize((pattern as any).base)
-                : (pattern as any).baseUri?.fsPath
-                    ? path.normalize((pattern as any).baseUri.fsPath)
-                    : '';
-
             return options.files
                 .map((fileUri) => vscode.Uri.parse(fileUri))
-                .filter((uri) => !base || path.normalize(uri.fsPath).startsWith(base));
+                .filter((uri) => matchesRelativePattern(uri, pattern));
         }),
         openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
             const uri = typeof target === 'string'
@@ -162,19 +211,28 @@ function createHost(options: HostFixtureOptions): WorkspaceSemanticIndexHost {
 }
 
 function loadWorkspaceSemanticIndexService(): WorkspaceSemanticIndexServiceCtor {
-    try {
-        const module = require('../WorkspaceSemanticIndexService') as {
-            WorkspaceSemanticIndexService?: WorkspaceSemanticIndexServiceCtor;
-        };
+    let modulePath: string;
 
-        if (module.WorkspaceSemanticIndexService) {
-            return module.WorkspaceSemanticIndexService;
+    try {
+        modulePath = require.resolve('../WorkspaceSemanticIndexService');
+    } catch (error) {
+        const moduleError = error as NodeJS.ErrnoException;
+        if (moduleError.code === 'MODULE_NOT_FOUND') {
+            throw new Error('WorkspaceSemanticIndexService is not implemented yet');
         }
-    } catch {
-        // The red phase intentionally starts before the service exists.
+
+        throw error;
     }
 
-    throw new Error('WorkspaceSemanticIndexService is not implemented yet');
+    const module = require(modulePath) as {
+        WorkspaceSemanticIndexService?: WorkspaceSemanticIndexServiceCtor;
+    };
+
+    if (module.WorkspaceSemanticIndexService) {
+        return module.WorkspaceSemanticIndexService;
+    }
+
+    throw new Error('WorkspaceSemanticIndexService export is not implemented yet');
 }
 
 describe('WorkspaceSemanticIndexService', () => {
