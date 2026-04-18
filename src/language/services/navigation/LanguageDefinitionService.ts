@@ -16,6 +16,13 @@ import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
+import { DefinitionResolverSupport } from './definition/DefinitionResolverSupport';
+import type {
+    DefinitionRequestState,
+    DefinitionSemanticAdapter,
+    LanguageDefinitionHost,
+    VsCodeLocationWithSourceUri
+} from './definition/types';
 
 export interface LanguageDefinitionRequest {
     context: LanguageCapabilityContext;
@@ -24,40 +31,6 @@ export interface LanguageDefinitionRequest {
 
 export interface LanguageDefinitionService {
     provideDefinition(request: LanguageDefinitionRequest): Promise<LanguageLocation[]>;
-}
-
-interface DefinitionRequestState {
-    processedFiles: Set<string>;
-    functionDefinitions: Map<string, vscode.Location>;
-}
-
-interface VsCodeLocationWithSourceUri extends vscode.Location {
-    __languageSourceUri?: string;
-}
-
-interface LanguageDefinitionHost {
-    onDidChangeTextDocument(listener: (event: { document: { uri: { fsPath: string } } }) => void): vscode.Disposable;
-    openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
-    findFiles(pattern: vscode.RelativePattern): Promise<readonly vscode.Uri[]>;
-    getWorkspaceFolder(uri: vscode.Uri): { uri: { fsPath: string } } | undefined;
-    getWorkspaceFolders(): readonly { uri: { fsPath: string } }[] | undefined;
-    fileExists(filePath: string): boolean;
-}
-
-interface DefinitionSemanticAdapter {
-    getIncludeStatements?(document: vscode.TextDocument): Array<{
-        value: string;
-        isSystemInclude: boolean;
-        range: vscode.Range | { contains(position: vscode.Position): boolean };
-    }>;
-    getInheritStatements?(document: vscode.TextDocument): string[];
-    getExportedFunctionNames?(document: vscode.TextDocument): string[];
-    findFunctionLocation?(document: vscode.TextDocument, functionName: string): LanguageLocation | vscode.Location | undefined;
-    resolveVisibleVariableLocation?(
-        document: vscode.TextDocument,
-        variableName: string,
-        position: vscode.Position
-    ): LanguageLocation | vscode.Location | undefined;
 }
 
 interface LanguageDefinitionDependencies {
@@ -85,12 +58,11 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     private readonly astManager: ASTManager;
     private readonly objectInferenceService: ObjectInferenceService;
     private readonly projectConfigService?: LpcProjectConfigService;
-    private readonly includeFileCache = new Map<string, string[]>();
-    private readonly headerFunctionCache = new Map<string, Map<string, vscode.Location>>();
     private readonly targetMethodLookup: TargetMethodLookup;
     private readonly host: LanguageDefinitionHost;
     private readonly semanticAdapter?: DefinitionSemanticAdapter;
     private readonly scopedMethodResolver?: ScopedMethodResolver;
+    private readonly support: DefinitionResolverSupport;
 
     public constructor(
         macroManager: MacroManager,
@@ -110,19 +82,12 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         this.host = dependencies.host;
         this.semanticAdapter = dependencies.semanticAdapter;
         this.scopedMethodResolver = dependencies.scopedMethodResolver;
-
-        this.host.onDidChangeTextDocument((event) => {
-            const filePath = event.document.uri.fsPath;
-            if (filePath.endsWith('.h')) {
-                this.headerFunctionCache.delete(filePath);
-                for (const [key, includes] of this.includeFileCache.entries()) {
-                    if (includes.includes(filePath)) {
-                        this.includeFileCache.delete(key);
-                    }
-                }
-            } else {
-                this.includeFileCache.delete(filePath);
-            }
+        this.support = new DefinitionResolverSupport({
+            astManager: this.astManager,
+            host: this.host,
+            macroManager: this.macroManager,
+            projectConfigService: this.projectConfigService,
+            semanticAdapter: this.semanticAdapter
         });
     }
 
@@ -251,41 +216,13 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     }
 
     private createRequestState(): DefinitionRequestState {
-        return {
-            processedFiles: new Set<string>(),
-            functionDefinitions: new Map<string, vscode.Location>()
-        };
+        return this.support.createRequestState();
     }
 
     private toLanguageLocations(
         result: vscode.Location | vscode.Location[] | undefined
     ): LanguageLocation[] {
-        if (!result) {
-            return [];
-        }
-
-        const locations = Array.isArray(result) ? result : [result];
-        return locations.map((location) => {
-            const originalUri = (location as VsCodeLocationWithSourceUri).__languageSourceUri;
-            const rangeOrPosition = location.range;
-            const range = 'start' in rangeOrPosition
-                ? rangeOrPosition
-                : new vscode.Range(rangeOrPosition, rangeOrPosition);
-
-            return {
-                uri: originalUri ?? location.uri.toString(),
-                range: {
-                    start: {
-                        line: range.start.line,
-                        character: range.start.character
-                    },
-                    end: {
-                        line: range.end.line,
-                        character: range.end.character
-                    }
-                }
-            };
-        });
+        return this.support.toLanguageLocations(result);
     }
 
     private async resolveDirectDefinition(
@@ -448,10 +385,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     }
 
     private toVsCodeRange(location: vscode.Location): vscode.Range {
-        const rangeOrPosition = location.range;
-        return 'start' in rangeOrPosition
-            ? rangeOrPosition
-            : new vscode.Range(rangeOrPosition, rangeOrPosition);
+        return this.support.toVsCodeRange(location);
     }
 
     private async findMethodInFile(
@@ -468,40 +402,11 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     }
 
     private async getIncludeFiles(filePath: string): Promise<string[]> {
-        if (this.includeFileCache.has(filePath)) {
-            return this.includeFileCache.get(filePath)!;
-        }
-
-        const document = await this.tryOpenTextDocument(filePath);
-        if (!document) {
-            return [];
-        }
-
-        const includeFiles = await this.resolveExistingIncludeFiles(document);
-        this.includeFileCache.set(filePath, includeFiles);
-        return includeFiles;
+        return this.support.getIncludeFiles(filePath);
     }
 
     private async getHeaderFunctionIndex(headerPath: string): Promise<Map<string, vscode.Location>> {
-        if (this.headerFunctionCache.has(headerPath)) {
-            return this.headerFunctionCache.get(headerPath)!;
-        }
-
-        const functionIndex = new Map<string, vscode.Location>();
-        const headerDoc = await this.tryOpenTextDocument(vscode.Uri.file(headerPath));
-        if (!headerDoc) {
-            return functionIndex;
-        }
-
-        for (const summary of this.getSemanticSnapshot(headerDoc).exportedFunctions) {
-            const location = this.findFunctionInSemanticSnapshot(headerDoc, summary.name);
-            if (location) {
-                functionIndex.set(summary.name, location);
-            }
-        }
-
-        this.headerFunctionCache.set(headerPath, functionIndex);
-        return functionIndex;
+        return this.support.getHeaderFunctionIndex(headerPath);
     }
 
     private async findFunctionInCurrentFileIncludes(
@@ -720,75 +625,30 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     }
 
     private getSemanticSnapshot(document: vscode.TextDocument, useCache: boolean = true): SemanticSnapshot {
-        return this.astManager.getSemanticSnapshot(document, useCache);
+        return this.support.getSemanticSnapshot(document, useCache);
     }
 
     private async resolveExistingIncludeFiles(
         document: vscode.TextDocument,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string[]> {
-        const includeFiles: string[] = [];
-        const workspaceRoot = this.getWorkspaceRoot(document);
-
-        for (const includeStatement of this.getIncludeStatements(document)) {
-            const resolvedPath = await this.resolveIncludeFilePath(
-                document,
-                includeStatement.value,
-                includeStatement.isSystemInclude,
-                workspaceRoot,
-                projectConfig
-            );
-            if (resolvedPath && this.host.fileExists(resolvedPath)) {
-                includeFiles.push(resolvedPath);
-            }
-        }
-
-        return includeFiles;
+        return this.support.resolveExistingIncludeFiles(document, projectConfig);
     }
 
     private findFunctionInSemanticSnapshot(document: vscode.TextDocument, functionName: string): vscode.Location | undefined {
-        const adaptedLocation = this.semanticAdapter?.findFunctionLocation?.(document, functionName);
-        if (adaptedLocation) {
-            return this.toVsCodeLocation(adaptedLocation);
-        }
-
-        const symbol = this.getSemanticSnapshot(document).symbolTable
-            .getAllSymbols()
-            .find((candidate) => candidate.type === SymbolType.FUNCTION && candidate.name === functionName);
-
-        return symbol ? this.toSymbolLocation(document.uri, symbol) : undefined;
+        return this.support.findFunctionInSemanticSnapshot(document, functionName);
     }
 
-    private getIncludeStatements(document: vscode.TextDocument): Array<{
-        value: string;
-        isSystemInclude: boolean;
-        range: vscode.Range | { contains(position: vscode.Position): boolean };
-    }> {
-        return this.semanticAdapter?.getIncludeStatements?.(document) ?? this.getSemanticSnapshot(document).includeStatements;
+    private getIncludeStatements(document: vscode.TextDocument): ReturnType<DefinitionResolverSupport['getIncludeStatements']> {
+        return this.support.getIncludeStatements(document);
     }
 
     private toVsCodeLocation(location: LanguageLocation | vscode.Location): vscode.Location {
-        if (location instanceof vscode.Location) {
-            return location;
-        }
-
-        const uri = location.uri.includes('://') || location.uri.startsWith('file:')
-            ? vscode.Uri.parse(location.uri)
-            : vscode.Uri.file(location.uri);
-        const range = new vscode.Range(
-            location.range.start.line,
-            location.range.start.character,
-            location.range.end.line,
-            location.range.end.character
-        );
-        const result = new vscode.Location(uri, range) as VsCodeLocationWithSourceUri;
-        result.__languageSourceUri = location.uri;
-        return result;
+        return this.support.toVsCodeLocation(location);
     }
 
     private toSymbolLocation(uri: vscode.Uri, symbol: Symbol): vscode.Location {
-        const targetRange = symbol.selectionRange ?? symbol.range;
-        return new vscode.Location(uri, targetRange);
+        return this.support.toSymbolLocation(uri, symbol);
     }
 
     private isVariableLikeSymbol(symbol: Symbol): boolean {
@@ -802,11 +662,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         workspaceRoot: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string | undefined> {
-        if (!workspaceRoot) {
-            return Promise.resolve(undefined);
-        }
-
-        return this.doResolveIncludeFilePath(document, includePath, isSystemInclude, workspaceRoot, projectConfig);
+        return this.support.resolveIncludeFilePath(document, includePath, isSystemInclude, workspaceRoot, projectConfig);
     }
 
     private async doResolveIncludeFilePath(
@@ -841,28 +697,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     }
 
     private resolveInheritedFilePath(document: vscode.TextDocument, inheritValue: string): string | undefined {
-        let resolvedValue = inheritValue;
-        if (/^[A-Z_][A-Z0-9_]*$/.test(resolvedValue)) {
-            const macro = this.macroManager.getMacro(resolvedValue);
-            if (!macro?.value) {
-                return undefined;
-            }
-
-            resolvedValue = macro.value.replace(/^"(.*)"$/, '$1');
-        }
-
-        resolvedValue = this.ensureExtension(resolvedValue, '.c');
-
-        const workspaceRoot = this.getWorkspaceRoot(document);
-        if (!workspaceRoot) {
-            return undefined;
-        }
-
-        if (resolvedValue.startsWith('/')) {
-            return path.join(workspaceRoot, resolvedValue.substring(1));
-        }
-
-        return path.resolve(path.dirname(document.uri.fsPath), resolvedValue);
+        return this.support.resolveInheritedFilePath(document, inheritValue);
     }
 
     private ensureHeaderOrSourceExtension(filePath: string): string {
@@ -882,13 +717,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         inheritValue: string,
         requestState: DefinitionRequestState
     ): Promise<vscode.TextDocument | undefined> {
-        const inheritedFile = this.resolveInheritedFilePath(document, inheritValue);
-        if (!inheritedFile || !this.host.fileExists(inheritedFile) || requestState.processedFiles.has(inheritedFile)) {
-            return undefined;
-        }
-
-        requestState.processedFiles.add(inheritedFile);
-        return this.tryOpenTextDocument(inheritedFile);
+        return this.support.openInheritedDocument(document, inheritValue, requestState);
     }
 
     private resolveWorkspaceFilePath(document: vscode.TextDocument, filePath: string): string | undefined {
@@ -909,28 +738,15 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         document: vscode.TextDocument,
         filePath: string
     ): Promise<vscode.TextDocument | undefined> {
-        const resolvedFilePath = this.resolveWorkspaceFilePath(document, filePath);
-        if (!resolvedFilePath || !this.host.fileExists(resolvedFilePath)) {
-            return undefined;
-        }
-
-        return this.tryOpenTextDocument(resolvedFilePath);
+        return this.support.openWorkspaceDocument(document, filePath);
     }
 
     private async tryOpenTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument | undefined> {
-        try {
-            if (typeof target === 'string') {
-                return await this.host.openTextDocument(target);
-            }
-
-            return await this.host.openTextDocument(target);
-        } catch {
-            return undefined;
-        }
+        return this.support.tryOpenTextDocument(target);
     }
 
     private getWorkspaceRoot(document: vscode.TextDocument): string {
-        return this.host.getWorkspaceFolder(document.uri)?.uri.fsPath ?? path.dirname(document.uri.fsPath);
+        return this.support.getWorkspaceRoot(document);
     }
 
     private resolveProjectPath(
@@ -964,35 +780,14 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         workspaceRoot: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string | undefined> {
-        const fromContext = projectConfig?.resolvedConfig?.includeDirectories?.[0];
-        if (fromContext) {
-            return this.resolveProjectPath(workspaceRoot, fromContext, projectConfig);
-        }
-
-        const fromService = await this.projectConfigService?.getPrimaryIncludeDirectoryForWorkspace(workspaceRoot);
-        if (fromService) {
-            return fromService;
-        }
-        return undefined;
+        return this.support.getPrimaryIncludeDirectory(workspaceRoot, projectConfig);
     }
 
     private async getConfiguredSimulatedEfunFile(
         workspaceRoot: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string | undefined> {
-        const fromContext = projectConfig?.resolvedConfig?.simulatedEfunFile;
-        if (fromContext) {
-            return this.resolveExistingCodePath(
-                this.resolveProjectPath(workspaceRoot, fromContext, projectConfig)
-            );
-        }
-
-        const fromService = await this.projectConfigService?.getSimulatedEfunFileForWorkspace(workspaceRoot);
-        if (fromService) {
-            return fromService;
-        }
-
-        return undefined;
+        return this.support.getConfiguredSimulatedEfunFile(workspaceRoot, projectConfig);
     }
 
     private resolveExistingCodePath(targetPath: string): string {
