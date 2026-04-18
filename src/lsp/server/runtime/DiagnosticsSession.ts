@@ -2,6 +2,7 @@ import type { LanguageDiagnostic, LanguageDiagnosticsService } from '../../../la
 import type { LanguageDocument } from '../../../language/contracts/LanguageDocument';
 import type { LanguageDiagnosticsRequest } from '../../../language/services/diagnostics/LanguageDiagnosticsService';
 import { DocumentStore } from './DocumentStore';
+import { resolveWorkspaceRootFromRoots } from './serverPathUtils';
 import { WorkspaceSession } from './WorkspaceSession';
 
 export interface DiagnosticsSessionOptions {
@@ -66,51 +67,5 @@ function createLanguageDocument(storedDocument: Readonly<{ uri: string; version:
 }
 
 function resolveWorkspaceRoot(documentUri: string, workspaceSession: WorkspaceSession): string {
-    const workspaceRoots = workspaceSession.getWorkspaceRoots();
-    if (workspaceRoots.length === 0) {
-        return '';
-    }
-
-    const normalizedDocumentPath = normalizeComparablePath(fromFileUri(documentUri));
-    const matchedWorkspaceRoot = workspaceRoots.reduce<string | undefined>((bestMatch, root) => {
-        const normalizedRoot = normalizeComparablePath(root);
-        if (!isPathPrefix(normalizedRoot, normalizedDocumentPath)) {
-            return bestMatch;
-        }
-
-        if (!bestMatch) {
-            return root;
-        }
-
-        return normalizedRoot.length > normalizeComparablePath(bestMatch).length ? root : bestMatch;
-    }, undefined);
-
-    return matchedWorkspaceRoot ?? workspaceRoots[0];
-}
-
-function fromFileUri(uri: string): string {
-    if (!uri.startsWith('file://')) {
-        return uri;
-    }
-
-    const decoded = decodeURIComponent(uri.replace(/^file:\/\/+/, '/'));
-    return decoded.replace(/^\/([A-Za-z]:\/)/, '$1');
-}
-
-function normalizeComparablePath(path: string): string {
-    const normalizedPath = path
-        .replace(/\\/g, '/')
-        .replace(/\/+$/, '');
-
-    return isWindowsDrivePath(normalizedPath)
-        ? normalizedPath.toLowerCase()
-        : normalizedPath;
-}
-
-function isPathPrefix(root: string, candidate: string): boolean {
-    return candidate === root || candidate.startsWith(`${root}/`);
-}
-
-function isWindowsDrivePath(path: string): boolean {
-    return /^[A-Za-z]:\//.test(path);
+    return resolveWorkspaceRootFromRoots(documentUri, workspaceSession.getWorkspaceRoots());
 }
