@@ -56,6 +56,7 @@ import {
     SERVER_LANGUAGE_SEMANTIC_TOKEN_TYPES
 } from '../runtime/semanticTokenLegend';
 import { ServerLogger } from '../runtime/ServerLogger';
+import { __closeTextDocument, __syncTextDocument } from '../runtime/vscodeShim';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 export type ServerConnection = Pick<
@@ -169,6 +170,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
 
     connection.onDidOpenTextDocument(({ textDocument }: DidOpenTextDocumentParams) => {
         documentStore.open(textDocument.uri, textDocument.version, textDocument.text);
+        __syncTextDocument(textDocument.uri, textDocument.text, textDocument.version);
         void diagnosticsSession?.refresh(textDocument.uri);
     });
 
@@ -178,11 +180,13 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             : documentStore.get(textDocument.uri)?.text ?? '';
 
         documentStore.applyFullChange(textDocument.uri, textDocument.version, nextText);
+        __syncTextDocument(textDocument.uri, nextText, textDocument.version);
         void diagnosticsSession?.refresh(textDocument.uri);
     });
 
     connection.onDidCloseTextDocument(({ textDocument }: DidCloseTextDocumentParams) => {
         documentStore.close(textDocument.uri);
+        __closeTextDocument(textDocument.uri);
         diagnosticsSession?.clear(textDocument.uri);
     });
 
