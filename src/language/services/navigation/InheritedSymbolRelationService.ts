@@ -6,8 +6,8 @@ import { InheritanceResolver } from '../../../completion/inheritanceResolver';
 import type { MacroManager } from '../../../macroManager';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { resolveScopedDirectInheritSeeds } from '../../../objectInference/scopedInheritanceTraversal';
-import { resolveSymbolReferences, resolveVisibleSymbol } from '../../../symbolReferenceResolver';
-import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
+import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
+import { InheritedFunctionRelationService } from './InheritedFunctionRelationService';
 import { normalizeWorkspaceUri } from './navigationPathUtils';
 
 export interface InheritedReferenceMatch {
@@ -39,6 +39,7 @@ export interface InheritedSymbolRelationServiceOptions {
         openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
     };
     scopedMethodResolver?: Pick<ScopedMethodResolver, 'resolveCallAt'>;
+    functionRelationService?: Pick<InheritedFunctionRelationService, 'collectFunctionReferences'>;
 }
 
 const defaultHost = {
@@ -53,13 +54,14 @@ export class InheritedSymbolRelationService {
     private readonly host: {
         openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
     };
-    private readonly scopedMethodResolver?: Pick<ScopedMethodResolver, 'resolveCallAt'>;
+    private readonly functionRelationService: Pick<InheritedFunctionRelationService, 'collectFunctionReferences'>;
 
     public constructor(options: InheritedSymbolRelationServiceOptions = {}) {
         this.inheritanceResolver = options.inheritanceResolver
             ?? new InheritanceResolver(options.macroManager, options.workspaceRoots);
         this.host = options.host ?? defaultHost;
-        this.scopedMethodResolver = options.scopedMethodResolver;
+        this.functionRelationService = options.functionRelationService
+            ?? new InheritedFunctionRelationService(options);
     }
 
     public async collectInheritedReferences(
@@ -73,25 +75,9 @@ export class InheritedSymbolRelationService {
             return [];
         }
 
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
-        const resolvedSymbol = resolveVisibleSymbol(snapshot.symbolTable, symbolName, targetPosition);
-
-        if (resolvedSymbol?.type === SymbolType.FUNCTION) {
-            const family = await this.resolveFunctionFamilyFromVisibleSymbol(document, symbolName);
-            if (!family || family.hasUnresolvedTargets) {
-                return [];
-            }
-
-            return this.collectFunctionFamilyMatches(document, symbolName, family.documents, options);
-        }
-
-        if (resolvedSymbol?.type === SymbolType.STRUCT || resolvedSymbol?.type === SymbolType.CLASS) {
-            return [];
-        }
-
-        const scopedFamily = await this.resolveFunctionFamilyFromScopedCall(document, targetPosition);
-        if (scopedFamily) {
-            return this.collectFunctionFamilyMatches(document, scopedFamily.methodName, scopedFamily.documents, options);
+        const functionMatches = await this.functionRelationService.collectFunctionReferences(document, targetPosition, options);
+        if (functionMatches.length > 0) {
+            return functionMatches;
         }
 
         const globalBinding = await this.resolveVisibleFileGlobalBinding(document, symbolName, targetPosition);
@@ -167,100 +153,6 @@ export class InheritedSymbolRelationService {
         return changes;
     }
 
-    private async collectFunctionFamilyMatches(
-        document: vscode.TextDocument,
-        functionName: string,
-        familyDocuments: vscode.TextDocument[],
-        options: { includeDeclaration: boolean }
-    ): Promise<InheritedReferenceMatch[]> {
-        const matches: InheritedReferenceMatch[] = [];
-        const seen = new Set<string>();
-        const familyUris = new Set(familyDocuments.map((familyDocument) => normalizeWorkspaceUri(familyDocument.uri)));
-
-        for (const familyDocument of familyDocuments) {
-            const sameFileReferences = this.collectLocalFunctionMatches(familyDocument, functionName, options);
-            for (const match of sameFileReferences) {
-                this.pushUniqueMatch(matches, seen, match.uri, match.range);
-            }
-        }
-
-        if (this.scopedMethodResolver) {
-            const scopedMatches = await this.collectScopedFunctionMatches(
-                document,
-                functionName,
-                familyUris
-            );
-
-            for (const match of scopedMatches) {
-                this.pushUniqueMatch(matches, seen, match.uri, match.range);
-            }
-        }
-
-        return matches;
-    }
-
-    private collectLocalFunctionMatches(
-        document: vscode.TextDocument,
-        functionName: string,
-        options: { includeDeclaration: boolean }
-    ): InheritedReferenceMatch[] {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
-        const symbol = this.findGlobalFunctionSymbol(snapshot, functionName);
-        if (!symbol) {
-            return [];
-        }
-
-        const resolvedReferences = resolveSymbolReferences(document, symbol.selectionRange?.start ?? symbol.range.start);
-        if (!resolvedReferences) {
-            return [];
-        }
-
-        return resolvedReferences.matches
-            .filter((match) => options.includeDeclaration || !match.isDeclaration)
-            .map((match) => ({
-                uri: normalizeWorkspaceUri(document.uri),
-                range: match.range
-            }));
-    }
-
-    private async collectScopedFunctionMatches(
-        document: vscode.TextDocument,
-        functionName: string,
-        familyUris: Set<string>
-    ): Promise<InheritedReferenceMatch[]> {
-        const syntax = this.astManager.getSyntaxDocument(document, false)
-            ?? this.astManager.getSyntaxDocument(document, true);
-        if (!syntax || !this.scopedMethodResolver) {
-            return [];
-        }
-
-        const matches: InheritedReferenceMatch[] = [];
-        const seen = new Set<string>();
-        for (const callExpression of this.collectCallExpressions(syntax.nodes)) {
-            const scopedMethodRange = this.getScopedMethodRange(callExpression, functionName);
-            if (!scopedMethodRange) {
-                continue;
-            }
-
-            const resolution = await this.scopedMethodResolver.resolveCallAt(document, scopedMethodRange.start);
-            if (!resolution || resolution.status !== 'resolved' || resolution.methodName !== functionName) {
-                continue;
-            }
-
-            const pointsIntoFamily = resolution.targets.some((target) => {
-                const targetUri = normalizeWorkspaceUri(target.document.uri);
-                return familyUris.has(targetUri);
-            });
-            if (!pointsIntoFamily) {
-                continue;
-            }
-
-            this.pushUniqueMatch(matches, seen, normalizeWorkspaceUri(document.uri), scopedMethodRange);
-        }
-
-        return matches;
-    }
-
     private async collectFileGlobalMatches(
         binding: FileGlobalBinding,
         options: { includeDeclaration: boolean }
@@ -317,110 +209,6 @@ export class InheritedSymbolRelationService {
         }
 
         return matches;
-    }
-
-    private async resolveFunctionFamilyFromVisibleSymbol(
-        document: vscode.TextDocument,
-        functionName: string
-    ): Promise<{ documents: vscode.TextDocument[]; hasUnresolvedTargets: boolean } | undefined> {
-        const familyDocuments = new Map<string, vscode.TextDocument>([
-            [normalizeWorkspaceUri(document.uri), document]
-        ]);
-
-        const inheritedDocuments = await this.collectInheritedFunctionFamilyDocuments(
-            document,
-            functionName,
-            new Set([normalizeWorkspaceUri(document.uri)])
-        );
-        if (inheritedDocuments.hasUnresolvedTargets) {
-            return {
-                documents: Array.from(familyDocuments.values()),
-                hasUnresolvedTargets: true
-            };
-        }
-
-        for (const familyDocument of inheritedDocuments.documents) {
-            familyDocuments.set(normalizeWorkspaceUri(familyDocument.uri), familyDocument);
-        }
-
-        return {
-            documents: Array.from(familyDocuments.values()),
-            hasUnresolvedTargets: false
-        };
-    }
-
-    private async resolveFunctionFamilyFromScopedCall(
-        document: vscode.TextDocument,
-        position: vscode.Position
-    ): Promise<{ methodName: string; documents: vscode.TextDocument[] } | undefined> {
-        if (!this.scopedMethodResolver) {
-            return undefined;
-        }
-
-        const resolution = await this.scopedMethodResolver.resolveCallAt(document, position);
-        if (!resolution || resolution.status !== 'resolved' || resolution.targets.length === 0) {
-            return undefined;
-        }
-
-        const familyDocuments = new Map<string, vscode.TextDocument>();
-        for (const target of resolution.targets) {
-            familyDocuments.set(normalizeWorkspaceUri(target.document.uri), target.document);
-        }
-
-        return {
-            methodName: resolution.methodName,
-            documents: Array.from(familyDocuments.values())
-        };
-    }
-
-    private async collectInheritedFunctionFamilyDocuments(
-        document: vscode.TextDocument,
-        functionName: string,
-        visitedUris: Set<string>
-    ): Promise<{ documents: vscode.TextDocument[]; hasUnresolvedTargets: boolean }> {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
-        const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver as any, snapshot);
-        if (directSeeds.hasUnresolvedTargets) {
-            return { documents: [], hasUnresolvedTargets: true };
-        }
-
-        const documents = new Map<string, vscode.TextDocument>();
-        for (const seed of directSeeds.resolvedTargets) {
-            const targetUri = normalizeWorkspaceUri(seed.resolvedUri);
-            if (visitedUris.has(targetUri)) {
-                continue;
-            }
-
-            visitedUris.add(targetUri);
-
-            try {
-                const inheritedDocument = await this.host.openTextDocument(vscode.Uri.parse(seed.resolvedUri));
-                const inheritedSnapshot = this.astManager.getSemanticSnapshot(inheritedDocument, false);
-                if (this.findGlobalFunctionSymbol(inheritedSnapshot, functionName)) {
-                    documents.set(targetUri, inheritedDocument);
-                }
-
-                const nested = await this.collectInheritedFunctionFamilyDocuments(
-                    inheritedDocument,
-                    functionName,
-                    visitedUris
-                );
-                if (nested.hasUnresolvedTargets) {
-                    return { documents: [], hasUnresolvedTargets: true };
-                }
-
-                for (const nestedDocument of nested.documents) {
-                    documents.set(normalizeWorkspaceUri(nestedDocument.uri), nestedDocument);
-                }
-            } catch {
-                continue;
-            }
-        }
-
-        return {
-            documents: Array.from(documents.values()),
-            hasUnresolvedTargets: false
-        };
     }
 
     private async resolveVisibleFileGlobalBinding(
@@ -528,57 +316,12 @@ export class InheritedSymbolRelationService {
         return result;
     }
 
-    private findGlobalFunctionSymbol(
-        snapshot: ReturnType<ASTManager['getSemanticSnapshot']>,
-        functionName: string
-    ): LPCSymbol | undefined {
-        const symbol = snapshot.symbolTable.getGlobalScope().symbols.get(functionName);
-        return symbol?.type === SymbolType.FUNCTION ? symbol : undefined;
-    }
-
     private findFileGlobalSymbol(
         snapshot: ReturnType<ASTManager['getSemanticSnapshot']>,
         symbolName: string
     ): LPCSymbol | undefined {
         const symbol = snapshot.symbolTable.getGlobalScope().symbols.get(symbolName);
         return symbol?.type === SymbolType.VARIABLE ? symbol : undefined;
-    }
-
-    private collectCallExpressions(nodes: readonly SyntaxNode[]): SyntaxNode[] {
-        const queue = [...nodes];
-        const callExpressions: SyntaxNode[] = [];
-
-        while (queue.length > 0) {
-            const current = queue.shift()!;
-            if (current.kind === SyntaxKind.CallExpression) {
-                callExpressions.push(current);
-            }
-            queue.push(...current.children);
-        }
-
-        return callExpressions;
-    }
-
-    private getScopedMethodRange(callExpression: SyntaxNode, methodName: string): vscode.Range | undefined {
-        const callee = callExpression.children[0];
-        if (!callee) {
-            return undefined;
-        }
-
-        if (callee.kind === SyntaxKind.Identifier && callee.metadata?.scopeQualifier === '::' && callee.name === methodName) {
-            return callee.range;
-        }
-
-        if (callee.kind !== SyntaxKind.MemberAccessExpression || callee.metadata?.operator !== '::') {
-            return undefined;
-        }
-
-        const memberNode = callee.children[1];
-        if (memberNode?.kind !== SyntaxKind.Identifier || memberNode.name !== methodName) {
-            return undefined;
-        }
-
-        return memberNode.range;
     }
 
     private getWordAtPosition(document: vscode.TextDocument, position: vscode.Position): string | undefined {

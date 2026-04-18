@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ASTManager } from '../../../../ast/astManager';
-import { InheritedSymbolRelationService } from '../InheritedSymbolRelationService';
+import { InheritedFunctionRelationService } from '../InheritedFunctionRelationService';
 
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
     const uri = vscode.Uri.parse(uriValue);
@@ -101,13 +101,12 @@ function positionOn(source: string, symbol: string, occurrence: number = 1): vsc
     return new vscode.Position(line, character + 1);
 }
 
-describe('InheritedSymbolRelationService', () => {
+describe('InheritedFunctionRelationService', () => {
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
-        jest.restoreAllMocks();
     });
 
-    test('collectInheritedReferences includes only provable inherit-family function positions', async () => {
+    test('collects provable inherit-family function references from visible symbols', async () => {
         const baseSource = 'void create() {}\n';
         const childSource = 'inherit "/base";\nvoid demo() {\n    ::create();\n}\n';
         const otherSource = 'void demo() { create(); }\n';
@@ -120,7 +119,7 @@ describe('InheritedSymbolRelationService', () => {
             [otherDocument.uri.toString(), otherDocument]
         ]);
 
-        const service = new InheritedSymbolRelationService({
+        const service = new InheritedFunctionRelationService({
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -172,7 +171,7 @@ describe('InheritedSymbolRelationService', () => {
             } as any
         });
 
-        const matches = await service.collectInheritedReferences(
+        const matches = await service.collectFunctionReferences(
             childDocument,
             positionOn(childSource, 'create'),
             { includeDeclaration: true }
@@ -187,45 +186,10 @@ describe('InheritedSymbolRelationService', () => {
         ]));
     });
 
-    test('collectInheritedReferences delegates function references through the injected function relation seam without changing matches', async () => {
-        const childSource = 'void create() {}\n';
-        const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
-        const delegatedMatches = [{
-            uri: 'file:///D:/workspace/base.c',
-            range: new vscode.Range(0, 5, 0, 11)
-        }];
-        const functionRelationService = {
-            collectFunctionReferences: jest.fn(async () => delegatedMatches)
-        };
-
-        const service = new InheritedSymbolRelationService({
-            inheritanceResolver: {
-                resolveInheritTargets: jest.fn(() => [])
-            } as any,
-            host: {
-                openTextDocument: jest.fn()
-            },
-            functionRelationService
-        });
-
-        const matches = await service.collectInheritedReferences(
-            childDocument,
-            positionOn(childSource, 'create'),
-            { includeDeclaration: true }
-        );
-
-        expect(functionRelationService.collectFunctionReferences).toHaveBeenCalledWith(
-            childDocument,
-            expect.any(vscode.Position),
-            { includeDeclaration: true }
-        );
-        expect(matches).toEqual(delegatedMatches);
-    });
-
-    test('collectInheritedReferences returns no scoped function matches when room:: qualifier is not unique', async () => {
+    test('ignores scoped calls when room:: qualifier is not unique', async () => {
         const childSource = 'void demo() {\n    room::init();\n}\n';
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
-        const service = new InheritedSymbolRelationService({
+        const service = new InheritedFunctionRelationService({
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [])
             } as any,
@@ -242,7 +206,7 @@ describe('InheritedSymbolRelationService', () => {
             } as any
         });
 
-        const matches = await service.collectInheritedReferences(
+        const matches = await service.collectFunctionReferences(
             childDocument,
             positionOn(childSource, 'init'),
             { includeDeclaration: true }
@@ -251,10 +215,10 @@ describe('InheritedSymbolRelationService', () => {
         expect(matches).toEqual([]);
     });
 
-    test('collectInheritedReferences does not expand function references when the traversed inherit chain is unresolved', async () => {
+    test('returns unresolved when direct inherit seeds are not fully resolved', async () => {
         const childSource = 'void create() {}\n';
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
-        const service = new InheritedSymbolRelationService({
+        const service = new InheritedFunctionRelationService({
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [{
                     rawValue: '/base',
@@ -269,7 +233,7 @@ describe('InheritedSymbolRelationService', () => {
             }
         });
 
-        const matches = await service.collectInheritedReferences(
+        const matches = await service.collectFunctionReferences(
             childDocument,
             positionOn(childSource, 'create'),
             { includeDeclaration: true }
@@ -278,138 +242,77 @@ describe('InheritedSymbolRelationService', () => {
         expect(matches).toEqual([]);
     });
 
-    test('collectInheritedReferences canonicalizes four-slash Windows inherit target URIs through the live path', async () => {
-        const baseSource = 'void create() {}\n';
-        const childSource = 'inherit "/base";\nvoid demo() {\n    ::create();\n}\n';
-        const baseDocument = createTextDocument('file:////D:/workspace/base.c', baseSource);
+    test('does not treat scoped qualifiers as method identifiers for function-family references', async () => {
+        const baseSource = 'void init() {}\n';
+        const childSource = 'void demo(int arg) {\n    room::init(arg);\n}\n';
+        const baseDocument = createTextDocument('file:///D:/workspace/base.c', baseSource);
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
-        const documents = new Map([
-            [baseDocument.uri.toString(), baseDocument],
-            [childDocument.uri.toString(), childDocument]
-        ]);
-
-        const service = new InheritedSymbolRelationService({
+        const service = new InheritedFunctionRelationService({
             inheritanceResolver: {
-                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
-                    if (snapshot.uri === childDocument.uri.toString()) {
-                        return [{
-                            rawValue: '/base',
-                            expressionKind: 'string',
-                            sourceUri: childDocument.uri.toString(),
-                            resolvedUri: baseDocument.uri.toString(),
-                            isResolved: true
-                        }];
-                    }
-
-                    return [];
-                })
+                resolveInheritTargets: jest.fn(() => [])
             } as any,
             host: {
-                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
-                    const key = typeof target === 'string' ? target : target.toString();
-                    const document = documents.get(key);
-                    if (!document) {
-                        throw new Error(`Unknown document ${key}`);
-                    }
-
-                    return document;
-                })
+                openTextDocument: jest.fn()
             },
             scopedMethodResolver: {
-                resolveCallAt: jest.fn(async (document: vscode.TextDocument, position: vscode.Position) => {
-                    if (
-                        document.uri.toString() === childDocument.uri.toString()
-                        && position.line === 2
-                    ) {
-                        return {
-                            status: 'resolved',
-                            methodName: 'create',
-                            targets: [{
-                                path: baseDocument.fileName,
-                                methodName: 'create',
-                                document: baseDocument,
-                                location: new vscode.Location(baseDocument.uri, new vscode.Range(0, 5, 0, 11)),
-                                declarationRange: new vscode.Range(0, 5, 0, 11),
-                                sourceLabel: baseDocument.fileName
-                            }]
-                        };
-                    }
-
-                    return undefined;
-                })
+                resolveCallAt: jest.fn(async () => ({
+                    status: 'resolved',
+                    methodName: 'init',
+                    targets: [{
+                        path: baseDocument.fileName,
+                        methodName: 'init',
+                        document: baseDocument,
+                        location: new vscode.Location(baseDocument.uri, new vscode.Range(0, 5, 0, 9)),
+                        declarationRange: new vscode.Range(0, 5, 0, 9),
+                        sourceLabel: baseDocument.fileName
+                    }]
+                }))
             } as any
         });
 
-        const matches = await service.collectInheritedReferences(
+        const matches = await service.collectFunctionReferences(
             childDocument,
-            positionOn(childSource, 'create'),
+            positionOn(childSource, 'room'),
             { includeDeclaration: true }
         );
 
-        const baseMatches = matches.filter((match) => match.uri === 'file:///D:/workspace/base.c');
-        expect(baseMatches).toHaveLength(1);
-        expect(matches).not.toEqual(expect.arrayContaining([
-            expect.objectContaining({ uri: 'file://///D:/workspace/base.c' })
-        ]));
+        expect(matches).toEqual([]);
     });
 
-    test('buildInheritedRenameEdits returns no inherited edits when sibling inherit branches make the global binding ambiguous', async () => {
-        const childSource = 'void demo() { GLOBAL_D += 1; }\n';
-        const parentASource = 'int GLOBAL_D;\n';
-        const parentBSource = 'int GLOBAL_D;\n';
+    test('does not treat scoped call arguments as method identifiers for function-family references', async () => {
+        const baseSource = 'void init() {}\n';
+        const childSource = 'void demo(int arg) {\n    room::init(arg);\n}\n';
+        const baseDocument = createTextDocument('file:///D:/workspace/base.c', baseSource);
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
-        const parentADocument = createTextDocument('file:///D:/workspace/a.c', parentASource);
-        const parentBDocument = createTextDocument('file:///D:/workspace/b.c', parentBSource);
-        const documents = new Map([
-            [childDocument.uri.toString(), childDocument],
-            [parentADocument.uri.toString(), parentADocument],
-            [parentBDocument.uri.toString(), parentBDocument]
-        ]);
-
-        const service = new InheritedSymbolRelationService({
+        const service = new InheritedFunctionRelationService({
             inheritanceResolver: {
-                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
-                    if (snapshot.uri === childDocument.uri.toString()) {
-                        return [
-                            {
-                                rawValue: '/a',
-                                expressionKind: 'string',
-                                sourceUri: childDocument.uri.toString(),
-                                resolvedUri: parentADocument.uri.toString(),
-                                isResolved: true
-                            },
-                            {
-                                rawValue: '/b',
-                                expressionKind: 'string',
-                                sourceUri: childDocument.uri.toString(),
-                                resolvedUri: parentBDocument.uri.toString(),
-                                isResolved: true
-                            }
-                        ];
-                    }
-
-                    return [];
-                })
+                resolveInheritTargets: jest.fn(() => [])
             } as any,
             host: {
-                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
-                    const key = typeof target === 'string' ? target : target.toString();
-                    const document = documents.get(key);
-                    if (!document) {
-                        throw new Error(`Unknown document ${key}`);
-                    }
-
-                    return document;
-                })
-            }
+                openTextDocument: jest.fn()
+            },
+            scopedMethodResolver: {
+                resolveCallAt: jest.fn(async () => ({
+                    status: 'resolved',
+                    methodName: 'init',
+                    targets: [{
+                        path: baseDocument.fileName,
+                        methodName: 'init',
+                        document: baseDocument,
+                        location: new vscode.Location(baseDocument.uri, new vscode.Range(0, 5, 0, 9)),
+                        declarationRange: new vscode.Range(0, 5, 0, 9),
+                        sourceLabel: baseDocument.fileName
+                    }]
+                }))
+            } as any
         });
 
-        const edits = await service.buildInheritedRenameEdits(
+        const matches = await service.collectFunctionReferences(
             childDocument,
-            positionOn(childSource, 'GLOBAL_D'),
-            'RENAMED_D'
+            positionOn(childSource, 'arg', 2),
+            { includeDeclaration: true }
         );
 
-        expect(edits).toEqual({});
+        expect(matches).toEqual([]);
     });
 });
