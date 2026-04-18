@@ -60,7 +60,7 @@ Those helpers are residual debt from before the decomposition and should be dele
 
 ### 2. Introduce a shared scoped identifier helper
 
-Create a small shared helper in the navigation layer whose only responsibility is to answer:
+Create a small shared helper in `src/language/services/navigation/` or `src/language/services/navigation/definition/` whose only responsibility is to answer:
 
 - what scoped method identifier node, if any, contains a given cursor position
 - whether a given cursor position is on the resolved scoped method identifier
@@ -77,6 +77,11 @@ This helper is intentionally narrow. It must not:
 - perform definition lookup
 - load callable docs
 - depend on `ScopedMethodResolver`
+
+Its minimal API should stay equally narrow, for example:
+
+- `findScopedMethodIdentifierAtPosition(document, position): SyntaxNode | undefined`
+- `isOnScopedMethodIdentifier(document, position, methodName): boolean`
 
 ### 3. Consumers of the shared helper
 
@@ -98,12 +103,24 @@ This package does not force signature help into the same seam. That remains outs
 3. if yes, it converts `ScopedMethodResolver` targets to definition locations
 4. if not, it returns `undefined` and the coordinator continues normally
 
+Scoped status preservation:
+
+- if `ScopedMethodResolver` returns `resolved` or `multiple` and the cursor is on the method identifier, definition returns the matching scoped target locations
+- if `ScopedMethodResolver` returns `unknown` or `unsupported` and the cursor is on the method identifier, definition must continue to treat the scoped call as handled and preserve the current non-fallback behavior
+- if the cursor is not on the scoped method identifier, the scoped resolver returns `undefined` and the coordinator continues normally
+
 ### Hover
 
 1. `LanguageHoverService` asks `ScopedMethodResolver` for scoped call resolution
 2. before rendering docs, it asks the shared helper whether the cursor is actually on the scoped method identifier
 3. if yes, hover continues as today
 4. if not, hover does not treat the position as a scoped method hover target
+
+Scoped status preservation:
+
+- if `ScopedMethodResolver` returns `resolved` or `multiple` and the cursor is on the method identifier, hover renders the existing scoped callable-doc path
+- if `ScopedMethodResolver` returns `unknown` or `unsupported` and the cursor is on the method identifier, hover must stay non-rendering
+- hover must not introduce fallback behavior for scoped `unknown` / `unsupported`
 
 The helper therefore becomes the single source of truth for scoped identifier hit-testing in definition and hover.
 
@@ -142,7 +159,9 @@ Add focused tests that cover:
 Retain existing behavior by exercising:
 
 - scoped definition still works on method identifiers only
+- scoped definition keeps the current handled-empty behavior for method-identifier positions that resolve to `unknown` or `unsupported`
 - scoped hover still works on method identifiers only
+- scoped hover stays empty for method-identifier positions that resolve to `unknown` or `unsupported`
 - non-scoped positions still fall through as before
 
 ### `DefinitionResolverSupport` cache invalidation tests
@@ -153,11 +172,21 @@ Add direct regression tests for:
 - `.h` document change invalidates dependent `includeFileCache` entries
 - `.c` document change invalidates only that file’s include cache entry
 
+### Verification set
+
+Implementation planning and execution must keep the following suites or targeted commands green:
+
+- `src/language/services/navigation/__tests__/LanguageDefinitionService.test.ts`
+- `src/language/services/navigation/__tests__/ScopedMethodDefinitionResolver.test.ts`
+- `src/language/services/navigation/__tests__/DefinitionResolverSupport.test.ts`
+- `src/language/services/navigation/__tests__/navigationServices.test.ts`
+- `src/__tests__/providerIntegration.test.ts`
+- `src/lsp/server/__tests__/navigationHandlers.test.ts`
+- `npx tsc --noEmit`
+
 ## Acceptance Criteria
 
 - `LanguageDefinitionService` contains no stale scoped helper logic
 - scoped identifier hit-testing exists in only one shared implementation for definition and hover
 - `DefinitionResolverSupport` cache invalidation behavior is directly covered by tests
-- `npx tsc --noEmit` passes
-- definition, hover, and navigation regressions remain green
-
+- the verification set listed above passes without changing definition or hover semantics
