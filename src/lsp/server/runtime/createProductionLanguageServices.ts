@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import * as vscode from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import { ASTManager } from '../../../ast/astManager';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
@@ -20,6 +21,11 @@ import { AstBackedLanguageReferenceService } from '../../../language/services/na
 import { AstBackedLanguageRenameService } from '../../../language/services/navigation/LanguageRenameService';
 import { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import { AstBackedLanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
+import { WorkspaceReferenceCandidateEnumerator } from '../../../language/services/navigation/WorkspaceReferenceCandidateEnumerator';
+import { WorkspaceReferenceCollector } from '../../../language/services/navigation/WorkspaceReferenceCollector';
+import { WorkspaceSemanticIndexService } from '../../../language/services/navigation/WorkspaceSemanticIndexService';
+import { WorkspaceSymbolOwnerResolver } from '../../../language/services/navigation/WorkspaceSymbolOwnerResolver';
+import { WorkspaceSymbolRelationService } from '../../../language/services/navigation/WorkspaceSymbolRelationService';
 import { FormattingService } from '../../../formatter/FormattingService';
 import {
     DefaultLanguageFoldingService,
@@ -43,6 +49,30 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService);
     const scopedMethodResolver = new ScopedMethodResolver(macroManager);
     const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
+    const navigationWorkspaceHost = {
+        findFiles: async (pattern: vscode.RelativePattern) => vscode.workspace.findFiles(pattern),
+        openTextDocument: async (target: string | vscode.Uri) => typeof target === 'string'
+            ? vscode.workspace.openTextDocument(target)
+            : vscode.workspace.openTextDocument(target),
+        getWorkspaceFolders: () => vscode.workspace.workspaceFolders
+    };
+    const workspaceSemanticIndexService = new WorkspaceSemanticIndexService({
+        host: navigationWorkspaceHost
+    });
+    const workspaceSymbolOwnerResolver = new WorkspaceSymbolOwnerResolver({
+        workspaceSemanticIndexService
+    });
+    const workspaceReferenceCandidateEnumerator = new WorkspaceReferenceCandidateEnumerator();
+    const workspaceReferenceCollector = new WorkspaceReferenceCollector({
+        host: navigationWorkspaceHost,
+        ownerResolver: workspaceSymbolOwnerResolver,
+        candidateEnumerator: workspaceReferenceCandidateEnumerator
+    });
+    const workspaceRelationService = new WorkspaceSymbolRelationService({
+        ownerResolver: workspaceSymbolOwnerResolver,
+        workspaceSemanticIndexService,
+        referenceCollector: workspaceReferenceCollector
+    });
 
     const completionService = new QueryBackedLanguageCompletionService(
         efunDocsManager,
@@ -74,8 +104,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         projectConfigService,
         { scopedMethodResolver }
     );
-    const referenceService = new AstBackedLanguageReferenceService();
-    const renameService = new AstBackedLanguageRenameService();
+    const referenceService = new AstBackedLanguageReferenceService({ workspaceRelationService });
+    const renameService = new AstBackedLanguageRenameService({ workspaceRelationService });
     const symbolService = new AstBackedLanguageSymbolService();
     const signatureHelpService = new LanguageSignatureHelpService({
         efunDocsManager,

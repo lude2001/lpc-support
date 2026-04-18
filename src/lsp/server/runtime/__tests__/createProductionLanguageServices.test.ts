@@ -246,10 +246,12 @@ describe('createProductionLanguageServices', () => {
     test('createProductionLanguageServices wires workspace relation services into references and rename', () => {
         const workspaceSemanticIndexService = { kind: 'workspace-semantic-index-service' };
         const workspaceRelationService = { kind: 'workspace-relation-service' };
+        const workspaceReferenceCandidateEnumerator = { kind: 'workspace-reference-candidate-enumerator' };
         const workspaceSemanticIndexCtor = jest.fn(() => workspaceSemanticIndexService);
         const workspaceRelationCtor = jest.fn(() => workspaceRelationService);
         const ownerResolverCtor = jest.fn(() => ({ kind: 'workspace-owner-resolver' }));
         const referenceCollectorCtor = jest.fn(() => ({ kind: 'workspace-reference-collector' }));
+        const referenceCandidateEnumeratorCtor = jest.fn(() => workspaceReferenceCandidateEnumerator);
         const referenceService = { provideReferences: jest.fn() };
         const renameService = {
             prepareRename: jest.fn(),
@@ -336,6 +338,9 @@ describe('createProductionLanguageServices', () => {
             jest.doMock('../../../../language/services/navigation/WorkspaceSymbolOwnerResolver', () => ({
                 WorkspaceSymbolOwnerResolver: ownerResolverCtor
             }));
+            jest.doMock('../../../../language/services/navigation/WorkspaceReferenceCandidateEnumerator', () => ({
+                WorkspaceReferenceCandidateEnumerator: referenceCandidateEnumeratorCtor
+            }));
             jest.doMock('../../../../language/services/navigation/WorkspaceReferenceCollector', () => ({
                 WorkspaceReferenceCollector: referenceCollectorCtor
             }));
@@ -358,6 +363,9 @@ describe('createProductionLanguageServices', () => {
             }));
             expect(workspaceRelationCtor).toHaveBeenCalledWith(expect.objectContaining({
                 workspaceSemanticIndexService
+            }));
+            expect(referenceCollectorCtor).toHaveBeenCalledWith(expect.objectContaining({
+                candidateEnumerator: workspaceReferenceCandidateEnumerator
             }));
             expect(referenceCtor).toHaveBeenCalledWith(expect.objectContaining({
                 workspaceRelationService
