@@ -23,6 +23,14 @@ interface WorkspaceSemanticIndexServiceOptions {
     snapshotService?: DocumentSemanticSnapshotService;
 }
 
+interface WorkspaceRootCache {
+    rootPath: string;
+    discoveredUrisByPath: Map<string, vscode.Uri>;
+    entriesByPath: Map<string, WorkspaceSemanticIndexEntry>;
+    view?: WorkspaceSymbolIndexView;
+    viewSignature?: string;
+}
+
 class StaticWorkspaceSymbolIndexView implements WorkspaceSymbolIndexView {
     private readonly functionCandidates: Map<string, string[]>;
     private readonly fileGlobalCandidates: Map<string, string[]>;
@@ -50,6 +58,7 @@ class StaticWorkspaceSymbolIndexView implements WorkspaceSymbolIndexView {
 export class WorkspaceSemanticIndexService {
     private readonly host: WorkspaceSemanticIndexHost;
     private readonly snapshotService: DocumentSemanticSnapshotService;
+    private readonly workspaceCaches = new Map<string, WorkspaceRootCache>();
 
     constructor(options: WorkspaceSemanticIndexServiceOptions = {}) {
         this.host = options.host ?? defaultHost;
@@ -58,11 +67,21 @@ export class WorkspaceSemanticIndexService {
 
     public async getIndexView(workspaceRoot: string): Promise<WorkspaceSymbolIndexView> {
         const resolvedWorkspaceRoot = this.resolveWorkspaceRoot(workspaceRoot);
-        const documents = await this.collectWorkspaceDocuments(resolvedWorkspaceRoot);
-        const entries = documents.map((document) => this.toWorkspaceEntry(
-            this.snapshotService.getSnapshot(document, false)
-        ));
-        return new StaticWorkspaceSymbolIndexView(entries);
+        const workspaceCache = await this.getOrCreateWorkspaceCache(resolvedWorkspaceRoot);
+        const openDocuments = this.collectOpenDocuments(resolvedWorkspaceRoot);
+        await this.refreshOpenDocumentEntries(workspaceCache, openDocuments);
+        await this.materializeDiscoveredEntries(workspaceCache, openDocuments);
+
+        const entries = this.getSortedEntries(workspaceCache);
+        const signature = this.buildViewSignature(entries);
+        if (workspaceCache.view && workspaceCache.viewSignature === signature) {
+            return workspaceCache.view;
+        }
+
+        const view = new StaticWorkspaceSymbolIndexView(entries);
+        workspaceCache.view = view;
+        workspaceCache.viewSignature = signature;
+        return view;
     }
 
     private resolveWorkspaceRoot(workspaceRoot: string): string {
@@ -74,9 +93,41 @@ export class WorkspaceSemanticIndexService {
         return matchingFolder ? matchingFolder.uri.fsPath : workspaceRoot;
     }
 
-    private async collectWorkspaceDocuments(workspaceRoot: string): Promise<vscode.TextDocument[]> {
+    private async getOrCreateWorkspaceCache(workspaceRoot: string): Promise<WorkspaceRootCache> {
+        const cacheKey = this.normalizeComparablePath(workspaceRoot);
+        const existingCache = this.workspaceCaches.get(cacheKey);
+        if (existingCache) {
+            return existingCache;
+        }
+
+        const createdCache: WorkspaceRootCache = {
+            rootPath: workspaceRoot,
+            discoveredUrisByPath: await this.discoverWorkspaceUris(workspaceRoot),
+            entriesByPath: new Map<string, WorkspaceSemanticIndexEntry>()
+        };
+        this.workspaceCaches.set(cacheKey, createdCache);
+        return createdCache;
+    }
+
+    private async discoverWorkspaceUris(workspaceRoot: string): Promise<Map<string, vscode.Uri>> {
+        const discoveredUrisByPath = new Map<string, vscode.Uri>();
+
+        for (const pattern of INDEXABLE_PATTERNS) {
+            const matches = await this.host.findFiles(new vscode.RelativePattern(workspaceRoot, pattern));
+            for (const uri of matches) {
+                if (!this.isIndexableUri(uri) || !this.isInWorkspace(uri.fsPath, workspaceRoot)) {
+                    continue;
+                }
+
+                discoveredUrisByPath.set(this.normalizeComparablePath(uri.fsPath), uri);
+            }
+        }
+
+        return discoveredUrisByPath;
+    }
+
+    private collectOpenDocuments(workspaceRoot: string): Map<string, vscode.TextDocument> {
         const openDocumentByPath = new Map<string, vscode.TextDocument>();
-        const discoveredUriObjects = new Map<string, vscode.Uri>();
 
         for (const document of this.getOpenDocuments()) {
             if (!this.isIndexableDocument(document) || !this.isInWorkspace(document.uri.fsPath, workspaceRoot)) {
@@ -86,38 +137,49 @@ export class WorkspaceSemanticIndexService {
             openDocumentByPath.set(this.normalizeComparablePath(document.uri.fsPath), document);
         }
 
-        const discoveredPaths = new Set<string>(openDocumentByPath.keys());
-        for (const pattern of INDEXABLE_PATTERNS) {
-            const matches = await this.host.findFiles(new vscode.RelativePattern(workspaceRoot, pattern));
-            for (const uri of matches) {
-                if (!this.isIndexableUri(uri) || !this.isInWorkspace(uri.fsPath, workspaceRoot)) {
-                    continue;
-                }
+        return openDocumentByPath;
+    }
 
-                const pathKey = this.normalizeComparablePath(uri.fsPath);
-                discoveredPaths.add(pathKey);
-                discoveredUriObjects.set(pathKey, uri);
-            }
-        }
-
-        const paths = Array.from(discoveredPaths).sort();
-        const documents: vscode.TextDocument[] = [];
-        for (const pathKey of paths) {
-            const openDocument = openDocumentByPath.get(pathKey);
-            if (openDocument) {
-                documents.push(openDocument);
+    private async refreshOpenDocumentEntries(
+        workspaceCache: WorkspaceRootCache,
+        openDocuments: Map<string, vscode.TextDocument>
+    ): Promise<void> {
+        for (const [pathKey, document] of openDocuments.entries()) {
+            const snapshot = this.snapshotService.getSnapshot(document, true);
+            const existingEntry = workspaceCache.entriesByPath.get(pathKey);
+            if (existingEntry && existingEntry.version === snapshot.version && existingEntry.uri === snapshot.uri) {
                 continue;
             }
 
-            const discoveredUri = discoveredUriObjects.get(pathKey);
-            if (!discoveredUri) {
+            workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(snapshot));
+        }
+    }
+
+    private async materializeDiscoveredEntries(
+        workspaceCache: WorkspaceRootCache,
+        openDocuments: Map<string, vscode.TextDocument>
+    ): Promise<void> {
+        for (const [pathKey, uri] of workspaceCache.discoveredUrisByPath.entries()) {
+            if (openDocuments.has(pathKey) || workspaceCache.entriesByPath.has(pathKey)) {
                 continue;
             }
 
-            documents.push(await this.host.openTextDocument(discoveredUri));
+            const document = await this.host.openTextDocument(uri);
+            const snapshot = this.snapshotService.getSnapshot(document, true);
+            workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(snapshot));
         }
+    }
 
-        return documents;
+    private getSortedEntries(workspaceCache: WorkspaceRootCache): WorkspaceSemanticIndexEntry[] {
+        return Array.from(workspaceCache.entriesByPath.entries())
+            .sort(([leftPath], [rightPath]) => leftPath.localeCompare(rightPath))
+            .map(([, entry]) => entry);
+    }
+
+    private buildViewSignature(entries: WorkspaceSemanticIndexEntry[]): string {
+        return entries
+            .map((entry) => `${entry.uri}@${entry.version}`)
+            .join('|');
     }
 
     private getOpenDocuments(): readonly vscode.TextDocument[] {
@@ -147,34 +209,20 @@ export class WorkspaceSemanticIndexService {
     }
 
     private normalizeComparablePath(value: string): string {
-        return path.normalize(value)
-            .replace(/^[\\/]+(?=[A-Za-z]:)/, '')
-            .toLowerCase();
+        const normalizedPath = path.normalize(value).replace(/^[\\/]+(?=[A-Za-z]:)/, '');
+        return process.platform === 'win32'
+            ? normalizedPath.toLowerCase()
+            : normalizedPath;
     }
 
     private toWorkspaceEntry(snapshot: DocumentSemanticSnapshot): WorkspaceSemanticIndexEntry {
         return {
-            uri: this.toStableUriStringFromValue(snapshot.uri),
+            uri: snapshot.uri,
             version: snapshot.version,
             functionNames: uniqueSorted(snapshot.exportedFunctions.map((summary) => summary.name)),
             fileGlobalNames: uniqueSorted((snapshot.fileGlobals || []).map((summary) => summary.name)),
             typeNames: uniqueSorted(snapshot.typeDefinitions.map((summary) => summary.name))
         };
-    }
-
-    private toStableUriString(uri: vscode.Uri): string {
-        const normalizedPath = uri.fsPath
-            .replace(/\\/g, '/')
-            .replace(/^\/+([A-Za-z]:)/, '$1');
-        return `file:///${normalizedPath}`;
-    }
-
-    private toStableUriStringFromValue(uri: string): string {
-        try {
-            return this.toStableUriString(vscode.Uri.parse(uri));
-        } catch {
-            return uri;
-        }
     }
 }
 

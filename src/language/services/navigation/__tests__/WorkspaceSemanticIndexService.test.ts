@@ -37,8 +37,24 @@ interface HostFixtureOptions {
 
 const originalTextDocumentsDescriptor = Object.getOwnPropertyDescriptor(vscode.workspace, 'textDocuments');
 
+function toCanonicalFileUriParts(uriValue: string): { canonicalUri: string; fsPath: string } {
+    const rawPath = uriValue
+        .replace(/^file:\/*/i, '')
+        .replace(/\\/g, '/')
+        .replace(/^\/+([A-Za-z]:)/, '$1');
+
+    return {
+        canonicalUri: `file:///${rawPath}`,
+        fsPath: rawPath
+    };
+}
+
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
-    const uri = vscode.Uri.parse(uriValue);
+    const uriParts = toCanonicalFileUriParts(uriValue);
+    const uri = {
+        fsPath: uriParts.fsPath,
+        toString: () => uriParts.canonicalUri
+    } as vscode.Uri;
     const lines = source.split(/\r?\n/);
     const lineStarts = [0];
 
@@ -113,10 +129,7 @@ function createTextDocument(uriValue: string, source: string, version: number = 
 }
 
 function toFixtureUriKey(uri: vscode.Uri): string {
-    const normalizedPath = uri.fsPath
-        .replace(/\\/g, '/')
-        .replace(/^\/+([A-Za-z]:)/, '$1');
-    return `file:///${normalizedPath}`;
+    return toCanonicalFileUriParts(uri.toString()).canonicalUri;
 }
 
 function setOpenDocuments(fixtures: OpenDocumentFixture[] = []): void {
@@ -356,5 +369,54 @@ describe('WorkspaceSemanticIndexService', () => {
         const view = await service.getIndexView('D:/workspace');
 
         expect(view.getFunctionCandidateFiles('query_id')).toEqual(['file:///D:/workspace/query.c']);
+    });
+
+    test('reuses cached workspace discovery and file entries across repeated requests', async () => {
+        const host = createHost({
+            files: ['file:///D:/workspace/query.c'],
+            texts: {
+                'file:///D:/workspace/query.c': 'int query_id() { return 1; }'
+            }
+        });
+
+        const WorkspaceSemanticIndexService = loadWorkspaceSemanticIndexService();
+        const service = new WorkspaceSemanticIndexService({ host });
+
+        await service.getIndexView('D:/workspace');
+        await service.getIndexView('D:/workspace');
+
+        expect(host.findFiles).toHaveBeenCalledTimes(4);
+        expect(host.openTextDocument).toHaveBeenCalledTimes(1);
+    });
+
+    test('refreshes cached open-document entries when document versions change', async () => {
+        const host = createHost({
+            files: ['file:///D:/workspace/room.c'],
+            texts: {
+                'file:///D:/workspace/room.c': 'int disk_name() { return 1; }'
+            },
+            openDocuments: [{
+                uri: 'file:///D:/workspace/room.c',
+                text: 'int old_name() { return 1; }',
+                version: 7
+            }]
+        });
+
+        const WorkspaceSemanticIndexService = loadWorkspaceSemanticIndexService();
+        const service = new WorkspaceSemanticIndexService({ host });
+
+        const firstView = await service.getIndexView('D:/workspace');
+        expect(firstView.getFunctionCandidateFiles('old_name')).toEqual(['file:///D:/workspace/room.c']);
+
+        setOpenDocuments([{
+            uri: 'file:///D:/workspace/room.c',
+            text: 'int new_name() { return 1; }',
+            version: 8
+        }]);
+
+        const secondView = await service.getIndexView('D:/workspace');
+        expect(secondView.getFunctionCandidateFiles('new_name')).toEqual(['file:///D:/workspace/room.c']);
+        expect(secondView.getFunctionCandidateFiles('old_name')).toEqual([]);
+        expect(host.openTextDocument).not.toHaveBeenCalled();
     });
 });
