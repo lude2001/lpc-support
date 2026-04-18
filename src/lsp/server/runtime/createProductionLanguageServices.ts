@@ -16,16 +16,12 @@ import {
     LanguageNavigationService,
     ObjectInferenceLanguageHoverService
 } from '../../../language/services/navigation/LanguageHoverService';
+import { InheritedSymbolRelationService } from '../../../language/services/navigation/InheritedSymbolRelationService';
 import { UnifiedLanguageHoverService } from '../../../language/services/navigation/UnifiedLanguageHoverService';
 import { AstBackedLanguageReferenceService } from '../../../language/services/navigation/LanguageReferenceService';
 import { AstBackedLanguageRenameService } from '../../../language/services/navigation/LanguageRenameService';
 import { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import { AstBackedLanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
-import { WorkspaceReferenceCandidateEnumerator } from '../../../language/services/navigation/WorkspaceReferenceCandidateEnumerator';
-import { WorkspaceReferenceCollector } from '../../../language/services/navigation/WorkspaceReferenceCollector';
-import { WorkspaceSemanticIndexService } from '../../../language/services/navigation/WorkspaceSemanticIndexService';
-import { WorkspaceSymbolOwnerResolver } from '../../../language/services/navigation/WorkspaceSymbolOwnerResolver';
-import { WorkspaceSymbolRelationService } from '../../../language/services/navigation/WorkspaceSymbolRelationService';
 import { FormattingService } from '../../../formatter/FormattingService';
 import {
     DefaultLanguageFoldingService,
@@ -49,31 +45,14 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService);
     const scopedMethodResolver = new ScopedMethodResolver(macroManager);
     const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
-    const navigationWorkspaceHost = {
-        findFiles: async (pattern: vscode.RelativePattern) => vscode.workspace.findFiles(pattern),
-        openTextDocument: async (target: string | vscode.Uri) => typeof target === 'string'
-            ? vscode.workspace.openTextDocument(target)
-            : vscode.workspace.openTextDocument(target),
-        getWorkspaceFolders: () => vscode.workspace.workspaceFolders
-    };
-    const workspaceSemanticIndexService = new WorkspaceSemanticIndexService({
-        host: navigationWorkspaceHost
-    });
-    const workspaceSymbolOwnerResolver = new WorkspaceSymbolOwnerResolver({
-        workspaceSemanticIndexService,
-        host: navigationWorkspaceHost
-    });
-    const workspaceReferenceCandidateEnumerator = new WorkspaceReferenceCandidateEnumerator();
-    const workspaceReferenceCollector = new WorkspaceReferenceCollector({
-        host: navigationWorkspaceHost,
-        ownerResolver: workspaceSymbolOwnerResolver,
-        candidateEnumerator: workspaceReferenceCandidateEnumerator
-    });
-    const workspaceRelationService = new WorkspaceSymbolRelationService({
-        ownerResolver: workspaceSymbolOwnerResolver,
-        workspaceSemanticIndexService,
-        referenceCollector: workspaceReferenceCollector,
-        host: navigationWorkspaceHost
+    const inheritedRelationService = new InheritedSymbolRelationService({
+        macroManager,
+        scopedMethodResolver,
+        host: {
+            openTextDocument: async (target: string | vscode.Uri) => typeof target === 'string'
+                ? vscode.workspace.openTextDocument(target)
+                : vscode.workspace.openTextDocument(target)
+        }
     });
 
     const completionService = new QueryBackedLanguageCompletionService(
@@ -106,8 +85,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         projectConfigService,
         { scopedMethodResolver }
     );
-    const referenceService = new AstBackedLanguageReferenceService({ workspaceRelationService });
-    const renameService = new AstBackedLanguageRenameService({ workspaceRelationService });
+    const referenceService = new AstBackedLanguageReferenceService({ inheritedRelationService });
+    const renameService = new AstBackedLanguageRenameService({ inheritedRelationService });
     const symbolService = new AstBackedLanguageSymbolService();
     const signatureHelpService = new LanguageSignatureHelpService({
         efunDocsManager,

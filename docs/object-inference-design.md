@@ -378,6 +378,7 @@ get_helper()->query();   // 候选：combat_d 和 health_d → status: multiple
 - Completion：支持 `::method()` / `room::method()` scoped 调用补全，且 discovery 仍严格保持 inherit-only 与 qualifier 唯一匹配语义
 - Definition：支持 `::method()` / `room::method()` 直接跳转到父实现或指定 inherit 分支实现
 - Hover：支持 scoped 方法文档悬停，且只在 callee 方法标识符位置触发
+- References / Rename：导航侧当前刻意保持“当前文件级 + 可证明继承链级”的保守边界，不再尝试为函数提供工作区级静态调用图或函数级重命名
 - Signature Help：支持 scoped 调用进入统一 callable-documentation 签名帮助链
 
 当前这条链仍然是“保守可证明优先”：

@@ -2,6 +2,15 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [Unreleased]
+
+### Navigation Capability Narrowing
+
+- 收窄 `references / rename` 的能力边界：函数 `references` 不再做工作区级名字扩散，只保留当前文件级与可证明继承链级结果。
+- 函数与 `struct/class` 定义现在不再支持 `rename`；`rename` 仅保留局部变量、函数参数和文件级全局变量。
+- 文件级全局变量的 `references / rename` 只会沿静态可解析且可证明的 `inherit` 链扩展；发生遮蔽、分支歧义或未解析 `inherit` 时会保守降级。
+- LSP runtime 现在明确区分“函数 rename 被拒绝”和“局部变量/参数等仍可正常 rename”的路径，并补充对应的 spawned runtime 回归。
+
 ## [0.44.0] - 2026-04-18
 
 ### Scoped 方法补全

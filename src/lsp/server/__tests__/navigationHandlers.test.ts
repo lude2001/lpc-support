@@ -38,8 +38,6 @@ import {
     AstBackedLanguageRenameService,
     type LanguageRenameService
 } from '../../../language/services/navigation/LanguageRenameService';
-import { WorkspaceSymbolOwnerResolver } from '../../../language/services/navigation/WorkspaceSymbolOwnerResolver';
-import { WorkspaceSymbolRelationService } from '../../../language/services/navigation/WorkspaceSymbolRelationService';
 import type { LanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { registerDefinitionHandler } from '../handlers/navigation/registerDefinitionHandler';
@@ -376,8 +374,8 @@ describe('navigation handlers', () => {
             })
         });
         const documentStore = new DocumentStore();
-        const workspaceRelationService = {
-            collectReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
+        const inheritedRelationService = {
+            collectInheritedReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
                 expect(options).toEqual({ includeDeclaration: false });
                 return [
                     {
@@ -398,7 +396,7 @@ describe('navigation handlers', () => {
             })
         };
         const referenceService: LanguageReferenceService = new AstBackedLanguageReferenceService({
-            workspaceRelationService
+            inheritedRelationService
         } as any);
         const navigationService = {
             ...createNavigationServiceStub(),
@@ -428,9 +426,16 @@ describe('navigation handlers', () => {
             }
         } as ReferenceParams);
 
-        expect(workspaceRelationService.collectReferences).toHaveBeenCalledTimes(1);
-        expect(references).toHaveLength(2);
+        expect(inheritedRelationService.collectInheritedReferences).toHaveBeenCalledTimes(1);
+        expect(references).toHaveLength(3);
         expect(references).toEqual(expect.arrayContaining([
+            {
+                uri: 'file:///D:/workspace/nav.c',
+                range: {
+                    start: { line: 0, character: 11 },
+                    end: { line: 0, character: 16 }
+                }
+            },
             {
                 uri: 'file:///D:/workspace/rooms/a.c',
                 range: {
@@ -658,7 +663,7 @@ describe('navigation handlers', () => {
         });
     });
 
-    test('registerRenameHandler returns undefined when the real rename service rejects workspace prepareRename', async () => {
+    test('registerRenameHandler returns undefined when the real rename service rejects function rename', async () => {
         let prepareRenameHandler:
             | ((params: PrepareRenameParams) => Promise<LanguageRange | { range: LanguageRange; placeholder?: string } | undefined> | LanguageRange | { range: LanguageRange; placeholder?: string } | undefined)
             | undefined;
@@ -672,36 +677,12 @@ describe('navigation handlers', () => {
             })
         });
         const documentStore = new DocumentStore();
-        const workspaceRelationService = {
-            prepareRename: jest.fn().mockResolvedValue(undefined),
-            buildRenameEdit: jest.fn()
+        const inheritedRelationService = {
+            classifyRenameTarget: jest.fn().mockResolvedValue({ kind: 'unsupported' }),
+            buildInheritedRenameEdits: jest.fn()
         };
         const renameService = new AstBackedLanguageRenameService({
-            referenceResolver: {
-                resolveReferences: jest.fn().mockReturnValue({
-                    wordRange: {
-                        start: { line: 0, character: 4 },
-                        end: { line: 0, character: 9 }
-                    },
-                    matches: [
-                        {
-                            range: {
-                                start: { line: 0, character: 4 },
-                                end: { line: 0, character: 9 }
-                            },
-                            isDeclaration: true
-                        },
-                        {
-                            range: {
-                                start: { line: 0, character: 11 },
-                                end: { line: 0, character: 16 }
-                            },
-                            isDeclaration: false
-                        }
-                    ]
-                })
-            },
-            workspaceRelationService
+            inheritedRelationService
         } as any);
         const navigationService = {
             ...createNavigationServiceStub(),
@@ -715,7 +696,7 @@ describe('navigation handlers', () => {
             }
         });
 
-        documentStore.open('file:///D:/workspace/nav.c', 1, 'int round; round += 1;');
+        documentStore.open('file:///D:/workspace/nav.c', 1, 'int query_id() { return 1; }');
 
         registerRenameHandler({
             connection,
@@ -726,47 +707,29 @@ describe('navigation handlers', () => {
 
         const prepareResult = await prepareRenameHandler?.({
             textDocument: { uri: 'file:///D:/workspace/nav.c' },
-            position: { line: 0, character: 12 }
+            position: { line: 0, character: 6 }
         } as PrepareRenameParams);
 
-        expect(workspaceRelationService.prepareRename).toHaveBeenCalledTimes(1);
+        expect(inheritedRelationService.classifyRenameTarget).toHaveBeenCalledTimes(1);
         expect(prepareResult).toBeUndefined();
     });
 
-    test('registerRenameHandler keeps real workspace prepareRename fallback working on runtime shim documents', async () => {
+    test('registerRenameHandler keeps real current-file prepareRename working on runtime shim documents', async () => {
         let prepareRenameHandler:
             | ((params: PrepareRenameParams) => Promise<LanguageRange | { range: LanguageRange; placeholder?: string } | undefined> | LanguageRange | { range: LanguageRange; placeholder?: string } | undefined)
             | undefined;
         const connection = createNavigationConnection({
-            onPrepareRename: jest.fn(handler => {
+            onPrepareRename: jest.fn((handler) => {
                 prepareRenameHandler = handler;
                 return Disposable.create(() => undefined);
             }),
-            onRenameRequest: jest.fn(handler => Disposable.create(() => undefined))
+            onRenameRequest: jest.fn(() => Disposable.create(() => undefined))
         });
         const documentStore = new DocumentStore();
-        const ownerResolver = new WorkspaceSymbolOwnerResolver({
-            workspaceSemanticIndexService: {
-                getIndexView: jest.fn(async () => ({
-                    getFunctionCandidateFiles: () => [],
-                    getFileGlobalCandidateFiles: () => [],
-                    getTypeCandidateFiles: () => []
-                }))
-            } as any
-        });
-        const workspaceRelationService = new WorkspaceSymbolRelationService({
-            ownerResolver,
-            workspaceSemanticIndexService: {
-                getIndexView: jest.fn(async () => ({
-                    getFunctionCandidateFiles: () => [],
-                    getFileGlobalCandidateFiles: () => [],
-                    getTypeCandidateFiles: () => []
-                }))
-            } as any,
-            referenceCollector: {
-                collect: jest.fn(async () => [])
-            } as any
-        });
+        const inheritedRelationService = {
+            classifyRenameTarget: jest.fn().mockResolvedValue({ kind: 'current-file-only' }),
+            buildInheritedRenameEdits: jest.fn()
+        };
         const renameService = new AstBackedLanguageRenameService({
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
@@ -792,7 +755,7 @@ describe('navigation handlers', () => {
                     ]
                 })
             },
-            workspaceRelationService
+            inheritedRelationService
         } as any);
         const navigationService = {
             ...createNavigationServiceStub(),
@@ -824,6 +787,7 @@ describe('navigation handlers', () => {
             position: { line: 2, character: 6 }
         } as PrepareRenameParams);
 
+        expect(inheritedRelationService.classifyRenameTarget).toHaveBeenCalledTimes(1);
         expect(prepareResult).toEqual({
             range: {
                 start: { line: 2, character: 4 },
@@ -833,7 +797,7 @@ describe('navigation handlers', () => {
         });
     });
 
-    test('registerRenameHandler keeps unsafe workspace rename edits empty in the real rename service seam', async () => {
+    test('registerRenameHandler keeps current-file file-global edits when inherited expansion downgrades to empty', async () => {
         let renameHandler: ((params: RenameParams) => Promise<WorkspaceEdit> | WorkspaceEdit) | undefined;
         const connection = createNavigationConnection({
             onPrepareRename: jest.fn(handler => Disposable.create(() => undefined)),
@@ -843,9 +807,9 @@ describe('navigation handlers', () => {
             })
         });
         const documentStore = new DocumentStore();
-        const workspaceRelationService = {
-            prepareRename: jest.fn(),
-            buildRenameEdit: jest.fn().mockResolvedValue({ changes: {} })
+        const inheritedRelationService = {
+            classifyRenameTarget: jest.fn().mockResolvedValue({ kind: 'file-global' }),
+            buildInheritedRenameEdits: jest.fn().mockResolvedValue({})
         };
         const renameService = new AstBackedLanguageRenameService({
             referenceResolver: {
@@ -865,7 +829,7 @@ describe('navigation handlers', () => {
                     ]
                 })
             },
-            workspaceRelationService
+            inheritedRelationService
         } as any);
         const navigationService = {
             ...createNavigationServiceStub(),
@@ -894,11 +858,23 @@ describe('navigation handlers', () => {
             newName: 'turn'
         } as RenameParams);
 
-        expect(workspaceRelationService.buildRenameEdit).toHaveBeenCalledTimes(1);
-        expect(renameResult).toEqual({ changes: {} });
+        expect(inheritedRelationService.buildInheritedRenameEdits).toHaveBeenCalledTimes(1);
+        expect(renameResult).toEqual({
+            changes: {
+                'file:///D:/workspace/nav.c': [
+                    {
+                        newText: 'turn',
+                        range: {
+                            start: { line: 0, character: 4 },
+                            end: { line: 0, character: 9 }
+                        }
+                    }
+                ]
+            }
+        });
     });
 
-    test('registerRenameHandler can return multi-file workspace edits from the real rename service seam', async () => {
+    test('registerRenameHandler can return multi-file workspace edits from the real inherited relation seam', async () => {
         let renameHandler: ((params: RenameParams) => Promise<WorkspaceEdit> | WorkspaceEdit) | undefined;
         const connection = createNavigationConnection({
             onPrepareRename: jest.fn(handler => Disposable.create(() => undefined)),
@@ -908,29 +884,27 @@ describe('navigation handlers', () => {
             })
         });
         const documentStore = new DocumentStore();
-        const workspaceRelationService = {
-            prepareRename: jest.fn(),
-            buildRenameEdit: jest.fn().mockResolvedValue({
-                changes: {
-                    'file:///D:/workspace/rooms/a.c': [
-                        {
-                            range: {
-                                start: { line: 1, character: 0 },
-                                end: { line: 1, character: 8 }
-                            },
-                            newText: 'turn'
-                        }
-                    ],
-                    'file:///D:/workspace/rooms/b.c': [
-                        {
-                            range: {
-                                start: { line: 4, character: 2 },
-                                end: { line: 4, character: 10 }
-                            },
-                            newText: 'turn'
-                        }
-                    ]
-                }
+        const inheritedRelationService = {
+            classifyRenameTarget: jest.fn().mockResolvedValue({ kind: 'file-global' }),
+            buildInheritedRenameEdits: jest.fn().mockResolvedValue({
+                'file:///D:/workspace/rooms/a.c': [
+                    {
+                        range: {
+                            start: { line: 1, character: 0 },
+                            end: { line: 1, character: 8 }
+                        },
+                        newText: 'turn'
+                    }
+                ],
+                'file:///D:/workspace/rooms/b.c': [
+                    {
+                        range: {
+                            start: { line: 4, character: 2 },
+                            end: { line: 4, character: 10 }
+                        },
+                        newText: 'turn'
+                    }
+                ]
             })
         };
         const renameService = new AstBackedLanguageRenameService({
@@ -951,7 +925,7 @@ describe('navigation handlers', () => {
                     ]
                 })
             },
-            workspaceRelationService
+            inheritedRelationService
         } as any);
         const navigationService = {
             ...createNavigationServiceStub(),
@@ -980,12 +954,22 @@ describe('navigation handlers', () => {
             newName: 'turn'
         } as RenameParams);
 
-        expect(workspaceRelationService.buildRenameEdit).toHaveBeenCalledTimes(1);
-        expect(Object.keys(renameResult?.changes || {})).toHaveLength(2);
+        expect(inheritedRelationService.buildInheritedRenameEdits).toHaveBeenCalledTimes(1);
+        expect(Object.keys(renameResult?.changes || {})).toHaveLength(3);
         expect(Object.keys(renameResult?.changes || {})).toEqual(expect.arrayContaining([
+            'file:///D:/workspace/nav.c',
             'file:///D:/workspace/rooms/a.c',
             'file:///D:/workspace/rooms/b.c'
         ]));
+        expect(renameResult?.changes?.['file:///D:/workspace/nav.c']).toEqual([
+            {
+                newText: 'turn',
+                range: {
+                    start: { line: 0, character: 4 },
+                    end: { line: 0, character: 9 }
+                }
+            }
+        ]);
         expect(renameResult?.changes?.['file:///D:/workspace/rooms/a.c']).toEqual([
             {
                 newText: 'turn',

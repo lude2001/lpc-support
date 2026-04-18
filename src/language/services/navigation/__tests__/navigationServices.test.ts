@@ -26,7 +26,6 @@ import {
     AstBackedLanguageSymbolService,
     type LanguageSymbolService
 } from '../LanguageSymbolService';
-import { CURRENT_FILE_FALLBACK } from '../WorkspaceSymbolRelationService';
 
 interface RangeCapableLanguageDocument extends LanguageDocument {
     getText(range?: LanguageRange): string;
@@ -707,10 +706,10 @@ describe('navigation services', () => {
         });
     });
 
-    test('reference service prefers workspace relation matches when they resolve to multiple files', async () => {
+    test('reference service appends inherited relation matches to current-file results', async () => {
         const document = createDocument('int round; round += 1;');
-        const workspaceRelationService = {
-            collectReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
+        const inheritedRelationService = {
+            collectInheritedReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
                 expect(options).toEqual({ includeDeclaration: false });
                 return [
                     {
@@ -748,7 +747,7 @@ describe('navigation services', () => {
                     ]
                 })
             },
-            workspaceRelationService
+            inheritedRelationService
         } as any);
 
         const references = await service.provideReferences({
@@ -757,9 +756,16 @@ describe('navigation services', () => {
             includeDeclaration: false
         });
 
-        expect(workspaceRelationService.collectReferences).toHaveBeenCalledTimes(1);
-        expect(references).toHaveLength(2);
+        expect(inheritedRelationService.collectInheritedReferences).toHaveBeenCalledTimes(1);
+        expect(references).toHaveLength(3);
         expect(references).toEqual(expect.arrayContaining([
+            {
+                uri: 'file:///D:/workspace/test.c',
+                range: {
+                    start: { line: 0, character: 11 },
+                    end: { line: 0, character: 16 }
+                }
+            },
             {
                 uri: 'file:///D:/workspace/alpha.c',
                 range: {
@@ -777,12 +783,12 @@ describe('navigation services', () => {
         ]));
     });
 
-    test('reference service preserves current-file references when workspace relation requests fallback', async () => {
+    test('reference service preserves current-file references when inherited relation returns no matches', async () => {
         const document = createDocument('int round; round += 1;');
-        const workspaceRelationService = {
-            collectReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
+        const inheritedRelationService = {
+            collectInheritedReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
                 expect(options).toEqual({ includeDeclaration: false });
-                return CURRENT_FILE_FALLBACK;
+                return [];
             })
         };
         const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
@@ -810,7 +816,7 @@ describe('navigation services', () => {
                     ]
                 })
             },
-            workspaceRelationService
+            inheritedRelationService
         } as any);
 
         const references = await service.provideReferences({
@@ -819,7 +825,7 @@ describe('navigation services', () => {
             includeDeclaration: false
         });
 
-        expect(workspaceRelationService.collectReferences).toHaveBeenCalledTimes(1);
+        expect(inheritedRelationService.collectInheritedReferences).toHaveBeenCalledTimes(1);
         expect(references).toEqual([
             {
                 uri: 'file:///D:/workspace/test.c',
@@ -831,13 +837,20 @@ describe('navigation services', () => {
         ]);
     });
 
-    test('rename service keeps prepareRename undefined when workspace relation rejects rename', async () => {
+    test('reference service dedupes current-file references that are also returned by inherited relation matches', async () => {
         const document = createDocument('int round; round += 1;');
-        const workspaceRelationService = {
-            prepareRename: jest.fn().mockResolvedValue(undefined),
-            buildRenameEdit: jest.fn()
+        const inheritedRelationService = {
+            collectInheritedReferences: jest.fn(async () => [
+                {
+                    uri: 'file:///D:/workspace/test.c',
+                    range: {
+                        start: { line: 0, character: 11 },
+                        end: { line: 0, character: 16 }
+                    }
+                }
+            ])
         };
-        const service: LanguageRenameService = new AstBackedLanguageRenameService({
+        const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -862,23 +875,49 @@ describe('navigation services', () => {
                     ]
                 })
             },
-            workspaceRelationService
+            inheritedRelationService
         } as any);
 
-        const prepared = await service.prepareRename({
+        const references = await service.provideReferences({
             context: createContext(document),
             position: { line: 0, character: 12 }
         });
 
-        expect(workspaceRelationService.prepareRename).toHaveBeenCalledTimes(1);
+        expect(references).toEqual([
+            {
+                uri: 'file:///D:/workspace/test.c',
+                range: {
+                    start: { line: 0, character: 11 },
+                    end: { line: 0, character: 16 }
+                }
+            }
+        ]);
+    });
+
+    test('rename service keeps prepareRename undefined when inherited relation rejects function rename', async () => {
+        const document = createDocument('int query_id() { return 1; }');
+        const inheritedRelationService = {
+            classifyRenameTarget: jest.fn().mockResolvedValue({ kind: 'unsupported' }),
+            buildInheritedRenameEdits: jest.fn()
+        };
+        const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            inheritedRelationService
+        } as any);
+
+        const prepared = await service.prepareRename({
+            context: createContext(document),
+            position: { line: 0, character: 6 }
+        });
+
+        expect(inheritedRelationService.classifyRenameTarget).toHaveBeenCalledTimes(1);
         expect(prepared).toBeUndefined();
     });
 
-    test('rename service preserves current-file rename results when workspace relation requests fallback', async () => {
+    test('rename service preserves current-file rename results for current-file-only targets', async () => {
         const document = createDocument('int round; round += 1;');
-        const workspaceRelationService = {
-            prepareRename: jest.fn().mockResolvedValue(CURRENT_FILE_FALLBACK),
-            buildRenameEdit: jest.fn().mockResolvedValue(CURRENT_FILE_FALLBACK)
+        const inheritedRelationService = {
+            classifyRenameTarget: jest.fn().mockResolvedValue({ kind: 'current-file-only' }),
+            buildInheritedRenameEdits: jest.fn()
         };
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
             referenceResolver: {
@@ -905,7 +944,7 @@ describe('navigation services', () => {
                     ]
                 })
             },
-            workspaceRelationService
+            inheritedRelationService
         } as any);
 
         const prepared = await service.prepareRename({
@@ -918,8 +957,8 @@ describe('navigation services', () => {
             newName: 'turn'
         });
 
-        expect(workspaceRelationService.prepareRename).toHaveBeenCalledTimes(1);
-        expect(workspaceRelationService.buildRenameEdit).toHaveBeenCalledTimes(1);
+        expect(inheritedRelationService.classifyRenameTarget).toHaveBeenCalledTimes(2);
+        expect(inheritedRelationService.buildInheritedRenameEdits).not.toHaveBeenCalled();
         expect(prepared).toEqual({
             range: {
                 start: { line: 0, character: 4 },
@@ -949,11 +988,21 @@ describe('navigation services', () => {
         });
     });
 
-    test('rename service keeps unsafe workspace rename empty instead of falling back to current-file edits', async () => {
+    test('rename service appends inherited file-global edits while preserving current-file edits', async () => {
         const document = createDocument('int round; round += 1;');
-        const workspaceRelationService = {
-            prepareRename: jest.fn(),
-            buildRenameEdit: jest.fn().mockResolvedValue({ changes: {} })
+        const inheritedRelationService = {
+            classifyRenameTarget: jest.fn().mockResolvedValue({ kind: 'file-global' }),
+            buildInheritedRenameEdits: jest.fn().mockResolvedValue({
+                'file:///D:/workspace/base.c': [
+                    {
+                        range: {
+                            start: { line: 1, character: 0 },
+                            end: { line: 1, character: 5 }
+                        },
+                        newText: 'turn'
+                    }
+                ]
+            })
         };
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
             referenceResolver: {
@@ -980,7 +1029,7 @@ describe('navigation services', () => {
                     ]
                 })
             },
-            workspaceRelationService
+            inheritedRelationService
         } as any);
 
         const edit = await service.provideRenameEdits({
@@ -989,8 +1038,98 @@ describe('navigation services', () => {
             newName: 'turn'
         });
 
-        expect(workspaceRelationService.buildRenameEdit).toHaveBeenCalledTimes(1);
-        expect(edit).toEqual({ changes: {} });
+        expect(inheritedRelationService.buildInheritedRenameEdits).toHaveBeenCalledTimes(1);
+        expect(edit).toEqual({
+            changes: {
+                'file:///D:/workspace/test.c': [
+                    {
+                        range: {
+                            start: { line: 0, character: 4 },
+                            end: { line: 0, character: 9 }
+                        },
+                        newText: 'turn'
+                    },
+                    {
+                        range: {
+                            start: { line: 0, character: 11 },
+                            end: { line: 0, character: 16 }
+                        },
+                        newText: 'turn'
+                    }
+                ],
+                'file:///D:/workspace/base.c': [
+                    {
+                        range: {
+                            start: { line: 1, character: 0 },
+                            end: { line: 1, character: 5 }
+                        },
+                        newText: 'turn'
+                    }
+                ]
+            }
+        });
+    });
+
+    test('rename service keeps current-file file-global edits when inherited expansion downgrades to empty', async () => {
+        const document = createDocument('int round; round += 1;');
+        const inheritedRelationService = {
+            classifyRenameTarget: jest.fn().mockResolvedValue({ kind: 'file-global' }),
+            buildInheritedRenameEdits: jest.fn().mockResolvedValue({})
+        };
+        const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            referenceResolver: {
+                resolveReferences: jest.fn().mockReturnValue({
+                    wordRange: {
+                        start: { line: 0, character: 4 },
+                        end: { line: 0, character: 9 }
+                    },
+                    matches: [
+                        {
+                            range: {
+                                start: { line: 0, character: 4 },
+                                end: { line: 0, character: 9 }
+                            },
+                            isDeclaration: true
+                        },
+                        {
+                            range: {
+                                start: { line: 0, character: 11 },
+                                end: { line: 0, character: 16 }
+                            },
+                            isDeclaration: false
+                        }
+                    ]
+                })
+            },
+            inheritedRelationService
+        } as any);
+
+        const edit = await service.provideRenameEdits({
+            context: createContext(document),
+            position: { line: 0, character: 12 },
+            newName: 'turn'
+        });
+
+        expect(edit).toEqual({
+            changes: {
+                'file:///D:/workspace/test.c': [
+                    {
+                        range: {
+                            start: { line: 0, character: 4 },
+                            end: { line: 0, character: 9 }
+                        },
+                        newText: 'turn'
+                    },
+                    {
+                        range: {
+                            start: { line: 0, character: 11 },
+                            end: { line: 0, character: 16 }
+                        },
+                        newText: 'turn'
+                    }
+                ]
+            }
+        });
     });
 
     test('symbol service can operate on host-agnostic documents via injected boundaries', async () => {

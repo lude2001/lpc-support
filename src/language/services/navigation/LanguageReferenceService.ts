@@ -6,10 +6,7 @@ import {
     getLanguageDocumentUri,
     LanguageSymbolReferenceAdapter
 } from './LanguageSymbolReferenceAdapter';
-import {
-    CURRENT_FILE_FALLBACK,
-    type WorkspaceSymbolRelationService
-} from './WorkspaceSymbolRelationService';
+import type { InheritedSymbolRelationService } from './InheritedSymbolRelationService';
 
 // Supporting request types for the grouped navigation service seam.
 export interface LanguageReferenceRequest {
@@ -27,27 +24,30 @@ export class AstBackedLanguageReferenceService implements LanguageReferenceServi
     public constructor(
         private readonly dependencies: {
             referenceResolver?: LanguageSymbolReferenceAdapter;
-            workspaceRelationService?: Pick<WorkspaceSymbolRelationService, 'collectReferences'>;
+            inheritedRelationService?: Pick<InheritedSymbolRelationService, 'collectInheritedReferences'>;
         } = {}
     ) {}
 
     public async provideReferences(request: LanguageReferenceRequest): Promise<LanguageLocation[]> {
-        const workspaceRelationService = this.dependencies.workspaceRelationService;
-        if (workspaceRelationService) {
-            const workspaceReferences = await workspaceRelationService.collectReferences(
-                request.context.document as any,
-                request.position as any,
-                { includeDeclaration: request.includeDeclaration }
-            );
-            if (workspaceReferences !== CURRENT_FILE_FALLBACK) {
-                return workspaceReferences.map((match) => ({
-                    uri: match.uri,
-                    range: match.range
-                }));
-            }
+        const currentFileReferences = this.provideCurrentFileReferences(request);
+        const inheritedRelationService = this.dependencies.inheritedRelationService;
+        if (!inheritedRelationService) {
+            return currentFileReferences;
         }
 
-        return this.provideCurrentFileReferences(request);
+        const inheritedReferences = await inheritedRelationService.collectInheritedReferences(
+            request.context.document as any,
+            request.position as any,
+            { includeDeclaration: request.includeDeclaration }
+        );
+
+        return dedupeLocations([
+            ...currentFileReferences,
+            ...inheritedReferences.map((match) => ({
+                uri: match.uri,
+                range: match.range
+            }))
+        ]);
     }
 
     private provideCurrentFileReferences(request: LanguageReferenceRequest): LanguageLocation[] {
@@ -67,4 +67,21 @@ export class AstBackedLanguageReferenceService implements LanguageReferenceServi
     private getReferenceResolver(): LanguageSymbolReferenceAdapter {
         return this.dependencies.referenceResolver ?? createVsCodeSymbolReferenceAdapter();
     }
+}
+
+function dedupeLocations(locations: LanguageLocation[]): LanguageLocation[] {
+    const seen = new Set<string>();
+    const unique: LanguageLocation[] = [];
+
+    for (const location of locations) {
+        const key = `${location.uri}#${location.range.start.line}:${location.range.start.character}-${location.range.end.line}:${location.range.end.character}`;
+        if (seen.has(key)) {
+            continue;
+        }
+
+        seen.add(key);
+        unique.push(location);
+    }
+
+    return unique;
 }

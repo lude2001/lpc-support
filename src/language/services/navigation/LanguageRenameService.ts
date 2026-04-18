@@ -6,10 +6,7 @@ import {
     LanguageRangeReadableDocument,
     LanguageSymbolReferenceAdapter
 } from './LanguageSymbolReferenceAdapter';
-import {
-    CURRENT_FILE_FALLBACK,
-    type WorkspaceSymbolRelationService
-} from './WorkspaceSymbolRelationService';
+import type { InheritedSymbolRelationService } from './InheritedSymbolRelationService';
 
 // Supporting request/result types for the grouped navigation service seam.
 export interface LanguageRenameRequest {
@@ -47,48 +44,76 @@ export class AstBackedLanguageRenameService implements LanguageRenameService {
     public constructor(
         private readonly dependencies: {
             referenceResolver?: LanguageSymbolReferenceAdapter;
-            workspaceRelationService?: Pick<WorkspaceSymbolRelationService, 'prepareRename' | 'buildRenameEdit'>;
+            inheritedRelationService?: Pick<InheritedSymbolRelationService, 'classifyRenameTarget' | 'buildInheritedRenameEdits'>;
         } = {}
     ) {}
 
     public async prepareRename(
         request: LanguagePrepareRenameRequest
     ): Promise<LanguagePrepareRenameResult | undefined> {
-        const workspaceRelationService = this.dependencies.workspaceRelationService;
-        if (workspaceRelationService) {
-            const workspaceResult = await workspaceRelationService.prepareRename(
-                request.context.document as any,
-                request.position as any
-            );
-            if (workspaceResult !== CURRENT_FILE_FALLBACK) {
-                return workspaceResult
-                    ? {
-                        range: workspaceResult.range,
-                        placeholder: workspaceResult.placeholder
-                    }
-                    : undefined;
-            }
+        const inheritedRelationService = this.dependencies.inheritedRelationService;
+        if (!inheritedRelationService) {
+            return this.prepareCurrentFileRename(request);
         }
 
-        return this.prepareCurrentFileRename(request);
+        const renameTarget = await inheritedRelationService.classifyRenameTarget(
+            request.context.document as any,
+            request.position as any
+        );
+        if (renameTarget.kind === 'unsupported') {
+            return undefined;
+        }
+
+        const currentFileRename = this.prepareCurrentFileRename(request);
+        if (currentFileRename) {
+            return currentFileRename;
+        }
+
+        if (renameTarget.kind !== 'file-global') {
+            return undefined;
+        }
+
+        const wordRange = (request.context.document as LanguageRangeReadableDocument & {
+            getWordRangeAtPosition(position: LanguagePosition): LanguageRange | undefined;
+        }).getWordRangeAtPosition(request.position);
+        if (!wordRange) {
+            return undefined;
+        }
+
+        return {
+            range: wordRange,
+            placeholder: (request.context.document as LanguageRangeReadableDocument).getText(wordRange)
+        };
     }
 
     public async provideRenameEdits(request: LanguageRenameRequest): Promise<LanguageWorkspaceEdit> {
-        const workspaceRelationService = this.dependencies.workspaceRelationService;
-        if (workspaceRelationService) {
-            const workspaceEdit = await workspaceRelationService.buildRenameEdit(
-                request.context.document as any,
-                request.position as any,
-                request.newName
-            );
-            if (workspaceEdit !== CURRENT_FILE_FALLBACK) {
-                return {
-                    changes: workspaceEdit.changes
-                };
-            }
+        const inheritedRelationService = this.dependencies.inheritedRelationService;
+        if (!inheritedRelationService) {
+            return this.provideCurrentFileRenameEdits(request);
         }
 
-        return this.provideCurrentFileRenameEdits(request);
+        const renameTarget = await inheritedRelationService.classifyRenameTarget(
+            request.context.document as any,
+            request.position as any
+        );
+        if (renameTarget.kind === 'unsupported') {
+            return { changes: {} };
+        }
+
+        const currentFileEdit = this.provideCurrentFileRenameEdits(request);
+        if (renameTarget.kind !== 'file-global') {
+            return currentFileEdit;
+        }
+
+        const inheritedChanges = await inheritedRelationService.buildInheritedRenameEdits(
+            request.context.document as any,
+            request.position as any,
+            request.newName
+        );
+
+        return {
+            changes: mergeWorkspaceEdits(currentFileEdit.changes, inheritedChanges)
+        };
     }
 
     private prepareCurrentFileRename(
@@ -124,4 +149,38 @@ export class AstBackedLanguageRenameService implements LanguageRenameService {
     private getReferenceResolver(): LanguageSymbolReferenceAdapter {
         return this.dependencies.referenceResolver ?? createVsCodeSymbolReferenceAdapter();
     }
+}
+
+function mergeWorkspaceEdits(
+    currentFileChanges: Record<string, LanguageTextEdit[]>,
+    inheritedChanges: Record<string, Array<{ range: LanguageRange; newText: string }>>
+): Record<string, LanguageTextEdit[]> {
+    const merged: Record<string, LanguageTextEdit[]> = {};
+    const seen = new Set<string>();
+
+    const append = (uri: string, edit: LanguageTextEdit): void => {
+        const key = `${uri}#${edit.range.start.line}:${edit.range.start.character}-${edit.range.end.line}:${edit.range.end.character}`;
+        if (seen.has(key)) {
+            return;
+        }
+
+        seen.add(key);
+        const edits = merged[uri] ?? [];
+        edits.push(edit);
+        merged[uri] = edits;
+    };
+
+    for (const [uri, edits] of Object.entries(currentFileChanges)) {
+        for (const edit of edits) {
+            append(uri, edit);
+        }
+    }
+
+    for (const [uri, edits] of Object.entries(inheritedChanges)) {
+        for (const edit of edits) {
+            append(uri, edit);
+        }
+    }
+
+    return merged;
 }

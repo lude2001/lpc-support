@@ -243,15 +243,9 @@ describe('createProductionLanguageServices', () => {
         });
     });
 
-    test('createProductionLanguageServices wires workspace relation services into references and rename', () => {
-        const workspaceSemanticIndexService = { kind: 'workspace-semantic-index-service' };
-        const workspaceRelationService = { kind: 'workspace-relation-service' };
-        const workspaceReferenceCandidateEnumerator = { kind: 'workspace-reference-candidate-enumerator' };
-        const workspaceSemanticIndexCtor = jest.fn(() => workspaceSemanticIndexService);
-        const workspaceRelationCtor = jest.fn(() => workspaceRelationService);
-        const ownerResolverCtor = jest.fn(() => ({ kind: 'workspace-owner-resolver' }));
-        const referenceCollectorCtor = jest.fn(() => ({ kind: 'workspace-reference-collector' }));
-        const referenceCandidateEnumeratorCtor = jest.fn(() => workspaceReferenceCandidateEnumerator);
+    test('createProductionLanguageServices wires the inherited relation service into references and rename', () => {
+        const inheritedRelationService = { kind: 'inherited-relation-service' };
+        const inheritedRelationCtor = jest.fn(() => inheritedRelationService);
         const referenceService = { provideReferences: jest.fn() };
         const renameService = {
             prepareRename: jest.fn(),
@@ -332,20 +326,8 @@ describe('createProductionLanguageServices', () => {
             jest.doMock('../../../../language/services/structure/LanguageSemanticTokensService', () => ({
                 DefaultLanguageSemanticTokensService: jest.fn(() => ({ provideSemanticTokens: jest.fn() }))
             }));
-            jest.doMock('../../../../language/services/navigation/WorkspaceSemanticIndexService', () => ({
-                WorkspaceSemanticIndexService: workspaceSemanticIndexCtor
-            }));
-            jest.doMock('../../../../language/services/navigation/WorkspaceSymbolOwnerResolver', () => ({
-                WorkspaceSymbolOwnerResolver: ownerResolverCtor
-            }));
-            jest.doMock('../../../../language/services/navigation/WorkspaceReferenceCandidateEnumerator', () => ({
-                WorkspaceReferenceCandidateEnumerator: referenceCandidateEnumeratorCtor
-            }));
-            jest.doMock('../../../../language/services/navigation/WorkspaceReferenceCollector', () => ({
-                WorkspaceReferenceCollector: referenceCollectorCtor
-            }));
-            jest.doMock('../../../../language/services/navigation/WorkspaceSymbolRelationService', () => ({
-                WorkspaceSymbolRelationService: workspaceRelationCtor
+            jest.doMock('../../../../language/services/navigation/InheritedSymbolRelationService', () => ({
+                InheritedSymbolRelationService: inheritedRelationCtor
             }));
 
             const {
@@ -354,33 +336,18 @@ describe('createProductionLanguageServices', () => {
 
             createProductionLanguageServices();
 
-            expect(workspaceSemanticIndexCtor).toHaveBeenCalledWith(expect.objectContaining({
+            expect(inheritedRelationCtor).toHaveBeenCalledWith(expect.objectContaining({
+                scopedMethodResolver: expect.anything(),
+                macroManager: expect.anything(),
                 host: expect.objectContaining({
-                    findFiles: expect.any(Function),
-                    openTextDocument: expect.any(Function),
-                    getWorkspaceFolders: expect.any(Function)
+                    openTextDocument: expect.any(Function)
                 })
-            }));
-            expect(ownerResolverCtor).toHaveBeenCalledWith(expect.objectContaining({
-                workspaceSemanticIndexService,
-                host: expect.objectContaining({
-                    getWorkspaceFolders: expect.any(Function)
-                })
-            }));
-            expect(workspaceRelationCtor).toHaveBeenCalledWith(expect.objectContaining({
-                workspaceSemanticIndexService,
-                host: expect.objectContaining({
-                    getWorkspaceFolders: expect.any(Function)
-                })
-            }));
-            expect(referenceCollectorCtor).toHaveBeenCalledWith(expect.objectContaining({
-                candidateEnumerator: workspaceReferenceCandidateEnumerator
             }));
             expect(referenceCtor).toHaveBeenCalledWith(expect.objectContaining({
-                workspaceRelationService
+                inheritedRelationService
             }));
             expect(renameCtor).toHaveBeenCalledWith(expect.objectContaining({
-                workspaceRelationService
+                inheritedRelationService
             }));
         });
     });
