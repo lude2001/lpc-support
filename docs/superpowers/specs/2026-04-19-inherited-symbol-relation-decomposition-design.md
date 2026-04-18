@@ -146,24 +146,22 @@
 - file-global binding owner 解析也会复制
 - 最终只是把一个大类拆成两个中等大小的类
 
-### 4.2 推荐方案：按关系职责纵向拆
+### 4.2 推荐方案：按关系职责纵向拆，但控制单元数量
 
 做法：
 
 - 保留 `InheritedSymbolRelationService` 作为 façade
-- 按关系职责拆出几个薄单元：
-  - `InheritedFunctionFamilyResolver`
-  - `ScopedFunctionReferenceCollector`
-  - `InheritedFunctionReferenceCollector`
-  - `FileGlobalBindingResolver`
-  - `InheritedFileGlobalReferenceCollector`
-  - `InheritedFileGlobalRenameBuilder`
+- 按关系职责拆成两块业务单元：
+  - `InheritedFunctionRelationService`
+  - `InheritedFileGlobalRelationService`
+- rename edit 组装继续由 façade 编排，不额外再拆一个 builder 类
 
 优点：
 
 - references / rename 共享的是同一份关系真源，而不是共享一个大实现类
+- 单元数量足够少，不会把减债做成“类爆炸”
 - 单元边界清晰，更适合补直接测试
-- 后续若要继续减债，可以在这些单元上逐步深化，而不是反复回到一个热点类
+- 后续若要继续减债，可以在这两块业务单元上逐步深化，而不是反复回到一个热点类
 
 缺点：
 
@@ -199,15 +197,11 @@
 
 - `InheritedSymbolRelationService`
   - façade / 协调器
-- `InheritedRelationSupport`
-  - 共享 helper / 真源接缝
 - 关系单元：
-  - `InheritedFunctionFamilyResolver`
-  - `ScopedFunctionReferenceCollector`
-  - `InheritedFunctionReferenceCollector`
-  - `FileGlobalBindingResolver`
-  - `InheritedFileGlobalReferenceCollector`
-  - `InheritedFileGlobalRenameBuilder`
+  - `InheritedFunctionRelationService`
+  - `InheritedFileGlobalRelationService`
+
+本轮不新增一个宽泛的 `Support` / `Utils` 类来承接杂项职责。
 
 ### 5.2 façade 职责
 
@@ -222,63 +216,34 @@
 
 ### 5.3 关系单元边界
 
-#### `InheritedFunctionFamilyResolver`
+#### `InheritedFunctionRelationService`
 
 负责：
 
-- 从当前可见函数符号出发，解析 “当前文件 + 可证明继承链” 的 function family
-- 处理 unresolved inherit 的保守失败
+- 从当前可见函数符号出发解析 function family
+- 处理可证明继承链遍历与 unresolved inherit 降级
+- 收集当前文件普通函数引用
+- 收集 `::foo()` / `room::foo()` 这类 scoped 函数引用
+- 统一产出 inherited function references
 
 收纳的方法：
 
 - `resolveFunctionFamilyFromVisibleSymbol(...)`
+- `resolveFunctionFamilyFromScopedCall(...)`
 - `collectInheritedFunctionFamilyDocuments(...)`
-- `findGlobalFunctionSymbol(...)`
-
-不负责：
-
-- scoped token 扫描
-- file-global binding
-- rename
-
-#### `ScopedFunctionReferenceCollector`
-
-负责：
-
-- 在给定文档里查找 `::foo()` / `room::foo()` 这类 scoped 调用位置
-- 基于 `ScopedMethodResolver` 判断这些调用是否真的指向给定 family
-
-收纳的方法：
-
+- `collectFunctionFamilyMatches(...)`
+- `collectLocalFunctionMatches(...)`
 - `collectScopedFunctionMatches(...)`
+- `findGlobalFunctionSymbol(...)`
 - `collectCallExpressions(...)`
 - `getScopedMethodRange(...)`
 
 不负责：
 
-- family 文档发现
 - file-global binding
 - rename
 
-#### `InheritedFunctionReferenceCollector`
-
-负责：
-
-- 把 function family 文档集合转成最终 references
-- 合并当前文件普通函数命中与 scoped 命中
-- 统一处理 `includeDeclaration` 与去重
-
-收纳的方法：
-
-- `collectFunctionFamilyMatches(...)`
-- `collectLocalFunctionMatches(...)`
-
-依赖：
-
-- `InheritedFunctionFamilyResolver`
-- `ScopedFunctionReferenceCollector`
-
-#### `FileGlobalBindingResolver`
+#### `InheritedFileGlobalRelationService`
 
 负责：
 
@@ -288,48 +253,22 @@
   - `ambiguous`
   - `unresolved`
   - `none`
+- 基于已解析 binding 收集 inherited file-global 引用点
+- 为 rename 提供已证明的 file-global 扩展结果
 
 收纳的方法：
 
 - `resolveVisibleFileGlobalBinding(...)`
 - `resolveBranchGlobalOwner(...)`
+- `collectFileGlobalMatches(...)`
 - `findFileGlobalSymbol(...)`
 - `rangesEqual(...)`
 
 这是 rename 与 file-global references 的共享真源。
 
-#### `InheritedFileGlobalReferenceCollector`
+### 5.4 helper 边界
 
-负责：
-
-- 输入一个已解析的 `FileGlobalBinding`
-- 在 `pathDocuments` 中收集真实匹配位置
-- 对每个候选位置重新验证它仍然绑定到同一 owner
-
-收纳的方法：
-
-- `collectFileGlobalMatches(...)`
-
-不负责：
-
-- binding owner 解析
-- rename edit 组装
-
-#### `InheritedFileGlobalRenameBuilder`
-
-负责：
-
-- 输入一个已解析 binding
-- 基于 inherited file-global matches 组装跨文件 rename edits
-
-做法：
-
-- 复用 `InheritedFileGlobalReferenceCollector`
-- 不再自己重新理解 owner 语义
-
-### 5.4 共享 support 边界
-
-以下 helper 不应被某个新单元私有化：
+以下 helper 可以继续保持为轻量文件级 helper 或复用现有 util，不要额外抽成一个新的宽泛 support 类：
 
 - `getWordAtPosition(...)`
 - `pushUniqueMatch(...)`
@@ -337,30 +276,18 @@
 - `normalizeWorkspaceUri(...)`
 - 共享 host 打开文档与 ASTManager snapshot 入口
 
-此外，`ScopedFunctionReferenceCollector` 当前内部需要的 scoped 语法识别逻辑，应和既有
+此外，`InheritedFunctionRelationService` 当前内部需要的 scoped 语法识别逻辑，应和既有
 [`ScopedMethodIdentifierSupport.ts`](/D:/code/lpc-support/src/language/services/navigation/ScopedMethodIdentifierSupport.ts)
 保持同域，不得重新发明第二套 scoped 命中语义。
-
-`InheritedRelationSupport` 只承接：
-
-- 单词读取
-- URI 归一化
-- match 去重
-- host / astManager / inheritanceResolver 共享访问
-
-它不承接业务关系决策。
 
 ## 6. 方法归属表
 
 | 新单元 | 归属方法 |
 | --- | --- |
-| `InheritedFunctionFamilyResolver` | `resolveFunctionFamilyFromVisibleSymbol`, `collectInheritedFunctionFamilyDocuments`, `findGlobalFunctionSymbol` |
-| `ScopedFunctionReferenceCollector` | `collectScopedFunctionMatches`, `collectCallExpressions`, `getScopedMethodRange` |
-| `InheritedFunctionReferenceCollector` | `collectFunctionFamilyMatches`, `collectLocalFunctionMatches` |
-| `FileGlobalBindingResolver` | `resolveVisibleFileGlobalBinding`, `resolveBranchGlobalOwner`, `findFileGlobalSymbol`, `rangesEqual` |
-| `InheritedFileGlobalReferenceCollector` | `collectFileGlobalMatches` |
-| `InheritedFileGlobalRenameBuilder` | 从 `buildInheritedRenameEdits(...)` 中抽出 edit 组装逻辑 |
-| `InheritedRelationSupport` | `getWordAtPosition`, `pushUniqueMatch`, `toVsCodePosition` 及共享依赖入口 |
+| `InheritedFunctionRelationService` | `resolveFunctionFamilyFromVisibleSymbol`, `resolveFunctionFamilyFromScopedCall`, `collectInheritedFunctionFamilyDocuments`, `collectFunctionFamilyMatches`, `collectLocalFunctionMatches`, `collectScopedFunctionMatches`, `findGlobalFunctionSymbol`, `collectCallExpressions`, `getScopedMethodRange` |
+| `InheritedFileGlobalRelationService` | `resolveVisibleFileGlobalBinding`, `resolveBranchGlobalOwner`, `collectFileGlobalMatches`, `findFileGlobalSymbol`, `rangesEqual` |
+| `InheritedSymbolRelationService` façade | `collectInheritedReferences`, `classifyRenameTarget`, `buildInheritedRenameEdits`, 以及最薄的分流 / edit 组装逻辑 |
+| 文件级 helper / 现有 util | `getWordAtPosition`, `pushUniqueMatch`, `toVsCodePosition`, `normalizeWorkspaceUri` |
 
 ## 7. 调用顺序与失败语义
 
@@ -393,7 +320,7 @@
 - `FUNCTION`、`STRUCT`、`CLASS`
   - 保持 `unsupported`
 - `file-global`
-  - 必须由 `FileGlobalBindingResolver` 证明后才允许
+  - 必须由 `InheritedFileGlobalRelationService` 证明后才允许
 - sibling branch ambiguity / unresolved inherit / owner 非唯一
   - `buildInheritedRenameEdits(...)` 返回空 edits
 
@@ -422,11 +349,8 @@
 
 新增测试建议：
 
-- `InheritedFunctionFamilyResolver.test.ts`
-- `ScopedFunctionReferenceCollector.test.ts`
-- `FileGlobalBindingResolver.test.ts`
-- `InheritedFileGlobalReferenceCollector.test.ts`
-- `InheritedFileGlobalRenameBuilder.test.ts`
+- `InheritedFunctionRelationService.test.ts`
+- `InheritedFileGlobalRelationService.test.ts`
 
 这些测试只锁各自边界，不复制整套 façade 集成逻辑。
 
@@ -443,6 +367,13 @@
 - struct/class -> `unsupported`
 - provable inherited file-global -> `file-global`
 
+同时，新的 `InheritedFileGlobalRelationService` 也必须拥有直接单测，至少锁住：
+
+- resolved binding
+- ambiguous sibling branches
+- unresolved inherit
+- `collectFileGlobalMatches(...)` 对 owner 的二次验证不过度放宽
+
 ### 8.4 Consumer / runtime 回归保持不变
 
 以下测试必须继续全绿：
@@ -456,7 +387,7 @@
 ## 9. 验收标准
 
 - `InheritedSymbolRelationService` 退化成 façade / coordinator
-- 函数 family、scoped references、file-global binding、rename edit 组装都有独立单元
+- 函数关系与 file-global 关系都有独立业务单元
 - references / rename 对外 API 不变
 - references / rename 产品行为不变
 - `classifyRenameTarget(...)` 拥有直接测试保护网
