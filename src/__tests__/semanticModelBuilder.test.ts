@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { SemanticModelBuilder } from '../semantic/SemanticModelBuilder';
+import { toDocumentSemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxBuilder } from '../syntax/SyntaxBuilder';
 import { DocumentSemanticSnapshotService } from '../completion/documentSemanticSnapshotService';
 
@@ -52,6 +53,16 @@ function createDocument(content: string, fileName: string = '/virtual/semantic.c
             };
         })
     } as unknown as vscode.TextDocument;
+}
+
+function buildSemanticSnapshot(
+    content: string,
+    fileName: string = '/virtual/semantic.c'
+) {
+    const document = createDocument(content, fileName);
+    const parsed = getGlobalParsedDocumentService().get(document);
+    const syntax = new SyntaxBuilder(parsed).build();
+    return new SemanticModelBuilder().build(syntax);
 }
 
 describe('SemanticModelBuilder', () => {
@@ -125,6 +136,79 @@ describe('SemanticModelBuilder', () => {
         expect(snapshot.exportedFunctions.map((item) => item.name)).toEqual(['demo']);
         expect(snapshot.symbolTable.findSymbol('i', new vscode.Position(1, 18))?.dataType).toBe('int');
         expect(snapshot.symbolTable.findSymbol('inner', new vscode.Position(2, 12))?.dataType).toBe('int');
+    });
+
+    test('builds fileGlobals only for file-scope variables', () => {
+        const snapshot = buildSemanticSnapshot(
+            [
+                'int global_hp;',
+                'private object COMBAT_D;',
+                '',
+                'void demo(int local_arg) {',
+                '    int local_hp;',
+                '}'
+            ].join('\n'),
+            '/virtual/file-globals.c'
+        );
+
+        expect((snapshot as any).fileGlobals).toEqual([
+            expect.objectContaining({
+                name: 'global_hp',
+                dataType: 'int',
+                sourceUri: snapshot.uri,
+                range: expect.any(vscode.Range)
+            }),
+            expect.objectContaining({
+                name: 'COMBAT_D',
+                dataType: 'object',
+                sourceUri: snapshot.uri,
+                range: expect.any(vscode.Range),
+                selectionRange: expect.any(vscode.Range)
+            })
+        ]);
+    });
+
+    test('toDocumentSemanticSnapshot preserves fileGlobals from semantic snapshots', () => {
+        const semanticSnapshot = buildSemanticSnapshot(
+            [
+                'object COMBAT_D;',
+                '',
+                'void demo() {}'
+            ].join('\n'),
+            '/virtual/file-globals-conversion.c'
+        );
+
+        const documentSnapshot = toDocumentSemanticSnapshot(semanticSnapshot);
+
+        expect((documentSnapshot as any).fileGlobals).toEqual([
+            expect.objectContaining({
+                name: 'COMBAT_D',
+                dataType: 'object',
+                sourceUri: semanticSnapshot.uri,
+                range: expect.any(vscode.Range)
+            })
+        ]);
+    });
+
+    test('DocumentSemanticSnapshotService preserves fileGlobals in the document snapshot view', () => {
+        const document = createDocument(
+            [
+                'object COMBAT_D;',
+                'void demo() {}'
+            ].join('\n'),
+            '/virtual/semantic-service-file-globals.c'
+        );
+
+        const snapshot = DocumentSemanticSnapshotService.getInstance().getSnapshot(document, false);
+
+        expect((snapshot as any).fileGlobals).toEqual([
+            expect.objectContaining({
+                name: 'COMBAT_D',
+                dataType: 'object',
+                sourceUri: document.uri.toString(),
+                range: expect.any(vscode.Range)
+            })
+        ]);
     });
 
     test('keeps implementation definitions ahead of trailing prototypes in the same scope', () => {
