@@ -566,6 +566,58 @@ describe('AstBackedLanguageDefinitionService', () => {
         expect(functionSpy).not.toHaveBeenCalled();
     });
 
+    test('definition service short-circuits direct-symbol hits before function-family lookup', async () => {
+        const macroDocument = createTextDocument('D:\\workspace\\include\\defs.h', '#define USER_OB "/obj/user"\n');
+        const service = new AstBackedLanguageDefinitionService(
+            {
+                getMacro: jest.fn().mockReturnValue({
+                    file: 'D:\\workspace\\include\\defs.h',
+                    line: 1
+                })
+            } as any,
+            { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
+            undefined,
+            undefined,
+            {
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: jest.fn(async () => macroDocument),
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:\\workspace' } })),
+                    getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:\\workspace' } }]),
+                    fileExists: jest.fn().mockReturnValue(true)
+                },
+                semanticAdapter: {
+                    getIncludeStatements: jest.fn().mockReturnValue([]),
+                    resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
+                }
+            } as any
+        );
+
+        const functionSpy = jest.spyOn(service as any, 'findFunctionDefinition');
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: createTextDocument('D:\\workspace\\cmds\\test.c', 'USER_OB->query_name();\n') as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 0, character: 2 }
+        });
+
+        expect(definition).toEqual([
+            {
+                uri: vscode.Uri.file('D:\\workspace\\include\\defs.h').toString(),
+                range: {
+                    start: { line: 0, character: 0 },
+                    end: { line: 0, character: '#define USER_OB "/obj/user"'.length }
+                }
+            }
+        ]);
+        expect(functionSpy).not.toHaveBeenCalled();
+    });
+
     test('definition service resolves bare ::create() before ordinary function fallback', async () => {
         const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    ::create();\n}\n');
         const service = new AstBackedLanguageDefinitionService(

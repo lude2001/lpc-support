@@ -17,6 +17,7 @@ import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { DefinitionResolverSupport } from './definition/DefinitionResolverSupport';
+import { DirectSymbolDefinitionResolver } from './definition/DirectSymbolDefinitionResolver';
 import { ObjectMethodDefinitionResolver } from './definition/ObjectMethodDefinitionResolver';
 import { ScopedMethodDefinitionResolver } from './definition/ScopedMethodDefinitionResolver';
 import type {
@@ -66,6 +67,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     private readonly support: DefinitionResolverSupport;
     private readonly scopedDefinitionResolver: ScopedMethodDefinitionResolver;
     private readonly objectMethodDefinitionResolver: ObjectMethodDefinitionResolver;
+    private readonly directSymbolDefinitionResolver: DirectSymbolDefinitionResolver;
 
     public constructor(
         macroManager: MacroManager,
@@ -100,6 +102,12 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
             support: this.support,
             objectInferenceService: this.objectInferenceService,
             targetMethodLookup: this.targetMethodLookup
+        });
+        this.directSymbolDefinitionResolver = new DirectSymbolDefinitionResolver({
+            support: this.support,
+            macroManager: this.macroManager,
+            efunDocsManager: this.efunDocsManager,
+            semanticAdapter: this.semanticAdapter
         });
     }
 
@@ -145,7 +153,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
             return this.toLanguageLocations(objectMethodDefinition);
         }
 
-        const directDefinition = await this.resolveDirectDefinition(
+        const directDefinition = await this.directSymbolDefinitionResolver.resolve(
             document,
             position,
             word,

@@ -238,6 +238,10 @@ export class DefinitionResolverSupport {
         }
     }
 
+    public fileExists(filePath: string): boolean {
+        return this.context.host.fileExists(filePath);
+    }
+
     public getWorkspaceRoot(document: vscode.TextDocument): string {
         return this.context.host.getWorkspaceFolder(document.uri)?.uri.fsPath ?? path.dirname(document.uri.fsPath);
     }
