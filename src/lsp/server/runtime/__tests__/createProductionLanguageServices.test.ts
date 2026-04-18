@@ -51,7 +51,7 @@ describe('createProductionLanguageServices', () => {
                     getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
                 }
             }));
-            jest.doMock('../../../../diagnostics/createDiagnosticsStack', () => ({
+            jest.doMock('../../../../diagnostics', () => ({
                 createDiagnosticsStack: jest.fn(() => ({
                     collectors: ['diagnostics-collector'],
                     diagnosticsService
@@ -159,7 +159,7 @@ describe('createProductionLanguageServices', () => {
                     getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
                 }
             }));
-            jest.doMock('../../../../diagnostics/createDiagnosticsStack', () => ({
+            jest.doMock('../../../../diagnostics', () => ({
                 createDiagnosticsStack: jest.fn(() => ({
                     collectors: ['diagnostics-collector'],
                     diagnosticsService: { collectDiagnostics: jest.fn() }
@@ -272,7 +272,7 @@ describe('createProductionLanguageServices', () => {
                     getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
                 }
             }));
-            jest.doMock('../../../../diagnostics/createDiagnosticsStack', () => ({
+            jest.doMock('../../../../diagnostics', () => ({
                 createDiagnosticsStack: jest.fn(() => ({
                     collectors: ['diagnostics-collector'],
                     diagnosticsService: { collectDiagnostics: jest.fn() }
@@ -373,7 +373,7 @@ describe('createProductionLanguageServices', () => {
             jest.doMock('../../../../completion/completionInstrumentation', () => ({
                 CompletionInstrumentation: jest.fn(() => ({ kind: 'completion-instrumentation' }))
             }));
-            jest.doMock('../../../../diagnostics/createDiagnosticsStack', () => ({
+            jest.doMock('../../../../diagnostics', () => ({
                 createDiagnosticsStack
             }));
             jest.doMock('../../../../language/services/formatting/LanguageFormattingService', () => ({

@@ -4,35 +4,53 @@ import * as path from 'path';
 describe('diagnostics stack production guards', () => {
     const repoRoot = path.resolve(__dirname, '..', '..', '..');
     const extensionPath = path.join(repoRoot, 'src', 'extension.ts');
+    const diagnosticsEntryPath = path.join(repoRoot, 'src', 'diagnostics.ts');
+    const legacyDiagnosticsBarrelPath = path.join(repoRoot, 'src', 'diagnostics', 'index.ts');
     const diagnosticsModulePath = path.join(repoRoot, 'src', 'modules', 'diagnosticsModule.ts');
     const runtimePath = path.join(repoRoot, 'src', 'lsp', 'server', 'runtime', 'createProductionLanguageServices.ts');
     const orchestratorPath = path.join(repoRoot, 'src', 'diagnostics', 'DiagnosticsOrchestrator.ts');
 
-    test('extension registers diagnostics through the module, and module/runtime both rely on the shared stack factory', () => {
+    test('extension registers diagnostics through the module, and production diagnostics assembly uses the single shared entrypoint', () => {
         const extensionSource = fs.readFileSync(extensionPath, 'utf8');
+        const diagnosticsEntrySource = fs.readFileSync(diagnosticsEntryPath, 'utf8');
         const diagnosticsModuleSource = fs.readFileSync(diagnosticsModulePath, 'utf8');
         const runtimeSource = fs.readFileSync(runtimePath, 'utf8');
 
         expect(extensionSource).toContain("import { registerDiagnostics } from './modules/diagnosticsModule';");
         expect(extensionSource).toContain('registerDiagnostics(registry, context);');
 
+        expect(diagnosticsEntrySource).toContain('createDiagnosticsStack');
+        expect(diagnosticsEntrySource).toContain('createDefaultDiagnosticsCollectors');
+
+        expect(diagnosticsModuleSource).toContain("from '../diagnostics';");
         expect(diagnosticsModuleSource).toContain('createDiagnosticsStack');
         expect(diagnosticsModuleSource).not.toContain('createDefaultDiagnosticsCollectors');
         expect(diagnosticsModuleSource).not.toContain('createSharedDiagnosticsService');
+        expect(diagnosticsModuleSource).not.toContain("../diagnostics/createDiagnosticsStack");
 
+        expect(runtimeSource).toContain("from '../../../diagnostics';");
         expect(runtimeSource).toContain('createDiagnosticsStack');
         expect(runtimeSource).not.toContain('createDefaultDiagnosticsCollectors');
         expect(runtimeSource).not.toContain('createSharedDiagnosticsService');
+        expect(runtimeSource).not.toContain("../../../diagnostics/createDiagnosticsStack");
     });
 
-    test('production sources do not import src/diagnostics/index.ts', () => {
+    test('legacy diagnostics barrel is gone and production sources no longer bypass the diagnostics entrypoint', () => {
         const srcRoot = path.join(repoRoot, 'src');
         const productionFiles = listProductionTypeScriptFiles(srcRoot);
 
+        expect(fs.existsSync(legacyDiagnosticsBarrelPath)).toBe(false);
+
         for (const filePath of productionFiles) {
+            if (filePath === diagnosticsEntryPath) {
+                continue;
+            }
+
             const source = fs.readFileSync(filePath, 'utf8');
             expect(source).not.toMatch(/from\s+['"][^'"]*diagnostics\/index['"]/);
             expect(source).not.toMatch(/from\s+['"][^'"]*diagnostics\\index['"]/);
+            expect(source).not.toMatch(/from\s+['"][^'"]*diagnostics\/createDiagnosticsStack['"]/);
+            expect(source).not.toMatch(/from\s+['"][^'"]*diagnostics\\createDiagnosticsStack['"]/);
         }
     });
 

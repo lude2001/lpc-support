@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { Services } from '../core/ServiceKeys';
-import { DiagnosticsOrchestrator } from '../diagnostics';
-import { createDiagnosticsStack } from '../diagnostics/createDiagnosticsStack';
+import { DiagnosticsOrchestrator, createDiagnosticsStack } from '../diagnostics';
 
 export function registerDiagnostics(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const macroManager = registry.get(Services.MacroManager);

@@ -11,7 +11,6 @@ import type {
     LanguageDiagnosticsRequest,
     LanguageDiagnosticsService
 } from '../language/services/diagnostics/LanguageDiagnosticsService';
-export { createDefaultDiagnosticsCollectors } from './createDiagnosticsStack';
 
 /**
  * LPC配置接口

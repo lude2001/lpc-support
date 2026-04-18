@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
-import { createDiagnosticsStack } from '../../../diagnostics/createDiagnosticsStack';
+import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
 import { createLanguageCodeActionService } from '../../../language/services/codeActions/LanguageCodeActionService';

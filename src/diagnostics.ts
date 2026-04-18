@@ -1,14 +1,18 @@
 /**
- * 诊断模块入口
- * 导出DiagnosticsOrchestrator作为主类，保持向后兼容
+ * Diagnostics 唯一主入口
+ * 对外统一暴露协调器、stack factory 和相关类型，避免生产装配绕开主出口各走一套。
  */
 
-// 导出新的协调器
+// 导出协调器与兼容别名
 export { DiagnosticsOrchestrator } from './diagnostics/DiagnosticsOrchestrator';
-export { createDefaultDiagnosticsCollectors } from './diagnostics/createDiagnosticsStack';
+export { DiagnosticsOrchestrator as LPCDiagnostics } from './diagnostics/DiagnosticsOrchestrator';
+
+// 导出 diagnostics stack factory
+export {
+    createDiagnosticsStack,
+    createDefaultDiagnosticsCollectors
+} from './diagnostics/createDiagnosticsStack';
+export type { DiagnosticsStack } from './diagnostics/createDiagnosticsStack';
 
 // 导出类型定义
 export type { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './diagnostics/types';
-
-// 为了向后兼容，也导出为LPCDiagnostics别名
-export { DiagnosticsOrchestrator as LPCDiagnostics } from './diagnostics/DiagnosticsOrchestrator';

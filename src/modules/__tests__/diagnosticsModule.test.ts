@@ -2,14 +2,11 @@ import * as vscode from 'vscode';
 import { ServiceRegistry } from '../../core/ServiceRegistry';
 import { Services } from '../../core/ServiceKeys';
 import { registerDiagnostics } from '../diagnosticsModule';
-import { DiagnosticsOrchestrator } from '../../diagnostics';
-import { createDiagnosticsStack } from '../../diagnostics/createDiagnosticsStack';
+import { DiagnosticsOrchestrator, createDiagnosticsStack } from '../../diagnostics';
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 
 jest.mock('../../diagnostics', () => ({
-    DiagnosticsOrchestrator: jest.fn()
-}));
-jest.mock('../../diagnostics/createDiagnosticsStack', () => ({
+    DiagnosticsOrchestrator: jest.fn(),
     createDiagnosticsStack: jest.fn(() => ({
         collectors: ['collector'],
         diagnosticsService: { collectDiagnostics: jest.fn() }
