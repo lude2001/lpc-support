@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { Symbol, SymbolTable, SymbolType } from '../ast/symbolTable';
 import { composeLpcType } from '../ast/typeNormalization';
 import {
+    FileGlobalSummary,
     FunctionSummary,
     IncludeDirective,
     InheritDirective,
@@ -32,6 +33,7 @@ export class SemanticModelBuilder {
         this.lineStartOffsets = buildLineStartOffsets(syntaxDocument.parsed.text);
 
         this.visitChildren(syntaxDocument.root, {});
+        const fileGlobals = this.collectFileGlobals();
 
         return {
             uri: syntaxDocument.uri,
@@ -43,6 +45,7 @@ export class SemanticModelBuilder {
                 .map((symbol) => this.toFunctionSummary(symbol)),
             localScopes: this.collectScopeSummaries(this.symbolTable.getGlobalScope()),
             typeDefinitions: this.collectTypeDefinitions(),
+            fileGlobals,
             inheritStatements: [...this.inheritStatements],
             includeStatements: [...this.includeStatements],
             macroReferences: [],
@@ -429,6 +432,18 @@ export class SemanticModelBuilder {
             .map((symbol) => this.toTypeDefinitionSummary(symbol, 'class'));
 
         return [...structDefinitions, ...classDefinitions];
+    }
+
+    private collectFileGlobals(): FileGlobalSummary[] {
+        return Array.from(this.symbolTable.getGlobalScope().symbols.values())
+            .filter((symbol) => symbol.type === SymbolType.VARIABLE)
+            .map((symbol) => ({
+                name: symbol.name,
+                dataType: symbol.dataType,
+                sourceUri: this.syntaxDocument.uri,
+                range: symbol.range,
+                selectionRange: symbol.selectionRange
+            }));
     }
 
     private toFunctionSummary(symbol: Symbol): FunctionSummary {

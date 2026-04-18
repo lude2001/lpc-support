@@ -2,6 +2,7 @@ import { getTypeLookupName } from '../ast/typeNormalization';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import {
     FileSymbolRecord,
+    FileGlobalSummary,
     FunctionSummary,
     InheritedSymbolSet,
     ResolvedInheritTarget,
@@ -15,6 +16,7 @@ type ProjectSemanticSnapshot = Pick<
     | 'version'
     | 'exportedFunctions'
     | 'typeDefinitions'
+    | 'fileGlobals'
     | 'inheritStatements'
     | 'includeStatements'
     | 'macroReferences'
@@ -56,6 +58,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
                     parameters: member.parameters?.map(parameter => ({ ...parameter }))
                 }))
             })),
+            fileGlobals: (snapshot.fileGlobals || []).map(summary => cloneFileGlobalSummary(summary)),
             inheritStatements: snapshot.inheritStatements.map(statement => {
                 const target = resolvedUriByValue.get(`${statement.expressionKind}:${statement.value}`);
 
@@ -91,7 +94,8 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
     }
 
     public getRecord(uri: string): FileSymbolRecord | undefined {
-        return this.records.get(uri);
+        const record = this.records.get(uri);
+        return record ? cloneFileSymbolRecord(record) : undefined;
     }
 
     public getResolvedInheritTargets(uri: string): ResolvedInheritTarget[] {
@@ -173,20 +177,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
     }
 
     public getAllRecords(): FileSymbolRecord[] {
-        return Array.from(this.records.values()).map(record => ({
-            ...record,
-            exportedFunctions: record.exportedFunctions.map(func => ({ ...func })),
-            typeDefinitions: record.typeDefinitions.map(type => ({
-                ...type,
-                members: type.members.map(member => ({
-                    ...member,
-                    parameters: member.parameters?.map(parameter => ({ ...parameter }))
-                }))
-            })),
-            inheritStatements: record.inheritStatements.map(statement => ({ ...statement })),
-            includeStatements: record.includeStatements.map(statement => ({ ...statement })),
-            macroReferences: record.macroReferences.map(reference => ({ ...reference }))
-        }));
+        return Array.from(this.records.values()).map(record => cloneFileSymbolRecord(record));
     }
 
     private rebuildTypeLookup(): void {
@@ -207,4 +198,28 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
             }
         }
     }
+}
+
+function cloneFileGlobalSummary(summary: FileGlobalSummary): FileGlobalSummary {
+    return {
+        ...summary
+    };
+}
+
+function cloneFileSymbolRecord(record: FileSymbolRecord): FileSymbolRecord {
+    return {
+        ...record,
+        exportedFunctions: record.exportedFunctions.map(func => ({ ...func })),
+        typeDefinitions: record.typeDefinitions.map(type => ({
+            ...type,
+            members: type.members.map(member => ({
+                ...member,
+                parameters: member.parameters?.map(parameter => ({ ...parameter }))
+            }))
+        })),
+        fileGlobals: record.fileGlobals.map(summary => cloneFileGlobalSummary(summary)),
+        inheritStatements: record.inheritStatements.map(statement => ({ ...statement })),
+        includeStatements: record.includeStatements.map(statement => ({ ...statement })),
+        macroReferences: record.macroReferences.map(reference => ({ ...reference }))
+    };
 }

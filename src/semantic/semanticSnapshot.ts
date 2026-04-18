@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { SymbolTable } from '../ast/symbolTable';
 import {
     DocumentSemanticSnapshot,
+    FileGlobalSummary,
     FunctionSummary,
     IncludeDirective,
     InheritDirective,
@@ -19,6 +20,7 @@ export interface SemanticSnapshot {
     exportedFunctions: FunctionSummary[];
     localScopes: ScopeSummary[];
     typeDefinitions: TypeDefinitionSummary[];
+    fileGlobals?: FileGlobalSummary[];
     inheritStatements: InheritDirective[];
     includeStatements: IncludeDirective[];
     macroReferences: MacroReference[];
@@ -34,6 +36,7 @@ export function toDocumentSemanticSnapshot(snapshot: SemanticSnapshot): Document
         exportedFunctions: snapshot.exportedFunctions,
         localScopes: snapshot.localScopes,
         typeDefinitions: snapshot.typeDefinitions,
+        fileGlobals: snapshot.fileGlobals ? snapshot.fileGlobals.map((summary) => ({ ...summary })) : [],
         inheritStatements: snapshot.inheritStatements,
         includeStatements: snapshot.includeStatements,
         macroReferences: snapshot.macroReferences,

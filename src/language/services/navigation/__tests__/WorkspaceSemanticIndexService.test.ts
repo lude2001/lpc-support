@@ -112,6 +112,13 @@ function createTextDocument(uriValue: string, source: string, version: number = 
     } as unknown as vscode.TextDocument;
 }
 
+function toFixtureUriKey(uri: vscode.Uri): string {
+    const normalizedPath = uri.fsPath
+        .replace(/\\/g, '/')
+        .replace(/^\/+([A-Za-z]:)/, '$1');
+    return `file:///${normalizedPath}`;
+}
+
 function setOpenDocuments(fixtures: OpenDocumentFixture[] = []): void {
     const documents = fixtures.map((fixture) => createTextDocument(fixture.uri, fixture.text, fixture.version));
     Object.defineProperty(vscode.workspace, 'textDocuments', {
@@ -202,12 +209,12 @@ function createHost(options: HostFixtureOptions): WorkspaceSemanticIndexHost {
             const uri = typeof target === 'string'
                 ? vscode.Uri.parse(target)
                 : target;
-            const text = options.texts[uri.toString()];
+            const text = options.texts[toFixtureUriKey(uri)];
             if (typeof text !== 'string') {
-                throw new Error(`No fixture text for ${uri.toString()}`);
+                throw new Error(`No fixture text for ${toFixtureUriKey(uri)}`);
             }
 
-            return createTextDocument(uri.toString(), text);
+            return createTextDocument(toFixtureUriKey(uri), text);
         }),
         getWorkspaceFolders: jest.fn(() => workspaceRoots.map((workspaceRoot) => ({
             uri: { fsPath: workspaceRoot }
@@ -244,7 +251,6 @@ describe('WorkspaceSemanticIndexService', () => {
     afterEach(() => {
         DocumentSemanticSnapshotService.getInstance().clear();
         clearGlobalParsedDocumentService();
-        jest.resetModules();
 
         if (originalTextDocumentsDescriptor) {
             Object.defineProperty(vscode.workspace, 'textDocuments', originalTextDocumentsDescriptor);

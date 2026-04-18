@@ -77,6 +77,14 @@ export interface TypeDefinitionSummary {
     definition?: string;
 }
 
+export interface FileGlobalSummary {
+    name: string;
+    dataType: string;
+    sourceUri: string;
+    range: vscode.Range;
+    selectionRange?: vscode.Range;
+}
+
 export interface ScopeSummary {
     name: string;
     range: vscode.Range;
@@ -115,6 +123,7 @@ export interface DocumentSemanticSnapshot {
     exportedFunctions: FunctionSummary[];
     localScopes: ScopeSummary[];
     typeDefinitions: TypeDefinitionSummary[];
+    fileGlobals: FileGlobalSummary[];
     inheritStatements: InheritDirective[];
     includeStatements: IncludeDirective[];
     macroReferences: MacroReference[];
@@ -127,6 +136,7 @@ export interface FileSymbolRecord {
     version: number;
     exportedFunctions: FunctionSummary[];
     typeDefinitions: TypeDefinitionSummary[];
+    fileGlobals: FileGlobalSummary[];
     inheritStatements: InheritDirective[];
     includeStatements: IncludeDirective[];
     macroReferences: MacroReference[];
