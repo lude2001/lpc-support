@@ -375,41 +375,27 @@ describe('navigation handlers', () => {
         });
         const documentStore = new DocumentStore();
         const workspaceRelationService = {
-            collectReferences: jest.fn().mockResolvedValue([
-                {
-                    uri: 'file:///D:/workspace/rooms/a.c',
-                    range: {
-                        start: { line: 1, character: 0 },
-                        end: { line: 1, character: 8 }
+            collectReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
+                expect(options).toEqual({ includeDeclaration: false });
+                return [
+                    {
+                        uri: 'file:///D:/workspace/rooms/a.c',
+                        range: {
+                            start: { line: 1, character: 0 },
+                            end: { line: 1, character: 8 }
+                        }
+                    },
+                    {
+                        uri: 'file:///D:/workspace/rooms/b.c',
+                        range: {
+                            start: { line: 4, character: 2 },
+                            end: { line: 4, character: 10 }
+                        }
                     }
-                },
-                {
-                    uri: 'file:///D:/workspace/rooms/b.c',
-                    range: {
-                        start: { line: 4, character: 2 },
-                        end: { line: 4, character: 10 }
-                    }
-                }
-            ])
+                ];
+            })
         };
         const referenceService: LanguageReferenceService = new AstBackedLanguageReferenceService({
-            referenceResolver: {
-                resolveReferences: jest.fn().mockReturnValue({
-                    wordRange: {
-                        start: { line: 0, character: 4 },
-                        end: { line: 0, character: 9 }
-                    },
-                    matches: [
-                        {
-                            range: {
-                                start: { line: 1, character: 0 },
-                                end: { line: 1, character: 8 }
-                            },
-                            isDeclaration: false
-                        }
-                    ]
-                })
-            },
             workspaceRelationService
         } as any);
         const navigationService = {

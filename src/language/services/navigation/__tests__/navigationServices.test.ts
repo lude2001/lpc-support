@@ -710,22 +710,25 @@ describe('navigation services', () => {
     test('reference service prefers workspace relation matches when they resolve to multiple files', async () => {
         const document = createDocument('int round; round += 1;');
         const workspaceRelationService = {
-            collectReferences: jest.fn().mockResolvedValue([
-                {
-                    uri: 'file:///D:/workspace/alpha.c',
-                    range: {
-                        start: { line: 1, character: 0 },
-                        end: { line: 1, character: 5 }
+            collectReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
+                expect(options).toEqual({ includeDeclaration: false });
+                return [
+                    {
+                        uri: 'file:///D:/workspace/alpha.c',
+                        range: {
+                            start: { line: 1, character: 0 },
+                            end: { line: 1, character: 5 }
+                        }
+                    },
+                    {
+                        uri: 'file:///D:/workspace/beta.c',
+                        range: {
+                            start: { line: 3, character: 2 },
+                            end: { line: 3, character: 7 }
+                        }
                     }
-                },
-                {
-                    uri: 'file:///D:/workspace/beta.c',
-                    range: {
-                        start: { line: 3, character: 2 },
-                        end: { line: 3, character: 7 }
-                    }
-                }
-            ])
+                ];
+            })
         };
         const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
             referenceResolver: {
@@ -777,7 +780,10 @@ describe('navigation services', () => {
     test('reference service preserves current-file references when workspace relation requests fallback', async () => {
         const document = createDocument('int round; round += 1;');
         const workspaceRelationService = {
-            collectReferences: jest.fn().mockResolvedValue(CURRENT_FILE_FALLBACK)
+            collectReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
+                expect(options).toEqual({ includeDeclaration: false });
+                return CURRENT_FILE_FALLBACK;
+            })
         };
         const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
             referenceResolver: {
