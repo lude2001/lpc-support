@@ -210,6 +210,9 @@ describe('WorkspaceReferenceCollector', () => {
         const owner = targetOwner();
         const roomUri = 'file:///D:/workspace/room.c';
         const lookUri = 'file:///D:/workspace/cmds/look.c';
+        const roomDeclarationRange = { start: { line: 0, character: 4 }, end: { line: 0, character: 12 } };
+        const roomCallSiteRange = { start: { line: 1, character: 20 }, end: { line: 1, character: 28 } };
+        const lookCallSiteRange = { start: { line: 0, character: 20 }, end: { line: 0, character: 28 } };
         const WorkspaceReferenceCollector = loadWorkspaceReferenceCollector();
         const collector = new WorkspaceReferenceCollector({
             host: createHost({
@@ -234,7 +237,14 @@ describe('WorkspaceReferenceCollector', () => {
 
         const matches = await collector.collect(owner, [roomUri, lookUri], { includeDeclaration: false });
 
-        expect(matches.map((item) => item.uri)).toEqual([roomUri, lookUri]);
+        expect(matches).toHaveLength(2);
+        expect(matches).toEqual(expect.arrayContaining([
+            expect.objectContaining({ uri: roomUri, range: roomCallSiteRange }),
+            expect.objectContaining({ uri: lookUri, range: lookCallSiteRange })
+        ]));
+        expect(matches).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ uri: roomUri, range: roomDeclarationRange })
+        ]));
     });
 
     test('filters same-name but different-owner functions', async () => {
@@ -262,7 +272,10 @@ describe('WorkspaceReferenceCollector', () => {
 
         const matches = await collector.collect(owner, [roomUri, otherUri], { includeDeclaration: true });
 
-        expect(matches.map((item) => item.uri)).toEqual([roomUri]);
+        expect(matches).toHaveLength(1);
+        expect(matches).toEqual(expect.arrayContaining([
+            expect.objectContaining({ uri: roomUri })
+        ]));
     });
 
     test('filters same-name different-owner candidates within the same file after re-confirmation', async () => {
@@ -294,6 +307,42 @@ describe('WorkspaceReferenceCollector', () => {
 
         expect(matches.every((item) => item.uri === mixedUri)).toBe(true);
         expect(matches).toHaveLength(2);
+    });
+
+    test('collects matching file-global owners after re-confirmation', async () => {
+        const owner: WorkspaceSymbolOwner = {
+            kind: 'global',
+            key: 'global:file:///D:/workspace/daemon_user.c:COMBAT_D',
+            name: 'COMBAT_D'
+        };
+        const daemonUserUri = 'file:///D:/workspace/daemon_user.c';
+        const commandUri = 'file:///D:/workspace/cmds/fight.c';
+        const WorkspaceReferenceCollector = loadWorkspaceReferenceCollector();
+        const collector = new WorkspaceReferenceCollector({
+            host: createHost({
+                [daemonUserUri]: 'object COMBAT_D;\nvoid demo() { COMBAT_D->start(); }',
+                [commandUri]: 'int fight() { COMBAT_D->start(); return 1; }'
+            }),
+            candidateEnumerator: createCandidateEnumerator({
+                [daemonUserUri]: [
+                    { range: new vscode.Range(0, 7, 0, 15), symbolName: 'COMBAT_D', isDeclaration: true },
+                    { range: new vscode.Range(1, 14, 1, 22), symbolName: 'COMBAT_D' }
+                ],
+                [commandUri]: [
+                    { range: new vscode.Range(0, 14, 0, 22), symbolName: 'COMBAT_D' }
+                ]
+            }),
+            ownerResolver: createOwnerResolutionMap([
+                [positionKey(daemonUserUri, 0, 7), { kind: 'workspace-visible', owner }],
+                [positionKey(daemonUserUri, 1, 14), { kind: 'workspace-visible', owner }],
+                [positionKey(commandUri, 0, 14), { kind: 'workspace-visible', owner }]
+            ])
+        });
+
+        const matches = await collector.collect(owner, [daemonUserUri, commandUri], { includeDeclaration: true });
+
+        expect(matches).toHaveLength(3);
+        expect(new Set(matches.map((item) => item.uri))).toEqual(new Set([daemonUserUri, commandUri]));
     });
 
     test('same-file prototype and implementation stay in one callable family for references', async () => {
@@ -333,6 +382,7 @@ describe('WorkspaceReferenceCollector', () => {
 
         const matches = await collector.collect(owner, [prototypeUri], { includeDeclaration: true });
 
+        expect(matches).toHaveLength(3);
         expect(matches).toEqual(expect.arrayContaining([
             expect.objectContaining({ uri: prototypeUri, range: expect.objectContaining({ start: { line: 0, character: 16 } }) }),
             expect.objectContaining({ uri: prototypeUri, range: expect.objectContaining({ start: { line: 2, character: 8 } }) })

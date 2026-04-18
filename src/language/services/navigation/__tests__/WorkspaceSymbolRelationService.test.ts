@@ -212,10 +212,56 @@ describe('WorkspaceSymbolRelationService', () => {
         const refs = await service.collectReferences(document, positionOn(source, 'query_id'), { includeDeclaration: false });
 
         expect(refs).toHaveLength(2);
-        expect(refs.map((item: any) => item.uri)).toEqual([
+        expect(new Set(refs.map((item: any) => item.uri))).toEqual(new Set([
             'file:///D:/workspace/room.c',
             'file:///D:/workspace/cmds/look.c'
-        ]);
+        ]));
+    });
+
+    test('routes file-global owners through file-global candidate selection before collecting references', async () => {
+        const source = 'void demo() { COMBAT_D->start(); }';
+        const document = createTextDocument('file:///D:/workspace/cmds/fight.c', source);
+        const owner: WorkspaceSymbolOwner = {
+            kind: 'global',
+            key: 'global:file:///D:/workspace/daemon_user.c:COMBAT_D',
+            name: 'COMBAT_D'
+        };
+        const indexView = {
+            getFunctionCandidateFiles: jest.fn(() => []),
+            getFileGlobalCandidateFiles: jest.fn(() => [
+                'file:///D:/workspace/daemon_user.c',
+                'file:///D:/workspace/cmds/fight.c'
+            ]),
+            getTypeCandidateFiles: jest.fn(() => [])
+        };
+        const { WorkspaceSymbolRelationService } = loadWorkspaceSymbolRelationModule();
+        const service = new WorkspaceSymbolRelationService({
+            ownerResolver: {
+                resolveOwner: jest.fn(async () => ({ kind: 'workspace-visible', owner }))
+            },
+            workspaceSemanticIndexService: createWorkspaceSemanticIndexService(indexView),
+            referenceCollector: {
+                collect: jest.fn(async () => ([
+                    {
+                        uri: 'file:///D:/workspace/daemon_user.c',
+                        range: { start: { line: 0, character: 7 }, end: { line: 0, character: 15 } }
+                    },
+                    {
+                        uri: 'file:///D:/workspace/cmds/fight.c',
+                        range: { start: { line: 0, character: 14 }, end: { line: 0, character: 22 } }
+                    }
+                ]))
+            }
+        });
+
+        const refs = await service.collectReferences(document, positionOn(source, 'COMBAT_D'), { includeDeclaration: true });
+
+        expect(indexView.getFileGlobalCandidateFiles).toHaveBeenCalledWith('COMBAT_D');
+        expect(refs).toHaveLength(2);
+        expect(new Set(refs.map((item: any) => item.uri))).toEqual(new Set([
+            'file:///D:/workspace/daemon_user.c',
+            'file:///D:/workspace/cmds/fight.c'
+        ]));
     });
 
     test('returns the current-file fallback sentinel for locals and parameters', async () => {
@@ -294,10 +340,10 @@ describe('WorkspaceSymbolRelationService', () => {
 
         const edit = await service.buildRenameEdit(document, positionOn(source, 'query_id'), 'query_name');
 
-        expect(Object.keys(edit.changes)).toEqual([
+        expect(new Set(Object.keys(edit.changes))).toEqual(new Set([
             'file:///D:/workspace/room.c',
             'file:///D:/workspace/cmds/look.c'
-        ]);
+        ]));
     });
 
     test('same-file prototype and implementation are renamed as one callable family', async () => {
