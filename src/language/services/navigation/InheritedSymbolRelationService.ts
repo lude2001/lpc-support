@@ -8,7 +8,7 @@ import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethod
 import { resolveScopedDirectInheritSeeds } from '../../../objectInference/scopedInheritanceTraversal';
 import { resolveSymbolReferences, resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
-import { normalizeWorkspaceUri } from './WorkspaceSymbolOwnerResolver';
+import { normalizeWorkspaceUri } from './navigationPathUtils';
 
 export interface InheritedReferenceMatch {
     uri: string;
