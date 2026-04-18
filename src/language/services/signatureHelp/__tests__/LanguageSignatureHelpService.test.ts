@@ -1,15 +1,16 @@
 import * as vscode from 'vscode';
-import { afterEach, describe, expect, jest, test } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { EfunDocsManager } from '../../../../efunDocs';
+import { configureSimulatedEfunScannerAnalysisService } from '../../../../efun/SimulatedEfunScanner';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
 import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
 import type { CallableDoc } from '../../../documentation/types';
-import { TargetMethodLookup } from '../../../../targetMethodLookup';
+import { TargetMethodLookup, configureTargetMethodLookupAnalysisService } from '../../../../targetMethodLookup';
 import {
     LanguageSignatureHelpService,
     type CallableDiscoveryRequest,
@@ -187,9 +188,16 @@ function createDocResolver(docsByTargetKey: Record<string, CallableDoc>): Callab
 }
 
 describe('LanguageSignatureHelpService', () => {
+    beforeEach(() => {
+        configureTargetMethodLookupAnalysisService(DocumentSemanticSnapshotService.getInstance());
+        configureSimulatedEfunScannerAnalysisService(DocumentSemanticSnapshotService.getInstance());
+    });
+
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
+        configureTargetMethodLookupAnalysisService(undefined);
+        configureSimulatedEfunScannerAnalysisService(undefined);
         clearGlobalParsedDocumentService();
         (vscode.workspace as any).workspaceFolders = originalWorkspaceFolders;
         jest.restoreAllMocks();

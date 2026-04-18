@@ -4,9 +4,14 @@ import * as os from 'os';
 import * as path from 'path';
 import { ASTManager } from '../ast/astManager';
 import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManager';
-import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
+import {
+    SimulatedEfunScanner,
+    configureSimulatedEfunScannerAnalysisService
+} from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
+import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
+import { configureTargetMethodLookupAnalysisService } from '../targetMethodLookup';
 import { TestHelper } from './utils/TestHelper';
 
 describe('EfunDocsManager', () => {
@@ -15,6 +20,9 @@ describe('EfunDocsManager', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        configureSimulatedEfunScannerAnalysisService(analysisService);
+        configureTargetMethodLookupAnalysisService(analysisService);
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((_: string, defaultValue?: unknown) => defaultValue),
             update: jest.fn().mockResolvedValue(undefined)
@@ -26,6 +34,8 @@ describe('EfunDocsManager', () => {
     });
 
     afterEach(() => {
+        configureSimulatedEfunScannerAnalysisService(undefined);
+        configureTargetMethodLookupAnalysisService(undefined);
         errorSpy.mockRestore();
         warnSpy.mockRestore();
     });
@@ -527,6 +537,7 @@ describe('EfunDocsManager', () => {
 describe('SimulatedEfunScanner', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        configureSimulatedEfunScannerAnalysisService(DocumentSemanticSnapshotService.getInstance());
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((_: string, defaultValue?: unknown) => defaultValue),
             update: jest.fn().mockResolvedValue(undefined)
@@ -534,6 +545,10 @@ describe('SimulatedEfunScanner', () => {
         (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([]);
         (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(Buffer.from(''));
         (vscode.workspace.workspaceFolders as unknown) = [];
+    });
+
+    afterEach(() => {
+        configureSimulatedEfunScannerAnalysisService(undefined);
     });
 
     test('clears previously loaded docs when a later reload cannot scan', async () => {

@@ -7,10 +7,13 @@ import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator'
 import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
+import { configureScopedMethodIdentifierAnalysisService } from '../language/services/navigation/ScopedMethodIdentifierSupport';
 import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
 import { ObjectInferenceService } from '../objectInference/ObjectInferenceService';
 import { ScopedMethodResolver } from '../objectInference/ScopedMethodResolver';
-import { TargetMethodLookup } from '../targetMethodLookup';
+import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
+import { configureSimulatedEfunScannerAnalysisService } from '../efun/SimulatedEfunScanner';
+import { TargetMethodLookup, configureTargetMethodLookupAnalysisService } from '../targetMethodLookup';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -173,6 +176,10 @@ describe('language-service integration regression', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        configureTargetMethodLookupAnalysisService(analysisService);
+        configureSimulatedEfunScannerAnalysisService(analysisService);
+        configureScopedMethodIdentifierAnalysisService(analysisService);
         fixtureRoot = path.join(process.cwd(), '.tmp-provider-integration');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
         fs.mkdirSync(path.join(fixtureRoot, 'lib'), { recursive: true });
@@ -185,6 +192,9 @@ describe('language-service integration regression', () => {
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        configureTargetMethodLookupAnalysisService(undefined);
+        configureSimulatedEfunScannerAnalysisService(undefined);
+        configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
     });
@@ -554,7 +564,7 @@ describe('language-service integration regression', () => {
     });
 
     test('semantic token service reuses ASTManager analysis without falling back to a secondary parse facade', async () => {
-        const service = new DefaultLanguageSemanticTokensService();
+        const service = new DefaultLanguageSemanticTokensService(DocumentSemanticSnapshotService.getInstance());
         const document = createDocument(
             path.join(fixtureRoot, 'semantic.c'),
             ['class Payload {', '    int hp;', '}', '', 'void demo() {', '    class Payload payload;', '    payload->hp;', '}'].join('\n')

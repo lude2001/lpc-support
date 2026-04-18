@@ -5,8 +5,10 @@ import { AstBackedLanguageReferenceService } from '../language/services/navigati
 import { AstBackedLanguageRenameService } from '../language/services/navigation/LanguageRenameService';
 import { AstBackedLanguageSymbolService } from '../language/services/navigation/LanguageSymbolService';
 import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
-import { resolveSymbolReferences } from '../symbolReferenceResolver';
-import { ASTManager as SharedASTManager } from '../ast/astManager';
+import {
+    configureSymbolReferenceAnalysisService,
+    resolveSymbolReferences
+} from '../symbolReferenceResolver';
 import { TestHelper } from './utils/TestHelper';
 
 function createContext(document: vscode.TextDocument) {
@@ -50,6 +52,7 @@ describe('local symbol references', () => {
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        configureSymbolReferenceAnalysisService(undefined);
     });
 
     afterAll(() => {
@@ -58,7 +61,10 @@ describe('local symbol references', () => {
 
     test('resolves only references bound to the local variable in the current function', () => {
         const document = TestHelper.createMockDocument(source);
-        const references = resolveSymbolReferences(document, getRoundPosition(2));
+        const analysisService = {
+            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+        };
+        const references = resolveSymbolReferences(document, getRoundPosition(2), analysisService);
 
         expect(references?.matches.map(match => match.range.start.line)).toEqual([1, 2]);
         expect(references?.matches.every(match => match.range.start.line < 5)).toBe(true);
@@ -66,6 +72,9 @@ describe('local symbol references', () => {
 
     test('reference service excludes same-named locals from other functions', async () => {
         const document = TestHelper.createMockDocument(source);
+        configureSymbolReferenceAnalysisService({
+            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+        });
         const service = new AstBackedLanguageReferenceService();
         const locations = await service.provideReferences({
             context: createContext(document),
@@ -81,6 +90,9 @@ describe('local symbol references', () => {
 
     test('rename service only edits the selected local variable scope', async () => {
         const document = TestHelper.createMockDocument(source);
+        configureSymbolReferenceAnalysisService({
+            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+        });
         const service = new AstBackedLanguageRenameService();
         const edits = await service.provideRenameEdits({
             context: createContext(document),
@@ -98,6 +110,9 @@ describe('local symbol references', () => {
 
     test('reference service preserves includeDeclaration filtering for current-file references', async () => {
         const document = TestHelper.createMockDocument(source);
+        configureSymbolReferenceAnalysisService({
+            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+        });
         const service = new AstBackedLanguageReferenceService();
 
         const references = await service.provideReferences({
@@ -114,6 +129,9 @@ describe('local symbol references', () => {
 
     test('rename service returns precise same-file edit ranges from resolved references', async () => {
         const document = TestHelper.createMockDocument(source);
+        configureSymbolReferenceAnalysisService({
+            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+        });
         const service = new AstBackedLanguageRenameService();
 
         const edit = await service.provideRenameEdits({
@@ -131,8 +149,7 @@ describe('local symbol references', () => {
 
     test('symbol service reuses semantic summaries for classes, structs, functions, and child members', async () => {
         const document = TestHelper.createMockDocument(source);
-        const service = new AstBackedLanguageSymbolService();
-        jest.spyOn(SharedASTManager.getInstance(), 'getBestAvailableSnapshot').mockReturnValue({
+        const getBestAvailableSnapshot = jest.fn().mockReturnValue({
             typeDefinitions: [
                 {
                     name: 'Payload',
@@ -185,6 +202,9 @@ describe('local symbol references', () => {
                 }
             ]
         } as any);
+        const service = new AstBackedLanguageSymbolService({
+            analysisService: { getBestAvailableSnapshot }
+        });
 
         const symbols = await service.provideDocumentSymbols({
             context: createContext(document)
@@ -195,5 +215,6 @@ describe('local symbol references', () => {
         expect(symbols[0].children?.[0].kind).toBe('method');
         expect(symbols[0].children?.[1].kind).toBe('method');
         expect(symbols[1].children?.[0].kind).toBe('field');
+        expect(getBestAvailableSnapshot).toHaveBeenCalledWith(document as any);
     });
 });

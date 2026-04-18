@@ -5,7 +5,6 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Token } from 'antlr4ts';
 import { LPCLexer } from '../../../antlr/LPCLexer';
-import { ASTManager } from '../../../ast/astManager';
 import { SymbolType } from '../../../ast/symbolTable';
 import {
     DefaultLanguageFoldingService
@@ -60,56 +59,57 @@ function createToken(
 
 describe('shared structure services', () => {
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
         jest.restoreAllMocks();
     });
 
     test('DefaultLanguageFoldingService preserves trivia-backed folding ranges and deduplicates syntax regions', async () => {
         const document = createDocument('/* header */\nvalue\n');
-        jest.spyOn(ASTManager.getInstance(), 'getSyntaxDocument').mockReturnValue({
-            parsed: {
-                tokenTriviaIndex: {
-                    getAllTrivia: () => [
-                        {
-                            kind: 'block-comment',
-                            range: new vscode.Range(0, 0, 1, 0)
-                        },
-                        {
-                            kind: 'directive',
-                            range: new vscode.Range(2, 0, 4, 0)
-                        },
-                        {
-                            kind: 'block-comment',
-                            range: new vscode.Range(0, 0, 1, 0)
-                        }
+        const analysisService = {
+            getSyntaxDocument: jest.fn().mockReturnValue({
+                parsed: {
+                    tokenTriviaIndex: {
+                        getAllTrivia: () => [
+                            {
+                                kind: 'block-comment',
+                                range: new vscode.Range(0, 0, 1, 0)
+                            },
+                            {
+                                kind: 'directive',
+                                range: new vscode.Range(2, 0, 4, 0)
+                            },
+                            {
+                                kind: 'block-comment',
+                                range: new vscode.Range(0, 0, 1, 0)
+                            }
+                        ]
+                    }
+                },
+                root: createSyntaxNode({
+                    kind: SyntaxKind.SourceFile,
+                    range: new vscode.Range(0, 0, 10, 0),
+                    tokenRange: createTokenRange(0, 0),
+                    children: [
+                        createSyntaxNode({
+                            kind: SyntaxKind.FunctionDeclaration,
+                            range: new vscode.Range(5, 0, 8, 1),
+                            tokenRange: createTokenRange(1, 1)
+                        }),
+                        createSyntaxNode({
+                            kind: SyntaxKind.Block,
+                            range: new vscode.Range(5, 0, 8, 1),
+                            tokenRange: createTokenRange(2, 2)
+                        }),
+                        createSyntaxNode({
+                            kind: SyntaxKind.IfStatement,
+                            range: new vscode.Range(9, 0, 9, 8),
+                            tokenRange: createTokenRange(3, 3)
+                        })
                     ]
-                }
-            },
-            root: createSyntaxNode({
-                kind: SyntaxKind.SourceFile,
-                range: new vscode.Range(0, 0, 10, 0),
-                tokenRange: createTokenRange(0, 0),
-                children: [
-                    createSyntaxNode({
-                        kind: SyntaxKind.FunctionDeclaration,
-                        range: new vscode.Range(5, 0, 8, 1),
-                        tokenRange: createTokenRange(1, 1)
-                    }),
-                    createSyntaxNode({
-                        kind: SyntaxKind.Block,
-                        range: new vscode.Range(5, 0, 8, 1),
-                        tokenRange: createTokenRange(2, 2)
-                    }),
-                    createSyntaxNode({
-                        kind: SyntaxKind.IfStatement,
-                        range: new vscode.Range(9, 0, 9, 8),
-                        tokenRange: createTokenRange(3, 3)
-                    })
-                ]
+                })
             })
-        } as any);
+        };
 
-        const service = new DefaultLanguageFoldingService();
+        const service = new DefaultLanguageFoldingService(analysisService as any);
         const ranges = await service.provideFoldingRanges({
             context: createCapabilityContext(document)
         });
@@ -149,28 +149,30 @@ describe('shared structure services', () => {
             })
         };
         const fill = jest.fn();
-        jest.spyOn(ASTManager.getInstance(), 'parseDocument').mockReturnValue({
-            parsed: {
-                tokens: {
-                    fill,
-                    getTokens: () => [
-                        createToken(LPCLexer.KW_INT, 'int', 1, 0),
-                        createToken(LPCLexer.Identifier, 'demo', 1, 4),
-                        createToken(LPCLexer.LPAREN, '(', 1, 8),
-                        createToken(LPCLexer.Identifier, 'payload', 1, 11),
-                        createToken(LPCLexer.ARROW, '->', 1, 18),
-                        createToken(LPCLexer.Identifier, 'hp', 1, 20),
-                        createToken(LPCLexer.IF, 'if', 1, 24),
-                        createToken(LPCLexer.Identifier, 'PAYLOAD_MAX', 1, 28)
-                    ]
+        const analysisService = {
+            parseDocument: jest.fn().mockReturnValue({
+                parsed: {
+                    tokens: {
+                        fill,
+                        getTokens: () => [
+                            createToken(LPCLexer.KW_INT, 'int', 1, 0),
+                            createToken(LPCLexer.Identifier, 'demo', 1, 4),
+                            createToken(LPCLexer.LPAREN, '(', 1, 8),
+                            createToken(LPCLexer.Identifier, 'payload', 1, 11),
+                            createToken(LPCLexer.ARROW, '->', 1, 18),
+                            createToken(LPCLexer.Identifier, 'hp', 1, 20),
+                            createToken(LPCLexer.IF, 'if', 1, 24),
+                            createToken(LPCLexer.Identifier, 'PAYLOAD_MAX', 1, 28)
+                        ]
+                    }
+                },
+                snapshot: {
+                    symbolTable
                 }
-            },
-            snapshot: {
-                symbolTable
-            }
-        } as any);
+            })
+        };
 
-        const service = new DefaultLanguageSemanticTokensService();
+        const service = new DefaultLanguageSemanticTokensService(analysisService as any);
         const result = await service.provideSemanticTokens({
             context: createCapabilityContext(document)
         });
@@ -242,29 +244,33 @@ describe('shared structure services', () => {
             'hp',
             new vscode.Position(0, 20)
         );
+        expect(analysisService.parseDocument).toHaveBeenCalledWith(document as any);
     });
 
     test('DefaultLanguageSemanticTokensService emits comment tokens from hidden-channel lexer output', async () => {
         const document = createDocument('/* note */\nvalue;\n');
         const fill = jest.fn();
-        jest.spyOn(ASTManager.getInstance(), 'parseDocument').mockReturnValue({
-            parsed: {
-                tokens: {
-                    fill,
-                    getTokens: () => [
-                        createToken(LPCLexer.BLOCK_COMMENT, '/* note */', 1, 0, 1),
-                        createToken(LPCLexer.Identifier, 'value', 2, 0)
-                    ]
+        const analysisService = {
+            parseDocument: jest.fn().mockReturnValue({
+                parsed: {
+                    tokens: {
+                        fill,
+                        getTokens: () => [
+                            createToken(LPCLexer.BLOCK_COMMENT, '/* note */', 1, 0, 1),
+                            createToken(LPCLexer.Identifier, 'value', 2, 0)
+                        ]
+                    }
                 }
-            },
-            snapshot: {
-                symbolTable: {
-                    findSymbol: jest.fn(() => undefined)
+                ,
+                snapshot: {
+                    symbolTable: {
+                        findSymbol: jest.fn(() => undefined)
+                    }
                 }
-            }
-        } as any);
+            })
+        };
 
-        const service = new DefaultLanguageSemanticTokensService();
+        const service = new DefaultLanguageSemanticTokensService(analysisService as any);
         const result = await service.provideSemanticTokens({
             context: createCapabilityContext(document)
         });
@@ -288,37 +294,40 @@ describe('shared structure services', () => {
     test('DefaultLanguageSemanticTokensService classifies common LPC keywords and operators that previously fell through', async () => {
         const document = createDocument('class new public ++ -- += -= *= /= %= |= &= :: ... ..');
         const fill = jest.fn();
-        jest.spyOn(ASTManager.getInstance(), 'parseDocument').mockReturnValue({
-            parsed: {
-                tokens: {
-                    fill,
-                    getTokens: () => [
-                        createToken(LPCLexer.KW_CLASS, 'class', 1, 0),
-                        createToken(LPCLexer.KW_NEW, 'new', 1, 6),
-                        createToken(LPCLexer.MODIFIER, 'public', 1, 10),
-                        createToken(LPCLexer.INC, '++', 1, 17),
-                        createToken(LPCLexer.DEC, '--', 1, 20),
-                        createToken(LPCLexer.PLUS_ASSIGN, '+=', 1, 23),
-                        createToken(LPCLexer.MINUS_ASSIGN, '-=', 1, 26),
-                        createToken(LPCLexer.STAR_ASSIGN, '*=', 1, 29),
-                        createToken(LPCLexer.DIV_ASSIGN, '/=', 1, 32),
-                        createToken(LPCLexer.PERCENT_ASSIGN, '%=', 1, 35),
-                        createToken(LPCLexer.BIT_OR_ASSIGN, '|=', 1, 38),
-                        createToken(LPCLexer.BIT_AND_ASSIGN, '&=', 1, 41),
-                        createToken(LPCLexer.SCOPE, '::', 1, 44),
-                        createToken(LPCLexer.ELLIPSIS, '...', 1, 47),
-                        createToken(LPCLexer.RANGE_OP, '..', 1, 51)
-                    ]
+        const analysisService = {
+            parseDocument: jest.fn().mockReturnValue({
+                parsed: {
+                    tokens: {
+                        fill,
+                        getTokens: () => [
+                            createToken(LPCLexer.KW_CLASS, 'class', 1, 0),
+                            createToken(LPCLexer.KW_NEW, 'new', 1, 6),
+                            createToken(LPCLexer.MODIFIER, 'public', 1, 10),
+                            createToken(LPCLexer.INC, '++', 1, 17),
+                            createToken(LPCLexer.DEC, '--', 1, 20),
+                            createToken(LPCLexer.PLUS_ASSIGN, '+=', 1, 23),
+                            createToken(LPCLexer.MINUS_ASSIGN, '-=', 1, 26),
+                            createToken(LPCLexer.STAR_ASSIGN, '*=', 1, 29),
+                            createToken(LPCLexer.DIV_ASSIGN, '/=', 1, 32),
+                            createToken(LPCLexer.PERCENT_ASSIGN, '%=', 1, 35),
+                            createToken(LPCLexer.BIT_OR_ASSIGN, '|=', 1, 38),
+                            createToken(LPCLexer.BIT_AND_ASSIGN, '&=', 1, 41),
+                            createToken(LPCLexer.SCOPE, '::', 1, 44),
+                            createToken(LPCLexer.ELLIPSIS, '...', 1, 47),
+                            createToken(LPCLexer.RANGE_OP, '..', 1, 51)
+                        ]
+                    }
                 }
-            },
-            snapshot: {
-                symbolTable: {
-                    findSymbol: jest.fn(() => undefined)
+                ,
+                snapshot: {
+                    symbolTable: {
+                        findSymbol: jest.fn(() => undefined)
+                    }
                 }
-            }
-        } as any);
+            })
+        };
 
-        const service = new DefaultLanguageSemanticTokensService();
+        const service = new DefaultLanguageSemanticTokensService(analysisService as any);
         const result = await service.provideSemanticTokens({
             context: createCapabilityContext(document)
         });

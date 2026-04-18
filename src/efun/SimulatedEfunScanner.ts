@@ -1,17 +1,31 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ASTManager } from '../ast/astManager';
-import type { InheritDirective, IncludeDirective } from '../completion/types';
+import type { InheritDirective, IncludeDirective } from '../semantic/documentSemanticTypes';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { Trivia } from '../parser/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { parseFunctionDocs } from './docParser';
 import type { EfunDoc } from './types';
 
+type SimulatedEfunAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
+
+let configuredSimulatedEfunScannerAnalysisService: SimulatedEfunAnalysisService | undefined;
+
+export function configureSimulatedEfunScannerAnalysisService(service?: SimulatedEfunAnalysisService): void {
+    configuredSimulatedEfunScannerAnalysisService = service;
+}
+
 export class SimulatedEfunScanner {
     private docs: Map<string, EfunDoc> = new Map();
+    private readonly analysisService: SimulatedEfunAnalysisService;
 
-    constructor(private readonly projectConfigService?: LpcProjectConfigService) {}
+    constructor(
+        private readonly projectConfigService?: LpcProjectConfigService,
+        analysisService?: SimulatedEfunAnalysisService
+    ) {
+        this.analysisService = analysisService ?? requireSimulatedEfunAnalysisService();
+    }
 
     public get(name: string): EfunDoc | undefined {
         return this.docs.get(name);
@@ -113,7 +127,7 @@ export class SimulatedEfunScanner {
 
     private extractRelatedSourceFiles(currentFilePath: string, content: string, mudlibRoot: string): string[] {
         const document = this.createSyntheticDocument(currentFilePath, content);
-        const analysis = ASTManager.getInstance().parseDocument(document, false);
+        const analysis = this.analysisService.parseDocument(document, false);
         const relatedFiles = [
             ...analysis.snapshot.includeStatements.map((statement) =>
                 this.resolveIncludeDirective(statement, currentFilePath, mudlibRoot)
@@ -281,4 +295,12 @@ export class SimulatedEfunScanner {
 
         return lineStarts;
     }
+}
+
+function requireSimulatedEfunAnalysisService(): SimulatedEfunAnalysisService {
+    if (!configuredSimulatedEfunScannerAnalysisService) {
+        throw new Error('Simulated efun scanner analysis service has not been configured');
+    }
+
+    return configuredSimulatedEfunScannerAnalysisService;
 }

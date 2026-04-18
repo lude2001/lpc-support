@@ -8,9 +8,15 @@ import { CompletionInstrumentation } from '../../completion/completionInstrument
 import { LPCConfigManager } from '../../config';
 import { LPCCompiler } from '../../compiler';
 import { DocumentLifecycleService } from '../DocumentLifecycleService';
-import { ASTManager } from '../../ast/astManager';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
+import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
+import { configureDiagnosticsAnalysisService } from '../../diagnostics/createDiagnosticsStack';
+import { configureSimulatedEfunScannerAnalysisService } from '../../efun/SimulatedEfunScanner';
+import { configureSymbolReferenceAnalysisService } from '../../symbolReferenceResolver';
+import { configureTargetMethodLookupAnalysisService } from '../../targetMethodLookup';
+import { configureEfunHoverAnalysisService } from '../../language/services/navigation/EfunLanguageHoverService';
+import { configureScopedMethodIdentifierAnalysisService } from '../../language/services/navigation/ScopedMethodIdentifierSupport';
 
 jest.mock('../../macroManager', () => ({
     MacroManager: jest.fn()
@@ -40,14 +46,38 @@ jest.mock('../DocumentLifecycleService', () => ({
     DocumentLifecycleService: jest.fn()
 }));
 
-jest.mock('../../ast/astManager', () => ({
-    ASTManager: {
+jest.mock('../../semantic/documentSemanticSnapshotService', () => ({
+    DocumentSemanticSnapshotService: {
         getInstance: jest.fn()
     }
 }));
 
 jest.mock('../../parser/ParsedDocumentService', () => ({
     getGlobalParsedDocumentService: jest.fn()
+}));
+
+jest.mock('../../diagnostics/createDiagnosticsStack', () => ({
+    configureDiagnosticsAnalysisService: jest.fn()
+}));
+
+jest.mock('../../efun/SimulatedEfunScanner', () => ({
+    configureSimulatedEfunScannerAnalysisService: jest.fn()
+}));
+
+jest.mock('../../symbolReferenceResolver', () => ({
+    configureSymbolReferenceAnalysisService: jest.fn()
+}));
+
+jest.mock('../../targetMethodLookup', () => ({
+    configureTargetMethodLookupAnalysisService: jest.fn()
+}));
+
+jest.mock('../../language/services/navigation/EfunLanguageHoverService', () => ({
+    configureEfunHoverAnalysisService: jest.fn()
+}));
+
+jest.mock('../../language/services/navigation/ScopedMethodIdentifierSupport', () => ({
+    configureScopedMethodIdentifierAnalysisService: jest.fn()
 }));
 
 describe('registerCoreServices', () => {
@@ -61,7 +91,7 @@ describe('registerCoreServices', () => {
     let projectConfigService: { id: string };
     let lifecycle: vscode.Disposable & { id: string; onInvalidate: jest.Mock };
     let parsedDocumentService: { invalidate: jest.Mock };
-    let astManager: { clearCache: jest.Mock };
+    let analysisService: { clearCache: jest.Mock };
 
     beforeEach(() => {
         registry = new ServiceRegistry();
@@ -79,7 +109,7 @@ describe('registerCoreServices', () => {
         projectConfigService = { id: 'projectConfigService' };
         lifecycle = { id: 'lifecycle', dispose: jest.fn(), onInvalidate: jest.fn() };
         parsedDocumentService = { invalidate: jest.fn() };
-        astManager = { clearCache: jest.fn() };
+        analysisService = { clearCache: jest.fn() };
 
         (MacroManager as unknown as jest.Mock).mockReset().mockImplementation(() => macroManager);
         (EfunDocsManager as unknown as jest.Mock).mockReset().mockImplementation(() => efunDocsManager);
@@ -89,7 +119,13 @@ describe('registerCoreServices', () => {
         (LpcProjectConfigService as unknown as jest.Mock).mockReset().mockImplementation(() => projectConfigService);
         (DocumentLifecycleService as unknown as jest.Mock).mockReset().mockImplementation(() => lifecycle);
         (getGlobalParsedDocumentService as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
-        ((ASTManager as any).getInstance as jest.Mock).mockReset().mockReturnValue(astManager);
+        ((DocumentSemanticSnapshotService as any).getInstance as jest.Mock).mockReset().mockReturnValue(analysisService);
+        (configureDiagnosticsAnalysisService as jest.Mock).mockReset();
+        (configureSimulatedEfunScannerAnalysisService as jest.Mock).mockReset();
+        (configureSymbolReferenceAnalysisService as jest.Mock).mockReset();
+        (configureTargetMethodLookupAnalysisService as jest.Mock).mockReset();
+        (configureEfunHoverAnalysisService as jest.Mock).mockReset();
+        (configureScopedMethodIdentifierAnalysisService as jest.Mock).mockReset();
     });
 
     test('registers core services, tracks disposables, and wires lifecycle invalidation', () => {
@@ -114,6 +150,13 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.ProjectConfig)).toBe(projectConfigService);
         expect(registry.get(Services.CompletionInstrumentation)).toBe(completionInstrumentation);
         expect(registry.get(Services.Lifecycle)).toBe(lifecycle);
+        expect(DocumentSemanticSnapshotService.getInstance).toHaveBeenCalledTimes(1);
+        expect(configureDiagnosticsAnalysisService).toHaveBeenCalledWith(analysisService);
+        expect(configureSimulatedEfunScannerAnalysisService).toHaveBeenCalledWith(analysisService);
+        expect(configureSymbolReferenceAnalysisService).toHaveBeenCalledWith(analysisService);
+        expect(configureTargetMethodLookupAnalysisService).toHaveBeenCalledWith(analysisService);
+        expect(configureEfunHoverAnalysisService).toHaveBeenCalledWith(analysisService);
+        expect(configureScopedMethodIdentifierAnalysisService).toHaveBeenCalledWith(analysisService);
 
         expect(context.subscriptions).toEqual([macroManager, completionInstrumentation, lifecycle]);
         expect(typeof context.subscriptions[0].dispose).toBe('function');
@@ -128,8 +171,7 @@ describe('registerCoreServices', () => {
 
         expect(parsedDocumentService.invalidate).toHaveBeenCalledTimes(1);
         expect(parsedDocumentService.invalidate).toHaveBeenCalledWith(uri);
-        expect(astManager.clearCache).toHaveBeenCalledTimes(1);
-        expect(astManager.clearCache).toHaveBeenCalledWith(uri.toString());
+        expect(analysisService.clearCache).toHaveBeenCalledTimes(1);
+        expect(analysisService.clearCache).toHaveBeenCalledWith(uri.toString());
     });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

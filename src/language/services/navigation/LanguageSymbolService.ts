@@ -1,8 +1,8 @@
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageRange } from '../../contracts/LanguagePosition';
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../ast/astManager';
-import type { FunctionSummary, TypeDefinitionSummary, MemberSummary } from '../../../completion/types';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
+import type { FunctionSummary, TypeDefinitionSummary, MemberSummary } from '../../../semantic/documentSemanticTypes';
 
 // Supporting request/result types for the grouped navigation service seam.
 export interface LanguageDocumentSymbol {
@@ -91,10 +91,12 @@ function toDocumentSymbolFunctionSummary(func: FunctionSummary): LanguageDocumen
 }
 
 class VsCodeDocumentSymbolsSnapshotAdapter implements LanguageDocumentSymbolsSnapshotAdapter {
-    private readonly astManager = ASTManager.getInstance();
+    public constructor(
+        private readonly analysisService: Pick<DocumentAnalysisService, 'getBestAvailableSnapshot'>
+    ) {}
 
     public getDocumentSymbolsSnapshot(document: LanguageCapabilityContext['document']): LanguageDocumentSymbolsSnapshot {
-        const snapshot = this.astManager.getBestAvailableSnapshot(document as unknown as vscode.TextDocument);
+        const snapshot = this.analysisService.getBestAvailableSnapshot(document as unknown as vscode.TextDocument);
         return {
             typeDefinitions: snapshot.typeDefinitions.map((typeDefinition) => toDocumentSymbolTypeSummary(typeDefinition)),
             exportedFunctions: snapshot.exportedFunctions.map((func) => toDocumentSymbolFunctionSummary(func))
@@ -128,6 +130,7 @@ export class AstBackedLanguageSymbolService implements LanguageSymbolService {
     public constructor(
         private readonly dependencies: {
             snapshotAdapter?: LanguageDocumentSymbolsSnapshotAdapter;
+            analysisService?: Pick<DocumentAnalysisService, 'getBestAvailableSnapshot'>;
         } = {}
     ) {}
 
@@ -149,6 +152,17 @@ export class AstBackedLanguageSymbolService implements LanguageSymbolService {
     }
 
     private getSnapshotAdapter(): LanguageDocumentSymbolsSnapshotAdapter {
-        return this.dependencies.snapshotAdapter ?? new VsCodeDocumentSymbolsSnapshotAdapter();
+        return this.dependencies.snapshotAdapter
+            ?? new VsCodeDocumentSymbolsSnapshotAdapter(requireLanguageSymbolAnalysisService(this.dependencies.analysisService));
     }
+}
+
+function requireLanguageSymbolAnalysisService(
+    service?: Pick<DocumentAnalysisService, 'getBestAvailableSnapshot'>
+): Pick<DocumentAnalysisService, 'getBestAvailableSnapshot'> {
+    if (!service) {
+        throw new Error('Language symbol analysis service has not been configured');
+    }
+
+    return service;
 }

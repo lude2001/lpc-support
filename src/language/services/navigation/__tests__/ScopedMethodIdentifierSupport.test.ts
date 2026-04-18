@@ -1,8 +1,9 @@
 import { describe, expect, jest, afterEach, test } from '@jest/globals';
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../../ast/astManager';
+import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { SyntaxKind, type SyntaxDocument, type SyntaxNode } from '../../../../syntax/types';
 import {
+    configureScopedMethodIdentifierAnalysisService,
     findScopedMethodIdentifierAtPosition,
     isOnScopedMethodIdentifier
 } from '../ScopedMethodIdentifierSupport';
@@ -86,7 +87,7 @@ function createSyntaxDocument(nodes: readonly SyntaxNode[]): SyntaxDocument {
 describe('ScopedMethodIdentifierSupport', () => {
     afterEach(() => {
         jest.restoreAllMocks();
-        ASTManager.getInstance().clearAllCache();
+        configureScopedMethodIdentifierAnalysisService(undefined);
     });
 
     test('finds bare ::create() method identifiers', () => {
@@ -104,7 +105,7 @@ describe('ScopedMethodIdentifierSupport', () => {
             [methodIdentifier]
         );
         const syntax = createSyntaxDocument([callExpression, methodIdentifier]);
-        jest.spyOn(ASTManager.getInstance(), 'getSyntaxDocument').mockReturnValue(syntax);
+        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
 
         const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 8));
 
@@ -129,7 +130,7 @@ describe('ScopedMethodIdentifierSupport', () => {
             [memberAccess]
         );
         const syntax = createSyntaxDocument([callExpression, memberAccess, qualifier, methodIdentifier]);
-        jest.spyOn(ASTManager.getInstance(), 'getSyntaxDocument').mockReturnValue(syntax);
+        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
 
         const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 11));
 
@@ -139,6 +140,7 @@ describe('ScopedMethodIdentifierSupport', () => {
 
     test('finds room::init() method identifiers from the parser-backed syntax tree', () => {
         const document = createTextDocument('D:/workspace/demo.c', 'void demo() {\n    room::init();\n}\n');
+        configureScopedMethodIdentifierAnalysisService(DocumentSemanticSnapshotService.getInstance());
 
         const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 11));
 
@@ -173,7 +175,7 @@ describe('ScopedMethodIdentifierSupport', () => {
             [outerMethodIdentifier, innerCall]
         );
         const syntax = createSyntaxDocument([outerCall, innerCall, outerMethodIdentifier, innerQualifier, innerMethodIdentifier]);
-        jest.spyOn(ASTManager.getInstance(), 'getSyntaxDocument').mockReturnValue(syntax);
+        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
 
         const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 18));
 
@@ -199,7 +201,7 @@ describe('ScopedMethodIdentifierSupport', () => {
             [memberAccess]
         );
         const syntax = createSyntaxDocument([callExpression, memberAccess, qualifier, methodIdentifier]);
-        jest.spyOn(ASTManager.getInstance(), 'getSyntaxDocument').mockReturnValue(syntax);
+        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
 
         expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 5))).toBeUndefined();
         expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 15))).toBeUndefined();
@@ -221,7 +223,7 @@ describe('ScopedMethodIdentifierSupport', () => {
             [memberAccess]
         );
         const syntax = createSyntaxDocument([callExpression, memberAccess, qualifier]);
-        jest.spyOn(ASTManager.getInstance(), 'getSyntaxDocument').mockReturnValue(syntax);
+        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
 
         expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 8))).toBeUndefined();
     });
@@ -241,15 +243,27 @@ describe('ScopedMethodIdentifierSupport', () => {
             [methodIdentifier]
         );
         const syntax = createSyntaxDocument([callExpression, methodIdentifier]);
-        jest.spyOn(ASTManager.getInstance(), 'getSyntaxDocument').mockReturnValue(syntax);
+        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
 
         expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 8), 'init')).toBe(false);
     });
 
     test('returns undefined when no syntax document is available', () => {
         const document = createTextDocument('D:/workspace/demo.c', 'void demo() {\n    ::create();\n}\n');
-        jest.spyOn(ASTManager.getInstance(), 'getSyntaxDocument').mockReturnValue(undefined);
+        configureScopedMethodIdentifierAnalysisService(createAnalysisService(undefined));
 
         expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 8))).toBeUndefined();
     });
 });
+
+function createAnalysisService(syntax: SyntaxDocument | undefined) {
+    return {
+        getSyntaxDocument: jest.fn((_document, useCache?: boolean) => {
+            if (useCache === false) {
+                return syntax;
+            }
+
+            return syntax;
+        })
+    };
+}

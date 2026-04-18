@@ -5,15 +5,28 @@ import { DocumentLifecycleService } from '../core/DocumentLifecycleService';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import { LPCConfigManager } from '../config';
 import { LPCCompiler } from '../compiler';
+import { configureDiagnosticsAnalysisService } from '../diagnostics/createDiagnosticsStack';
 import { EfunDocsManager } from '../efunDocs';
 import { MacroManager } from '../macroManager';
-import { ASTManager } from '../ast/astManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
+import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
+import { configureSimulatedEfunScannerAnalysisService } from '../efun/SimulatedEfunScanner';
+import { configureSymbolReferenceAnalysisService } from '../symbolReferenceResolver';
+import { configureTargetMethodLookupAnalysisService } from '../targetMethodLookup';
+import { configureEfunHoverAnalysisService } from '../language/services/navigation/EfunLanguageHoverService';
+import { configureScopedMethodIdentifierAnalysisService } from '../language/services/navigation/ScopedMethodIdentifierSupport';
 
 let registeredProjectConfigService: LpcProjectConfigService | undefined;
 
 export function registerCoreServices(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
+    const analysisService = DocumentSemanticSnapshotService.getInstance();
+    configureDiagnosticsAnalysisService(analysisService);
+    configureSymbolReferenceAnalysisService(analysisService);
+    configureTargetMethodLookupAnalysisService(analysisService);
+    configureSimulatedEfunScannerAnalysisService(analysisService);
+    configureEfunHoverAnalysisService(analysisService);
+    configureScopedMethodIdentifierAnalysisService(analysisService);
     const projectConfigService = new LpcProjectConfigService();
     registeredProjectConfigService = projectConfigService;
     registry.register(Services.ProjectConfig, projectConfigService);
@@ -40,7 +53,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     context.subscriptions.push(lifecycle);
     lifecycle.onInvalidate(uri => {
         getGlobalParsedDocumentService().invalidate(uri);
-        ASTManager.getInstance().clearCache(uri.toString());
+        analysisService.clearCache(uri.toString());
     });
 }
 

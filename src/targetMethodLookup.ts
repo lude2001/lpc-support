@@ -2,9 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { SymbolType } from './ast/symbolTable';
-import { ASTManager } from './ast/astManager';
 import { MacroManager } from './macroManager';
 import type { LpcProjectConfigService } from './projectConfig/LpcProjectConfigService';
+import type { DocumentAnalysisService } from './semantic/documentAnalysisService';
 import { SemanticSnapshot } from './semantic/semanticSnapshot';
 
 export interface ResolvedTargetMethod {
@@ -18,13 +18,24 @@ export interface TargetMethodLookupOptions {
     useFreshSnapshots?: boolean;
 }
 
+type TargetMethodAnalysisService = Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
+
+let configuredTargetMethodLookupAnalysisService: TargetMethodAnalysisService | undefined;
+
+export function configureTargetMethodLookupAnalysisService(service?: TargetMethodAnalysisService): void {
+    configuredTargetMethodLookupAnalysisService = service;
+}
+
 export class TargetMethodLookup {
-    private readonly astManager = ASTManager.getInstance();
+    private readonly analysisService: TargetMethodAnalysisService;
 
     constructor(
         private readonly macroManager?: MacroManager,
-        private readonly projectConfigService?: LpcProjectConfigService
-    ) {}
+        private readonly projectConfigService?: LpcProjectConfigService,
+        analysisService?: TargetMethodAnalysisService
+    ) {
+        this.analysisService = analysisService ?? requireTargetMethodLookupAnalysisService();
+    }
 
     public async findMethod(
         currentDocument: vscode.TextDocument,
@@ -169,7 +180,7 @@ export class TargetMethodLookup {
     }
 
     private getSemanticSnapshot(document: vscode.TextDocument, useCache: boolean = true): SemanticSnapshot {
-        return this.astManager.getSemanticSnapshot(document, useCache);
+        return this.analysisService.getSemanticSnapshot(document, useCache);
     }
 
     private async resolveIncludeFilePaths(
@@ -268,4 +279,12 @@ export class TargetMethodLookup {
             return undefined;
         }
     }
+}
+
+function requireTargetMethodLookupAnalysisService(): TargetMethodAnalysisService {
+    if (!configuredTargetMethodLookupAnalysisService) {
+        throw new Error('Target method lookup analysis service has not been configured');
+    }
+
+    return configuredTargetMethodLookupAnalysisService;
 }

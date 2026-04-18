@@ -2,6 +2,45 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
+
+const analysisService = {
+    kind: 'document-analysis-service',
+    clearCache: jest.fn(),
+    parseDocument: jest.fn(),
+    getSyntaxDocument: jest.fn(),
+    getSemanticSnapshot: jest.fn(),
+    getBestAvailableSnapshot: jest.fn()
+};
+const configureSymbolReferenceAnalysisService = jest.fn();
+const configureSimulatedEfunScannerAnalysisService = jest.fn();
+const configureEfunHoverAnalysisService = jest.fn();
+const configureScopedMethodIdentifierAnalysisService = jest.fn();
+const efunHoverService = { provideHover: jest.fn() };
+const efunHoverCtor = jest.fn(() => efunHoverService);
+
+jest.mock('../../../../semantic/documentSemanticSnapshotService', () => ({
+    DocumentSemanticSnapshotService: {
+        getInstance: jest.fn(() => analysisService)
+    }
+}));
+
+jest.mock('../../../../symbolReferenceResolver', () => ({
+    configureSymbolReferenceAnalysisService
+}));
+
+jest.mock('../../../../efun/SimulatedEfunScanner', () => ({
+    configureSimulatedEfunScannerAnalysisService
+}));
+
+jest.mock('../../../../language/services/navigation/EfunLanguageHoverService', () => ({
+    EfunLanguageHoverService: efunHoverCtor,
+    configureEfunHoverAnalysisService
+}));
+
+jest.mock('../../../../language/services/navigation/ScopedMethodIdentifierSupport', () => ({
+    configureScopedMethodIdentifierAnalysisService
+}));
+
 describe('createProductionLanguageServices', () => {
     afterEach(() => {
         jest.resetModules();
@@ -67,7 +106,8 @@ describe('createProductionLanguageServices', () => {
                 ObjectInferenceService: jest.fn(() => objectInferenceService)
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
-                TargetMethodLookup: jest.fn(() => targetMethodLookup)
+                TargetMethodLookup: jest.fn(() => targetMethodLookup),
+                configureTargetMethodLookupAnalysisService: jest.fn()
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
                 QueryBackedLanguageCompletionService: jest.fn(() => completionService)
@@ -107,6 +147,10 @@ describe('createProductionLanguageServices', () => {
             const services = createProductionLanguageServices();
             const request = { example: true } as any;
 
+            expect(configureSymbolReferenceAnalysisService).toHaveBeenCalledWith(analysisService);
+            expect(configureSimulatedEfunScannerAnalysisService).toHaveBeenCalledWith(analysisService);
+            expect(configureEfunHoverAnalysisService).toHaveBeenCalledWith(analysisService);
+            expect(configureScopedMethodIdentifierAnalysisService).toHaveBeenCalledWith(analysisService);
             expect(services.completionService).toBe(completionService);
             expect(services.diagnosticsService).toBe(diagnosticsService);
             expect(services.formattingService).toBe(formattingService);
@@ -178,7 +222,8 @@ describe('createProductionLanguageServices', () => {
                 ScopedMethodResolver: scopedMethodResolverCtor
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
-                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
+                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' })),
+                configureTargetMethodLookupAnalysisService: jest.fn()
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
                 QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
@@ -291,7 +336,8 @@ describe('createProductionLanguageServices', () => {
                 ScopedMethodResolver: jest.fn(() => ({ kind: 'scoped-method-resolver' }))
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
-                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
+                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' })),
+                configureTargetMethodLookupAnalysisService: jest.fn()
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
                 QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
@@ -389,7 +435,8 @@ describe('createProductionLanguageServices', () => {
                 ScopedMethodResolver: jest.fn(() => ({ kind: 'scoped-method-resolver' }))
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
-                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
+                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' })),
+                configureTargetMethodLookupAnalysisService: jest.fn()
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
                 QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
@@ -435,7 +482,7 @@ describe('createProductionLanguageServices', () => {
             const services = createProductionLanguageServices();
 
             expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
-            expect(createDiagnosticsStack).toHaveBeenCalledWith(macroManager);
+            expect(createDiagnosticsStack).toHaveBeenCalledWith(macroManager, analysisService);
             expect(services.diagnosticsService).toBe(diagnosticsStack.diagnosticsService);
         });
     });

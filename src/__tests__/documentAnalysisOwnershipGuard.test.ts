@@ -42,13 +42,33 @@ describe('document analysis ownership guards', () => {
 
         expect(legacySource).not.toContain('getInstance(');
 
-        const singletonCallSites = listProductionTypeScriptFiles(srcRoot)
+        const snapshotSingletonCallSites = listProductionTypeScriptFiles(srcRoot)
             .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('DocumentSemanticSnapshotService.getInstance('))
             .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
             .sort();
 
-        expect(singletonCallSites).toEqual([
-            'src/ast/astManager.ts'
+        const astSingletonCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('ASTManager.getInstance('))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(snapshotSingletonCallSites).toEqual([
+            'src/ast/astManager.ts',
+            'src/lsp/server/runtime/createProductionLanguageServices.ts',
+            'src/modules/coreModule.ts'
+        ]);
+        expect(astSingletonCallSites).toEqual([
+            'src/language/services/completion/LanguageCompletionService.ts',
+            'src/language/services/navigation/InheritedFileGlobalRelationService.ts',
+            'src/language/services/navigation/InheritedFunctionRelationService.ts',
+            'src/language/services/navigation/InheritedSymbolRelationService.ts',
+            'src/language/services/navigation/LanguageDefinitionService.ts',
+            'src/language/services/signatureHelp/LanguageSignatureHelpService.ts',
+            'src/objectInference/GlobalObjectBindingResolver.ts',
+            'src/objectInference/InheritedGlobalObjectBindingResolver.ts',
+            'src/objectInference/ObjectInferenceService.ts',
+            'src/objectInference/ScopedMethodDiscoveryService.ts',
+            'src/objectInference/ScopedMethodResolver.ts'
         ]);
     });
 });

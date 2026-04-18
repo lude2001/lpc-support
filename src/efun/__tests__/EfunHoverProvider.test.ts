@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { EfunDocsManager } from '../../efunDocs';
+import { configureSimulatedEfunScannerAnalysisService } from '../../efun/SimulatedEfunScanner';
+import { configureEfunHoverAnalysisService } from '../../language/services/navigation/EfunLanguageHoverService';
+import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { EfunHoverProvider } from '../EfunHoverProvider';
 
@@ -73,6 +76,10 @@ function createMemberAccessSyntaxDocument(memberName: string, memberStart: numbe
 describe('EfunHoverProvider', () => {
     beforeEach(() => {
         mockGetSyntaxDocument.mockReset();
+        configureSimulatedEfunScannerAnalysisService(DocumentSemanticSnapshotService.getInstance());
+        configureEfunHoverAnalysisService({
+            getSyntaxDocument: mockGetSyntaxDocument
+        } as any);
     });
 
     test('renders bundled standard efun documentation when no source-backed docs match', async () => {

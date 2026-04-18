@@ -1,17 +1,30 @@
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../ast/astManager';
 import type { EfunDocsManager } from '../../../efunDocs';
 import type { EfunDoc } from '../../../efun/types';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import type { CallableDoc, CallableSignature } from '../../documentation/types';
 import { SyntaxKind, type SyntaxDocument, type SyntaxNode } from '../../../syntax/types';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
 
+type EfunHoverAnalysisService = Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
+
+let configuredEfunHoverAnalysisService: EfunHoverAnalysisService | undefined;
+
+export function configureEfunHoverAnalysisService(service?: EfunHoverAnalysisService): void {
+    configuredEfunHoverAnalysisService = service;
+}
+
 export class EfunLanguageHoverService implements LanguageHoverService {
-    private readonly astManager = ASTManager.getInstance();
+    private readonly analysisService: EfunHoverAnalysisService;
     private readonly renderer = new CallableDocRenderer();
 
-    public constructor(private readonly efunDocsManager: EfunDocsManager) {}
+    public constructor(
+        private readonly efunDocsManager: EfunDocsManager,
+        analysisService?: EfunHoverAnalysisService
+    ) {
+        this.analysisService = analysisService ?? requireEfunHoverAnalysisService();
+    }
 
     public async provideHover(request: LanguageHoverRequest): Promise<LanguageHoverResult | undefined> {
         const document = request.context.document as unknown as vscode.TextDocument;
@@ -84,8 +97,8 @@ export class EfunLanguageHoverService implements LanguageHoverService {
     }
 
     private getSyntaxDocument(document: vscode.TextDocument): SyntaxDocument | undefined {
-        return this.astManager.getSyntaxDocument(document, false)
-            ?? this.astManager.getSyntaxDocument(document, true);
+        return this.analysisService.getSyntaxDocument(document, false)
+            ?? this.analysisService.getSyntaxDocument(document, true);
     }
 
     private getContainingSyntaxNodes(syntax: SyntaxDocument, position: vscode.Position): SyntaxNode[] {
@@ -170,4 +183,12 @@ function createHoverResult(range: vscode.Range, value: string): LanguageHoverRes
             }
         }
     };
+}
+
+function requireEfunHoverAnalysisService(): EfunHoverAnalysisService {
+    if (!configuredEfunHoverAnalysisService) {
+        throw new Error('Efun hover analysis service has not been configured');
+    }
+
+    return configuredEfunHoverAnalysisService;
 }

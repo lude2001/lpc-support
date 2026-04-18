@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { ASTManager } from '../../ast/astManager';
 import { FileNamingCollector } from '../../collectors/FileNamingCollector';
 import { GlobalVariableCollector } from '../../collectors/GlobalVariableCollector';
 import { LocalVariableDeclarationCollector } from '../../collectors/LocalVariableDeclarationCollector';
@@ -39,18 +38,24 @@ describe('createDiagnosticsStack', () => {
     });
 
     test('assembles diagnostics service from ASTManager and the default collector set', () => {
-        const astManager = { kind: 'ast-manager' } as unknown as ASTManager;
+        const analysisService = {
+            parseDocument: jest.fn()
+        } as any;
         const diagnosticsService = { collectDiagnostics: jest.fn() } as any;
         const macroManager = { kind: 'macro-manager' } as any;
 
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue(astManager);
         (createSharedDiagnosticsService as jest.Mock).mockReturnValue(diagnosticsService);
 
-        const stack = createDiagnosticsStack(macroManager);
+        const stack = createDiagnosticsStack(macroManager, analysisService);
 
-        expect(ASTManager.getInstance).toHaveBeenCalledTimes(1);
         expect(createSharedDiagnosticsService).toHaveBeenCalledTimes(1);
-        expect(createSharedDiagnosticsService).toHaveBeenCalledWith(astManager, stack.collectors);
+        expect(createSharedDiagnosticsService).toHaveBeenCalledWith(
+            expect.objectContaining({
+                parseDocument: expect.any(Function)
+            }),
+            stack.collectors
+        );
+        expect(createSharedDiagnosticsService.mock.calls[0][0].parseDocument).toBeDefined();
         expect(stack.collectors).toHaveLength(7);
         expect(stack.diagnosticsService).toBe(diagnosticsService);
     });

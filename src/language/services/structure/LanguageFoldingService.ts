@@ -1,4 +1,4 @@
-import { ASTManager } from '../../../ast/astManager';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { SyntaxKind, SyntaxNode } from '../../../syntax/types';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type {
@@ -40,13 +40,15 @@ interface HostRange {
 }
 
 export class DefaultLanguageFoldingService implements LanguageFoldingService {
-    private readonly astManager = ASTManager.getInstance();
+    public constructor(
+        private readonly analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument'>
+    ) {}
 
     public async provideFoldingRanges(request: LanguageFoldingRequest): Promise<LanguageFoldingRange[]> {
         const document = request.context.document;
         const foldingRanges: LanguageFoldingRange[] = [];
         const seen = new Set<string>();
-        const syntax = this.astManager.getSyntaxDocument(document as any);
+        const syntax = requireLanguageFoldingAnalysisService(this.analysisService).getSyntaxDocument(document as any);
 
         if (!syntax) {
             return foldingRanges;
@@ -124,4 +126,14 @@ export class DefaultLanguageFoldingService implements LanguageFoldingService {
             kind
         });
     }
+}
+
+function requireLanguageFoldingAnalysisService(
+    service?: Pick<DocumentAnalysisService, 'getSyntaxDocument'>
+): Pick<DocumentAnalysisService, 'getSyntaxDocument'> {
+    if (!service) {
+        throw new Error('Language folding analysis service has not been configured');
+    }
+
+    return service;
 }

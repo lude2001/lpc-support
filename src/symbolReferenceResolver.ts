@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { LPCLexer } from './antlr/LPCLexer';
-import { ASTManager } from './ast/astManager';
 import { Scope, Symbol as LPCSymbol, SymbolTable, SymbolType } from './ast/symbolTable';
+import type { DocumentAnalysisService } from './semantic/documentAnalysisService';
 
 export interface SymbolReferenceMatch {
     symbol: LPCSymbol;
@@ -15,16 +15,25 @@ export interface ResolvedSymbolReferences {
     matches: SymbolReferenceMatch[];
 }
 
+type SymbolReferenceAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
+
+let configuredSymbolReferenceAnalysisService: SymbolReferenceAnalysisService | undefined;
+
+export function configureSymbolReferenceAnalysisService(service?: SymbolReferenceAnalysisService): void {
+    configuredSymbolReferenceAnalysisService = service;
+}
+
 export function resolveSymbolReferences(
     document: vscode.TextDocument,
-    position: vscode.Position
+    position: vscode.Position,
+    analysisService: SymbolReferenceAnalysisService = requireSymbolReferenceAnalysisService()
 ): ResolvedSymbolReferences | undefined {
     const resolvedWord = resolveWordAtPosition(document, position);
     if (!resolvedWord) {
         return undefined;
     }
 
-    const analysis = ASTManager.getInstance().parseDocument(document);
+    const analysis = analysisService.parseDocument(document);
     const symbolTable = analysis.symbolTable;
     const targetSymbol = resolveVisibleSymbol(symbolTable, resolvedWord.symbolName, position);
     if (!targetSymbol) {
@@ -65,6 +74,14 @@ export function resolveSymbolReferences(
         wordRange: resolvedWord.wordRange,
         matches
     };
+}
+
+function requireSymbolReferenceAnalysisService(): SymbolReferenceAnalysisService {
+    if (!configuredSymbolReferenceAnalysisService) {
+        throw new Error('Symbol reference analysis service has not been configured');
+    }
+
+    return configuredSymbolReferenceAnalysisService;
 }
 
 function resolveWordAtPosition(
