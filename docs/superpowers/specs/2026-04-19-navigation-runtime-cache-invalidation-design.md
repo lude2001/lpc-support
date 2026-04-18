@@ -74,8 +74,9 @@ This package does not change that responsibility.
 
 What changes is the contract around runtime document sync:
 
-- calling `__syncTextDocument(...)` must not be “text mirror only”
-- it must preserve the runtime text mirror **and** drive the document-change event path observed by navigation cache invalidation
+- `__syncTextDocument(...)` remains text-mirror only
+- `registerCapabilities` explicitly owns whether a runtime document-change event is emitted
+- for this package, only `didChange` triggers that event path
 
 ### 2. `vscodeShim` owns runtime text-document events
 
@@ -88,13 +89,13 @@ This package makes that event surface authoritative for server-side document-syn
 
 Required behavior:
 
-- syncing an already-known document version/text update must emit a change event
-- opening a document may continue to populate the mirror without forcing extra change semantics beyond what current consumers need
+- syncing an already-known document version/text update must make it possible for the caller to emit a change event against the updated runtime document
+- opening a document may populate the mirror without emitting an extra change event
 - closing a document must keep existing close semantics, without inventing unrelated cache rules
 
 The important boundary is:
 
-**runtime document state and runtime document-change events must stay aligned.**
+**runtime document state and runtime document-change events must stay aligned, but they do not have to be emitted by the same helper.**
 
 ### 3. `DefinitionResolverSupport` keeps invalidation logic, not event ownership
 
@@ -120,12 +121,19 @@ This package is limited to event closure:
 
 ## Data Flow
 
-### Open / change path
+### Open path
 
-1. LSP `didOpen` / `didChange` arrives in `registerCapabilities`
+1. LSP `didOpen` arrives in `registerCapabilities`
+2. `DocumentStore` receives the opened full text
+3. runtime text mirror is updated through `__syncTextDocument(...)`
+4. no extra change event is required for open in this package
+
+### Change path
+
+1. LSP `didChange` arrives in `registerCapabilities`
 2. `DocumentStore` receives the new full text
 3. runtime text mirror is updated through `__syncTextDocument(...)`
-4. runtime text-change event is emitted for the synced document
+4. `registerCapabilities` explicitly emits the runtime text-change event for the synced document
 5. production navigation subscribers such as `DefinitionResolverSupport` observe the change
 6. relevant definition caches are invalidated
 7. next definition request rebuilds from current text/dependencies
@@ -141,7 +149,8 @@ This package does not add additional close-triggered cache semantics beyond the 
 
 ## Failure Semantics
 
-- if server-side document sync updates the runtime text mirror but does not emit a change event, that is a bug in this package
+- if `didChange` updates the runtime text mirror but does not emit the runtime change event, that is a bug in this package
+- if `didOpen` syncs the mirror without emitting a change event, that is expected in this package
 - cache invalidation rules themselves must remain unchanged
 - no new fallback path may bypass the existing `host.onDidChangeTextDocument(...)` subscription model
 - spawned-runtime regression must use the real server bundle path, not only handler-level mocks
@@ -154,6 +163,10 @@ Add or extend low-level runtime tests so they prove:
 
 - a synced document update results in the expected runtime change notification path
 - the runtime text mirror and emitted document reference stay aligned
+
+The concrete low-level test home for this package should be:
+
+- `src/lsp/server/__tests__/documentSyncRuntimeBridge.test.ts`
 
 ### Definition cache invalidation integration
 
@@ -177,6 +190,7 @@ Keep the existing `DefinitionResolverSupport` invalidation tests green without c
 
 Implementation and execution must keep the following green:
 
+- `src/lsp/server/__tests__/documentSyncRuntimeBridge.test.ts`
 - `src/lsp/server/runtime/__tests__/createProductionLanguageServices.test.ts`
 - `src/lsp/server/runtime/__tests__/ServerLanguageContextFactory.test.ts`
 - `src/lsp/__tests__/spawnedRuntime.integration.test.ts`
