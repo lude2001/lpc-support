@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
+import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
 import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
@@ -591,9 +592,12 @@ describe('language-service integration regression', () => {
         } as unknown as ASTManager);
         const orchestrator = new DiagnosticsOrchestrator(
             { subscriptions: [], extensionPath: process.cwd() } as any,
-            macroManager as any
+            macroManager as any,
+            {
+                collectors: [],
+                diagnosticsService: createSharedDiagnosticsService(ASTManager.getInstance(), [])
+            }
         );
-        (orchestrator as any).collectors = [];
         const document = createDocument(
             path.join(fixtureRoot, 'diagnostics.c'),
             ['int broken(', '{'].join('\n')

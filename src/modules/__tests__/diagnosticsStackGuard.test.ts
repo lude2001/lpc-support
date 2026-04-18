@@ -6,6 +6,7 @@ describe('diagnostics stack production guards', () => {
     const extensionPath = path.join(repoRoot, 'src', 'extension.ts');
     const diagnosticsModulePath = path.join(repoRoot, 'src', 'modules', 'diagnosticsModule.ts');
     const runtimePath = path.join(repoRoot, 'src', 'lsp', 'server', 'runtime', 'createProductionLanguageServices.ts');
+    const orchestratorPath = path.join(repoRoot, 'src', 'diagnostics', 'DiagnosticsOrchestrator.ts');
 
     test('extension registers diagnostics through the module, and module/runtime both rely on the shared stack factory', () => {
         const extensionSource = fs.readFileSync(extensionPath, 'utf8');
@@ -33,6 +34,19 @@ describe('diagnostics stack production guards', () => {
             expect(source).not.toMatch(/from\s+['"][^'"]*diagnostics\/index['"]/);
             expect(source).not.toMatch(/from\s+['"][^'"]*diagnostics\\index['"]/);
         }
+    });
+
+    test('diagnostics orchestrator no longer contains host lifecycle wiring or fallback stack builders', () => {
+        const orchestratorSource = fs.readFileSync(orchestratorPath, 'utf8');
+
+        expect(orchestratorSource).not.toContain('registerDocumentLifecycle');
+        expect(orchestratorSource).not.toContain('initializeCollectors(');
+        expect(orchestratorSource).not.toContain('createDiagnosticsService(');
+        expect(orchestratorSource).not.toContain('onDidChangeTextDocument(');
+        expect(orchestratorSource).not.toContain('onDidCloseTextDocument(');
+        expect(orchestratorSource).not.toContain('onDidDeleteFiles(');
+        expect(orchestratorSource).not.toContain('clearDocumentAnalysisState(');
+        expect(orchestratorSource).not.toContain("from '../language/services/diagnostics/createSharedDiagnosticsService'");
     });
 });
 

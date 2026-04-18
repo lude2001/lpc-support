@@ -191,20 +191,16 @@ async function collectHostDiagnostics(
         scanMacros: jest.fn(),
         getIncludePath: jest.fn(() => undefined)
     };
-    const diagnosticsService = collectors
-        ? createSharedDiagnosticsService(ASTManager.getInstance(), collectors)
-        : undefined;
+    const resolvedCollectors = collectors ?? [];
+    const diagnosticsService = createSharedDiagnosticsService(ASTManager.getInstance(), resolvedCollectors);
     const orchestrator = new DiagnosticsOrchestrator(
         { subscriptions: [], extensionPath: process.cwd() } as any,
         macroManager as any,
         {
-            ...(collectors ? { collectors } : {}),
-            ...(diagnosticsService ? { diagnosticsService } : {})
+            collectors: resolvedCollectors,
+            diagnosticsService
         }
     );
-    if (!collectors) {
-        (orchestrator as any).collectors = [];
-    }
 
     return await (orchestrator as any).collectDiagnostics(document);
 }
@@ -423,6 +419,7 @@ describe('diagnostics parity harness', () => {
             { subscriptions: [], extensionPath: process.cwd() } as any,
             { getMacro: jest.fn(), canResolveMacro: jest.fn() } as any,
             {
+                collectors: [],
                 diagnosticsService: {
                     collectDiagnostics
                 }

@@ -4,7 +4,8 @@
  */
 
 // 导出新的协调器
-export { DiagnosticsOrchestrator, createDefaultDiagnosticsCollectors } from './diagnostics/DiagnosticsOrchestrator';
+export { DiagnosticsOrchestrator } from './diagnostics/DiagnosticsOrchestrator';
+export { createDefaultDiagnosticsCollectors } from './diagnostics/createDiagnosticsStack';
 
 // 导出类型定义
 export type { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './diagnostics/types';

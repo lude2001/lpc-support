@@ -1,32 +1,17 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { MacroManager } from '../macroManager';
-import { ASTManager } from '../ast/astManager';
-import { Debouncer } from '../utils/debounce';
+import type { MacroManager } from '../macroManager';
 import { IDiagnosticCollector, DiagnosticCollectionOptions } from './types';
 import { VariableAnalyzer } from './analyzers/VariableAnalyzer';
 import { VariableInspectorPanel } from './VariableInspectorPanel';
 import { FolderScanner } from './FolderScanner';
 import { toVsCodeDiagnostics } from '../language/adapters/vscode/diagnosticsAdapter';
-import type { LanguageDocument } from '../language/contracts/LanguageDocument';
-import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 import type {
     LanguageDiagnosticsRequest,
     LanguageDiagnosticsService
 } from '../language/services/diagnostics/LanguageDiagnosticsService';
-
-// 导入现有的收集器
-import { StringLiteralCollector } from '../collectors/StringLiteralCollector';
-import { FileNamingCollector } from '../collectors/FileNamingCollector';
-import { UnusedVariableCollector } from '../collectors/UnusedVariableCollector';
-import { GlobalVariableCollector } from '../collectors/GlobalVariableCollector';
-import { LocalVariableDeclarationCollector } from '../collectors/LocalVariableDeclarationCollector';
-
-// 导入新的收集器
-import { ObjectAccessCollector } from './collectors/ObjectAccessCollector';
-import { MacroUsageCollector } from './collectors/MacroUsageCollector';
-// FunctionCallCollector已移除 - AST解析器已能检测所有语法错误
+export { createDefaultDiagnosticsCollectors } from './createDiagnosticsStack';
 
 /**
  * LPC配置接口
@@ -38,9 +23,8 @@ interface LPCConfig {
 }
 
 interface DiagnosticsOrchestratorOptions {
-    registerDocumentLifecycle?: boolean;
-    collectors?: IDiagnosticCollector[];
-    diagnosticsService?: LanguageDiagnosticsService;
+    collectors: IDiagnosticCollector[];
+    diagnosticsService: LanguageDiagnosticsService;
 }
 
 interface DiagnosticsPerformanceSettings {
@@ -49,27 +33,12 @@ interface DiagnosticsPerformanceSettings {
     batchSize: number;
 }
 
-export function createDefaultDiagnosticsCollectors(macroManager: MacroManager): IDiagnosticCollector[] {
-    return [
-        new StringLiteralCollector(),
-        new FileNamingCollector(),
-        new UnusedVariableCollector(),
-        new GlobalVariableCollector(),
-        new LocalVariableDeclarationCollector(),
-        new ObjectAccessCollector(macroManager),
-        new MacroUsageCollector(macroManager),
-    ];
-}
-
 /**
  * 诊断协调器
  * 负责管理和协调所有诊断收集器的执行
  */
 export class DiagnosticsOrchestrator {
     private diagnosticCollection: vscode.DiagnosticCollection;
-    private macroManager: MacroManager;
-    private astManager: ASTManager;
-    private collectors: IDiagnosticCollector[];
     private diagnosticsService: LanguageDiagnosticsService;
     private variableAnalyzer: VariableAnalyzer;
     private variableInspector: VariableInspectorPanel;
@@ -79,23 +48,12 @@ export class DiagnosticsOrchestrator {
     private config: LPCConfig;
     private excludedIdentifiers: Set<string>;
 
-    // 性能优化
-    private debouncer = new Debouncer();
-    private isAnalyzing = new Set<string>();
-    private lastAnalysisVersion = new Map<string, number>();
-    private readonly registerDocumentLifecycle: boolean;
-    private readonly externalDiagnosticsService?: LanguageDiagnosticsService;
-
     constructor(
         context: vscode.ExtensionContext,
-        macroManager: MacroManager,
-        options: DiagnosticsOrchestratorOptions = {}
+        _macroManager: MacroManager,
+        options: DiagnosticsOrchestratorOptions
     ) {
-        this.macroManager = macroManager;
-        this.astManager = ASTManager.getInstance();
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
-        this.registerDocumentLifecycle = options.registerDocumentLifecycle ?? true;
-        this.externalDiagnosticsService = options.diagnosticsService;
         context.subscriptions.push(this.diagnosticCollection);
 
         // 加载配置
@@ -117,25 +75,15 @@ export class DiagnosticsOrchestrator {
             this.diagnosticCollection
         );
 
-        // 初始化收集器
-        this.collectors = options.collectors ?? this.initializeCollectors();
-        this.diagnosticsService = this.createDiagnosticsService();
+        this.diagnosticsService = options.diagnosticsService;
 
-        // 注册命令和事件
-        this.registerCommandsAndEvents(context);
+        this.registerCommands(context);
     }
 
     /**
-     * 初始化所有收集器
+     * 注册命令
      */
-    private initializeCollectors(): IDiagnosticCollector[] {
-        return createDefaultDiagnosticsCollectors(this.macroManager);
-    }
-
-    /**
-     * 注册命令和事件
-     */
-    private registerCommandsAndEvents(context: vscode.ExtensionContext): void {
+    private registerCommands(context: vscode.ExtensionContext): void {
         // 注册显示变量命令
         context.subscriptions.push(
             vscode.commands.registerCommand('lpc.showVariables', () => {
@@ -145,73 +93,6 @@ export class DiagnosticsOrchestrator {
                 }
             })
         );
-
-        if (!this.registerDocumentLifecycle) {
-            return;
-        }
-
-        // 注册文档更改事件
-        context.subscriptions.push(
-            vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument.bind(this))
-        );
-
-        // 注册文档打开事件
-        context.subscriptions.push(
-            vscode.workspace.onDidOpenTextDocument(this.analyzeDocument.bind(this))
-        );
-
-        // 注册文档关闭事件
-        context.subscriptions.push(
-            vscode.workspace.onDidCloseTextDocument(this.onDidCloseTextDocument.bind(this))
-        );
-
-        // 注册文件删除事件
-        context.subscriptions.push(
-            vscode.workspace.onDidDeleteFiles(this.onDidDeleteFiles.bind(this))
-        );
-
-    }
-
-    /**
-     * 文档更改事件处理
-     */
-    private onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent): void {
-        if (event.document.languageId === 'lpc') {
-            const documentKey = event.document.uri.toString();
-            const debouncedAnalyze = this.debouncer.debounce(
-                documentKey,
-                () => this.analyzeDocument(event.document, false),
-                this.getPerformanceSettings().debounceDelay
-            );
-            debouncedAnalyze();
-        }
-    }
-
-    /**
-     * 文档关闭事件处理
-     */
-    private onDidCloseTextDocument(document: vscode.TextDocument): void {
-        if (document.languageId === 'lpc') {
-            const documentKey = document.uri.toString();
-            // 清理缓存的分析状态
-            this.isAnalyzing.delete(documentKey);
-            this.lastAnalysisVersion.delete(documentKey);
-        }
-    }
-
-    /**
-     * 文件删除事件处理
-     */
-    private onDidDeleteFiles(event: vscode.FileDeleteEvent): void {
-        for (const uri of event.files) {
-            // 清理该文件的诊断信息
-            this.diagnosticCollection.delete(uri);
-
-            // 清理缓存的分析状态
-            const documentKey = uri.toString();
-            this.isAnalyzing.delete(documentKey);
-            this.lastAnalysisVersion.delete(documentKey);
-        }
     }
 
     /**
@@ -219,32 +100,12 @@ export class DiagnosticsOrchestrator {
      */
     public analyzeDocument(document: vscode.TextDocument, showMessage: boolean = false): void {
         if (!this.shouldAnalyzeDocument(document)) {
-            this.clearDocumentAnalysisState(document);
             this.diagnosticCollection.delete(document.uri);
             return;
         }
 
-        const documentKey = document.uri.toString();
-
-        // 检查是否正在分析中
-        if (this.isAnalyzing.has(documentKey)) {
-            return;
-        }
-
-        // 检查文档版本是否已经分析过
-        const lastVersion = this.lastAnalysisVersion.get(documentKey);
-        if (lastVersion === document.version) {
-            return;
-        }
-
-        this.isAnalyzing.add(documentKey);
-
         // 异步分析
         this.analyzeDocumentAsync(document, { showMessage })
-            .finally(() => {
-                this.isAnalyzing.delete(documentKey);
-                this.lastAnalysisVersion.set(documentKey, document.version);
-            })
             .catch(error => {
                 console.error('分析文档时发生错误:', error);
             });
@@ -255,7 +116,6 @@ export class DiagnosticsOrchestrator {
         showMessage: boolean = false
     ): Promise<vscode.Diagnostic[]> {
         if (!this.shouldAnalyzeDocument(document)) {
-            this.clearDocumentAnalysisState(document);
             this.diagnosticCollection.delete(document.uri);
             return [];
         }
@@ -290,7 +150,7 @@ export class DiagnosticsOrchestrator {
      * 同步收集诊断
      */
     private async collectDiagnostics(document: vscode.TextDocument): Promise<vscode.Diagnostic[]> {
-        const diagnostics = await this.getDiagnosticsService().collectDiagnostics(this.createDiagnosticsRequest(document));
+        const diagnostics = await this.diagnosticsService.collectDiagnostics(this.createDiagnosticsRequest(document));
         return toVsCodeDiagnostics(diagnostics);
     }
 
@@ -302,7 +162,7 @@ export class DiagnosticsOrchestrator {
         options: DiagnosticCollectionOptions = {}
     ): Promise<vscode.Diagnostic[]> {
         const batchSize = options.batchSize || this.getPerformanceSettings().batchSize;
-        const diagnostics = await this.getDiagnosticsService().collectDiagnostics(
+        const diagnostics = await this.diagnosticsService.collectDiagnostics(
             this.createDiagnosticsRequest(document),
             {
                 batchSize,
@@ -328,18 +188,6 @@ export class DiagnosticsOrchestrator {
         await this.folderScanner.scanFolder();
     }
 
-    private getDiagnosticsService(): LanguageDiagnosticsService {
-        const currentService = this.diagnosticsService as LanguageDiagnosticsService & {
-            __collectorSource?: IDiagnosticCollector[];
-        };
-
-        if (currentService.__collectorSource !== this.collectors) {
-            this.diagnosticsService = this.createDiagnosticsService();
-        }
-
-        return this.diagnosticsService;
-    }
-
     private createDiagnosticsRequest(document: vscode.TextDocument): LanguageDiagnosticsRequest {
         return {
             context: {
@@ -354,18 +202,6 @@ export class DiagnosticsOrchestrator {
                 mode: 'lsp'
             }
         };
-    }
-
-    private createDiagnosticsService(): LanguageDiagnosticsService {
-        if (this.externalDiagnosticsService) {
-            return this.externalDiagnosticsService;
-        }
-
-        const service = createSharedDiagnosticsService(this.astManager, this.collectors) as LanguageDiagnosticsService & {
-            __collectorSource?: IDiagnosticCollector[];
-        };
-        service.__collectorSource = this.collectors;
-        return service;
     }
 
     /**
@@ -406,15 +242,6 @@ export class DiagnosticsOrchestrator {
         return fs.existsSync(path.join(workspaceRoot, 'lpc-support.json'));
     }
 
-    private clearDocumentAnalysisState(document: vscode.TextDocument): void {
-        const documentKey = document.uri.toString();
-        this.isAnalyzing.delete(documentKey);
-        this.lastAnalysisVersion.delete(documentKey);
-    }
-
-    /**
-     * 让出主线程
-     */
     private async yieldToMainThread(): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, 0));
     }
@@ -442,8 +269,5 @@ export class DiagnosticsOrchestrator {
     public dispose(): void {
         this.diagnosticCollection.clear();
         this.diagnosticCollection.dispose();
-        this.debouncer.clear();
-        this.isAnalyzing.clear();
-        this.lastAnalysisVersion.clear();
     }
 }
