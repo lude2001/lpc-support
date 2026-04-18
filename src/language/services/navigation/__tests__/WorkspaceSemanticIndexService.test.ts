@@ -169,7 +169,12 @@ function matchesRelativePattern(uri: vscode.Uri, pattern: vscode.RelativePattern
             ? path.normalize((pattern as any).baseUri.fsPath)
             : '';
     const fsPath = path.normalize(uri.fsPath);
-    if (base && !fsPath.startsWith(base)) {
+    const relativeToBase = base ? path.relative(base, fsPath) : '';
+    if (
+        base
+        && relativeToBase !== ''
+        && (relativeToBase.startsWith('..') || path.isAbsolute(relativeToBase))
+    ) {
         return false;
     }
 
@@ -177,7 +182,7 @@ function matchesRelativePattern(uri: vscode.Uri, pattern: vscode.RelativePattern
         ? (pattern as any).pattern
         : '**/*';
     const relativePath = base
-        ? path.relative(base, fsPath).replace(/\\/g, '/')
+        ? relativeToBase.replace(/\\/g, '/')
         : fsPath.replace(/\\/g, '/');
 
     return toRelativePatternRegex(rawPattern).test(relativePath);
