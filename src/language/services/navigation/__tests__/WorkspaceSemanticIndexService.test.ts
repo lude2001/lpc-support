@@ -371,7 +371,7 @@ describe('WorkspaceSemanticIndexService', () => {
         expect(view.getFunctionCandidateFiles('query_id')).toEqual(['file:///D:/workspace/query.c']);
     });
 
-    test('reuses cached workspace discovery and file entries across repeated requests', async () => {
+    test('refreshes workspace discovery while avoiding a full cold rebuild on repeated requests', async () => {
         const host = createHost({
             files: ['file:///D:/workspace/query.c'],
             texts: {
@@ -385,8 +385,8 @@ describe('WorkspaceSemanticIndexService', () => {
         await service.getIndexView('D:/workspace');
         await service.getIndexView('D:/workspace');
 
-        expect(host.findFiles).toHaveBeenCalledTimes(4);
-        expect(host.openTextDocument).toHaveBeenCalledTimes(1);
+        expect(host.findFiles).toHaveBeenCalledTimes(8);
+        expect(host.openTextDocument).toHaveBeenCalledTimes(2);
     });
 
     test('refreshes cached open-document entries when document versions change', async () => {
@@ -418,5 +418,49 @@ describe('WorkspaceSemanticIndexService', () => {
         expect(secondView.getFunctionCandidateFiles('new_name')).toEqual(['file:///D:/workspace/room.c']);
         expect(secondView.getFunctionCandidateFiles('old_name')).toEqual([]);
         expect(host.openTextDocument).not.toHaveBeenCalled();
+    });
+
+    test('adds new unopened files and removes deleted unopened files after discovery refresh', async () => {
+        const files = ['file:///D:/workspace/query.c'];
+        const texts: Record<string, string> = {
+            'file:///D:/workspace/query.c': 'int query_id() { return 1; }'
+        };
+        const host = createHost({ files, texts });
+
+        const WorkspaceSemanticIndexService = loadWorkspaceSemanticIndexService();
+        const service = new WorkspaceSemanticIndexService({ host });
+
+        const firstView = await service.getIndexView('D:/workspace');
+        expect(firstView.getFunctionCandidateFiles('query_id')).toEqual(['file:///D:/workspace/query.c']);
+
+        files.splice(0, files.length, 'file:///D:/workspace/new_query.c');
+        delete texts['file:///D:/workspace/query.c'];
+        texts['file:///D:/workspace/new_query.c'] = 'int new_query() { return 1; }';
+
+        const secondView = await service.getIndexView('D:/workspace');
+        expect(secondView.getFunctionCandidateFiles('query_id')).toEqual([]);
+        expect(secondView.getFunctionCandidateFiles('new_query')).toEqual(['file:///D:/workspace/new_query.c']);
+    });
+
+    test('revalidates cached unopened file entries when disk content changes', async () => {
+        const texts: Record<string, string> = {
+            'file:///D:/workspace/room.c': 'int old_disk_name() { return 1; }'
+        };
+        const host = createHost({
+            files: ['file:///D:/workspace/room.c'],
+            texts
+        });
+
+        const WorkspaceSemanticIndexService = loadWorkspaceSemanticIndexService();
+        const service = new WorkspaceSemanticIndexService({ host });
+
+        const firstView = await service.getIndexView('D:/workspace');
+        expect(firstView.getFunctionCandidateFiles('old_disk_name')).toEqual(['file:///D:/workspace/room.c']);
+
+        texts['file:///D:/workspace/room.c'] = 'int new_disk_name() { return 1; }';
+
+        const secondView = await service.getIndexView('D:/workspace');
+        expect(secondView.getFunctionCandidateFiles('new_disk_name')).toEqual(['file:///D:/workspace/room.c']);
+        expect(secondView.getFunctionCandidateFiles('old_disk_name')).toEqual([]);
     });
 });

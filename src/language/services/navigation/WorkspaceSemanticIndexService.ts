@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { DocumentSemanticSnapshotService } from '../../../completion/documentSemanticSnapshotService';
 import { DocumentSemanticSnapshot } from '../../../completion/types';
+import { getGlobalParsedDocumentService } from '../../../parser/ParsedDocumentService';
 import {
     WorkspaceSemanticIndexEntry,
     WorkspaceSemanticIndexHost,
@@ -27,6 +28,7 @@ interface WorkspaceRootCache {
     rootPath: string;
     discoveredUrisByPath: Map<string, vscode.Uri>;
     entriesByPath: Map<string, WorkspaceSemanticIndexEntry>;
+    revalidationCursor: number;
     view?: WorkspaceSymbolIndexView;
     viewSignature?: string;
 }
@@ -69,8 +71,10 @@ export class WorkspaceSemanticIndexService {
         const resolvedWorkspaceRoot = this.resolveWorkspaceRoot(workspaceRoot);
         const workspaceCache = await this.getOrCreateWorkspaceCache(resolvedWorkspaceRoot);
         const openDocuments = this.collectOpenDocuments(resolvedWorkspaceRoot);
+        await this.refreshWorkspaceDiscovery(workspaceCache, openDocuments);
         await this.refreshOpenDocumentEntries(workspaceCache, openDocuments);
-        await this.materializeDiscoveredEntries(workspaceCache, openDocuments);
+        const materializedPaths = await this.materializeDiscoveredEntries(workspaceCache, openDocuments);
+        await this.revalidateCachedUnopenedEntries(workspaceCache, openDocuments, materializedPaths);
 
         const entries = this.getSortedEntries(workspaceCache);
         const signature = this.buildViewSignature(entries);
@@ -102,8 +106,9 @@ export class WorkspaceSemanticIndexService {
 
         const createdCache: WorkspaceRootCache = {
             rootPath: workspaceRoot,
-            discoveredUrisByPath: await this.discoverWorkspaceUris(workspaceRoot),
-            entriesByPath: new Map<string, WorkspaceSemanticIndexEntry>()
+            discoveredUrisByPath: new Map<string, vscode.Uri>(),
+            entriesByPath: new Map<string, WorkspaceSemanticIndexEntry>(),
+            revalidationCursor: 0
         };
         this.workspaceCaches.set(cacheKey, createdCache);
         return createdCache;
@@ -140,6 +145,22 @@ export class WorkspaceSemanticIndexService {
         return openDocumentByPath;
     }
 
+    private async refreshWorkspaceDiscovery(
+        workspaceCache: WorkspaceRootCache,
+        openDocuments: Map<string, vscode.TextDocument>
+    ): Promise<void> {
+        const refreshedUris = await this.discoverWorkspaceUris(workspaceCache.rootPath);
+        workspaceCache.discoveredUrisByPath = refreshedUris;
+
+        for (const cachedPath of Array.from(workspaceCache.entriesByPath.keys())) {
+            if (openDocuments.has(cachedPath) || refreshedUris.has(cachedPath)) {
+                continue;
+            }
+
+            workspaceCache.entriesByPath.delete(cachedPath);
+        }
+    }
+
     private async refreshOpenDocumentEntries(
         workspaceCache: WorkspaceRootCache,
         openDocuments: Map<string, vscode.TextDocument>
@@ -158,16 +179,48 @@ export class WorkspaceSemanticIndexService {
     private async materializeDiscoveredEntries(
         workspaceCache: WorkspaceRootCache,
         openDocuments: Map<string, vscode.TextDocument>
-    ): Promise<void> {
+    ): Promise<Set<string>> {
+        const materializedPaths = new Set<string>();
         for (const [pathKey, uri] of workspaceCache.discoveredUrisByPath.entries()) {
             if (openDocuments.has(pathKey) || workspaceCache.entriesByPath.has(pathKey)) {
                 continue;
             }
 
             const document = await this.host.openTextDocument(uri);
-            const snapshot = this.snapshotService.getSnapshot(document, true);
+            const snapshot = this.getFreshSnapshotForUnopenedDocument(document);
             workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(snapshot));
+            materializedPaths.add(pathKey);
         }
+
+        return materializedPaths;
+    }
+
+    private async revalidateCachedUnopenedEntries(
+        workspaceCache: WorkspaceRootCache,
+        openDocuments: Map<string, vscode.TextDocument>,
+        materializedPaths: Set<string>
+    ): Promise<void> {
+        const unopenedPaths = Array.from(workspaceCache.discoveredUrisByPath.keys())
+            .filter((pathKey) => !openDocuments.has(pathKey) && !materializedPaths.has(pathKey))
+            .sort();
+
+        if (unopenedPaths.length === 0) {
+            workspaceCache.revalidationCursor = 0;
+            return;
+        }
+
+        const revalidationIndex = workspaceCache.revalidationCursor % unopenedPaths.length;
+        const pathKey = unopenedPaths[revalidationIndex];
+        const uri = workspaceCache.discoveredUrisByPath.get(pathKey);
+        workspaceCache.revalidationCursor = (revalidationIndex + 1) % unopenedPaths.length;
+
+        if (!uri) {
+            return;
+        }
+
+        const document = await this.host.openTextDocument(uri);
+        const snapshot = this.getFreshSnapshotForUnopenedDocument(document);
+        workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(snapshot));
     }
 
     private getSortedEntries(workspaceCache: WorkspaceRootCache): WorkspaceSemanticIndexEntry[] {
@@ -178,7 +231,13 @@ export class WorkspaceSemanticIndexService {
 
     private buildViewSignature(entries: WorkspaceSemanticIndexEntry[]): string {
         return entries
-            .map((entry) => `${entry.uri}@${entry.version}`)
+            .map((entry) => [
+                entry.uri,
+                entry.version,
+                entry.functionNames.join(','),
+                entry.fileGlobalNames.join(','),
+                entry.typeNames.join(',')
+            ].join('@'))
             .join('|');
     }
 
@@ -223,6 +282,12 @@ export class WorkspaceSemanticIndexService {
             fileGlobalNames: uniqueSorted((snapshot.fileGlobals || []).map((summary) => summary.name)),
             typeNames: uniqueSorted(snapshot.typeDefinitions.map((summary) => summary.name))
         };
+    }
+
+    private getFreshSnapshotForUnopenedDocument(document: vscode.TextDocument): DocumentSemanticSnapshot {
+        getGlobalParsedDocumentService().invalidate(document.uri);
+        this.snapshotService.invalidate(document.uri);
+        return this.snapshotService.getSnapshot(document, false);
     }
 }
 
