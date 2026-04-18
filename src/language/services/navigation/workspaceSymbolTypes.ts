@@ -10,6 +10,9 @@ export interface WorkspaceSymbolIndexView {
     getFunctionCandidateFiles(name: string): string[];
     getFileGlobalCandidateFiles(name: string): string[];
     getTypeCandidateFiles(name: string): string[];
+    getFunctionDeclarationFiles?(name: string): string[];
+    getFileGlobalDeclarationFiles?(name: string): string[];
+    getTypeDeclarationFiles?(name: string): string[];
 }
 
 export interface WorkspaceSemanticIndexEntry {
@@ -18,4 +21,5 @@ export interface WorkspaceSemanticIndexEntry {
     functionNames: string[];
     fileGlobalNames: string[];
     typeNames: string[];
+    identifierNames: string[];
 }

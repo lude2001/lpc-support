@@ -288,6 +288,25 @@ describe('WorkspaceSemanticIndexService', () => {
         expect(view.getFunctionCandidateFiles('query_id')).toContain('file:///D:/workspace/a.c');
     });
 
+    test('includes pure usage files in function candidate supersets, not only declaration files', async () => {
+        const host = createHost({
+            files: ['file:///D:/workspace/room.c', 'file:///D:/workspace/cmds/look.c'],
+            texts: {
+                'file:///D:/workspace/room.c': 'int query_id() { return 1; }',
+                'file:///D:/workspace/cmds/look.c': 'int look() { return query_id(); }'
+            }
+        });
+
+        const WorkspaceSemanticIndexService = loadWorkspaceSemanticIndexService();
+        const service = new WorkspaceSemanticIndexService({ host });
+        const view = await service.getIndexView('D:/workspace');
+
+        expect(new Set(view.getFunctionCandidateFiles('query_id'))).toEqual(new Set([
+            'file:///D:/workspace/room.c',
+            'file:///D:/workspace/cmds/look.c'
+        ]));
+    });
+
     test('prefers open document text over disk text for the active workspace file', async () => {
         const host = createHost({
             files: ['file:///D:/workspace/room.c'],

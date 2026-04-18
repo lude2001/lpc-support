@@ -1,4 +1,5 @@
 import { describe, expect, jest, test } from '@jest/globals';
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 interface WorkspaceSymbolOwner {
@@ -51,6 +52,28 @@ type WorkspaceSymbolRelationServiceCtor = new (options: {
     referenceCollector: WorkspaceReferenceCollectorLike;
 }) => WorkspaceSymbolRelationServiceLike;
 
+type WorkspaceSemanticIndexServiceCtor = new (options: {
+    host: {
+        findFiles(pattern: vscode.RelativePattern): Promise<readonly vscode.Uri[]>;
+        openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
+        getWorkspaceFolders(): readonly { uri: { fsPath: string } }[] | undefined;
+    };
+}) => WorkspaceSemanticIndexServiceLike;
+
+type WorkspaceSymbolOwnerResolverCtor = new (options: {
+    workspaceSemanticIndexService: WorkspaceSemanticIndexServiceLike;
+}) => WorkspaceSymbolOwnerResolverLike;
+
+type WorkspaceReferenceCandidateEnumeratorCtor = new () => {
+    enumerate(document: vscode.TextDocument, owner: WorkspaceSymbolOwner): Array<{ range: vscode.Range; symbolName: string; isDeclaration: boolean }>;
+};
+
+type WorkspaceReferenceCollectorCtor = new (options: {
+    host: { openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument> };
+    ownerResolver: WorkspaceSymbolOwnerResolverLike;
+    candidateEnumerator: { enumerate(document: vscode.TextDocument, owner: WorkspaceSymbolOwner): Array<{ range: vscode.Range; symbolName: string; isDeclaration: boolean }> };
+}) => WorkspaceReferenceCollectorLike;
+
 function createTextDocument(uriValue: string, source: string): vscode.TextDocument {
     const uri = vscode.Uri.parse(uriValue);
     const lines = source.split(/\r?\n/);
@@ -65,6 +88,19 @@ function createTextDocument(uriValue: string, source: string): vscode.TextDocume
     const offsetAt = (position: vscode.Position): number => {
         const lineStart = lineStarts[position.line] ?? source.length;
         return Math.min(lineStart + position.character, source.length);
+    };
+
+    const positionAt = (offset: number): vscode.Position => {
+        let line = 0;
+        for (let index = 0; index < lineStarts.length; index += 1) {
+            if (lineStarts[index] <= offset) {
+                line = index;
+            } else {
+                break;
+            }
+        }
+
+        return new vscode.Position(line, offset - lineStarts[line]);
     };
 
     return {
@@ -105,6 +141,8 @@ function createTextDocument(uriValue: string, source: string): vscode.TextDocume
 
             return new vscode.Range(position.line, start, position.line, end);
         }),
+        positionAt: jest.fn(positionAt),
+        offsetAt: jest.fn(offsetAt),
         save: jest.fn(async () => true),
         validateRange: jest.fn((range: vscode.Range) => range),
         validatePosition: jest.fn((position: vscode.Position) => position)
@@ -140,6 +178,98 @@ function createWorkspaceSemanticIndexService(view: WorkspaceSymbolIndexView): Wo
     };
 }
 
+function normalizeFixtureUri(uriValue: string): string {
+    return uriValue.replace(/^file:\/{4}(?=[A-Za-z]:)/i, 'file:///');
+}
+
+function escapeForRegex(value: string): string {
+    return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
+}
+
+function toRelativePatternRegex(globPattern: string): RegExp {
+    const normalizedPattern = globPattern.replace(/\\/g, '/');
+    let regexSource = '';
+
+    for (let index = 0; index < normalizedPattern.length; index += 1) {
+        const current = normalizedPattern[index];
+        const next = normalizedPattern[index + 1];
+
+        if (current === '*' && next === '*') {
+            regexSource += '.*';
+            index += 1;
+            continue;
+        }
+
+        if (current === '*') {
+            regexSource += '[^/]*';
+            continue;
+        }
+
+        if (current === '?') {
+            regexSource += '.';
+            continue;
+        }
+
+        regexSource += escapeForRegex(current);
+    }
+
+    return new RegExp(`^${regexSource}$`, 'i');
+}
+
+function matchesRelativePattern(uri: vscode.Uri, pattern: vscode.RelativePattern): boolean {
+    const base = typeof (pattern as any).base === 'string'
+        ? path.normalize((pattern as any).base)
+        : (pattern as any).baseUri?.fsPath
+            ? path.normalize((pattern as any).baseUri.fsPath)
+            : '';
+    const fsPath = path.normalize(uri.fsPath);
+    const relativeToBase = base ? path.relative(base, fsPath) : '';
+    if (
+        base
+        && relativeToBase !== ''
+        && (relativeToBase.startsWith('..') || path.isAbsolute(relativeToBase))
+    ) {
+        return false;
+    }
+
+    const rawPattern = typeof (pattern as any).pattern === 'string'
+        ? (pattern as any).pattern
+        : '**/*';
+    const relativePath = base
+        ? relativeToBase.replace(/\\/g, '/')
+        : fsPath.replace(/\\/g, '/');
+
+    return toRelativePatternRegex(rawPattern).test(relativePath);
+}
+
+function createWorkspaceHost(options: {
+    files: string[];
+    texts: Record<string, string>;
+    workspaceRoot: string;
+}): {
+    findFiles(pattern: vscode.RelativePattern): Promise<readonly vscode.Uri[]>;
+    openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
+    getWorkspaceFolders(): readonly { uri: { fsPath: string } }[] | undefined;
+} {
+    return {
+        findFiles: jest.fn(async (pattern: vscode.RelativePattern) => {
+            return options.files
+                .map((fileUri) => vscode.Uri.parse(fileUri))
+                .filter((uri) => matchesRelativePattern(uri, pattern));
+        }),
+        openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+            const uri = normalizeFixtureUri(typeof target === 'string' ? target : target.toString());
+            const text = options.texts[uri];
+            if (typeof text !== 'string') {
+                throw new Error(`No fixture text for ${uri}`);
+            }
+
+            return createTextDocument(uri, text);
+        }),
+        getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: options.workspaceRoot } }])
+    };
+}
+
 function loadWorkspaceSymbolRelationModule(): {
     WorkspaceSymbolRelationService: WorkspaceSymbolRelationServiceCtor;
     CURRENT_FILE_FALLBACK: symbol;
@@ -170,6 +300,23 @@ function loadWorkspaceSymbolRelationModule(): {
     }
 
     throw new Error('WorkspaceSymbolRelationService exports are not implemented yet');
+}
+
+function loadWorkspaceRelationDependencies(): {
+    WorkspaceSemanticIndexService: WorkspaceSemanticIndexServiceCtor;
+    WorkspaceSymbolOwnerResolver: WorkspaceSymbolOwnerResolverCtor;
+    WorkspaceReferenceCandidateEnumerator: WorkspaceReferenceCandidateEnumeratorCtor;
+    WorkspaceReferenceCollector: WorkspaceReferenceCollectorCtor;
+    WorkspaceSymbolRelationService: WorkspaceSymbolRelationServiceCtor;
+} {
+    const relationModule = loadWorkspaceSymbolRelationModule();
+    return {
+        WorkspaceSemanticIndexService: require('../WorkspaceSemanticIndexService').WorkspaceSemanticIndexService as WorkspaceSemanticIndexServiceCtor,
+        WorkspaceSymbolOwnerResolver: require('../WorkspaceSymbolOwnerResolver').WorkspaceSymbolOwnerResolver as WorkspaceSymbolOwnerResolverCtor,
+        WorkspaceReferenceCandidateEnumerator: require('../WorkspaceReferenceCandidateEnumerator').WorkspaceReferenceCandidateEnumerator as WorkspaceReferenceCandidateEnumeratorCtor,
+        WorkspaceReferenceCollector: require('../WorkspaceReferenceCollector').WorkspaceReferenceCollector as WorkspaceReferenceCollectorCtor,
+        WorkspaceSymbolRelationService: relationModule.WorkspaceSymbolRelationService
+    };
 }
 
 function workspaceOwner(name: string): WorkspaceSymbolOwner {
@@ -392,6 +539,54 @@ describe('WorkspaceSymbolRelationService', () => {
         expect(edit.changes['file:///D:/workspace/prototype.c']).toEqual(expect.arrayContaining([
             expect.objectContaining({ newText: 'perform_command', range: expect.objectContaining({ start: { line: 0, character: 16 } }) }),
             expect.objectContaining({ newText: 'perform_command', range: expect.objectContaining({ start: { line: 2, character: 8 } }) })
+        ]));
+    });
+
+    test('real workspace chain reaches pure usage files via the workspace index superset', async () => {
+        const roomSource = 'int query_id() { return 1; }';
+        const lookSource = 'int look() { return query_id(); }';
+        const roomDocument = createTextDocument('file:///D:/workspace/room.c', roomSource);
+        const host = createWorkspaceHost({
+            workspaceRoot: 'D:/workspace',
+            files: ['file:///D:/workspace/room.c', 'file:///D:/workspace/cmds/look.c'],
+            texts: {
+                'file:///D:/workspace/room.c': roomSource,
+                'file:///D:/workspace/cmds/look.c': lookSource
+            }
+        });
+        const {
+            WorkspaceSemanticIndexService,
+            WorkspaceSymbolOwnerResolver,
+            WorkspaceReferenceCandidateEnumerator,
+            WorkspaceReferenceCollector,
+            WorkspaceSymbolRelationService
+        } = loadWorkspaceRelationDependencies();
+        const workspaceSemanticIndexService = new WorkspaceSemanticIndexService({ host });
+        const ownerResolver = new WorkspaceSymbolOwnerResolver({ workspaceSemanticIndexService });
+        const candidateEnumerator = new WorkspaceReferenceCandidateEnumerator();
+        const referenceCollector = new WorkspaceReferenceCollector({
+            host,
+            ownerResolver,
+            candidateEnumerator
+        });
+        const relationService = new WorkspaceSymbolRelationService({
+            ownerResolver,
+            workspaceSemanticIndexService,
+            referenceCollector
+        });
+
+        const refs = await relationService.collectReferences(
+            roomDocument,
+            positionOn(roomSource, 'query_id'),
+            { includeDeclaration: false }
+        );
+
+        expect(refs).not.toBe(loadWorkspaceSymbolRelationModule().CURRENT_FILE_FALLBACK);
+        expect(refs).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                uri: 'file:///D:/workspace/cmds/look.c',
+                range: expect.objectContaining({ start: { line: 0, character: 20 } })
+            })
         ]));
     });
 });

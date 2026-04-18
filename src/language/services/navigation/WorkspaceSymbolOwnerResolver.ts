@@ -52,7 +52,7 @@ export class WorkspaceSymbolOwnerResolver {
         const semanticSnapshot = this.snapshotService.getSemanticSnapshot(document, true);
         const resolvedSymbol = resolveVisibleSymbol(semanticSnapshot.symbolTable, symbolName, wordRange.start);
         if (!resolvedSymbol) {
-            return { kind: 'unsupported', reason: 'No visible symbol for token' };
+            return this.resolveExternalOwner(document, symbolName, wordRange);
         }
 
         if (resolvedSymbol.type === SymbolType.PARAMETER) {
@@ -68,16 +68,16 @@ export class WorkspaceSymbolOwnerResolver {
             return { kind: 'unsupported', reason: `Unsupported symbol type: ${resolvedSymbol.type}` };
         }
 
-        const candidateFiles = await this.getCandidateFiles(document, ownerKind, symbolName);
-        if (ownerKind === 'function' && candidateFiles.length > 1) {
+        const declarationFiles = await this.getDeclarationFiles(document, ownerKind, symbolName);
+        if (ownerKind === 'function' && declarationFiles.length > 1) {
             return { kind: 'ambiguous', reason: 'Function owner is not unique across candidate files' };
         }
 
-        if ((ownerKind === 'global' || ownerKind === 'type') && candidateFiles.length > 1) {
+        if ((ownerKind === 'global' || ownerKind === 'type') && declarationFiles.length > 1) {
             return { kind: 'ambiguous', reason: 'Declaration owner is not unique across candidate files' };
         }
 
-        const sourceUri = normalizeWorkspaceUri(document.uri);
+        const sourceUri = normalizeWorkspaceUri(declarationFiles[0] ?? document.uri);
         const canonicalRange = resolvedSymbol.selectionRange ?? resolvedSymbol.range;
 
         return {
@@ -92,23 +92,130 @@ export class WorkspaceSymbolOwnerResolver {
         };
     }
 
-    private async getCandidateFiles(
+    private async getIndexView(workspaceRoot: string): Promise<{
+        getFunctionCandidateFiles(name: string): string[];
+        getFileGlobalCandidateFiles(name: string): string[];
+        getTypeCandidateFiles(name: string): string[];
+        getFunctionDeclarationFiles?(name: string): string[];
+        getFileGlobalDeclarationFiles?(name: string): string[];
+        getTypeDeclarationFiles?(name: string): string[];
+    }> {
+        return this.workspaceSemanticIndexService.getIndexView(workspaceRoot);
+    }
+
+    private async getDeclarationFiles(
         document: vscode.TextDocument,
         ownerKind: WorkspaceSymbolOwnerKind,
         symbolName: string
     ): Promise<string[]> {
-        const workspaceRoot = vscode.workspace.getWorkspaceFolder?.(document.uri)?.uri.fsPath ?? path.dirname(document.uri.fsPath);
-        const indexView = await this.workspaceSemanticIndexService.getIndexView(workspaceRoot);
+        for (const workspaceRoot of this.getWorkspaceRootCandidates(document)) {
+            const indexView = await this.getIndexView(workspaceRoot);
+            const declarationFiles = this.getDeclarationFilesFromView(indexView, ownerKind, symbolName);
+            if (declarationFiles.length > 0) {
+                return declarationFiles;
+            }
+        }
+
+        return [];
+    }
+
+    private getDeclarationFilesFromView(
+        indexView: {
+            getFunctionCandidateFiles(name: string): string[];
+            getFileGlobalCandidateFiles(name: string): string[];
+            getTypeCandidateFiles(name: string): string[];
+            getFunctionDeclarationFiles?(name: string): string[];
+            getFileGlobalDeclarationFiles?(name: string): string[];
+            getTypeDeclarationFiles?(name: string): string[];
+        },
+        ownerKind: WorkspaceSymbolOwnerKind,
+        symbolName: string
+    ): string[] {
         switch (ownerKind) {
             case 'function':
-                return uniqueStrings(indexView.getFunctionCandidateFiles(symbolName));
+                return uniqueStrings(
+                    (indexView.getFunctionDeclarationFiles?.(symbolName) ?? indexView.getFunctionCandidateFiles(symbolName))
+                        .map((uri) => normalizeWorkspaceUri(uri))
+                );
             case 'global':
-                return uniqueStrings(indexView.getFileGlobalCandidateFiles(symbolName));
+                return uniqueStrings(
+                    (indexView.getFileGlobalDeclarationFiles?.(symbolName) ?? indexView.getFileGlobalCandidateFiles(symbolName))
+                        .map((uri) => normalizeWorkspaceUri(uri))
+                );
             case 'type':
-                return uniqueStrings(indexView.getTypeCandidateFiles(symbolName));
+                return uniqueStrings(
+                    (indexView.getTypeDeclarationFiles?.(symbolName) ?? indexView.getTypeCandidateFiles(symbolName))
+                        .map((uri) => normalizeWorkspaceUri(uri))
+                );
             default:
                 return [];
         }
+    }
+
+    private resolveExternalOwner(
+        document: vscode.TextDocument,
+        symbolName: string,
+        wordRange: vscode.Range
+    ): Promise<WorkspaceOwnerResolution> {
+        return this.resolveExternalOwnerAsync(document, symbolName, wordRange);
+    }
+
+    private async resolveExternalOwnerAsync(
+        document: vscode.TextDocument,
+        symbolName: string,
+        wordRange: vscode.Range
+    ): Promise<WorkspaceOwnerResolution> {
+        const matches = ([
+            ['function', await this.getDeclarationFiles(document, 'function', symbolName)],
+            ['global', await this.getDeclarationFiles(document, 'global', symbolName)],
+            ['type', await this.getDeclarationFiles(document, 'type', symbolName)]
+        ] as const).filter(([, files]) => files.length > 0);
+
+        if (matches.length === 0) {
+            return { kind: 'unsupported', reason: 'No visible symbol for token' };
+        }
+
+        if (matches.length > 1) {
+            return { kind: 'ambiguous', reason: 'Multiple declaration kinds matched the same token' };
+        }
+
+        const [ownerKind, declarationFiles] = matches[0];
+        if (declarationFiles.length !== 1) {
+            return { kind: 'ambiguous', reason: 'Declaration owner is not unique across candidate files' };
+        }
+
+        const sourceUri = normalizeWorkspaceUri(declarationFiles[0]);
+        return {
+            kind: 'workspace-visible',
+            owner: {
+                kind: ownerKind,
+                key: `${ownerKind}:${sourceUri}:${symbolName}`,
+                name: symbolName,
+                sourceUri,
+                canonicalRange: wordRange
+            }
+        };
+    }
+
+    private getWorkspaceRootCandidates(document: vscode.TextDocument): string[] {
+        const explicitWorkspaceRoot = vscode.workspace.getWorkspaceFolder?.(document.uri)?.uri.fsPath;
+        if (explicitWorkspaceRoot) {
+            return [explicitWorkspaceRoot];
+        }
+
+        const candidates: string[] = [];
+        let current = path.dirname(document.uri.fsPath);
+        while (current && !candidates.includes(current)) {
+            candidates.push(current);
+            const parent = path.dirname(current);
+            if (parent === current) {
+                break;
+            }
+
+            current = parent;
+        }
+
+        return candidates;
     }
 }
 

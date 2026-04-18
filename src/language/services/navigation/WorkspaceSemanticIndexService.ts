@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { LPCLexer } from '../../../antlr/LPCLexer';
 import { DocumentSemanticSnapshotService } from '../../../completion/documentSemanticSnapshotService';
 import { DocumentSemanticSnapshot } from '../../../completion/types';
 import { getGlobalParsedDocumentService } from '../../../parser/ParsedDocumentService';
@@ -37,11 +38,17 @@ class StaticWorkspaceSymbolIndexView implements WorkspaceSymbolIndexView {
     private readonly functionCandidates: Map<string, string[]>;
     private readonly fileGlobalCandidates: Map<string, string[]>;
     private readonly typeCandidates: Map<string, string[]>;
+    private readonly functionDeclarations: Map<string, string[]>;
+    private readonly fileGlobalDeclarations: Map<string, string[]>;
+    private readonly typeDeclarations: Map<string, string[]>;
 
     constructor(entries: WorkspaceSemanticIndexEntry[]) {
-        this.functionCandidates = buildCandidateMap(entries, (entry) => entry.functionNames);
-        this.fileGlobalCandidates = buildCandidateMap(entries, (entry) => entry.fileGlobalNames);
-        this.typeCandidates = buildCandidateMap(entries, (entry) => entry.typeNames);
+        this.functionDeclarations = buildCandidateMap(entries, (entry) => entry.functionNames);
+        this.fileGlobalDeclarations = buildCandidateMap(entries, (entry) => entry.fileGlobalNames);
+        this.typeDeclarations = buildCandidateMap(entries, (entry) => entry.typeNames);
+        this.functionCandidates = buildCandidateSupersetMap(entries, (entry) => entry.functionNames);
+        this.fileGlobalCandidates = buildCandidateSupersetMap(entries, (entry) => entry.fileGlobalNames);
+        this.typeCandidates = buildCandidateSupersetMap(entries, (entry) => entry.typeNames);
     }
 
     public getFunctionCandidateFiles(name: string): string[] {
@@ -54,6 +61,18 @@ class StaticWorkspaceSymbolIndexView implements WorkspaceSymbolIndexView {
 
     public getTypeCandidateFiles(name: string): string[] {
         return [...(this.typeCandidates.get(name) || [])];
+    }
+
+    public getFunctionDeclarationFiles(name: string): string[] {
+        return [...(this.functionDeclarations.get(name) || [])];
+    }
+
+    public getFileGlobalDeclarationFiles(name: string): string[] {
+        return [...(this.fileGlobalDeclarations.get(name) || [])];
+    }
+
+    public getTypeDeclarationFiles(name: string): string[] {
+        return [...(this.typeDeclarations.get(name) || [])];
     }
 }
 
@@ -172,7 +191,7 @@ export class WorkspaceSemanticIndexService {
                 continue;
             }
 
-            workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(snapshot));
+            workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(document, snapshot));
         }
     }
 
@@ -188,7 +207,7 @@ export class WorkspaceSemanticIndexService {
 
             const document = await this.host.openTextDocument(uri);
             const snapshot = this.getFreshSnapshotForUnopenedDocument(document);
-            workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(snapshot));
+            workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(document, snapshot));
             materializedPaths.add(pathKey);
         }
 
@@ -220,7 +239,7 @@ export class WorkspaceSemanticIndexService {
 
         const document = await this.host.openTextDocument(uri);
         const snapshot = this.getFreshSnapshotForUnopenedDocument(document);
-        workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(snapshot));
+        workspaceCache.entriesByPath.set(pathKey, this.toWorkspaceEntry(document, snapshot));
     }
 
     private getSortedEntries(workspaceCache: WorkspaceRootCache): WorkspaceSemanticIndexEntry[] {
@@ -236,7 +255,8 @@ export class WorkspaceSemanticIndexService {
                 entry.version,
                 entry.functionNames.join(','),
                 entry.fileGlobalNames.join(','),
-                entry.typeNames.join(',')
+                entry.typeNames.join(','),
+                entry.identifierNames.join(',')
             ].join('@'))
             .join('|');
     }
@@ -274,13 +294,17 @@ export class WorkspaceSemanticIndexService {
             : normalizedPath;
     }
 
-    private toWorkspaceEntry(snapshot: DocumentSemanticSnapshot): WorkspaceSemanticIndexEntry {
+    private toWorkspaceEntry(
+        document: vscode.TextDocument,
+        snapshot: DocumentSemanticSnapshot
+    ): WorkspaceSemanticIndexEntry {
         return {
             uri: snapshot.uri,
             version: snapshot.version,
             functionNames: uniqueSorted(snapshot.exportedFunctions.map((summary) => summary.name)),
             fileGlobalNames: uniqueSorted((snapshot.fileGlobals || []).map((summary) => summary.name)),
-            typeNames: uniqueSorted(snapshot.typeDefinitions.map((summary) => summary.name))
+            typeNames: uniqueSorted(snapshot.typeDefinitions.map((summary) => summary.name)),
+            identifierNames: this.collectIdentifierNames(document)
         };
     }
 
@@ -288,6 +312,15 @@ export class WorkspaceSemanticIndexService {
         getGlobalParsedDocumentService().invalidate(document.uri);
         this.snapshotService.invalidate(document.uri);
         return this.snapshotService.getSnapshot(document, false);
+    }
+
+    private collectIdentifierNames(document: vscode.TextDocument): string[] {
+        const parsed = getGlobalParsedDocumentService().get(document);
+        return uniqueSorted(
+            parsed.visibleTokens
+                .filter((token) => token.type === LPCLexer.Identifier && typeof token.text === 'string' && token.text.length > 0)
+                .map((token) => token.text!)
+        );
     }
 }
 
@@ -299,6 +332,27 @@ function buildCandidateMap(
 
     for (const entry of entries) {
         for (const name of selector(entry)) {
+            const uris = candidates.get(name) || new Set<string>();
+            uris.add(entry.uri);
+            candidates.set(name, uris);
+        }
+    }
+
+    return new Map(
+        Array.from(candidates.entries()).map(([name, uris]) => [name, Array.from(uris).sort()])
+    );
+}
+
+function buildCandidateSupersetMap(
+    entries: WorkspaceSemanticIndexEntry[],
+    selector: (entry: WorkspaceSemanticIndexEntry) => string[]
+): Map<string, string[]> {
+    const candidates = new Map<string, Set<string>>();
+
+    for (const entry of entries) {
+        const declarationNames = selector(entry);
+        const usageNames = entry.identifierNames;
+        for (const name of new Set([...declarationNames, ...usageNames])) {
             const uris = candidates.get(name) || new Set<string>();
             uris.add(entry.uri);
             candidates.set(name, uris);
