@@ -51,11 +51,11 @@ describe('createProductionLanguageServices', () => {
                     getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
                 }
             }));
-            jest.doMock('../../../../diagnostics', () => ({
-                createDefaultDiagnosticsCollectors: jest.fn(() => ['diagnostics-collector'])
-            }));
-            jest.doMock('../../../../language/services/diagnostics/createSharedDiagnosticsService', () => ({
-                createSharedDiagnosticsService: jest.fn(() => diagnosticsService)
+            jest.doMock('../../../../diagnostics/createDiagnosticsStack', () => ({
+                createDiagnosticsStack: jest.fn(() => ({
+                    collectors: ['diagnostics-collector'],
+                    diagnosticsService
+                }))
             }));
             jest.doMock('../../../../language/services/formatting/LanguageFormattingService', () => ({
                 createLanguageFormattingService: jest.fn(() => formattingService)
@@ -159,11 +159,11 @@ describe('createProductionLanguageServices', () => {
                     getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
                 }
             }));
-            jest.doMock('../../../../diagnostics', () => ({
-                createDefaultDiagnosticsCollectors: jest.fn(() => ['diagnostics-collector'])
-            }));
-            jest.doMock('../../../../language/services/diagnostics/createSharedDiagnosticsService', () => ({
-                createSharedDiagnosticsService: jest.fn(() => ({ collectDiagnostics: jest.fn() }))
+            jest.doMock('../../../../diagnostics/createDiagnosticsStack', () => ({
+                createDiagnosticsStack: jest.fn(() => ({
+                    collectors: ['diagnostics-collector'],
+                    diagnosticsService: { collectDiagnostics: jest.fn() }
+                }))
             }));
             jest.doMock('../../../../language/services/formatting/LanguageFormattingService', () => ({
                 createLanguageFormattingService: jest.fn(() => ({ formatDocument: jest.fn(), formatRange: jest.fn() }))
@@ -272,11 +272,11 @@ describe('createProductionLanguageServices', () => {
                     getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
                 }
             }));
-            jest.doMock('../../../../diagnostics', () => ({
-                createDefaultDiagnosticsCollectors: jest.fn(() => ['diagnostics-collector'])
-            }));
-            jest.doMock('../../../../language/services/diagnostics/createSharedDiagnosticsService', () => ({
-                createSharedDiagnosticsService: jest.fn(() => ({ collectDiagnostics: jest.fn() }))
+            jest.doMock('../../../../diagnostics/createDiagnosticsStack', () => ({
+                createDiagnosticsStack: jest.fn(() => ({
+                    collectors: ['diagnostics-collector'],
+                    diagnosticsService: { collectDiagnostics: jest.fn() }
+                }))
             }));
             jest.doMock('../../../../language/services/formatting/LanguageFormattingService', () => ({
                 createLanguageFormattingService: jest.fn(() => ({ formatDocument: jest.fn(), formatRange: jest.fn() }))
@@ -349,6 +349,94 @@ describe('createProductionLanguageServices', () => {
             expect(renameCtor).toHaveBeenCalledWith(expect.objectContaining({
                 inheritedRelationService
             }));
+        });
+    });
+
+    test('creates diagnostics services through the shared diagnostics stack factory', () => {
+        const macroManager = { kind: 'macro-manager' };
+        const diagnosticsStack = {
+            collectors: ['diagnostics-collector'],
+            diagnosticsService: { collectDiagnostics: jest.fn() }
+        };
+        const createDiagnosticsStack = jest.fn(() => diagnosticsStack);
+
+        jest.isolateModules(() => {
+            jest.doMock('../../../../projectConfig/LpcProjectConfigService', () => ({
+                LpcProjectConfigService: jest.fn(() => ({ kind: 'project-config' }))
+            }));
+            jest.doMock('../../../../macroManager', () => ({
+                MacroManager: jest.fn(() => macroManager)
+            }));
+            jest.doMock('../../../../efun/EfunDocsManager', () => ({
+                EfunDocsManager: jest.fn(() => ({ kind: 'efun-docs-manager' }))
+            }));
+            jest.doMock('../../../../completion/completionInstrumentation', () => ({
+                CompletionInstrumentation: jest.fn(() => ({ kind: 'completion-instrumentation' }))
+            }));
+            jest.doMock('../../../../diagnostics/createDiagnosticsStack', () => ({
+                createDiagnosticsStack
+            }));
+            jest.doMock('../../../../language/services/formatting/LanguageFormattingService', () => ({
+                createLanguageFormattingService: jest.fn(() => ({ formatDocument: jest.fn(), formatRange: jest.fn() }))
+            }));
+            jest.doMock('../../../../formatter/FormattingService', () => ({
+                FormattingService: jest.fn()
+            }));
+            jest.doMock('../../../../objectInference/ObjectInferenceService', () => ({
+                ObjectInferenceService: jest.fn(() => ({ kind: 'object-inference-service' }))
+            }));
+            jest.doMock('../../../../objectInference/ScopedMethodResolver', () => ({
+                ScopedMethodResolver: jest.fn(() => ({ kind: 'scoped-method-resolver' }))
+            }));
+            jest.doMock('../../../../targetMethodLookup', () => ({
+                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
+            }));
+            jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
+                QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
+                ObjectInferenceLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
+                AstBackedLanguageDefinitionService: jest.fn(() => ({ provideDefinition: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageReferenceService', () => ({
+                AstBackedLanguageReferenceService: jest.fn(() => ({ provideReferences: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageRenameService', () => ({
+                AstBackedLanguageRenameService: jest.fn(() => ({ prepareRename: jest.fn(), provideRenameEdits: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/LanguageSymbolService', () => ({
+                AstBackedLanguageSymbolService: jest.fn(() => ({ provideDocumentSymbols: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/UnifiedLanguageHoverService', () => ({
+                UnifiedLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/signatureHelp/LanguageSignatureHelpService', () => ({
+                LanguageSignatureHelpService: jest.fn(() => ({ provideSignatureHelp: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/codeActions/LanguageCodeActionService', () => ({
+                createLanguageCodeActionService: jest.fn(() => ({ provideCodeActions: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/structure/LanguageFoldingService', () => ({
+                DefaultLanguageFoldingService: jest.fn(() => ({ provideFoldingRanges: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/structure/LanguageSemanticTokensService', () => ({
+                DefaultLanguageSemanticTokensService: jest.fn(() => ({ provideSemanticTokens: jest.fn() }))
+            }));
+            jest.doMock('../../../../language/services/navigation/InheritedSymbolRelationService', () => ({
+                InheritedSymbolRelationService: jest.fn(() => ({ kind: 'inherited-relation-service' }))
+            }));
+
+            const {
+                createProductionLanguageServices
+            } = require('../createProductionLanguageServices') as typeof import('../createProductionLanguageServices');
+
+            const services = createProductionLanguageServices();
+
+            expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
+            expect(createDiagnosticsStack).toHaveBeenCalledWith(macroManager);
+            expect(services.diagnosticsService).toBe(diagnosticsStack.diagnosticsService);
         });
     });
 

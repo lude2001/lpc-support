@@ -3,14 +3,17 @@ import { ServiceRegistry } from '../../core/ServiceRegistry';
 import { Services } from '../../core/ServiceKeys';
 import { registerDiagnostics } from '../diagnosticsModule';
 import { DiagnosticsOrchestrator } from '../../diagnostics';
-import { createSharedDiagnosticsService } from '../../language/services/diagnostics/createSharedDiagnosticsService';
+import { createDiagnosticsStack } from '../../diagnostics/createDiagnosticsStack';
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 
 jest.mock('../../diagnostics', () => ({
-    DiagnosticsOrchestrator: jest.fn(),
-    createDefaultDiagnosticsCollectors: jest.fn(() => ['collector'])
+    DiagnosticsOrchestrator: jest.fn()
 }));
-jest.mock('../../language/services/diagnostics/createSharedDiagnosticsService', () => ({
-    createSharedDiagnosticsService: jest.fn(() => ({ collectDiagnostics: jest.fn() }))
+jest.mock('../../diagnostics/createDiagnosticsStack', () => ({
+    createDiagnosticsStack: jest.fn(() => ({
+        collectors: ['collector'],
+        diagnosticsService: { collectDiagnostics: jest.fn() }
+    }))
 }));
 
 describe('registerDiagnostics', () => {
@@ -45,16 +48,17 @@ describe('registerDiagnostics', () => {
         registerDiagnostics(registry, context);
 
         expect(DiagnosticsOrchestrator).toHaveBeenCalledTimes(1);
-        expect(createSharedDiagnosticsService).toHaveBeenCalledTimes(1);
+        expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
+        expect(createDiagnosticsStack).toHaveBeenCalledWith(macroManager);
         expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(
             context,
             macroManager,
             expect.objectContaining({
-                registerDocumentLifecycle: false,
                 diagnosticsService: expect.anything(),
                 collectors: expect.any(Array)
             })
         );
+        expect((DiagnosticsOrchestrator as unknown as jest.Mock).mock.calls[0][2]?.registerDocumentLifecycle).toBeUndefined();
         expect(registry.get(Services.Diagnostics)).toBe(diagnosticsOrchestrator);
         expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
 
@@ -73,6 +77,7 @@ describe('registerDiagnostics', () => {
         registerDiagnostics(registry, context);
 
         expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
+        expect(createDiagnosticsStack).toHaveBeenCalledWith(macroManager);
     });
 
     test('does not analyze document when no active editor exists', () => {
@@ -83,9 +88,10 @@ describe('registerDiagnostics', () => {
         registerDiagnostics(registry, context);
 
         expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
+        expect(createDiagnosticsStack).toHaveBeenCalledWith(macroManager);
     });
 
-    test('keeps diagnostics UX registered while host document lifecycle stays disabled', () => {
+    test('keeps diagnostics UX registered while diagnostics stack always comes from the shared factory', () => {
         const activeDocument = { fileName: 'test.c', languageId: 'lpc' } as vscode.TextDocument;
         (vscode.window as any).activeTextEditor = {
             document: activeDocument
@@ -95,12 +101,11 @@ describe('registerDiagnostics', () => {
 
         registerDiagnostics(registry, context);
 
-        expect(createSharedDiagnosticsService).toHaveBeenCalledTimes(1);
+        expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
         expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(
             context,
             macroManager,
             expect.objectContaining({
-                registerDocumentLifecycle: false,
                 diagnosticsService: expect.anything(),
                 collectors: expect.any(Array)
             })
@@ -109,4 +114,3 @@ describe('registerDiagnostics', () => {
         expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
     });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

@@ -2,14 +2,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import type { ExtensionContext } from 'vscode';
-import { ASTManager } from '../../../ast/astManager';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
-import { createDefaultDiagnosticsCollectors } from '../../../diagnostics';
+import { createDiagnosticsStack } from '../../../diagnostics/createDiagnosticsStack';
 import { EfunDocsManager } from '../../../efunDocs';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
 import { createLanguageCodeActionService } from '../../../language/services/codeActions/LanguageCodeActionService';
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
-import { createSharedDiagnosticsService } from '../../../language/services/diagnostics/createSharedDiagnosticsService';
 import { createLanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
 import { AstBackedLanguageDefinitionService } from '../../../language/services/navigation/LanguageDefinitionService';
 import {
@@ -62,8 +60,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         objectInferenceService
     );
     const codeActionsService = createLanguageCodeActionService();
-    const diagnosticsCollectors = createDefaultDiagnosticsCollectors(macroManager);
-    const diagnosticsService = createSharedDiagnosticsService(ASTManager.getInstance(), diagnosticsCollectors);
+    const { diagnosticsService } = createDiagnosticsStack(macroManager);
     const formattingService = createLanguageFormattingService(new FormattingService());
     const objectHoverService = new ObjectInferenceLanguageHoverService(
         objectInferenceService,
