@@ -60,7 +60,7 @@ Those helpers are residual debt from before the decomposition and should be dele
 
 ### 2. Introduce a shared scoped identifier helper
 
-Create a small shared helper in `src/language/services/navigation/` or `src/language/services/navigation/definition/` whose only responsibility is to answer:
+Create a small shared helper in `src/language/services/navigation/ScopedMethodIdentifierSupport.ts` whose only responsibility is to answer:
 
 - what scoped method identifier node, if any, contains a given cursor position
 - whether a given cursor position is on the resolved scoped method identifier
@@ -153,6 +153,10 @@ Add focused tests that cover:
 - qualified `room::method()` detection
 - nested call ranges where the smallest containing scoped call should win
 - non-method positions such as qualifier or argument positions returning no hit
+
+The helper’s direct test file should live at:
+
+- `src/language/services/navigation/__tests__/ScopedMethodIdentifierSupport.test.ts`
 
 ### Definition/hover regression coverage
 
