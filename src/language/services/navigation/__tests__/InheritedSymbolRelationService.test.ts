@@ -101,6 +101,16 @@ function positionOn(source: string, symbol: string, occurrence: number = 1): vsc
     return new vscode.Position(line, character + 1);
 }
 
+function documentLookupKey(target: string | vscode.Uri): string {
+    const normalizeFsPathKey = (value: string): string => value.replace(/^\/+([A-Za-z]:[\\/])/, '/$1');
+
+    if (typeof target === 'string') {
+        return normalizeFsPathKey(vscode.Uri.parse(target).fsPath);
+    }
+
+    return normalizeFsPathKey(target.fsPath);
+}
+
 describe('InheritedSymbolRelationService', () => {
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
@@ -351,6 +361,454 @@ describe('InheritedSymbolRelationService', () => {
         expect(matches).not.toEqual(expect.arrayContaining([
             expect.objectContaining({ uri: 'file://///D:/workspace/base.c' })
         ]));
+    });
+
+    test('classifyRenameTarget returns current-file-only for local variables and parameters', async () => {
+        const localSource = 'void demo() { int localValue = 1; localValue += 1; }\n';
+        const parameterSource = 'void demo(int value) { value += 1; }\n';
+        const localDocument = createTextDocument('file:///D:/workspace/local.c', localSource);
+        const parameterDocument = createTextDocument('file:///D:/workspace/parameter.c', parameterSource);
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn(() => [])
+            } as any,
+            host: {
+                openTextDocument: jest.fn()
+            }
+        });
+
+        await expect(service.classifyRenameTarget(
+            localDocument,
+            positionOn(localSource, 'localValue', 2)
+        )).resolves.toEqual({ kind: 'current-file-only' });
+        await expect(service.classifyRenameTarget(
+            parameterDocument,
+            positionOn(parameterSource, 'value', 2)
+        )).resolves.toEqual({ kind: 'current-file-only' });
+    });
+
+    test.each([
+        ['function', 'int query_id() { return 1; }\n', 'query_id'],
+        ['struct', 'struct Payload {\n    int hp;\n}\n', 'Payload'],
+        ['class', 'class Payload {\n    int hp;\n}\n', 'Payload']
+    ] as const)('classifyRenameTarget returns unsupported for %s symbols', async (_label, source, symbol) => {
+        const document = createTextDocument(`file:///D:/workspace/${symbol}.c`, source);
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn(() => [])
+            } as any,
+            host: {
+                openTextDocument: jest.fn()
+            }
+        });
+
+        await expect(service.classifyRenameTarget(
+            document,
+            positionOn(source, symbol)
+        )).resolves.toEqual({ kind: 'unsupported' });
+    });
+
+    test('classifyRenameTarget returns file-global for current-file global variables', async () => {
+        const source = 'int GLOBAL_D;\nvoid demo() { GLOBAL_D += 1; }\n';
+        const document = createTextDocument('file:///D:/workspace/current-global.c', source);
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn(() => [])
+            } as any,
+            host: {
+                openTextDocument: jest.fn()
+            }
+        });
+
+        await expect(service.classifyRenameTarget(
+            document,
+            positionOn(source, 'GLOBAL_D', 2)
+        )).resolves.toEqual({ kind: 'file-global' });
+    });
+
+    test('classifyRenameTarget returns file-global for provable inherited globals', async () => {
+        const childSource = 'inherit "/base";\nvoid demo() { GLOBAL_D += 1; }\n';
+        const parentSource = 'int GLOBAL_D;\n';
+        const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
+        const parentDocument = createTextDocument('file:///D:/workspace/base.c', parentSource);
+        const documents = new Map([
+            [childDocument.uri.fsPath, childDocument],
+            [parentDocument.uri.fsPath, parentDocument]
+        ]);
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+                    if (snapshot.uri === childDocument.uri.toString()) {
+                        return [{
+                            rawValue: '/base',
+                            expressionKind: 'string',
+                            sourceUri: childDocument.uri.toString(),
+                            resolvedUri: parentDocument.uri.toString(),
+                            isResolved: true
+                        }];
+                    }
+
+                    return [];
+                })
+            } as any,
+            host: {
+                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                    const key = documentLookupKey(target);
+                    const document = documents.get(key);
+                    if (!document) {
+                        throw new Error(`Unknown document ${key}`);
+                    }
+
+                    return document;
+                })
+            }
+        });
+
+        await expect(service.classifyRenameTarget(
+            childDocument,
+            positionOn(childSource, 'GLOBAL_D')
+        )).resolves.toEqual({ kind: 'file-global' });
+    });
+
+    test('classifyRenameTarget stays unsupported when one inherited branch cannot be opened', async () => {
+        const childSource = 'inherit "/good";\ninherit "/bad";\nvoid demo() { GLOBAL_D += 1; }\n';
+        const parentSource = 'int GLOBAL_D;\n';
+        const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
+        const parentDocument = createTextDocument('file:///D:/workspace/good.c', parentSource);
+        const documents = new Map([
+            [childDocument.uri.fsPath, childDocument],
+            [parentDocument.uri.fsPath, parentDocument]
+        ]);
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+                    if (snapshot.uri === childDocument.uri.toString()) {
+                        return [
+                            {
+                                rawValue: '/good',
+                                expressionKind: 'string',
+                                sourceUri: childDocument.uri.toString(),
+                                resolvedUri: parentDocument.uri.toString(),
+                                isResolved: true
+                            },
+                            {
+                                rawValue: '/bad',
+                                expressionKind: 'string',
+                                sourceUri: childDocument.uri.toString(),
+                                resolvedUri: 'file:///D:/workspace/missing.c',
+                                isResolved: true
+                            }
+                        ];
+                    }
+
+                    return [];
+                })
+            } as any,
+            host: {
+                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                    const key = documentLookupKey(target);
+                    const document = documents.get(key);
+                    if (!document) {
+                        throw new Error(`Unknown document ${key}`);
+                    }
+
+                    return document;
+                })
+            }
+        });
+
+        await expect(service.classifyRenameTarget(
+            childDocument,
+            positionOn(childSource, 'GLOBAL_D')
+        )).resolves.toEqual({ kind: 'unsupported' });
+    });
+
+    test('collectInheritedReferences falls through to file-global matches when function and scoped paths miss', async () => {
+        const childSource = 'inherit "/base";\nvoid demo() { GLOBAL_D += 1; }\n';
+        const parentSource = 'int GLOBAL_D;\nvoid demo() { GLOBAL_D += 2; }\n';
+        const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
+        const parentDocument = createTextDocument('file:///D:/workspace/base.c', parentSource);
+        const documents = new Map([
+            [childDocument.uri.fsPath, childDocument],
+            [parentDocument.uri.fsPath, parentDocument]
+        ]);
+        const functionRelationService = {
+            collectFunctionReferences: jest.fn(async () => [])
+        };
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+                    if (snapshot.uri === childDocument.uri.toString()) {
+                        return [{
+                            rawValue: '/base',
+                            expressionKind: 'string',
+                            sourceUri: childDocument.uri.toString(),
+                            resolvedUri: parentDocument.uri.toString(),
+                            isResolved: true
+                        }];
+                    }
+
+                    return [];
+                })
+            } as any,
+            host: {
+                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                    const key = documentLookupKey(target);
+                    const document = documents.get(key);
+                    if (!document) {
+                        throw new Error(`Unknown document ${key}`);
+                    }
+
+                    return document;
+                })
+            },
+            functionRelationService
+        });
+
+        const matches = await service.collectInheritedReferences(
+            childDocument,
+            positionOn(childSource, 'GLOBAL_D'),
+            { includeDeclaration: true }
+        );
+
+        expect(functionRelationService.collectFunctionReferences).toHaveBeenCalledTimes(1);
+        expect(matches).toEqual(expect.arrayContaining([
+            expect.objectContaining({ uri: 'file:///D:/workspace/base.c', range: expect.objectContaining({ start: { line: 0, character: 4 } }) }),
+            expect.objectContaining({ uri: 'file:///D:/workspace/base.c', range: expect.objectContaining({ start: { line: 1, character: 14 } }) }),
+            expect.objectContaining({ uri: 'file:///D:/workspace/room.c', range: expect.objectContaining({ start: { line: 1, character: 14 } }) })
+        ]));
+    });
+
+    test('collectInheritedReferences returns no inherited global matches when a nested branch is unresolved', async () => {
+        const childSource = 'inherit "/good";\ninherit "/nested";\nvoid demo() { GLOBAL_D += 1; }\n';
+        const goodParentSource = 'int GLOBAL_D;\nvoid demo() { GLOBAL_D += 2; }\n';
+        const nestedParentSource = 'inherit "/missing";\n';
+        const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
+        const goodParentDocument = createTextDocument('file:///D:/workspace/good.c', goodParentSource);
+        const nestedParentDocument = createTextDocument('file:///D:/workspace/nested.c', nestedParentSource);
+        const documents = new Map([
+            [childDocument.uri.fsPath, childDocument],
+            [goodParentDocument.uri.fsPath, goodParentDocument],
+            [nestedParentDocument.uri.fsPath, nestedParentDocument]
+        ]);
+        const functionRelationService = {
+            collectFunctionReferences: jest.fn(async () => [])
+        };
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+                    if (snapshot.uri === childDocument.uri.toString()) {
+                        return [
+                            {
+                                rawValue: '/good',
+                                expressionKind: 'string',
+                                sourceUri: childDocument.uri.toString(),
+                                resolvedUri: goodParentDocument.uri.toString(),
+                                isResolved: true
+                            },
+                            {
+                                rawValue: '/nested',
+                                expressionKind: 'string',
+                                sourceUri: childDocument.uri.toString(),
+                                resolvedUri: nestedParentDocument.uri.toString(),
+                                isResolved: true
+                            }
+                        ];
+                    }
+
+                    if (snapshot.uri === nestedParentDocument.uri.toString()) {
+                        return [{
+                            rawValue: '/missing',
+                            expressionKind: 'string',
+                            sourceUri: nestedParentDocument.uri.toString(),
+                            resolvedUri: undefined,
+                            isResolved: false
+                        }];
+                    }
+
+                    return [];
+                })
+            } as any,
+            host: {
+                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                    const key = documentLookupKey(target);
+                    const document = documents.get(key);
+                    if (!document) {
+                        throw new Error(`Unknown document ${key}`);
+                    }
+
+                    return document;
+                })
+            },
+            functionRelationService
+        });
+
+        const matches = await service.collectInheritedReferences(
+            childDocument,
+            positionOn(childSource, 'GLOBAL_D'),
+            { includeDeclaration: true }
+        );
+
+        expect(functionRelationService.collectFunctionReferences).toHaveBeenCalledTimes(1);
+        expect(matches).toEqual([]);
+    });
+
+    test('buildInheritedRenameEdits keeps same-owner diamond globals renameable instead of treating them as ambiguous', async () => {
+        const childSource = 'inherit "/left";\ninherit "/right";\nvoid demo() { GLOBAL_D += 1; }\n';
+        const leftSource = 'inherit "/root";\n';
+        const rightSource = 'inherit "/root";\n';
+        const rootSource = 'int GLOBAL_D;\nvoid demo() { GLOBAL_D += 2; }\n';
+        const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
+        const leftDocument = createTextDocument('file:///D:/workspace/left.c', leftSource);
+        const rightDocument = createTextDocument('file:///D:/workspace/right.c', rightSource);
+        const rootDocument = createTextDocument('file:///D:/workspace/root.c', rootSource);
+        const documents = new Map([
+            [childDocument.uri.fsPath, childDocument],
+            [leftDocument.uri.fsPath, leftDocument],
+            [rightDocument.uri.fsPath, rightDocument],
+            [rootDocument.uri.fsPath, rootDocument]
+        ]);
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+                    if (snapshot.uri === childDocument.uri.toString()) {
+                        return [
+                            {
+                                rawValue: '/left',
+                                expressionKind: 'string',
+                                sourceUri: childDocument.uri.toString(),
+                                resolvedUri: leftDocument.uri.toString(),
+                                isResolved: true
+                            },
+                            {
+                                rawValue: '/right',
+                                expressionKind: 'string',
+                                sourceUri: childDocument.uri.toString(),
+                                resolvedUri: rightDocument.uri.toString(),
+                                isResolved: true
+                            }
+                        ];
+                    }
+
+                    if (snapshot.uri === leftDocument.uri.toString() || snapshot.uri === rightDocument.uri.toString()) {
+                        return [{
+                            rawValue: '/root',
+                            expressionKind: 'string',
+                            sourceUri: snapshot.uri,
+                            resolvedUri: rootDocument.uri.toString(),
+                            isResolved: true
+                        }];
+                    }
+
+                    return [];
+                })
+            } as any,
+            host: {
+                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                    const key = documentLookupKey(target);
+                    const document = documents.get(key);
+                    if (!document) {
+                        throw new Error(`Unknown document ${key}`);
+                    }
+
+                    return document;
+                })
+            }
+        });
+
+        await expect(service.classifyRenameTarget(
+            childDocument,
+            positionOn(childSource, 'GLOBAL_D')
+        )).resolves.toEqual({ kind: 'file-global' });
+
+        const edits = await service.buildInheritedRenameEdits(
+            childDocument,
+            positionOn(childSource, 'GLOBAL_D'),
+            'RENAMED_D'
+        );
+
+        expect(edits).toEqual({
+            'file:///D:/workspace/root.c': [
+                {
+                    range: new vscode.Range(0, 4, 0, 12),
+                    newText: 'RENAMED_D'
+                },
+                {
+                    range: new vscode.Range(1, 14, 1, 22),
+                    newText: 'RENAMED_D'
+                }
+            ],
+            'file:///D:/workspace/room.c': [
+                {
+                    range: new vscode.Range(2, 14, 2, 22),
+                    newText: 'RENAMED_D'
+                }
+            ]
+        });
+    });
+
+    test('buildInheritedRenameEdits returns inherited edits for a proved file-global success path', async () => {
+        const childSource = 'inherit "/base";\nvoid demo() { GLOBAL_D += 1; }\n';
+        const parentSource = 'int GLOBAL_D;\nvoid demo() { GLOBAL_D += 2; }\n';
+        const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
+        const parentDocument = createTextDocument('file:///D:/workspace/base.c', parentSource);
+        const documents = new Map([
+            [childDocument.uri.fsPath, childDocument],
+            [parentDocument.uri.fsPath, parentDocument]
+        ]);
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+                    if (snapshot.uri === childDocument.uri.toString()) {
+                        return [{
+                            rawValue: '/base',
+                            expressionKind: 'string',
+                            sourceUri: childDocument.uri.toString(),
+                            resolvedUri: parentDocument.uri.toString(),
+                            isResolved: true
+                        }];
+                    }
+
+                    return [];
+                })
+            } as any,
+            host: {
+                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                    const key = documentLookupKey(target);
+                    const document = documents.get(key);
+                    if (!document) {
+                        throw new Error(`Unknown document ${key}`);
+                    }
+
+                    return document;
+                })
+            }
+        });
+
+        const edits = await service.buildInheritedRenameEdits(
+            childDocument,
+            positionOn(childSource, 'GLOBAL_D'),
+            'RENAMED_D'
+        );
+
+        expect(edits).toEqual({
+            'file:///D:/workspace/base.c': [
+                {
+                    range: new vscode.Range(0, 4, 0, 12),
+                    newText: 'RENAMED_D'
+                },
+                {
+                    range: new vscode.Range(1, 14, 1, 22),
+                    newText: 'RENAMED_D'
+                }
+            ],
+            'file:///D:/workspace/room.c': [
+                {
+                    range: new vscode.Range(1, 14, 1, 22),
+                    newText: 'RENAMED_D'
+                }
+            ]
+        });
     });
 
     test('buildInheritedRenameEdits returns no inherited edits when sibling inherit branches make the global binding ambiguous', async () => {
