@@ -151,7 +151,7 @@ describe('AstBackedLanguageDefinitionService', () => {
             host as any
         );
 
-        const graphSpy = jest.spyOn(service as any, 'findInSimulatedEfuns');
+        const graphSpy = jest.spyOn((service as any).directSymbolDefinitionResolver, 'findFunctionInSimulatedEfunGraph');
 
         const definition = await service.provideDefinition({
             context: {
@@ -395,20 +395,26 @@ describe('AstBackedLanguageDefinitionService', () => {
         );
         const firstRequestGate = createDeferred<void>();
 
-        jest.spyOn(service as any, 'findFunctionDefinitions').mockImplementation(
-            async (document: vscode.TextDocument, requestState: { functionDefinitions: Map<string, vscode.Location> }) => {
-            if (document === alphaDocument) {
-                requestState.functionDefinitions.set('alpha_call', alphaLocation);
-                await firstRequestGate.promise;
-                return;
-            }
+        jest.spyOn((service as any).functionFamilyDefinitionResolver, 'resolve').mockImplementation(
+            async (
+                document: vscode.TextDocument,
+                word: string,
+                requestState: { functionDefinitions: Map<string, vscode.Location> }
+            ) => {
+                if (document === alphaDocument) {
+                    requestState.functionDefinitions.set('alpha_call', alphaLocation);
+                    await firstRequestGate.promise;
+                    return requestState.functionDefinitions.get(word);
+                }
 
-            if (document === betaDocument) {
-                requestState.functionDefinitions.set('beta_call', betaLocation);
+                if (document === betaDocument) {
+                    requestState.functionDefinitions.set('beta_call', betaLocation);
+                    return requestState.functionDefinitions.get(word);
+                }
+
+                return undefined;
             }
-        });
-        jest.spyOn(service as any, 'findInheritedFunctionDefinitions').mockResolvedValue(undefined);
-        jest.spyOn(service as any, 'findFunctionInCurrentFileIncludes').mockResolvedValue(undefined);
+        );
 
         const alphaPromise = service.provideDefinition({
             context: {
@@ -541,8 +547,8 @@ describe('AstBackedLanguageDefinitionService', () => {
             } as any
         );
 
-        const directSpy = jest.spyOn(service as any, 'resolveDirectDefinition');
-        const functionSpy = jest.spyOn(service as any, 'findFunctionDefinition');
+        const directSpy = jest.spyOn((service as any).directSymbolDefinitionResolver, 'resolve');
+        const functionSpy = jest.spyOn((service as any).functionFamilyDefinitionResolver, 'resolve');
 
         const definition = await service.provideDefinition({
             context: {
@@ -595,7 +601,7 @@ describe('AstBackedLanguageDefinitionService', () => {
             } as any
         );
 
-        const functionSpy = jest.spyOn(service as any, 'findFunctionDefinition');
+        const functionSpy = jest.spyOn((service as any).functionFamilyDefinitionResolver, 'resolve');
 
         const definition = await service.provideDefinition({
             context: {
