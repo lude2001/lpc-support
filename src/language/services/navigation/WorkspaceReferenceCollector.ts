@@ -77,11 +77,10 @@ export class WorkspaceReferenceCollector {
             (document) => normalizeWorkspaceUri(document.uri) === normalizedTargetUri
         );
         if (openDocument) {
-            return createNormalizedDocumentView(openDocument, normalizedTargetUri);
+            return openDocument;
         }
 
-        const openedDocument = await this.host.openTextDocument(uri);
-        return createNormalizedDocumentView(openedDocument, normalizedTargetUri);
+        return this.host.openTextDocument(uri);
     }
 }
 
@@ -91,27 +90,4 @@ function isExactWorkspaceOwnerMatch(
 ): boolean {
     return resolution.kind === 'workspace-visible'
         && sameWorkspaceSymbolOwner(resolution.owner, targetOwner);
-}
-
-function createNormalizedDocumentView(
-    document: vscode.TextDocument,
-    normalizedUri: string
-): vscode.TextDocument {
-    if (document.uri.toString() === normalizedUri) {
-        return document;
-    }
-
-    const normalizedUriView = Object.assign(
-        Object.create(Object.getPrototypeOf(document.uri)),
-        document.uri,
-        {
-            toString: () => normalizedUri
-        }
-    ) as vscode.Uri;
-
-    return Object.assign(
-        Object.create(Object.getPrototypeOf(document)),
-        document,
-        { uri: normalizedUriView }
-    ) as vscode.TextDocument;
 }

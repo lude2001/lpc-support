@@ -43,6 +43,11 @@ interface OpenDocumentFixture {
 
 const originalTextDocumentsDescriptor = Object.getOwnPropertyDescriptor(vscode.workspace, 'textDocuments');
 
+function normalizeTestUri(target: string | vscode.Uri): string {
+    const rawUri = typeof target === 'string' ? target : target.toString();
+    return rawUri.replace(/^file:\/{4}(?=[A-Za-z]:)/i, 'file:///');
+}
+
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
     const uri = vscode.Uri.parse(uriValue);
     const lines = source.split(/\r?\n/);
@@ -129,7 +134,7 @@ function setOpenDocuments(fixtures: OpenDocumentFixture[] = []): void {
 function createHost(texts: Record<string, string>): { openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument> } {
     return {
         openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
-            const uri = typeof target === 'string' ? target : target.toString();
+            const uri = normalizeTestUri(typeof target === 'string' ? target : target.toString());
             const text = texts[uri];
             if (typeof text !== 'string') {
                 throw new Error(`No fixture text for ${uri}`);
@@ -141,7 +146,7 @@ function createHost(texts: Record<string, string>): { openTextDocument(target: s
 }
 
 function positionKey(uri: string, line: number, character: number, version?: number): string {
-    return `${uri}#${line}:${character}#${version ?? '*'}`;
+    return `${normalizeTestUri(uri)}#${line}:${character}#${version ?? '*'}`;
 }
 
 function createOwnerResolutionMap(entries: Array<[string, any]>): WorkspaceSymbolOwnerResolverLike {
@@ -149,8 +154,9 @@ function createOwnerResolutionMap(entries: Array<[string, any]>): WorkspaceSymbo
 
     return {
         resolveOwner: jest.fn(async (document: vscode.TextDocument, position: vscode.Position) => {
-            return lookup.get(positionKey(document.uri.toString(), position.line, position.character, document.version))
-                ?? lookup.get(positionKey(document.uri.toString(), position.line, position.character))
+            const normalizedUri = normalizeTestUri(document.uri);
+            return lookup.get(positionKey(normalizedUri, position.line, position.character, document.version))
+                ?? lookup.get(positionKey(normalizedUri, position.line, position.character))
                 ?? { kind: 'unsupported', reason: 'fixture missing owner resolution' };
         })
     };
@@ -160,7 +166,7 @@ function createCandidateEnumerator(
     candidatesByUri: Record<string, ReferenceCandidate[]>
 ): WorkspaceReferenceCandidateEnumeratorLike {
     return {
-        enumerate: jest.fn((document: vscode.TextDocument) => candidatesByUri[document.uri.toString()] ?? [])
+        enumerate: jest.fn((document: vscode.TextDocument) => candidatesByUri[normalizeTestUri(document.uri)] ?? [])
     };
 }
 
@@ -417,5 +423,33 @@ describe('WorkspaceReferenceCollector', () => {
 
         expect(matches[0].range.start.line).toBe(0);
         expect((ownerResolver.resolveOwner as jest.Mock).mock.calls[0][0].version).toBe(7);
+    });
+
+    test('preserves the original open-document uri identity when confirming owners', async () => {
+        const owner = targetOwner();
+        const roomUri = 'file:///D:/workspace/room.c';
+        setOpenDocuments([{
+            uri: roomUri,
+            text: 'int query_id() { return 1; }',
+            version: 7
+        }]);
+
+        const ownerResolver = createOwnerResolutionMap([
+            [positionKey(roomUri, 0, 4, 7), { kind: 'workspace-visible', owner }]
+        ]);
+        const WorkspaceReferenceCollector = loadWorkspaceReferenceCollector();
+        const collector = new WorkspaceReferenceCollector({
+            host: createHost({
+                [roomUri]: 'int disk_query_id() { return 0; }'
+            }),
+            candidateEnumerator: createCandidateEnumerator({
+                [roomUri]: [{ range: new vscode.Range(0, 4, 0, 12), symbolName: 'query_id', isDeclaration: true }]
+            }),
+            ownerResolver
+        });
+
+        await collector.collect(owner, [roomUri], { includeDeclaration: true });
+
+        expect((ownerResolver.resolveOwner as jest.Mock).mock.calls[0][0]).toBe((vscode.workspace.textDocuments as readonly vscode.TextDocument[])[0]);
     });
 });
