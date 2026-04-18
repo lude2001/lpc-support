@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { DocumentSemanticSnapshotService } from '../../../../completion/documentSemanticSnapshotService';
+import { createNavigationCapabilityContext } from '../../../../lsp/server/handlers/navigation/navigationHandlerContext';
+import { DocumentStore } from '../../../../lsp/server/runtime/DocumentStore';
+import { WorkspaceSession } from '../../../../lsp/server/runtime/WorkspaceSession';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 
 interface WorkspaceSymbolIndexView {
@@ -191,6 +194,33 @@ describe('WorkspaceSymbolOwnerResolver', () => {
         expect(result.kind).toBe('workspace-visible');
         expect(result.owner.kind).toBe('function');
         expect(result.owner.key).toContain('function:file:///D:/workspace/room.c');
+    });
+
+    test('accepts LSP runtime shim ranges when resolving current-file-only locals', async () => {
+        const source = [
+            'void demo() {',
+            '    int local_hp = 1;',
+            '    local_hp += 1;',
+            '}'
+        ].join('\n');
+        const documentUri = 'file:///D:/workspace/local.c';
+        const documentStore = new DocumentStore();
+        documentStore.open(documentUri, 1, source);
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace']
+        });
+        const context = createNavigationCapabilityContext(documentUri, documentStore, workspaceSession);
+        const WorkspaceSymbolOwnerResolver = loadWorkspaceSymbolOwnerResolver();
+        const resolver = new WorkspaceSymbolOwnerResolver({
+            workspaceSemanticIndexService: createWorkspaceSemanticIndexService({})
+        });
+
+        const result = await resolver.resolveOwner(
+            context.document as vscode.TextDocument,
+            new vscode.Position(2, 6)
+        );
+
+        expect(result.kind).toBe('current-file-only');
     });
 
     test('keeps a locally resolved declaration workspace-visible even when another file declares the same name', async () => {

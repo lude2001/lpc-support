@@ -38,6 +38,8 @@ import {
     AstBackedLanguageRenameService,
     type LanguageRenameService
 } from '../../../language/services/navigation/LanguageRenameService';
+import { WorkspaceSymbolOwnerResolver } from '../../../language/services/navigation/WorkspaceSymbolOwnerResolver';
+import { WorkspaceSymbolRelationService } from '../../../language/services/navigation/WorkspaceSymbolRelationService';
 import type { LanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { registerDefinitionHandler } from '../handlers/navigation/registerDefinitionHandler';
@@ -729,6 +731,106 @@ describe('navigation handlers', () => {
 
         expect(workspaceRelationService.prepareRename).toHaveBeenCalledTimes(1);
         expect(prepareResult).toBeUndefined();
+    });
+
+    test('registerRenameHandler keeps real workspace prepareRename fallback working on runtime shim documents', async () => {
+        let prepareRenameHandler:
+            | ((params: PrepareRenameParams) => Promise<LanguageRange | { range: LanguageRange; placeholder?: string } | undefined> | LanguageRange | { range: LanguageRange; placeholder?: string } | undefined)
+            | undefined;
+        const connection = createNavigationConnection({
+            onPrepareRename: jest.fn(handler => {
+                prepareRenameHandler = handler;
+                return Disposable.create(() => undefined);
+            }),
+            onRenameRequest: jest.fn(handler => Disposable.create(() => undefined))
+        });
+        const documentStore = new DocumentStore();
+        const ownerResolver = new WorkspaceSymbolOwnerResolver({
+            workspaceSemanticIndexService: {
+                getIndexView: jest.fn(async () => ({
+                    getFunctionCandidateFiles: () => [],
+                    getFileGlobalCandidateFiles: () => [],
+                    getTypeCandidateFiles: () => []
+                }))
+            } as any
+        });
+        const workspaceRelationService = new WorkspaceSymbolRelationService({
+            ownerResolver,
+            workspaceSemanticIndexService: {
+                getIndexView: jest.fn(async () => ({
+                    getFunctionCandidateFiles: () => [],
+                    getFileGlobalCandidateFiles: () => [],
+                    getTypeCandidateFiles: () => []
+                }))
+            } as any,
+            referenceCollector: {
+                collect: jest.fn(async () => [])
+            } as any
+        });
+        const renameService = new AstBackedLanguageRenameService({
+            referenceResolver: {
+                resolveReferences: jest.fn().mockReturnValue({
+                    wordRange: {
+                        start: { line: 2, character: 4 },
+                        end: { line: 2, character: 12 }
+                    },
+                    matches: [
+                        {
+                            range: {
+                                start: { line: 1, character: 8 },
+                                end: { line: 1, character: 16 }
+                            },
+                            isDeclaration: true
+                        },
+                        {
+                            range: {
+                                start: { line: 2, character: 4 },
+                                end: { line: 2, character: 12 }
+                            },
+                            isDeclaration: false
+                        }
+                    ]
+                })
+            },
+            workspaceRelationService
+        } as any);
+        const navigationService = {
+            ...createNavigationServiceStub(),
+            prepareRename: renameService.prepareRename.bind(renameService),
+            provideRenameEdits: renameService.provideRenameEdits.bind(renameService)
+        };
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace'],
+            featureServices: {
+                navigationService
+            }
+        });
+
+        documentStore.open(
+            'file:///D:/workspace/nav.c',
+            1,
+            'void demo() {\n    int local_hp = 1;\n    local_hp += 1;\n}'
+        );
+
+        registerRenameHandler({
+            connection,
+            documentStore,
+            workspaceSession,
+            navigationService
+        });
+
+        const prepareResult = await prepareRenameHandler?.({
+            textDocument: { uri: 'file:///D:/workspace/nav.c' },
+            position: { line: 2, character: 6 }
+        } as PrepareRenameParams);
+
+        expect(prepareResult).toEqual({
+            range: {
+                start: { line: 2, character: 4 },
+                end: { line: 2, character: 12 }
+            },
+            placeholder: 'local_hp'
+        });
     });
 
     test('registerRenameHandler keeps unsafe workspace rename edits empty in the real rename service seam', async () => {

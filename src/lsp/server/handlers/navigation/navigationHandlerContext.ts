@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../../../language/contracts/LanguageCapabilityContext';
 import { DocumentStore } from '../../runtime/DocumentStore';
 import { WorkspaceSession } from '../../runtime/WorkspaceSession';
@@ -170,15 +171,15 @@ function isWordCharacter(char: string | undefined): boolean {
     return Boolean(char && /[A-Za-z0-9_]/.test(char));
 }
 
-function createHostPosition(line: number, character: number): { line: number; character: number } {
-    return { line, character };
+function createHostPosition(line: number, character: number): vscode.Position {
+    return new vscode.Position(line, character);
 }
 
 function createHostRange(
-    start: { line: number; character: number },
-    end: { line: number; character: number }
-): { start: { line: number; character: number }; end: { line: number; character: number } } {
-    return { start, end };
+    start: vscode.Position,
+    end: vscode.Position
+): vscode.Range {
+    return new vscode.Range(start, end);
 }
 
 function fromFileUri(uri: string): string {
