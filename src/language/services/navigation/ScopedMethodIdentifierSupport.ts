@@ -2,12 +2,15 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../../../ast/astManager';
 import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
 
-const astManager = ASTManager.getInstance();
+function getAstManager(): ASTManager {
+    return ASTManager.getInstance();
+}
 
 export function findScopedMethodIdentifierAtPosition(
     document: vscode.TextDocument,
     position: vscode.Position
 ): SyntaxNode | undefined {
+    const astManager = getAstManager();
     const syntax = astManager.getSyntaxDocument(document, false)
         ?? astManager.getSyntaxDocument(document, true);
     if (!syntax) {
