@@ -60,3 +60,4 @@ test/lpc_code/
 .worktrees/
 .agents/
 .codex/
+tmp/
