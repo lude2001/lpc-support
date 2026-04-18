@@ -114,6 +114,10 @@ Expected:
   - `src/lsp/server/handlers/navigation/navigationHandlerContext.ts`
   - `src/lsp/server/handlers/completion/registerCompletionHandler.ts`
   - `src/lsp/server/runtime/DiagnosticsSession.ts`
+  - `src/lsp/server/runtime/vscodeShim.ts`
+- note:
+  - `vscodeShim.ts` is an intentional out-of-scope duplicate for this plan
+  - Chunk 1 only unifies handler/completion/diagnostics-side helpers, not runtime-internal shim helpers
 
 - [ ] **Step 4: Do not commit inventory-only work**
 
@@ -281,6 +285,16 @@ describe('ServerLanguageContextFactory', () => {
         expect(diagnosticsContext.workspaceRoot).toBe('D:/workspace');
         expect(diagnosticsContext.document.getText()).toBe('BAD_OBJECT->query_name();');
     });
+
+    test('falls back safely when createCapabilityContext receives no documentUri', () => {
+        const session = new WorkspaceSession({ workspaceRoots: ['D:/workspace'] });
+        const factory = new ServerLanguageContextFactory(new DocumentStore(), session);
+        const context = factory.createCapabilityContext(undefined);
+
+        expect(context.workspace.workspaceRoot).toBe('D:/workspace');
+        expect(context.document.getText()).toBe('');
+        expect(context.document.fileName).toBe('');
+    });
 });
 ```
 
@@ -358,6 +372,16 @@ Extend `src/lsp/server/__tests__/navigationHandlers.test.ts` with a focused test
 - verifies navigation/codeAction/structure/signatureHelp handlers receive the same factory dependency
 
 If mocking the class directly proves too brittle, instead add a narrower assertion that one constructed factory instance is reused for multiple handler registrations.
+
+- [ ] **Step 1.5: Add a direct code-action context assertion**
+
+Extend `src/lsp/server/__tests__/navigationHandlers.test.ts` (or a focused server-side code-action handler test if that is cleaner) with a case that verifies `registerCodeActionHandler(...)` passes the shared-factory-built context into `provideCodeActions(...)`, including:
+
+- `request.context.workspace.workspaceRoot`
+- `request.context.document.getText()`
+- a real `getWordRangeAtPosition(...)`-compatible document shim
+
+This must protect the actual code-action request seam, not just prove that the handler was registered.
 
 - [ ] **Step 2: Run the targeted handler test to verify it fails**
 
@@ -437,6 +461,7 @@ git commit -m "refactor(lsp): unify handler language contexts"
 Extend `src/lsp/server/__tests__/completionHandler.test.ts` with one targeted case that:
 - mocks or spies on `ServerLanguageContextFactory`
 - verifies both completion request and completion resolve use `contextFactory.createCapabilityContext(...)`
+- includes at least one resolve path where `item.data.documentUri` is absent, so the shared factory’s `undefined` fallback path is exercised indirectly as well
 
 - [ ] **Step 2: Run the targeted completion test to verify it fails**
 
@@ -597,6 +622,7 @@ rg -n "function fromFileUri|function normalizeComparablePath|function isPathPref
 Expected:
 - no remaining duplicate helper definitions
 - `createNavigationCapabilityContext` no longer exists
+- remaining `fromFileUri(...)` inside `vscodeShim.ts` is acceptable for this plan because full runtime shim unification is explicitly out of scope
 
 - [ ] **Step 6: Summarize execution notes**
 
@@ -612,7 +638,7 @@ Record:
 
 ### Chunk 1 checklist
 
-- `serverPathUtils.ts` is the only server-side home for file-uri/path/root helper logic
+- `serverPathUtils.ts` is the only handler/completion/diagnostics-side home for file-uri/path/root helper logic
 - navigation/completion/diagnostics no longer each define their own helper copies
 
 ### Chunk 2 checklist
@@ -632,10 +658,11 @@ Record:
 ## Acceptance Criteria
 
 - `src/lsp/server/handlers/navigation/navigationHandlerContext.ts` is gone
-- `serverPathUtils.ts` is the single server-side source of `fromFileUri / normalizeComparablePath / isPathPrefix / resolveWorkspaceRootFromRoots`
+- `serverPathUtils.ts` is the single handler/completion/diagnostics-side source of `fromFileUri / normalizeComparablePath / isPathPrefix / resolveWorkspaceRootFromRoots`
 - `ServerLanguageContextFactory.ts` is the shared source of full handler `LanguageCapabilityContext`
 - all current navigation-family/context consumers use the shared factory
 - completion uses the shared factory instead of its private builder
 - diagnostics uses the shared path/root logic and, if implemented, the factory’s light outlet
 - `registerFormattingHandlers.ts` remains unchanged in behavior and out of scope
+- `vscodeShim.ts` may still keep its runtime-internal helper copy; full shim unification remains out of scope
 - `npx tsc --noEmit`, targeted LSP handler tests, spawned runtime integration, and `npm test -- --runInBand` all pass
