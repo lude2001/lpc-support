@@ -57,7 +57,7 @@ import {
     SERVER_LANGUAGE_SEMANTIC_TOKEN_TYPES
 } from '../runtime/semanticTokenLegend';
 import { ServerLogger } from '../runtime/ServerLogger';
-import { __closeTextDocument, __syncTextDocument } from '../runtime/vscodeShim';
+import { __closeTextDocument, __emitTextDocumentChange, __syncTextDocument } from '../runtime/vscodeShim';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 export type ServerConnection = Pick<
@@ -183,6 +183,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
 
         documentStore.applyFullChange(textDocument.uri, textDocument.version, nextText);
         __syncTextDocument(textDocument.uri, nextText, textDocument.version);
+        __emitTextDocumentChange(textDocument.uri);
         void diagnosticsSession?.refresh(textDocument.uri);
     });
 

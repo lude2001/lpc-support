@@ -491,6 +491,15 @@ export function __syncTextDocument(uri: string, text: string, version: number): 
     textDocuments.set(parsedUri.toString(), createTextDocument(parsedUri, text, version));
 }
 
+export function __emitTextDocumentChange(uri: string): void {
+    const document = textDocuments.get(Uri.parse(uri).toString());
+    if (!document) {
+        return;
+    }
+
+    textDocumentChangedEmitter.fire({ document });
+}
+
 export function __closeTextDocument(uri: string): void {
     textDocuments.delete(Uri.parse(uri).toString());
 }
