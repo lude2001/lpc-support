@@ -242,6 +242,81 @@ describe('InheritedSymbolRelationService', () => {
         expect(matches).toEqual([]);
     });
 
+    test('collectInheritedReferences canonicalizes four-slash Windows inherit target URIs through the live path', async () => {
+        const baseSource = 'void create() {}\n';
+        const childSource = 'inherit "/base";\nvoid demo() {\n    ::create();\n}\n';
+        const baseDocument = createTextDocument('file:////D:/workspace/base.c', baseSource);
+        const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
+        const documents = new Map([
+            [baseDocument.uri.toString(), baseDocument],
+            [childDocument.uri.toString(), childDocument]
+        ]);
+
+        const service = new InheritedSymbolRelationService({
+            inheritanceResolver: {
+                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+                    if (snapshot.uri === childDocument.uri.toString()) {
+                        return [{
+                            rawValue: '/base',
+                            expressionKind: 'string',
+                            sourceUri: childDocument.uri.toString(),
+                            resolvedUri: baseDocument.uri.toString(),
+                            isResolved: true
+                        }];
+                    }
+
+                    return [];
+                })
+            } as any,
+            host: {
+                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                    const key = typeof target === 'string' ? target : target.toString();
+                    const document = documents.get(key);
+                    if (!document) {
+                        throw new Error(`Unknown document ${key}`);
+                    }
+
+                    return document;
+                })
+            },
+            scopedMethodResolver: {
+                resolveCallAt: jest.fn(async (document: vscode.TextDocument, position: vscode.Position) => {
+                    if (
+                        document.uri.toString() === childDocument.uri.toString()
+                        && position.line === 2
+                    ) {
+                        return {
+                            status: 'resolved',
+                            methodName: 'create',
+                            targets: [{
+                                path: baseDocument.fileName,
+                                methodName: 'create',
+                                document: baseDocument,
+                                location: new vscode.Location(baseDocument.uri, new vscode.Range(0, 5, 0, 11)),
+                                declarationRange: new vscode.Range(0, 5, 0, 11),
+                                sourceLabel: baseDocument.fileName
+                            }]
+                        };
+                    }
+
+                    return undefined;
+                })
+            } as any
+        });
+
+        const matches = await service.collectInheritedReferences(
+            childDocument,
+            positionOn(childSource, 'create'),
+            { includeDeclaration: true }
+        );
+
+        const baseMatches = matches.filter((match) => match.uri === 'file:///D:/workspace/base.c');
+        expect(baseMatches).toHaveLength(1);
+        expect(matches).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ uri: 'file://///D:/workspace/base.c' })
+        ]));
+    });
+
     test('buildInheritedRenameEdits returns no inherited edits when sibling inherit branches make the global binding ambiguous', async () => {
         const childSource = 'void demo() { GLOBAL_D += 1; }\n';
         const parentASource = 'int GLOBAL_D;\n';

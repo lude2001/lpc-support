@@ -9,6 +9,7 @@ import {
     type WorkspaceRootHost
 } from './workspaceSymbolTypes';
 import { SyntaxKind, SyntaxNode } from '../../../syntax/types';
+import { normalizeWorkspaceUri } from './navigationPathUtils';
 
 export type WorkspaceSymbolOwnerKind = 'function' | 'global' | 'type';
 
@@ -225,9 +226,4 @@ function hasLocalFunctionImplementation(nodes: readonly SyntaxNode[], symbolName
         && node.name === symbolName
         && node.children.some((child) => child.kind === SyntaxKind.Block)
     );
-}
-
-export function normalizeWorkspaceUri(target: vscode.Uri | string): string {
-    const rawUri = typeof target === 'string' ? target : target.toString();
-    return rawUri.replace(/^file:\/{4}(?=[A-Za-z]:)/, 'file:///');
 }

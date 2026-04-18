@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import {
-    normalizeWorkspaceUri,
     sameWorkspaceSymbolOwner,
     WorkspaceOwnerResolution,
     WorkspaceSymbolOwner,
     WorkspaceSymbolOwnerResolver
 } from './WorkspaceSymbolOwnerResolver';
+import { normalizeWorkspaceUri } from './navigationPathUtils';
 import {
     WorkspaceReferenceCandidateEnumerator
 } from './WorkspaceReferenceCandidateEnumerator';
