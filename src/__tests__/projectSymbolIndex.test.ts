@@ -110,5 +110,35 @@ describe('ProjectSymbolIndex', () => {
         expect(inherited.functions.map(func => func.name)).toEqual(['inherited_call']);
         expect(index.findType('class Payload *')?.name).toBe('Payload');
     });
+
+    test('stores fileGlobals summaries on file records', () => {
+        const snapshot = createSnapshot('/virtual/room.c');
+        (snapshot as any).fileGlobals = [{
+            name: 'COMBAT_D',
+            dataType: 'object',
+            sourceUri: snapshot.uri,
+            range: new vscode.Range(0, 0, 0, 8)
+        }];
+
+        const index = new ProjectSymbolIndex(new InheritanceResolver(undefined, ['/']));
+        index.updateFromSnapshot(snapshot as any);
+
+        expect((index.getRecord(snapshot.uri) as any)?.fileGlobals).toEqual([
+            expect.objectContaining({
+                name: 'COMBAT_D',
+                dataType: 'object',
+                sourceUri: snapshot.uri,
+                range: expect.any(vscode.Range)
+            })
+        ]);
+        expect((index.getAllRecords()[0] as any).fileGlobals).toEqual([
+            expect.objectContaining({
+                name: 'COMBAT_D',
+                dataType: 'object',
+                sourceUri: snapshot.uri,
+                range: expect.any(vscode.Range)
+            })
+        ]);
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

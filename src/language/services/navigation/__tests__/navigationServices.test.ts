@@ -26,6 +26,7 @@ import {
     AstBackedLanguageSymbolService,
     type LanguageSymbolService
 } from '../LanguageSymbolService';
+import { CURRENT_FILE_FALLBACK } from '../WorkspaceSymbolRelationService';
 
 interface RangeCapableLanguageDocument extends LanguageDocument {
     getText(range?: LanguageRange): string;
@@ -704,6 +705,292 @@ describe('navigation services', () => {
                 ]
             }
         });
+    });
+
+    test('reference service prefers workspace relation matches when they resolve to multiple files', async () => {
+        const document = createDocument('int round; round += 1;');
+        const workspaceRelationService = {
+            collectReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
+                expect(options).toEqual({ includeDeclaration: false });
+                return [
+                    {
+                        uri: 'file:///D:/workspace/alpha.c',
+                        range: {
+                            start: { line: 1, character: 0 },
+                            end: { line: 1, character: 5 }
+                        }
+                    },
+                    {
+                        uri: 'file:///D:/workspace/beta.c',
+                        range: {
+                            start: { line: 3, character: 2 },
+                            end: { line: 3, character: 7 }
+                        }
+                    }
+                ];
+            })
+        };
+        const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
+            referenceResolver: {
+                resolveReferences: jest.fn().mockReturnValue({
+                    wordRange: {
+                        start: { line: 0, character: 4 },
+                        end: { line: 0, character: 9 }
+                    },
+                    matches: [
+                        {
+                            range: {
+                                start: { line: 0, character: 11 },
+                                end: { line: 0, character: 16 }
+                            },
+                            isDeclaration: false
+                        }
+                    ]
+                })
+            },
+            workspaceRelationService
+        } as any);
+
+        const references = await service.provideReferences({
+            context: createContext(document),
+            position: { line: 0, character: 12 },
+            includeDeclaration: false
+        });
+
+        expect(workspaceRelationService.collectReferences).toHaveBeenCalledTimes(1);
+        expect(references).toHaveLength(2);
+        expect(references).toEqual(expect.arrayContaining([
+            {
+                uri: 'file:///D:/workspace/alpha.c',
+                range: {
+                    start: { line: 1, character: 0 },
+                    end: { line: 1, character: 5 }
+                }
+            },
+            {
+                uri: 'file:///D:/workspace/beta.c',
+                range: {
+                    start: { line: 3, character: 2 },
+                    end: { line: 3, character: 7 }
+                }
+            }
+        ]));
+    });
+
+    test('reference service preserves current-file references when workspace relation requests fallback', async () => {
+        const document = createDocument('int round; round += 1;');
+        const workspaceRelationService = {
+            collectReferences: jest.fn().mockImplementation(async (_targetDocument, _position, options) => {
+                expect(options).toEqual({ includeDeclaration: false });
+                return CURRENT_FILE_FALLBACK;
+            })
+        };
+        const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
+            referenceResolver: {
+                resolveReferences: jest.fn().mockReturnValue({
+                    wordRange: {
+                        start: { line: 0, character: 4 },
+                        end: { line: 0, character: 9 }
+                    },
+                    matches: [
+                        {
+                            range: {
+                                start: { line: 0, character: 4 },
+                                end: { line: 0, character: 9 }
+                            },
+                            isDeclaration: true
+                        },
+                        {
+                            range: {
+                                start: { line: 0, character: 11 },
+                                end: { line: 0, character: 16 }
+                            },
+                            isDeclaration: false
+                        }
+                    ]
+                })
+            },
+            workspaceRelationService
+        } as any);
+
+        const references = await service.provideReferences({
+            context: createContext(document),
+            position: { line: 0, character: 12 },
+            includeDeclaration: false
+        });
+
+        expect(workspaceRelationService.collectReferences).toHaveBeenCalledTimes(1);
+        expect(references).toEqual([
+            {
+                uri: 'file:///D:/workspace/test.c',
+                range: {
+                    start: { line: 0, character: 11 },
+                    end: { line: 0, character: 16 }
+                }
+            }
+        ]);
+    });
+
+    test('rename service keeps prepareRename undefined when workspace relation rejects rename', async () => {
+        const document = createDocument('int round; round += 1;');
+        const workspaceRelationService = {
+            prepareRename: jest.fn().mockResolvedValue(undefined),
+            buildRenameEdit: jest.fn()
+        };
+        const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            referenceResolver: {
+                resolveReferences: jest.fn().mockReturnValue({
+                    wordRange: {
+                        start: { line: 0, character: 4 },
+                        end: { line: 0, character: 9 }
+                    },
+                    matches: [
+                        {
+                            range: {
+                                start: { line: 0, character: 4 },
+                                end: { line: 0, character: 9 }
+                            },
+                            isDeclaration: true
+                        },
+                        {
+                            range: {
+                                start: { line: 0, character: 11 },
+                                end: { line: 0, character: 16 }
+                            },
+                            isDeclaration: false
+                        }
+                    ]
+                })
+            },
+            workspaceRelationService
+        } as any);
+
+        const prepared = await service.prepareRename({
+            context: createContext(document),
+            position: { line: 0, character: 12 }
+        });
+
+        expect(workspaceRelationService.prepareRename).toHaveBeenCalledTimes(1);
+        expect(prepared).toBeUndefined();
+    });
+
+    test('rename service preserves current-file rename results when workspace relation requests fallback', async () => {
+        const document = createDocument('int round; round += 1;');
+        const workspaceRelationService = {
+            prepareRename: jest.fn().mockResolvedValue(CURRENT_FILE_FALLBACK),
+            buildRenameEdit: jest.fn().mockResolvedValue(CURRENT_FILE_FALLBACK)
+        };
+        const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            referenceResolver: {
+                resolveReferences: jest.fn().mockReturnValue({
+                    wordRange: {
+                        start: { line: 0, character: 4 },
+                        end: { line: 0, character: 9 }
+                    },
+                    matches: [
+                        {
+                            range: {
+                                start: { line: 0, character: 4 },
+                                end: { line: 0, character: 9 }
+                            },
+                            isDeclaration: true
+                        },
+                        {
+                            range: {
+                                start: { line: 0, character: 11 },
+                                end: { line: 0, character: 16 }
+                            },
+                            isDeclaration: false
+                        }
+                    ]
+                })
+            },
+            workspaceRelationService
+        } as any);
+
+        const prepared = await service.prepareRename({
+            context: createContext(document),
+            position: { line: 0, character: 12 }
+        });
+        const edit = await service.provideRenameEdits({
+            context: createContext(document),
+            position: { line: 0, character: 12 },
+            newName: 'turn'
+        });
+
+        expect(workspaceRelationService.prepareRename).toHaveBeenCalledTimes(1);
+        expect(workspaceRelationService.buildRenameEdit).toHaveBeenCalledTimes(1);
+        expect(prepared).toEqual({
+            range: {
+                start: { line: 0, character: 4 },
+                end: { line: 0, character: 9 }
+            },
+            placeholder: 'round'
+        });
+        expect(edit).toEqual({
+            changes: {
+                'file:///D:/workspace/test.c': [
+                    {
+                        range: {
+                            start: { line: 0, character: 4 },
+                            end: { line: 0, character: 9 }
+                        },
+                        newText: 'turn'
+                    },
+                    {
+                        range: {
+                            start: { line: 0, character: 11 },
+                            end: { line: 0, character: 16 }
+                        },
+                        newText: 'turn'
+                    }
+                ]
+            }
+        });
+    });
+
+    test('rename service keeps unsafe workspace rename empty instead of falling back to current-file edits', async () => {
+        const document = createDocument('int round; round += 1;');
+        const workspaceRelationService = {
+            prepareRename: jest.fn(),
+            buildRenameEdit: jest.fn().mockResolvedValue({ changes: {} })
+        };
+        const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            referenceResolver: {
+                resolveReferences: jest.fn().mockReturnValue({
+                    wordRange: {
+                        start: { line: 0, character: 4 },
+                        end: { line: 0, character: 9 }
+                    },
+                    matches: [
+                        {
+                            range: {
+                                start: { line: 0, character: 4 },
+                                end: { line: 0, character: 9 }
+                            },
+                            isDeclaration: true
+                        },
+                        {
+                            range: {
+                                start: { line: 0, character: 11 },
+                                end: { line: 0, character: 16 }
+                            },
+                            isDeclaration: false
+                        }
+                    ]
+                })
+            },
+            workspaceRelationService
+        } as any);
+
+        const edit = await service.provideRenameEdits({
+            context: createContext(document),
+            position: { line: 0, character: 12 },
+            newName: 'turn'
+        });
+
+        expect(workspaceRelationService.buildRenameEdit).toHaveBeenCalledTimes(1);
+        expect(edit).toEqual({ changes: {} });
     });
 
     test('symbol service can operate on host-agnostic documents via injected boundaries', async () => {

@@ -6,6 +6,10 @@ import {
     LanguageRangeReadableDocument,
     LanguageSymbolReferenceAdapter
 } from './LanguageSymbolReferenceAdapter';
+import {
+    CURRENT_FILE_FALLBACK,
+    type WorkspaceSymbolRelationService
+} from './WorkspaceSymbolRelationService';
 
 // Supporting request/result types for the grouped navigation service seam.
 export interface LanguageRenameRequest {
@@ -38,17 +42,58 @@ export interface LanguageRenameService {
     provideRenameEdits(request: LanguageRenameRequest): Promise<LanguageWorkspaceEdit>;
 }
 
-// Rename remains intentionally current-file only by routing through resolveSymbolReferences.
+// Rename keeps the single-file adapter as a fallback when workspace relations are unavailable.
 export class AstBackedLanguageRenameService implements LanguageRenameService {
     public constructor(
         private readonly dependencies: {
             referenceResolver?: LanguageSymbolReferenceAdapter;
+            workspaceRelationService?: Pick<WorkspaceSymbolRelationService, 'prepareRename' | 'buildRenameEdit'>;
         } = {}
     ) {}
 
     public async prepareRename(
         request: LanguagePrepareRenameRequest
     ): Promise<LanguagePrepareRenameResult | undefined> {
+        const workspaceRelationService = this.dependencies.workspaceRelationService;
+        if (workspaceRelationService) {
+            const workspaceResult = await workspaceRelationService.prepareRename(
+                request.context.document as any,
+                request.position as any
+            );
+            if (workspaceResult !== CURRENT_FILE_FALLBACK) {
+                return workspaceResult
+                    ? {
+                        range: workspaceResult.range,
+                        placeholder: workspaceResult.placeholder
+                    }
+                    : undefined;
+            }
+        }
+
+        return this.prepareCurrentFileRename(request);
+    }
+
+    public async provideRenameEdits(request: LanguageRenameRequest): Promise<LanguageWorkspaceEdit> {
+        const workspaceRelationService = this.dependencies.workspaceRelationService;
+        if (workspaceRelationService) {
+            const workspaceEdit = await workspaceRelationService.buildRenameEdit(
+                request.context.document as any,
+                request.position as any,
+                request.newName
+            );
+            if (workspaceEdit !== CURRENT_FILE_FALLBACK) {
+                return {
+                    changes: workspaceEdit.changes
+                };
+            }
+        }
+
+        return this.provideCurrentFileRenameEdits(request);
+    }
+
+    private prepareCurrentFileRename(
+        request: LanguagePrepareRenameRequest
+    ): LanguagePrepareRenameResult | undefined {
         const references = this.getReferenceResolver().resolveReferences(request.context.document, request.position);
         if (!references) {
             return undefined;
@@ -60,7 +105,7 @@ export class AstBackedLanguageRenameService implements LanguageRenameService {
         };
     }
 
-    public async provideRenameEdits(request: LanguageRenameRequest): Promise<LanguageWorkspaceEdit> {
+    private provideCurrentFileRenameEdits(request: LanguageRenameRequest): LanguageWorkspaceEdit {
         const references = this.getReferenceResolver().resolveReferences(request.context.document, request.position);
         if (!references) {
             return { changes: {} };
