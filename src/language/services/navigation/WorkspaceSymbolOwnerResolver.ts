@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
 import { Symbol, SymbolType } from '../../../ast/symbolTable';
 import { DocumentSemanticSnapshotService } from '../../../completion/documentSemanticSnapshotService';
+import { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { WorkspaceSemanticIndexService } from './WorkspaceSemanticIndexService';
 import {
     resolveWorkspaceRootForDocument,
     type WorkspaceRootHost
 } from './workspaceSymbolTypes';
+import { SyntaxKind, SyntaxNode } from '../../../syntax/types';
 
 export type WorkspaceSymbolOwnerKind = 'function' | 'global' | 'type';
 
@@ -78,16 +80,14 @@ export class WorkspaceSymbolOwnerResolver {
             return { kind: 'unsupported', reason: `Unsupported symbol type: ${resolvedSymbol.type}` };
         }
 
-        const declarationFiles = await this.getDeclarationFiles(document, ownerKind, symbolName);
-        if (ownerKind === 'function' && declarationFiles.length > 1) {
-            return { kind: 'ambiguous', reason: 'Function owner is not unique across candidate files' };
+        if (
+            ownerKind === 'function'
+            && await this.isCrossFilePrototypeFamilyAmbiguous(document, semanticSnapshot, symbolName)
+        ) {
+            return { kind: 'ambiguous', reason: 'Function prototype cannot be proven equivalent across files' };
         }
 
-        if ((ownerKind === 'global' || ownerKind === 'type') && declarationFiles.length > 1) {
-            return { kind: 'ambiguous', reason: 'Declaration owner is not unique across candidate files' };
-        }
-
-        const sourceUri = normalizeWorkspaceUri(declarationFiles[0] ?? document.uri);
+        const sourceUri = normalizeWorkspaceUri(document.uri);
         const canonicalRange = resolvedSymbol.selectionRange ?? resolvedSymbol.range;
 
         return {
@@ -174,38 +174,21 @@ export class WorkspaceSymbolOwnerResolver {
         symbolName: string,
         wordRange: vscode.Range
     ): Promise<WorkspaceOwnerResolution> {
-        const matches = ([
-            ['function', await this.getDeclarationFiles(document, 'function', symbolName)],
-            ['global', await this.getDeclarationFiles(document, 'global', symbolName)],
-            ['type', await this.getDeclarationFiles(document, 'type', symbolName)]
-        ] as const).filter(([, files]) => files.length > 0);
-
-        if (matches.length === 0) {
-            return { kind: 'unsupported', reason: 'No visible symbol for token' };
-        }
-
-        if (matches.length > 1) {
-            return { kind: 'ambiguous', reason: 'Multiple declaration kinds matched the same token' };
-        }
-
-        const [ownerKind, declarationFiles] = matches[0];
-        if (declarationFiles.length !== 1) {
-            return { kind: 'ambiguous', reason: 'Declaration owner is not unique across candidate files' };
-        }
-
-        const sourceUri = normalizeWorkspaceUri(declarationFiles[0]);
-        return {
-            kind: 'workspace-visible',
-            owner: {
-                kind: ownerKind,
-                key: `${ownerKind}:${sourceUri}:${symbolName}`,
-                name: symbolName,
-                sourceUri,
-                canonicalRange: wordRange
-            }
-        };
+        return { kind: 'unsupported', reason: 'No proven external owner for token' };
     }
 
+    private async isCrossFilePrototypeFamilyAmbiguous(
+        document: vscode.TextDocument,
+        semanticSnapshot: SemanticSnapshot,
+        symbolName: string
+    ): Promise<boolean> {
+        if (hasLocalFunctionImplementation(semanticSnapshot.syntax.nodes, symbolName)) {
+            return false;
+        }
+
+        const declarationFiles = await this.getDeclarationFiles(document, 'function', symbolName);
+        return declarationFiles.length > 1;
+    }
 }
 
 export function sameWorkspaceSymbolOwner(
@@ -234,6 +217,14 @@ function toWorkspaceOwnerKind(symbol: Symbol): WorkspaceSymbolOwnerKind | undefi
 
 function uniqueStrings(values: string[]): string[] {
     return Array.from(new Set(values));
+}
+
+function hasLocalFunctionImplementation(nodes: readonly SyntaxNode[], symbolName: string): boolean {
+    return nodes.some((node) =>
+        node.kind === SyntaxKind.FunctionDeclaration
+        && node.name === symbolName
+        && node.children.some((child) => child.kind === SyntaxKind.Block)
+    );
 }
 
 export function normalizeWorkspaceUri(target: vscode.Uri | string): string {

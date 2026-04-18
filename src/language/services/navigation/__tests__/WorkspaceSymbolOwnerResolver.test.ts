@@ -193,6 +193,31 @@ describe('WorkspaceSymbolOwnerResolver', () => {
         expect(result.owner.key).toContain('function:file:///D:/workspace/room.c');
     });
 
+    test('keeps a locally resolved declaration workspace-visible even when another file declares the same name', async () => {
+        const source = [
+            'int query_id() { return 1; }',
+            'int demo() { return query_id(); }'
+        ].join('\n');
+        const document = createTextDocument('file:///D:/workspace/room.c', source);
+        const WorkspaceSymbolOwnerResolver = loadWorkspaceSymbolOwnerResolver();
+        const resolver = new WorkspaceSymbolOwnerResolver({
+            workspaceSemanticIndexService: createWorkspaceSemanticIndexService({
+                functions: {
+                    query_id: [
+                        document.uri.toString(),
+                        'file:///D:/workspace/other_room.c'
+                    ]
+                }
+            })
+        });
+
+        const result = await resolver.resolveOwner(document, positionOn(source, 'query_id'));
+
+        expect(result.kind).toBe('workspace-visible');
+        expect(result.owner.kind).toBe('function');
+        expect(result.owner.key).toContain('function:file:///D:/workspace/room.c');
+    });
+
     test('treats locals and parameters as current-file only', async () => {
         const source = [
             'int demo(object actor) {',
@@ -304,5 +329,22 @@ describe('WorkspaceSymbolOwnerResolver', () => {
         const result = await resolver.resolveOwner(document, positionOn(source, 'execute_command'));
 
         expect(result.kind).toBe('ambiguous');
+    });
+
+    test('does not upgrade unresolved external tokens to workspace-visible owners using name uniqueness alone', async () => {
+        const source = 'int look() { return query_id(); }';
+        const document = createTextDocument('file:///D:/workspace/cmds/look.c', source);
+        const WorkspaceSymbolOwnerResolver = loadWorkspaceSymbolOwnerResolver();
+        const resolver = new WorkspaceSymbolOwnerResolver({
+            workspaceSemanticIndexService: createWorkspaceSemanticIndexService({
+                functions: {
+                    query_id: ['file:///D:/workspace/room.c']
+                }
+            })
+        });
+
+        const result = await resolver.resolveOwner(document, positionOn(source, 'query_id'));
+
+        expect(result.kind).toBe('unsupported');
     });
 });

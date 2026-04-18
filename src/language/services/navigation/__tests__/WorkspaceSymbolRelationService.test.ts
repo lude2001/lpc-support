@@ -542,7 +542,7 @@ describe('WorkspaceSymbolRelationService', () => {
         ]));
     });
 
-    test('real workspace chain reaches pure usage files via the workspace index superset', async () => {
+    test('real workspace chain filters pure usage files when no semantic edge proves the same owner', async () => {
         const roomSource = 'int query_id() { return 1; }';
         const lookSource = 'int look() { return query_id(); }';
         const roomDocument = createTextDocument('file:///D:/workspace/room.c', roomSource);
@@ -586,11 +586,6 @@ describe('WorkspaceSymbolRelationService', () => {
         );
 
         expect(refs).not.toBe(loadWorkspaceSymbolRelationModule().CURRENT_FILE_FALLBACK);
-        expect(refs).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                uri: 'file:///D:/workspace/cmds/look.c',
-                range: expect.objectContaining({ start: { line: 0, character: 20 } })
-            })
-        ]));
+        expect(refs).toEqual([]);
     });
 });
