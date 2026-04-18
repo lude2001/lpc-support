@@ -6,7 +6,7 @@
 
 核心设计原则是：统一的 `ObjectInferenceService` 作为唯一入口，被多个语言服务共享调用，避免各 Provider 各自实现推导逻辑。
 
-自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。
+自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾尝试引入工作区级 `references / rename`；自 `0.45.1` 起，导航主路径重新收窄为“当前文件级 + 可证明继承链级”的保守边界，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。
 
 ## 2. 架构总览
 

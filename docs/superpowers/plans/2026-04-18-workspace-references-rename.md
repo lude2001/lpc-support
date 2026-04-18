@@ -1,5 +1,7 @@
 # Workspace References / Rename Implementation Plan
 
+> Superseded on 2026-04-18 by [2026-04-18-navigation-capability-narrowing-design.md](/D:/code/lpc-support/docs/superpowers/specs/2026-04-18-navigation-capability-narrowing-design.md) and [2026-04-18-navigation-architecture-debt-reduction-design.md](/D:/code/lpc-support/docs/superpowers/specs/2026-04-18-navigation-architecture-debt-reduction-design.md). The workspace-wide relation pipeline below is retained only as historical context and is no longer the active production direction.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add workspace-wide `references` and safe `rename` for cross-file-visible symbols in the first phase: functions, file-scope globals, and type definitions, while keeping locals/parameters current-file only and refusing unsafe rename cases.

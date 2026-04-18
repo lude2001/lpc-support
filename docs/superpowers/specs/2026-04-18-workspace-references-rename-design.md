@@ -1,5 +1,7 @@
 # 工作区级 References / Rename 设计
 
+> Superseded on 2026-04-18 by [2026-04-18-navigation-capability-narrowing-design.md](/D:/code/lpc-support/docs/superpowers/specs/2026-04-18-navigation-capability-narrowing-design.md) and [2026-04-18-navigation-architecture-debt-reduction-design.md](/D:/code/lpc-support/docs/superpowers/specs/2026-04-18-navigation-architecture-debt-reduction-design.md). The workspace-wide references/rename architecture described below is no longer the active production direction.
+
 ## 背景
 
 当前导航链里，`definition`、`hover`、`signature help`、对象方法推导，以及 `::method()` / `room::method()` scoped 调用已经逐步进入统一的 LSP 主路径，但 `references` 与 `rename` 仍明显停留在单文件阶段：
