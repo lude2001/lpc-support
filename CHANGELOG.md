@@ -2,7 +2,7 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
-## [Unreleased]
+## [0.45.1] - 2026-04-18
 
 ### Navigation Capability Narrowing
 
@@ -10,6 +10,16 @@
 - 函数与 `struct/class` 定义现在不再支持 `rename`；`rename` 仅保留局部变量、函数参数和文件级全局变量。
 - 文件级全局变量的 `references / rename` 只会沿静态可解析且可证明的 `inherit` 链扩展；发生遮蔽、分支歧义或未解析 `inherit` 时会保守降级。
 - LSP runtime 现在明确区分“函数 rename 被拒绝”和“局部变量/参数等仍可正常 rename”的路径，并补充对应的 spawned runtime 回归。
+
+## [0.45.0] - 2026-04-18
+
+### 工作区级引用与安全重命名
+
+- 新增工作区级 `references` 与安全 `rename`：函数、文件级全局变量和类型定义现在可以跨文件返回引用结果，并在可证明安全时生成多文件重命名编辑。
+- 本地变量和参数仍然保持当前文件内语义，不会被错误扩展到工作区级引用或重命名。
+- 工作区级 owner 解析改为保守证明策略：当声明归属无法唯一证明时，`references` 只会保守降级为当前文件结果或空结果，`rename` 会直接拒绝，而不会按同名猜测跨文件关系。
+- 同文件中的函数 prototype / implementation 现在会被视为同一个 callable family；跨文件 `.h/.c` 不能唯一证明归属时，仍会保守失败。
+- 新增 `WorkspaceSemanticIndexService`、owner resolver、reference collector、navigation service、runtime wiring 与 handler 集成回归覆盖，并修正“本地声明被无关同名文件误判 ambiguous”以及“外部 unresolved token 仅凭名字唯一被错误升级”为工作区级 owner 的问题。
 
 ## [0.44.0] - 2026-04-18
 
