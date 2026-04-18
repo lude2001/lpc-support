@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../../../ast/astManager';
 import { SymbolType } from '../../../ast/symbolTable';
-import { InheritanceResolver } from '../../../completion/inheritanceResolver';
-import type { MacroManager } from '../../../macroManager';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import {
@@ -28,7 +26,6 @@ export interface InheritedSymbolRelationServiceOptions extends InheritedFileGlob
 }
 
 export class InheritedSymbolRelationService {
-    private readonly astManager = ASTManager.getInstance();
     private readonly functionRelationService: Pick<InheritedFunctionRelationService, 'collectFunctionReferences'>;
     private readonly fileGlobalRelationService: Pick<InheritedFileGlobalRelationService, 'resolveVisibleBinding' | 'collectReferences'>;
 
@@ -45,7 +42,7 @@ export class InheritedSymbolRelationService {
         options: { includeDeclaration: boolean }
     ): Promise<InheritedReferenceMatch[]> {
         const targetPosition = toVsCodePosition(position);
-        const symbolName = this.getWordAtPosition(document, targetPosition);
+        const symbolName = getWordAtPosition(document, targetPosition);
         if (!symbolName) {
             return [];
         }
@@ -68,12 +65,12 @@ export class InheritedSymbolRelationService {
         position: vscode.Position
     ): Promise<RenameTargetClassification> {
         const targetPosition = toVsCodePosition(position);
-        const symbolName = this.getWordAtPosition(document, targetPosition);
+        const symbolName = getWordAtPosition(document, targetPosition);
         if (!symbolName) {
             return { kind: 'unsupported' };
         }
 
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = ASTManager.getInstance().getSemanticSnapshot(document, false);
         const resolvedSymbol = resolveVisibleSymbol(snapshot.symbolTable, symbolName, targetPosition);
         if (resolvedSymbol?.type === SymbolType.PARAMETER) {
             return { kind: 'current-file-only' };
@@ -103,7 +100,7 @@ export class InheritedSymbolRelationService {
         newName: string
     ): Promise<Record<string, Array<{ range: vscode.Range; newText: string }>>> {
         const targetPosition = toVsCodePosition(position);
-        const symbolName = this.getWordAtPosition(document, targetPosition);
+        const symbolName = getWordAtPosition(document, targetPosition);
         if (!symbolName) {
             return {};
         }
@@ -127,16 +124,16 @@ export class InheritedSymbolRelationService {
 
         return changes;
     }
+}
 
-    private getWordAtPosition(document: vscode.TextDocument, position: vscode.Position): string | undefined {
-        const wordRange = document.getWordRangeAtPosition(position);
-        if (!wordRange) {
-            return undefined;
-        }
-
-        const word = document.getText(wordRange);
-        return word || undefined;
+function getWordAtPosition(document: vscode.TextDocument, position: vscode.Position): string | undefined {
+    const wordRange = document.getWordRangeAtPosition(position);
+    if (!wordRange) {
+        return undefined;
     }
+
+    const word = document.getText(wordRange);
+    return word || undefined;
 }
 
 function toVsCodePosition(position: vscode.Position | { line: number; character: number }): vscode.Position {
