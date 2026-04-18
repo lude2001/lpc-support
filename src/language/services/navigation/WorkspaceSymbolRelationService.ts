@@ -1,4 +1,3 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { WorkspaceSemanticIndexService } from './WorkspaceSemanticIndexService';
 import {
@@ -6,6 +5,10 @@ import {
     WorkspaceSymbolOwnerResolver
 } from './WorkspaceSymbolOwnerResolver';
 import { WorkspaceReferenceCollector } from './WorkspaceReferenceCollector';
+import {
+    resolveWorkspaceRootForDocument,
+    type WorkspaceRootHost
+} from './workspaceSymbolTypes';
 
 export const CURRENT_FILE_FALLBACK = Symbol('CURRENT_FILE_FALLBACK');
 
@@ -22,17 +25,24 @@ export interface WorkspaceSymbolRelationServiceOptions {
     ownerResolver: Pick<WorkspaceSymbolOwnerResolver, 'resolveOwner'>;
     workspaceSemanticIndexService: Pick<WorkspaceSemanticIndexService, 'getIndexView'>;
     referenceCollector: Pick<WorkspaceReferenceCollector, 'collect'>;
+    host?: WorkspaceRootHost;
 }
+
+const defaultWorkspaceRootHost: WorkspaceRootHost = {
+    getWorkspaceFolders: () => vscode.workspace.workspaceFolders
+};
 
 export class WorkspaceSymbolRelationService {
     private readonly ownerResolver: Pick<WorkspaceSymbolOwnerResolver, 'resolveOwner'>;
     private readonly workspaceSemanticIndexService: Pick<WorkspaceSemanticIndexService, 'getIndexView'>;
     private readonly referenceCollector: Pick<WorkspaceReferenceCollector, 'collect'>;
+    private readonly host: WorkspaceRootHost;
 
     public constructor(options: WorkspaceSymbolRelationServiceOptions) {
         this.ownerResolver = options.ownerResolver;
         this.workspaceSemanticIndexService = options.workspaceSemanticIndexService;
         this.referenceCollector = options.referenceCollector;
+        this.host = options.host ?? defaultWorkspaceRootHost;
     }
 
     public async collectReferences(
@@ -113,7 +123,7 @@ export class WorkspaceSymbolRelationService {
         owner: WorkspaceSymbolOwner,
         options: { includeDeclaration: boolean }
     ): Promise<Array<{ uri: string; range: vscode.Range }>> {
-        const workspaceRoot = vscode.workspace.getWorkspaceFolder?.(document.uri)?.uri.fsPath ?? path.dirname(document.uri.fsPath);
+        const workspaceRoot = resolveWorkspaceRootForDocument(document, this.host);
         const indexView = await this.workspaceSemanticIndexService.getIndexView(workspaceRoot);
         const candidateFiles = selectCandidateFiles(indexView, owner);
         return this.referenceCollector.collect(owner, candidateFiles, options);

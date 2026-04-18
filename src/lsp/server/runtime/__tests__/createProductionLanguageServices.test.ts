@@ -361,8 +361,17 @@ describe('createProductionLanguageServices', () => {
                     getWorkspaceFolders: expect.any(Function)
                 })
             }));
+            expect(ownerResolverCtor).toHaveBeenCalledWith(expect.objectContaining({
+                workspaceSemanticIndexService,
+                host: expect.objectContaining({
+                    getWorkspaceFolders: expect.any(Function)
+                })
+            }));
             expect(workspaceRelationCtor).toHaveBeenCalledWith(expect.objectContaining({
-                workspaceSemanticIndexService
+                workspaceSemanticIndexService,
+                host: expect.objectContaining({
+                    getWorkspaceFolders: expect.any(Function)
+                })
             }));
             expect(referenceCollectorCtor).toHaveBeenCalledWith(expect.objectContaining({
                 candidateEnumerator: workspaceReferenceCandidateEnumerator

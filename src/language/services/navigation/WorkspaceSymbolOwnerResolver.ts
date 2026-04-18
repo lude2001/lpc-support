@@ -1,9 +1,12 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { Symbol, SymbolType } from '../../../ast/symbolTable';
 import { DocumentSemanticSnapshotService } from '../../../completion/documentSemanticSnapshotService';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { WorkspaceSemanticIndexService } from './WorkspaceSemanticIndexService';
+import {
+    resolveWorkspaceRootForDocument,
+    type WorkspaceRootHost
+} from './workspaceSymbolTypes';
 
 export type WorkspaceSymbolOwnerKind = 'function' | 'global' | 'type';
 
@@ -24,15 +27,22 @@ export type WorkspaceOwnerResolution =
 export interface WorkspaceSymbolOwnerResolverOptions {
     workspaceSemanticIndexService: Pick<WorkspaceSemanticIndexService, 'getIndexView'>;
     snapshotService?: DocumentSemanticSnapshotService;
+    host?: WorkspaceRootHost;
 }
+
+const defaultWorkspaceRootHost: WorkspaceRootHost = {
+    getWorkspaceFolders: () => vscode.workspace.workspaceFolders
+};
 
 export class WorkspaceSymbolOwnerResolver {
     private readonly workspaceSemanticIndexService: Pick<WorkspaceSemanticIndexService, 'getIndexView'>;
     private readonly snapshotService: DocumentSemanticSnapshotService;
+    private readonly host: WorkspaceRootHost;
 
     public constructor(options: WorkspaceSymbolOwnerResolverOptions) {
         this.workspaceSemanticIndexService = options.workspaceSemanticIndexService;
         this.snapshotService = options.snapshotService ?? DocumentSemanticSnapshotService.getInstance();
+        this.host = options.host ?? defaultWorkspaceRootHost;
     }
 
     public async resolveOwner(
@@ -108,12 +118,11 @@ export class WorkspaceSymbolOwnerResolver {
         ownerKind: WorkspaceSymbolOwnerKind,
         symbolName: string
     ): Promise<string[]> {
-        for (const workspaceRoot of this.getWorkspaceRootCandidates(document)) {
-            const indexView = await this.getIndexView(workspaceRoot);
-            const declarationFiles = this.getDeclarationFilesFromView(indexView, ownerKind, symbolName);
-            if (declarationFiles.length > 0) {
-                return declarationFiles;
-            }
+        const workspaceRoot = resolveWorkspaceRootForDocument(document, this.host);
+        const indexView = await this.getIndexView(workspaceRoot);
+        const declarationFiles = this.getDeclarationFilesFromView(indexView, ownerKind, symbolName);
+        if (declarationFiles.length > 0) {
+            return declarationFiles;
         }
 
         return [];
@@ -197,26 +206,6 @@ export class WorkspaceSymbolOwnerResolver {
         };
     }
 
-    private getWorkspaceRootCandidates(document: vscode.TextDocument): string[] {
-        const explicitWorkspaceRoot = vscode.workspace.getWorkspaceFolder?.(document.uri)?.uri.fsPath;
-        if (explicitWorkspaceRoot) {
-            return [explicitWorkspaceRoot];
-        }
-
-        const candidates: string[] = [];
-        let current = path.dirname(document.uri.fsPath);
-        while (current && !candidates.includes(current)) {
-            candidates.push(current);
-            const parent = path.dirname(current);
-            if (parent === current) {
-                break;
-            }
-
-            current = parent;
-        }
-
-        return candidates;
-    }
 }
 
 export function sameWorkspaceSymbolOwner(

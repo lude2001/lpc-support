@@ -60,7 +60,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         host: navigationWorkspaceHost
     });
     const workspaceSymbolOwnerResolver = new WorkspaceSymbolOwnerResolver({
-        workspaceSemanticIndexService
+        workspaceSemanticIndexService,
+        host: navigationWorkspaceHost
     });
     const workspaceReferenceCandidateEnumerator = new WorkspaceReferenceCandidateEnumerator();
     const workspaceReferenceCollector = new WorkspaceReferenceCollector({
@@ -71,7 +72,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const workspaceRelationService = new WorkspaceSymbolRelationService({
         ownerResolver: workspaceSymbolOwnerResolver,
         workspaceSemanticIndexService,
-        referenceCollector: workspaceReferenceCollector
+        referenceCollector: workspaceReferenceCollector,
+        host: navigationWorkspaceHost
     });
 
     const completionService = new QueryBackedLanguageCompletionService(

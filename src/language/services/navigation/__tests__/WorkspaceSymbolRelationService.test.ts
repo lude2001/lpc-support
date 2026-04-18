@@ -562,7 +562,10 @@ describe('WorkspaceSymbolRelationService', () => {
             WorkspaceSymbolRelationService
         } = loadWorkspaceRelationDependencies();
         const workspaceSemanticIndexService = new WorkspaceSemanticIndexService({ host });
-        const ownerResolver = new WorkspaceSymbolOwnerResolver({ workspaceSemanticIndexService });
+        const ownerResolver = new WorkspaceSymbolOwnerResolver({
+            workspaceSemanticIndexService,
+            host
+        });
         const candidateEnumerator = new WorkspaceReferenceCandidateEnumerator();
         const referenceCollector = new WorkspaceReferenceCollector({
             host,
@@ -572,7 +575,8 @@ describe('WorkspaceSymbolRelationService', () => {
         const relationService = new WorkspaceSymbolRelationService({
             ownerResolver,
             workspaceSemanticIndexService,
-            referenceCollector
+            referenceCollector,
+            host
         });
 
         const refs = await relationService.collectReferences(

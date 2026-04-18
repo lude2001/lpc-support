@@ -42,7 +42,7 @@ export interface LanguageRenameService {
     provideRenameEdits(request: LanguageRenameRequest): Promise<LanguageWorkspaceEdit>;
 }
 
-// Rename remains intentionally current-file only by routing through resolveSymbolReferences.
+// Rename keeps the single-file adapter as a fallback when workspace relations are unavailable.
 export class AstBackedLanguageRenameService implements LanguageRenameService {
     public constructor(
         private readonly dependencies: {
