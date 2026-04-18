@@ -4,12 +4,15 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFileSync, fork, type ChildProcess } from 'child_process';
 import {
+    DidChangeTextDocumentNotification,
     DidOpenTextDocumentNotification,
     DocumentFormattingRequest,
     ExitNotification,
     InitializeRequest,
     InitializedNotification,
+    PrepareRenameRequest,
     PublishDiagnosticsNotification,
+    RenameRequest,
     ShutdownRequest,
     type Diagnostic,
     type ProtocolConnection,
@@ -65,6 +68,61 @@ describe('spawned LSP runtime integration', () => {
             'void test()',
             '{',
             '}'
+        ].join('\n'));
+    }, 30000);
+
+    test('renames unsaved same-file function edits from the latest in-memory text', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-rename-unsaved-'));
+        const documentPath = path.join(workspaceRoot, 'rename-me.c');
+        const savedText = [
+            'int query_id() { return 1; }',
+            'int demo() { return query_id(); }'
+        ].join('\n');
+        const unsavedText = [
+            'int query_name() { return 1; }',
+            'int demo() { return query_name(); }'
+        ].join('\n');
+
+        fs.writeFileSync(documentPath, savedText, 'utf8');
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+
+        await harness.openDocument(documentPath, savedText);
+        await harness.changeDocument(documentPath, unsavedText, 2);
+
+        const prepareResult = await harness.connection.sendRequest(PrepareRenameRequest.type, {
+            textDocument: {
+                uri: uriFromPath(documentPath)
+            },
+            position: {
+                line: 0,
+                character: 6
+            }
+        });
+        const renameEdit = await harness.connection.sendRequest(RenameRequest.type, {
+            textDocument: {
+                uri: uriFromPath(documentPath)
+            },
+            position: {
+                line: 0,
+                character: 6
+            },
+            newName: 'query_title'
+        });
+
+        expect(prepareResult).toEqual({
+            range: {
+                start: { line: 0, character: 4 },
+                end: { line: 0, character: 14 }
+            },
+            placeholder: 'query_name'
+        });
+        expect(renameEdit).toBeDefined();
+        expect(renameEdit?.changes).toBeDefined();
+        expect(renameEdit?.changes?.[uriFromPath(documentPath)]).toBeDefined();
+        expect(renameEdit?.changes?.[uriFromPath(documentPath)]).not.toHaveLength(0);
+        expect(applyTextEdits(unsavedText, renameEdit?.changes?.[uriFromPath(documentPath)] ?? [])).toBe([
+            'int query_title() { return 1; }',
+            'int demo() { return query_title(); }'
         ].join('\n'));
     }, 30000);
 });
@@ -170,6 +228,20 @@ class SpawnedServerHarness {
                 version: 1,
                 text
             }
+        });
+    }
+
+    public async changeDocument(documentPath: string, text: string, version: number): Promise<void> {
+        await this.connection.sendNotification(DidChangeTextDocumentNotification.type, {
+            textDocument: {
+                uri: uriFromPath(documentPath),
+                version
+            },
+            contentChanges: [
+                {
+                    text
+                }
+            ]
         });
     }
 

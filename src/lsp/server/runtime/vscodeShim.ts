@@ -486,6 +486,15 @@ export function __setConfigurationValue(key: string, value: unknown): void {
     configurationValues.set(key, value);
 }
 
+export function __syncTextDocument(uri: string, text: string, version: number): void {
+    const parsedUri = Uri.parse(uri);
+    textDocuments.set(parsedUri.toString(), createTextDocument(parsedUri, text, version));
+}
+
+export function __closeTextDocument(uri: string): void {
+    textDocuments.delete(Uri.parse(uri).toString());
+}
+
 function createTextDocument(uri: Uri, content: string, version: number): TextDocumentLike {
     const lineStarts = buildLineStarts(content);
     const lines = content.split(/\r?\n/);
