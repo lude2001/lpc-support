@@ -592,9 +592,7 @@ describe('language-service integration regression', () => {
         } as unknown as ASTManager);
         const orchestrator = new DiagnosticsOrchestrator(
             { subscriptions: [], extensionPath: process.cwd() } as any,
-            macroManager as any,
             {
-                collectors: [],
                 diagnosticsService: createSharedDiagnosticsService(ASTManager.getInstance(), [])
             }
         );

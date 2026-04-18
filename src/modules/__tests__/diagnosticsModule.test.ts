@@ -49,13 +49,11 @@ describe('registerDiagnostics', () => {
         expect(createDiagnosticsStack).toHaveBeenCalledWith(macroManager);
         expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(
             context,
-            macroManager,
             expect.objectContaining({
-                diagnosticsService: expect.anything(),
-                collectors: expect.any(Array)
+                diagnosticsService: expect.anything()
             })
         );
-        expect((DiagnosticsOrchestrator as unknown as jest.Mock).mock.calls[0][2]?.registerDocumentLifecycle).toBeUndefined();
+        expect((DiagnosticsOrchestrator as unknown as jest.Mock).mock.calls[0][1]?.registerDocumentLifecycle).toBeUndefined();
         expect(registry.get(Services.Diagnostics)).toBe(diagnosticsOrchestrator);
         expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
 
@@ -101,10 +99,8 @@ describe('registerDiagnostics', () => {
         expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
         expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(
             context,
-            macroManager,
             expect.objectContaining({
-                diagnosticsService: expect.anything(),
-                collectors: expect.any(Array)
+                diagnosticsService: expect.anything()
             })
         );
         expect(registry.get(Services.Diagnostics)).toBe(diagnosticsOrchestrator);

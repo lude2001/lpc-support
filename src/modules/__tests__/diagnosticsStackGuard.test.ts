@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -20,7 +21,7 @@ describe('diagnostics stack production guards', () => {
         expect(extensionSource).toContain('registerDiagnostics(registry, context);');
 
         expect(diagnosticsEntrySource).toContain('createDiagnosticsStack');
-        expect(diagnosticsEntrySource).toContain('createDefaultDiagnosticsCollectors');
+        expect(diagnosticsEntrySource).not.toContain('createDefaultDiagnosticsCollectors');
 
         expect(diagnosticsModuleSource).toContain("from '../diagnostics';");
         expect(diagnosticsModuleSource).toContain('createDiagnosticsStack');

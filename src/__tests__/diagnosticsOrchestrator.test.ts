@@ -1,3 +1,4 @@
+import { describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { ASTManager } from '../ast/astManager';
@@ -48,23 +49,15 @@ function createDocument(content: string, fileName = '/virtual/diagnostics-test.c
 
 function createOrchestrator(
     overrides: {
-        collectors?: IDiagnosticCollector[];
         diagnosticsService?: ReturnType<typeof createSharedDiagnosticsService>;
-        macroManager?: Record<string, unknown>;
         context?: vscode.ExtensionContext;
     } = {}
 ): DiagnosticsOrchestrator {
-    const collectors = overrides.collectors ?? [];
+    const collectors: IDiagnosticCollector[] = [];
     const diagnosticsService = overrides.diagnosticsService ?? createSharedDiagnosticsService({} as ASTManager, collectors);
-    const macroManager = overrides.macroManager ?? {
-        getMacro: jest.fn(),
-        getMacroHoverContent: jest.fn(),
-        canResolveMacro: jest.fn()
-    };
     const context = overrides.context ?? ({ subscriptions: [], extensionPath: process.cwd() } as any);
 
-    return new DiagnosticsOrchestrator(context, macroManager as any, {
-        collectors,
+    return new DiagnosticsOrchestrator(context, {
         diagnosticsService
     });
 }

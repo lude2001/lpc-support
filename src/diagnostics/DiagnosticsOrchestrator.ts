@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import type { MacroManager } from '../macroManager';
-import { IDiagnosticCollector, DiagnosticCollectionOptions } from './types';
+import { DiagnosticCollectionOptions } from './types';
 import { VariableAnalyzer } from './analyzers/VariableAnalyzer';
 import { VariableInspectorPanel } from './VariableInspectorPanel';
 import { FolderScanner } from './FolderScanner';
@@ -22,7 +21,6 @@ interface LPCConfig {
 }
 
 interface DiagnosticsOrchestratorOptions {
-    collectors: IDiagnosticCollector[];
     diagnosticsService: LanguageDiagnosticsService;
 }
 
@@ -49,7 +47,6 @@ export class DiagnosticsOrchestrator {
 
     constructor(
         context: vscode.ExtensionContext,
-        _macroManager: MacroManager,
         options: DiagnosticsOrchestratorOptions
     ) {
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');

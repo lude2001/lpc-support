@@ -8,10 +8,7 @@ export { DiagnosticsOrchestrator } from './diagnostics/DiagnosticsOrchestrator';
 export { DiagnosticsOrchestrator as LPCDiagnostics } from './diagnostics/DiagnosticsOrchestrator';
 
 // 导出 diagnostics stack factory
-export {
-    createDiagnosticsStack,
-    createDefaultDiagnosticsCollectors
-} from './diagnostics/createDiagnosticsStack';
+export { createDiagnosticsStack } from './diagnostics/createDiagnosticsStack';
 export type { DiagnosticsStack } from './diagnostics/createDiagnosticsStack';
 
 // 导出类型定义

@@ -195,9 +195,7 @@ async function collectHostDiagnostics(
     const diagnosticsService = createSharedDiagnosticsService(ASTManager.getInstance(), resolvedCollectors);
     const orchestrator = new DiagnosticsOrchestrator(
         { subscriptions: [], extensionPath: process.cwd() } as any,
-        macroManager as any,
         {
-            collectors: resolvedCollectors,
             diagnosticsService
         }
     );
@@ -417,9 +415,7 @@ describe('diagnostics parity harness', () => {
         });
         const orchestrator = new DiagnosticsOrchestrator(
             { subscriptions: [], extensionPath: process.cwd() } as any,
-            { getMacro: jest.fn(), canResolveMacro: jest.fn() } as any,
             {
-                collectors: [],
                 diagnosticsService: {
                     collectDiagnostics
                 }

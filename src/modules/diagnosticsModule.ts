@@ -5,9 +5,8 @@ import { DiagnosticsOrchestrator, createDiagnosticsStack } from '../diagnostics'
 
 export function registerDiagnostics(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const macroManager = registry.get(Services.MacroManager);
-    const { collectors, diagnosticsService } = createDiagnosticsStack(macroManager);
-    const diagnostics = new DiagnosticsOrchestrator(context, macroManager, {
-        collectors,
+    const { diagnosticsService } = createDiagnosticsStack(macroManager);
+    const diagnostics = new DiagnosticsOrchestrator(context, {
         diagnosticsService
     });
     registry.register(Services.Diagnostics, diagnostics);
