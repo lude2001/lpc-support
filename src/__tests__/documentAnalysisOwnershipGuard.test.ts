@@ -152,6 +152,22 @@ describe('document analysis ownership guards', () => {
         expect(hoverServiceSource).not.toContain('function createCompletedTextDocumentShim(');
         expect(hoverServiceSource).not.toContain('function createSyntheticDocumentationUri(');
     });
+
+    test('LanguageSignatureHelpService stays a coordinator without inline analyzer/discovery/doc/presentation ownership', () => {
+        const signatureHelpServiceSource = fs.readFileSync(
+            path.join(srcRoot, 'language', 'services', 'signatureHelp', 'LanguageSignatureHelpService.ts'),
+            'utf8'
+        );
+
+        expect(signatureHelpServiceSource).not.toContain('class SyntaxAwareCallSiteAnalyzer');
+        expect(signatureHelpServiceSource).not.toContain('class DefaultCallableTargetDiscoveryService');
+        expect(signatureHelpServiceSource).not.toContain('class DefaultCallableDocResolver');
+        expect(signatureHelpServiceSource).not.toContain('function dedupeTargets(');
+        expect(signatureHelpServiceSource).not.toContain('function mergeCallableDocGroups(');
+        expect(signatureHelpServiceSource).not.toContain('function flattenMergedGroups(');
+        expect(signatureHelpServiceSource).not.toContain('function selectActiveSignature(');
+        expect(signatureHelpServiceSource).not.toContain('function countActiveParameterIndex(');
+    });
 });
 
 function listProductionTypeScriptFiles(rootDir: string): string[] {
