@@ -124,7 +124,13 @@ describe('FunctionDocPanel', () => {
             ].join('\n')
         );
 
-        const panelInstance = new (FunctionDocPanel as any)(panel, efunDocsManager);
+        const panelInstance = new (FunctionDocPanel as any)(
+            panel,
+            efunDocsManager,
+            {
+                openTextDocument: jest.fn()
+            }
+        );
         await panelInstance.update(document);
 
         expect(efunDocsManager.getFunctionDocLookupForDocument).toHaveBeenCalledWith(document, { forceFresh: true });

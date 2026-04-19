@@ -72,7 +72,7 @@ export class EfunLanguageHoverService implements LanguageHoverService {
             return this.renderer.renderHover(standardCallableDoc, { sourceLabel: '标准 Efun' });
         }
 
-        const standardDoc = await this.efunDocsManager.getEfunDoc(word);
+        const standardDoc = this.efunDocsManager.getStandardDoc(word);
         return standardDoc ? this.renderer.renderHover(materializeCallableDoc(standardDoc, 'efun')) : undefined;
     }
 

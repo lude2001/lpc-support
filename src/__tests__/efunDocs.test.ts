@@ -5,6 +5,8 @@ import * as path from 'path';
 import { ASTManager } from '../ast/astManager';
 import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManager';
 import { FunctionDocCompatMaterializer } from '../efun/FunctionDocCompatMaterializer';
+import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
+import { buildEfunHoverMarkdown, createEfunHover } from '../efun/EfunHoverContent';
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
@@ -27,6 +29,20 @@ function createSimulatedScanner(projectConfigService?: any): SimulatedEfunScanne
         new FunctionDocumentationService(),
         new FunctionDocCompatMaterializer()
     );
+}
+
+function createCompatMaterializer(): FunctionDocCompatMaterializer {
+    return new FunctionDocCompatMaterializer();
+}
+
+function createLookupBuilder(
+    documentationService: FunctionDocumentationService,
+    pathSupport: WorkspaceDocumentPathSupport
+): FunctionDocLookupBuilder {
+    return new FunctionDocLookupBuilder({
+        documentationService,
+        pathSupport
+    });
 }
 
 describe('EfunDocsManager', () => {
@@ -60,15 +76,19 @@ describe('EfunDocsManager', () => {
     }
 
     function createManager(extensionPath: string): EfunDocsManager {
+        const documentationService = new FunctionDocumentationService();
+        const pathSupport = new WorkspaceDocumentPathSupport({
+            host: createVsCodeTextDocumentHost()
+        });
         return new EfunDocsManager(
             createContext(extensionPath),
             undefined,
             DocumentSemanticSnapshotService.getInstance(),
             undefined,
-            new FunctionDocumentationService(),
-            new WorkspaceDocumentPathSupport({
-                host: createVsCodeTextDocumentHost()
-            })
+            documentationService,
+            pathSupport,
+            createCompatMaterializer(),
+            createLookupBuilder(documentationService, pathSupport)
         );
     }
 
@@ -210,9 +230,9 @@ describe('EfunDocsManager', () => {
         writeBundleFile(extensionPath, createStructuredBundle());
 
         const manager = createManager(extensionPath);
-        const allocateDoc = await manager.getEfunDoc('allocate');
-        const callOtherDoc = await manager.getEfunDoc('call_other');
-        const callOutDoc = await manager.getEfunDoc('call_out');
+        const allocateDoc = manager.getStandardDoc('allocate');
+        const callOtherDoc = manager.getStandardDoc('call_other');
+        const callOutDoc = manager.getStandardDoc('call_out');
         const minimalDoc = manager.getStandardDoc('minimal_doc');
 
         expect(manager.getAllFunctions()).toEqual(expect.arrayContaining([
@@ -316,7 +336,7 @@ describe('EfunDocsManager', () => {
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().size).toBe(0);
-        await expect(manager.getEfunDoc('allocate')).resolves.toBeUndefined();
+        expect(manager.getStandardDoc('allocate')).toBeUndefined();
         expect(errorSpy).toHaveBeenCalled();
     });
 
@@ -467,8 +487,8 @@ describe('EfunDocsManager', () => {
         }));
 
         const manager = createManager(extensionPath);
-        const mixedReturnsDoc = await manager.getEfunDoc('mixed_returns');
-        const lateOnlyDoc = await manager.getEfunDoc('late_only_return_type');
+        const mixedReturnsDoc = manager.getStandardDoc('mixed_returns');
+        const lateOnlyDoc = manager.getStandardDoc('late_only_return_type');
 
         expect(mixedReturnsDoc?.returnType).toBeUndefined();
         expect(lateOnlyDoc?.returnType).toBeUndefined();
@@ -537,12 +557,11 @@ describe('EfunDocsManager', () => {
     });
 
     test('hover markdown is not trusted and preserves pointer-like parameter types in the table', () => {
-        const manager = createManager(process.cwd()) as any;
-        const hover = manager.createHoverContent({
+        const hover = createEfunHover(buildEfunHoverMarkdown({
             name: 'demo',
             syntax: 'mixed demo(mixed * items, string* label)',
             description: 'demo description\n\n参数:\nmixed * items: item list\nstring* label: label text'
-        });
+        }));
 
         const content = hover.contents as vscode.MarkdownString;
         expect(content.isTrusted).toBe(false);
@@ -551,12 +570,11 @@ describe('EfunDocsManager', () => {
     });
 
     test('hover parameter table escapes markdown-breaking pipe characters', () => {
-        const manager = createManager(process.cwd()) as any;
-        const hover = manager.createHoverContent({
+        const hover = createEfunHover(buildEfunHoverMarkdown({
             name: 'demo',
             syntax: 'void demo(string value)',
             description: 'demo description\n\n参数:\nstring value: foo | bar'
-        });
+        }));
 
         const content = hover.contents as vscode.MarkdownString;
         expect(content.value).toContain('| `value` | `string` | foo \\| bar |');

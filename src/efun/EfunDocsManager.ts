@@ -7,7 +7,6 @@ import {
     assertDocumentPathSupport
 } from '../language/shared/WorkspaceDocumentPathSupport';
 import { BundledEfunLoader } from './BundledEfunLoader';
-import { buildEfunHoverMarkdown, createEfunHover } from './EfunHoverContent';
 import { FileFunctionDocTracker, type FunctionDocLookup } from './FileFunctionDocTracker';
 import { FunctionDocCompatMaterializer } from './FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from './FunctionDocLookupBuilder';
@@ -31,27 +30,32 @@ export class EfunDocsManager {
         analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>,
         macroManager?: Pick<MacroManager, 'getMacro'>,
         documentationService?: FunctionDocumentationService,
-        pathSupport?: WorkspaceDocumentPathSupport
+        pathSupport?: WorkspaceDocumentPathSupport,
+        compatMaterializer?: FunctionDocCompatMaterializer,
+        lookupBuilder?: FunctionDocLookupBuilder
     ) {
         const resolvedAnalysisService = assertAnalysisService('EfunDocsManager', analysisService);
         const resolvedDocumentationService = assertDocumentationService('EfunDocsManager', documentationService);
         const resolvedPathSupport = assertDocumentPathSupport('EfunDocsManager', pathSupport);
-        const compatMaterializer = new FunctionDocCompatMaterializer();
-        const lookupBuilder = new FunctionDocLookupBuilder({
-            documentationService: resolvedDocumentationService,
-            pathSupport: resolvedPathSupport
-        });
+        const resolvedCompatMaterializer = compatMaterializer
+            ?? (() => {
+                throw new Error('EfunDocsManager requires an injected FunctionDocCompatMaterializer');
+            })();
+        const resolvedLookupBuilder = lookupBuilder
+            ?? (() => {
+                throw new Error('EfunDocsManager requires an injected FunctionDocLookupBuilder');
+            })();
         this.bundledLoader = new BundledEfunLoader(context);
         this.fileFunctionDocTracker = new FileFunctionDocTracker({
             documentationService: resolvedDocumentationService,
-            compatMaterializer,
-            lookupBuilder
+            compatMaterializer: resolvedCompatMaterializer,
+            lookupBuilder: resolvedLookupBuilder
         });
         this.simulatedEfunScanner = new SimulatedEfunScanner(
             projectConfigService,
             resolvedAnalysisService,
             resolvedDocumentationService,
-            compatMaterializer
+            resolvedCompatMaterializer
         );
         this.efunDocs = this.createBundledDocsMap();
         this.efunCategories = this.createBundledCategoriesMap();
@@ -122,14 +126,6 @@ export class EfunDocsManager {
     public getStandardCallableDoc(funcName: string): CallableDoc | undefined {
         const structuredDoc = this.bundledLoader.getStructuredDoc(funcName);
         return structuredDoc ? materializeCallableDoc(structuredDoc) : undefined;
-    }
-
-    public async getEfunDoc(funcName: string): Promise<EfunDoc | undefined> {
-        return this.getStandardDoc(funcName);
-    }
-
-    public createHoverContent(doc: EfunDoc): vscode.Hover {
-        return createEfunHover(buildEfunHoverMarkdown(doc));
     }
 
     public getCategories(): Map<string, string[]> {

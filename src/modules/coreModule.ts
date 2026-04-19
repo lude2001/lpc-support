@@ -6,6 +6,8 @@ import { CompletionInstrumentation } from '../completion/completionInstrumentati
 import { LPCConfigManager } from '../config';
 import { LPCCompiler } from '../compiler';
 import { EfunDocsManager } from '../efunDocs';
+import { FunctionDocCompatMaterializer } from '../efun/FunctionDocCompatMaterializer';
+import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { createVsCodeTextDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { MacroManager } from '../macroManager';
@@ -38,6 +40,11 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
         projectConfigService
     });
     registry.register(Services.DocumentPathSupport, documentPathSupport);
+    const functionDocCompatMaterializer = new FunctionDocCompatMaterializer();
+    const functionDocLookupBuilder = new FunctionDocLookupBuilder({
+        documentationService,
+        pathSupport: documentPathSupport
+    });
 
     const efunDocsManager = new EfunDocsManager(
         context,
@@ -45,7 +52,9 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
         analysisService,
         macroManager,
         documentationService,
-        documentPathSupport
+        documentPathSupport,
+        functionDocCompatMaterializer,
+        functionDocLookupBuilder
     );
     registry.register(Services.EfunDocs, efunDocsManager);
 

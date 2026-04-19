@@ -158,6 +158,8 @@ describe('createProductionLanguageServices', () => {
                 analysisService,
                 macroManager,
                 documentationService,
+                expect.anything(),
+                expect.anything(),
                 expect.anything()
             );
             expect(QueryBackedLanguageCompletionService).toHaveBeenCalledWith(

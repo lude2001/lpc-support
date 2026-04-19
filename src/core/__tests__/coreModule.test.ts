@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ServiceRegistry } from '../ServiceRegistry';
 import { Services } from '../ServiceKeys';
@@ -101,8 +101,6 @@ describe('registerCoreServices', () => {
         ((DocumentSemanticSnapshotService as any).getInstance as jest.Mock).mockReset().mockReturnValue(analysisService);
     });
 
-    afterEach(() => {});
-
     test('registers core services, tracks disposables, and wires lifecycle invalidation', () => {
         registerCoreServices(registry, context);
 
@@ -121,6 +119,8 @@ describe('registerCoreServices', () => {
             analysisService,
             macroManager,
             documentationService,
+            expect.anything(),
+            expect.anything(),
             expect.anything()
         );
         expect(CompletionInstrumentation).toHaveBeenCalledTimes(1);

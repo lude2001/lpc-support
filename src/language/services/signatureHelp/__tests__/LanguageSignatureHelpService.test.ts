@@ -5,6 +5,8 @@ import * as path from 'path';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { EfunDocsManager } from '../../../../efunDocs';
+import { FunctionDocCompatMaterializer } from '../../../../efun/FunctionDocCompatMaterializer';
+import { FunctionDocLookupBuilder } from '../../../../efun/FunctionDocLookupBuilder';
 import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
 import { WorkspaceDocumentPathSupport, createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
@@ -349,11 +351,15 @@ describe('LanguageSignatureHelpService', () => {
         ].join('\n');
         const document = createDocument(source, 'D:/workspace/prototype-signature.c');
         const documentationService = new FunctionDocumentationService();
+        const pathSupport = new WorkspaceDocumentPathSupport({
+            host: createVsCodeTextDocumentHost()
+        });
         const efunDocsManager = new EfunDocsManager({
             subscriptions: [],
             extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext, undefined, analysisService, undefined, documentationService, new WorkspaceDocumentPathSupport({
-            host: createVsCodeTextDocumentHost()
+        } as unknown as vscode.ExtensionContext, undefined, analysisService, undefined, documentationService, pathSupport, new FunctionDocCompatMaterializer(), new FunctionDocLookupBuilder({
+            documentationService,
+            pathSupport
         }));
         const service = createSignatureHelpService({
             documentationService,

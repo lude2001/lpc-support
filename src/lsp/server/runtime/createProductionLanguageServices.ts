@@ -5,6 +5,8 @@ import type { ExtensionContext } from 'vscode';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
 import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
+import { FunctionDocCompatMaterializer } from '../../../efun/FunctionDocCompatMaterializer';
+import { FunctionDocLookupBuilder } from '../../../efun/FunctionDocLookupBuilder';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
 import {
@@ -55,6 +57,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         macroManager,
         projectConfigService
     });
+    const functionDocCompatMaterializer = new FunctionDocCompatMaterializer();
+    const functionDocLookupBuilder = new FunctionDocLookupBuilder({
+        documentationService,
+        pathSupport: documentPathSupport
+    });
     const objectInferenceService = new ObjectInferenceService(
         macroManager,
         projectConfigService,
@@ -70,7 +77,9 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         analysisService,
         macroManager,
         documentationService,
-        documentPathSupport
+        documentPathSupport,
+        functionDocCompatMaterializer,
+        functionDocLookupBuilder
     );
     const inheritedRelationService = new InheritedSymbolRelationService({
         analysisService,
