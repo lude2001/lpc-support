@@ -11,7 +11,9 @@ import { FunctionDocumentationService } from '../../../documentation/FunctionDoc
 import { CallableDocRenderer } from '../../../documentation/CallableDocRenderer';
 import { WorkspaceDocumentPathSupport, createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
-import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
+import {
+    createDefaultObjectInferenceService
+} from '../../../../objectInference/ObjectInferenceService';
 import {
     configureAstManagerSingletonForTests,
     resetAstManagerSingletonForTests
@@ -864,14 +866,12 @@ describe('LanguageSignatureHelpService', () => {
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: documentHost
         });
-        const objectInferenceService = new ObjectInferenceService(
-            undefined,
-            undefined,
+        const objectInferenceService = createDefaultObjectInferenceService({
             analysisService,
             documentationService,
-            documentHost,
+            host: documentHost,
             pathSupport
-        );
+        });
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
@@ -959,14 +959,12 @@ describe('LanguageSignatureHelpService', () => {
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: documentHost
         });
-        const objectInferenceService = new ObjectInferenceService(
-            undefined,
-            undefined,
+        const objectInferenceService = createDefaultObjectInferenceService({
             analysisService,
             documentationService,
-            documentHost,
+            host: documentHost,
             pathSupport
-        );
+        });
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');

@@ -14,7 +14,10 @@ import {
 } from '../language/shared/WorkspaceDocumentPathSupport';
 import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
 import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
-import { ObjectInferenceService } from '../objectInference/ObjectInferenceService';
+import {
+    ObjectInferenceService,
+    createDefaultObjectInferenceService
+} from '../objectInference/ObjectInferenceService';
 import { ScopedMethodResolver } from '../objectInference/ScopedMethodResolver';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { TargetMethodLookup } from '../targetMethodLookup';
@@ -189,14 +192,14 @@ describe('language-service integration regression', () => {
     let pathSupport: WorkspaceDocumentPathSupport;
 
     const createObjectInference = (projectConfig?: unknown) =>
-        new ObjectInferenceService(
-            macroManager as any,
-            projectConfig as any,
+        createDefaultObjectInferenceService({
+            macroManager: macroManager as any,
+            playerObjectPathOrProjectConfig: projectConfig as any,
             analysisService,
             documentationService,
-            documentHost,
+            host: documentHost,
             pathSupport
-        );
+        });
 
     const createCompletionService = (
         objectInferenceService?: ObjectInferenceService,

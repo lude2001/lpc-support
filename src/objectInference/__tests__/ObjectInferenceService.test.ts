@@ -9,7 +9,10 @@ import {
     createVsCodeTextDocumentHost
 } from '../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
-import { ObjectInferenceService } from '../ObjectInferenceService';
+import {
+    ObjectInferenceService,
+    createDefaultObjectInferenceService
+} from '../ObjectInferenceService';
 import {
     configureAstManagerSingletonForTests,
     resetAstManagerSingletonForTests
@@ -83,20 +86,20 @@ describe('ObjectInferenceService', () => {
     let documentationService: FunctionDocumentationService;
     const documentHost = createVsCodeTextDocumentHost();
     const createService = (playerObjectPathOrProjectConfig?: unknown) =>
-        new ObjectInferenceService(
-            macroManager as any,
-            playerObjectPathOrProjectConfig as any,
+        createDefaultObjectInferenceService({
+            macroManager: macroManager as any,
+            playerObjectPathOrProjectConfig: playerObjectPathOrProjectConfig as any,
             analysisService,
             documentationService,
-            documentHost,
-            new WorkspaceDocumentPathSupport({
+            host: documentHost,
+            pathSupport: new WorkspaceDocumentPathSupport({
                 host: documentHost,
                 macroManager: macroManager as any,
                 projectConfigService: typeof playerObjectPathOrProjectConfig === 'string'
                     ? undefined
                     : playerObjectPathOrProjectConfig as any
             })
-        );
+        });
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -1481,18 +1484,18 @@ describe('ObjectInferenceService', () => {
                 return baseAnalysisService.getSemanticSnapshot(targetDocument, useCache);
             })
         };
-        const projectConfiguredService = new ObjectInferenceService(
-            macroManager as any,
-            projectConfigService as any,
-            analysisService as any,
+        const projectConfiguredService = createDefaultObjectInferenceService({
+            macroManager: macroManager as any,
+            playerObjectPathOrProjectConfig: projectConfigService as any,
+            analysisService: analysisService as any,
             documentationService,
-            documentHost,
-            new WorkspaceDocumentPathSupport({
+            host: documentHost,
+            pathSupport: new WorkspaceDocumentPathSupport({
                 host: documentHost,
                 macroManager: macroManager as any,
                 projectConfigService: projectConfigService as any
             })
-        );
+        });
         const source = [
             'void demo() {',
             '    object factory = load_object("/adm/objects/configured-include-child-factory");',
@@ -2550,18 +2553,18 @@ describe('ObjectInferenceService', () => {
                 return baseAnalysisService.getSemanticSnapshot(targetDocument, useCache);
             })
         };
-        const projectConfiguredService = new ObjectInferenceService(
-            macroManager as any,
-            projectConfigService as any,
-            analysisService as any,
+        const projectConfiguredService = createDefaultObjectInferenceService({
+            macroManager: macroManager as any,
+            playerObjectPathOrProjectConfig: projectConfigService as any,
+            analysisService: analysisService as any,
             documentationService,
-            documentHost,
-            new WorkspaceDocumentPathSupport({
+            host: documentHost,
+            pathSupport: new WorkspaceDocumentPathSupport({
                 host: documentHost,
                 macroManager: macroManager as any,
                 projectConfigService: projectConfigService as any
             })
-        );
+        });
         const source = [
             'object FACTORY = load_object("/adm/objects/configured-global-include-child-factory");',
             'object weapon = FACTORY->method();',

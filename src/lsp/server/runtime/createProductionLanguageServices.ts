@@ -43,7 +43,7 @@ import {
 } from '../../../language/services/structure/LanguageFoldingService';
 import { DefaultLanguageSemanticTokensService } from '../../../language/services/structure/LanguageSemanticTokensService';
 import { MacroManager } from '../../../macroManager';
-import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
+import { createDefaultObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
@@ -70,14 +70,14 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         documentationService,
         pathSupport: documentPathSupport
     });
-    const objectInferenceService = new ObjectInferenceService(
+    const objectInferenceService = createDefaultObjectInferenceService({
         macroManager,
-        projectConfigService,
+        playerObjectPathOrProjectConfig: projectConfigService,
         analysisService,
         documentationService,
-        workspaceDocumentHost,
-        documentPathSupport
-    );
+        host: workspaceDocumentHost,
+        pathSupport: documentPathSupport
+    });
     const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService, workspaceDocumentHost);
     const inheritanceResolver = new InheritanceResolver(macroManager, undefined);
     const targetMethodLookup = new TargetMethodLookup(analysisService, documentPathSupport);

@@ -91,7 +91,7 @@ describe('createProductionLanguageServices', () => {
                 FormattingService: jest.fn()
             }));
             jest.doMock('../../../../objectInference/ObjectInferenceService', () => ({
-                ObjectInferenceService: jest.fn(() => objectInferenceService)
+                createDefaultObjectInferenceService: jest.fn(() => objectInferenceService)
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
                 TargetMethodLookup: jest.fn(() => targetMethodLookup)
@@ -145,19 +145,21 @@ describe('createProductionLanguageServices', () => {
 
             const { EfunDocsManager } = require('../../../../efun/EfunDocsManager') as typeof import('../../../../efun/EfunDocsManager');
             const { FunctionDocumentationService } = require('../../../../language/documentation/FunctionDocumentationService') as typeof import('../../../../language/documentation/FunctionDocumentationService');
-            const { ObjectInferenceService } = require('../../../../objectInference/ObjectInferenceService') as typeof import('../../../../objectInference/ObjectInferenceService');
+            const { createDefaultObjectInferenceService } = require('../../../../objectInference/ObjectInferenceService') as typeof import('../../../../objectInference/ObjectInferenceService');
             const { createDefaultQueryBackedLanguageCompletionService } = require('../../../../language/services/completion/LanguageCompletionService') as typeof import('../../../../language/services/completion/LanguageCompletionService');
             const { createDefaultObjectInferenceLanguageHoverService } = require('../../../../language/services/navigation/LanguageHoverService') as typeof import('../../../../language/services/navigation/LanguageHoverService');
             const { AstBackedLanguageDefinitionService } = require('../../../../language/services/navigation/LanguageDefinitionService') as typeof import('../../../../language/services/navigation/LanguageDefinitionService');
             const { LanguageSignatureHelpService } = require('../../../../language/services/signatureHelp/LanguageSignatureHelpService') as typeof import('../../../../language/services/signatureHelp/LanguageSignatureHelpService');
             expect(FunctionDocumentationService).toHaveBeenCalledTimes(1);
-            expect(ObjectInferenceService).toHaveBeenCalledWith(
-                macroManager,
-                projectConfigService,
-                analysisService,
-                documentationService,
+            expect(createDefaultObjectInferenceService).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    openTextDocument: expect.any(Function)
+                    macroManager,
+                    playerObjectPathOrProjectConfig: projectConfigService,
+                    analysisService,
+                    documentationService,
+                    host: expect.objectContaining({
+                        openTextDocument: expect.any(Function)
+                    })
                 })
             );
             expect(EfunDocsManager).toHaveBeenCalledWith(
@@ -276,7 +278,7 @@ describe('createProductionLanguageServices', () => {
                 FormattingService: jest.fn()
             }));
             jest.doMock('../../../../objectInference/ObjectInferenceService', () => ({
-                ObjectInferenceService: jest.fn(() => ({ kind: 'object-inference-service' }))
+                createDefaultObjectInferenceService: jest.fn(() => ({ kind: 'object-inference-service' }))
             }));
             jest.doMock('../../../../objectInference/ScopedMethodResolver', () => ({
                 ScopedMethodResolver: scopedMethodResolverCtor
@@ -406,7 +408,7 @@ describe('createProductionLanguageServices', () => {
                 FormattingService: jest.fn()
             }));
             jest.doMock('../../../../objectInference/ObjectInferenceService', () => ({
-                ObjectInferenceService: jest.fn(() => ({ kind: 'object-inference-service' }))
+                createDefaultObjectInferenceService: jest.fn(() => ({ kind: 'object-inference-service' }))
             }));
             jest.doMock('../../../../objectInference/ScopedMethodResolver', () => ({
                 ScopedMethodResolver: jest.fn(() => ({ kind: 'scoped-method-resolver' }))
@@ -502,7 +504,7 @@ describe('createProductionLanguageServices', () => {
                 FormattingService: jest.fn()
             }));
             jest.doMock('../../../../objectInference/ObjectInferenceService', () => ({
-                ObjectInferenceService: jest.fn(() => ({ kind: 'object-inference-service' }))
+                createDefaultObjectInferenceService: jest.fn(() => ({ kind: 'object-inference-service' }))
             }));
             jest.doMock('../../../../objectInference/ScopedMethodResolver', () => ({
                 ScopedMethodResolver: jest.fn(() => ({ kind: 'scoped-method-resolver' }))

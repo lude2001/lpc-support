@@ -25,73 +25,41 @@ import { ScopedMethodResolver } from './ScopedMethodResolver';
 import { ScopedMethodReturnResolver } from './ScopedMethodReturnResolver';
 import { ClassifiedReceiver, InferredObjectAccess, ObjectCandidate } from './types';
 
+export interface ObjectInferenceServiceDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
+    pathSupport?: WorkspaceDocumentPathSupport;
+    returnObjectResolver: ReturnObjectResolver;
+    traceService: ReceiverTraceService;
+    globalBindingResolver: GlobalObjectBindingResolver;
+    inheritedGlobalBindingResolver: InheritedGlobalObjectBindingResolver;
+}
+
+export interface DefaultObjectInferenceServiceDependencies {
+    macroManager?: MacroManager;
+    playerObjectPathOrProjectConfig?: string | LpcProjectConfigService;
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
+    documentationService?: FunctionDocumentationService;
+    host?: TextDocumentHost;
+    pathSupport?: WorkspaceDocumentPathSupport;
+}
+
 export class ObjectInferenceService {
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly classifier = new ReceiverClassifier();
     private readonly candidateResolver = new ObjectCandidateResolver();
     private readonly pathSupport: WorkspaceDocumentPathSupport;
     private readonly returnObjectResolver: ReturnObjectResolver;
-    private readonly objectMethodReturnResolver: ObjectMethodReturnResolver;
     private readonly traceService: ReceiverTraceService;
     private readonly globalBindingResolver: GlobalObjectBindingResolver;
     private readonly inheritedGlobalBindingResolver: InheritedGlobalObjectBindingResolver;
 
-    constructor(
-        private readonly macroManager?: MacroManager,
-        playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
-        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>,
-        documentationService?: FunctionDocumentationService,
-        host?: TextDocumentHost,
-        pathSupport?: WorkspaceDocumentPathSupport
-    ) {
-        this.analysisService = assertAnalysisService('ObjectInferenceService', analysisService);
-        const textDocumentHost = assertTextDocumentHost('ObjectInferenceService', host);
-        const resolvedDocumentationService = assertDocumentationService(
-            'ObjectInferenceService',
-            documentationService
-        );
-        const projectConfigService = typeof playerObjectPathOrProjectConfig === 'string'
-            ? undefined
-            : playerObjectPathOrProjectConfig;
-        this.pathSupport = assertDocumentPathSupport('ObjectInferenceService', pathSupport);
-        const inheritanceResolver = new InheritanceResolver(macroManager);
-        const targetMethodLookup = new TargetMethodLookup(
-            this.analysisService,
-            this.pathSupport
-        );
-        const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, this.analysisService, textDocumentHost);
-        this.returnObjectResolver = new ReturnObjectResolver(
-            macroManager,
-            playerObjectPathOrProjectConfig,
-            resolvedDocumentationService,
-            scopedMethodResolver,
-            this.pathSupport
-        );
-        const scopedMethodReturnResolver = new ScopedMethodReturnResolver(
-            (document, functionName, options) =>
-                this.returnObjectResolver.resolveDocumentedReturnOutcome(document, functionName, options)
-        );
-        this.returnObjectResolver.attachScopedMethodReturnResolver(scopedMethodReturnResolver);
-        this.objectMethodReturnResolver = new ObjectMethodReturnResolver(this.returnObjectResolver, targetMethodLookup);
-        this.globalBindingResolver = new GlobalObjectBindingResolver(
-            this.returnObjectResolver,
-            this.objectMethodReturnResolver,
-            inheritanceResolver,
-            this.analysisService,
-            textDocumentHost
-        );
-        this.inheritedGlobalBindingResolver = new InheritedGlobalObjectBindingResolver(
-            inheritanceResolver,
-            this.globalBindingResolver,
-            this.analysisService,
-            textDocumentHost
-        );
-        this.traceService = new ReceiverTraceService(
-            this.returnObjectResolver,
-            this.objectMethodReturnResolver,
-            this.globalBindingResolver,
-            this.inheritedGlobalBindingResolver
-        );
+    constructor(dependencies: ObjectInferenceServiceDependencies) {
+        this.analysisService = assertAnalysisService('ObjectInferenceService', dependencies.analysisService);
+        this.pathSupport = assertDocumentPathSupport('ObjectInferenceService', dependencies.pathSupport);
+        this.returnObjectResolver = dependencies.returnObjectResolver;
+        this.traceService = dependencies.traceService;
+        this.globalBindingResolver = dependencies.globalBindingResolver;
+        this.inheritedGlobalBindingResolver = dependencies.inheritedGlobalBindingResolver;
     }
 
     public async inferObjectAccess(
@@ -263,4 +231,68 @@ export class ObjectInferenceService {
     private getRangeSize(range: vscode.Range): number {
         return (range.end.line - range.start.line) * 10_000 + (range.end.character - range.start.character);
     }
+}
+
+export function createDefaultObjectInferenceService(
+    dependencies: DefaultObjectInferenceServiceDependencies
+): ObjectInferenceService {
+    const analysisService = assertAnalysisService('ObjectInferenceService', dependencies.analysisService);
+    const textDocumentHost = assertTextDocumentHost('ObjectInferenceService', dependencies.host);
+    const resolvedDocumentationService = assertDocumentationService(
+        'ObjectInferenceService',
+        dependencies.documentationService
+    );
+    const pathSupport = assertDocumentPathSupport('ObjectInferenceService', dependencies.pathSupport);
+    const inheritanceResolver = new InheritanceResolver(dependencies.macroManager);
+    const targetMethodLookup = new TargetMethodLookup(
+        analysisService,
+        pathSupport
+    );
+    const scopedMethodResolver = new ScopedMethodResolver(
+        dependencies.macroManager,
+        undefined,
+        analysisService,
+        textDocumentHost
+    );
+    const returnObjectResolver = new ReturnObjectResolver(
+        dependencies.macroManager,
+        dependencies.playerObjectPathOrProjectConfig,
+        resolvedDocumentationService,
+        scopedMethodResolver,
+        pathSupport
+    );
+    const scopedMethodReturnResolver = new ScopedMethodReturnResolver(
+        (document, functionName, options) =>
+            returnObjectResolver.resolveDocumentedReturnOutcome(document, functionName, options)
+    );
+    returnObjectResolver.attachScopedMethodReturnResolver(scopedMethodReturnResolver);
+    const objectMethodReturnResolver = new ObjectMethodReturnResolver(returnObjectResolver, targetMethodLookup);
+    const globalBindingResolver = new GlobalObjectBindingResolver(
+        returnObjectResolver,
+        objectMethodReturnResolver,
+        inheritanceResolver,
+        analysisService,
+        textDocumentHost
+    );
+    const inheritedGlobalBindingResolver = new InheritedGlobalObjectBindingResolver(
+        inheritanceResolver,
+        globalBindingResolver,
+        analysisService,
+        textDocumentHost
+    );
+    const traceService = new ReceiverTraceService(
+        returnObjectResolver,
+        objectMethodReturnResolver,
+        globalBindingResolver,
+        inheritedGlobalBindingResolver
+    );
+
+    return new ObjectInferenceService({
+        analysisService,
+        pathSupport,
+        returnObjectResolver,
+        traceService,
+        globalBindingResolver,
+        inheritedGlobalBindingResolver
+    });
 }
