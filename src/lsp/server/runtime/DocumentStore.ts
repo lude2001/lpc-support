@@ -28,6 +28,14 @@ export class DocumentStore {
         };
     }
 
+    public list(): Readonly<StoredDocument>[] {
+        return Array.from(this.documents.values()).map((document) => ({
+            uri: document.uri,
+            version: document.version,
+            text: document.text
+        }));
+    }
+
     public close(uri: string): void {
         this.documents.delete(uri);
     }

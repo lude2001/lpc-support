@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getServerWorkspaceRoots } from './serverHostState';
+import { fromFileUri, isPathPrefix, normalizeComparablePath, resolveWorkspaceRootFromRoots } from './serverPathUtils';
+import type { DocumentStore, StoredDocument } from './DocumentStore';
 
 export class Disposable {
     private readonly onDispose?: () => void;
@@ -317,7 +319,10 @@ interface TextDocumentLike {
     validatePosition(position: Position): Position;
 }
 
-const textDocuments = new Map<string, TextDocumentLike>();
+type SyncedDocumentSource = Pick<DocumentStore, 'get' | 'list'>;
+
+const openedReadonlyDocuments = new Map<string, TextDocumentLike>();
+let syncedDocumentSource: SyncedDocumentSource | undefined;
 const configurationValues = new Map<string, unknown>();
 const textDocumentChangedEmitter = new EventEmitter<{ document: TextDocumentLike }>();
 const activeEditorChangedEmitter = new EventEmitter<unknown>();
@@ -363,7 +368,18 @@ export const workspace = {
         }));
     },
     get textDocuments(): TextDocumentLike[] {
-        return Array.from(textDocuments.values());
+        const projected = new Map<string, TextDocumentLike>();
+
+        for (const readonlyDocument of openedReadonlyDocuments.values()) {
+            projected.set(readonlyDocument.uri.toString(), readonlyDocument);
+        }
+
+        for (const storedDocument of syncedDocumentSource?.list() ?? []) {
+            const syncedDocument = createProjectedSyncedDocument(storedDocument);
+            projected.set(syncedDocument.uri.toString(), syncedDocument);
+        }
+
+        return Array.from(projected.values());
     },
     get rootPath(): string | undefined {
         return getServerWorkspaceRoots()[0];
@@ -403,9 +419,9 @@ export const workspace = {
     }),
     getWorkspaceFolder: (target: Uri) => {
         const workspaceRoots = getServerWorkspaceRoots();
-        const candidate = normalizePath(target.fsPath);
-        const matchedRoot = getLongestPrefixMatch(candidate, workspaceRoots);
-        if (!matchedRoot) {
+        const normalizedTargetPath = normalizeComparablePath(target.fsPath);
+        const matchedRoot = resolveWorkspaceRootFromRoots(target.toString(), workspaceRoots);
+        if (!matchedRoot || !isPathPrefix(normalizeComparablePath(matchedRoot), normalizedTargetPath)) {
             return undefined;
         }
 
@@ -470,29 +486,44 @@ export const workspace = {
             ? (isFileUri(target) ? Uri.parse(target) : Uri.file(target))
             : target;
         const cacheKey = uri.toString();
-        const existing = textDocuments.get(cacheKey);
-        if (existing) {
-            return existing;
+        const syncedDocument = syncedDocumentSource?.get(cacheKey);
+        if (syncedDocument) {
+            return createProjectedSyncedDocument(syncedDocument);
+        }
+
+        const existingReadonly = openedReadonlyDocuments.get(cacheKey);
+        if (existingReadonly) {
+            return existingReadonly;
         }
 
         const content = await fs.promises.readFile(uri.fsPath, 'utf8');
         const document = createTextDocument(uri, content, 1);
-        textDocuments.set(cacheKey, document);
+        openedReadonlyDocuments.set(cacheKey, document);
         return document;
     }
 };
+
+export function __bindDocumentStore(source: SyncedDocumentSource | undefined): void {
+    syncedDocumentSource = source;
+}
 
 export function __setConfigurationValue(key: string, value: unknown): void {
     configurationValues.set(key, value);
 }
 
 export function __syncTextDocument(uri: string, text: string, version: number): void {
-    const parsedUri = Uri.parse(uri);
-    textDocuments.set(parsedUri.toString(), createTextDocument(parsedUri, text, version));
+    if (!syncedDocumentSource) {
+        const parsedUri = Uri.parse(uri);
+        openedReadonlyDocuments.set(parsedUri.toString(), createTextDocument(parsedUri, text, version));
+    }
 }
 
 export function __emitTextDocumentChange(uri: string): void {
-    const document = textDocuments.get(Uri.parse(uri).toString());
+    const parsedUri = Uri.parse(uri).toString();
+    const syncedDocument = syncedDocumentSource?.get(parsedUri);
+    const document = syncedDocument
+        ? createProjectedSyncedDocument(syncedDocument)
+        : openedReadonlyDocuments.get(parsedUri);
     if (!document) {
         return;
     }
@@ -501,7 +532,9 @@ export function __emitTextDocumentChange(uri: string): void {
 }
 
 export function __closeTextDocument(uri: string): void {
-    textDocuments.delete(Uri.parse(uri).toString());
+    if (!syncedDocumentSource) {
+        openedReadonlyDocuments.delete(Uri.parse(uri).toString());
+    }
 }
 
 function createTextDocument(uri: Uri, content: string, version: number): TextDocumentLike {
@@ -614,32 +647,8 @@ function globToRegExp(glob: string): RegExp {
     return new RegExp(`^${normalized}$`);
 }
 
-function getLongestPrefixMatch(candidatePath: string, roots: readonly string[]): string | undefined {
-    return roots.reduce<string | undefined>((bestMatch, root) => {
-        const normalizedRoot = normalizePath(root);
-        if (candidatePath !== normalizedRoot && !candidatePath.startsWith(`${normalizedRoot}/`)) {
-            return bestMatch;
-        }
-
-        if (!bestMatch) {
-            return root;
-        }
-
-        return normalizedRoot.length > normalizePath(bestMatch).length ? root : bestMatch;
-    }, undefined);
-}
-
 function normalizePath(targetPath: string): string {
     return targetPath.replace(/\\/g, '/').replace(/\/+$/, '');
-}
-
-function fromFileUri(uri: string): string {
-    if (!isFileUri(uri)) {
-        return uri;
-    }
-
-    const decoded = decodeURIComponent(uri.replace(/^file:\/\/+/, '/'));
-    return decoded.replace(/^\/([A-Za-z]:\/)/, '$1');
 }
 
 function isFileUri(value: string): boolean {
@@ -648,4 +657,8 @@ function isFileUri(value: string): boolean {
 
 function isWordCharacter(char: string | undefined): boolean {
     return Boolean(char && /[A-Za-z0-9_]/.test(char));
+}
+
+function createProjectedSyncedDocument(document: Readonly<StoredDocument>): TextDocumentLike {
+    return createTextDocument(Uri.parse(document.uri), document.text, document.version);
 }

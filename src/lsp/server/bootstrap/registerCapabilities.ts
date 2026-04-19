@@ -57,7 +57,7 @@ import {
     SERVER_LANGUAGE_SEMANTIC_TOKEN_TYPES
 } from '../runtime/semanticTokenLegend';
 import { ServerLogger } from '../runtime/ServerLogger';
-import { __closeTextDocument, __emitTextDocumentChange, __syncTextDocument } from '../runtime/vscodeShim';
+import { __bindDocumentStore, __closeTextDocument, __emitTextDocumentChange, __syncTextDocument } from '../runtime/vscodeShim';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 export type ServerConnection = Pick<
@@ -102,6 +102,7 @@ export interface ServerRegistrationContext {
 
 export function registerCapabilities(context: ServerRegistrationContext): void {
     const { connection, documentStore, diagnosticsSession, logger, serverVersion, workspaceSession, completionService, codeActionsService } = context;
+    __bindDocumentStore(documentStore);
     const contextFactory = new ServerLanguageContextFactory(documentStore, workspaceSession);
     const navigationService: LanguageNavigationService | undefined =
         workspaceSession.toLanguageWorkspaceContext('').services?.navigationService;

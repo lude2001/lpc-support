@@ -42,4 +42,25 @@ describe('DocumentStore', () => {
         expect(mutated.text).toBe('mutated');
         expect(store.get(uri)?.text).toBe('one');
     });
+
+    test('list returns defensive snapshots for all stored documents', () => {
+        const store = new DocumentStore();
+        store.open('file:///one.c', 1, 'one');
+        store.open('file:///two.c', 2, 'two');
+
+        const listed = store.list();
+
+        expect(listed).toEqual([
+            { uri: 'file:///one.c', version: 1, text: 'one' },
+            { uri: 'file:///two.c', version: 2, text: 'two' }
+        ]);
+
+        listed[0] = { uri: 'file:///one.c', version: 99, text: 'mutated' };
+
+        expect(store.get('file:///one.c')).toEqual({
+            uri: 'file:///one.c',
+            version: 1,
+            text: 'one'
+        });
+    });
 });

@@ -126,11 +126,59 @@ describe('document sync runtime bridge', () => {
             cleanup();
         }
     });
+
+    test('workspace.textDocuments projects the latest synchronized text directly from DocumentStore', () => {
+        const uri = 'file:///D:/workspace/runtime-bridge-projection-test.c';
+        const { openHandlers, documentStore, cleanup } = createBridgeHarness(uri);
+
+        try {
+            openHandlers[0]?.({
+                textDocument: {
+                    uri,
+                    languageId: 'lpc',
+                    version: 1,
+                    text: 'int main() { return 0; }'
+                }
+            });
+
+            documentStore.applyFullChange(uri, 9, 'int main() { return 9; }');
+
+            expect(workspace.textDocuments.find(document => document.uri.toString() === uri)?.getText()).toBe(
+                'int main() { return 9; }'
+            );
+            expect(workspace.textDocuments.find(document => document.uri.toString() === uri)?.version).toBe(9);
+        } finally {
+            cleanup();
+        }
+    });
+
+    test('workspace.textDocuments drops synchronized documents once DocumentStore closes them', () => {
+        const uri = 'file:///D:/workspace/runtime-bridge-store-close-test.c';
+        const { openHandlers, documentStore, cleanup } = createBridgeHarness(uri);
+
+        try {
+            openHandlers[0]?.({
+                textDocument: {
+                    uri,
+                    languageId: 'lpc',
+                    version: 1,
+                    text: 'int main() { return 0; }'
+                }
+            });
+
+            documentStore.close(uri);
+
+            expect(workspace.textDocuments.find(document => document.uri.toString() === uri)).toBeUndefined();
+        } finally {
+            cleanup();
+        }
+    });
 });
 
 function createBridgeHarness(uri: string): {
     openHandlers: Array<(params: DidOpenTextDocumentParams) => void>;
     changeHandlers: Array<(params: DidChangeTextDocumentParams) => void>;
+    documentStore: DocumentStore;
     listener: {
         changeEvents: Array<{ uri: string; text: string; version: number }>;
         dispose(): void;
@@ -179,6 +227,7 @@ function createBridgeHarness(uri: string): {
     return {
         openHandlers,
         changeHandlers,
+        documentStore,
         listener: {
             changeEvents,
             dispose: () => listener.dispose()
