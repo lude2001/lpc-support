@@ -24,7 +24,10 @@ import { AstBackedLanguageDefinitionService } from '../../../language/services/n
 import { EfunLanguageHoverService } from '../../../language/services/navigation/EfunLanguageHoverService';
 import {
     createDefaultObjectInferenceLanguageHoverService,
-    LanguageNavigationService
+    LanguageNavigationService,
+    VsCodeHoverDocumentAdapter,
+    VsCodeHoverMethodResolver,
+    VsCodeHoverObjectAccessProvider
 } from '../../../language/services/navigation/LanguageHoverService';
 import { InheritedFileGlobalRelationService } from '../../../language/services/navigation/InheritedFileGlobalRelationService';
 import { InheritedFunctionRelationService } from '../../../language/services/navigation/InheritedFunctionRelationService';
@@ -80,8 +83,12 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         host: workspaceDocumentHost,
         pathSupport: documentPathSupport
     });
-    const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService, workspaceDocumentHost);
     const inheritanceResolver = new InheritanceResolver(macroManager, undefined);
+    const scopedMethodResolver = new ScopedMethodResolver({
+        analysisService,
+        inheritanceResolver,
+        host: workspaceDocumentHost
+    });
     const projectSymbolIndex = new ProjectSymbolIndex(inheritanceResolver);
     const targetMethodLookup = new TargetMethodLookup(analysisService, documentPathSupport);
     const efunDocsManager = new EfunDocsManager(
@@ -110,12 +117,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         functionRelationService: inheritedFunctionRelationService,
         fileGlobalRelationService: inheritedFileGlobalRelationService
     });
-    const scopedMethodDiscoveryService = new ScopedMethodDiscoveryService(
-        macroManager,
-        undefined,
+    const scopedMethodDiscoveryService = new ScopedMethodDiscoveryService({
         analysisService,
-        workspaceDocumentHost
-    );
+        inheritanceResolver,
+        host: workspaceDocumentHost
+    });
     const scopedCompletionSupport = new ScopedMethodCompletionSupport({
         documentationService,
         documentHost: workspaceDocumentHost
@@ -137,13 +143,18 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const codeActionsService = createLanguageCodeActionService();
     const { diagnosticsService } = createDiagnosticsStack(macroManager, analysisService);
     const formattingService = createLanguageFormattingService(new FormattingService());
+    const hoverRenderer = new CallableDocRenderer();
     const objectHoverService = createDefaultObjectInferenceLanguageHoverService(
         objectInferenceService,
         targetMethodLookup,
         {
+            documentAdapter: new VsCodeHoverDocumentAdapter(),
             analysisService,
+            objectAccessProvider: new VsCodeHoverObjectAccessProvider(objectInferenceService),
+            methodResolver: new VsCodeHoverMethodResolver(targetMethodLookup),
             scopedMethodResolver,
-            documentationService
+            documentationService,
+            renderer: hoverRenderer
         }
     );
     const hoverService = new UnifiedLanguageHoverService(

@@ -89,11 +89,12 @@ export interface HoverServiceDependencies {
 }
 
 export interface DefaultObjectInferenceHoverServiceDependencies {
+    documentAdapter: HoverDocumentAdapter;
+    objectAccessProvider: HoverObjectAccessProvider;
+    methodResolver: HoverMethodResolver;
     analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
-    objectAccessProvider?: HoverObjectAccessProvider;
-    methodResolver?: HoverMethodResolver;
     documentationService?: FunctionDocumentationService;
-    renderer?: CallableDocRenderer;
+    renderer: CallableDocRenderer;
     scopedMethodResolver?: ScopedMethodResolver;
 }
 
@@ -148,13 +149,13 @@ function isVsCodeBackedHoverDocument(document: HoverDocument): document is VsCod
     return Boolean((document as Partial<VsCodeBackedHoverDocument>).raw);
 }
 
-class VsCodeHoverDocumentAdapter implements HoverDocumentAdapter {
+export class VsCodeHoverDocumentAdapter implements HoverDocumentAdapter {
     public fromLanguageDocument(document: LanguageCapabilityContext['document']): HoverDocument {
         return toHoverDocument(document as unknown as vscode.TextDocument);
     }
 }
 
-class VsCodeHoverObjectAccessProvider implements HoverObjectAccessProvider {
+export class VsCodeHoverObjectAccessProvider implements HoverObjectAccessProvider {
     public constructor(private readonly objectInferenceService: ObjectInferenceService) {}
 
     public async inferObjectAccess(
@@ -169,7 +170,7 @@ class VsCodeHoverObjectAccessProvider implements HoverObjectAccessProvider {
     }
 }
 
-class VsCodeHoverMethodResolver implements HoverMethodResolver {
+export class VsCodeHoverMethodResolver implements HoverMethodResolver {
     public constructor(private readonly targetMethodLookup: TargetMethodLookup) {}
 
     public async findMethod(
@@ -229,11 +230,10 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
 }
 
 export function createDefaultObjectInferenceLanguageHoverService(
-    objectInferenceService: ObjectInferenceService,
-    targetMethodLookup: TargetMethodLookup | undefined,
+    _objectInferenceService: ObjectInferenceService,
+    _targetMethodLookup: TargetMethodLookup | undefined,
     dependencies: DefaultObjectInferenceHoverServiceDependencies
 ): ObjectInferenceLanguageHoverService {
-    const renderer = dependencies.renderer ?? new CallableDocRenderer();
     const documentationService = assertDocumentationService(
         'ObjectInferenceLanguageHoverService',
         dependencies.documentationService
@@ -242,31 +242,22 @@ export function createDefaultObjectInferenceLanguageHoverService(
         ? new ScopedMethodHoverResolver({
             scopedMethodResolver: dependencies.scopedMethodResolver,
             documentationService,
-            renderer,
+            renderer: dependencies.renderer,
             analysisService: assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies.analysisService)
         })
         : undefined;
     const objectMethodHoverResolver = new ObjectMethodHoverResolver({
-        objectAccessProvider: dependencies.objectAccessProvider
-            ?? new VsCodeHoverObjectAccessProvider(objectInferenceService),
-        methodResolver: dependencies.methodResolver
-            ?? new VsCodeHoverMethodResolver(
-                targetMethodLookup ?? (() => {
-                    throw new Error(
-                        'createDefaultObjectInferenceLanguageHoverService requires an injected TargetMethodLookup '
-                        + 'when no HoverMethodResolver is provided'
-                    );
-                })()
-            ),
+        objectAccessProvider: dependencies.objectAccessProvider,
+        methodResolver: dependencies.methodResolver,
         documentationService,
-        renderer,
+        renderer: dependencies.renderer,
         documentationSupport: {
             toDocumentationTextDocument
         }
     });
 
     return new ObjectInferenceLanguageHoverService({
-        documentAdapter: new VsCodeHoverDocumentAdapter(),
+        documentAdapter: dependencies.documentAdapter,
         scopedHoverResolver,
         objectMethodHoverResolver
     });

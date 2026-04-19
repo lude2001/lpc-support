@@ -42,20 +42,28 @@ type ScopedCallShape =
     | { kind: 'named'; qualifier: string; methodName: string }
     | { kind: 'unsupported'; methodName: string; qualifier?: string };
 
+export interface ScopedMethodResolverDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
+    inheritanceResolver: InheritanceResolver;
+    host?: Pick<TextDocumentHost, 'openTextDocument'>;
+}
+
+export interface DefaultScopedMethodResolverDependencies {
+    macroManager?: MacroManager;
+    workspaceRoots?: string[];
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
+    host?: Pick<TextDocumentHost, 'openTextDocument'>;
+}
+
 export class ScopedMethodResolver {
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
     private readonly host?: Pick<TextDocumentHost, 'openTextDocument'>;
 
-    constructor(
-        macroManager?: MacroManager,
-        workspaceRoots?: string[],
-        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>,
-        host?: Pick<TextDocumentHost, 'openTextDocument'>
-    ) {
-        this.analysisService = assertAnalysisService('ScopedMethodResolver', analysisService);
-        this.inheritanceResolver = new InheritanceResolver(macroManager, workspaceRoots);
-        this.host = host;
+    constructor(dependencies: ScopedMethodResolverDependencies) {
+        this.analysisService = assertAnalysisService('ScopedMethodResolver', dependencies.analysisService);
+        this.inheritanceResolver = dependencies.inheritanceResolver;
+        this.host = dependencies.host;
     }
 
     public async resolveCallAt(
@@ -376,6 +384,16 @@ export class ScopedMethodResolver {
     private getRangeSize(range: vscode.Range): number {
         return (range.end.line - range.start.line) * 10_000 + (range.end.character - range.start.character);
     }
+}
+
+export function createDefaultScopedMethodResolver(
+    dependencies: DefaultScopedMethodResolverDependencies
+): ScopedMethodResolver {
+    return new ScopedMethodResolver({
+        analysisService: dependencies.analysisService,
+        inheritanceResolver: new InheritanceResolver(dependencies.macroManager, dependencies.workspaceRoots),
+        host: dependencies.host
+    });
 }
 
 function createScopedTraversalAnalysisFacade(

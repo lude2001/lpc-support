@@ -11,7 +11,7 @@ import { ProjectSymbolIndex } from '../../../../completion/projectSymbolIndex';
 import { ScopedMethodCompletionSupport } from '../ScopedMethodCompletionSupport';
 import { createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
-import { ScopedMethodDiscoveryService } from '../../../../objectInference/ScopedMethodDiscoveryService';
+import { createDefaultScopedMethodDiscoveryService } from '../../../../objectInference/ScopedMethodDiscoveryService';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -116,12 +116,11 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             } as any,
             projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any)),
             contextAnalyzer: new CompletionContextAnalyzer(),
-            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
-                macroManager as any,
-                undefined,
+            scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
+                macroManager: macroManager as any,
                 analysisService,
-                documentHost
-            ),
+                host: documentHost
+            }),
             scopedCompletionSupport: new ScopedMethodCompletionSupport({
                 documentationService: documentationService as any,
                 documentLoader: scopedDocumentLoader
@@ -194,12 +193,11 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             } as any,
             projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any)),
             contextAnalyzer: new CompletionContextAnalyzer(),
-            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
-                macroManager as any,
-                undefined,
+            scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
+                macroManager: macroManager as any,
                 analysisService,
-                documentHost
-            ),
+                host: documentHost
+            }),
             scopedCompletionSupport: new ScopedMethodCompletionSupport({
                 documentationService: documentationService as any,
                 documentLoader: scopedDocumentLoader

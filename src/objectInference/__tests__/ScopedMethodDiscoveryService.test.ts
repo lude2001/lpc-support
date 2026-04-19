@@ -12,7 +12,10 @@ import {
 
 declare const require: any;
 
-const { ScopedMethodDiscoveryService } = require('../ScopedMethodDiscoveryService');
+const {
+    ScopedMethodDiscoveryService,
+    createDefaultScopedMethodDiscoveryService
+} = require('../ScopedMethodDiscoveryService');
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -72,6 +75,20 @@ function positionAfter(source: string, marker: string): vscode.Position {
     const prefix = source.slice(0, targetOffset);
     const lines = prefix.split('\n');
     return new vscode.Position(lines.length - 1, lines[lines.length - 1].length);
+}
+
+function createDiscoveryService(
+    macroManager: { getMacro: jest.Mock },
+    fixtureRoot: string,
+    analysisService: DocumentSemanticSnapshotService,
+    documentHost?: ReturnType<typeof createVsCodeTextDocumentHost>
+) {
+    return createDefaultScopedMethodDiscoveryService({
+        macroManager: macroManager as any,
+        workspaceRoots: [fixtureRoot],
+        analysisService,
+        host: documentHost
+    });
 }
 
 describe('ScopedMethodDiscoveryService', () => {
@@ -143,7 +160,7 @@ describe('ScopedMethodDiscoveryService', () => {
         ].join('\n');
 
         const document = createDocument(fixturePath('/d/city/room.c'), source);
-        const service = new ScopedMethodDiscoveryService(macroManager as any, [fixtureRoot], analysisService, documentHost);
+        const service = createDiscoveryService(macroManager, fixtureRoot, analysisService, documentHost);
 
         const result = await service.discoverAt(document, positionAfter(source, '::cr'));
 
@@ -167,7 +184,7 @@ describe('ScopedMethodDiscoveryService', () => {
         ].join('\n');
 
         const document = createDocument(fixturePath('/d/city/no_leak.c'), source);
-        const service = new ScopedMethodDiscoveryService(macroManager as any, [fixtureRoot], analysisService, documentHost);
+        const service = createDiscoveryService(macroManager, fixtureRoot, analysisService, documentHost);
 
         const result = await service.discoverAt(document, positionAfter(source, '::cr'));
 
@@ -188,7 +205,7 @@ describe('ScopedMethodDiscoveryService', () => {
         ].join('\n');
 
         const document = createDocument(fixturePath('/d/city/mixed_room.c'), source);
-        const service = new ScopedMethodDiscoveryService(macroManager as any, [fixtureRoot], analysisService, documentHost);
+        const service = createDiscoveryService(macroManager, fixtureRoot, analysisService, documentHost);
 
         const result = await service.discoverAt(document, positionAfter(source, 'room::in'));
 
@@ -210,7 +227,7 @@ describe('ScopedMethodDiscoveryService', () => {
         ].join('\n');
 
         const document = createDocument(fixturePath('/d/city/ambiguous.c'), source);
-        const service = new ScopedMethodDiscoveryService(macroManager as any, [fixtureRoot], analysisService, documentHost);
+        const service = createDiscoveryService(macroManager, fixtureRoot, analysisService, documentHost);
 
         const result = await service.discoverAt(document, positionAfter(source, 'room::in'));
 
@@ -231,7 +248,7 @@ describe('ScopedMethodDiscoveryService', () => {
         ].join('\n');
 
         const document = createDocument(fixturePath('/d/city/unresolved.c'), source);
-        const service = new ScopedMethodDiscoveryService(macroManager as any, [fixtureRoot], analysisService, documentHost);
+        const service = createDiscoveryService(macroManager, fixtureRoot, analysisService, documentHost);
 
         const result = await service.discoverAt(document, positionAfter(source, 'room::in'));
 
@@ -258,7 +275,7 @@ describe('ScopedMethodDiscoveryService', () => {
         ].join('\n');
 
         const document = createDocument(fixturePath('/d/city/nested_unresolved.c'), source);
-        const service = new ScopedMethodDiscoveryService(macroManager as any, [fixtureRoot], analysisService, documentHost);
+        const service = createDiscoveryService(macroManager, fixtureRoot, analysisService, documentHost);
 
         const result = await service.discoverAt(document, positionAfter(source, '::cr'));
 
@@ -274,7 +291,7 @@ describe('ScopedMethodDiscoveryService', () => {
         ].join('\n');
 
         const document = createDocument(fixturePath('/d/city/bad_scope.c'), source);
-        const service = new ScopedMethodDiscoveryService(macroManager as any, [fixtureRoot], analysisService, documentHost);
+        const service = createDiscoveryService(macroManager, fixtureRoot, analysisService, documentHost);
 
         const result = await service.discoverAt(document, positionAfter(source, '::in'));
 

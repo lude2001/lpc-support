@@ -43,20 +43,28 @@ interface ScopedMethodCollection {
     hasUnresolvedTargets: boolean;
 }
 
+export interface ScopedMethodDiscoveryServiceDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
+    inheritanceResolver: InheritanceResolver;
+    host?: Pick<TextDocumentHost, 'openTextDocument'>;
+}
+
+export interface DefaultScopedMethodDiscoveryServiceDependencies {
+    macroManager?: MacroManager;
+    workspaceRoots?: string[];
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
+    host?: Pick<TextDocumentHost, 'openTextDocument'>;
+}
+
 export class ScopedMethodDiscoveryService {
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
     private readonly host?: Pick<TextDocumentHost, 'openTextDocument'>;
 
-    constructor(
-        macroManager?: MacroManager,
-        workspaceRoots?: string[],
-        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>,
-        host?: Pick<TextDocumentHost, 'openTextDocument'>
-    ) {
-        this.analysisService = assertAnalysisService('ScopedMethodDiscoveryService', analysisService);
-        this.inheritanceResolver = new InheritanceResolver(macroManager, workspaceRoots);
-        this.host = host;
+    constructor(dependencies: ScopedMethodDiscoveryServiceDependencies) {
+        this.analysisService = assertAnalysisService('ScopedMethodDiscoveryService', dependencies.analysisService);
+        this.inheritanceResolver = dependencies.inheritanceResolver;
+        this.host = dependencies.host;
     }
 
     public async discoverAt(
@@ -360,6 +368,16 @@ export class ScopedMethodDiscoveryService {
     private getRangeSize(range: vscode.Range): number {
         return (range.end.line - range.start.line) * 10_000 + (range.end.character - range.start.character);
     }
+}
+
+export function createDefaultScopedMethodDiscoveryService(
+    dependencies: DefaultScopedMethodDiscoveryServiceDependencies
+): ScopedMethodDiscoveryService {
+    return new ScopedMethodDiscoveryService({
+        analysisService: dependencies.analysisService,
+        inheritanceResolver: new InheritanceResolver(dependencies.macroManager, dependencies.workspaceRoots),
+        host: dependencies.host
+    });
 }
 
 function createScopedTraversalAnalysisFacade(

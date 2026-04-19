@@ -18,7 +18,11 @@ import {
     ObjectInferenceService,
     createDefaultObjectInferenceService
 } from '../objectInference/ObjectInferenceService';
-import { ScopedMethodResolver } from '../objectInference/ScopedMethodResolver';
+import {
+    ScopedMethodResolver,
+    createDefaultScopedMethodResolver
+} from '../objectInference/ScopedMethodResolver';
+import { createDefaultScopedMethodDiscoveryService } from '../objectInference/ScopedMethodDiscoveryService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
@@ -221,12 +225,12 @@ describe('language-service integration regression', () => {
         } as any,
         projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any, [fixtureRoot])),
         contextAnalyzer: new CompletionContextAnalyzer(),
-        scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
-            macroManager as any,
-            [fixtureRoot],
+        scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
+            macroManager: macroManager as any,
+            workspaceRoots: [fixtureRoot],
             analysisService,
-            documentHost
-        ),
+            host: documentHost
+        }),
         scopedCompletionSupport: new ScopedMethodCompletionSupport({
             documentationService,
             documentHost
@@ -234,7 +238,12 @@ describe('language-service integration regression', () => {
         ...dependencies
     } as any);
     const createScopedMethodResolver = () =>
-        new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService, documentHost);
+        createDefaultScopedMethodResolver({
+            macroManager: macroManager as any,
+            workspaceRoots: [fixtureRoot],
+            analysisService,
+            host: documentHost
+        });
     const createDefinitionService = (
         objectInferenceService?: unknown,
         targetMethodLookup?: unknown,

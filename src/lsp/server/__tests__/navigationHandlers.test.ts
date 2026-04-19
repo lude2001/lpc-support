@@ -33,8 +33,10 @@ import {
 } from '../../../__tests__/testAstManagerSingleton';
 import {
     createDefaultObjectInferenceLanguageHoverService,
+    VsCodeHoverDocumentAdapter,
     type LanguageNavigationService
 } from '../../../language/services/navigation/LanguageHoverService';
+import { CallableDocRenderer } from '../../../language/documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import {
     AstBackedLanguageReferenceService,
@@ -202,6 +204,7 @@ describe('navigation handlers', () => {
             {} as any,
             undefined,
             {
+                documentAdapter: new VsCodeHoverDocumentAdapter(),
                 objectAccessProvider: {
                     inferObjectAccess: jest.fn().mockResolvedValue({
                         memberName: 'query_name',
@@ -223,8 +226,9 @@ describe('navigation handlers', () => {
                         ].join('\n')
                     })
                 },
-                documentationService: new FunctionDocumentationService()
-            } as any
+                documentationService: new FunctionDocumentationService(),
+                renderer: new CallableDocRenderer()
+            }
         );
         const navigationService = {
             ...createNavigationServiceStub(),

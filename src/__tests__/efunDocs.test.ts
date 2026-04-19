@@ -12,7 +12,7 @@ import { EfunDocsManager } from '../efunDocs';
 import { createDefaultQueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { ScopedMethodCompletionSupport } from '../language/services/completion/ScopedMethodCompletionSupport';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
-import { ScopedMethodDiscoveryService } from '../objectInference/ScopedMethodDiscoveryService';
+import { createDefaultScopedMethodDiscoveryService } from '../objectInference/ScopedMethodDiscoveryService';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import { CompletionContextAnalyzer } from '../completion/completionContextAnalyzer';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
@@ -305,12 +305,10 @@ describe('EfunDocsManager', () => {
             } as any,
             projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(undefined)),
             contextAnalyzer: new CompletionContextAnalyzer(),
-            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
-                undefined,
-                undefined,
-                DocumentSemanticSnapshotService.getInstance(),
-                documentHost
-            ),
+            scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
+                analysisService: DocumentSemanticSnapshotService.getInstance(),
+                host: documentHost
+            }),
             scopedCompletionSupport: new ScopedMethodCompletionSupport({
                 documentationService,
                 documentHost

@@ -19,7 +19,7 @@ import { ScopedMethodCompletionSupport } from '../../../language/services/comple
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import { createVsCodeTextDocumentHost } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
-import { ScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
+import { createDefaultScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
 import { CompletionContextAnalyzer } from '../../../completion/completionContextAnalyzer';
 import { InheritanceResolver } from '../../../completion/inheritanceResolver';
@@ -422,12 +422,11 @@ describe('registerCompletionHandler', () => {
             } as any,
             projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any)),
             contextAnalyzer: new CompletionContextAnalyzer(),
-            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
-                macroManager as any,
-                undefined,
-                DocumentSemanticSnapshotService.getInstance(),
-                documentHost
-            ),
+            scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
+                macroManager: macroManager as any,
+                analysisService: DocumentSemanticSnapshotService.getInstance(),
+                host: documentHost
+            }),
             scopedCompletionSupport: new ScopedMethodCompletionSupport({
                 documentationService,
                 documentHost

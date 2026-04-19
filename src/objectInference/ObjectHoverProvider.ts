@@ -1,37 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { TargetMethodLookup } from '../targetMethodLookup';
-import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
-import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
-import {
-    createDefaultObjectInferenceLanguageHoverService,
-    type LanguageHoverResult,
-    LanguageHoverService
-} from '../language/services/navigation/LanguageHoverService';
-import { ObjectInferenceService } from './ObjectInferenceService';
+import { type LanguageHoverResult, LanguageHoverService } from '../language/services/navigation/LanguageHoverService';
 
 export class ObjectHoverProvider implements vscode.HoverProvider {
-    private readonly hoverService: LanguageHoverService;
-
-    public constructor(
-        objectInferenceService: ObjectInferenceService,
-        targetMethodLookup?: TargetMethodLookup,
-        hoverService?: LanguageHoverService,
-        documentationService?: FunctionDocumentationService
-    ) {
-        const resolvedDocumentationService = hoverService
-            ? documentationService
-            : assertDocumentationService('ObjectHoverProvider', documentationService);
-        this.hoverService = hoverService ?? createDefaultObjectInferenceLanguageHoverService(
-            objectInferenceService,
-            targetMethodLookup ?? (() => {
-                throw new Error('ObjectHoverProvider requires an injected TargetMethodLookup when no hover service is provided');
-            })(),
-            {
-                documentationService: resolvedDocumentationService
-            }
-        );
-    }
+    public constructor(private readonly hoverService: LanguageHoverService) {}
 
     public async provideHover(
         document: vscode.TextDocument,

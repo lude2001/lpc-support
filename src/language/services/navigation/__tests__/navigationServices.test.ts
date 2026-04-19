@@ -17,9 +17,11 @@ import {
 import {
     createDefaultObjectInferenceLanguageHoverService,
     ObjectInferenceLanguageHoverService,
+    VsCodeHoverDocumentAdapter,
     type LanguageHoverService
 } from '../LanguageHoverService';
 import { UnifiedLanguageHoverService } from '../UnifiedLanguageHoverService';
+import { CallableDocRenderer } from '../../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
 import {
     AstBackedLanguageDefinitionService,
@@ -195,6 +197,24 @@ function createDocumentPathDependencies() {
     };
 }
 
+function createLanguageDocumentHoverFactoryDependencies(overrides: Record<string, unknown> = {}) {
+    return {
+        documentAdapter: {
+            fromLanguageDocument: jest.fn((document) => document as any)
+        },
+        renderer: new CallableDocRenderer(),
+        ...overrides
+    } as any;
+}
+
+function createVsCodeHoverFactoryDependencies(overrides: Record<string, unknown> = {}) {
+    return {
+        documentAdapter: new VsCodeHoverDocumentAdapter(),
+        renderer: new CallableDocRenderer(),
+        ...overrides
+    } as any;
+}
+
 describe('navigation services', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
@@ -211,7 +231,7 @@ describe('navigation services', () => {
         const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
-            {
+            createLanguageDocumentHoverFactoryDependencies({
                 documentationService: new FunctionDocumentationService(),
                 objectAccessProvider: {
                     inferObjectAccess: jest.fn().mockResolvedValue({
@@ -234,7 +254,7 @@ describe('navigation services', () => {
                         ].join('\n')
                     })
                 }
-            } as any
+            })
         );
 
         const hover = await service.provideHover({
@@ -299,7 +319,7 @@ describe('navigation services', () => {
         const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
-            {
+            createVsCodeHoverFactoryDependencies({
                 analysisService,
                 host,
                 pathSupport,
@@ -324,7 +344,7 @@ describe('navigation services', () => {
                         createCallableDoc('create', 'void create()', '父类创建')
                     )
                 } as any
-            } as any
+            })
         );
 
         const hover = await service.provideHover({
@@ -351,7 +371,7 @@ describe('navigation services', () => {
         const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
-            {
+            createVsCodeHoverFactoryDependencies({
                 analysisService,
                 host,
                 pathSupport,
@@ -377,7 +397,7 @@ describe('navigation services', () => {
                         createCallableDoc('init', 'void init()', '房间初始化')
                     )
                 } as any
-            } as any
+            })
         );
 
         const hover = await service.provideHover({
@@ -404,7 +424,7 @@ describe('navigation services', () => {
         const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
-            {
+            createVsCodeHoverFactoryDependencies({
                 analysisService,
                 host,
                 pathSupport,
@@ -429,7 +449,7 @@ describe('navigation services', () => {
                         createCallableDoc('create', 'void create()', '父类创建')
                     )
                 } as any
-            } as any
+            })
         );
 
         const hover = await service.provideHover({
@@ -470,7 +490,7 @@ describe('navigation services', () => {
             const service: LanguageHoverService = createIsolatedHoverService(
                 {} as any,
                 undefined,
-                {
+                createVsCodeHoverFactoryDependencies({
                     analysisService,
                     scopedMethodResolver: createScopedMethodResolverStub({
                         status,
@@ -494,7 +514,7 @@ describe('navigation services', () => {
                             createCallableDoc('init', 'void init()', '房间初始化')
                         )
                     } as any
-                } as any
+                })
             );
 
             hoverPromise = service.provideHover({
@@ -520,7 +540,7 @@ describe('navigation services', () => {
         const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
-            {
+            createVsCodeHoverFactoryDependencies({
                 analysisService,
                 host,
                 pathSupport,
@@ -542,7 +562,7 @@ describe('navigation services', () => {
                 }),
                 objectAccessProvider: { inferObjectAccess: jest.fn().mockResolvedValue(undefined) },
                 documentationService: documentationService as any
-            } as any
+            })
         );
 
         const hover = await service.provideHover({
@@ -565,7 +585,7 @@ describe('navigation services', () => {
         const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
-            {
+            createVsCodeHoverFactoryDependencies({
                 analysisService,
                 host,
                 pathSupport,
@@ -587,7 +607,7 @@ describe('navigation services', () => {
                 }),
                 objectAccessProvider: { inferObjectAccess: jest.fn().mockResolvedValue(undefined) },
                 documentationService: documentationService as any
-            } as any
+            })
         );
 
         const hover = await service.provideHover({
