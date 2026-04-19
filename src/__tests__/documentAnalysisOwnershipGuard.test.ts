@@ -89,6 +89,16 @@ describe('document analysis ownership guards', () => {
             expect(source).toMatch(/isOnScopedMethodIdentifier\([\s\S]*?,[\s\S]*?,[\s\S]*?,[\s\S]*?\)/);
         }
     });
+
+    test('ASTManager stays a thin facade without legacy product APIs', () => {
+        const astManagerSource = fs.readFileSync(path.join(srcRoot, 'ast', 'astManager.ts'), 'utf8');
+
+        expect(astManagerSource).not.toContain('getCompletionItems(');
+        expect(astManagerSource).not.toContain('getStructMemberCompletions(');
+        expect(astManagerSource).not.toContain('getFunctionDefinition(');
+        expect(astManagerSource).not.toContain('getHoverInfo(');
+        expect(astManagerSource).not.toContain('getDiagnostics(');
+    });
 });
 
 function listProductionTypeScriptFiles(rootDir: string): string[] {

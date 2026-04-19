@@ -40,32 +40,19 @@ function createDocument(content: string, fileName: string = '/virtual/member-typ
     } as unknown as vscode.TextDocument;
 }
 
-describe('ASTManager compound type lookup', () => {
+describe('ASTManager facade', () => {
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
     });
 
-    test('resolves class-typed variables to class member completions', () => {
-        const source = [
-            'class Payload {',
-            '    int hp;',
-            '    string *tags;',
-            '}',
-            '',
-            'void demo() {',
-            '    class Payload payload;',
-            '}'
-        ].join('\n');
+    test('does not expose legacy product APIs on the facade', () => {
+        const manager = ASTManager.getInstance() as unknown as Record<string, unknown>;
 
-        const document = createDocument(source);
-        const items = ASTManager.getInstance().getStructMemberCompletions(
-            document,
-            new vscode.Position(6, 18),
-            'payload'
-        );
-
-        expect(items.map(item => item.label)).toEqual(['hp', 'tags']);
-        expect(items.map(item => item.detail)).toEqual(['int hp', 'string * tags']);
+        expect(manager.getCompletionItems).toBeUndefined();
+        expect(manager.getStructMemberCompletions).toBeUndefined();
+        expect(manager.getFunctionDefinition).toBeUndefined();
+        expect(manager.getHoverInfo).toBeUndefined();
+        expect(manager.getDiagnostics).toBeUndefined();
     });
 
     test('returns the last successful snapshot while refreshing a newer version in the background', () => {
