@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { normalizeLpcType } from '../../../ast/typeNormalization';
 import { SymbolType } from '../../../ast/symbolTable';
@@ -27,6 +26,10 @@ import { FunctionDocumentationService } from '../../documentation/FunctionDocume
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
 import type { LanguagePosition } from '../../contracts/LanguagePosition';
+import {
+    CompletionInheritedIndexService,
+    type CompletionInheritanceReporter
+} from './CompletionInheritedIndexService';
 import { ScopedMethodCompletionSupport } from './ScopedMethodCompletionSupport';
 
 export interface LanguageCompletionRequest {
@@ -90,15 +93,7 @@ type CompletionAnalysisService = Pick<
     | 'hasFreshSnapshot'
 >;
 
-type IndexSnapshot = SemanticSnapshot | ReturnType<DocumentAnalysisService['getSnapshot']>;
-
-interface InheritanceReporter {
-    clear(): void;
-    show(preserveFocus?: boolean): void;
-    appendLine(message: string): void;
-}
-
-function createDefaultInheritanceReporter(): InheritanceReporter {
+function createDefaultInheritanceReporter(): CompletionInheritanceReporter {
     return vscode.window.createOutputChannel('LPC Inheritance');
 }
 
@@ -118,7 +113,8 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     private readonly queryEngine: CompletionQueryEngine;
     private readonly instrumentation: CompletionInstrumentation;
     private readonly objectInferenceService: ObjectInferenceService;
-    private readonly inheritanceReporter: InheritanceReporter;
+    private readonly inheritanceReporter: CompletionInheritanceReporter;
+    private readonly inheritedIndexService: CompletionInheritedIndexService;
     private readonly scopedMethodDiscoveryService: ScopedMethodDiscoveryService;
     private readonly scopedCompletionSupport: ScopedMethodCompletionSupport;
 
@@ -127,7 +123,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         macroManager: MacroManager,
         instrumentation?: CompletionInstrumentation,
         objectInferenceService?: ObjectInferenceService,
-        inheritanceReporter: InheritanceReporter = createDefaultInheritanceReporter(),
+        inheritanceReporter: CompletionInheritanceReporter = createDefaultInheritanceReporter(),
         dependencies?: QueryBackedLanguageCompletionDependencies
     ) {
         this.efunDocsManager = efunDocsManager;
@@ -136,15 +132,20 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         this.instrumentation = instrumentation ?? new CompletionInstrumentation();
         this.objectInferenceService = objectInferenceService ?? new ObjectInferenceService(macroManager, undefined, this.analysisService);
         this.inheritanceReporter = inheritanceReporter;
+        this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
+        this.inheritedIndexService = new CompletionInheritedIndexService(
+            this.analysisService,
+            this.projectSymbolIndex,
+            this.inheritanceReporter
+        );
         this.scopedMethodDiscoveryService = dependencies?.scopedMethodDiscoveryService
             ?? new ScopedMethodDiscoveryService(macroManager, undefined, this.analysisService);
         this.scopedCompletionSupport = dependencies?.scopedCompletionSupport
             ?? new ScopedMethodCompletionSupport({
                 documentationService: dependencies?.documentationService ?? new FunctionDocumentationService(),
                 documentLoader: dependencies?.scopedDocumentLoader
-                    ?? (async (uri: string) => this.getDocumentForUri(uri))
+                    ?? (async (uri: string) => this.inheritedIndexService.getDocumentForUri(uri))
             });
-        this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
         this.queryEngine = new CompletionQueryEngine({
             snapshotProvider: this.analysisService,
             projectSymbolIndex: this.projectSymbolIndex,
@@ -173,7 +174,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         });
 
         try {
-            this.warmInheritedIndex(document);
+            this.inheritedIndexService.warmInheritedIndex(document);
 
             const result = this.queryEngine.query(
                 document,
@@ -260,7 +261,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
 
     public handleDocumentChange(document: vscode.TextDocument): void {
         this.analysisService.scheduleRefresh(document, () => {
-            this.projectSymbolIndex.updateFromSnapshot(this.getBestAvailableIndexSnapshot(document));
+            this.projectSymbolIndex.updateFromSnapshot(this.inheritedIndexService.getBestAvailableIndexSnapshot(document));
         });
     }
 
@@ -356,7 +357,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             return result.candidates;
         }
 
-        this.refreshInheritedIndex(document);
+        this.inheritedIndexService.refreshInheritedIndex(document);
 
         const inheritedSymbols = this.projectSymbolIndex.getInheritedSymbols(document.uri.toString());
         if (inheritedSymbols.functions.length === 0 && inheritedSymbols.types.length === 0) {
@@ -494,7 +495,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
 
         const targetDocument = targetUri === ownerDocument.uri.toString()
             ? ownerDocument
-            : this.getDocumentForUri(targetUri);
+            : this.inheritedIndexService.getDocumentForUri(targetUri);
         if (!targetDocument) {
             return [];
         }
@@ -519,136 +520,15 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         return functions;
     }
 
-    private warmInheritedIndex(document: vscode.TextDocument): void {
-        this.refreshInheritedIndex(document);
-    }
-
-    private refreshInheritedIndex(document: vscode.TextDocument): IndexSnapshot {
-        const indexSnapshot = this.getBestAvailableIndexSnapshot(document);
-        this.projectSymbolIndex.updateFromSnapshot(indexSnapshot);
-        this.indexMissingInheritedSnapshots(indexSnapshot.uri, new Set<string>([indexSnapshot.uri]));
-        return indexSnapshot;
-    }
-
-    private indexMissingInheritedSnapshots(sourceUri: string, visited: Set<string>): void {
-        const targets = this.projectSymbolIndex.getResolvedInheritTargets(sourceUri);
-
-        for (const target of targets) {
-            if (!target.resolvedUri || visited.has(target.resolvedUri)) {
-                continue;
-            }
-
-            visited.add(target.resolvedUri);
-
-            if (!this.projectSymbolIndex.getRecord(target.resolvedUri)) {
-                const inheritedSnapshot = this.loadSnapshotFromUri(target.resolvedUri);
-                if (inheritedSnapshot) {
-                    this.projectSymbolIndex.updateFromSnapshot(inheritedSnapshot);
-                }
-            }
-
-            if (this.projectSymbolIndex.getRecord(target.resolvedUri)) {
-                this.indexMissingInheritedSnapshots(target.resolvedUri, visited);
-            }
-        }
-    }
-
-    private loadSnapshotFromUri(uri: string): IndexSnapshot | undefined {
-        try {
-            const document = this.getDocumentForUri(uri);
-            if (!document) {
-                return undefined;
-            }
-
-            return this.getIndexSnapshot(document, false);
-        } catch (error) {
-            this.inheritanceReporter.appendLine(`Failed to index inherited file ${uri}: ${error}`);
-            return undefined;
-        }
-    }
-
-    private getOpenDocument(uri: string): vscode.TextDocument | undefined {
-        const openDocuments = ((vscode.workspace as typeof vscode.workspace) as typeof vscode.workspace & {
-            textDocuments?: vscode.TextDocument[];
-        }).textDocuments || [];
-
-        return openDocuments.find(document => document.uri.toString() === uri);
-    }
-
-    private normalizeFilePath(filePath: string): string {
-        return filePath.replace(/^\/+([A-Za-z]:\/)/, '$1');
-    }
-
-    private createReadonlyDocumentFromUri(uri: string): vscode.TextDocument | undefined {
-        const filePath = this.normalizeFilePath(vscode.Uri.parse(uri).fsPath);
-        if (!fs.existsSync(filePath)) {
-            return undefined;
-        }
-
-        const content = fs.readFileSync(filePath, 'utf8');
-        const version = Math.max(1, Math.trunc(fs.statSync(filePath).mtimeMs));
-        return this.createReadonlyDocument(filePath, content, version);
-    }
-
-    private createReadonlyDocument(fileName: string, content: string, version: number): vscode.TextDocument {
-        const lines = content.split(/\r?\n/);
-        const lineStarts = [0];
-
-        for (let index = 0; index < content.length; index += 1) {
-            if (content[index] === '\n') {
-                lineStarts.push(index + 1);
-            }
-        }
-
-        const offsetAt = (position: vscode.Position): number => {
-            const lineStart = lineStarts[position.line] ?? content.length;
-            return Math.min(lineStart + position.character, content.length);
-        };
-
-        const positionAt = (offset: number): vscode.Position => {
-            let line = 0;
-            for (let index = 0; index < lineStarts.length; index += 1) {
-                if (lineStarts[index] <= offset) {
-                    line = index;
-                } else {
-                    break;
-                }
-            }
-
-            return new vscode.Position(line, offset - lineStarts[line]);
-        };
-
-        return {
-            uri: vscode.Uri.file(fileName),
-            fileName,
-            languageId: 'lpc',
-            version,
-            lineCount: lines.length,
-            getText: (range?: vscode.Range) => {
-                if (!range) {
-                    return content;
-                }
-
-                return content.slice(offsetAt(range.start), offsetAt(range.end));
-            },
-            lineAt: (lineOrPosition: number | vscode.Position) => {
-                const line = typeof lineOrPosition === 'number' ? lineOrPosition : lineOrPosition.line;
-                return { text: lines[line] ?? '' };
-            },
-            positionAt,
-            offsetAt
-        } as vscode.TextDocument;
-    }
-
     public async scanInheritance(document: vscode.TextDocument): Promise<void> {
         this.inheritanceReporter.clear();
         this.inheritanceReporter.show(true);
         this.inheritanceReporter.appendLine(`正在分析文件: ${document.fileName}`);
 
         try {
-            const snapshot = this.getIndexSnapshot(document, false);
+            const snapshot = this.inheritedIndexService.getIndexSnapshot(document, false);
             this.projectSymbolIndex.updateFromSnapshot(snapshot);
-            this.indexMissingInheritedSnapshots(snapshot.uri, new Set<string>([snapshot.uri]));
+            this.inheritedIndexService.refreshInheritedIndex(document);
 
             const inheritedSymbols = this.projectSymbolIndex.getInheritedSymbols(document.uri.toString());
             this.inheritanceReporter.appendLine('解析完成:');
@@ -678,26 +558,6 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             }
         } catch (error) {
             this.inheritanceReporter.appendLine(`错误: ${error}`);
-        }
-    }
-
-    private getDocumentForUri(uri: string): vscode.TextDocument | undefined {
-        return this.getOpenDocument(uri) || this.createReadonlyDocumentFromUri(uri);
-    }
-
-    private getBestAvailableIndexSnapshot(document: vscode.TextDocument): IndexSnapshot {
-        return this.getIndexSnapshot(document, true);
-    }
-
-    private getIndexSnapshot(document: vscode.TextDocument, bestAvailable: boolean): IndexSnapshot {
-        try {
-            return bestAvailable
-                ? this.analysisService.getBestAvailableSemanticSnapshot(document)
-                : this.analysisService.getSemanticSnapshot(document, false);
-        } catch {
-            return bestAvailable
-                ? this.analysisService.getBestAvailableSnapshot(document)
-                : this.analysisService.getSnapshot(document, false);
         }
     }
 
