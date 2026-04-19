@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { MacroManager } from '../../macroManager';
+import { createVsCodeTextDocumentHost } from '../../language/shared/WorkspaceDocumentPathSupport';
 import { LpcProjectConfigService } from '../LpcProjectConfigService';
 
 describe('MacroManager project config integration', () => {
@@ -40,7 +41,7 @@ describe('MacroManager project config integration', () => {
         (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
         (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([]);
 
-        const manager = new MacroManager(projectConfigService);
+        const manager = new MacroManager(projectConfigService, createVsCodeTextDocumentHost());
         await (manager as any).initializationPromise;
 
         expect(manager.getIncludePath()).toBe(includeDir);
@@ -65,7 +66,7 @@ describe('MacroManager project config integration', () => {
         });
         (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
 
-        const manager = new MacroManager(projectConfigService);
+        const manager = new MacroManager(projectConfigService, createVsCodeTextDocumentHost());
         await (manager as any).initializationPromise;
 
         expect(manager.getIncludePath()).toBeUndefined();
@@ -92,7 +93,7 @@ describe('MacroManager project config integration', () => {
         (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
         (vscode.window.showInputBox as jest.Mock).mockResolvedValue(includeDir);
 
-        const manager = new MacroManager(projectConfigService);
+        const manager = new MacroManager(projectConfigService, createVsCodeTextDocumentHost());
         await (manager as any).initializationPromise;
 
         await manager.configurePath();

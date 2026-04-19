@@ -153,14 +153,18 @@ describe('createProductionLanguageServices', () => {
                 macroManager,
                 projectConfigService,
                 analysisService,
-                documentationService
+                documentationService,
+                expect.objectContaining({
+                    openTextDocument: expect.any(Function)
+                })
             );
             expect(EfunDocsManager).toHaveBeenCalledWith(
                 expect.anything(),
                 projectConfigService,
                 analysisService,
                 macroManager,
-                documentationService
+                documentationService,
+                expect.anything()
             );
             expect(QueryBackedLanguageCompletionService).toHaveBeenCalledWith(
                 efunDocsManager,
@@ -326,7 +330,10 @@ describe('createProductionLanguageServices', () => {
             expect(scopedMethodResolverCtor).toHaveBeenCalledWith(
                 macroManager,
                 undefined,
-                analysisService
+                analysisService,
+                expect.objectContaining({
+                    openTextDocument: expect.any(Function)
+                })
             );
             expect(scopedMethodResolverCtor).not.toHaveBeenCalledWith(macroManager, [process.cwd()]);
             expect(hoverCtor).toHaveBeenCalledWith(

@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
-import { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
+import {
+    WorkspaceDocumentPathSupport,
+    assertDocumentPathSupport
+} from '../language/shared/WorkspaceDocumentPathSupport';
 import type { MacroManager } from '../macroManager';
 import { FunctionDocCompatMaterializer } from './FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from './FunctionDocLookupBuilder';
@@ -43,9 +46,7 @@ export class FileFunctionDocTracker {
 
     public constructor(options: FileFunctionDocTrackerOptions = {}) {
         const documentationService = assertDocumentationService('FileFunctionDocTracker', options.documentationService);
-        const pathSupport = options.pathSupport ?? new WorkspaceDocumentPathSupport({
-            macroManager: options.macroManager
-        });
+        const pathSupport = assertDocumentPathSupport('FileFunctionDocTracker', options.pathSupport);
         this.compatMaterializer = options.compatMaterializer ?? new FunctionDocCompatMaterializer();
         this.lookupBuilder = options.lookupBuilder ?? new FunctionDocLookupBuilder({
             documentationService,

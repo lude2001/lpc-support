@@ -4,6 +4,7 @@ import { LPCParser } from '../antlr/LPCParser';
 import { FunctionSummary } from '../completion/types';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
+import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
@@ -45,14 +46,17 @@ interface ScopedMethodCollection {
 export class ScopedMethodDiscoveryService {
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
+    private readonly host?: Pick<TextDocumentHost, 'openTextDocument'>;
 
     constructor(
         macroManager?: MacroManager,
         workspaceRoots?: string[],
-        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>
+        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>,
+        host?: Pick<TextDocumentHost, 'openTextDocument'>
     ) {
         this.analysisService = assertAnalysisService('ScopedMethodDiscoveryService', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager, workspaceRoots);
+        this.host = host;
     }
 
     public async discoverAt(
@@ -263,6 +267,7 @@ export class ScopedMethodDiscoveryService {
         const collection = await collectScopedBranchItems({
             astManager: createScopedTraversalAnalysisFacade(this.analysisService),
             inheritanceResolver: this.inheritanceResolver,
+            host: this.host,
             seed,
             visitedUris,
             collectFromDocument: (targetDocument, snapshot) => {

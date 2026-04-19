@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globa
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { QueryBackedLanguageCompletionService } from '../LanguageCompletionService';
+import { createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
@@ -102,7 +103,8 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 analysisService,
                 documentationService: documentationService as any,
                 scopedDocumentLoader,
-                objectInferenceService: {} as any
+                objectInferenceService: {} as any,
+                documentHost: createVsCodeTextDocumentHost()
             }
         ) as any;
 
@@ -167,7 +169,8 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 analysisService,
                 documentationService: documentationService as any,
                 scopedDocumentLoader,
-                objectInferenceService: {} as any
+                objectInferenceService: {} as any,
+                documentHost: createVsCodeTextDocumentHost()
             }
         ) as any;
 

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
-import { defaultTextDocumentHost, type TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
+import { assertTextDocumentHost, type TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { GlobalBindingResolution, GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
@@ -19,7 +19,7 @@ export class InheritedGlobalObjectBindingResolver {
     ) {
         this.analysisService = assertAnalysisService('InheritedGlobalObjectBindingResolver', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager);
-        this.host = host ?? defaultTextDocumentHost;
+        this.host = assertTextDocumentHost('InheritedGlobalObjectBindingResolver', host as TextDocumentHost | undefined);
     }
 
     public async resolveInheritedBinding(

@@ -2,6 +2,10 @@ import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { EfunDocsManager } from '../../efunDocs';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import {
+    WorkspaceDocumentPathSupport,
+    createVsCodeTextDocumentHost
+} from '../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { EfunHoverProvider } from '../EfunHoverProvider';
@@ -83,7 +87,9 @@ describe('EfunHoverProvider', () => {
         const manager = new EfunDocsManager({
             subscriptions: [],
             extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext, undefined, DocumentSemanticSnapshotService.getInstance(), undefined, new FunctionDocumentationService());
+        } as unknown as vscode.ExtensionContext, undefined, DocumentSemanticSnapshotService.getInstance(), undefined, new FunctionDocumentationService(), new WorkspaceDocumentPathSupport({
+            host: createVsCodeTextDocumentHost()
+        }));
         const provider = new EfunHoverProvider(manager, {
             getSyntaxDocument: mockGetSyntaxDocument
         } as any);
@@ -270,7 +276,9 @@ describe('EfunHoverProvider', () => {
         const manager = new EfunDocsManager({
             subscriptions: [],
             extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext, undefined, DocumentSemanticSnapshotService.getInstance(), undefined, new FunctionDocumentationService());
+        } as unknown as vscode.ExtensionContext, undefined, DocumentSemanticSnapshotService.getInstance(), undefined, new FunctionDocumentationService(), new WorkspaceDocumentPathSupport({
+            host: createVsCodeTextDocumentHost()
+        }));
         const provider = new EfunHoverProvider(manager, {
             getSyntaxDocument: mockGetSyntaxDocument
         } as any);

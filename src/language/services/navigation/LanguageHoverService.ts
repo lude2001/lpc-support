@@ -14,6 +14,10 @@ import type { LanguageDocumentSymbol, LanguageSymbolRequest } from './LanguageSy
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../../documentation/assertDocumentationService';
+import {
+    assertTextDocumentHost,
+    type TextDocumentHost
+} from '../../shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
@@ -94,6 +98,7 @@ export interface HoverServiceDependencies {
     scopedMethodResolver?: ScopedMethodResolver;
     scopedHoverResolver?: Pick<ScopedMethodHoverResolver, 'provideScopedHover'>;
     objectMethodHoverResolver?: Pick<ObjectMethodHoverResolver, 'provideObjectHover'>;
+    host?: TextDocumentHost;
 }
 
 interface VsCodeBackedHoverDocument extends HoverDocument {
@@ -236,7 +241,11 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
                         ?? new TargetMethodLookup(
                             macroManager,
                             projectConfigService,
-                            assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies?.analysisService)
+                            assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies?.analysisService),
+                            assertTextDocumentHost(
+                                'ObjectInferenceLanguageHoverService',
+                                dependencies?.host
+                            )
                         )
                     ),
                 documentationService: documentationService!,

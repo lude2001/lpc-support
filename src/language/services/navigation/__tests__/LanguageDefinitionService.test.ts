@@ -140,6 +140,14 @@ describe('AstBackedLanguageDefinitionService', () => {
             : {
                 analysisService,
                 documentationService: new FunctionDocumentationService(),
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: jest.fn(),
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn(),
+                    getWorkspaceFolders: jest.fn(),
+                    fileExists: jest.fn().mockReturnValue(false)
+                },
                 ...hostOrDependencies
             };
 

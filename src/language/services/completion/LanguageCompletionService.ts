@@ -16,6 +16,10 @@ import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../../documentation/assertDocumentationService';
+import {
+    assertTextDocumentHost,
+    type TextDocumentHost
+} from '../../shared/WorkspaceDocumentPathSupport';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
 import type { LanguagePosition } from '../../contracts/LanguagePosition';
@@ -98,6 +102,7 @@ interface QueryBackedLanguageCompletionDependencies {
     documentationService?: FunctionDocumentationService;
     scopedDocumentLoader?: (uri: string) => Promise<vscode.TextDocument | undefined>;
     scopedCompletionSupport?: ScopedMethodCompletionSupport;
+    documentHost?: TextDocumentHost;
 }
 
 export class QueryBackedLanguageCompletionService implements LanguageCompletionService {
@@ -131,8 +136,20 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             'QueryBackedLanguageCompletionService',
             dependencies?.documentationService
         );
+        const documentHost = objectInferenceService && dependencies?.scopedMethodDiscoveryService
+            ? dependencies?.documentHost
+            : assertTextDocumentHost(
+                'QueryBackedLanguageCompletionService',
+                dependencies?.documentHost
+            );
         this.objectInferenceService = objectInferenceService
-            ?? new ObjectInferenceService(macroManager, undefined, this.analysisService, documentationService);
+            ?? new ObjectInferenceService(
+                macroManager,
+                undefined,
+                this.analysisService,
+                documentationService,
+                documentHost
+            );
         this.inheritanceReporter = inheritanceReporter;
         this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
         this.inheritedIndexService = new CompletionInheritedIndexService(
@@ -141,7 +158,12 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             this.inheritanceReporter
         );
         this.scopedMethodDiscoveryService = dependencies?.scopedMethodDiscoveryService
-            ?? new ScopedMethodDiscoveryService(macroManager, undefined, this.analysisService);
+            ?? new ScopedMethodDiscoveryService(
+                macroManager,
+                undefined,
+                this.analysisService,
+                documentHost
+            );
         this.scopedCompletionSupport = dependencies?.scopedCompletionSupport
             ?? new ScopedMethodCompletionSupport({
                 documentationService,

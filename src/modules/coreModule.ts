@@ -7,6 +7,7 @@ import { LPCConfigManager } from '../config';
 import { LPCCompiler } from '../compiler';
 import { EfunDocsManager } from '../efunDocs';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { createVsCodeTextDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { MacroManager } from '../macroManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
@@ -26,16 +27,27 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     const documentationService = new FunctionDocumentationService();
     registry.register(Services.FunctionDocumentation, documentationService);
 
-    const macroManager = new MacroManager(projectConfigService);
+    const textDocumentHost = createVsCodeTextDocumentHost();
+    registry.register(Services.TextDocumentHost, textDocumentHost);
+
+    const macroManager = new MacroManager(projectConfigService, textDocumentHost);
     registry.register(Services.MacroManager, macroManager);
     context.subscriptions.push(macroManager);
+
+    const documentPathSupport = new WorkspaceDocumentPathSupport({
+        host: textDocumentHost,
+        macroManager,
+        projectConfigService
+    });
+    registry.register(Services.DocumentPathSupport, documentPathSupport);
 
     const efunDocsManager = new EfunDocsManager(
         context,
         projectConfigService,
         analysisService,
         macroManager,
-        documentationService
+        documentationService,
+        documentPathSupport
     );
     registry.register(Services.EfunDocs, efunDocsManager);
 

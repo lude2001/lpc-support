@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
+import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import type { SemanticSnapshot } from '../semantic/semanticSnapshot';
@@ -44,14 +45,17 @@ type ScopedCallShape =
 export class ScopedMethodResolver {
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
+    private readonly host?: Pick<TextDocumentHost, 'openTextDocument'>;
 
     constructor(
         macroManager?: MacroManager,
         workspaceRoots?: string[],
-        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>
+        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>,
+        host?: Pick<TextDocumentHost, 'openTextDocument'>
     ) {
         this.analysisService = assertAnalysisService('ScopedMethodResolver', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager, workspaceRoots);
+        this.host = host;
     }
 
     public async resolveCallAt(
@@ -211,6 +215,7 @@ export class ScopedMethodResolver {
             const branchResult = await collectScopedBranchItems({
                 astManager: createScopedTraversalAnalysisFacade(this.analysisService),
                 inheritanceResolver: this.inheritanceResolver,
+                host: this.host,
                 seed,
                 visitedUris,
                 collectFromDocument: (targetDocument, snapshot) => {
@@ -259,6 +264,7 @@ export class ScopedMethodResolver {
         const matchedCollection = await collectScopedBranchItems({
             astManager: createScopedTraversalAnalysisFacade(this.analysisService),
             inheritanceResolver: this.inheritanceResolver,
+            host: this.host,
             seed: matchedSeeds[0],
             visitedUris: new Set<string>(),
             collectFromDocument: (targetDocument, snapshot) => {

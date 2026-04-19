@@ -6,7 +6,8 @@ import { FunctionDocumentationService } from '../../documentation/FunctionDocume
 import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import type { CallableDoc } from '../../documentation/types';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
-import { defaultTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
+import type { TextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
+import { assertTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import type { ScopedMethodDiscoveryResult } from '../../../objectInference/ScopedMethodDiscoveryService';
 import type { LanguageCompletionItem } from './LanguageCompletionService';
 import { buildFunctionSnippet } from './completionSnippetUtils';
@@ -22,6 +23,7 @@ export interface ScopedDocumentationReference {
 export interface ScopedMethodCompletionSupportDependencies {
     documentationService?: DeclarationDocProvider;
     documentLoader?: ScopedDocumentLoader;
+    documentHost?: TextDocumentHost;
 }
 
 export class ScopedMethodCompletionSupport {
@@ -34,7 +36,8 @@ export class ScopedMethodCompletionSupport {
             'ScopedMethodCompletionSupport',
             dependencies.documentationService as FunctionDocumentationService | undefined
         );
-        this.documentLoader = dependencies.documentLoader ?? createDefaultDocumentLoader();
+        this.documentLoader = dependencies.documentLoader
+            ?? createDefaultDocumentLoader(assertTextDocumentHost('ScopedMethodCompletionSupport', dependencies.documentHost));
     }
 
     public buildCandidates(
@@ -184,10 +187,10 @@ export class ScopedMethodCompletionSupport {
     }
 }
 
-function createDefaultDocumentLoader(): ScopedDocumentLoader {
+function createDefaultDocumentLoader(host: TextDocumentHost): ScopedDocumentLoader {
     return async (uri: string) => {
         try {
-            return await defaultTextDocumentHost.openTextDocument(vscode.Uri.parse(uri));
+            return await host.openTextDocument(vscode.Uri.parse(uri));
         } catch {
             return undefined;
         }

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { createVsCodeTextDocumentHost } from '../../language/shared/WorkspaceDocumentPathSupport';
 import { FolderScanner } from '../FolderScanner';
 
 describe('FolderScanner', () => {
@@ -33,7 +34,8 @@ describe('FolderScanner', () => {
             }).then(() => [
                 new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), 'unused var')
             ])),
-            diagnosticCollection as unknown as vscode.DiagnosticCollection
+            diagnosticCollection as unknown as vscode.DiagnosticCollection,
+            createVsCodeTextDocumentHost()
         ) as any;
 
         jest.spyOn(scanner, 'findLPCFiles').mockResolvedValue(['D:/workspace/test.c']);

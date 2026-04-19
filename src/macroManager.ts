@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { defaultTextDocumentHost } from './language/shared/WorkspaceDocumentPathSupport';
+import {
+    TextDocumentHost,
+    assertTextDocumentHost
+} from './language/shared/WorkspaceDocumentPathSupport';
 import { MacroDefinition } from './types';
 import { LpcProjectConfigService } from './projectConfig/LpcProjectConfigService';
 
@@ -11,8 +14,13 @@ export class MacroManager {
     private watcher: vscode.FileSystemWatcher | undefined;
     private scanningPromise: Promise<void> | null = null;
     private readonly initializationPromise: Promise<void>;
+    private readonly textDocumentHost: TextDocumentHost;
 
-    constructor(private readonly projectConfigService?: LpcProjectConfigService) {
+    constructor(
+        private readonly projectConfigService?: LpcProjectConfigService,
+        textDocumentHost?: TextDocumentHost
+    ) {
+        this.textDocumentHost = assertTextDocumentHost('MacroManager', textDocumentHost);
         this.initializationPromise = this.initialize();
     }
 
@@ -198,7 +206,7 @@ export class MacroManager {
         });
 
         if (selected) {
-            const document = await defaultTextDocumentHost.openTextDocument(selected.macro.file);
+            const document = await this.textDocumentHost.openTextDocument(selected.macro.file);
             const position = new vscode.Position(selected.macro.line - 1, 0);
             await vscode.window.showTextDocument(document, {
                 selection: new vscode.Selection(position, position)

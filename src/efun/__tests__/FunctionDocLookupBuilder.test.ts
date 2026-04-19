@@ -6,6 +6,10 @@ import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { FunctionDocCompatMaterializer } from '../FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../FunctionDocLookupBuilder';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import {
+    WorkspaceDocumentPathSupport,
+    createVsCodeTextDocumentHost
+} from '../../language/shared/WorkspaceDocumentPathSupport';
 
 function createTextDocument(filePath: string, content: string): vscode.TextDocument {
     const normalized = content.replace(/\r\n/g, '\n');
@@ -95,7 +99,10 @@ describe('FunctionDocLookupBuilder', () => {
         (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({ uri: { fsPath: tempRoot } });
 
         const builder = new FunctionDocLookupBuilder({
-            documentationService: new FunctionDocumentationService()
+            documentationService: new FunctionDocumentationService(),
+            pathSupport: new WorkspaceDocumentPathSupport({
+                host: createVsCodeTextDocumentHost()
+            })
         });
         const materializer = new FunctionDocCompatMaterializer();
         const document = {
@@ -151,7 +158,10 @@ describe('FunctionDocLookupBuilder', () => {
         });
 
         const builder = new FunctionDocLookupBuilder({
-            documentationService: new FunctionDocumentationService()
+            documentationService: new FunctionDocumentationService(),
+            pathSupport: new WorkspaceDocumentPathSupport({
+                host: createVsCodeTextDocumentHost()
+            })
         });
         const materializer = new FunctionDocCompatMaterializer();
         const document = {
@@ -197,9 +207,12 @@ describe('FunctionDocLookupBuilder', () => {
 
         const builder = new FunctionDocLookupBuilder({
             documentationService: new FunctionDocumentationService(),
-            macroManager: {
-                getMacro: jest.fn().mockReturnValue({ value: '"/inherit/base"' })
-            } as any
+            pathSupport: new WorkspaceDocumentPathSupport({
+                host: createVsCodeTextDocumentHost(),
+                macroManager: {
+                    getMacro: jest.fn().mockReturnValue({ value: '"/inherit/base"' })
+                } as any
+            }),
         });
         const materializer = new FunctionDocCompatMaterializer();
         const document = {

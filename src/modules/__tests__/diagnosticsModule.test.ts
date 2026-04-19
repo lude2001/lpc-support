@@ -44,6 +44,11 @@ describe('registerDiagnostics', () => {
 
         registry.register(Services.MacroManager, macroManager);
         registry.register(Services.Analysis, analysisService as any);
+        registry.register(Services.TextDocumentHost, {
+            openTextDocument: jest.fn(),
+            fileExists: jest.fn(),
+            getWorkspaceFolder: jest.fn()
+        } as any);
 
         registerDiagnostics(registry, context);
 
@@ -72,6 +77,11 @@ describe('registerDiagnostics', () => {
 
         registry.register(Services.MacroManager, macroManager);
         registry.register(Services.Analysis, analysisService as any);
+        registry.register(Services.TextDocumentHost, {
+            openTextDocument: jest.fn(),
+            fileExists: jest.fn(),
+            getWorkspaceFolder: jest.fn()
+        } as any);
 
         registerDiagnostics(registry, context);
 
@@ -84,6 +94,11 @@ describe('registerDiagnostics', () => {
 
         registry.register(Services.MacroManager, macroManager);
         registry.register(Services.Analysis, analysisService as any);
+        registry.register(Services.TextDocumentHost, {
+            openTextDocument: jest.fn(),
+            fileExists: jest.fn(),
+            getWorkspaceFolder: jest.fn()
+        } as any);
 
         registerDiagnostics(registry, context);
 
@@ -99,6 +114,11 @@ describe('registerDiagnostics', () => {
 
         registry.register(Services.MacroManager, macroManager);
         registry.register(Services.Analysis, analysisService as any);
+        registry.register(Services.TextDocumentHost, {
+            openTextDocument: jest.fn(),
+            fileExists: jest.fn(),
+            getWorkspaceFolder: jest.fn()
+        } as any);
 
         registerDiagnostics(registry, context);
 

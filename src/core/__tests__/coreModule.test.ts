@@ -113,7 +113,12 @@ describe('registerCoreServices', () => {
         registerCoreServices(registry, context);
 
         expect(MacroManager).toHaveBeenCalledTimes(1);
-        expect(MacroManager).toHaveBeenCalledWith(projectConfigService);
+        expect(MacroManager).toHaveBeenCalledWith(
+            projectConfigService,
+            expect.objectContaining({
+                openTextDocument: expect.any(Function)
+            })
+        );
         expect(FunctionDocumentationService).toHaveBeenCalledTimes(1);
         expect(EfunDocsManager).toHaveBeenCalledTimes(1);
         expect(EfunDocsManager).toHaveBeenCalledWith(
@@ -121,7 +126,8 @@ describe('registerCoreServices', () => {
             projectConfigService,
             analysisService,
             macroManager,
-            documentationService
+            documentationService,
+            expect.anything()
         );
         expect(CompletionInstrumentation).toHaveBeenCalledTimes(1);
         expect(LPCConfigManager).toHaveBeenCalledTimes(1);
@@ -137,6 +143,10 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.Compiler)).toBe(compiler);
         expect(registry.get(Services.ProjectConfig)).toBe(projectConfigService);
         expect(registry.get(Services.FunctionDocumentation)).toBe(documentationService);
+        expect(registry.get(Services.TextDocumentHost)).toEqual(expect.objectContaining({
+            openTextDocument: expect.any(Function)
+        }));
+        expect(registry.get(Services.DocumentPathSupport)).toBeDefined();
         expect(registry.get(Services.CompletionInstrumentation)).toBe(completionInstrumentation);
         expect(registry.get(Services.Lifecycle)).toBe(lifecycle);
         expect(registry.get(Services.Analysis)).toBe(analysisService);

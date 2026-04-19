@@ -2,6 +2,10 @@ import * as vscode from 'vscode';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
+import {
+    WorkspaceDocumentPathSupport,
+    assertDocumentPathSupport
+} from '../language/shared/WorkspaceDocumentPathSupport';
 import { BundledEfunLoader } from './BundledEfunLoader';
 import { buildEfunHoverMarkdown, createEfunHover } from './EfunHoverContent';
 import { FileFunctionDocTracker, type FunctionDocLookup } from './FileFunctionDocTracker';
@@ -24,14 +28,17 @@ export class EfunDocsManager {
         projectConfigService?: LpcProjectConfigService,
         analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>,
         macroManager?: Pick<MacroManager, 'getMacro'>,
-        documentationService?: FunctionDocumentationService
+        documentationService?: FunctionDocumentationService,
+        pathSupport?: WorkspaceDocumentPathSupport
     ) {
         const resolvedAnalysisService = assertAnalysisService('EfunDocsManager', analysisService);
         const resolvedDocumentationService = assertDocumentationService('EfunDocsManager', documentationService);
+        const resolvedPathSupport = assertDocumentPathSupport('EfunDocsManager', pathSupport);
         this.bundledLoader = new BundledEfunLoader(context);
         this.fileFunctionDocTracker = new FileFunctionDocTracker({
             macroManager,
-            documentationService: resolvedDocumentationService
+            documentationService: resolvedDocumentationService,
+            pathSupport: resolvedPathSupport
         });
         this.simulatedEfunScanner = new SimulatedEfunScanner(projectConfigService, resolvedAnalysisService);
         this.efunDocs = this.createBundledDocsMap();

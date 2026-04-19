@@ -8,6 +8,10 @@ import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import {
+    WorkspaceDocumentPathSupport,
+    createVsCodeTextDocumentHost
+} from '../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import {
     configureAstManagerSingletonForTests,
@@ -58,7 +62,10 @@ describe('EfunDocsManager', () => {
             undefined,
             DocumentSemanticSnapshotService.getInstance(),
             undefined,
-            new FunctionDocumentationService()
+            new FunctionDocumentationService(),
+            new WorkspaceDocumentPathSupport({
+                host: createVsCodeTextDocumentHost()
+            })
         );
     }
 
@@ -253,7 +260,8 @@ describe('EfunDocsManager', () => {
             getIncludePath: jest.fn()
         } as any, undefined, undefined, undefined, {
             analysisService: DocumentSemanticSnapshotService.getInstance(),
-            documentationService: new FunctionDocumentationService()
+            documentationService: new FunctionDocumentationService(),
+            documentHost: createVsCodeTextDocumentHost()
         });
         const document = TestHelper.createMockDocument('allo');
         const completion = await service.provideCompletion({

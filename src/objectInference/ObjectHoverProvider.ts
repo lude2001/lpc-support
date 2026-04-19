@@ -5,6 +5,7 @@ import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigS
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
+import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import {
     type LanguageHoverResult,
     LanguageHoverService,
@@ -21,7 +22,8 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
         targetMethodLookup?: TargetMethodLookup,
         projectConfigService?: LpcProjectConfigService,
         hoverService?: LanguageHoverService,
-        documentationService?: FunctionDocumentationService
+        documentationService?: FunctionDocumentationService,
+        host?: TextDocumentHost
     ) {
         const resolvedDocumentationService = hoverService
             ? documentationService
@@ -32,7 +34,8 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
             targetMethodLookup,
             projectConfigService,
             {
-                documentationService: resolvedDocumentationService
+                documentationService: resolvedDocumentationService,
+                host
             }
         );
     }

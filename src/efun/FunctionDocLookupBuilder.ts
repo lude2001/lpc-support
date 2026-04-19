@@ -4,7 +4,10 @@ import { FunctionDocumentationService } from '../language/documentation/Function
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import type { DocumentCallableDocs } from '../language/documentation/types';
 import type { MacroManager } from '../macroManager';
-import { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
+import {
+    WorkspaceDocumentPathSupport,
+    assertDocumentPathSupport
+} from '../language/shared/WorkspaceDocumentPathSupport';
 import type { RawFunctionDocLookup, RawFunctionDocSource } from './FunctionDocLookupTypes';
 
 export interface FunctionDocLookupBuilderOptions {
@@ -19,9 +22,7 @@ export class FunctionDocLookupBuilder {
 
     public constructor(options: FunctionDocLookupBuilderOptions = {}) {
         this.documentationService = assertDocumentationService('FunctionDocLookupBuilder', options.documentationService);
-        this.pathSupport = options.pathSupport ?? new WorkspaceDocumentPathSupport({
-            macroManager: options.macroManager
-        });
+        this.pathSupport = assertDocumentPathSupport('FunctionDocLookupBuilder', options.pathSupport);
     }
 
     public async buildLookup(

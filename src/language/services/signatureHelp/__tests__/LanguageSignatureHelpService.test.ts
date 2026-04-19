@@ -6,6 +6,7 @@ import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { EfunDocsManager } from '../../../../efunDocs';
 import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
+import { WorkspaceDocumentPathSupport, createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
 import {
@@ -198,9 +199,16 @@ describe('LanguageSignatureHelpService', () => {
         dependencies: ConstructorParameters<typeof LanguageSignatureHelpService>[0] = {}
     ): LanguageSignatureHelpService {
         const documentationService = dependencies.documentationService ?? new FunctionDocumentationService();
+        const host = dependencies.host ?? {
+            openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                const filePath = typeof target === 'string' ? target : target.fsPath;
+                return createDocument('', filePath);
+            })
+        };
         return new LanguageSignatureHelpService({
             analysisService,
             documentationService,
+            host,
             ...dependencies
         });
     }
@@ -344,7 +352,9 @@ describe('LanguageSignatureHelpService', () => {
         const efunDocsManager = new EfunDocsManager({
             subscriptions: [],
             extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext, undefined, analysisService, undefined, documentationService);
+        } as unknown as vscode.ExtensionContext, undefined, analysisService, undefined, documentationService, new WorkspaceDocumentPathSupport({
+            host: createVsCodeTextDocumentHost()
+        }));
         const service = createSignatureHelpService({
             documentationService,
             efunDocsManager,
@@ -815,9 +825,20 @@ describe('LanguageSignatureHelpService', () => {
             return createDocument(fs.readFileSync(filePath, 'utf8'), filePath);
         });
         const documentationService = new FunctionDocumentationService();
-        const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService, documentationService);
+        const objectInferenceService = new ObjectInferenceService(
+            undefined,
+            undefined,
+            analysisService,
+            documentationService,
+            createVsCodeTextDocumentHost()
+        );
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
-        const targetMethodLookup = new TargetMethodLookup(undefined, undefined, analysisService);
+        const targetMethodLookup = new TargetMethodLookup(
+            undefined,
+            undefined,
+            analysisService,
+            createVsCodeTextDocumentHost()
+        );
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         const docResolver: CallableDocResolver = {
             resolveFromTarget: jest.fn(async (target) => {
@@ -899,9 +920,20 @@ describe('LanguageSignatureHelpService', () => {
             return createDocument(fs.readFileSync(normalizedPath, 'utf8'), normalizedPath);
         });
         const documentationService = new FunctionDocumentationService();
-        const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService, documentationService);
+        const objectInferenceService = new ObjectInferenceService(
+            undefined,
+            undefined,
+            analysisService,
+            documentationService,
+            createVsCodeTextDocumentHost()
+        );
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
-        const targetMethodLookup = new TargetMethodLookup(undefined, undefined, analysisService);
+        const targetMethodLookup = new TargetMethodLookup(
+            undefined,
+            undefined,
+            analysisService,
+            createVsCodeTextDocumentHost()
+        );
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         const docResolver: CallableDocResolver = {
             resolveFromTarget: jest.fn(async (target) => {

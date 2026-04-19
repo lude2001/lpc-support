@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EfunDocsManager } from './efunDocs';
 import type { EfunDoc } from './efun/types';
-import { defaultTextDocumentHost } from './language/shared/WorkspaceDocumentPathSupport';
+import type { TextDocumentHost } from './language/shared/WorkspaceDocumentPathSupport';
 import { FunctionInfo } from './types/functionInfo';
 
 type FunctionDocSourceGroup = {
@@ -28,7 +28,11 @@ export class FunctionDocPanel {
     /**
      * 创建或显示函数文档面板
      */
-    public static createOrShow(context: vscode.ExtensionContext, efunDocsManager: EfunDocsManager) {
+    public static createOrShow(
+        context: vscode.ExtensionContext,
+        efunDocsManager: EfunDocsManager,
+        textDocumentHost: TextDocumentHost
+    ) {
         const activeEditor = vscode.window.activeTextEditor;
         if (!activeEditor || !activeEditor.document.fileName.endsWith('.c')) {
             vscode.window.showInformationMessage('请先打开一个 LPC 文件');
@@ -54,11 +58,15 @@ export class FunctionDocPanel {
             }
         );
 
-        FunctionDocPanel.currentPanel = new FunctionDocPanel(panel, efunDocsManager);
+        FunctionDocPanel.currentPanel = new FunctionDocPanel(panel, efunDocsManager, textDocumentHost);
         void FunctionDocPanel.currentPanel.update(activeEditor.document);
     }
 
-    private constructor(panel: vscode.WebviewPanel, efunDocsManager: EfunDocsManager) {
+    private constructor(
+        panel: vscode.WebviewPanel,
+        efunDocsManager: EfunDocsManager,
+        private readonly textDocumentHost: TextDocumentHost
+    ) {
         this.panel = panel;
         this.efunDocsManager = efunDocsManager;
 
@@ -265,7 +273,7 @@ export class FunctionDocPanel {
     }
 
     private async gotoDefinition(filePath: string, line: number) {
-        const document = await defaultTextDocumentHost.openTextDocument(filePath);
+        const document = await this.textDocumentHost.openTextDocument(filePath);
         const editor = await vscode.window.showTextDocument(document, { preview: false });
         const pos = new vscode.Position(line, 0);
         editor.selection = new vscode.Selection(pos, pos);
@@ -274,7 +282,7 @@ export class FunctionDocPanel {
 
     private async generateJavadocForFunction(filePath: string, line: number, _functionName: string) {
         try {
-            const document = await defaultTextDocumentHost.openTextDocument(filePath);
+            const document = await this.textDocumentHost.openTextDocument(filePath);
             const editor = await vscode.window.showTextDocument(document, { preview: false });
             const position = new vscode.Position(line, 0);
             editor.selection = new vscode.Selection(position, position);

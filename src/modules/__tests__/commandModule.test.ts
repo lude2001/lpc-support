@@ -195,6 +195,18 @@ describe('registerCommands', () => {
         registry.register(Services.Compiler, compiler as any);
         registry.register(Services.ProjectConfig, projectConfigService as any);
         registry.register(Services.ErrorTree, errorTreeProvider as any);
+        registry.register(Services.TextDocumentHost, {
+            openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                const filePath = typeof target === 'string' ? target : target.fsPath;
+                return {
+                    uri: vscode.Uri.file(filePath),
+                    fileName: filePath,
+                    languageId: 'lpc'
+                } as unknown as vscode.TextDocument;
+            }),
+            fileExists: jest.fn().mockReturnValue(true),
+            getWorkspaceFolder: jest.fn().mockReturnValue({ uri: { fsPath: 'D:/workspace' } })
+        } as any);
 
         (ErrorTreeDataProvider as unknown as jest.Mock).mockReset().mockImplementation(() => errorTreeProvider);
         (LPCConfigManager as unknown as jest.Mock).mockReset().mockImplementation(() => freshConfigManager);
@@ -269,7 +281,13 @@ describe('registerCommands', () => {
         handlers.get('lpc.errorTree.refresh')?.();
 
         expect(diagnostics.scanFolder).toHaveBeenCalledTimes(1);
-        expect(FunctionDocPanel.createOrShow).toHaveBeenCalledWith(context, efunDocsManager);
+        expect(FunctionDocPanel.createOrShow).toHaveBeenCalledWith(
+            context,
+            efunDocsManager,
+            expect.objectContaining({
+                openTextDocument: expect.any(Function)
+            })
+        );
         expect(compiler.compileFile).toHaveBeenCalledWith(activeDocument.fileName);
         expect((compiler as any).compileFolder).toHaveBeenCalledWith('D:/workspace/project');
         expect(macroManager.configurePath).toHaveBeenCalledTimes(1);

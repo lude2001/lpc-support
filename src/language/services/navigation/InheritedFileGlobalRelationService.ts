@@ -8,7 +8,7 @@ import type { DocumentAnalysisService } from '../../../semantic/documentAnalysis
 import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { resolveScopedDirectInheritSeeds } from '../../../objectInference/scopedInheritanceTraversal';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
-import { defaultTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
+import { assertOpenTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import { normalizeWorkspaceUri } from './navigationPathUtils';
 export interface FileGlobalBinding {
     name: string;
@@ -42,7 +42,7 @@ export class InheritedFileGlobalRelationService {
         this.analysisService = assertAnalysisService('InheritedFileGlobalRelationService', options.analysisService);
         this.inheritanceResolver = options.inheritanceResolver
             ?? new InheritanceResolver(options.macroManager, options.workspaceRoots);
-        this.host = options.host ?? defaultTextDocumentHost;
+        this.host = assertOpenTextDocumentHost('InheritedFileGlobalRelationService', options.host);
     }
 
     public async resolveVisibleBinding(

@@ -10,7 +10,7 @@ import type { DocumentAnalysisService } from '../../../semantic/documentAnalysis
 import type { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import type { TargetMethodLookup } from '../../../targetMethodLookup';
-import { defaultTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
+import { assertOpenTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import {
     type CallSiteAnalyzer,
     countActiveParameterIndex,
@@ -94,8 +94,6 @@ interface LanguageSignatureHelpDependencies {
     host?: SignatureHelpDocumentHost;
 }
 
-const defaultHost: SignatureHelpDocumentHost = defaultTextDocumentHost;
-
 export class LanguageSignatureHelpService {
     private readonly renderer: CallableDocRenderer;
     private readonly callSiteAnalyzer: CallSiteAnalyzer;
@@ -103,7 +101,9 @@ export class LanguageSignatureHelpService {
     private readonly docResolver: CallableDocResolver;
 
     public constructor(dependencies: LanguageSignatureHelpDependencies = {}) {
-        const host = dependencies.host ?? defaultHost;
+        const host = dependencies.docResolver
+            ? dependencies.host
+            : assertOpenTextDocumentHost('LanguageSignatureHelpService', dependencies.host);
         this.renderer = dependencies.renderer ?? new CallableDocRenderer();
         this.callSiteAnalyzer = dependencies.callSiteAnalyzer
             ?? createSyntaxAwareCallSiteAnalyzer(dependencies.analysisService);
@@ -121,7 +121,7 @@ export class LanguageSignatureHelpService {
                 dependencies.documentationService
             );
         this.docResolver = dependencies.docResolver
-            ?? new DefaultCallableDocResolver(documentationService!, dependencies.efunDocsManager, host);
+            ?? new DefaultCallableDocResolver(documentationService!, dependencies.efunDocsManager, host!);
     }
 
     public async provideSignatureHelp(

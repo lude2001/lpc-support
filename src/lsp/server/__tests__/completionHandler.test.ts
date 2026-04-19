@@ -16,6 +16,7 @@ import type {
 } from '../../../language/services/completion/LanguageCompletionService';
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
+import { createVsCodeTextDocumentHost } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { DocumentStore } from '../runtime/DocumentStore';
@@ -407,7 +408,8 @@ describe('registerCompletionHandler', () => {
             undefined,
             {
                 analysisService: DocumentSemanticSnapshotService.getInstance(),
-                documentationService: new FunctionDocumentationService()
+                documentationService: new FunctionDocumentationService(),
+                documentHost: createVsCodeTextDocumentHost()
             }
         );
         const completionService: LanguageCompletionService = {

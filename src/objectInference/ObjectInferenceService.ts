@@ -5,6 +5,10 @@ import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
+import {
+    assertTextDocumentHost,
+    type TextDocumentHost
+} from '../language/shared/WorkspaceDocumentPathSupport';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { PathResolver } from '../utils/pathResolver';
@@ -33,9 +37,11 @@ export class ObjectInferenceService {
         private readonly macroManager?: MacroManager,
         playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
         analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>,
-        documentationService?: FunctionDocumentationService
+        documentationService?: FunctionDocumentationService,
+        host?: TextDocumentHost
     ) {
         this.analysisService = assertAnalysisService('ObjectInferenceService', analysisService);
+        const textDocumentHost = assertTextDocumentHost('ObjectInferenceService', host);
         const resolvedDocumentationService = assertDocumentationService(
             'ObjectInferenceService',
             documentationService
@@ -46,9 +52,10 @@ export class ObjectInferenceService {
         const targetMethodLookup = new TargetMethodLookup(
             macroManager,
             projectConfigService,
-            this.analysisService
+            this.analysisService,
+            textDocumentHost
         );
-        const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, this.analysisService);
+        const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, this.analysisService, textDocumentHost);
         this.returnObjectResolver = new ReturnObjectResolver(
             macroManager,
             playerObjectPathOrProjectConfig,
@@ -65,12 +72,14 @@ export class ObjectInferenceService {
             this.returnObjectResolver,
             this.objectMethodReturnResolver,
             macroManager,
-            this.analysisService
+            this.analysisService,
+            textDocumentHost
         );
         this.inheritedGlobalBindingResolver = new InheritedGlobalObjectBindingResolver(
             macroManager,
             this.globalBindingResolver,
-            this.analysisService
+            this.analysisService,
+            textDocumentHost
         );
         this.traceService = new ReceiverTraceService(
             this.returnObjectResolver,

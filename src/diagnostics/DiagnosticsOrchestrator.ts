@@ -6,6 +6,7 @@ import { VariableAnalyzer } from './analyzers/VariableAnalyzer';
 import { VariableInspectorPanel } from './VariableInspectorPanel';
 import { FolderScanner } from './FolderScanner';
 import { toVsCodeDiagnostics } from '../language/adapters/vscode/diagnosticsAdapter';
+import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import type {
     LanguageDiagnosticsRequest,
     LanguageDiagnosticsService
@@ -22,6 +23,7 @@ interface LPCConfig {
 
 interface DiagnosticsOrchestratorOptions {
     diagnosticsService: LanguageDiagnosticsService;
+    textDocumentHost: TextDocumentHost;
 }
 
 interface DiagnosticsPerformanceSettings {
@@ -68,7 +70,8 @@ export class DiagnosticsOrchestrator {
         this.variableInspector = new VariableInspectorPanel(this.variableAnalyzer);
         this.folderScanner = new FolderScanner(
             this.analyzeDocumentForFolderScan.bind(this),
-            this.diagnosticCollection
+            this.diagnosticCollection,
+            options.textDocumentHost
         );
 
         this.diagnosticsService = options.diagnosticsService;

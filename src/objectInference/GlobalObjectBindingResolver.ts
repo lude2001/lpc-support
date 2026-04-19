@@ -8,7 +8,7 @@ import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
-import { defaultTextDocumentHost, type TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
+import { assertTextDocumentHost, type TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 
 export interface GlobalBindingResolution extends ObjectResolutionOutcome {
     hasVisibleBinding: boolean;
@@ -47,7 +47,7 @@ export class GlobalObjectBindingResolver {
     ) {
         this.analysisService = assertAnalysisService('GlobalObjectBindingResolver', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager);
-        this.host = host ?? defaultTextDocumentHost;
+        this.host = assertTextDocumentHost('GlobalObjectBindingResolver', host as TextDocumentHost | undefined);
     }
 
     public async resolveVisibleBinding(

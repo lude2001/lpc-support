@@ -7,6 +7,7 @@ import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator'
 import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { createVsCodeTextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
 import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
 import { ObjectInferenceService } from '../objectInference/ObjectInferenceService';
@@ -178,9 +179,16 @@ describe('language-service integration regression', () => {
     let fixtureRoot: string;
     let analysisService: DocumentSemanticSnapshotService;
     let documentationService: FunctionDocumentationService;
+    let documentHost: ReturnType<typeof createVsCodeTextDocumentHost>;
 
     const createObjectInference = (projectConfig?: unknown) =>
-        new ObjectInferenceService(macroManager as any, projectConfig as any, analysisService, documentationService);
+        new ObjectInferenceService(
+            macroManager as any,
+            projectConfig as any,
+            analysisService,
+            documentationService,
+            documentHost
+        );
 
     const createCompletionService = (
         objectInferenceService?: ObjectInferenceService,
@@ -198,11 +206,12 @@ describe('language-service integration regression', () => {
         {
             analysisService,
             documentationService,
+            documentHost,
             ...dependencies
         } as any
     );
     const createScopedMethodResolver = () =>
-        new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
+        new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService, documentHost);
     const createDefinitionService = (
         objectInferenceService?: unknown,
         targetMethodLookup?: unknown,
@@ -218,6 +227,16 @@ describe('language-service integration regression', () => {
             : {
                 analysisService,
                 documentationService,
+                host: {
+                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+                    openTextDocument: vscode.workspace.openTextDocument as any,
+                    findFiles: jest.fn(),
+                    getWorkspaceFolder: jest.fn((uri?: { fsPath?: string }) =>
+                        uri?.fsPath ? { uri: { fsPath: fixtureRoot } } : undefined
+                    ),
+                    getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: fixtureRoot } }]),
+                    fileExists: jest.fn((filePath: string) => fs.existsSync(filePath))
+                },
                 ...hostOrDependencies
             };
 
@@ -235,6 +254,7 @@ describe('language-service integration regression', () => {
         jest.clearAllMocks();
         analysisService = DocumentSemanticSnapshotService.getInstance();
         documentationService = new FunctionDocumentationService();
+        documentHost = createVsCodeTextDocumentHost();
         configureAstManagerSingletonForTests(analysisService);
         fixtureRoot = path.join(process.cwd(), '.tmp-provider-integration');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
@@ -768,7 +788,7 @@ describe('language-service integration regression', () => {
         const document = createDocument(path.join(fixtureRoot, 'room', 'global-object-definition.c'), source);
         const objectInferenceService = createObjectInference();
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
-        const targetMethodLookup = new TargetMethodLookup(macroManager as any, undefined, analysisService);
+        const targetMethodLookup = new TargetMethodLookup(macroManager as any, undefined, analysisService, documentHost);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
@@ -817,7 +837,7 @@ describe('language-service integration regression', () => {
         const document = createDocument(path.join(fixtureRoot, 'room', 'inherited-global-definition.c'), source);
         const objectInferenceService = createObjectInference();
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
-        const targetMethodLookup = new TargetMethodLookup(macroManager as any, undefined, analysisService);
+        const targetMethodLookup = new TargetMethodLookup(macroManager as any, undefined, analysisService, documentHost);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
             const filePath = typeof target === 'string' ? target : target.fsPath;

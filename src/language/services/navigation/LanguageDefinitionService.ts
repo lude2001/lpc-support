@@ -4,7 +4,6 @@ import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabili
 import type { LanguageLocation, LanguagePosition } from '../../contracts/LanguagePosition';
 import { MacroManager } from '../../../macroManager';
 import { EfunDocsManager } from '../../../efunDocs';
-import { defaultWorkspaceDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
@@ -41,8 +40,6 @@ interface LanguageDefinitionDependencies {
     documentationService?: FunctionDocumentationService;
 }
 
-const defaultDefinitionHost: LanguageDefinitionHost = defaultWorkspaceDocumentHost;
-
 export class AstBackedLanguageDefinitionService implements LanguageDefinitionService {
     private readonly macroManager: MacroManager;
     private readonly efunDocsManager: EfunDocsManager;
@@ -64,21 +61,27 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         objectInferenceService?: ObjectInferenceService,
         targetMethodLookup?: TargetMethodLookup,
         projectConfigService?: LpcProjectConfigService,
-        hostOrDependencies: LanguageDefinitionHost | LanguageDefinitionDependencies = defaultDefinitionHost
+        hostOrDependencies: LanguageDefinitionHost | LanguageDefinitionDependencies = {}
     ) {
         this.macroManager = macroManager;
         this.efunDocsManager = efunDocsManager;
         this.projectConfigService = projectConfigService;
         const dependencies = this.resolveDependencies(hostOrDependencies);
+        this.host = dependencies.host;
         const analysisService = assertAnalysisService('AstBackedLanguageDefinitionService', dependencies.analysisService);
         const documentationService = objectInferenceService
             ? dependencies.documentationService
             : assertDocumentationService('AstBackedLanguageDefinitionService', dependencies.documentationService);
         this.objectInferenceService = objectInferenceService
-            ?? new ObjectInferenceService(macroManager, projectConfigService, analysisService, documentationService);
+            ?? new ObjectInferenceService(
+                macroManager,
+                projectConfigService,
+                analysisService,
+                documentationService,
+                this.host
+            );
         this.targetMethodLookup = targetMethodLookup
-            ?? new TargetMethodLookup(macroManager, projectConfigService, analysisService);
-        this.host = dependencies.host;
+            ?? new TargetMethodLookup(macroManager, projectConfigService, analysisService, this.host);
         this.semanticAdapter = dependencies.semanticAdapter;
         this.scopedMethodResolver = dependencies.scopedMethodResolver;
         this.support = new DefinitionResolverSupport({
@@ -124,8 +127,12 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
             };
         }
 
+        if (!hostOrDependencies.host) {
+            throw new Error('AstBackedLanguageDefinitionService requires an injected LanguageDefinitionHost');
+        }
+
         return {
-            host: hostOrDependencies.host ?? defaultDefinitionHost,
+            host: hostOrDependencies.host,
             analysisService: hostOrDependencies.analysisService,
             semanticAdapter: hostOrDependencies.semanticAdapter,
             scopedMethodResolver: hostOrDependencies.scopedMethodResolver,

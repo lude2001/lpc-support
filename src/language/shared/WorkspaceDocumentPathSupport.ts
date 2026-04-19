@@ -11,6 +11,8 @@ export interface TextDocumentHost {
     getWorkspaceFolder(uri: vscode.Uri): { uri: { fsPath: string } } | undefined;
 }
 
+export type OpenTextDocumentHost = Pick<TextDocumentHost, 'openTextDocument'>;
+
 export interface WorkspaceDocumentHost extends TextDocumentHost {
     findFiles(pattern: vscode.GlobPattern): Promise<readonly vscode.Uri[]>;
     getWorkspaceFolders(): readonly { uri: { fsPath: string } }[] | undefined;
@@ -28,26 +30,72 @@ export interface WorkspaceDocumentPathSupportOptions {
     >;
 }
 
-export const defaultTextDocumentHost: TextDocumentHost = {
-    openTextDocument: async (target) => typeof target === 'string'
-        ? vscode.workspace.openTextDocument(target)
-        : vscode.workspace.openTextDocument(target),
-    fileExists: (filePath) => fs.existsSync(filePath),
-    getWorkspaceFolder: (uri) => vscode.workspace.getWorkspaceFolder(uri)
-};
+export function createVsCodeTextDocumentHost(): TextDocumentHost {
+    return {
+        openTextDocument: async (target) => typeof target === 'string'
+            ? vscode.workspace.openTextDocument(target)
+            : vscode.workspace.openTextDocument(target),
+        fileExists: (filePath) => fs.existsSync(filePath),
+        getWorkspaceFolder: (uri) => vscode.workspace.getWorkspaceFolder(uri)
+    };
+}
 
-export const defaultWorkspaceDocumentHost: WorkspaceDocumentHost = {
-    ...defaultTextDocumentHost,
-    findFiles: async (pattern) => vscode.workspace.findFiles(pattern),
-    getWorkspaceFolders: () => vscode.workspace.workspaceFolders,
-    onDidChangeTextDocument: (listener) => vscode.workspace.onDidChangeTextDocument(listener)
-};
+export function createVsCodeWorkspaceDocumentHost(): WorkspaceDocumentHost {
+    const textDocumentHost = createVsCodeTextDocumentHost();
+    return {
+        ...textDocumentHost,
+        findFiles: async (pattern) => vscode.workspace.findFiles(pattern),
+        getWorkspaceFolders: () => vscode.workspace.workspaceFolders,
+        onDidChangeTextDocument: (listener) => vscode.workspace.onDidChangeTextDocument(listener)
+    };
+}
+
+export function assertTextDocumentHost(owner: string, host: TextDocumentHost | undefined): TextDocumentHost {
+    if (!host) {
+        throw new Error(`${owner} requires an injected TextDocumentHost`);
+    }
+
+    return host;
+}
+
+export function assertOpenTextDocumentHost(
+    owner: string,
+    host: OpenTextDocumentHost | undefined
+): OpenTextDocumentHost {
+    if (!host) {
+        throw new Error(`${owner} requires an injected openTextDocument host`);
+    }
+
+    return host;
+}
+
+export function assertWorkspaceDocumentHost(
+    owner: string,
+    host: WorkspaceDocumentHost | undefined
+): WorkspaceDocumentHost {
+    if (!host) {
+        throw new Error(`${owner} requires an injected WorkspaceDocumentHost`);
+    }
+
+    return host;
+}
+
+export function assertDocumentPathSupport(
+    owner: string,
+    pathSupport: WorkspaceDocumentPathSupport | undefined
+): WorkspaceDocumentPathSupport {
+    if (!pathSupport) {
+        throw new Error(`${owner} requires an injected WorkspaceDocumentPathSupport`);
+    }
+
+    return pathSupport;
+}
 
 export class WorkspaceDocumentPathSupport {
     private readonly host: TextDocumentHost;
 
     public constructor(private readonly options: WorkspaceDocumentPathSupportOptions = {}) {
-        this.host = options.host ?? defaultTextDocumentHost;
+        this.host = assertTextDocumentHost('WorkspaceDocumentPathSupport', options.host);
     }
 
     public async tryOpenTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument | undefined> {

@@ -1,7 +1,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { SymbolType } from './ast/symbolTable';
-import { WorkspaceDocumentPathSupport } from './language/shared/WorkspaceDocumentPathSupport';
+import {
+    TextDocumentHost,
+    WorkspaceDocumentPathSupport,
+    assertTextDocumentHost
+} from './language/shared/WorkspaceDocumentPathSupport';
 import { MacroManager } from './macroManager';
 import type { LpcProjectConfigService } from './projectConfig/LpcProjectConfigService';
 import type { DocumentAnalysisService } from './semantic/documentAnalysisService';
@@ -27,10 +31,12 @@ export class TargetMethodLookup {
     constructor(
         macroManager: MacroManager | undefined,
         projectConfigService: LpcProjectConfigService | undefined,
-        analysisService: TargetMethodAnalysisService
+        analysisService: TargetMethodAnalysisService,
+        host?: TextDocumentHost
     ) {
         this.analysisService = analysisService;
         this.pathSupport = new WorkspaceDocumentPathSupport({
+            host: assertTextDocumentHost('TargetMethodLookup', host),
             macroManager,
             projectConfigService
         });

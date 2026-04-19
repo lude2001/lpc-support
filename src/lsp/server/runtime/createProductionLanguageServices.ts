@@ -8,7 +8,10 @@ import { EfunDocsManager } from '../../../efunDocs';
 import { ASTManager } from '../../../ast/astManager';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
-import { defaultTextDocumentHost } from '../../../language/shared/WorkspaceDocumentPathSupport';
+import {
+    WorkspaceDocumentPathSupport,
+    createVsCodeWorkspaceDocumentHost
+} from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { createLanguageCodeActionService } from '../../../language/services/codeActions/LanguageCodeActionService';
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
 import { createLanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
@@ -44,30 +47,38 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     ASTManager.configureSingleton(analysisService);
 
+    const workspaceDocumentHost = createVsCodeWorkspaceDocumentHost();
     const projectConfigService = new LpcProjectConfigService();
-    const macroManager = new MacroManager(projectConfigService);
+    const macroManager = new MacroManager(projectConfigService, workspaceDocumentHost);
     const documentationService = new FunctionDocumentationService();
     const completionInstrumentation = new CompletionInstrumentation();
+    const documentPathSupport = new WorkspaceDocumentPathSupport({
+        host: workspaceDocumentHost,
+        macroManager,
+        projectConfigService
+    });
     const objectInferenceService = new ObjectInferenceService(
         macroManager,
         projectConfigService,
         analysisService,
-        documentationService
+        documentationService,
+        workspaceDocumentHost
     );
-    const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService);
-    const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService, analysisService);
+    const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService, workspaceDocumentHost);
+    const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService, analysisService, workspaceDocumentHost);
     const efunDocsManager = new EfunDocsManager(
         createServerExtensionContext(),
         projectConfigService,
         analysisService,
         macroManager,
-        documentationService
+        documentationService,
+        documentPathSupport
     );
     const inheritedRelationService = new InheritedSymbolRelationService({
         analysisService,
         macroManager,
         scopedMethodResolver,
-        host: defaultTextDocumentHost
+        host: workspaceDocumentHost
     });
 
     const completionService = new QueryBackedLanguageCompletionService(
@@ -78,7 +89,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         undefined,
         {
             analysisService,
-            documentationService
+            documentationService,
+            documentHost: workspaceDocumentHost
         }
     );
     const codeActionsService = createLanguageCodeActionService();
@@ -112,7 +124,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         projectConfigService,
         {
             analysisService,
-            scopedMethodResolver
+            scopedMethodResolver,
+            host: workspaceDocumentHost
         }
     );
     const referenceService = new AstBackedLanguageReferenceService({
@@ -132,7 +145,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         objectInferenceService,
         targetMethodLookup,
         scopedMethodResolver,
-        documentationService
+        documentationService,
+        host: workspaceDocumentHost
     });
     const foldingService = new DefaultLanguageFoldingService(analysisService);
     const semanticTokensService = new DefaultLanguageSemanticTokensService(analysisService);

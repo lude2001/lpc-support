@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { Services } from '../core/ServiceKeys';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { FunctionDocPanel } from '../functionDocPanel';
-import { defaultTextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
+import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { getLpcprjStartCommand, hasLpcprjCommand } from '../utils/lpcprj';
 
 type CompilationMode = 'local' | 'remote';
@@ -71,13 +71,14 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     const compiler = registry.get(Services.Compiler);
     const projectConfigService = registry.get(Services.ProjectConfig) as ProjectConfigServiceLike;
     const errorTreeProvider = registry.get(Services.ErrorTree);
+    const textDocumentHost = registry.get(Services.TextDocumentHost) as TextDocumentHost;
 
     register(context, 'lpc.scanFolder', () => {
         diagnostics.scanFolder();
     });
 
     register(context, 'lpc.showFunctionDoc', () => {
-        FunctionDocPanel.createOrShow(context, efunDocsManager);
+        FunctionDocPanel.createOrShow(context, efunDocsManager, textDocumentHost);
     });
 
     register(context, 'lpc.errorTree.refresh', () => errorTreeProvider.refresh());
@@ -93,7 +94,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         const fileUri = vscode.Uri.file(filePath);
 
         try {
-            const document = await defaultTextDocumentHost.openTextDocument(fileUri);
+            const document = await textDocumentHost.openTextDocument(fileUri);
             const editor = await vscode.window.showTextDocument(document);
             const line = errorItem.line - 1;
             const range = new vscode.Range(line, 0, line, 100);

@@ -5,6 +5,7 @@ import type { LanguageDocument } from '../../../contracts/LanguageDocument';
 import type { LanguagePosition, LanguageRange } from '../../../contracts/LanguagePosition';
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import { ASTManager } from '../../../../ast/astManager';
+import { createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import {
     configureAstManagerSingletonForTests,
@@ -291,6 +292,7 @@ describe('navigation services', () => {
             undefined,
             {
                 analysisService,
+                host: createVsCodeTextDocumentHost(),
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     methodName: 'create',
@@ -342,6 +344,7 @@ describe('navigation services', () => {
             undefined,
             {
                 analysisService,
+                host: createVsCodeTextDocumentHost(),
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     qualifier: 'room',
@@ -394,6 +397,7 @@ describe('navigation services', () => {
             undefined,
             {
                 analysisService,
+                host: createVsCodeTextDocumentHost(),
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     methodName: 'create',
@@ -511,6 +515,7 @@ describe('navigation services', () => {
             undefined,
             {
                 analysisService,
+                host: createVsCodeTextDocumentHost(),
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     qualifier: 'room',
@@ -555,6 +560,7 @@ describe('navigation services', () => {
             undefined,
             {
                 analysisService,
+                host: createVsCodeTextDocumentHost(),
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     qualifier: 'room',

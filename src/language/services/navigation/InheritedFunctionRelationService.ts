@@ -9,7 +9,7 @@ import type { DocumentAnalysisService } from '../../../semantic/documentAnalysis
 import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { resolveSymbolReferences, resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
-import { defaultTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
+import { assertOpenTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import { normalizeWorkspaceUri } from './navigationPathUtils';
 import {
     isOnScopedMethodIdentifier
@@ -38,7 +38,7 @@ export class InheritedFunctionRelationService {
         this.analysisService = assertAnalysisService('InheritedFunctionRelationService', options.analysisService);
         this.inheritanceResolver = options.inheritanceResolver
             ?? new InheritanceResolver(options.macroManager, options.workspaceRoots);
-        this.host = options.host ?? defaultTextDocumentHost;
+        this.host = assertOpenTextDocumentHost('InheritedFunctionRelationService', options.host);
         this.scopedMethodResolver = options.scopedMethodResolver;
     }
 

@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../../ast/astManager';
 import { SymbolType } from '../../ast/symbolTable';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import { createVsCodeTextDocumentHost } from '../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { ObjectInferenceService } from '../ObjectInferenceService';
 import {
@@ -77,12 +78,14 @@ describe('ObjectInferenceService', () => {
     let macroManager: { getMacro: jest.Mock };
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     let documentationService: FunctionDocumentationService;
+    const documentHost = createVsCodeTextDocumentHost();
     const createService = (playerObjectPathOrProjectConfig?: unknown) =>
         new ObjectInferenceService(
             macroManager as any,
             playerObjectPathOrProjectConfig as any,
             analysisService,
-            documentationService
+            documentationService,
+            documentHost
         );
 
     beforeEach(() => {
@@ -1472,7 +1475,8 @@ describe('ObjectInferenceService', () => {
             macroManager as any,
             projectConfigService as any,
             analysisService as any,
-            documentationService
+            documentationService,
+            documentHost
         );
         const source = [
             'void demo() {',
@@ -2535,7 +2539,8 @@ describe('ObjectInferenceService', () => {
             macroManager as any,
             projectConfigService as any,
             analysisService as any,
-            documentationService
+            documentationService,
+            documentHost
         );
         const source = [
             'object FACTORY = load_object("/adm/objects/configured-global-include-child-factory");',
