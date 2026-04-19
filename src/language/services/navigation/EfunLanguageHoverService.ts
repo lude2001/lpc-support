@@ -12,11 +12,11 @@ type EfunHoverAnalysisService = Pick<DocumentAnalysisService, 'getSyntaxDocument
 
 export class EfunLanguageHoverService implements LanguageHoverService {
     private readonly analysisService: EfunHoverAnalysisService;
-    private readonly renderer = new CallableDocRenderer();
 
     public constructor(
         private readonly efunDocsManager: EfunDocsManager,
-        analysisService: EfunHoverAnalysisService
+        analysisService: EfunHoverAnalysisService,
+        private readonly renderer: Pick<CallableDocRenderer, 'renderHover'>
     ) {
         this.analysisService = assertAnalysisService('EfunLanguageHoverService', analysisService);
     }

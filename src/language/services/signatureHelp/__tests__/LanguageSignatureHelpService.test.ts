@@ -7,7 +7,10 @@ import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSe
 import { EfunDocsManager } from '../../../../efunDocs';
 import { FunctionDocCompatMaterializer } from '../../../../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../../../../efun/FunctionDocLookupBuilder';
-import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
+import {
+    FunctionDocumentationService,
+    createDefaultFunctionDocumentationService
+} from '../../../documentation/FunctionDocumentationService';
 import { CallableDocRenderer } from '../../../documentation/CallableDocRenderer';
 import { WorkspaceDocumentPathSupport, createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
@@ -221,7 +224,7 @@ describe('LanguageSignatureHelpService', () => {
     function createSignatureHelpService(
         dependencies: SignatureHelpTestDependencies = {}
     ): LanguageSignatureHelpService {
-        const documentationService = dependencies.documentationService ?? new FunctionDocumentationService();
+        const documentationService = dependencies.documentationService ?? createDefaultFunctionDocumentationService();
         const host = dependencies.host ?? {
             openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
                 const filePath = typeof target === 'string' ? target : target.fsPath;
@@ -384,7 +387,7 @@ describe('LanguageSignatureHelpService', () => {
             '}'
         ].join('\n');
         const document = createDocument(source, 'D:/workspace/prototype-signature.c');
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: createVsCodeTextDocumentHost()
         });
@@ -861,7 +864,7 @@ describe('LanguageSignatureHelpService', () => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
             return createDocument(fs.readFileSync(filePath, 'utf8'), filePath);
         });
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const documentHost = createVsCodeTextDocumentHost();
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: documentHost
@@ -954,7 +957,7 @@ describe('LanguageSignatureHelpService', () => {
                 .replace(/\//g, path.sep);
             return createDocument(fs.readFileSync(normalizedPath, 'utf8'), normalizedPath);
         });
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const documentHost = createVsCodeTextDocumentHost();
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: documentHost

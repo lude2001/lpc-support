@@ -73,15 +73,16 @@ describe('document analysis ownership guards', () => {
         expect(astManagerSource).not.toContain('public static resetSingletonForTests(');
     });
 
-    test('FunctionDocumentationService instances are only created in composition roots', () => {
+    test('FunctionDocumentationService default assembly stays on the documented factory/composition roots', () => {
         const documentationInstantiationCallSites = listProductionTypeScriptFiles(srcRoot)
-            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('new FunctionDocumentationService('))
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('createDefaultFunctionDocumentationService('))
             .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
             .sort();
 
         expect(documentationInstantiationCallSites).toEqual([
             'src/lsp/server/runtime/createProductionLanguageServices.ts',
-            'src/modules/coreModule.ts'
+            'src/modules/coreModule.ts',
+            'src/language/documentation/FunctionDocumentationService.ts'
         ]);
     });
 

@@ -3,7 +3,10 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { ASTManager } from '../../ast/astManager';
 import { SymbolType } from '../../ast/symbolTable';
-import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import {
+    FunctionDocumentationService,
+    createDefaultFunctionDocumentationService
+} from '../../language/documentation/FunctionDocumentationService';
 import {
     WorkspaceDocumentPathSupport,
     createVsCodeTextDocumentHost
@@ -138,7 +141,7 @@ describe('ObjectInferenceService', () => {
         macroManager = {
             getMacro: jest.fn()
         };
-        documentationService = new FunctionDocumentationService();
+        documentationService = createDefaultFunctionDocumentationService();
 
         service = createService();
     });

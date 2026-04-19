@@ -6,8 +6,14 @@ import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
 import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 import { createDefaultQueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
-import { ScopedMethodCompletionSupport } from '../language/services/completion/ScopedMethodCompletionSupport';
-import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { CallableDocRenderer } from '../language/documentation/CallableDocRenderer';
+import {
+    createDefaultScopedMethodCompletionSupport
+} from '../language/services/completion/ScopedMethodCompletionSupport';
+import {
+    FunctionDocumentationService,
+    createDefaultFunctionDocumentationService
+} from '../language/documentation/FunctionDocumentationService';
 import {
     WorkspaceDocumentPathSupport,
     createVsCodeTextDocumentHost
@@ -231,9 +237,10 @@ describe('language-service integration regression', () => {
             analysisService,
             host: documentHost
         }),
-        scopedCompletionSupport: new ScopedMethodCompletionSupport({
+        scopedCompletionSupport: createDefaultScopedMethodCompletionSupport({
             documentationService,
-            documentHost
+            documentHost,
+            renderer: new CallableDocRenderer()
         }),
         ...dependencies
     } as any);
@@ -289,7 +296,7 @@ describe('language-service integration regression', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         analysisService = DocumentSemanticSnapshotService.getInstance();
-        documentationService = new FunctionDocumentationService();
+        documentationService = createDefaultFunctionDocumentationService();
         documentHost = createVsCodeTextDocumentHost();
         pathSupport = new WorkspaceDocumentPathSupport({
             host: documentHost,

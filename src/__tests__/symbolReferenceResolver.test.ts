@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { AstBackedLanguageReferenceService } from '../language/services/navigation/LanguageReferenceService';
 import { AstBackedLanguageRenameService } from '../language/services/navigation/LanguageRenameService';
-import { AstBackedLanguageSymbolService } from '../language/services/navigation/LanguageSymbolService';
+import { createDefaultAstBackedLanguageSymbolService } from '../language/services/navigation/LanguageSymbolService';
 import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { resolveSymbolReferences } from '../symbolReferenceResolver';
 import {
@@ -212,7 +212,7 @@ describe('local symbol references', () => {
                 }
             ]
         } as any);
-        const service = new AstBackedLanguageSymbolService({
+        const service = createDefaultAstBackedLanguageSymbolService({
             analysisService: { getBestAvailableSnapshot }
         });
 

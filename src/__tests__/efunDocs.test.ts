@@ -10,8 +10,12 @@ import { buildEfunHoverMarkdown, createEfunHover } from '../efun/EfunHoverConten
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { createDefaultQueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
-import { ScopedMethodCompletionSupport } from '../language/services/completion/ScopedMethodCompletionSupport';
-import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { createDefaultScopedMethodCompletionSupport } from '../language/services/completion/ScopedMethodCompletionSupport';
+import { CallableDocRenderer } from '../language/documentation/CallableDocRenderer';
+import {
+    FunctionDocumentationService,
+    createDefaultFunctionDocumentationService
+} from '../language/documentation/FunctionDocumentationService';
 import { createDefaultScopedMethodDiscoveryService } from '../objectInference/ScopedMethodDiscoveryService';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import { CompletionContextAnalyzer } from '../completion/completionContextAnalyzer';
@@ -33,7 +37,7 @@ function createSimulatedScanner(projectConfigService?: any): SimulatedEfunScanne
     return new SimulatedEfunScanner(
         projectConfigService,
         DocumentSemanticSnapshotService.getInstance(),
-        new FunctionDocumentationService(),
+        createDefaultFunctionDocumentationService(),
         new FunctionDocCompatMaterializer()
     );
 }
@@ -83,7 +87,7 @@ describe('EfunDocsManager', () => {
     }
 
     function createManager(extensionPath: string): EfunDocsManager {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: createVsCodeTextDocumentHost()
         });
@@ -283,7 +287,7 @@ describe('EfunDocsManager', () => {
         writeBundleFile(extensionPath, createStructuredBundle());
         const manager = createManager(extensionPath);
         const documentHost = createVsCodeTextDocumentHost();
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const objectInferenceService = { inferObjectAccess: jest.fn() } as any;
         const service = createDefaultQueryBackedLanguageCompletionService({
             efunDocsManager: manager,
@@ -309,9 +313,10 @@ describe('EfunDocsManager', () => {
                 analysisService: DocumentSemanticSnapshotService.getInstance(),
                 host: documentHost
             }),
-            scopedCompletionSupport: new ScopedMethodCompletionSupport({
+            scopedCompletionSupport: createDefaultScopedMethodCompletionSupport({
                 documentationService,
-                documentHost
+                documentHost,
+                renderer: new CallableDocRenderer()
             })
         });
         const document = TestHelper.createMockDocument('allo');

@@ -1,27 +1,26 @@
 import * as vscode from 'vscode';
-import { CallableDocDocumentBuilder } from './CallableDocDocumentBuilder';
 import { cloneCallableDoc, cloneDocumentCallableDocs } from './FunctionDocumentationCloneSupport';
 import {
     FunctionDocumentationDocumentIndex,
-    type FunctionDocumentationDocumentIndexOptions
+    type FunctionDocumentationDocumentIndexOptions,
+    createDefaultFunctionDocumentationDocumentIndex
 } from './FunctionDocumentationDocumentIndex';
 import type { CallableDoc, DocumentCallableDocs } from './types';
 
 interface FunctionDocumentationServiceOptions {
+    documentIndex: FunctionDocumentationDocumentIndex;
+}
+
+interface DefaultFunctionDocumentationServiceOptions {
     documentIndex?: FunctionDocumentationDocumentIndex;
-    documentIndexOptions?: FunctionDocumentationDocumentIndexOptions;
-    builder?: CallableDocDocumentBuilder;
+    documentIndexOptions?: Partial<FunctionDocumentationDocumentIndexOptions>;
 }
 
 export class FunctionDocumentationService {
     private readonly documentIndex: FunctionDocumentationDocumentIndex;
 
-    public constructor(options: FunctionDocumentationServiceOptions = {}) {
-        this.documentIndex = options.documentIndex
-            ?? new FunctionDocumentationDocumentIndex({
-                builder: options.builder ?? options.documentIndexOptions?.builder,
-                invalidateParsedDocument: options.documentIndexOptions?.invalidateParsedDocument
-            });
+    public constructor(options: FunctionDocumentationServiceOptions) {
+        this.documentIndex = options.documentIndex;
     }
 
     public getDocumentDocs(document: vscode.TextDocument): DocumentCallableDocs {
@@ -49,4 +48,13 @@ export class FunctionDocumentationService {
     public clear(): void {
         this.documentIndex.clear();
     }
+}
+
+export function createDefaultFunctionDocumentationService(
+    options: DefaultFunctionDocumentationServiceOptions = {}
+): FunctionDocumentationService {
+    return new FunctionDocumentationService({
+        documentIndex: options.documentIndex
+            ?? createDefaultFunctionDocumentationDocumentIndex(options.documentIndexOptions)
+    });
 }

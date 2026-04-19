@@ -8,7 +8,8 @@ import { CompletionContextAnalyzer } from '../../../../completion/completionCont
 import { CompletionInstrumentation } from '../../../../completion/completionInstrumentation';
 import { InheritanceResolver } from '../../../../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../../../../completion/projectSymbolIndex';
-import { ScopedMethodCompletionSupport } from '../ScopedMethodCompletionSupport';
+import { CallableDocRenderer } from '../../../documentation/CallableDocRenderer';
+import { createDefaultScopedMethodCompletionSupport } from '../ScopedMethodCompletionSupport';
 import { createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { createDefaultScopedMethodDiscoveryService } from '../../../../objectInference/ScopedMethodDiscoveryService';
@@ -121,9 +122,10 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 analysisService,
                 host: documentHost
             }),
-            scopedCompletionSupport: new ScopedMethodCompletionSupport({
+            scopedCompletionSupport: createDefaultScopedMethodCompletionSupport({
                 documentationService: documentationService as any,
-                documentLoader: scopedDocumentLoader
+                documentLoader: scopedDocumentLoader,
+                renderer: new CallableDocRenderer()
             })
         }) as any;
 
@@ -198,9 +200,10 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 analysisService,
                 host: documentHost
             }),
-            scopedCompletionSupport: new ScopedMethodCompletionSupport({
+            scopedCompletionSupport: createDefaultScopedMethodCompletionSupport({
                 documentationService: documentationService as any,
-                documentLoader: scopedDocumentLoader
+                documentLoader: scopedDocumentLoader,
+                renderer: new CallableDocRenderer()
             })
         }) as any;
 

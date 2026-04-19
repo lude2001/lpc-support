@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { ASTManager } from '../../ast/astManager';
-import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import {
+    FunctionDocumentationService,
+    createDefaultFunctionDocumentationService
+} from '../../language/documentation/FunctionDocumentationService';
 import { WorkspaceDocumentPathSupport } from '../../language/shared/WorkspaceDocumentPathSupport';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import {
@@ -118,7 +121,7 @@ describe('ReturnObjectResolver', () => {
         const resolver = new ReturnObjectResolver(
             undefined,
             undefined,
-            new FunctionDocumentationService(),
+            createDefaultFunctionDocumentationService(),
             undefined,
             pathSupport
         );
@@ -145,7 +148,7 @@ describe('ReturnObjectResolver', () => {
     });
 
     test('ReturnObjectResolver delegates ::factory() to scoped return resolution before ordinary function docs', async () => {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const getDocsByNameSpy = jest.spyOn(documentationService, 'getDocsByName');
         const scopedMethodResolver = {
             resolveCallAt: jest.fn().mockResolvedValue({
@@ -185,7 +188,7 @@ describe('ReturnObjectResolver', () => {
     });
 
     test('ReturnObjectResolver delegates room::factory() to scoped return resolution before ordinary function docs', async () => {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const getDocsByNameSpy = jest.spyOn(documentationService, 'getDocsByName');
         const scopedMethodResolver = {
             resolveCallAt: jest.fn().mockResolvedValue({

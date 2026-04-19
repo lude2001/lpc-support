@@ -9,7 +9,8 @@ import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
 import { FunctionDocCompatMaterializer } from '../../../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../../../efun/FunctionDocLookupBuilder';
-import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
+import { CallableDocRenderer } from '../../../language/documentation/CallableDocRenderer';
+import { createDefaultFunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import { CompletionContextAnalyzer } from '../../../completion/completionContextAnalyzer';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
 import {
@@ -18,7 +19,7 @@ import {
 } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { createLanguageCodeActionService } from '../../../language/services/codeActions/LanguageCodeActionService';
 import { createDefaultQueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
-import { ScopedMethodCompletionSupport } from '../../../language/services/completion/ScopedMethodCompletionSupport';
+import { createDefaultScopedMethodCompletionSupport } from '../../../language/services/completion/ScopedMethodCompletionSupport';
 import { createLanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
 import { AstBackedLanguageDefinitionService } from '../../../language/services/navigation/LanguageDefinitionService';
 import { EfunLanguageHoverService } from '../../../language/services/navigation/EfunLanguageHoverService';
@@ -39,9 +40,8 @@ import { DefaultCallableDocResolver } from '../../../language/services/signature
 import { DefaultCallableTargetDiscoveryService } from '../../../language/services/signatureHelp/DefaultCallableTargetDiscoveryService';
 import { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import { createSyntaxAwareCallSiteAnalyzer } from '../../../language/services/signatureHelp/SyntaxAwareCallSiteAnalyzer';
-import { AstBackedLanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
+import { createDefaultAstBackedLanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
 import { FormattingService } from '../../../formatter/FormattingService';
-import { CallableDocRenderer } from '../../../language/documentation/CallableDocRenderer';
 import {
     DefaultLanguageFoldingService,
     LanguageStructureService
@@ -63,7 +63,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const workspaceDocumentHost = createVsCodeWorkspaceDocumentHost();
     const projectConfigService = new LpcProjectConfigService();
     const macroManager = new MacroManager(projectConfigService, workspaceDocumentHost);
-    const documentationService = new FunctionDocumentationService();
+    const documentationService = createDefaultFunctionDocumentationService();
     const completionInstrumentation = new CompletionInstrumentation();
     const documentPathSupport = new WorkspaceDocumentPathSupport({
         host: workspaceDocumentHost,
@@ -122,9 +122,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         inheritanceResolver,
         host: workspaceDocumentHost
     });
-    const scopedCompletionSupport = new ScopedMethodCompletionSupport({
+    const callableDocRenderer = new CallableDocRenderer();
+    const scopedCompletionSupport = createDefaultScopedMethodCompletionSupport({
         documentationService,
-        documentHost: workspaceDocumentHost
+        documentHost: workspaceDocumentHost,
+        renderer: callableDocRenderer
     });
 
     const completionService = createDefaultQueryBackedLanguageCompletionService({
@@ -143,7 +145,6 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const codeActionsService = createLanguageCodeActionService();
     const { diagnosticsService } = createDiagnosticsStack(macroManager, analysisService);
     const formattingService = createLanguageFormattingService(new FormattingService());
-    const hoverRenderer = new CallableDocRenderer();
     const objectHoverService = createDefaultObjectInferenceLanguageHoverService(
         objectInferenceService,
         targetMethodLookup,
@@ -154,14 +155,14 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
             methodResolver: new VsCodeHoverMethodResolver(targetMethodLookup),
             scopedMethodResolver,
             documentationService,
-            renderer: hoverRenderer
+            renderer: callableDocRenderer
         }
     );
     const hoverService = new UnifiedLanguageHoverService(
         objectHoverService,
         macroManager,
         {
-            efunHoverService: new EfunLanguageHoverService(efunDocsManager, analysisService)
+            efunHoverService: new EfunLanguageHoverService(efunDocsManager, analysisService, callableDocRenderer)
         }
     );
     const definitionService = new AstBackedLanguageDefinitionService(
@@ -185,7 +186,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         analysisService,
         inheritedRelationService
     });
-    const symbolService = new AstBackedLanguageSymbolService({
+    const symbolService = createDefaultAstBackedLanguageSymbolService({
         analysisService
     });
     const callableTargetDiscoveryService = new DefaultCallableTargetDiscoveryService(
@@ -202,7 +203,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const signatureHelpService = new LanguageSignatureHelpService({
         discoveryService: callableTargetDiscoveryService,
         docResolver: callableDocResolver,
-        renderer: new CallableDocRenderer(),
+        renderer: callableDocRenderer,
         callSiteAnalyzer: createSyntaxAwareCallSiteAnalyzer(analysisService)
     });
     const foldingService = new DefaultLanguageFoldingService(analysisService);

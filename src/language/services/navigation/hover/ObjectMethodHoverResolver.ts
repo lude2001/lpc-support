@@ -47,20 +47,20 @@ interface ObjectMethodHoverDependencies {
     objectAccessProvider: HoverObjectAccessProvider;
     methodResolver: HoverMethodResolver;
     documentationService: Pick<FunctionDocumentationService, 'getDocsByName'>;
-    renderer?: CallableDocRenderer;
+    renderer: Pick<CallableDocRenderer, 'renderHover'>;
     documentationSupport?: {
         toDocumentationTextDocument: typeof toDocumentationTextDocument;
     };
 }
 
 export class ObjectMethodHoverResolver {
-    private readonly renderer: CallableDocRenderer;
+    private readonly renderer: Pick<CallableDocRenderer, 'renderHover'>;
     private readonly documentationSupport: {
         toDocumentationTextDocument: typeof toDocumentationTextDocument;
     };
 
     public constructor(private readonly dependencies: ObjectMethodHoverDependencies) {
-        this.renderer = dependencies.renderer ?? new CallableDocRenderer();
+        this.renderer = dependencies.renderer;
         this.documentationSupport = dependencies.documentationSupport ?? { toDocumentationTextDocument };
     }
 

@@ -21,23 +21,30 @@ export interface ScopedDocumentationReference {
 }
 
 export interface ScopedMethodCompletionSupportDependencies {
+    documentationService: DeclarationDocProvider;
+    documentLoader: ScopedDocumentLoader;
+    renderer: Pick<CallableDocRenderer, 'renderHover'>;
+}
+
+export interface DefaultScopedMethodCompletionSupportDependencies {
     documentationService?: DeclarationDocProvider;
     documentLoader?: ScopedDocumentLoader;
     documentHost?: TextDocumentHost;
+    renderer: Pick<CallableDocRenderer, 'renderHover'>;
 }
 
 export class ScopedMethodCompletionSupport {
     private readonly documentationService: DeclarationDocProvider;
     private readonly documentLoader: ScopedDocumentLoader;
-    private readonly renderer = new CallableDocRenderer();
+    private readonly renderer: Pick<CallableDocRenderer, 'renderHover'>;
 
-    constructor(dependencies: ScopedMethodCompletionSupportDependencies = {}) {
+    constructor(dependencies: ScopedMethodCompletionSupportDependencies) {
         this.documentationService = assertDocumentationService(
             'ScopedMethodCompletionSupport',
             dependencies.documentationService as FunctionDocumentationService | undefined
         );
-        this.documentLoader = dependencies.documentLoader
-            ?? createDefaultDocumentLoader(assertTextDocumentHost('ScopedMethodCompletionSupport', dependencies.documentHost));
+        this.documentLoader = dependencies.documentLoader;
+        this.renderer = dependencies.renderer;
     }
 
     public buildCandidates(
@@ -195,5 +202,16 @@ function createDefaultDocumentLoader(host: TextDocumentHost): ScopedDocumentLoad
             return undefined;
         }
     };
+}
+
+export function createDefaultScopedMethodCompletionSupport(
+    dependencies: DefaultScopedMethodCompletionSupportDependencies
+): ScopedMethodCompletionSupport {
+    return new ScopedMethodCompletionSupport({
+        documentationService: dependencies.documentationService as DeclarationDocProvider,
+        documentLoader: dependencies.documentLoader
+            ?? createDefaultDocumentLoader(assertTextDocumentHost('ScopedMethodCompletionSupport', dependencies.documentHost)),
+        renderer: dependencies.renderer
+    });
 }
 

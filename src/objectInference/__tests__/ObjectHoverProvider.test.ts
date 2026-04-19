@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { CallableDocRenderer } from '../../language/documentation/CallableDocRenderer';
-import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import {
+    FunctionDocumentationService,
+    createDefaultFunctionDocumentationService
+} from '../../language/documentation/FunctionDocumentationService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { ObjectHoverProvider } from '../ObjectHoverProvider';
 import {
@@ -105,7 +108,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('hovering the receiver side of USER_D->query_name() does not return object-method hover', async () => {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const content = 'USER_D->query_name();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -165,7 +168,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('resolved target file shows method syntax and structured shared docs without legacy reparsing', async () => {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const content = 'target->query_name();';
         const getDocsByNameSpy = jest.spyOn(FunctionDocumentationService.prototype, 'getDocsByName');
         const objectInferenceService = {
@@ -239,7 +242,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('merged candidates without unique implementation return a conservative summary containing 可能来自多个对象', async () => {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const content = 'ob->start();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -279,7 +282,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('include-backed method hover reuses shared lookup results', async () => {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const content = 'factory->method();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -333,7 +336,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('method not found in direct file but found in inherited parent shows parent doc', async () => {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const content = 'child->quest_info();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -385,7 +388,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('multiple candidates converging to same parent implementation shows the unique doc', async () => {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const content = 'ob->shared_method();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -442,7 +445,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('distinct implementations render separate hover blocks even when docs are similar', async () => {
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const content = 'ob->start();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({

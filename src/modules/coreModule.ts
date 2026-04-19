@@ -8,7 +8,7 @@ import { LPCCompiler } from '../compiler';
 import { EfunDocsManager } from '../efunDocs';
 import { FunctionDocCompatMaterializer } from '../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
-import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { createDefaultFunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { createVsCodeTextDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { MacroManager } from '../macroManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
@@ -24,7 +24,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     registeredProjectConfigService = projectConfigService;
     registry.register(Services.ProjectConfig, projectConfigService);
 
-    const documentationService = new FunctionDocumentationService();
+    const documentationService = createDefaultFunctionDocumentationService();
     registry.register(Services.FunctionDocumentation, documentationService);
 
     const textDocumentHost = createVsCodeTextDocumentHost();

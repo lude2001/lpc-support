@@ -20,17 +20,17 @@ interface CallableDocEntry {
 }
 
 export interface CallableDocDocumentBuilderOptions {
-    parsedDocumentService?: Pick<ReturnType<typeof getGlobalParsedDocumentService>, 'get'>;
-    tagParser?: Pick<DocCommentTagParser, 'parse'>;
+    parsedDocumentService: Pick<ReturnType<typeof getGlobalParsedDocumentService>, 'get'>;
+    tagParser: Pick<DocCommentTagParser, 'parse'>;
 }
 
 export class CallableDocDocumentBuilder {
     private readonly parsedDocumentService: Pick<ReturnType<typeof getGlobalParsedDocumentService>, 'get'>;
     private readonly tagParser: Pick<DocCommentTagParser, 'parse'>;
 
-    public constructor(options: CallableDocDocumentBuilderOptions = {}) {
-        this.parsedDocumentService = options.parsedDocumentService ?? getGlobalParsedDocumentService();
-        this.tagParser = options.tagParser ?? new DocCommentTagParser();
+    public constructor(options: CallableDocDocumentBuilderOptions) {
+        this.parsedDocumentService = options.parsedDocumentService;
+        this.tagParser = options.tagParser;
     }
 
     public build(document: vscode.TextDocument): DocumentCallableDocs {
@@ -122,6 +122,15 @@ export class CallableDocDocumentBuilder {
         return functionNode.metadata?.hasBody === true
             || functionNode.children.some((child) => child.kind === SyntaxKind.Block);
     }
+}
+
+export function createDefaultCallableDocDocumentBuilder(
+    options: Partial<CallableDocDocumentBuilderOptions> = {}
+): CallableDocDocumentBuilder {
+    return new CallableDocDocumentBuilder({
+        parsedDocumentService: options.parsedDocumentService ?? getGlobalParsedDocumentService(),
+        tagParser: options.tagParser ?? new DocCommentTagParser()
+    });
 }
 
 function buildDeclarationKey(uri: string, range: vscode.Range): string {

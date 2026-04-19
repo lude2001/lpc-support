@@ -1,9 +1,13 @@
-import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
-import type { LanguageRange } from '../../contracts/LanguagePosition';
 import * as vscode from 'vscode';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
-import type { FunctionSummary, TypeDefinitionSummary, MemberSummary } from '../../../semantic/documentSemanticTypes';
+import type {
+    FunctionSummary,
+    MemberSummary,
+    TypeDefinitionSummary
+} from '../../../semantic/documentSemanticTypes';
+import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
+import type { LanguageRange } from '../../contracts/LanguagePosition';
 
 // Supporting request/result types for the grouped navigation service seam.
 export interface LanguageDocumentSymbol {
@@ -50,6 +54,10 @@ interface LanguageDocumentSymbolsSnapshot {
 
 interface LanguageDocumentSymbolsSnapshotAdapter {
     getDocumentSymbolsSnapshot(document: LanguageCapabilityContext['document']): LanguageDocumentSymbolsSnapshot;
+}
+
+export interface DefaultLanguageSymbolServiceDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'getBestAvailableSnapshot'>;
 }
 
 function toLanguageRange(range: vscode.Range): LanguageRange {
@@ -130,13 +138,12 @@ function createTypeSymbol(typeDefinition: LanguageDocumentSymbolTypeSummary): La
 export class AstBackedLanguageSymbolService implements LanguageSymbolService {
     public constructor(
         private readonly dependencies: {
-            snapshotAdapter?: LanguageDocumentSymbolsSnapshotAdapter;
-            analysisService?: Pick<DocumentAnalysisService, 'getBestAvailableSnapshot'>;
-        } = {}
+            snapshotAdapter: LanguageDocumentSymbolsSnapshotAdapter;
+        }
     ) {}
 
     public async provideDocumentSymbols(request: LanguageSymbolRequest): Promise<LanguageDocumentSymbol[]> {
-        const snapshot = this.getSnapshotAdapter().getDocumentSymbolsSnapshot(request.context.document);
+        const snapshot = this.dependencies.snapshotAdapter.getDocumentSymbolsSnapshot(request.context.document);
         const symbols = snapshot.typeDefinitions.map(createTypeSymbol);
 
         for (const func of snapshot.exportedFunctions) {
@@ -151,11 +158,14 @@ export class AstBackedLanguageSymbolService implements LanguageSymbolService {
 
         return symbols;
     }
+}
 
-    private getSnapshotAdapter(): LanguageDocumentSymbolsSnapshotAdapter {
-        return this.dependencies.snapshotAdapter
-            ?? new VsCodeDocumentSymbolsSnapshotAdapter(
-                assertAnalysisService('AstBackedLanguageSymbolService', this.dependencies.analysisService)
-            );
-    }
+export function createDefaultAstBackedLanguageSymbolService(
+    dependencies: DefaultLanguageSymbolServiceDependencies = {}
+): AstBackedLanguageSymbolService {
+    return new AstBackedLanguageSymbolService({
+        snapshotAdapter: new VsCodeDocumentSymbolsSnapshotAdapter(
+            assertAnalysisService('AstBackedLanguageSymbolService', dependencies.analysisService)
+        )
+    });
 }

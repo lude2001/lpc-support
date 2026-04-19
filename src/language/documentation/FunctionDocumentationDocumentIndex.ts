@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
-import { CallableDocDocumentBuilder } from './CallableDocDocumentBuilder';
+import {
+    CallableDocDocumentBuilder,
+    createDefaultCallableDocDocumentBuilder
+} from './CallableDocDocumentBuilder';
 import type { DocumentCallableDocs } from './types';
 
 interface CachedDocumentDocsEntry {
@@ -11,8 +14,8 @@ interface CachedDocumentDocsEntry {
 }
 
 export interface FunctionDocumentationDocumentIndexOptions {
-    builder?: Pick<CallableDocDocumentBuilder, 'build'>;
-    invalidateParsedDocument?: (uri: vscode.Uri) => void;
+    builder: Pick<CallableDocDocumentBuilder, 'build'>;
+    invalidateParsedDocument: (uri: vscode.Uri) => void;
 }
 
 export class FunctionDocumentationDocumentIndex {
@@ -20,10 +23,9 @@ export class FunctionDocumentationDocumentIndex {
     private readonly invalidateParsedDocument: (uri: vscode.Uri) => void;
     private readonly documentCache = new Map<string, CachedDocumentDocsEntry>();
 
-    public constructor(options: FunctionDocumentationDocumentIndexOptions = {}) {
-        this.builder = options.builder ?? new CallableDocDocumentBuilder();
-        this.invalidateParsedDocument = options.invalidateParsedDocument
-            ?? ((uri: vscode.Uri) => getGlobalParsedDocumentService().invalidate(uri));
+    public constructor(options: FunctionDocumentationDocumentIndexOptions) {
+        this.builder = options.builder;
+        this.invalidateParsedDocument = options.invalidateParsedDocument;
     }
 
     public getOrBuild(document: vscode.TextDocument): DocumentCallableDocs {
@@ -58,4 +60,14 @@ export class FunctionDocumentationDocumentIndex {
     public clear(): void {
         this.documentCache.clear();
     }
+}
+
+export function createDefaultFunctionDocumentationDocumentIndex(
+    options: Partial<FunctionDocumentationDocumentIndexOptions> = {}
+): FunctionDocumentationDocumentIndex {
+    return new FunctionDocumentationDocumentIndex({
+        builder: options.builder ?? createDefaultCallableDocDocumentBuilder(),
+        invalidateParsedDocument: options.invalidateParsedDocument
+            ?? ((uri: vscode.Uri) => getGlobalParsedDocumentService().invalidate(uri))
+    });
 }

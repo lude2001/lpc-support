@@ -1,7 +1,10 @@
 import { describe, expect, jest, test } from '@jest/globals';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
+import { CallableDocRenderer } from '../../../documentation/CallableDocRenderer';
+import {
+    createDefaultFunctionDocumentationService
+} from '../../../documentation/FunctionDocumentationService';
 import { ScopedMethodDiscoveryResult } from '../../../../objectInference/ScopedMethodDiscoveryService';
 
 declare const require: any;
@@ -57,7 +60,8 @@ describe('ScopedMethodCompletionSupport', () => {
         const ScopedMethodCompletionSupport = loadSupport();
         const support = new ScopedMethodCompletionSupport({
             documentLoader: jest.fn(),
-            documentationService: new FunctionDocumentationService()
+            documentationService: createDefaultFunctionDocumentationService(),
+            renderer: new CallableDocRenderer()
         });
         const document = createDocument(
             path.join(process.cwd(), '.tmp-scoped-method-completion', 'std', 'room.c'),
@@ -106,7 +110,8 @@ describe('ScopedMethodCompletionSupport', () => {
         };
         const support = new ScopedMethodCompletionSupport({
             documentLoader,
-            documentationService
+            documentationService,
+            renderer: new CallableDocRenderer()
         });
 
         const doc = await support.resolveScopedDocumentation({
@@ -146,7 +151,8 @@ describe('ScopedMethodCompletionSupport', () => {
         };
         const support = new ScopedMethodCompletionSupport({
             documentLoader,
-            documentationService
+            documentationService,
+            renderer: new CallableDocRenderer()
         });
         const discovery: ScopedMethodDiscoveryResult = {
             status: 'multiple',
@@ -192,7 +198,8 @@ describe('ScopedMethodCompletionSupport', () => {
             documentLoader: jest.fn(),
             documentationService: {
                 getDocForDeclaration: jest.fn()
-            }
+            },
+            renderer: new CallableDocRenderer()
         });
 
         expect(support.buildCandidates({ status: 'unknown', methods: [] } as ScopedMethodDiscoveryResult, document, 'cr')).toEqual([]);

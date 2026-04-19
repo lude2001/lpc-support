@@ -248,12 +248,11 @@ export function createDefaultObjectInferenceService(
         analysisService,
         pathSupport
     );
-    const scopedMethodResolver = new ScopedMethodResolver(
-        dependencies.macroManager,
-        undefined,
+    const scopedMethodResolver = new ScopedMethodResolver({
         analysisService,
-        textDocumentHost
-    );
+        inheritanceResolver,
+        host: textDocumentHost
+    });
     const returnObjectResolver = new ReturnObjectResolver(
         dependencies.macroManager,
         dependencies.playerObjectPathOrProjectConfig,

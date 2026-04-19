@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { afterEach, describe, expect, test } from '@jest/globals';
 import { clearGlobalParsedDocumentService } from '../../../parser/ParsedDocumentService';
-import { CallableDocDocumentBuilder } from '../CallableDocDocumentBuilder';
+import { createDefaultCallableDocDocumentBuilder } from '../CallableDocDocumentBuilder';
 
 function createDocument(
     content: string,
@@ -73,7 +73,7 @@ describe('CallableDocDocumentBuilder', () => {
             '    return ([]);',
             '}'
         ].join('\n'), '/virtual/prototype-leading-docs.c');
-        const builder = new CallableDocDocumentBuilder();
+        const builder = createDefaultCallableDocDocumentBuilder();
 
         const docs = builder.build(document);
         const declarationKeys = docs.byName.get('execute_command');

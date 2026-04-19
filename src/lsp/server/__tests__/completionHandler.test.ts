@@ -15,8 +15,9 @@ import type {
     LanguageCompletionService
 } from '../../../language/services/completion/LanguageCompletionService';
 import { createDefaultQueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
-import { ScopedMethodCompletionSupport } from '../../../language/services/completion/ScopedMethodCompletionSupport';
-import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
+import { CallableDocRenderer } from '../../../language/documentation/CallableDocRenderer';
+import { createDefaultScopedMethodCompletionSupport } from '../../../language/services/completion/ScopedMethodCompletionSupport';
+import { createDefaultFunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import { createVsCodeTextDocumentHost } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { createDefaultScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
@@ -407,7 +408,7 @@ describe('registerCompletionHandler', () => {
             getIncludePath: jest.fn(() => undefined)
         };
         const documentHost = createVsCodeTextDocumentHost();
-        const documentationService = new FunctionDocumentationService();
+        const documentationService = createDefaultFunctionDocumentationService();
         const realService = createDefaultQueryBackedLanguageCompletionService({
             efunDocsManager: efunDocsManager as any,
             macroManager: macroManager as any,
@@ -427,9 +428,10 @@ describe('registerCompletionHandler', () => {
                 analysisService: DocumentSemanticSnapshotService.getInstance(),
                 host: documentHost
             }),
-            scopedCompletionSupport: new ScopedMethodCompletionSupport({
+            scopedCompletionSupport: createDefaultScopedMethodCompletionSupport({
                 documentationService,
-                documentHost
+                documentHost,
+                renderer: new CallableDocRenderer()
             })
         });
         const completionService: LanguageCompletionService = {

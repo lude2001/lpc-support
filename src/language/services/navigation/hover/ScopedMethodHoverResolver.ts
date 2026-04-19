@@ -19,14 +19,14 @@ type ScopedIdentifierTester = (
 interface ScopedHoverDependencies {
     scopedMethodResolver: Pick<ScopedMethodResolver, 'resolveCallAt'>;
     documentationService?: Pick<FunctionDocumentationService, 'getDocForDeclaration'>;
-    renderer?: CallableDocRenderer;
+    renderer: Pick<CallableDocRenderer, 'renderHover'>;
     analysisService: ScopedHoverAnalysisService;
     isScopedIdentifier?: ScopedIdentifierTester;
 }
 
 export class ScopedMethodHoverResolver {
     private readonly documentationService: Pick<FunctionDocumentationService, 'getDocForDeclaration'>;
-    private readonly renderer: CallableDocRenderer;
+    private readonly renderer: Pick<CallableDocRenderer, 'renderHover'>;
     private readonly isScopedIdentifier: ScopedIdentifierTester;
 
     public constructor(private readonly dependencies: ScopedHoverDependencies) {
@@ -34,7 +34,7 @@ export class ScopedMethodHoverResolver {
             'ScopedMethodHoverResolver',
             dependencies.documentationService as FunctionDocumentationService | undefined
         );
-        this.renderer = dependencies.renderer ?? new CallableDocRenderer();
+        this.renderer = dependencies.renderer;
         this.isScopedIdentifier = dependencies.isScopedIdentifier ?? isOnScopedMethodIdentifier;
     }
 

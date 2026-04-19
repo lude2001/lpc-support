@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test } from '@jest/globals';
 import { ASTManager } from '../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { clearGlobalParsedDocumentService } from '../../../parser/ParsedDocumentService';
-import { FunctionDocumentationService } from '../FunctionDocumentationService';
+import { createDefaultFunctionDocumentationService } from '../FunctionDocumentationService';
 import {
     configureAstManagerSingletonForTests,
     resetAstManagerSingletonForTests
@@ -107,7 +107,7 @@ describe('FunctionDocumentationService', () => {
             '}'
         ].join('\n');
         const document = createDocument(source);
-        const service = new FunctionDocumentationService();
+        const service = createDefaultFunctionDocumentationService();
 
         const docs = service.getDocumentDocs(document);
         const declarationKey = docs.declarationOrder[0];
@@ -175,7 +175,7 @@ describe('FunctionDocumentationService', () => {
             '}'
         ].join('\n');
         const document = createDocument(source, '/virtual/broken-objects.c');
-        const service = new FunctionDocumentationService();
+        const service = createDefaultFunctionDocumentationService();
 
         const [callableDoc] = service.getDocsByName(document, 'broken_objects');
 
@@ -197,7 +197,7 @@ describe('FunctionDocumentationService', () => {
             '}'
         ].join('\n');
         const document = createDocument(source, '/virtual/prototype-leading-docs.c');
-        const service = new FunctionDocumentationService();
+        const service = createDefaultFunctionDocumentationService();
 
         const docs = service.getDocsByName(document, 'execute_command');
 
@@ -225,7 +225,7 @@ describe('FunctionDocumentationService', () => {
             '    return 2;',
             '}'
         ].join('\n'), '/virtual/cache-rebuild.c', 1);
-        const service = new FunctionDocumentationService();
+        const service = createDefaultFunctionDocumentationService();
 
         const originalDoc = service.getDocsByName(originalDocument, 'cached_doc')[0];
         const refreshedDoc = service.getDocsByName(updatedDocument, 'cached_doc')[0];
@@ -256,7 +256,7 @@ describe('FunctionDocumentationService', () => {
             '    return 2;',
             '}'
         ].join('\n'), '/virtual/version-aware.c', 2);
-        const service = new FunctionDocumentationService();
+        const service = createDefaultFunctionDocumentationService();
 
         const originalDoc = service.getDocsByName(originalDocument, 'versioned_doc')[0];
         const rebuiltDoc = service.getDocsByName(updatedDocument, 'versioned_doc')[0];
@@ -275,7 +275,7 @@ describe('FunctionDocumentationService', () => {
             '    return value;',
             '}'
         ].join('\n'), '/virtual/immutable-docs.c', 1);
-        const service = new FunctionDocumentationService();
+        const service = createDefaultFunctionDocumentationService();
 
         const firstRead = service.getDocumentDocs(document);
         const declarationKey = firstRead.declarationOrder[0];

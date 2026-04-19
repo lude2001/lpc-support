@@ -37,7 +37,7 @@ import {
     type LanguageNavigationService
 } from '../../../language/services/navigation/LanguageHoverService';
 import { CallableDocRenderer } from '../../../language/documentation/CallableDocRenderer';
-import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
+import { createDefaultFunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import {
     AstBackedLanguageReferenceService,
     type LanguageReferenceService
@@ -226,7 +226,7 @@ describe('navigation handlers', () => {
                         ].join('\n')
                     })
                 },
-                documentationService: new FunctionDocumentationService(),
+                documentationService: createDefaultFunctionDocumentationService(),
                 renderer: new CallableDocRenderer()
             }
         );

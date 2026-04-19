@@ -22,7 +22,7 @@ import {
 } from '../LanguageHoverService';
 import { UnifiedLanguageHoverService } from '../UnifiedLanguageHoverService';
 import { CallableDocRenderer } from '../../../documentation/CallableDocRenderer';
-import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
+import { createDefaultFunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
 import {
     AstBackedLanguageDefinitionService,
     type LanguageDefinitionService
@@ -232,7 +232,7 @@ describe('navigation services', () => {
             {} as any,
             undefined,
             createLanguageDocumentHoverFactoryDependencies({
-                documentationService: new FunctionDocumentationService(),
+                documentationService: createDefaultFunctionDocumentationService(),
                 objectAccessProvider: {
                     inferObjectAccess: jest.fn().mockResolvedValue({
                         memberName: 'query_name',

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { describe, expect, jest, test } from '@jest/globals';
 import { FunctionDocCompatMaterializer } from '../FunctionDocCompatMaterializer';
-import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import { createDefaultFunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import type { RawFunctionDocLookup } from '../FunctionDocLookupTypes';
 
 function createDocument(content: string, fileName: string = '/virtual/function-docs.c'): vscode.TextDocument {
@@ -72,7 +72,7 @@ describe('FunctionDocCompatMaterializer', () => {
             currentFile: {
                 source: '当前文件',
                 filePath: document.fileName,
-                docs: new FunctionDocumentationService().getDocumentDocs(document)
+                docs: createDefaultFunctionDocumentationService().getDocumentDocs(document)
             },
             inheritedGroups: [],
             includeGroups: []
