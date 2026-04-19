@@ -5,8 +5,10 @@ import type { InheritDirective, IncludeDirective } from '../semantic/documentSem
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { Trivia } from '../parser/types';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
-import { parseFunctionDocs } from './docParser';
+import { FunctionDocCompatMaterializer } from './FunctionDocCompatMaterializer';
 import type { EfunDoc } from './types';
 
 type SimulatedEfunAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
@@ -14,12 +16,18 @@ type SimulatedEfunAnalysisService = Pick<DocumentAnalysisService, 'parseDocument
 export class SimulatedEfunScanner {
     private docs: Map<string, EfunDoc> = new Map();
     private readonly analysisService: SimulatedEfunAnalysisService;
+    private readonly documentationService: FunctionDocumentationService;
+    private readonly compatMaterializer: FunctionDocCompatMaterializer;
 
     constructor(
         private readonly projectConfigService: LpcProjectConfigService | undefined,
-        analysisService: SimulatedEfunAnalysisService
+        analysisService: SimulatedEfunAnalysisService,
+        documentationService?: FunctionDocumentationService,
+        compatMaterializer: FunctionDocCompatMaterializer = new FunctionDocCompatMaterializer()
     ) {
         this.analysisService = assertAnalysisService('SimulatedEfunScanner', analysisService);
+        this.documentationService = assertDocumentationService('SimulatedEfunScanner', documentationService);
+        this.compatMaterializer = compatMaterializer;
     }
 
     public get(name: string): EfunDoc | undefined {
@@ -141,13 +149,19 @@ export class SimulatedEfunScanner {
     }
 
     private storeParsedDocs(filePath: string, text: string): void {
-        const functionDocs = parseFunctionDocs(text, '模拟函数库', {
-            isSimulated: true,
-            sourceFile: filePath
-        });
+        const document = this.createSyntheticDocument(
+            filePath,
+            normalizeLegacySimulatedDeclarations(text)
+        );
+        this.documentationService.invalidate(document.uri.toString());
+        const documentDocs = this.documentationService.getDocumentDocs(document);
+        const compatDocs = this.compatMaterializer.materializeDocMap(documentDocs, '模拟函数库');
 
-        for (const [funcName, doc] of functionDocs) {
-            this.docs.set(funcName, doc);
+        for (const [funcName, doc] of compatDocs) {
+            this.docs.set(funcName, {
+                ...doc,
+                isSimulated: true
+            });
         }
     }
 
@@ -290,4 +304,41 @@ export class SimulatedEfunScanner {
 
         return lineStarts;
     }
+}
+
+function normalizeLegacySimulatedDeclarations(content: string): string {
+    const lines = content.split(/\r?\n/);
+    const normalizedLines = [...lines];
+
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index];
+        const trimmed = line.trim();
+        if (!looksLikeCallablePrototype(trimmed) || trimmed.endsWith(';')) {
+            continue;
+        }
+
+        const nextSignificantLine = findNextSignificantLine(lines, index + 1);
+        if (nextSignificantLine?.trim().startsWith('{')) {
+            continue;
+        }
+
+        normalizedLines[index] = `${line};`;
+    }
+
+    return normalizedLines.join('\n');
+}
+
+function looksLikeCallablePrototype(line: string): boolean {
+    return /^(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+)*(?:varargs\s+)?(?:mixed|void|int|string|object|mapping|array|float|function|buffer|class|[A-Za-z_][A-Za-z0-9_]*)\s*\**\s*[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*$/.test(line);
+}
+
+function findNextSignificantLine(lines: string[], startIndex: number): string | undefined {
+    for (let index = startIndex; index < lines.length; index += 1) {
+        const trimmed = lines[index].trim();
+        if (trimmed.length > 0) {
+            return trimmed;
+        }
+    }
+
+    return undefined;
 }

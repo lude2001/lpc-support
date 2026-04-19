@@ -9,6 +9,7 @@ import {
 import { BundledEfunLoader } from './BundledEfunLoader';
 import { buildEfunHoverMarkdown, createEfunHover } from './EfunHoverContent';
 import { FileFunctionDocTracker, type FunctionDocLookup } from './FileFunctionDocTracker';
+import { FunctionDocCompatMaterializer } from './FunctionDocCompatMaterializer';
 import { SimulatedEfunScanner } from './SimulatedEfunScanner';
 import type { EfunDoc, StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
 import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
@@ -40,7 +41,12 @@ export class EfunDocsManager {
             documentationService: resolvedDocumentationService,
             pathSupport: resolvedPathSupport
         });
-        this.simulatedEfunScanner = new SimulatedEfunScanner(projectConfigService, resolvedAnalysisService);
+        this.simulatedEfunScanner = new SimulatedEfunScanner(
+            projectConfigService,
+            resolvedAnalysisService,
+            resolvedDocumentationService,
+            new FunctionDocCompatMaterializer()
+        );
         this.efunDocs = this.createBundledDocsMap();
         this.efunCategories = this.createBundledCategoriesMap();
 

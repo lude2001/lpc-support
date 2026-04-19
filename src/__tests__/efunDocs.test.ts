@@ -22,7 +22,8 @@ import { TestHelper } from './utils/TestHelper';
 function createSimulatedScanner(projectConfigService?: any): SimulatedEfunScanner {
     return new SimulatedEfunScanner(
         projectConfigService,
-        DocumentSemanticSnapshotService.getInstance()
+        DocumentSemanticSnapshotService.getInstance(),
+        new FunctionDocumentationService()
     );
 }
 
