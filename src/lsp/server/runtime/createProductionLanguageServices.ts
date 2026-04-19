@@ -45,11 +45,16 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
 
     const projectConfigService = new LpcProjectConfigService();
     const macroManager = new MacroManager(projectConfigService);
-    const efunDocsManager = new EfunDocsManager(createServerExtensionContext(), projectConfigService, analysisService);
     const completionInstrumentation = new CompletionInstrumentation();
     const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService, analysisService);
     const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService);
     const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService, analysisService);
+    const efunDocsManager = new EfunDocsManager(
+        createServerExtensionContext(),
+        projectConfigService,
+        analysisService,
+        macroManager
+    );
     const inheritedRelationService = new InheritedSymbolRelationService({
         analysisService,
         macroManager,

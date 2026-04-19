@@ -134,7 +134,7 @@ describe('createProductionLanguageServices', () => {
 
             const { EfunDocsManager } = require('../../../../efun/EfunDocsManager') as typeof import('../../../../efun/EfunDocsManager');
             expect(configureAstManagerSingleton).toHaveBeenCalledWith(analysisService);
-            expect(EfunDocsManager).toHaveBeenCalledWith(expect.anything(), projectConfigService, analysisService);
+            expect(EfunDocsManager).toHaveBeenCalledWith(expect.anything(), projectConfigService, analysisService, macroManager);
             expect(services.completionService).toBe(completionService);
             expect(services.diagnosticsService).toBe(diagnosticsService);
             expect(services.formattingService).toBe(formattingService);

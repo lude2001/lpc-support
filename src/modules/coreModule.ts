@@ -26,7 +26,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     registry.register(Services.MacroManager, macroManager);
     context.subscriptions.push(macroManager);
 
-    const efunDocsManager = new EfunDocsManager(context, projectConfigService, analysisService);
+    const efunDocsManager = new EfunDocsManager(context, projectConfigService, analysisService, macroManager);
     registry.register(Services.EfunDocs, efunDocsManager);
 
     const completionInstrumentation = new CompletionInstrumentation();

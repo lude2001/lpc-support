@@ -224,6 +224,23 @@ describe('document analysis ownership guards', () => {
         }
     });
 
+    test('function doc panel stays presentation-only while tracker owns traversal', () => {
+        const functionDocPanelSource = fs.readFileSync(
+            path.join(srcRoot, 'functionDocPanel.ts'),
+            'utf8'
+        );
+        const trackerSource = fs.readFileSync(
+            path.join(srcRoot, 'efun', 'FileFunctionDocTracker.ts'),
+            'utf8'
+        );
+
+        expect(functionDocPanelSource).not.toContain('parseInheritedFunctions(');
+        expect(functionDocPanelSource).not.toContain('parseIncludedFunctions(');
+        expect(functionDocPanelSource).not.toContain('processInheritedFile(');
+        expect(functionDocPanelSource).not.toContain('getIncludeFiles(');
+        expect(trackerSource).not.toContain('vscode.workspace.openTextDocument(');
+    });
+
     test('LanguageCodeActionService stays a coordinator without inline quick-fix builders or text helpers', () => {
         const codeActionServiceSource = fs.readFileSync(
             path.join(srcRoot, 'language', 'services', 'codeActions', 'LanguageCodeActionService.ts'),

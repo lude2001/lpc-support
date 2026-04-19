@@ -65,6 +65,7 @@ interface ActionQuickPickItem extends vscode.QuickPickItem {
 
 export function registerCommands(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const macroManager = registry.get(Services.MacroManager);
+    const efunDocsManager = registry.get(Services.EfunDocs);
     const diagnostics = registry.get(Services.Diagnostics);
     const compiler = registry.get(Services.Compiler);
     const projectConfigService = registry.get(Services.ProjectConfig) as ProjectConfigServiceLike;
@@ -75,7 +76,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     });
 
     register(context, 'lpc.showFunctionDoc', () => {
-        FunctionDocPanel.createOrShow(context, macroManager);
+        FunctionDocPanel.createOrShow(context, efunDocsManager);
     });
 
     register(context, 'lpc.errorTree.refresh', () => errorTreeProvider.refresh());

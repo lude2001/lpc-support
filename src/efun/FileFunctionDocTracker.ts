@@ -1,26 +1,54 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import * as path from 'path';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import type { CallableDoc, CallableSignature } from '../language/documentation/types';
+import { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
+import type { MacroManager } from '../macroManager';
 import type { EfunDoc } from './types';
 
+export interface FunctionDocSourceGroup {
+    source: string;
+    filePath: string;
+    docs: Map<string, EfunDoc>;
+}
+
+export interface FunctionDocLookup {
+    currentFile: FunctionDocSourceGroup;
+    inheritedGroups: FunctionDocSourceGroup[];
+    includeGroups: FunctionDocSourceGroup[];
+}
+
+interface FileFunctionDocTrackerOptions {
+    documentationService?: FunctionDocumentationService;
+    macroManager?: Pick<MacroManager, 'getMacro'>;
+    pathSupport?: WorkspaceDocumentPathSupport;
+}
+
 export class FileFunctionDocTracker {
-    private readonly documentationService = new FunctionDocumentationService();
+    private readonly documentationService: FunctionDocumentationService;
+    private readonly pathSupport: WorkspaceDocumentPathSupport;
     private readonly documentLookupCache = new Map<string, {
         version: number;
         text: string;
         currentFileDocs: Map<string, EfunDoc>;
         inheritedFileDocs: Map<string, Map<string, EfunDoc>>;
+        includeFileDocs: Map<string, Map<string, EfunDoc>>;
     }>();
     private currentFileDocs: Map<string, EfunDoc> = new Map();
     private inheritedFileDocs: Map<string, Map<string, EfunDoc>> = new Map();
+    private includeFileDocs: Map<string, Map<string, EfunDoc>> = new Map();
     private currentFilePath = '';
     private inheritedFiles: string[] = [];
     private currentFileUpdatePromise: Promise<void> | undefined;
     private currentDocumentVersion = -1;
-
     private currentFileUpdateVersion = 0;
+
+    public constructor(options: FileFunctionDocTrackerOptions = {}) {
+        this.documentationService = options.documentationService ?? new FunctionDocumentationService();
+        this.pathSupport = options.pathSupport ?? new WorkspaceDocumentPathSupport({
+            macroManager: options.macroManager
+        });
+    }
 
     public getDoc(name: string): EfunDoc | undefined {
         return this.currentFileDocs.get(name);
@@ -68,9 +96,24 @@ export class FileFunctionDocTracker {
         return undefined;
     }
 
-    public async update(
-        document: vscode.TextDocument
-    ): Promise<void> {
+    public async getFunctionDocLookup(
+        document: vscode.TextDocument,
+        options?: { forceFresh?: boolean }
+    ): Promise<FunctionDocLookup> {
+        const lookup = await this.getOrBuildDocumentLookup(document, options);
+
+        return {
+            currentFile: {
+                source: '当前文件',
+                filePath: document.uri.fsPath,
+                docs: lookup.currentFileDocs
+            },
+            inheritedGroups: this.materializeSourceGroups(lookup.inheritedFileDocs, '继承自'),
+            includeGroups: this.materializeSourceGroups(lookup.includeFileDocs, '包含自')
+        };
+    }
+
+    public async update(document: vscode.TextDocument): Promise<void> {
         if (document.uri.fsPath === this.currentFilePath && document.version === this.currentDocumentVersion) {
             if (this.currentFileUpdatePromise) {
                 await this.currentFileUpdatePromise;
@@ -96,26 +139,28 @@ export class FileFunctionDocTracker {
         }
 
         const updateVersion = ++this.currentFileUpdateVersion;
-        const currentFilePath = document.uri.fsPath;
         const content = document.getText();
         const currentFileDocs = this.buildCompatDocsForDocument(document, '当前文件');
         const inheritedFiles = this.parseInheritStatements(content);
-        const inheritedFileDocs = await this.loadInheritedFileDocs(currentFilePath, inheritedFiles);
+        const inheritedFileDocs = await this.loadInheritedFileDocs(document, inheritedFiles);
+        const includeFileDocs = await this.loadIncludeFileDocs(document);
 
         if (updateVersion !== this.currentFileUpdateVersion) {
             return;
         }
 
-        this.currentFilePath = currentFilePath;
+        this.currentFilePath = document.uri.fsPath;
         this.currentDocumentVersion = document.version;
         this.currentFileDocs = currentFileDocs;
         this.inheritedFiles = [...inheritedFiles];
         this.inheritedFileDocs = inheritedFileDocs;
+        this.includeFileDocs = includeFileDocs;
         this.documentLookupCache.set(document.uri.toString(), {
             version: document.version,
             text: content,
             currentFileDocs,
-            inheritedFileDocs
+            inheritedFileDocs,
+            includeFileDocs
         });
     }
 
@@ -125,13 +170,7 @@ export class FileFunctionDocTracker {
     ): Promise<{
         currentFileDocs: Map<string, EfunDoc>;
         inheritedFileDocs: Map<string, Map<string, EfunDoc>>;
-    }>;
-    private async getOrBuildDocumentLookup(
-        document: vscode.TextDocument,
-        options?: { forceFresh?: boolean }
-    ): Promise<{
-        currentFileDocs: Map<string, EfunDoc>;
-        inheritedFileDocs: Map<string, Map<string, EfunDoc>>;
+        includeFileDocs: Map<string, Map<string, EfunDoc>>;
     }> {
         const uri = document.uri.toString();
         const text = document.getText();
@@ -139,42 +178,48 @@ export class FileFunctionDocTracker {
         if (!options?.forceFresh && cached && cached.version === document.version && cached.text === text) {
             return {
                 currentFileDocs: cached.currentFileDocs,
-                inheritedFileDocs: cached.inheritedFileDocs
+                inheritedFileDocs: cached.inheritedFileDocs,
+                includeFileDocs: cached.includeFileDocs
             };
         }
 
         const currentFileDocs = this.buildCompatDocsForDocument(document, '当前文件', { forceFresh: true });
-        const inheritedFileDocs = await this.loadInheritedFileDocs(document.uri.fsPath, this.parseInheritStatements(text), {
+        const inheritedFileDocs = await this.loadInheritedFileDocs(document, this.parseInheritStatements(text), {
             forceFresh: true
         });
+        const includeFileDocs = await this.loadIncludeFileDocs(document, { forceFresh: true });
         this.documentLookupCache.set(uri, {
             version: document.version,
             text,
             currentFileDocs,
-            inheritedFileDocs
+            inheritedFileDocs,
+            includeFileDocs
         });
 
         return {
             currentFileDocs,
-            inheritedFileDocs
+            inheritedFileDocs,
+            includeFileDocs
         };
     }
 
     private parseInheritStatements(content: string): string[] {
         const inheritFiles: string[] = [];
-        const inheritPattern = /inherit\s+["']([^"']+)["']\s*;/g;
+        const inheritPattern = /inherit\s+(?:"([^"]+)"|([A-Z_][A-Z0-9_]*))\s*;/g;
 
         let match: RegExpExecArray | null;
         while ((match = inheritPattern.exec(content)) !== null) {
-            const [, inheritPath] = match;
-            inheritFiles.push(inheritPath);
+            const inheritPath = (match[1] || match[2])?.trim();
+            if (inheritPath) {
+                inheritFiles.push(inheritPath);
+            }
         }
 
         return inheritFiles;
     }
 
     private async loadInheritedFileDocs(
-        currentFilePath: string,
+        document: vscode.TextDocument,
         inheritedFiles: readonly string[],
         options?: { forceFresh?: boolean }
     ): Promise<Map<string, Map<string, EfunDoc>>> {
@@ -183,42 +228,77 @@ export class FileFunctionDocTracker {
             return inheritedFileDocs;
         }
 
-        try {
-            const workspaceRoot = this.resolveWorkspaceRoot(currentFilePath);
+        const workspaceRoot = this.resolveWorkspaceRoot(document.uri.fsPath);
 
-            for (const inheritPath of inheritedFiles) {
-                const possiblePaths = [
-                    ...(workspaceRoot ? [
-                        path.join(workspaceRoot, inheritPath),
-                        path.join(workspaceRoot, inheritPath + '.c')
-                    ] : []),
-                    path.join(path.dirname(currentFilePath), inheritPath),
-                    path.join(path.dirname(currentFilePath), inheritPath + '.c')
-                ];
+        for (const inheritPath of inheritedFiles) {
+            const resolvedPath = this.pathSupport.resolveInheritedFilePath(
+                document,
+                inheritPath,
+                workspaceRoot
+            );
+            if (!resolvedPath) {
+                continue;
+            }
 
-                for (const filePath of possiblePaths) {
-                    try {
-                        if (fs.existsSync(filePath)) {
-                            const fileName = path.basename(filePath);
-                            const inheritedDocument = await vscode.workspace.openTextDocument(filePath);
-                            const funcDocs = this.buildCompatDocsForDocument(
-                                inheritedDocument,
-                                `继承自 ${fileName}`,
-                                options
-                            );
-                            inheritedFileDocs.set(filePath, funcDocs);
-                            break;
-                        }
-                    } catch (error) {
-                        console.error(`加载继承文件失败: ${filePath}`, error);
+            const candidatePaths = path.extname(resolvedPath)
+                ? [resolvedPath, resolvedPath.replace(/\.c$/, '')]
+                : [resolvedPath];
+
+            for (const candidatePath of candidatePaths) {
+                try {
+                    if (!this.pathSupport.fileExists(candidatePath)) {
+                        continue;
                     }
+
+                    const inheritedDocument = await this.pathSupport.tryOpenTextDocument(candidatePath);
+                    if (!inheritedDocument) {
+                        continue;
+                    }
+
+                    const fileName = path.basename(candidatePath);
+                    const funcDocs = this.buildCompatDocsForDocument(
+                        inheritedDocument,
+                        `继承自 ${fileName}`,
+                        options
+                    );
+                    inheritedFileDocs.set(candidatePath, funcDocs);
+                    break;
+                } catch (error) {
+                    console.error(`加载继承文件失败: ${candidatePath}`, error);
                 }
             }
-        } catch (error) {
-            console.error('加载继承文件文档失败:', error);
         }
 
         return inheritedFileDocs;
+    }
+
+    private async loadIncludeFileDocs(
+        document: vscode.TextDocument,
+        options?: { forceFresh?: boolean }
+    ): Promise<Map<string, Map<string, EfunDoc>>> {
+        const includeFileDocs = new Map<string, Map<string, EfunDoc>>();
+        const includeFiles = await this.getIncludeFiles(document);
+
+        for (const includeFile of includeFiles) {
+            if (!includeFile.endsWith('.h') && !includeFile.endsWith('.c')) {
+                continue;
+            }
+
+            const includeDocument = await this.pathSupport.tryOpenTextDocument(includeFile);
+            if (!includeDocument) {
+                continue;
+            }
+
+            const fileName = path.basename(includeFile);
+            const funcDocs = this.buildCompatDocsForDocument(
+                includeDocument,
+                `包含自 ${fileName}`,
+                options
+            );
+            includeFileDocs.set(includeFile, funcDocs);
+        }
+
+        return includeFileDocs;
     }
 
     public async findFunctionDocInIncludes(
@@ -227,27 +307,12 @@ export class FileFunctionDocTracker {
         options?: { forceFresh?: boolean }
     ): Promise<EfunDoc | undefined> {
         try {
-            const includeFiles = await this.getIncludeFiles(document);
+            const includeFileDocs = await this.loadIncludeFileDocs(document, options);
 
-            for (const includeFile of includeFiles) {
-                if (!includeFile.endsWith('.h') && !includeFile.endsWith('.c')) {
-                    continue;
-                }
-
-                try {
-                    const includeDocument = await vscode.workspace.openTextDocument(includeFile);
-                    const fileName = path.basename(includeFile);
-                    const funcDocs = this.buildCompatDocsForDocument(
-                        includeDocument,
-                        `包含自 ${fileName}`,
-                        options
-                    );
-                    const doc = funcDocs.get(functionName);
-                    if (doc) {
-                        return doc;
-                    }
-                } catch {
-                    // 静默处理错误，继续处理下一个文件
+            for (const funcDocs of includeFileDocs.values()) {
+                const doc = funcDocs.get(functionName);
+                if (doc) {
+                    return doc;
                 }
             }
         } catch {
@@ -259,45 +324,31 @@ export class FileFunctionDocTracker {
 
     private async getIncludeFiles(document: vscode.TextDocument): Promise<string[]> {
         const includeFiles: string[] = [];
+        const content = document.getText();
+        const workspaceRoot = this.resolveWorkspaceRoot(document.uri.fsPath);
+        const includeRegex = /^\s*#?include\s+([<"])([^\s">]+)[>"](?:\s*\/\/.*)?$/gm;
 
-        try {
-            const content = document.getText();
-            const lines = content.split('\n');
-            const currentDir = path.dirname(document.uri.fsPath);
-            const workspaceRoot = this.resolveWorkspaceRoot(document.uri.fsPath);
+        let match: RegExpExecArray | null;
+        while ((match = includeRegex.exec(content)) !== null) {
+            const isSystemInclude = match[1] === '<';
+            const includePath = match[2];
+            const candidatePaths = await this.pathSupport.resolveIncludeFilePaths(
+                document,
+                includePath,
+                isSystemInclude,
+                workspaceRoot
+            );
 
-            for (const line of lines) {
-                const trimmedLine = line.trim();
-                const includeMatch = trimmedLine.match(/^#?include\s+[<"]([^>"]+)[>"](?:\s*\/\/.*)?$/);
-                if (!includeMatch) {
-                    continue;
-                }
+            const fallbackPaths = !path.extname(includePath)
+                ? candidatePaths.map((candidatePath) => candidatePath.replace(/\.h$/, ''))
+                : [];
 
-                let includePath = includeMatch[1];
-                if (!includePath.endsWith('.h') && !includePath.endsWith('.c')) {
-                    includePath += '.h';
-                }
-
-                let resolvedPath: string;
-                if (/^(?:[\\/]|[A-Za-z]:[\\/])/.test(includePath)) {
-                    if (workspaceRoot && !/^[A-Za-z]:[\\/]/.test(includePath)) {
-                        resolvedPath = path.join(workspaceRoot, includePath.replace(/^[/\\]+/, ''));
-                    } else {
-                        resolvedPath = includePath;
-                    }
-                } else {
-                    resolvedPath = path.resolve(currentDir, includePath);
-                }
-
-                try {
-                    await fs.promises.access(resolvedPath);
-                    includeFiles.push(resolvedPath);
-                } catch {
-                    // 文件不存在，跳过
+            for (const filePath of [...candidatePaths, ...fallbackPaths]) {
+                if (this.pathSupport.fileExists(filePath)) {
+                    includeFiles.push(filePath);
+                    break;
                 }
             }
-        } catch {
-            // 静默处理错误
         }
 
         return includeFiles;
@@ -354,6 +405,19 @@ export class FileFunctionDocTracker {
         }
 
         return docs;
+    }
+
+    private materializeSourceGroups(
+        docsByFilePath: Map<string, Map<string, EfunDoc>>,
+        fallbackPrefix: string
+    ): FunctionDocSourceGroup[] {
+        return Array.from(docsByFilePath.entries())
+            .map(([filePath, docs]) => ({
+                source: Array.from(docs.values())[0]?.category ?? `${fallbackPrefix} ${path.basename(filePath)}`,
+                filePath,
+                docs
+            }))
+            .filter((group) => group.docs.size > 0);
     }
 
     private materializeCompatDoc(callableDoc: CallableDoc, category: string): EfunDoc {

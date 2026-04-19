@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { FunctionDocPanel } from '../functionDocPanel';
 import { LPCFunctionParser } from '../functionParser';
 
@@ -68,7 +67,6 @@ describe('FunctionDocPanel', () => {
     });
 
     test('update builds panel data from shared documentation service instead of panel-specific extraction', async () => {
-        const getDocumentDocsSpy = jest.spyOn(FunctionDocumentationService.prototype, 'getDocumentDocs');
         const parseAllFunctionsSpy = jest.spyOn(LPCFunctionParser, 'parseAllFunctions');
         const panel = {
             title: '',
@@ -80,10 +78,37 @@ describe('FunctionDocPanel', () => {
             dispose: jest.fn(),
             reveal: jest.fn()
         } as unknown as vscode.WebviewPanel;
-        const macroManager = {
-            scanMacros: jest.fn().mockResolvedValue(undefined),
-            getMacro: jest.fn(),
-            getIncludePath: jest.fn()
+        const efunDocsManager = {
+            getFunctionDocLookupForDocument: jest.fn(async () => ({
+                currentFile: {
+                    source: '当前文件',
+                    filePath: 'D:/code/lpc/obj/npc.c',
+                    docs: new Map([[
+                        'query_name',
+                        {
+                            name: 'query_name',
+                            syntax: 'string query_name(string style)',
+                            description: '来自共享文档。',
+                            details: '面板应该直接读取共享文档数据。',
+                            signatures: [{
+                                label: 'string query_name(string style)',
+                                parameters: [{
+                                    name: 'style',
+                                    type: 'string',
+                                    description: '显示风格'
+                                }],
+                                isVariadic: false
+                            }],
+                            sourceRange: {
+                                start: { line: 5, character: 0 },
+                                end: { line: 7, character: 1 }
+                            }
+                        }
+                    ]])
+                },
+                inheritedGroups: [],
+                includeGroups: []
+            }))
         };
         const document = createTextDocument(
             'D:/code/lpc/obj/npc.c',
@@ -99,10 +124,10 @@ describe('FunctionDocPanel', () => {
             ].join('\n')
         );
 
-        const panelInstance = new (FunctionDocPanel as any)(panel, macroManager);
+        const panelInstance = new (FunctionDocPanel as any)(panel, efunDocsManager);
         await panelInstance.update(document);
 
-        expect(getDocumentDocsSpy).toHaveBeenCalledWith(document);
+        expect(efunDocsManager.getFunctionDocLookupForDocument).toHaveBeenCalledWith(document, { forceFresh: true });
         expect(parseAllFunctionsSpy).not.toHaveBeenCalled();
         expect(panel.title).toContain('npc.c');
         expect(panel.webview.html).toContain('query_name');

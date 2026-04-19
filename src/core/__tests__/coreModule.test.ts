@@ -107,7 +107,7 @@ describe('registerCoreServices', () => {
         expect(MacroManager).toHaveBeenCalledTimes(1);
         expect(MacroManager).toHaveBeenCalledWith(projectConfigService);
         expect(EfunDocsManager).toHaveBeenCalledTimes(1);
-        expect(EfunDocsManager).toHaveBeenCalledWith(context, projectConfigService, analysisService);
+        expect(EfunDocsManager).toHaveBeenCalledWith(context, projectConfigService, analysisService, macroManager);
         expect(CompletionInstrumentation).toHaveBeenCalledTimes(1);
         expect(LPCConfigManager).toHaveBeenCalledTimes(1);
         expect(LPCConfigManager).toHaveBeenCalledWith(context);

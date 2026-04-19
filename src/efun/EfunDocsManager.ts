@@ -2,12 +2,13 @@ import * as vscode from 'vscode';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import { BundledEfunLoader } from './BundledEfunLoader';
 import { buildEfunHoverMarkdown, createEfunHover } from './EfunHoverContent';
-import { FileFunctionDocTracker } from './FileFunctionDocTracker';
+import { FileFunctionDocTracker, type FunctionDocLookup } from './FileFunctionDocTracker';
 import { SimulatedEfunScanner } from './SimulatedEfunScanner';
 import type { EfunDoc, StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
 import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
+import type { MacroManager } from '../macroManager';
 
 export class EfunDocsManager {
     private bundledLoader: BundledEfunLoader;
@@ -19,11 +20,12 @@ export class EfunDocsManager {
     constructor(
         context: vscode.ExtensionContext,
         projectConfigService?: LpcProjectConfigService,
-        analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>
+        analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>,
+        macroManager?: Pick<MacroManager, 'getMacro'>
     ) {
         const resolvedAnalysisService = assertAnalysisService('EfunDocsManager', analysisService);
         this.bundledLoader = new BundledEfunLoader(context);
-        this.fileFunctionDocTracker = new FileFunctionDocTracker();
+        this.fileFunctionDocTracker = new FileFunctionDocTracker({ macroManager });
         this.simulatedEfunScanner = new SimulatedEfunScanner(projectConfigService, resolvedAnalysisService);
         this.efunDocs = this.createBundledDocsMap();
         this.efunCategories = this.createBundledCategoriesMap();
@@ -126,6 +128,13 @@ export class EfunDocsManager {
         options?: { forceFresh?: boolean }
     ): Promise<EfunDoc | undefined> {
         return this.fileFunctionDocTracker.getDocFromIncludes(document, funcName, options);
+    }
+
+    public async getFunctionDocLookupForDocument(
+        document: vscode.TextDocument,
+        options?: { forceFresh?: boolean }
+    ): Promise<FunctionDocLookup> {
+        return this.fileFunctionDocTracker.getFunctionDocLookup(document, options);
     }
 
     public getStandardDoc(funcName: string): EfunDoc | undefined {
