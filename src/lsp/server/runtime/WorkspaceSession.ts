@@ -19,17 +19,14 @@ export interface WorkspaceConfigSnapshot {
 
 export interface WorkspaceSessionOptions {
     workspaceRoots?: string[];
-    runtimeReferences?: Record<string, unknown>;
 }
 
 export class WorkspaceSession {
     private workspaceRoots: string[];
     private readonly workspaceConfigs = new Map<string, WorkspaceConfigSnapshot>();
-    private readonly runtimeReferences: Record<string, unknown>;
 
     public constructor(options: WorkspaceSessionOptions = {}) {
         this.workspaceRoots = normalizeServerWorkspaceRoots(options.workspaceRoots ?? []);
-        this.runtimeReferences = { ...(options.runtimeReferences ?? {}) };
         setServerWorkspaceRoots(this.workspaceRoots);
     }
 
@@ -73,10 +70,6 @@ export class WorkspaceSession {
     public getWorkspaceConfig(workspaceRoot: string): WorkspaceConfigSnapshot | undefined {
         const snapshot = this.workspaceConfigs.get(normalizeServerWorkspaceRoot(workspaceRoot));
         return snapshot ? cloneWorkspaceConfigSnapshot(snapshot) : undefined;
-    }
-
-    public getRuntimeReference<T>(key: string): T | undefined {
-        return this.runtimeReferences[key] as T | undefined;
     }
 
     public toLanguageWorkspaceContext(workspaceRoot: string): LanguageWorkspaceContext {

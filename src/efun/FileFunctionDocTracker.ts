@@ -20,8 +20,6 @@ export type { FunctionDocLookup, FunctionDocSourceGroup } from './FunctionDocLoo
 
 interface FileFunctionDocTrackerOptions {
     documentationService?: FunctionDocumentationService;
-    macroManager?: Pick<MacroManager, 'getMacro'>;
-    pathSupport?: WorkspaceDocumentPathSupport;
     compatMaterializer?: FunctionDocCompatMaterializer;
     lookupBuilder?: Pick<FunctionDocLookupBuilder, 'buildLookup'>;
 }
@@ -45,13 +43,15 @@ export class FileFunctionDocTracker {
     private currentFileUpdateVersion = 0;
 
     public constructor(options: FileFunctionDocTrackerOptions = {}) {
-        const documentationService = assertDocumentationService('FileFunctionDocTracker', options.documentationService);
-        const pathSupport = assertDocumentPathSupport('FileFunctionDocTracker', options.pathSupport);
-        this.compatMaterializer = options.compatMaterializer ?? new FunctionDocCompatMaterializer();
-        this.lookupBuilder = options.lookupBuilder ?? new FunctionDocLookupBuilder({
-            documentationService,
-            pathSupport
-        });
+        assertDocumentationService('FileFunctionDocTracker', options.documentationService);
+        this.compatMaterializer = options.compatMaterializer
+            ?? (() => {
+                throw new Error('FileFunctionDocTracker requires an injected FunctionDocCompatMaterializer');
+            })();
+        this.lookupBuilder = options.lookupBuilder
+            ?? (() => {
+                throw new Error('FileFunctionDocTracker requires an injected FunctionDocLookupBuilder');
+            })();
     }
 
     public getDoc(name: string): EfunDoc | undefined {

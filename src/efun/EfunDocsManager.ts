@@ -10,6 +10,7 @@ import { BundledEfunLoader } from './BundledEfunLoader';
 import { buildEfunHoverMarkdown, createEfunHover } from './EfunHoverContent';
 import { FileFunctionDocTracker, type FunctionDocLookup } from './FileFunctionDocTracker';
 import { FunctionDocCompatMaterializer } from './FunctionDocCompatMaterializer';
+import { FunctionDocLookupBuilder } from './FunctionDocLookupBuilder';
 import { SimulatedEfunScanner } from './SimulatedEfunScanner';
 import type { EfunDoc, StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
 import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
@@ -35,17 +36,22 @@ export class EfunDocsManager {
         const resolvedAnalysisService = assertAnalysisService('EfunDocsManager', analysisService);
         const resolvedDocumentationService = assertDocumentationService('EfunDocsManager', documentationService);
         const resolvedPathSupport = assertDocumentPathSupport('EfunDocsManager', pathSupport);
-        this.bundledLoader = new BundledEfunLoader(context);
-        this.fileFunctionDocTracker = new FileFunctionDocTracker({
-            macroManager,
+        const compatMaterializer = new FunctionDocCompatMaterializer();
+        const lookupBuilder = new FunctionDocLookupBuilder({
             documentationService: resolvedDocumentationService,
             pathSupport: resolvedPathSupport
+        });
+        this.bundledLoader = new BundledEfunLoader(context);
+        this.fileFunctionDocTracker = new FileFunctionDocTracker({
+            documentationService: resolvedDocumentationService,
+            compatMaterializer,
+            lookupBuilder
         });
         this.simulatedEfunScanner = new SimulatedEfunScanner(
             projectConfigService,
             resolvedAnalysisService,
             resolvedDocumentationService,
-            new FunctionDocCompatMaterializer()
+            compatMaterializer
         );
         this.efunDocs = this.createBundledDocsMap();
         this.efunCategories = this.createBundledCategoriesMap();

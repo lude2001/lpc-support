@@ -23,11 +23,14 @@ export class SimulatedEfunScanner {
         private readonly projectConfigService: LpcProjectConfigService | undefined,
         analysisService: SimulatedEfunAnalysisService,
         documentationService?: FunctionDocumentationService,
-        compatMaterializer: FunctionDocCompatMaterializer = new FunctionDocCompatMaterializer()
+        compatMaterializer?: FunctionDocCompatMaterializer
     ) {
         this.analysisService = assertAnalysisService('SimulatedEfunScanner', analysisService);
         this.documentationService = assertDocumentationService('SimulatedEfunScanner', documentationService);
-        this.compatMaterializer = compatMaterializer;
+        this.compatMaterializer = compatMaterializer
+            ?? (() => {
+                throw new Error('SimulatedEfunScanner requires an injected FunctionDocCompatMaterializer');
+            })();
     }
 
     public get(name: string): EfunDoc | undefined {

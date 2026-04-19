@@ -282,8 +282,7 @@ describe('document analysis ownership guards', () => {
             .sort();
 
         expect(directOpenCallSites).toEqual([
-            'src/language/shared/WorkspaceDocumentPathSupport.ts',
-            'src/utils/pathResolver.example.ts'
+            'src/language/shared/WorkspaceDocumentPathSupport.ts'
         ]);
     });
 

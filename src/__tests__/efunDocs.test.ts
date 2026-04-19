@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { ASTManager } from '../ast/astManager';
 import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManager';
+import { FunctionDocCompatMaterializer } from '../efun/FunctionDocCompatMaterializer';
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
@@ -23,7 +24,8 @@ function createSimulatedScanner(projectConfigService?: any): SimulatedEfunScanne
     return new SimulatedEfunScanner(
         projectConfigService,
         DocumentSemanticSnapshotService.getInstance(),
-        new FunctionDocumentationService()
+        new FunctionDocumentationService(),
+        new FunctionDocCompatMaterializer()
     );
 }
 
