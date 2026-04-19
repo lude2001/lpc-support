@@ -296,7 +296,7 @@ describe('navigation services', () => {
         );
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
-            undefined,
+            new TargetMethodLookup(analysisService, pathSupport),
             {
                 analysisService,
                 host,
@@ -348,7 +348,7 @@ describe('navigation services', () => {
         );
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
-            undefined,
+            new TargetMethodLookup(analysisService, pathSupport),
             {
                 analysisService,
                 host,
@@ -401,7 +401,7 @@ describe('navigation services', () => {
         );
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
-            undefined,
+            new TargetMethodLookup(analysisService, pathSupport),
             {
                 analysisService,
                 host,
@@ -517,7 +517,7 @@ describe('navigation services', () => {
         };
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
-            undefined,
+            new TargetMethodLookup(analysisService, pathSupport),
             {
                 analysisService,
                 host,
@@ -562,7 +562,7 @@ describe('navigation services', () => {
         };
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
-            undefined,
+            new TargetMethodLookup(analysisService, pathSupport),
             {
                 analysisService,
                 host,

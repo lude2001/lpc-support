@@ -283,13 +283,10 @@ describe('EfunDocsManager', () => {
             getMacroHoverContent: jest.fn(),
             scanMacros: jest.fn().mockResolvedValue(undefined),
             getIncludePath: jest.fn()
-        } as any, undefined, undefined, undefined, {
+        } as any, undefined, { inferObjectAccess: jest.fn() } as any, undefined, {
             analysisService: DocumentSemanticSnapshotService.getInstance(),
             documentationService: new FunctionDocumentationService(),
-            documentHost,
-            pathSupport: new WorkspaceDocumentPathSupport({
-                host: documentHost
-            })
+            documentHost
         });
         const document = TestHelper.createMockDocument('allo');
         const completion = await service.provideCompletion({

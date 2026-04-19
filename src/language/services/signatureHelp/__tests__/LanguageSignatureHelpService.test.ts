@@ -18,6 +18,8 @@ import {
 import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
 import type { CallableDoc } from '../../../documentation/types';
 import { TargetMethodLookup } from '../../../../targetMethodLookup';
+import { DefaultCallableDocResolver } from '../DefaultCallableDocResolver';
+import { DefaultCallableTargetDiscoveryService } from '../DefaultCallableTargetDiscoveryService';
 import {
     LanguageSignatureHelpService,
     type CallableDiscoveryRequest,
@@ -197,8 +199,23 @@ function createDocResolver(docsByTargetKey: Record<string, CallableDoc>): Callab
 describe('LanguageSignatureHelpService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
+    interface SignatureHelpTestDependencies {
+        discoveryService?: CallableTargetDiscoveryService;
+        docResolver?: CallableDocResolver;
+        documentationService?: FunctionDocumentationService;
+        efunDocsManager?: EfunDocsManager;
+        objectInferenceService?: ObjectInferenceService;
+        scopedMethodResolver?: ConstructorParameters<typeof DefaultCallableTargetDiscoveryService>[3];
+        targetMethodLookup?: TargetMethodLookup;
+        host?: {
+            openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
+        };
+        renderer?: ConstructorParameters<typeof LanguageSignatureHelpService>[0]['renderer'];
+        callSiteAnalyzer?: ConstructorParameters<typeof LanguageSignatureHelpService>[0]['callSiteAnalyzer'];
+    }
+
     function createSignatureHelpService(
-        dependencies: ConstructorParameters<typeof LanguageSignatureHelpService>[0] = {}
+        dependencies: SignatureHelpTestDependencies = {}
     ): LanguageSignatureHelpService {
         const documentationService = dependencies.documentationService ?? new FunctionDocumentationService();
         const host = dependencies.host ?? {
@@ -207,10 +224,21 @@ describe('LanguageSignatureHelpService', () => {
                 return createDocument('', filePath);
             })
         };
+        const discoveryService = dependencies.discoveryService ?? new DefaultCallableTargetDiscoveryService(
+            dependencies.efunDocsManager,
+            dependencies.objectInferenceService,
+            dependencies.targetMethodLookup,
+            dependencies.scopedMethodResolver
+        );
+        const docResolver = dependencies.docResolver ?? new DefaultCallableDocResolver(
+            documentationService,
+            dependencies.efunDocsManager,
+            host
+        );
         return new LanguageSignatureHelpService({
             analysisService,
-            documentationService,
-            host,
+            discoveryService,
+            docResolver,
             ...dependencies
         });
     }

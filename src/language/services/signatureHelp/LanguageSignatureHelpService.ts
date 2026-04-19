@@ -2,22 +2,13 @@ import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguagePosition } from '../../contracts/LanguagePosition';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
-import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
-import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import type { CallableDoc } from '../../documentation/types';
-import type { EfunDocsManager } from '../../../efun/EfunDocsManager';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
-import type { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
-import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
-import type { TargetMethodLookup } from '../../../targetMethodLookup';
-import { assertOpenTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import {
     type CallSiteAnalyzer,
     countActiveParameterIndex,
     createSyntaxAwareCallSiteAnalyzer
 } from './SyntaxAwareCallSiteAnalyzer';
-import { DefaultCallableTargetDiscoveryService } from './DefaultCallableTargetDiscoveryService';
-import { DefaultCallableDocResolver } from './DefaultCallableDocResolver';
 import {
     dedupeTargets,
     flattenMergedGroups,
@@ -86,12 +77,6 @@ interface LanguageSignatureHelpDependencies {
     docResolver?: CallableDocResolver;
     renderer?: CallableDocRenderer;
     callSiteAnalyzer?: CallSiteAnalyzer;
-    documentationService?: FunctionDocumentationService;
-    efunDocsManager?: EfunDocsManager;
-    objectInferenceService?: ObjectInferenceService;
-    scopedMethodResolver?: ScopedMethodResolver;
-    targetMethodLookup?: TargetMethodLookup;
-    host?: SignatureHelpDocumentHost;
 }
 
 export class LanguageSignatureHelpService {
@@ -101,27 +86,17 @@ export class LanguageSignatureHelpService {
     private readonly docResolver: CallableDocResolver;
 
     public constructor(dependencies: LanguageSignatureHelpDependencies = {}) {
-        const host = dependencies.docResolver
-            ? dependencies.host
-            : assertOpenTextDocumentHost('LanguageSignatureHelpService', dependencies.host);
         this.renderer = dependencies.renderer ?? new CallableDocRenderer();
         this.callSiteAnalyzer = dependencies.callSiteAnalyzer
             ?? createSyntaxAwareCallSiteAnalyzer(dependencies.analysisService);
-        this.discoveryService = dependencies.discoveryService
-            ?? new DefaultCallableTargetDiscoveryService(
-                dependencies.efunDocsManager,
-                dependencies.objectInferenceService,
-                dependencies.targetMethodLookup,
-                dependencies.scopedMethodResolver
-            );
-        const documentationService = dependencies.docResolver
-            ? dependencies.documentationService
-            : assertDocumentationService(
-                'LanguageSignatureHelpService',
-                dependencies.documentationService
-            );
-        this.docResolver = dependencies.docResolver
-            ?? new DefaultCallableDocResolver(documentationService!, dependencies.efunDocsManager, host!);
+        if (!dependencies.discoveryService) {
+            throw new Error('LanguageSignatureHelpService requires an injected CallableTargetDiscoveryService');
+        }
+        if (!dependencies.docResolver) {
+            throw new Error('LanguageSignatureHelpService requires an injected CallableDocResolver');
+        }
+        this.discoveryService = dependencies.discoveryService;
+        this.docResolver = dependencies.docResolver;
     }
 
     public async provideSignatureHelp(

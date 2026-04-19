@@ -26,6 +26,8 @@ import { InheritedSymbolRelationService } from '../../../language/services/navig
 import { UnifiedLanguageHoverService } from '../../../language/services/navigation/UnifiedLanguageHoverService';
 import { AstBackedLanguageReferenceService } from '../../../language/services/navigation/LanguageReferenceService';
 import { AstBackedLanguageRenameService } from '../../../language/services/navigation/LanguageRenameService';
+import { DefaultCallableDocResolver } from '../../../language/services/signatureHelp/DefaultCallableDocResolver';
+import { DefaultCallableTargetDiscoveryService } from '../../../language/services/signatureHelp/DefaultCallableTargetDiscoveryService';
 import { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import { AstBackedLanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
 import { FormattingService } from '../../../formatter/FormattingService';
@@ -98,8 +100,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         {
             analysisService,
             documentationService,
-            documentHost: workspaceDocumentHost,
-            pathSupport: documentPathSupport
+            documentHost: workspaceDocumentHost
         }
     );
     const codeActionsService = createLanguageCodeActionService();
@@ -148,14 +149,21 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const symbolService = new AstBackedLanguageSymbolService({
         analysisService
     });
-    const signatureHelpService = new LanguageSignatureHelpService({
-        analysisService,
+    const callableTargetDiscoveryService = new DefaultCallableTargetDiscoveryService(
         efunDocsManager,
         objectInferenceService,
         targetMethodLookup,
-        scopedMethodResolver,
+        scopedMethodResolver
+    );
+    const callableDocResolver = new DefaultCallableDocResolver(
         documentationService,
-        host: workspaceDocumentHost
+        efunDocsManager,
+        workspaceDocumentHost
+    );
+    const signatureHelpService = new LanguageSignatureHelpService({
+        analysisService,
+        discoveryService: callableTargetDiscoveryService,
+        docResolver: callableDocResolver
     });
     const foldingService = new DefaultLanguageFoldingService(analysisService);
     const semanticTokensService = new DefaultLanguageSemanticTokensService(analysisService);

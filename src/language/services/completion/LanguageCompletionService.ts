@@ -17,10 +17,8 @@ import type { DocumentAnalysisService } from '../../../semantic/documentAnalysis
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import {
-    assertDocumentPathSupport,
     assertTextDocumentHost,
-    type TextDocumentHost,
-    type WorkspaceDocumentPathSupport
+    type TextDocumentHost
 } from '../../shared/WorkspaceDocumentPathSupport';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
@@ -105,7 +103,6 @@ interface QueryBackedLanguageCompletionDependencies {
     scopedDocumentLoader?: (uri: string) => Promise<vscode.TextDocument | undefined>;
     scopedCompletionSupport?: ScopedMethodCompletionSupport;
     documentHost?: TextDocumentHost;
-    pathSupport?: WorkspaceDocumentPathSupport;
 }
 
 export class QueryBackedLanguageCompletionService implements LanguageCompletionService {
@@ -127,7 +124,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         efunDocsManager: EfunDocsManager,
         macroManager: MacroManager,
         instrumentation?: CompletionInstrumentation,
-        objectInferenceService?: ObjectInferenceService,
+        objectInferenceService: ObjectInferenceService,
         inheritanceReporter: CompletionInheritanceReporter = createDefaultInheritanceReporter(),
         dependencies?: QueryBackedLanguageCompletionDependencies
     ) {
@@ -139,27 +136,13 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             'QueryBackedLanguageCompletionService',
             dependencies?.documentationService
         );
-        const pathSupport = objectInferenceService
-            ? dependencies?.pathSupport
-            : assertDocumentPathSupport(
-                'QueryBackedLanguageCompletionService',
-                dependencies?.pathSupport
-            );
         const documentHost = dependencies?.scopedMethodDiscoveryService
             ? dependencies?.documentHost
             : assertTextDocumentHost(
                 'QueryBackedLanguageCompletionService',
                 dependencies?.documentHost
             );
-        this.objectInferenceService = objectInferenceService
-            ?? new ObjectInferenceService(
-                macroManager,
-                undefined,
-                this.analysisService,
-                documentationService,
-                documentHost,
-                pathSupport
-            );
+        this.objectInferenceService = objectInferenceService;
         this.inheritanceReporter = inheritanceReporter;
         this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
         this.inheritedIndexService = new CompletionInheritedIndexService(

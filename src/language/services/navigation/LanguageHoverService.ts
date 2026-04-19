@@ -233,14 +233,12 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
                     ?? new VsCodeHoverObjectAccessProvider(objectInferenceService),
                 methodResolver: dependencies?.methodResolver
                     ?? new VsCodeHoverMethodResolver(
-                        targetMethodLookup
-                        ?? new TargetMethodLookup(
-                            assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies?.analysisService),
-                            assertDocumentPathSupport(
-                                'ObjectInferenceLanguageHoverService',
-                                dependencies?.pathSupport
-                            )
-                        )
+                        targetMethodLookup ?? (() => {
+                            throw new Error(
+                                'ObjectInferenceLanguageHoverService requires an injected TargetMethodLookup '
+                                + 'when no HoverMethodResolver is provided'
+                            );
+                        })()
                     ),
                 documentationService: documentationService!,
                 renderer,

@@ -203,7 +203,7 @@ describe('language-service integration regression', () => {
         efunDocsManager as any,
         macroManager as any,
         undefined,
-        objectInferenceService,
+        objectInferenceService ?? createObjectInference(),
         {
             clear: jest.fn(),
             show: jest.fn(),
@@ -213,7 +213,6 @@ describe('language-service integration regression', () => {
             analysisService,
             documentationService,
             documentHost,
-            pathSupport,
             ...dependencies
         } as any
     );
