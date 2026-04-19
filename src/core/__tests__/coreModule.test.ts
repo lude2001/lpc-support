@@ -13,7 +13,6 @@ import { DocumentLifecycleService } from '../DocumentLifecycleService';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
-import { ASTManager } from '../../ast/astManager';
 
 jest.mock('../../macroManager', () => ({
     MacroManager: jest.fn()
@@ -70,7 +69,6 @@ describe('registerCoreServices', () => {
     let lifecycle: vscode.Disposable & { id: string; onInvalidate: jest.Mock };
     let parsedDocumentService: { invalidate: jest.Mock };
     let analysisService: { clearCache: jest.Mock };
-    let configureSingletonSpy: jest.SpiedFunction<typeof ASTManager.configureSingleton>;
 
     beforeEach(() => {
         registry = new ServiceRegistry();
@@ -101,13 +99,9 @@ describe('registerCoreServices', () => {
         (DocumentLifecycleService as unknown as jest.Mock).mockReset().mockImplementation(() => lifecycle);
         (getGlobalParsedDocumentService as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
         ((DocumentSemanticSnapshotService as any).getInstance as jest.Mock).mockReset().mockReturnValue(analysisService);
-        configureSingletonSpy = jest.spyOn(ASTManager, 'configureSingleton');
     });
 
-    afterEach(() => {
-        configureSingletonSpy.mockRestore();
-        ASTManager.resetSingletonForTests();
-    });
+    afterEach(() => {});
 
     test('registers core services, tracks disposables, and wires lifecycle invalidation', () => {
         registerCoreServices(registry, context);
@@ -151,8 +145,6 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.Lifecycle)).toBe(lifecycle);
         expect(registry.get(Services.Analysis)).toBe(analysisService);
         expect(DocumentSemanticSnapshotService.getInstance).toHaveBeenCalledTimes(1);
-        expect(configureSingletonSpy).toHaveBeenCalledTimes(1);
-        expect(configureSingletonSpy).toHaveBeenCalledWith(analysisService as any);
 
         expect(context.subscriptions).toEqual([macroManager, completionInstrumentation, lifecycle]);
         expect(typeof context.subscriptions[0].dispose).toBe('function');

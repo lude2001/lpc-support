@@ -11,8 +11,6 @@ const analysisService = {
     getSemanticSnapshot: jest.fn(),
     getBestAvailableSnapshot: jest.fn()
 };
-const astManager = { kind: 'ast-manager' };
-const configureAstManagerSingleton = jest.fn(() => astManager);
 const efunHoverService = { provideHover: jest.fn() };
 const efunHoverCtor = jest.fn(() => efunHoverService);
 
@@ -76,10 +74,7 @@ describe('createProductionLanguageServices', () => {
                 CompletionInstrumentation: jest.fn(() => completionInstrumentation)
             }));
             jest.doMock('../../../../ast/astManager', () => ({
-                ASTManager: {
-                    configureSingleton: configureAstManagerSingleton,
-                    getInstance: jest.fn(() => astManager)
-                }
+                ASTManager: {}
             }));
             jest.doMock('../../../../diagnostics', () => ({
                 createDiagnosticsStack: jest.fn(() => ({
@@ -147,7 +142,6 @@ describe('createProductionLanguageServices', () => {
             const { ObjectInferenceLanguageHoverService } = require('../../../../language/services/navigation/LanguageHoverService') as typeof import('../../../../language/services/navigation/LanguageHoverService');
             const { AstBackedLanguageDefinitionService } = require('../../../../language/services/navigation/LanguageDefinitionService') as typeof import('../../../../language/services/navigation/LanguageDefinitionService');
             const { LanguageSignatureHelpService } = require('../../../../language/services/signatureHelp/LanguageSignatureHelpService') as typeof import('../../../../language/services/signatureHelp/LanguageSignatureHelpService');
-            expect(configureAstManagerSingleton).toHaveBeenCalledWith(analysisService);
             expect(FunctionDocumentationService).toHaveBeenCalledTimes(1);
             expect(ObjectInferenceService).toHaveBeenCalledWith(
                 macroManager,
@@ -260,10 +254,7 @@ describe('createProductionLanguageServices', () => {
                 CompletionInstrumentation: jest.fn(() => ({ kind: 'completion-instrumentation' }))
             }));
             jest.doMock('../../../../ast/astManager', () => ({
-                ASTManager: {
-                    configureSingleton: configureAstManagerSingleton,
-                    getInstance: jest.fn(() => astManager)
-                }
+                ASTManager: {}
             }));
             jest.doMock('../../../../diagnostics', () => ({
                 createDiagnosticsStack: jest.fn(() => ({
@@ -326,7 +317,6 @@ describe('createProductionLanguageServices', () => {
 
             createProductionLanguageServices();
 
-            expect(configureAstManagerSingleton).toHaveBeenCalledWith(analysisService);
             expect(scopedMethodResolverCtor).toHaveBeenCalledWith(
                 macroManager,
                 undefined,
@@ -382,10 +372,7 @@ describe('createProductionLanguageServices', () => {
                 CompletionInstrumentation: jest.fn(() => ({ kind: 'completion-instrumentation' }))
             }));
             jest.doMock('../../../../ast/astManager', () => ({
-                ASTManager: {
-                    configureSingleton: configureAstManagerSingleton,
-                    getInstance: jest.fn(() => astManager)
-                }
+                ASTManager: {}
             }));
             jest.doMock('../../../../diagnostics', () => ({
                 createDiagnosticsStack: jest.fn(() => ({
@@ -451,7 +438,6 @@ describe('createProductionLanguageServices', () => {
 
             createProductionLanguageServices();
 
-            expect(configureAstManagerSingleton).toHaveBeenCalledWith(analysisService);
             expect(inheritedRelationCtor).toHaveBeenCalledWith(expect.objectContaining({
                 scopedMethodResolver: expect.anything(),
                 macroManager: expect.anything(),

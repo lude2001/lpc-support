@@ -11,14 +11,12 @@ import { createVsCodeTextDocumentHost, WorkspaceDocumentPathSupport } from '../l
 import { MacroManager } from '../macroManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
-import { ASTManager } from '../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 
 let registeredProjectConfigService: LpcProjectConfigService | undefined;
 
 export function registerCoreServices(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
-    ASTManager.configureSingleton(analysisService);
     registry.register(Services.Analysis, analysisService);
     const projectConfigService = new LpcProjectConfigService();
     registeredProjectConfigService = projectConfigService;

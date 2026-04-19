@@ -37,7 +37,7 @@ describe('document analysis ownership guards', () => {
         }
     });
 
-    test('legacy completion shim no longer exposes singleton access, and singleton call sites stay on the explicit whitelist', () => {
+    test('legacy completion shim no longer exposes singleton access, and AST singleton wiring stays out of production', () => {
         const legacySource = fs.readFileSync(legacyServicePath, 'utf8');
 
         expect(legacySource).not.toContain('getInstance(');
@@ -62,10 +62,7 @@ describe('document analysis ownership guards', () => {
             'src/lsp/server/runtime/createProductionLanguageServices.ts',
             'src/modules/coreModule.ts'
         ]);
-        expect(astConfigureCallSites).toEqual([
-            'src/lsp/server/runtime/createProductionLanguageServices.ts',
-            'src/modules/coreModule.ts'
-        ]);
+        expect(astConfigureCallSites).toEqual([]);
         expect(astSingletonCallSites).toEqual([]);
     });
 

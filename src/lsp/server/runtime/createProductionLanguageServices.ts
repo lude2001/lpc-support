@@ -5,7 +5,6 @@ import type { ExtensionContext } from 'vscode';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
 import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
-import { ASTManager } from '../../../ast/astManager';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
 import {
@@ -45,7 +44,6 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     setServerWorkspaceRoots([process.cwd()]);
 
     const analysisService = DocumentSemanticSnapshotService.getInstance();
-    ASTManager.configureSingleton(analysisService);
 
     const workspaceDocumentHost = createVsCodeWorkspaceDocumentHost();
     const projectConfigService = new LpcProjectConfigService();
