@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { InheritedFileGlobalRelationService } from '../InheritedFileGlobalRelationService';
 import {
@@ -116,6 +115,14 @@ function documentLookupKey(target: string | vscode.Uri): string {
     return normalizeFsPathKey(target.fsPath);
 }
 
+function createInheritanceResolverStub(
+    implementation: (snapshot: { uri: string }) => unknown[] = () => []
+): { resolveInheritTargets: jest.Mock } {
+    return {
+        resolveInheritTargets: jest.fn(implementation)
+    };
+}
+
 describe('InheritedFileGlobalRelationService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
@@ -139,8 +146,7 @@ describe('InheritedFileGlobalRelationService', () => {
         ]);
         const service = new InheritedFileGlobalRelationService({
             analysisService,
-            inheritanceResolver: {
-                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+            inheritanceResolver: createInheritanceResolverStub((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
                         return [{
                             rawValue: '/base',
@@ -152,8 +158,7 @@ describe('InheritedFileGlobalRelationService', () => {
                     }
 
                     return [];
-                })
-            } as any,
+                }),
             host: {
                 openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
                     const key = documentLookupKey(target);
@@ -198,8 +203,7 @@ describe('InheritedFileGlobalRelationService', () => {
         ]);
         const service = new InheritedFileGlobalRelationService({
             analysisService,
-            inheritanceResolver: {
-                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+            inheritanceResolver: createInheritanceResolverStub((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
                         return [
                             {
@@ -220,8 +224,7 @@ describe('InheritedFileGlobalRelationService', () => {
                     }
 
                     return [];
-                })
-            } as any,
+                }),
             host: {
                 openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
                     const key = documentLookupKey(target);
@@ -249,15 +252,13 @@ describe('InheritedFileGlobalRelationService', () => {
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
         const service = new InheritedFileGlobalRelationService({
             analysisService,
-            inheritanceResolver: {
-                resolveInheritTargets: jest.fn(() => [{
+            inheritanceResolver: createInheritanceResolverStub(() => [{
                     rawValue: '/base',
                     expressionKind: 'string',
                     sourceUri: childDocument.uri.toString(),
                     resolvedUri: undefined,
                     isResolved: false
-                }])
-            } as any,
+                }]),
             host: {
                 openTextDocument: jest.fn()
             }
@@ -283,8 +284,7 @@ describe('InheritedFileGlobalRelationService', () => {
         ]);
         const service = new InheritedFileGlobalRelationService({
             analysisService,
-            inheritanceResolver: {
-                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+            inheritanceResolver: createInheritanceResolverStub((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
                         return [
                             {
@@ -305,8 +305,7 @@ describe('InheritedFileGlobalRelationService', () => {
                     }
 
                     return [];
-                })
-            } as any,
+                }),
             host: {
                 openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
                     const key = documentLookupKey(target);
@@ -343,8 +342,7 @@ describe('InheritedFileGlobalRelationService', () => {
         ]);
         const service = new InheritedFileGlobalRelationService({
             analysisService,
-            inheritanceResolver: {
-                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+            inheritanceResolver: createInheritanceResolverStub((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
                         return [
                             {
@@ -375,8 +373,7 @@ describe('InheritedFileGlobalRelationService', () => {
                     }
 
                     return [];
-                })
-            } as any,
+                }),
             host: {
                 openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
                     const key = documentLookupKey(target);
@@ -416,8 +413,7 @@ describe('InheritedFileGlobalRelationService', () => {
         ]);
         const service = new InheritedFileGlobalRelationService({
             analysisService,
-            inheritanceResolver: {
-                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+            inheritanceResolver: createInheritanceResolverStub((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
                         return [
                             {
@@ -448,8 +444,7 @@ describe('InheritedFileGlobalRelationService', () => {
                     }
 
                     return [];
-                })
-            } as any,
+                }),
             host: {
                 openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
                     const key = documentLookupKey(target);
@@ -494,8 +489,7 @@ describe('InheritedFileGlobalRelationService', () => {
         ]);
         const service = new InheritedFileGlobalRelationService({
             analysisService,
-            inheritanceResolver: {
-                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+            inheritanceResolver: createInheritanceResolverStub((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
                         return [{
                             rawValue: '/base',
@@ -507,8 +501,7 @@ describe('InheritedFileGlobalRelationService', () => {
                     }
 
                     return [];
-                })
-            } as any,
+                }),
             host: {
                 openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
                     const key = documentLookupKey(target);
@@ -545,8 +538,7 @@ describe('InheritedFileGlobalRelationService', () => {
         ]);
         const service = new InheritedFileGlobalRelationService({
             analysisService,
-            inheritanceResolver: {
-                resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
+            inheritanceResolver: createInheritanceResolverStub((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
                         return [{
                             rawValue: '/base',
@@ -568,8 +560,7 @@ describe('InheritedFileGlobalRelationService', () => {
                     }
 
                     return [];
-                })
-            } as any,
+                }),
             host: {
                 openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
                     const key = documentLookupKey(target);

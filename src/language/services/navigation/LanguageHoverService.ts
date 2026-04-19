@@ -83,7 +83,7 @@ interface HoverDocumentAdapter {
 }
 
 export interface HoverServiceDependencies {
-    documentAdapter?: HoverDocumentAdapter;
+    documentAdapter: HoverDocumentAdapter;
     scopedHoverResolver?: Pick<ScopedMethodHoverResolver, 'provideScopedHover'>;
     objectMethodHoverResolver: Pick<ObjectMethodHoverResolver, 'provideObjectHover'>;
 }
@@ -203,7 +203,7 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
     public constructor(
         dependencies: HoverServiceDependencies
     ) {
-        this.documentAdapter = dependencies?.documentAdapter ?? new VsCodeHoverDocumentAdapter();
+        this.documentAdapter = dependencies.documentAdapter;
         this.scopedHoverResolver = dependencies.scopedHoverResolver;
         this.objectMethodHoverResolver = dependencies.objectMethodHoverResolver;
     }
@@ -266,6 +266,7 @@ export function createDefaultObjectInferenceLanguageHoverService(
     });
 
     return new ObjectInferenceLanguageHoverService({
+        documentAdapter: new VsCodeHoverDocumentAdapter(),
         scopedHoverResolver,
         objectMethodHoverResolver
     });

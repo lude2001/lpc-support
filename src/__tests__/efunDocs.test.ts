@@ -9,10 +9,11 @@ import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
 import { buildEfunHoverMarkdown, createEfunHover } from '../efun/EfunHoverContent';
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
-import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
+import { createDefaultQueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { ScopedMethodCompletionSupport } from '../language/services/completion/ScopedMethodCompletionSupport';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { ScopedMethodDiscoveryService } from '../objectInference/ScopedMethodDiscoveryService';
+import { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import {
     WorkspaceDocumentPathSupport,
     createVsCodeTextDocumentHost
@@ -281,15 +282,24 @@ describe('EfunDocsManager', () => {
         const documentHost = createVsCodeTextDocumentHost();
         const documentationService = new FunctionDocumentationService();
         const objectInferenceService = { inferObjectAccess: jest.fn() } as any;
-        const service = new QueryBackedLanguageCompletionService(manager, {
-            getMacro: jest.fn(),
-            getAllMacros: jest.fn(() => []),
-            getMacroHoverContent: jest.fn(),
-            scanMacros: jest.fn().mockResolvedValue(undefined),
-            getIncludePath: jest.fn()
-        } as any, undefined, objectInferenceService, undefined, {
+        const service = createDefaultQueryBackedLanguageCompletionService({
+            efunDocsManager: manager,
+            macroManager: {
+                getMacro: jest.fn(),
+                getAllMacros: jest.fn(() => []),
+                getMacroHoverContent: jest.fn(),
+                scanMacros: jest.fn().mockResolvedValue(undefined),
+                getIncludePath: jest.fn()
+            } as any,
             analysisService: DocumentSemanticSnapshotService.getInstance(),
             documentationService,
+            objectInferenceService,
+            instrumentation: new CompletionInstrumentation(),
+            inheritanceReporter: {
+                clear: jest.fn(),
+                show: jest.fn(),
+                appendLine: jest.fn()
+            } as any,
             scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
                 undefined,
                 undefined,

@@ -44,6 +44,8 @@ describe('createProductionLanguageServices', () => {
             formatDocument: jest.fn(),
             formatRange: jest.fn()
         };
+        const callableTargetDiscoveryService = { kind: 'callable-target-discovery-service' };
+        const callableDocResolver = { kind: 'callable-doc-resolver' };
         const hoverService = { provideHover: jest.fn() };
         const signatureHelpService = { provideSignatureHelp: jest.fn() };
         const definitionService = { provideDefinition: jest.fn() };
@@ -95,16 +97,22 @@ describe('createProductionLanguageServices', () => {
                 TargetMethodLookup: jest.fn(() => targetMethodLookup)
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
-                QueryBackedLanguageCompletionService: jest.fn(() => completionService)
+                createDefaultQueryBackedLanguageCompletionService: jest.fn(() => completionService)
             }));
             jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
-                ObjectInferenceLanguageHoverService: jest.fn(() => hoverService)
+                createDefaultObjectInferenceLanguageHoverService: jest.fn(() => hoverService)
             }));
             jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
                 AstBackedLanguageDefinitionService: jest.fn(() => definitionService)
             }));
             jest.doMock('../../../../language/services/signatureHelp/LanguageSignatureHelpService', () => ({
                 LanguageSignatureHelpService: jest.fn(() => signatureHelpService)
+            }));
+            jest.doMock('../../../../language/services/signatureHelp/DefaultCallableTargetDiscoveryService', () => ({
+                DefaultCallableTargetDiscoveryService: jest.fn(() => callableTargetDiscoveryService)
+            }));
+            jest.doMock('../../../../language/services/signatureHelp/DefaultCallableDocResolver', () => ({
+                DefaultCallableDocResolver: jest.fn(() => callableDocResolver)
             }));
             jest.doMock('../../../../language/services/navigation/LanguageReferenceService', () => ({
                 AstBackedLanguageReferenceService: jest.fn(() => referenceService)
@@ -138,8 +146,8 @@ describe('createProductionLanguageServices', () => {
             const { EfunDocsManager } = require('../../../../efun/EfunDocsManager') as typeof import('../../../../efun/EfunDocsManager');
             const { FunctionDocumentationService } = require('../../../../language/documentation/FunctionDocumentationService') as typeof import('../../../../language/documentation/FunctionDocumentationService');
             const { ObjectInferenceService } = require('../../../../objectInference/ObjectInferenceService') as typeof import('../../../../objectInference/ObjectInferenceService');
-            const { QueryBackedLanguageCompletionService } = require('../../../../language/services/completion/LanguageCompletionService') as typeof import('../../../../language/services/completion/LanguageCompletionService');
-            const { ObjectInferenceLanguageHoverService } = require('../../../../language/services/navigation/LanguageHoverService') as typeof import('../../../../language/services/navigation/LanguageHoverService');
+            const { createDefaultQueryBackedLanguageCompletionService } = require('../../../../language/services/completion/LanguageCompletionService') as typeof import('../../../../language/services/completion/LanguageCompletionService');
+            const { createDefaultObjectInferenceLanguageHoverService } = require('../../../../language/services/navigation/LanguageHoverService') as typeof import('../../../../language/services/navigation/LanguageHoverService');
             const { AstBackedLanguageDefinitionService } = require('../../../../language/services/navigation/LanguageDefinitionService') as typeof import('../../../../language/services/navigation/LanguageDefinitionService');
             const { LanguageSignatureHelpService } = require('../../../../language/services/signatureHelp/LanguageSignatureHelpService') as typeof import('../../../../language/services/signatureHelp/LanguageSignatureHelpService');
             expect(FunctionDocumentationService).toHaveBeenCalledTimes(1);
@@ -162,22 +170,19 @@ describe('createProductionLanguageServices', () => {
                 expect.anything(),
                 expect.anything()
             );
-            expect(QueryBackedLanguageCompletionService).toHaveBeenCalledWith(
-                efunDocsManager,
-                macroManager,
-                completionInstrumentation,
-                objectInferenceService,
-                undefined,
+            expect(createDefaultQueryBackedLanguageCompletionService).toHaveBeenCalledWith(
                 expect.objectContaining({
+                    efunDocsManager,
+                    macroManager,
                     analysisService,
-                    documentationService
+                    documentationService,
+                    objectInferenceService,
+                    instrumentation: completionInstrumentation
                 })
             );
-            expect(ObjectInferenceLanguageHoverService).toHaveBeenCalledWith(
+            expect(createDefaultObjectInferenceLanguageHoverService).toHaveBeenCalledWith(
                 objectInferenceService,
-                macroManager,
                 targetMethodLookup,
-                projectConfigService,
                 expect.objectContaining({
                     analysisService,
                     documentationService
@@ -195,11 +200,10 @@ describe('createProductionLanguageServices', () => {
             );
             expect(LanguageSignatureHelpService).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    analysisService,
-                    efunDocsManager,
-                    objectInferenceService,
-                    targetMethodLookup,
-                    documentationService
+                    discoveryService: callableTargetDiscoveryService,
+                    docResolver: callableDocResolver,
+                    renderer: expect.anything(),
+                    callSiteAnalyzer: expect.anything()
                 })
             );
             expect(services.completionService).toBe(completionService);
@@ -235,7 +239,8 @@ describe('createProductionLanguageServices', () => {
         const macroManager = { kind: 'macro-manager' };
         const scopedMethodResolver = { kind: 'scoped-method-resolver' };
         const scopedMethodResolverCtor = jest.fn(() => scopedMethodResolver);
-        const hoverCtor = jest.fn(() => ({ provideHover: jest.fn() }));
+        const callableTargetDiscoveryCtor = jest.fn(() => ({ kind: 'callable-target-discovery-service' }));
+        const hoverFactoryCtor = jest.fn(() => ({ provideHover: jest.fn() }));
         const definitionCtor = jest.fn(() => ({ provideDefinition: jest.fn() }));
         const signatureHelpCtor = jest.fn(() => ({ provideSignatureHelp: jest.fn() }));
 
@@ -280,16 +285,19 @@ describe('createProductionLanguageServices', () => {
                 TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
-                QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
+                createDefaultQueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
-                ObjectInferenceLanguageHoverService: hoverCtor
+                createDefaultObjectInferenceLanguageHoverService: hoverFactoryCtor
             }));
             jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
                 AstBackedLanguageDefinitionService: definitionCtor
             }));
             jest.doMock('../../../../language/services/signatureHelp/LanguageSignatureHelpService', () => ({
                 LanguageSignatureHelpService: signatureHelpCtor
+            }));
+            jest.doMock('../../../../language/services/signatureHelp/DefaultCallableTargetDiscoveryService', () => ({
+                DefaultCallableTargetDiscoveryService: callableTargetDiscoveryCtor
             }));
             jest.doMock('../../../../language/services/navigation/UnifiedLanguageHoverService', () => ({
                 UnifiedLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
@@ -328,9 +336,7 @@ describe('createProductionLanguageServices', () => {
                 })
             );
             expect(scopedMethodResolverCtor).not.toHaveBeenCalledWith(macroManager, [process.cwd()]);
-            expect(hoverCtor).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.anything(),
+            expect(hoverFactoryCtor).toHaveBeenCalledWith(
                 expect.anything(),
                 expect.anything(),
                 expect.objectContaining({ scopedMethodResolver })
@@ -343,8 +349,19 @@ describe('createProductionLanguageServices', () => {
                 expect.anything(),
                 expect.objectContaining({ scopedMethodResolver })
             );
+            expect(callableTargetDiscoveryCtor).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                scopedMethodResolver
+            );
             expect(signatureHelpCtor).toHaveBeenCalledWith(
-                expect.objectContaining({ scopedMethodResolver })
+                expect.objectContaining({
+                    discoveryService: expect.anything(),
+                    docResolver: expect.anything(),
+                    renderer: expect.anything(),
+                    callSiteAnalyzer: expect.anything()
+                })
             );
         });
     });
@@ -398,10 +415,10 @@ describe('createProductionLanguageServices', () => {
                 TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
-                QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
+                createDefaultQueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
-                ObjectInferenceLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
+                createDefaultObjectInferenceLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
                 AstBackedLanguageDefinitionService: jest.fn(() => ({ provideDefinition: jest.fn() }))
@@ -441,11 +458,9 @@ describe('createProductionLanguageServices', () => {
             createProductionLanguageServices();
 
             expect(inheritedRelationCtor).toHaveBeenCalledWith(expect.objectContaining({
-                scopedMethodResolver: expect.anything(),
-                macroManager: expect.anything(),
-                host: expect.objectContaining({
-                    openTextDocument: expect.any(Function)
-                })
+                analysisService,
+                functionRelationService: expect.anything(),
+                fileGlobalRelationService: expect.anything()
             }));
             expect(referenceCtor).toHaveBeenCalledWith(expect.objectContaining({
                 inheritedRelationService
@@ -496,10 +511,10 @@ describe('createProductionLanguageServices', () => {
                 TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
-                QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
+                createDefaultQueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
-                ObjectInferenceLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
+                createDefaultObjectInferenceLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
                 AstBackedLanguageDefinitionService: jest.fn(() => ({ provideDefinition: jest.fn() }))

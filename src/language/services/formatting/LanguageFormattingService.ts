@@ -41,7 +41,7 @@ class DefaultLanguageFormattingService implements LanguageFormattingService {
 }
 
 export function createLanguageFormattingService(
-    formattingCore: FormattingService = new FormattingService()
+    formattingCore: FormattingService
 ): LanguageFormattingService {
     return new DefaultLanguageFormattingService(formattingCore);
 }

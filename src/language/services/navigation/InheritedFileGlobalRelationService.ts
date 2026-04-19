@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
 import { LPCLexer } from '../../../antlr/LPCLexer';
 import { Symbol as LPCSymbol, SymbolType } from '../../../ast/symbolTable';
-import { InheritanceResolver } from '../../../completion/inheritanceResolver';
-import type { MacroManager } from '../../../macroManager';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
@@ -23,25 +21,26 @@ export type FileGlobalBindingResolution =
 
 export interface InheritedFileGlobalRelationServiceOptions {
     analysisService?: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
-    macroManager?: MacroManager;
-    workspaceRoots?: string[];
-    inheritanceResolver?: Pick<InheritanceResolver, 'resolveInheritTargets'>;
-    host?: {
+    inheritanceResolver: {
+        resolveInheritTargets: (...args: any[]) => any;
+    };
+    host: {
         openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
     };
 }
 
 export class InheritedFileGlobalRelationService {
     private readonly analysisService: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
-    private readonly inheritanceResolver: Pick<InheritanceResolver, 'resolveInheritTargets'>;
+    private readonly inheritanceResolver: {
+        resolveInheritTargets: (...args: any[]) => any;
+    };
     private readonly host: {
         openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
     };
 
-    public constructor(options: InheritedFileGlobalRelationServiceOptions = {}) {
+    public constructor(options: InheritedFileGlobalRelationServiceOptions) {
         this.analysisService = assertAnalysisService('InheritedFileGlobalRelationService', options.analysisService);
-        this.inheritanceResolver = options.inheritanceResolver
-            ?? new InheritanceResolver(options.macroManager, options.workspaceRoots);
+        this.inheritanceResolver = options.inheritanceResolver;
         this.host = assertOpenTextDocumentHost('InheritedFileGlobalRelationService', options.host);
     }
 

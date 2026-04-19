@@ -14,12 +14,13 @@ import type {
     LanguageCompletionItem,
     LanguageCompletionService
 } from '../../../language/services/completion/LanguageCompletionService';
-import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
+import { createDefaultQueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
 import { ScopedMethodCompletionSupport } from '../../../language/services/completion/ScopedMethodCompletionSupport';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import { createVsCodeTextDocumentHost } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { ScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
+import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLogger } from '../runtime/ServerLogger';
@@ -404,27 +405,29 @@ describe('registerCompletionHandler', () => {
         };
         const documentHost = createVsCodeTextDocumentHost();
         const documentationService = new FunctionDocumentationService();
-        const realService = new QueryBackedLanguageCompletionService(
-            efunDocsManager as any,
-            macroManager as any,
-            undefined,
-            { inferObjectAccess: jest.fn() } as any,
-            undefined,
-            {
-                analysisService: DocumentSemanticSnapshotService.getInstance(),
+        const realService = createDefaultQueryBackedLanguageCompletionService({
+            efunDocsManager: efunDocsManager as any,
+            macroManager: macroManager as any,
+            analysisService: DocumentSemanticSnapshotService.getInstance(),
+            documentationService,
+            objectInferenceService: { inferObjectAccess: jest.fn() } as any,
+            instrumentation: new CompletionInstrumentation(),
+            inheritanceReporter: {
+                clear: jest.fn(),
+                show: jest.fn(),
+                appendLine: jest.fn()
+            } as any,
+            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
+                macroManager as any,
+                undefined,
+                DocumentSemanticSnapshotService.getInstance(),
+                documentHost
+            ),
+            scopedCompletionSupport: new ScopedMethodCompletionSupport({
                 documentationService,
-                scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
-                    macroManager as any,
-                    undefined,
-                    DocumentSemanticSnapshotService.getInstance(),
-                    documentHost
-                ),
-                scopedCompletionSupport: new ScopedMethodCompletionSupport({
-                    documentationService,
-                    documentHost
-                })
-            }
-        );
+                documentHost
+            })
+        });
         const completionService: LanguageCompletionService = {
             provideCompletion: jest.fn(async (request) => {
                 const document = request.context.document as unknown as {

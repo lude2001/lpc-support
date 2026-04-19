@@ -3,11 +3,9 @@ import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabili
 import type { LanguagePosition } from '../../contracts/LanguagePosition';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import type { CallableDoc } from '../../documentation/types';
-import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import {
     type CallSiteAnalyzer,
     countActiveParameterIndex,
-    createSyntaxAwareCallSiteAnalyzer
 } from './SyntaxAwareCallSiteAnalyzer';
 import {
     dedupeTargets,
@@ -72,11 +70,10 @@ export interface SignatureHelpDocumentHost {
 }
 
 interface LanguageSignatureHelpDependencies {
-    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
-    discoveryService?: CallableTargetDiscoveryService;
-    docResolver?: CallableDocResolver;
-    renderer?: CallableDocRenderer;
-    callSiteAnalyzer?: CallSiteAnalyzer;
+    discoveryService: CallableTargetDiscoveryService;
+    docResolver: CallableDocResolver;
+    renderer: CallableDocRenderer;
+    callSiteAnalyzer: CallSiteAnalyzer;
 }
 
 export class LanguageSignatureHelpService {
@@ -85,16 +82,9 @@ export class LanguageSignatureHelpService {
     private readonly discoveryService: CallableTargetDiscoveryService;
     private readonly docResolver: CallableDocResolver;
 
-    public constructor(dependencies: LanguageSignatureHelpDependencies = {}) {
-        this.renderer = dependencies.renderer ?? new CallableDocRenderer();
-        this.callSiteAnalyzer = dependencies.callSiteAnalyzer
-            ?? createSyntaxAwareCallSiteAnalyzer(dependencies.analysisService);
-        if (!dependencies.discoveryService) {
-            throw new Error('LanguageSignatureHelpService requires an injected CallableTargetDiscoveryService');
-        }
-        if (!dependencies.docResolver) {
-            throw new Error('LanguageSignatureHelpService requires an injected CallableDocResolver');
-        }
+    public constructor(dependencies: LanguageSignatureHelpDependencies) {
+        this.renderer = dependencies.renderer;
+        this.callSiteAnalyzer = dependencies.callSiteAnalyzer;
         this.discoveryService = dependencies.discoveryService;
         this.docResolver = dependencies.docResolver;
     }

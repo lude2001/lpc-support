@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
 import { Symbol as LPCSymbol, SymbolType } from '../../../ast/symbolTable';
-import { InheritanceResolver } from '../../../completion/inheritanceResolver';
-import type { MacroManager } from '../../../macroManager';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { resolveScopedDirectInheritSeeds } from '../../../objectInference/scopedInheritanceTraversal';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
@@ -17,10 +15,10 @@ import {
 
 export interface InheritedFunctionRelationServiceOptions {
     analysisService?: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
-    macroManager?: MacroManager;
-    workspaceRoots?: string[];
-    inheritanceResolver?: Pick<InheritanceResolver, 'resolveInheritTargets'>;
-    host?: {
+    inheritanceResolver: {
+        resolveInheritTargets: (...args: any[]) => any;
+    };
+    host: {
         openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
     };
     scopedMethodResolver?: Pick<ScopedMethodResolver, 'resolveCallAt'>;
@@ -28,16 +26,17 @@ export interface InheritedFunctionRelationServiceOptions {
 
 export class InheritedFunctionRelationService {
     private readonly analysisService: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
-    private readonly inheritanceResolver: Pick<InheritanceResolver, 'resolveInheritTargets'>;
+    private readonly inheritanceResolver: {
+        resolveInheritTargets: (...args: any[]) => any;
+    };
     private readonly host: {
         openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
     };
     private readonly scopedMethodResolver?: Pick<ScopedMethodResolver, 'resolveCallAt'>;
 
-    public constructor(options: InheritedFunctionRelationServiceOptions = {}) {
+    public constructor(options: InheritedFunctionRelationServiceOptions) {
         this.analysisService = assertAnalysisService('InheritedFunctionRelationService', options.analysisService);
-        this.inheritanceResolver = options.inheritanceResolver
-            ?? new InheritanceResolver(options.macroManager, options.workspaceRoots);
+        this.inheritanceResolver = options.inheritanceResolver;
         this.host = assertOpenTextDocumentHost('InheritedFunctionRelationService', options.host);
         this.scopedMethodResolver = options.scopedMethodResolver;
     }

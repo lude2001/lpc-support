@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
+import { InheritanceResolver } from '../../../completion/inheritanceResolver';
 import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
 import { FunctionDocCompatMaterializer } from '../../../efun/FunctionDocCompatMaterializer';
@@ -14,7 +15,7 @@ import {
     createVsCodeWorkspaceDocumentHost
 } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { createLanguageCodeActionService } from '../../../language/services/codeActions/LanguageCodeActionService';
-import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
+import { createDefaultQueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
 import { ScopedMethodCompletionSupport } from '../../../language/services/completion/ScopedMethodCompletionSupport';
 import { createLanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
 import { AstBackedLanguageDefinitionService } from '../../../language/services/navigation/LanguageDefinitionService';
@@ -32,8 +33,10 @@ import { AstBackedLanguageRenameService } from '../../../language/services/navig
 import { DefaultCallableDocResolver } from '../../../language/services/signatureHelp/DefaultCallableDocResolver';
 import { DefaultCallableTargetDiscoveryService } from '../../../language/services/signatureHelp/DefaultCallableTargetDiscoveryService';
 import { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
+import { createSyntaxAwareCallSiteAnalyzer } from '../../../language/services/signatureHelp/SyntaxAwareCallSiteAnalyzer';
 import { AstBackedLanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
 import { FormattingService } from '../../../formatter/FormattingService';
+import { CallableDocRenderer } from '../../../language/documentation/CallableDocRenderer';
 import {
     DefaultLanguageFoldingService,
     LanguageStructureService
@@ -76,6 +79,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         documentPathSupport
     );
     const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService, workspaceDocumentHost);
+    const inheritanceResolver = new InheritanceResolver(macroManager, undefined);
     const targetMethodLookup = new TargetMethodLookup(analysisService, documentPathSupport);
     const efunDocsManager = new EfunDocsManager(
         createServerExtensionContext(),
@@ -89,15 +93,13 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     );
     const inheritedFunctionRelationService = new InheritedFunctionRelationService({
         analysisService,
-        macroManager,
-        inheritanceResolver: undefined,
+        inheritanceResolver,
         scopedMethodResolver,
         host: workspaceDocumentHost
     });
     const inheritedFileGlobalRelationService = new InheritedFileGlobalRelationService({
         analysisService,
-        macroManager,
-        inheritanceResolver: undefined,
+        inheritanceResolver,
         host: workspaceDocumentHost
     });
     const inheritedRelationService = new InheritedSymbolRelationService({
@@ -116,19 +118,17 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         documentHost: workspaceDocumentHost
     });
 
-    const completionService = new QueryBackedLanguageCompletionService(
+    const completionService = createDefaultQueryBackedLanguageCompletionService({
         efunDocsManager,
         macroManager,
-        completionInstrumentation,
+        analysisService,
+        documentationService,
         objectInferenceService,
-        undefined,
-        {
-            analysisService,
-            documentationService,
-            scopedMethodDiscoveryService,
-            scopedCompletionSupport
-        }
-    );
+        instrumentation: completionInstrumentation,
+        inheritanceReporter: vscode.window.createOutputChannel('LPC Inheritance'),
+        scopedMethodDiscoveryService,
+        scopedCompletionSupport
+    });
     const codeActionsService = createLanguageCodeActionService();
     const { diagnosticsService } = createDiagnosticsStack(macroManager, analysisService);
     const formattingService = createLanguageFormattingService(new FormattingService());
@@ -184,9 +184,10 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         workspaceDocumentHost
     );
     const signatureHelpService = new LanguageSignatureHelpService({
-        analysisService,
         discoveryService: callableTargetDiscoveryService,
-        docResolver: callableDocResolver
+        docResolver: callableDocResolver,
+        renderer: new CallableDocRenderer(),
+        callSiteAnalyzer: createSyntaxAwareCallSiteAnalyzer(analysisService)
     });
     const foldingService = new DefaultLanguageFoldingService(analysisService);
     const semanticTokensService = new DefaultLanguageSemanticTokensService(analysisService);

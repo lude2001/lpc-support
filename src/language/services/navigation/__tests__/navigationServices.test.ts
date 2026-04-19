@@ -258,9 +258,10 @@ describe('navigation services', () => {
             })
         };
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
-            {} as any,
-            undefined,
             {
+                documentAdapter: {
+                    fromLanguageDocument: jest.fn((inputDocument) => inputDocument as any)
+                },
                 scopedHoverResolver,
                 objectMethodHoverResolver
             }

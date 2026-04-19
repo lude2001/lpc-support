@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
 import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
-import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
+import { createDefaultQueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { ScopedMethodCompletionSupport } from '../language/services/completion/ScopedMethodCompletionSupport';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import {
@@ -18,6 +18,7 @@ import { ObjectInferenceService } from '../objectInference/ObjectInferenceServic
 import { ScopedMethodResolver } from '../objectInference/ScopedMethodResolver';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { TargetMethodLookup } from '../targetMethodLookup';
+import { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import {
     configureAstManagerSingletonForTests,
     getAstManagerForTests,
@@ -200,32 +201,30 @@ describe('language-service integration regression', () => {
     const createCompletionService = (
         objectInferenceService?: ObjectInferenceService,
         dependencies: Record<string, unknown> = {}
-    ) => new QueryBackedLanguageCompletionService(
-        efunDocsManager as any,
-        macroManager as any,
-        undefined,
-        objectInferenceService ?? createObjectInference(),
-        {
+    ) => createDefaultQueryBackedLanguageCompletionService({
+        efunDocsManager: efunDocsManager as any,
+        macroManager: macroManager as any,
+        analysisService,
+        documentationService,
+        objectInferenceService: objectInferenceService ?? createObjectInference(),
+        instrumentation: new CompletionInstrumentation(),
+        inheritanceReporter: {
             clear: jest.fn(),
             show: jest.fn(),
             appendLine: jest.fn()
-        },
-        {
+        } as any,
+        scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
+            macroManager as any,
+            [fixtureRoot],
             analysisService,
+            documentHost
+        ),
+        scopedCompletionSupport: new ScopedMethodCompletionSupport({
             documentationService,
-            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
-                macroManager as any,
-                [fixtureRoot],
-                analysisService,
-                documentHost
-            ),
-            scopedCompletionSupport: new ScopedMethodCompletionSupport({
-                documentationService,
-                documentHost
-            }),
-            ...dependencies
-        } as any
-    );
+            documentHost
+        }),
+        ...dependencies
+    } as any);
     const createScopedMethodResolver = () =>
         new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService, documentHost);
     const createDefinitionService = (

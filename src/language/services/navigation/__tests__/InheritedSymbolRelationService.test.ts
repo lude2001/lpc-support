@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { InheritedFileGlobalRelationService } from '../InheritedFileGlobalRelationService';
 import { InheritedFunctionRelationService } from '../InheritedFunctionRelationService';
@@ -118,6 +117,24 @@ function documentLookupKey(target: string | vscode.Uri): string {
     return normalizeFsPathKey(target.fsPath);
 }
 
+function createInheritanceResolverStub(
+    implementation: (snapshot: { uri: string }) => unknown[] = () => []
+): { resolveInheritTargets: jest.Mock } {
+    return {
+        resolveInheritTargets: jest.fn(implementation)
+    };
+}
+
+function createOpenTextDocumentHostStub(
+    implementation: (target: string | vscode.Uri) => Promise<vscode.TextDocument> = async () => {
+        throw new Error('Unexpected openTextDocument call');
+    }
+): { openTextDocument: jest.Mock } {
+    return {
+        openTextDocument: jest.fn(implementation)
+    };
+}
+
 function createInheritedSymbolRelationService(
     options: {
         analysisService: ConstructorParameters<typeof InheritedFunctionRelationService>[0]['analysisService'];
@@ -128,18 +145,21 @@ function createInheritedSymbolRelationService(
         scopedMethodResolver?: any;
     }
 ): InheritedSymbolRelationService {
+    const inheritanceResolver = options.inheritanceResolver ?? createInheritanceResolverStub();
+    const host = options.host ?? createOpenTextDocumentHostStub();
+
     return new InheritedSymbolRelationService({
         analysisService: options.analysisService,
         functionRelationService: options.functionRelationService ?? new InheritedFunctionRelationService({
             analysisService: options.analysisService,
-            inheritanceResolver: options.inheritanceResolver,
-            host: options.host,
+            inheritanceResolver,
+            host,
             scopedMethodResolver: options.scopedMethodResolver
         }),
         fileGlobalRelationService: options.fileGlobalRelationService ?? new InheritedFileGlobalRelationService({
             analysisService: options.analysisService,
-            inheritanceResolver: options.inheritanceResolver,
-            host: options.host
+            inheritanceResolver,
+            host
         })
     });
 }

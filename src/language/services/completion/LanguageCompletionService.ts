@@ -93,81 +93,38 @@ function createDefaultInheritanceReporter(): CompletionInheritanceReporter {
 }
 
 interface QueryBackedLanguageCompletionDependencies {
+    efunDocsManager: EfunDocsManager;
+    macroManager: MacroManager;
     analysisService: CompletionAnalysisService;
+    objectInferenceService: ObjectInferenceService;
+    instrumentation: CompletionInstrumentation;
+    inheritanceReporter: CompletionInheritanceReporter;
     scopedMethodDiscoveryService: ScopedMethodDiscoveryService;
     documentationService?: FunctionDocumentationService;
     scopedCompletionSupport: ScopedMethodCompletionSupport;
 }
 
+interface QueryBackedLanguageCompletionOwnedServices {
+    instrumentation: CompletionInstrumentation;
+    inheritedIndexService: CompletionInheritedIndexService;
+    candidateResolver: CompletionCandidateResolver;
+    presentationService: CompletionItemPresentationService;
+    queryEngine: CompletionQueryEngine;
+}
+
 export class QueryBackedLanguageCompletionService implements LanguageCompletionService {
-    private readonly efunDocsManager: EfunDocsManager;
-    private readonly macroManager: MacroManager;
-    private readonly analysisService: CompletionAnalysisService;
-    private readonly projectSymbolIndex: ProjectSymbolIndex;
     private readonly queryEngine: CompletionQueryEngine;
     private readonly instrumentation: CompletionInstrumentation;
-    private readonly objectInferenceService: ObjectInferenceService;
-    private readonly inheritanceReporter: CompletionInheritanceReporter;
     private readonly inheritedIndexService: CompletionInheritedIndexService;
     private readonly candidateResolver: CompletionCandidateResolver;
     private readonly presentationService: CompletionItemPresentationService;
-    private readonly scopedMethodDiscoveryService: ScopedMethodDiscoveryService;
-    private readonly scopedCompletionSupport: ScopedMethodCompletionSupport;
 
-    constructor(
-        efunDocsManager: EfunDocsManager,
-        macroManager: MacroManager,
-        instrumentation?: CompletionInstrumentation,
-        objectInferenceService: ObjectInferenceService,
-        inheritanceReporter: CompletionInheritanceReporter = createDefaultInheritanceReporter(),
-        dependencies?: QueryBackedLanguageCompletionDependencies
-    ) {
-        this.efunDocsManager = efunDocsManager;
-        this.macroManager = macroManager;
-        this.analysisService = assertAnalysisService('QueryBackedLanguageCompletionService', dependencies?.analysisService);
-        this.instrumentation = instrumentation ?? new CompletionInstrumentation();
-        if (!dependencies?.scopedMethodDiscoveryService) {
-            throw new Error('QueryBackedLanguageCompletionService requires an injected ScopedMethodDiscoveryService');
-        }
-        if (!dependencies?.scopedCompletionSupport) {
-            throw new Error('QueryBackedLanguageCompletionService requires an injected ScopedMethodCompletionSupport');
-        }
-        assertDocumentationService(
-            'QueryBackedLanguageCompletionService',
-            dependencies?.documentationService
-        );
-        this.objectInferenceService = objectInferenceService;
-        this.inheritanceReporter = inheritanceReporter;
-        this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
-        this.inheritedIndexService = new CompletionInheritedIndexService(
-            this.analysisService,
-            this.projectSymbolIndex,
-            this.inheritanceReporter
-        );
-        this.scopedMethodDiscoveryService = dependencies.scopedMethodDiscoveryService;
-        this.scopedCompletionSupport = dependencies.scopedCompletionSupport;
-        this.candidateResolver = new CompletionCandidateResolver(
-            this.objectInferenceService,
-            this.scopedMethodDiscoveryService,
-            this.scopedCompletionSupport,
-            this.inheritedIndexService
-        );
-        this.presentationService = new CompletionItemPresentationService(
-            this.efunDocsManager,
-            this.macroManager,
-            this.projectSymbolIndex,
-            this.scopedCompletionSupport
-        );
-        this.queryEngine = new CompletionQueryEngine({
-            snapshotProvider: this.analysisService,
-            projectSymbolIndex: this.projectSymbolIndex,
-            contextAnalyzer: new CompletionContextAnalyzer(),
-            macroManager: this.macroManager,
-            efunProvider: {
-                getAllFunctions: () => this.efunDocsManager.getAllFunctions(),
-                getAllSimulatedFunctions: () => this.efunDocsManager.getAllSimulatedFunctions()
-            }
-        });
+    constructor(services: QueryBackedLanguageCompletionOwnedServices) {
+        this.instrumentation = services.instrumentation;
+        this.inheritedIndexService = services.inheritedIndexService;
+        this.candidateResolver = services.candidateResolver;
+        this.presentationService = services.presentationService;
+        this.queryEngine = services.queryEngine;
     }
 
     public async provideCompletion(request: LanguageCompletionRequest): Promise<LanguageCompletionResult> {
@@ -270,4 +227,57 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         await this.inheritedIndexService.scanInheritance(document);
     }
 
+}
+
+export function createDefaultQueryBackedLanguageCompletionService(
+    dependencies: QueryBackedLanguageCompletionDependencies
+): QueryBackedLanguageCompletionService {
+    const analysisService = assertAnalysisService('QueryBackedLanguageCompletionService', dependencies.analysisService);
+    if (!dependencies.scopedMethodDiscoveryService) {
+        throw new Error('QueryBackedLanguageCompletionService requires an injected ScopedMethodDiscoveryService');
+    }
+    if (!dependencies.scopedCompletionSupport) {
+        throw new Error('QueryBackedLanguageCompletionService requires an injected ScopedMethodCompletionSupport');
+    }
+    assertDocumentationService(
+        'QueryBackedLanguageCompletionService',
+        dependencies.documentationService
+    );
+
+    const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(dependencies.macroManager));
+    const inheritedIndexService = new CompletionInheritedIndexService(
+        analysisService,
+        projectSymbolIndex,
+        dependencies.inheritanceReporter
+    );
+    const candidateResolver = new CompletionCandidateResolver(
+        dependencies.objectInferenceService,
+        dependencies.scopedMethodDiscoveryService,
+        dependencies.scopedCompletionSupport,
+        inheritedIndexService
+    );
+    const presentationService = new CompletionItemPresentationService(
+        dependencies.efunDocsManager,
+        dependencies.macroManager,
+        projectSymbolIndex,
+        dependencies.scopedCompletionSupport
+    );
+    const queryEngine = new CompletionQueryEngine({
+        snapshotProvider: analysisService,
+        projectSymbolIndex,
+        contextAnalyzer: new CompletionContextAnalyzer(),
+        macroManager: dependencies.macroManager,
+        efunProvider: {
+            getAllFunctions: () => dependencies.efunDocsManager.getAllFunctions(),
+            getAllSimulatedFunctions: () => dependencies.efunDocsManager.getAllSimulatedFunctions()
+        }
+    });
+
+    return new QueryBackedLanguageCompletionService({
+        instrumentation: dependencies.instrumentation,
+        inheritedIndexService,
+        candidateResolver,
+        presentationService,
+        queryEngine
+    });
 }

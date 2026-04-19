@@ -8,6 +8,7 @@ import { EfunDocsManager } from '../../../../efunDocs';
 import { FunctionDocCompatMaterializer } from '../../../../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../../../../efun/FunctionDocLookupBuilder';
 import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
+import { CallableDocRenderer } from '../../../documentation/CallableDocRenderer';
 import { WorkspaceDocumentPathSupport, createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
@@ -20,6 +21,7 @@ import type { CallableDoc } from '../../../documentation/types';
 import { TargetMethodLookup } from '../../../../targetMethodLookup';
 import { DefaultCallableDocResolver } from '../DefaultCallableDocResolver';
 import { DefaultCallableTargetDiscoveryService } from '../DefaultCallableTargetDiscoveryService';
+import { createSyntaxAwareCallSiteAnalyzer } from '../SyntaxAwareCallSiteAnalyzer';
 import {
     LanguageSignatureHelpService,
     type CallableDiscoveryRequest,
@@ -236,9 +238,10 @@ describe('LanguageSignatureHelpService', () => {
             host
         );
         return new LanguageSignatureHelpService({
-            analysisService,
             discoveryService,
             docResolver,
+            renderer: dependencies.renderer ?? new CallableDocRenderer(),
+            callSiteAnalyzer: dependencies.callSiteAnalyzer ?? createSyntaxAwareCallSiteAnalyzer(analysisService),
             ...dependencies
         });
     }
@@ -319,7 +322,6 @@ describe('LanguageSignatureHelpService', () => {
         const source = 'void test() {\n    local_call(1);\n}';
         const document = createDocument(source);
         const service = new LanguageSignatureHelpService({
-            analysisService,
             discoveryService: createDiscoveryService({
                 localOrInherited: () => [{
                     kind: 'local',
@@ -342,7 +344,9 @@ describe('LanguageSignatureHelpService', () => {
                         parameters: [{ name: 'value', type: 'int', description: 'Single value' }]
                     }]
                 )
-            })
+            }),
+            renderer: new CallableDocRenderer(),
+            callSiteAnalyzer: createSyntaxAwareCallSiteAnalyzer(analysisService)
         });
 
         const result = await service.provideSignatureHelp({

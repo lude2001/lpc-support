@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { QueryBackedLanguageCompletionService } from '../LanguageCompletionService';
+import {
+    createDefaultQueryBackedLanguageCompletionService
+} from '../LanguageCompletionService';
+import { CompletionInstrumentation } from '../../../../completion/completionInstrumentation';
 import { ScopedMethodCompletionSupport } from '../ScopedMethodCompletionSupport';
 import { createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
@@ -96,27 +99,29 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             }))
         };
         const documentHost = createVsCodeTextDocumentHost();
-        const service = new QueryBackedLanguageCompletionService(
-            efunDocsManager as any,
-            macroManager as any,
-            undefined,
-            {} as any,
-            undefined,
-            {
+        const service = createDefaultQueryBackedLanguageCompletionService({
+            efunDocsManager: efunDocsManager as any,
+            macroManager: macroManager as any,
+            analysisService,
+            documentationService: documentationService as any,
+            objectInferenceService: {} as any,
+            instrumentation: new CompletionInstrumentation(),
+            inheritanceReporter: {
+                clear: jest.fn(),
+                show: jest.fn(),
+                appendLine: jest.fn()
+            } as any,
+            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
+                macroManager as any,
+                undefined,
                 analysisService,
+                documentHost
+            ),
+            scopedCompletionSupport: new ScopedMethodCompletionSupport({
                 documentationService: documentationService as any,
-                scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
-                    macroManager as any,
-                    undefined,
-                    analysisService,
-                    documentHost
-                ),
-                scopedCompletionSupport: new ScopedMethodCompletionSupport({
-                    documentationService: documentationService as any,
-                    documentLoader: scopedDocumentLoader
-                })
-            }
-        ) as any;
+                documentLoader: scopedDocumentLoader
+            })
+        }) as any;
 
         const resolved = await service.resolveCompletionItem({
             context: {
@@ -170,27 +175,29 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             getDocForDeclaration: jest.fn()
         };
         const documentHost = createVsCodeTextDocumentHost();
-        const service = new QueryBackedLanguageCompletionService(
-            efunDocsManager as any,
-            macroManager as any,
-            undefined,
-            {} as any,
-            undefined,
-            {
+        const service = createDefaultQueryBackedLanguageCompletionService({
+            efunDocsManager: efunDocsManager as any,
+            macroManager: macroManager as any,
+            analysisService,
+            documentationService: documentationService as any,
+            objectInferenceService: {} as any,
+            instrumentation: new CompletionInstrumentation(),
+            inheritanceReporter: {
+                clear: jest.fn(),
+                show: jest.fn(),
+                appendLine: jest.fn()
+            } as any,
+            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
+                macroManager as any,
+                undefined,
                 analysisService,
+                documentHost
+            ),
+            scopedCompletionSupport: new ScopedMethodCompletionSupport({
                 documentationService: documentationService as any,
-                scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
-                    macroManager as any,
-                    undefined,
-                    analysisService,
-                    documentHost
-                ),
-                scopedCompletionSupport: new ScopedMethodCompletionSupport({
-                    documentationService: documentationService as any,
-                    documentLoader: scopedDocumentLoader
-                })
-            }
-        ) as any;
+                documentLoader: scopedDocumentLoader
+            })
+        }) as any;
 
         const resolved = await service.resolveCompletionItem({
             context: {
