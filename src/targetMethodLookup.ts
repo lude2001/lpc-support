@@ -2,12 +2,9 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { SymbolType } from './ast/symbolTable';
 import {
-    TextDocumentHost,
     WorkspaceDocumentPathSupport,
-    assertTextDocumentHost
+    assertDocumentPathSupport
 } from './language/shared/WorkspaceDocumentPathSupport';
-import { MacroManager } from './macroManager';
-import type { LpcProjectConfigService } from './projectConfig/LpcProjectConfigService';
 import type { DocumentAnalysisService } from './semantic/documentAnalysisService';
 import { SemanticSnapshot } from './semantic/semanticSnapshot';
 
@@ -29,17 +26,11 @@ export class TargetMethodLookup {
     private readonly pathSupport: WorkspaceDocumentPathSupport;
 
     constructor(
-        macroManager: MacroManager | undefined,
-        projectConfigService: LpcProjectConfigService | undefined,
         analysisService: TargetMethodAnalysisService,
-        host?: TextDocumentHost
+        pathSupport?: WorkspaceDocumentPathSupport
     ) {
         this.analysisService = analysisService;
-        this.pathSupport = new WorkspaceDocumentPathSupport({
-            host: assertTextDocumentHost('TargetMethodLookup', host),
-            macroManager,
-            projectConfigService
-        });
+        this.pathSupport = assertDocumentPathSupport('TargetMethodLookup', pathSupport);
     }
 
     public async findMethod(

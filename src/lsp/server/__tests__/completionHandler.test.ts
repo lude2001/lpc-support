@@ -16,7 +16,10 @@ import type {
 } from '../../../language/services/completion/LanguageCompletionService';
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
-import { createVsCodeTextDocumentHost } from '../../../language/shared/WorkspaceDocumentPathSupport';
+import {
+    WorkspaceDocumentPathSupport,
+    createVsCodeTextDocumentHost
+} from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { DocumentStore } from '../runtime/DocumentStore';
@@ -400,6 +403,7 @@ describe('registerCompletionHandler', () => {
             scanMacros: jest.fn(),
             getIncludePath: jest.fn(() => undefined)
         };
+        const documentHost = createVsCodeTextDocumentHost();
         const realService = new QueryBackedLanguageCompletionService(
             efunDocsManager as any,
             macroManager as any,
@@ -409,7 +413,10 @@ describe('registerCompletionHandler', () => {
             {
                 analysisService: DocumentSemanticSnapshotService.getInstance(),
                 documentationService: new FunctionDocumentationService(),
-                documentHost: createVsCodeTextDocumentHost()
+                documentHost,
+                pathSupport: new WorkspaceDocumentPathSupport({
+                    host: documentHost
+                })
             }
         );
         const completionService: LanguageCompletionService = {

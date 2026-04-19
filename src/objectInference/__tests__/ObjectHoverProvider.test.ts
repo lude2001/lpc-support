@@ -38,7 +38,7 @@ describe('ObjectHoverProvider', () => {
                 ]
             })
         };
-        const provider = new ObjectHoverProvider({ inferObjectAccess: jest.fn() } as any, undefined, undefined, undefined, stubService);
+        const provider = new ObjectHoverProvider({ inferObjectAccess: jest.fn() } as any, undefined, stubService);
         const document = {
             uri: vscode.Uri.file('D:/code/lpc/obj/test.c'),
             fileName: 'D:/code/lpc/obj/test.c',
@@ -114,9 +114,7 @@ describe('ObjectHoverProvider', () => {
 
         const provider = new ObjectHoverProvider(
             objectInferenceService as any,
-            undefined,
             targetMethodLookup as any,
-            undefined,
             undefined,
             documentationService
         );
@@ -181,9 +179,7 @@ describe('ObjectHoverProvider', () => {
 
         const provider = new (ObjectHoverProvider as any)(
             objectInferenceService as any,
-            undefined,
             targetMethodLookup as any,
-            undefined,
             undefined,
             documentationService
         );
@@ -237,9 +233,7 @@ describe('ObjectHoverProvider', () => {
 
         const provider = new (ObjectHoverProvider as any)(
             objectInferenceService as any,
-            undefined,
             targetMethodLookup as any,
-            undefined,
             undefined,
             documentationService
         );
@@ -293,9 +287,7 @@ describe('ObjectHoverProvider', () => {
 
         const provider = new (ObjectHoverProvider as any)(
             objectInferenceService as any,
-            undefined,
             targetMethodLookup as any,
-            undefined,
             undefined,
             documentationService
         );
@@ -351,9 +343,7 @@ describe('ObjectHoverProvider', () => {
 
         const provider = new (ObjectHoverProvider as any)(
             objectInferenceService as any,
-            undefined,
             targetMethodLookup as any,
-            undefined,
             undefined,
             documentationService
         );
@@ -412,9 +402,7 @@ describe('ObjectHoverProvider', () => {
 
         const provider = new (ObjectHoverProvider as any)(
             objectInferenceService as any,
-            undefined,
             targetMethodLookup as any,
-            undefined,
             undefined,
             documentationService
         );
@@ -473,9 +461,7 @@ describe('ObjectHoverProvider', () => {
 
         const provider = new (ObjectHoverProvider as any)(
             objectInferenceService as any,
-            undefined,
             targetMethodLookup as any,
-            undefined,
             undefined,
             documentationService
         );

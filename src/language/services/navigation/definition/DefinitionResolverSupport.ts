@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Symbol, SymbolType } from '../../../../ast/symbolTable';
-import { WorkspaceDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
+import { WorkspaceDocumentPathSupport, assertDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
 import { SemanticSnapshot } from '../../../../semantic/semanticSnapshot';
 import type { LanguageLocation } from '../../../contracts/LanguagePosition';
 import type { LanguageWorkspaceProjectConfig } from '../../../contracts/LanguageWorkspaceContext';
@@ -19,13 +19,9 @@ export class DefinitionResolverSupport {
 
     public constructor(private readonly context: Pick<
         DefinitionResolverContext,
-        'astManager' | 'host' | 'macroManager' | 'projectConfigService' | 'semanticAdapter'
+        'astManager' | 'host' | 'macroManager' | 'projectConfigService' | 'semanticAdapter' | 'pathSupport'
     >) {
-        this.pathSupport = new WorkspaceDocumentPathSupport({
-            host: context.host,
-            macroManager: context.macroManager,
-            projectConfigService: context.projectConfigService
-        });
+        this.pathSupport = assertDocumentPathSupport('DefinitionResolverSupport', context.pathSupport);
         this.context.host.onDidChangeTextDocument((event) => {
             const filePath = this.normalizeCachePath(event.document.uri.fsPath);
             if (filePath.endsWith('.h')) {

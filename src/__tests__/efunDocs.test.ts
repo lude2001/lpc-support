@@ -276,6 +276,7 @@ describe('EfunDocsManager', () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-completion-'));
         writeBundleFile(extensionPath, createStructuredBundle());
         const manager = createManager(extensionPath);
+        const documentHost = createVsCodeTextDocumentHost();
         const service = new QueryBackedLanguageCompletionService(manager, {
             getMacro: jest.fn(),
             getAllMacros: jest.fn(() => []),
@@ -285,7 +286,10 @@ describe('EfunDocsManager', () => {
         } as any, undefined, undefined, undefined, {
             analysisService: DocumentSemanticSnapshotService.getInstance(),
             documentationService: new FunctionDocumentationService(),
-            documentHost: createVsCodeTextDocumentHost()
+            documentHost,
+            pathSupport: new WorkspaceDocumentPathSupport({
+                host: documentHost
+            })
         });
         const document = TestHelper.createMockDocument('allo');
         const completion = await service.provideCompletion({

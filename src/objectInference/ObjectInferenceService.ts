@@ -6,6 +6,7 @@ import type { DocumentAnalysisService } from '../semantic/documentAnalysisServic
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import {
+    assertDocumentPathSupport,
     assertTextDocumentHost,
     type TextDocumentHost,
     WorkspaceDocumentPathSupport
@@ -39,7 +40,8 @@ export class ObjectInferenceService {
         playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
         analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>,
         documentationService?: FunctionDocumentationService,
-        host?: TextDocumentHost
+        host?: TextDocumentHost,
+        pathSupport?: WorkspaceDocumentPathSupport
     ) {
         this.analysisService = assertAnalysisService('ObjectInferenceService', analysisService);
         const textDocumentHost = assertTextDocumentHost('ObjectInferenceService', host);
@@ -50,16 +52,10 @@ export class ObjectInferenceService {
         const projectConfigService = typeof playerObjectPathOrProjectConfig === 'string'
             ? undefined
             : playerObjectPathOrProjectConfig;
-        this.pathSupport = new WorkspaceDocumentPathSupport({
-            host: textDocumentHost,
-            macroManager,
-            projectConfigService
-        });
+        this.pathSupport = assertDocumentPathSupport('ObjectInferenceService', pathSupport);
         const targetMethodLookup = new TargetMethodLookup(
-            macroManager,
-            projectConfigService,
             this.analysisService,
-            textDocumentHost
+            this.pathSupport
         );
         const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, this.analysisService, textDocumentHost);
         this.returnObjectResolver = new ReturnObjectResolver(

@@ -5,7 +5,10 @@ import type { LanguageDocument } from '../../../contracts/LanguageDocument';
 import type { LanguagePosition, LanguageRange } from '../../../contracts/LanguagePosition';
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import { ASTManager } from '../../../../ast/astManager';
-import { createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
+import {
+    WorkspaceDocumentPathSupport,
+    createVsCodeTextDocumentHost
+} from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import {
     configureAstManagerSingletonForTests,
@@ -21,6 +24,7 @@ import {
     AstBackedLanguageDefinitionService,
     type LanguageDefinitionService
 } from '../LanguageDefinitionService';
+import { TargetMethodLookup } from '../../../../targetMethodLookup';
 import {
     AstBackedLanguageReferenceService,
     type LanguageReferenceService
@@ -182,6 +186,14 @@ function createCallableDoc(name: string, label: string, summary: string) {
     };
 }
 
+function createDocumentPathDependencies() {
+    const host = createVsCodeTextDocumentHost();
+    return {
+        host,
+        pathSupport: new WorkspaceDocumentPathSupport({ host })
+    };
+}
+
 describe('navigation services', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
@@ -197,8 +209,6 @@ describe('navigation services', () => {
         const document = createDocument('target->query_name();');
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
-            undefined,
-            undefined,
             undefined,
             {
                 documentationService: new FunctionDocumentationService(),
@@ -249,8 +259,6 @@ describe('navigation services', () => {
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
-            undefined,
-            undefined,
             {
                 scopedHoverResolver,
                 objectMethodHoverResolver
@@ -276,6 +284,7 @@ describe('navigation services', () => {
 
     test('hover service can render bare ::create() docs through injected scoped boundaries', async () => {
         const document = createVsCodeTextDocument('D:/workspace/test.c', '::create();');
+        const { host, pathSupport } = createDocumentPathDependencies();
         const targetDocument = createVsCodeTextDocument(
             'D:/workspace/std/base_room.c',
             [
@@ -288,11 +297,10 @@ describe('navigation services', () => {
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
-            undefined,
-            undefined,
             {
                 analysisService,
-                host: createVsCodeTextDocumentHost(),
+                host,
+                pathSupport,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     methodName: 'create',
@@ -328,6 +336,7 @@ describe('navigation services', () => {
 
     test('hover service can render room::init() docs from the uniquely matched named scope branch', async () => {
         const document = createVsCodeTextDocument('D:/workspace/test.c', 'room::init();');
+        const { host, pathSupport } = createDocumentPathDependencies();
         const targetDocument = createVsCodeTextDocument(
             'D:/workspace/std/room.c',
             [
@@ -340,11 +349,10 @@ describe('navigation services', () => {
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
-            undefined,
-            undefined,
             {
                 analysisService,
-                host: createVsCodeTextDocumentHost(),
+                host,
+                pathSupport,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     qualifier: 'room',
@@ -381,6 +389,7 @@ describe('navigation services', () => {
 
     test('hover service can render multiline ::create() docs when hovering the method identifier', async () => {
         const document = createVsCodeTextDocument('D:/workspace/test.c', '::\ncreate();');
+        const { host, pathSupport } = createDocumentPathDependencies();
         const targetDocument = createVsCodeTextDocument(
             'D:/workspace/std/base_room.c',
             [
@@ -393,11 +402,10 @@ describe('navigation services', () => {
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
-            undefined,
-            undefined,
             {
                 analysisService,
-                host: createVsCodeTextDocumentHost(),
+                host,
+                pathSupport,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     methodName: 'create',
@@ -460,8 +468,6 @@ describe('navigation services', () => {
             const service: LanguageHoverService = new IsolatedHoverService(
                 {} as any,
                 undefined,
-                {} as any,
-                undefined,
                 {
                     analysisService,
                     scopedMethodResolver: createScopedMethodResolverStub({
@@ -503,6 +509,7 @@ describe('navigation services', () => {
 
     test('hover service does not render room::init(arg) scoped docs when hovering the qualifier', async () => {
         const document = createVsCodeTextDocument('D:/workspace/test.c', 'room::init(arg);');
+        const { host, pathSupport } = createDocumentPathDependencies();
         const documentationService = {
             getDocForDeclaration: jest.fn().mockReturnValue(
                 createCallableDoc('init', 'void init()', '房间初始化')
@@ -511,11 +518,10 @@ describe('navigation services', () => {
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
-            undefined,
-            undefined,
             {
                 analysisService,
-                host: createVsCodeTextDocumentHost(),
+                host,
+                pathSupport,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     qualifier: 'room',
@@ -548,6 +554,7 @@ describe('navigation services', () => {
 
     test('hover service does not render room::init(init) scoped docs when hovering the argument', async () => {
         const document = createVsCodeTextDocument('D:/workspace/test.c', 'room::init(init);');
+        const { host, pathSupport } = createDocumentPathDependencies();
         const documentationService = {
             getDocForDeclaration: jest.fn().mockReturnValue(
                 createCallableDoc('init', 'void init()', '房间初始化')
@@ -556,11 +563,10 @@ describe('navigation services', () => {
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
-            undefined,
-            undefined,
             {
                 analysisService,
-                host: createVsCodeTextDocumentHost(),
+                host,
+                pathSupport,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     qualifier: 'room',
@@ -674,24 +680,20 @@ describe('navigation services', () => {
     test('definition service can operate on host-agnostic documents via injected boundaries', async () => {
         const source = 'local_call();';
         const document = createDocument(source);
+        const { host, pathSupport } = createDocumentPathDependencies();
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
         const service: LanguageDefinitionService = new AstBackedLanguageDefinitionService(
             {} as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             {
                 inferObjectAccess: jest.fn().mockResolvedValue(undefined)
             } as any,
-            undefined,
+            targetMethodLookup,
             undefined,
             {
                 analysisService,
-                host: {
-                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
-                    openTextDocument: jest.fn(),
-                    findFiles: jest.fn(),
-                    getWorkspaceFolder: jest.fn(),
-                    getWorkspaceFolders: jest.fn(),
-                    fileExists: jest.fn().mockReturnValue(false)
-                },
+                host,
+                pathSupport,
                 semanticAdapter: {
                     getIncludeStatements: jest.fn().mockReturnValue([]),
                     getInheritStatements: jest.fn().mockReturnValue([]),

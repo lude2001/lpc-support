@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globa
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { QueryBackedLanguageCompletionService } from '../LanguageCompletionService';
-import { createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
+import {
+    WorkspaceDocumentPathSupport,
+    createVsCodeTextDocumentHost
+} from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
@@ -93,6 +96,7 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 documentation: 'Base room create'
             }))
         };
+        const documentHost = createVsCodeTextDocumentHost();
         const service = new QueryBackedLanguageCompletionService(
             efunDocsManager as any,
             macroManager as any,
@@ -104,7 +108,10 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 documentationService: documentationService as any,
                 scopedDocumentLoader,
                 objectInferenceService: {} as any,
-                documentHost: createVsCodeTextDocumentHost()
+                documentHost,
+                pathSupport: new WorkspaceDocumentPathSupport({
+                    host: documentHost
+                })
             }
         ) as any;
 
@@ -159,6 +166,7 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         const documentationService = {
             getDocForDeclaration: jest.fn()
         };
+        const documentHost = createVsCodeTextDocumentHost();
         const service = new QueryBackedLanguageCompletionService(
             efunDocsManager as any,
             macroManager as any,
@@ -170,7 +178,10 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 documentationService: documentationService as any,
                 scopedDocumentLoader,
                 objectInferenceService: {} as any,
-                documentHost: createVsCodeTextDocumentHost()
+                documentHost,
+                pathSupport: new WorkspaceDocumentPathSupport({
+                    host: documentHost
+                })
             }
         ) as any;
 

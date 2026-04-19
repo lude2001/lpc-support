@@ -201,8 +201,6 @@ describe('navigation handlers', () => {
         const hoverService = new ObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
-            undefined,
-            undefined,
             {
                 objectAccessProvider: {
                     inferObjectAccess: jest.fn().mockResolvedValue({

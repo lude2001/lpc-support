@@ -2,10 +2,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, tes
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { AstBackedLanguageDefinitionService } from '../LanguageDefinitionService';
-import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
+import { WorkspaceDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
+import { TargetMethodLookup } from '../../../../targetMethodLookup';
 import {
     configureAstManagerSingletonForTests,
     resetAstManagerSingletonForTests
@@ -131,31 +132,48 @@ describe('AstBackedLanguageDefinitionService', () => {
         projectConfigService?: unknown,
         hostOrDependencies: Record<string, unknown> = {}
     ): AstBackedLanguageDefinitionService {
+        const defaultHost = {
+            onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+            openTextDocument: jest.fn(),
+            findFiles: jest.fn(),
+            getWorkspaceFolder: jest.fn(),
+            getWorkspaceFolders: jest.fn(),
+            fileExists: jest.fn().mockReturnValue(false)
+        };
+        const resolvedHost = 'onDidChangeTextDocument' in hostOrDependencies
+            ? hostOrDependencies
+            : (hostOrDependencies as any).host ?? defaultHost;
         const resolvedDependencies = 'onDidChangeTextDocument' in hostOrDependencies
             ? {
-                host: hostOrDependencies,
+                host: resolvedHost,
                 analysisService,
-                documentationService: new FunctionDocumentationService()
+                pathSupport: new WorkspaceDocumentPathSupport({
+                    host: resolvedHost as any,
+                    macroManager: macroManager as any,
+                    projectConfigService: projectConfigService as any
+                })
             }
             : {
                 analysisService,
-                documentationService: new FunctionDocumentationService(),
-                host: {
-                    onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
-                    openTextDocument: jest.fn(),
-                    findFiles: jest.fn(),
-                    getWorkspaceFolder: jest.fn(),
-                    getWorkspaceFolders: jest.fn(),
-                    fileExists: jest.fn().mockReturnValue(false)
-                },
+                host: resolvedHost,
+                pathSupport: new WorkspaceDocumentPathSupport({
+                    host: resolvedHost as any,
+                    macroManager: macroManager as any,
+                    projectConfigService: projectConfigService as any
+                }),
                 ...hostOrDependencies
             };
+        const resolvedObjectInferenceService = objectInferenceService ?? {
+            inferObjectAccess: jest.fn().mockResolvedValue(undefined)
+        };
+        const resolvedTargetMethodLookup = targetMethodLookup
+            ?? new TargetMethodLookup(analysisService, resolvedDependencies.pathSupport);
 
         return new AstBackedLanguageDefinitionService(
             macroManager as any,
             efunDocsManager as any,
-            objectInferenceService as any,
-            targetMethodLookup as any,
+            resolvedObjectInferenceService as any,
+            resolvedTargetMethodLookup as any,
             projectConfigService as any,
             resolvedDependencies as any
         );

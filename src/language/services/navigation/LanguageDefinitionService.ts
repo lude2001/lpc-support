@@ -10,8 +10,7 @@ import { TargetMethodLookup } from '../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
-import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
-import { assertDocumentationService } from '../../documentation/assertDocumentationService';
+import type { WorkspaceDocumentPathSupport } from '../../shared/WorkspaceDocumentPathSupport';
 import { DefinitionResolverSupport } from './definition/DefinitionResolverSupport';
 import { DirectSymbolDefinitionResolver } from './definition/DirectSymbolDefinitionResolver';
 import { FunctionFamilyDefinitionResolver } from './definition/FunctionFamilyDefinitionResolver';
@@ -37,7 +36,7 @@ interface LanguageDefinitionDependencies {
     host?: LanguageDefinitionHost;
     semanticAdapter?: DefinitionSemanticAdapter;
     scopedMethodResolver?: ScopedMethodResolver;
-    documentationService?: FunctionDocumentationService;
+    pathSupport?: WorkspaceDocumentPathSupport;
 }
 
 export class AstBackedLanguageDefinitionService implements LanguageDefinitionService {
@@ -58,37 +57,30 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     public constructor(
         macroManager: MacroManager,
         efunDocsManager: EfunDocsManager,
-        objectInferenceService?: ObjectInferenceService,
-        targetMethodLookup?: TargetMethodLookup,
+        objectInferenceService: ObjectInferenceService,
+        targetMethodLookup: TargetMethodLookup,
         projectConfigService?: LpcProjectConfigService,
-        hostOrDependencies: LanguageDefinitionHost | LanguageDefinitionDependencies = {}
+        dependencies: LanguageDefinitionDependencies = {}
     ) {
         this.macroManager = macroManager;
         this.efunDocsManager = efunDocsManager;
         this.projectConfigService = projectConfigService;
-        const dependencies = this.resolveDependencies(hostOrDependencies);
-        this.host = dependencies.host;
-        const analysisService = assertAnalysisService('AstBackedLanguageDefinitionService', dependencies.analysisService);
-        const documentationService = objectInferenceService
-            ? dependencies.documentationService
-            : assertDocumentationService('AstBackedLanguageDefinitionService', dependencies.documentationService);
-        this.objectInferenceService = objectInferenceService
-            ?? new ObjectInferenceService(
-                macroManager,
-                projectConfigService,
-                analysisService,
-                documentationService,
-                this.host
-            );
-        this.targetMethodLookup = targetMethodLookup
-            ?? new TargetMethodLookup(macroManager, projectConfigService, analysisService, this.host);
-        this.semanticAdapter = dependencies.semanticAdapter;
-        this.scopedMethodResolver = dependencies.scopedMethodResolver;
+        const resolvedDependencies = this.resolveDependencies(dependencies);
+        this.host = resolvedDependencies.host;
+        const analysisService = assertAnalysisService(
+            'AstBackedLanguageDefinitionService',
+            resolvedDependencies.analysisService
+        );
+        this.objectInferenceService = objectInferenceService;
+        this.targetMethodLookup = targetMethodLookup;
+        this.semanticAdapter = resolvedDependencies.semanticAdapter;
+        this.scopedMethodResolver = resolvedDependencies.scopedMethodResolver;
         this.support = new DefinitionResolverSupport({
             astManager: createDefinitionAnalysisFacade(analysisService),
             host: this.host,
             macroManager: this.macroManager,
             projectConfigService: this.projectConfigService,
+            pathSupport: resolvedDependencies.pathSupport,
             semanticAdapter: this.semanticAdapter
         });
         this.scopedDefinitionResolver = new ScopedMethodDefinitionResolver({
@@ -113,30 +105,27 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     }
 
     private resolveDependencies(
-        hostOrDependencies: LanguageDefinitionHost | LanguageDefinitionDependencies
+        dependencies: LanguageDefinitionDependencies
     ): {
         host: LanguageDefinitionHost;
         analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot' | 'getBestAvailableSnapshot' | 'getSyntaxDocument'>;
         semanticAdapter?: DefinitionSemanticAdapter;
         scopedMethodResolver?: ScopedMethodResolver;
-        documentationService?: FunctionDocumentationService;
+        pathSupport: WorkspaceDocumentPathSupport;
     } {
-        if ('onDidChangeTextDocument' in hostOrDependencies) {
-            return {
-                host: hostOrDependencies
-            };
-        }
-
-        if (!hostOrDependencies.host) {
+        if (!dependencies.host) {
             throw new Error('AstBackedLanguageDefinitionService requires an injected LanguageDefinitionHost');
+        }
+        if (!dependencies.pathSupport) {
+            throw new Error('AstBackedLanguageDefinitionService requires an injected WorkspaceDocumentPathSupport');
         }
 
         return {
-            host: hostOrDependencies.host,
-            analysisService: hostOrDependencies.analysisService,
-            semanticAdapter: hostOrDependencies.semanticAdapter,
-            scopedMethodResolver: hostOrDependencies.scopedMethodResolver,
-            documentationService: hostOrDependencies.documentationService
+            host: dependencies.host,
+            analysisService: dependencies.analysisService,
+            semanticAdapter: dependencies.semanticAdapter,
+            scopedMethodResolver: dependencies.scopedMethodResolver,
+            pathSupport: dependencies.pathSupport
         };
     }
 

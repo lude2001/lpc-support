@@ -7,6 +7,7 @@ import { ObjectInferenceService } from '../../../../objectInference/ObjectInfere
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import { TargetMethodLookup } from '../../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../../projectConfig/LpcProjectConfigService';
+import type { WorkspaceDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
 
 export interface DefinitionRequestState {
     processedFiles: Set<string>;
@@ -51,6 +52,7 @@ export interface DefinitionResolverContext {
     objectInferenceService: ObjectInferenceService;
     targetMethodLookup: TargetMethodLookup;
     projectConfigService?: LpcProjectConfigService;
+    pathSupport: WorkspaceDocumentPathSupport;
     host: LanguageDefinitionHost;
     semanticAdapter?: DefinitionSemanticAdapter;
     scopedMethodResolver?: ScopedMethodResolver;

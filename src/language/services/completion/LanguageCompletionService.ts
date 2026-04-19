@@ -17,8 +17,10 @@ import type { DocumentAnalysisService } from '../../../semantic/documentAnalysis
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import {
+    assertDocumentPathSupport,
     assertTextDocumentHost,
-    type TextDocumentHost
+    type TextDocumentHost,
+    type WorkspaceDocumentPathSupport
 } from '../../shared/WorkspaceDocumentPathSupport';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
@@ -103,6 +105,7 @@ interface QueryBackedLanguageCompletionDependencies {
     scopedDocumentLoader?: (uri: string) => Promise<vscode.TextDocument | undefined>;
     scopedCompletionSupport?: ScopedMethodCompletionSupport;
     documentHost?: TextDocumentHost;
+    pathSupport?: WorkspaceDocumentPathSupport;
 }
 
 export class QueryBackedLanguageCompletionService implements LanguageCompletionService {
@@ -136,7 +139,13 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             'QueryBackedLanguageCompletionService',
             dependencies?.documentationService
         );
-        const documentHost = objectInferenceService && dependencies?.scopedMethodDiscoveryService
+        const pathSupport = objectInferenceService
+            ? dependencies?.pathSupport
+            : assertDocumentPathSupport(
+                'QueryBackedLanguageCompletionService',
+                dependencies?.pathSupport
+            );
+        const documentHost = dependencies?.scopedMethodDiscoveryService
             ? dependencies?.documentHost
             : assertTextDocumentHost(
                 'QueryBackedLanguageCompletionService',
@@ -148,7 +157,8 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
                 undefined,
                 this.analysisService,
                 documentationService,
-                documentHost
+                documentHost,
+                pathSupport
             );
         this.inheritanceReporter = inheritanceReporter;
         this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));

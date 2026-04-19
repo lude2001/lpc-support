@@ -15,8 +15,8 @@ import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import {
-    assertTextDocumentHost,
-    type TextDocumentHost
+    assertDocumentPathSupport,
+    type WorkspaceDocumentPathSupport
 } from '../../shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
@@ -24,8 +24,6 @@ import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import type { InferredObjectAccess } from '../../../objectInference/types';
-import { MacroManager } from '../../../macroManager';
-import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { ObjectMethodHoverResolver } from './hover/ObjectMethodHoverResolver';
 import { ScopedMethodHoverResolver } from './hover/ScopedMethodHoverResolver';
 import { toDocumentationTextDocument } from './hover/HoverDocumentationSupport';
@@ -98,7 +96,7 @@ export interface HoverServiceDependencies {
     scopedMethodResolver?: ScopedMethodResolver;
     scopedHoverResolver?: Pick<ScopedMethodHoverResolver, 'provideScopedHover'>;
     objectMethodHoverResolver?: Pick<ObjectMethodHoverResolver, 'provideObjectHover'>;
-    host?: TextDocumentHost;
+    pathSupport?: WorkspaceDocumentPathSupport;
 }
 
 interface VsCodeBackedHoverDocument extends HoverDocument {
@@ -206,9 +204,7 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
 
     public constructor(
         objectInferenceService: ObjectInferenceService,
-        macroManager?: MacroManager,
         targetMethodLookup?: TargetMethodLookup,
-        projectConfigService?: LpcProjectConfigService,
         dependencies?: HoverServiceDependencies
     ) {
         this.documentAdapter = dependencies?.documentAdapter ?? new VsCodeHoverDocumentAdapter();
@@ -239,12 +235,10 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
                     ?? new VsCodeHoverMethodResolver(
                         targetMethodLookup
                         ?? new TargetMethodLookup(
-                            macroManager,
-                            projectConfigService,
                             assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies?.analysisService),
-                            assertTextDocumentHost(
+                            assertDocumentPathSupport(
                                 'ObjectInferenceLanguageHoverService',
-                                dependencies?.host
+                                dependencies?.pathSupport
                             )
                         )
                     ),

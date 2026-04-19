@@ -67,10 +67,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         projectConfigService,
         analysisService,
         documentationService,
-        workspaceDocumentHost
+        workspaceDocumentHost,
+        documentPathSupport
     );
     const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService, workspaceDocumentHost);
-    const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService, analysisService, workspaceDocumentHost);
+    const targetMethodLookup = new TargetMethodLookup(analysisService, documentPathSupport);
     const efunDocsManager = new EfunDocsManager(
         createServerExtensionContext(),
         projectConfigService,
@@ -97,7 +98,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         {
             analysisService,
             documentationService,
-            documentHost: workspaceDocumentHost
+            documentHost: workspaceDocumentHost,
+            pathSupport: documentPathSupport
         }
     );
     const codeActionsService = createLanguageCodeActionService();
@@ -105,13 +107,12 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const formattingService = createLanguageFormattingService(new FormattingService());
     const objectHoverService = new ObjectInferenceLanguageHoverService(
         objectInferenceService,
-        macroManager,
         targetMethodLookup,
-        projectConfigService,
         {
             analysisService,
             scopedMethodResolver,
-            documentationService
+            documentationService,
+            pathSupport: documentPathSupport
         }
     );
     const hoverService = new UnifiedLanguageHoverService(
@@ -132,7 +133,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         {
             analysisService,
             scopedMethodResolver,
-            host: workspaceDocumentHost
+            host: workspaceDocumentHost,
+            pathSupport: documentPathSupport
         }
     );
     const referenceService = new AstBackedLanguageReferenceService({

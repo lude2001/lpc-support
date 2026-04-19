@@ -1,11 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { MacroManager } from '../macroManager';
-import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
-import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
+import type { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import {
     type LanguageHoverResult,
     LanguageHoverService,
@@ -18,24 +16,20 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
 
     public constructor(
         objectInferenceService: ObjectInferenceService,
-        macroManager?: MacroManager,
         targetMethodLookup?: TargetMethodLookup,
-        projectConfigService?: LpcProjectConfigService,
         hoverService?: LanguageHoverService,
         documentationService?: FunctionDocumentationService,
-        host?: TextDocumentHost
+        pathSupport?: WorkspaceDocumentPathSupport
     ) {
         const resolvedDocumentationService = hoverService
             ? documentationService
             : assertDocumentationService('ObjectHoverProvider', documentationService);
         this.hoverService = hoverService ?? new ObjectInferenceLanguageHoverService(
             objectInferenceService,
-            macroManager,
             targetMethodLookup,
-            projectConfigService,
             {
                 documentationService: resolvedDocumentationService,
-                host
+                pathSupport
             }
         );
     }

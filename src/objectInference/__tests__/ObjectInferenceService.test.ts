@@ -4,7 +4,10 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../../ast/astManager';
 import { SymbolType } from '../../ast/symbolTable';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
-import { createVsCodeTextDocumentHost } from '../../language/shared/WorkspaceDocumentPathSupport';
+import {
+    WorkspaceDocumentPathSupport,
+    createVsCodeTextDocumentHost
+} from '../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { ObjectInferenceService } from '../ObjectInferenceService';
 import {
@@ -85,7 +88,14 @@ describe('ObjectInferenceService', () => {
             playerObjectPathOrProjectConfig as any,
             analysisService,
             documentationService,
-            documentHost
+            documentHost,
+            new WorkspaceDocumentPathSupport({
+                host: documentHost,
+                macroManager: macroManager as any,
+                projectConfigService: typeof playerObjectPathOrProjectConfig === 'string'
+                    ? undefined
+                    : playerObjectPathOrProjectConfig as any
+            })
         );
 
     beforeEach(() => {
@@ -1476,7 +1486,12 @@ describe('ObjectInferenceService', () => {
             projectConfigService as any,
             analysisService as any,
             documentationService,
-            documentHost
+            documentHost,
+            new WorkspaceDocumentPathSupport({
+                host: documentHost,
+                macroManager: macroManager as any,
+                projectConfigService: projectConfigService as any
+            })
         );
         const source = [
             'void demo() {',
@@ -2540,7 +2555,12 @@ describe('ObjectInferenceService', () => {
             projectConfigService as any,
             analysisService as any,
             documentationService,
-            documentHost
+            documentHost,
+            new WorkspaceDocumentPathSupport({
+                host: documentHost,
+                macroManager: macroManager as any,
+                projectConfigService: projectConfigService as any
+            })
         );
         const source = [
             'object FACTORY = load_object("/adm/objects/configured-global-include-child-factory");',
