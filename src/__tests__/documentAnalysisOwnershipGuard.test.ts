@@ -46,6 +46,10 @@ describe('document analysis ownership guards', () => {
             .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('DocumentSemanticSnapshotService.getInstance('))
             .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
             .sort();
+        const astManagerSource = fs.readFileSync(
+            path.join(srcRoot, 'ast', 'astManager.ts'),
+            'utf8'
+        );
 
         const astConfigureCallSites = listProductionTypeScriptFiles(srcRoot)
             .filter((filePath) => filePath !== path.join(srcRoot, 'ast', 'astManager.ts'))
@@ -64,6 +68,9 @@ describe('document analysis ownership guards', () => {
         ]);
         expect(astConfigureCallSites).toEqual([]);
         expect(astSingletonCallSites).toEqual([]);
+        expect(astManagerSource).not.toContain('public static configureSingleton(');
+        expect(astManagerSource).not.toContain('public static getInstance(');
+        expect(astManagerSource).not.toContain('public static resetSingletonForTests(');
     });
 
     test('FunctionDocumentationService instances are only created in composition roots', () => {

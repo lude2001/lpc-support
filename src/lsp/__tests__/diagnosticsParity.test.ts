@@ -186,7 +186,8 @@ function createPureLanguageDocument(content: string): LanguageDocument {
 
 async function collectHostDiagnostics(
     document: vscode.TextDocument,
-    collectors?: IDiagnosticCollector[]
+    collectors?: IDiagnosticCollector[],
+    astManager?: ASTManager
 ): Promise<vscode.Diagnostic[]> {
     const macroManager = {
         getMacro: jest.fn(),
@@ -197,7 +198,7 @@ async function collectHostDiagnostics(
         getIncludePath: jest.fn(() => undefined)
     };
     const resolvedCollectors = collectors ?? [];
-    const diagnosticsService = createSharedDiagnosticsService(getAstManagerForTests(), resolvedCollectors);
+    const diagnosticsService = createSharedDiagnosticsService(astManager ?? getAstManagerForTests(), resolvedCollectors);
     const orchestrator = new DiagnosticsOrchestrator(
         { subscriptions: [], extensionPath: process.cwd() } as any,
         {
@@ -273,9 +274,8 @@ describe('diagnostics parity harness', () => {
             parseDocument: parseDocumentSpy,
             clearCache: jest.fn()
         } as unknown as ASTManager;
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue(astManager);
         const hostCollectors = [createHostParityCollector()];
-        const hostDiagnostics = await collectHostDiagnostics(vscodeDocument, hostCollectors);
+        const hostDiagnostics = await collectHostDiagnostics(vscodeDocument, hostCollectors, astManager);
         const diagnosticsService = createLanguageDiagnosticsService({
             analyzeDocument: {
                 analyze: jest.fn().mockResolvedValue(createSharedAnalysis())

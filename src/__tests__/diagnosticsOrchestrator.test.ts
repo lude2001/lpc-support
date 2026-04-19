@@ -78,11 +78,6 @@ describe('DiagnosticsOrchestrator', () => {
     });
 
     test('does not register host document lifecycle listeners and only keeps diagnostics UX wiring', () => {
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
-            parseDocument: jest.fn(),
-            clearCache: jest.fn()
-        } as unknown as ASTManager);
-
         const onDidChangeTextDocument = jest.fn().mockReturnValue({ dispose: jest.fn() });
         const onDidOpenTextDocument = jest.fn().mockReturnValue({ dispose: jest.fn() });
         const onDidCloseTextDocument = jest.fn().mockReturnValue({ dispose: jest.fn() });
@@ -128,7 +123,6 @@ describe('DiagnosticsOrchestrator', () => {
             parseDocument: parseDocumentSpy,
             clearCache: jest.fn()
         };
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue(astManagerMock as unknown as ASTManager);
         (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
 
         const orchestrator = createOrchestrator({
@@ -152,10 +146,6 @@ describe('DiagnosticsOrchestrator', () => {
         };
 
         (vscode.languages.createDiagnosticCollection as jest.Mock).mockReturnValue(diagnosticCollection);
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
-            parseDocument: parseDocumentSpy,
-            clearCache: jest.fn()
-        } as unknown as ASTManager);
         (fs.existsSync as jest.Mock).mockImplementation((targetPath: fs.PathLike) => (
             String(targetPath).endsWith('config/lpc-config.json')
         ));
@@ -163,9 +153,13 @@ describe('DiagnosticsOrchestrator', () => {
             uri: vscode.Uri.file('/workspace/project')
         });
         (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+        const astManager = {
+            parseDocument: parseDocumentSpy,
+            clearCache: jest.fn()
+        } as unknown as ASTManager;
 
         const orchestrator = createOrchestrator({
-            diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), [])
+            diagnosticsService: createSharedDiagnosticsService(astManager, [])
         });
 
         const document = createDocument('int value;', '/workspace/project/src/sample.c');
@@ -202,10 +196,6 @@ describe('DiagnosticsOrchestrator', () => {
         };
 
         (vscode.languages.createDiagnosticCollection as jest.Mock).mockReturnValue(diagnosticCollection);
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
-            parseDocument: parseDocumentSpy,
-            clearCache: jest.fn()
-        } as unknown as ASTManager);
         (fs.existsSync as jest.Mock).mockImplementation((targetPath: fs.PathLike) => {
             const normalized = String(targetPath).replace(/\\/g, '/');
             return normalized.endsWith('config/lpc-config.json') || normalized.endsWith('/workspace/project/lpc-support.json');
@@ -214,9 +204,13 @@ describe('DiagnosticsOrchestrator', () => {
             uri: vscode.Uri.file('/workspace/project')
         });
         (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+        const astManager = {
+            parseDocument: parseDocumentSpy,
+            clearCache: jest.fn()
+        } as unknown as ASTManager;
 
         const orchestrator = createOrchestrator({
-            diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), [])
+            diagnosticsService: createSharedDiagnosticsService(astManager, [])
         });
 
         const document = createDocument('int value;', '/workspace/project/src/sample.c');
@@ -266,11 +260,11 @@ describe('DiagnosticsOrchestrator', () => {
         }));
         const collectSpy = jest.fn().mockResolvedValue([]);
 
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+        const astManager = {
             parseDocument: parseDocumentSpy,
             clearCache: jest.fn()
-        } as unknown as ASTManager);
-        (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+        } as unknown as ASTManager;
 
         const collectors = [{
             name: 'context-aware',
@@ -278,7 +272,7 @@ describe('DiagnosticsOrchestrator', () => {
         }];
         const orchestrator = createOrchestrator({
             collectors,
-            diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), collectors as any)
+            diagnosticsService: createSharedDiagnosticsService(astManager, collectors as any)
         });
 
         await (orchestrator as any).collectDiagnostics(createDocument('int demo() { return 1; }'));
@@ -330,10 +324,6 @@ describe('DiagnosticsOrchestrator', () => {
         ];
 
         (vscode.languages.createDiagnosticCollection as jest.Mock).mockReturnValue(diagnosticCollection);
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
-            parseDocument: parseDocumentSpy,
-            clearCache: jest.fn()
-        } as unknown as ASTManager);
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((key: string) => {
                 if (key === 'enableAsyncDiagnostics') {
@@ -355,10 +345,14 @@ describe('DiagnosticsOrchestrator', () => {
             uri: vscode.Uri.file('/workspace/project')
         });
         (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
+        const astManager = {
+            parseDocument: parseDocumentSpy,
+            clearCache: jest.fn()
+        } as unknown as ASTManager;
 
         const orchestrator = createOrchestrator({
             collectors: collectors as any,
-            diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), collectors as any)
+            diagnosticsService: createSharedDiagnosticsService(astManager, collectors as any)
         });
         (orchestrator as any).yieldToMainThread = jest.fn().mockResolvedValue(undefined);
 
@@ -379,10 +373,6 @@ describe('DiagnosticsOrchestrator', () => {
     });
 
     test('delegates show variables command to variable inspector for active lpc documents', async () => {
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
-            parseDocument: jest.fn(),
-            clearCache: jest.fn()
-        } as unknown as ASTManager);
         (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
         (vscode.commands.registerCommand as jest.Mock).mockClear();
 
@@ -417,10 +407,6 @@ describe('DiagnosticsOrchestrator', () => {
     });
 
     test('delegates scanFolder to folder scanner', async () => {
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
-            parseDocument: jest.fn(),
-            clearCache: jest.fn()
-        } as unknown as ASTManager);
         (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
 
         const orchestrator = createOrchestrator();
@@ -446,7 +432,6 @@ describe('DiagnosticsOrchestrator', () => {
             clearCache: jest.fn()
         };
         (vscode.languages.createDiagnosticCollection as jest.Mock).mockReturnValue(diagnosticCollection);
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue(astManager as unknown as ASTManager);
         const orchestrator = createOrchestrator();
 
         orchestrator.dispose();

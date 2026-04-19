@@ -641,7 +641,7 @@ describe('language-service integration regression', () => {
             'snapshot parse error',
             vscode.DiagnosticSeverity.Error
         );
-        jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
+        const astManager = {
             parseDocument: jest.fn(() => ({
                 parsed: {
                     version: 1,
@@ -656,11 +656,11 @@ describe('language-service integration regression', () => {
             })),
             clearCache: jest.fn(),
             clearAllCache: jest.fn()
-        } as unknown as ASTManager);
+        } as unknown as ASTManager;
         const orchestrator = new DiagnosticsOrchestrator(
             { subscriptions: [], extensionPath: process.cwd() } as any,
             {
-                diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), [])
+                diagnosticsService: createSharedDiagnosticsService(astManager, [])
             }
         );
         const document = createDocument(

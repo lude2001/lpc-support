@@ -43,23 +43,15 @@ function createDocument(content: string, fileName: string = '/virtual/member-typ
 
 describe('ASTManager facade', () => {
     beforeEach(() => {
-        ASTManager.resetSingletonForTests();
         DocumentSemanticSnapshotService.getInstance().clear();
     });
 
     afterEach(() => {
         DocumentSemanticSnapshotService.getInstance().clear();
-        ASTManager.resetSingletonForTests();
-    });
-
-    test('requires explicit singleton configuration before access', () => {
-        expect(() => ASTManager.getInstance()).toThrow(
-            'ASTManager singleton is not configured. Call ASTManager.configureSingleton(...) first.'
-        );
     });
 
     test('does not expose legacy product APIs on the facade', () => {
-        const manager = ASTManager.configureSingleton(
+        const manager = new ASTManager(
             DocumentSemanticSnapshotService.getInstance()
         ) as unknown as Record<string, unknown>;
 
@@ -75,7 +67,7 @@ describe('ASTManager facade', () => {
 
         const fileName = '/virtual/stale-snapshot.c';
         const firstDocument = createDocument('int first_call() { return 1; }', fileName, 1);
-        const manager = ASTManager.configureSingleton(
+        const manager = new ASTManager(
             DocumentSemanticSnapshotService.getInstance()
         );
         const initialSnapshot = manager.getSnapshot(firstDocument, false);
@@ -110,7 +102,7 @@ describe('ASTManager facade', () => {
             '}'
         ].join('\n');
         const document = createDocument(source, '/virtual/semantic-snapshot.c', 1);
-        const semantic = ASTManager.configureSingleton(
+        const semantic = new ASTManager(
             DocumentSemanticSnapshotService.getInstance()
         ).getSemanticSnapshot(document, false);
 
