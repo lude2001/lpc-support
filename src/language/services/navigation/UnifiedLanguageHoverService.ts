@@ -1,14 +1,9 @@
 import * as vscode from 'vscode';
-import type { EfunDocsManager } from '../../../efunDocs';
 import type { MacroManager } from '../../../macroManager';
-import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
-import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
-import { EfunLanguageHoverService } from './EfunLanguageHoverService';
 
 interface UnifiedLanguageHoverServiceDependencies {
-    efunHoverService?: LanguageHoverService;
-    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
+    efunHoverService: LanguageHoverService;
 }
 
 export class UnifiedLanguageHoverService implements LanguageHoverService {
@@ -16,15 +11,13 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
 
     public constructor(
         private readonly objectHoverService: LanguageHoverService,
-        efunDocsManager: EfunDocsManager,
         private readonly macroManager: MacroManager,
-        dependencies: UnifiedLanguageHoverServiceDependencies = {}
+        dependencies: UnifiedLanguageHoverServiceDependencies
     ) {
-        this.efunHoverService = dependencies.efunHoverService
-            ?? new EfunLanguageHoverService(
-                efunDocsManager,
-                assertAnalysisService('UnifiedLanguageHoverService', dependencies.analysisService)
-            );
+        if (!dependencies.efunHoverService) {
+            throw new Error('UnifiedLanguageHoverService requires an injected efun hover service');
+        }
+        this.efunHoverService = dependencies.efunHoverService;
     }
 
     public async provideHover(request: LanguageHoverRequest): Promise<LanguageHoverResult | undefined> {

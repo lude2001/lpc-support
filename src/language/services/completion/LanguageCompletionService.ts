@@ -16,10 +16,6 @@ import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../../documentation/assertDocumentationService';
-import {
-    assertTextDocumentHost,
-    type TextDocumentHost
-} from '../../shared/WorkspaceDocumentPathSupport';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
 import type { LanguagePosition } from '../../contracts/LanguagePosition';
@@ -98,11 +94,9 @@ function createDefaultInheritanceReporter(): CompletionInheritanceReporter {
 
 interface QueryBackedLanguageCompletionDependencies {
     analysisService: CompletionAnalysisService;
-    scopedMethodDiscoveryService?: ScopedMethodDiscoveryService;
+    scopedMethodDiscoveryService: ScopedMethodDiscoveryService;
     documentationService?: FunctionDocumentationService;
-    scopedDocumentLoader?: (uri: string) => Promise<vscode.TextDocument | undefined>;
-    scopedCompletionSupport?: ScopedMethodCompletionSupport;
-    documentHost?: TextDocumentHost;
+    scopedCompletionSupport: ScopedMethodCompletionSupport;
 }
 
 export class QueryBackedLanguageCompletionService implements LanguageCompletionService {
@@ -132,16 +126,16 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         this.macroManager = macroManager;
         this.analysisService = assertAnalysisService('QueryBackedLanguageCompletionService', dependencies?.analysisService);
         this.instrumentation = instrumentation ?? new CompletionInstrumentation();
-        const documentationService = assertDocumentationService(
+        if (!dependencies?.scopedMethodDiscoveryService) {
+            throw new Error('QueryBackedLanguageCompletionService requires an injected ScopedMethodDiscoveryService');
+        }
+        if (!dependencies?.scopedCompletionSupport) {
+            throw new Error('QueryBackedLanguageCompletionService requires an injected ScopedMethodCompletionSupport');
+        }
+        assertDocumentationService(
             'QueryBackedLanguageCompletionService',
             dependencies?.documentationService
         );
-        const documentHost = dependencies?.scopedMethodDiscoveryService
-            ? dependencies?.documentHost
-            : assertTextDocumentHost(
-                'QueryBackedLanguageCompletionService',
-                dependencies?.documentHost
-            );
         this.objectInferenceService = objectInferenceService;
         this.inheritanceReporter = inheritanceReporter;
         this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
@@ -150,19 +144,8 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             this.projectSymbolIndex,
             this.inheritanceReporter
         );
-        this.scopedMethodDiscoveryService = dependencies?.scopedMethodDiscoveryService
-            ?? new ScopedMethodDiscoveryService(
-                macroManager,
-                undefined,
-                this.analysisService,
-                documentHost
-            );
-        this.scopedCompletionSupport = dependencies?.scopedCompletionSupport
-            ?? new ScopedMethodCompletionSupport({
-                documentationService,
-                documentLoader: dependencies?.scopedDocumentLoader
-                    ?? (async (uri: string) => this.inheritedIndexService.getDocumentForUri(uri))
-            });
+        this.scopedMethodDiscoveryService = dependencies.scopedMethodDiscoveryService;
+        this.scopedCompletionSupport = dependencies.scopedCompletionSupport;
         this.candidateResolver = new CompletionCandidateResolver(
             this.objectInferenceService,
             this.scopedMethodDiscoveryService,

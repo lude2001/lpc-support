@@ -6,6 +6,7 @@ import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
 import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
+import { ScopedMethodCompletionSupport } from '../language/services/completion/ScopedMethodCompletionSupport';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import {
     WorkspaceDocumentPathSupport,
@@ -212,7 +213,16 @@ describe('language-service integration regression', () => {
         {
             analysisService,
             documentationService,
-            documentHost,
+            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
+                macroManager as any,
+                [fixtureRoot],
+                analysisService,
+                documentHost
+            ),
+            scopedCompletionSupport: new ScopedMethodCompletionSupport({
+                documentationService,
+                documentHost
+            }),
             ...dependencies
         } as any
     );

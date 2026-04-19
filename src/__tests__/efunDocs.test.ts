@@ -10,7 +10,9 @@ import { buildEfunHoverMarkdown, createEfunHover } from '../efun/EfunHoverConten
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
+import { ScopedMethodCompletionSupport } from '../language/services/completion/ScopedMethodCompletionSupport';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { ScopedMethodDiscoveryService } from '../objectInference/ScopedMethodDiscoveryService';
 import {
     WorkspaceDocumentPathSupport,
     createVsCodeTextDocumentHost
@@ -277,16 +279,27 @@ describe('EfunDocsManager', () => {
         writeBundleFile(extensionPath, createStructuredBundle());
         const manager = createManager(extensionPath);
         const documentHost = createVsCodeTextDocumentHost();
+        const documentationService = new FunctionDocumentationService();
+        const objectInferenceService = { inferObjectAccess: jest.fn() } as any;
         const service = new QueryBackedLanguageCompletionService(manager, {
             getMacro: jest.fn(),
             getAllMacros: jest.fn(() => []),
             getMacroHoverContent: jest.fn(),
             scanMacros: jest.fn().mockResolvedValue(undefined),
             getIncludePath: jest.fn()
-        } as any, undefined, { inferObjectAccess: jest.fn() } as any, undefined, {
+        } as any, undefined, objectInferenceService, undefined, {
             analysisService: DocumentSemanticSnapshotService.getInstance(),
-            documentationService: new FunctionDocumentationService(),
-            documentHost
+            documentationService,
+            scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
+                undefined,
+                undefined,
+                DocumentSemanticSnapshotService.getInstance(),
+                documentHost
+            ),
+            scopedCompletionSupport: new ScopedMethodCompletionSupport({
+                documentationService,
+                documentHost
+            })
         });
         const document = TestHelper.createMockDocument('allo');
         const completion = await service.provideCompletion({

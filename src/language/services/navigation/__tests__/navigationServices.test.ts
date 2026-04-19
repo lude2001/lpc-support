@@ -604,7 +604,6 @@ describe('navigation services', () => {
             {
                 provideHover: jest.fn(async () => undefined)
             },
-            {} as any,
             {
                 getMacro: jest.fn(() => ({ name: 'USER_D', value: '/adm/user' })),
                 getMacroHoverContent: jest.fn(() => macroHoverContent),
@@ -642,7 +641,6 @@ describe('navigation services', () => {
             {
                 provideHover: jest.fn(async () => undefined)
             },
-            {} as any,
             {
                 getMacro: jest.fn(() => undefined),
                 getMacroHoverContent: jest.fn(),

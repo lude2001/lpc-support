@@ -15,9 +15,11 @@ import type {
     LanguageCompletionService
 } from '../../../language/services/completion/LanguageCompletionService';
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
+import { ScopedMethodCompletionSupport } from '../../../language/services/completion/ScopedMethodCompletionSupport';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import { createVsCodeTextDocumentHost } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
+import { ScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLogger } from '../runtime/ServerLogger';
@@ -401,6 +403,7 @@ describe('registerCompletionHandler', () => {
             getIncludePath: jest.fn(() => undefined)
         };
         const documentHost = createVsCodeTextDocumentHost();
+        const documentationService = new FunctionDocumentationService();
         const realService = new QueryBackedLanguageCompletionService(
             efunDocsManager as any,
             macroManager as any,
@@ -409,8 +412,17 @@ describe('registerCompletionHandler', () => {
             undefined,
             {
                 analysisService: DocumentSemanticSnapshotService.getInstance(),
-                documentationService: new FunctionDocumentationService(),
-                documentHost
+                documentationService,
+                scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
+                    macroManager as any,
+                    undefined,
+                    DocumentSemanticSnapshotService.getInstance(),
+                    documentHost
+                ),
+                scopedCompletionSupport: new ScopedMethodCompletionSupport({
+                    documentationService,
+                    documentHost
+                })
             }
         );
         const completionService: LanguageCompletionService = {

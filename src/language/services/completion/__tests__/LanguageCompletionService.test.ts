@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globa
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { QueryBackedLanguageCompletionService } from '../LanguageCompletionService';
+import { ScopedMethodCompletionSupport } from '../ScopedMethodCompletionSupport';
 import { createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
+import { ScopedMethodDiscoveryService } from '../../../../objectInference/ScopedMethodDiscoveryService';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -103,9 +105,16 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             {
                 analysisService,
                 documentationService: documentationService as any,
-                scopedDocumentLoader,
-                objectInferenceService: {} as any,
-                documentHost
+                scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
+                    macroManager as any,
+                    undefined,
+                    analysisService,
+                    documentHost
+                ),
+                scopedCompletionSupport: new ScopedMethodCompletionSupport({
+                    documentationService: documentationService as any,
+                    documentLoader: scopedDocumentLoader
+                })
             }
         ) as any;
 
@@ -170,9 +179,16 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             {
                 analysisService,
                 documentationService: documentationService as any,
-                scopedDocumentLoader,
-                objectInferenceService: {} as any,
-                documentHost
+                scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
+                    macroManager as any,
+                    undefined,
+                    analysisService,
+                    documentHost
+                ),
+                scopedCompletionSupport: new ScopedMethodCompletionSupport({
+                    documentationService: documentationService as any,
+                    documentLoader: scopedDocumentLoader
+                })
             }
         ) as any;
 

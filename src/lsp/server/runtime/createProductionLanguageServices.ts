@@ -15,6 +15,7 @@ import {
 } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { createLanguageCodeActionService } from '../../../language/services/codeActions/LanguageCodeActionService';
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
+import { ScopedMethodCompletionSupport } from '../../../language/services/completion/ScopedMethodCompletionSupport';
 import { createLanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
 import { AstBackedLanguageDefinitionService } from '../../../language/services/navigation/LanguageDefinitionService';
 import { EfunLanguageHoverService } from '../../../language/services/navigation/EfunLanguageHoverService';
@@ -90,6 +91,16 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         scopedMethodResolver,
         host: workspaceDocumentHost
     });
+    const scopedMethodDiscoveryService = new ScopedMethodDiscoveryService(
+        macroManager,
+        undefined,
+        analysisService,
+        workspaceDocumentHost
+    );
+    const scopedCompletionSupport = new ScopedMethodCompletionSupport({
+        documentationService,
+        documentHost: workspaceDocumentHost
+    });
 
     const completionService = new QueryBackedLanguageCompletionService(
         efunDocsManager,
@@ -100,7 +111,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         {
             analysisService,
             documentationService,
-            documentHost: workspaceDocumentHost
+            scopedMethodDiscoveryService,
+            scopedCompletionSupport
         }
     );
     const codeActionsService = createLanguageCodeActionService();
@@ -118,10 +130,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     );
     const hoverService = new UnifiedLanguageHoverService(
         objectHoverService,
-        efunDocsManager,
         macroManager,
         {
-            analysisService,
             efunHoverService: new EfunLanguageHoverService(efunDocsManager, analysisService)
         }
     );
