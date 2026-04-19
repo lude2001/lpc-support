@@ -209,6 +209,21 @@ describe('document analysis ownership guards', () => {
         expect(productionServicesSource).not.toContain("openTextDocument: async (target: string | vscode.Uri)");
     });
 
+    test('core language and object-inference services do not bypass the shared document host owner', () => {
+        const guardedFiles = [
+            path.join(srcRoot, 'language', 'services', 'navigation', 'LanguageDefinitionService.ts'),
+            path.join(srcRoot, 'language', 'services', 'completion', 'ScopedMethodCompletionSupport.ts'),
+            path.join(srcRoot, 'objectInference', 'GlobalObjectBindingResolver.ts'),
+            path.join(srcRoot, 'objectInference', 'InheritedGlobalObjectBindingResolver.ts'),
+            path.join(srcRoot, 'objectInference', 'scopedInheritanceTraversal.ts')
+        ];
+
+        for (const filePath of guardedFiles) {
+            const source = fs.readFileSync(filePath, 'utf8');
+            expect(source).not.toContain('vscode.workspace.openTextDocument(');
+        }
+    });
+
     test('LanguageCodeActionService stays a coordinator without inline quick-fix builders or text helpers', () => {
         const codeActionServiceSource = fs.readFileSync(
             path.join(srcRoot, 'language', 'services', 'codeActions', 'LanguageCodeActionService.ts'),

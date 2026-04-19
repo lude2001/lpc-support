@@ -11,6 +11,14 @@ export interface TextDocumentHost {
     getWorkspaceFolder(uri: vscode.Uri): { uri: { fsPath: string } } | undefined;
 }
 
+export interface WorkspaceDocumentHost extends TextDocumentHost {
+    findFiles(pattern: vscode.GlobPattern): Promise<readonly vscode.Uri[]>;
+    getWorkspaceFolders(): readonly { uri: { fsPath: string } }[] | undefined;
+    onDidChangeTextDocument(
+        listener: (event: vscode.TextDocumentChangeEvent) => unknown
+    ): vscode.Disposable;
+}
+
 export interface WorkspaceDocumentPathSupportOptions {
     host?: TextDocumentHost;
     macroManager?: Pick<MacroManager, 'getMacro'>;
@@ -26,6 +34,13 @@ export const defaultTextDocumentHost: TextDocumentHost = {
         : vscode.workspace.openTextDocument(target),
     fileExists: (filePath) => fs.existsSync(filePath),
     getWorkspaceFolder: (uri) => vscode.workspace.getWorkspaceFolder(uri)
+};
+
+export const defaultWorkspaceDocumentHost: WorkspaceDocumentHost = {
+    ...defaultTextDocumentHost,
+    findFiles: async (pattern) => vscode.workspace.findFiles(pattern),
+    getWorkspaceFolders: () => vscode.workspace.workspaceFolders,
+    onDidChangeTextDocument: (listener) => vscode.workspace.onDidChangeTextDocument(listener)
 };
 
 export class WorkspaceDocumentPathSupport {

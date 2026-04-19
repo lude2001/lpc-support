@@ -5,6 +5,7 @@ import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import type { CallableDoc } from '../../documentation/types';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
+import { defaultTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import type { ScopedMethodDiscoveryResult } from '../../../objectInference/ScopedMethodDiscoveryService';
 import type { LanguageCompletionItem } from './LanguageCompletionService';
 import { buildFunctionSnippet } from './completionSnippetUtils';
@@ -182,7 +183,7 @@ export class ScopedMethodCompletionSupport {
 function createDefaultDocumentLoader(): ScopedDocumentLoader {
     return async (uri: string) => {
         try {
-            return await vscode.workspace.openTextDocument(vscode.Uri.parse(uri));
+            return await defaultTextDocumentHost.openTextDocument(vscode.Uri.parse(uri));
         } catch {
             return undefined;
         }

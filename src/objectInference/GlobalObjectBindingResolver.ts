@@ -8,6 +8,7 @@ import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
+import { defaultTextDocumentHost, type TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 
 export interface GlobalBindingResolution extends ObjectResolutionOutcome {
     hasVisibleBinding: boolean;
@@ -35,15 +36,18 @@ export interface GlobalBindingResolveContext {
 export class GlobalObjectBindingResolver {
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
+    private readonly host: Pick<TextDocumentHost, 'openTextDocument'>;
 
     constructor(
         private readonly returnObjectResolver: ReturnObjectResolver,
         private readonly objectMethodReturnResolver: ObjectMethodReturnResolver,
         macroManager?: MacroManager,
-        analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>
+        analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>,
+        host?: Pick<TextDocumentHost, 'openTextDocument'>
     ) {
         this.analysisService = assertAnalysisService('GlobalObjectBindingResolver', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager);
+        this.host = host ?? defaultTextDocumentHost;
     }
 
     public async resolveVisibleBinding(
@@ -295,7 +299,7 @@ export class GlobalObjectBindingResolver {
             branchVisitedUris.add(target.resolvedUri);
 
             try {
-                const parentDocument = await vscode.workspace.openTextDocument(
+                const parentDocument = await this.host.openTextDocument(
                     this.toWorkspaceFilePath(target.resolvedUri)
                 );
                 const parentSnapshot = this.analysisService.getSemanticSnapshot(parentDocument, false);

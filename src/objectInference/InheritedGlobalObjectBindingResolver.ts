@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
+import { defaultTextDocumentHost, type TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { GlobalBindingResolution, GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
@@ -8,14 +9,17 @@ import { GlobalBindingResolution, GlobalObjectBindingResolver } from './GlobalOb
 export class InheritedGlobalObjectBindingResolver {
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
+    private readonly host: Pick<TextDocumentHost, 'openTextDocument'>;
 
     constructor(
         macroManager: MacroManager | undefined,
         private readonly globalBindingResolver: GlobalObjectBindingResolver,
-        analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>
+        analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>,
+        host?: Pick<TextDocumentHost, 'openTextDocument'>
     ) {
         this.analysisService = assertAnalysisService('InheritedGlobalObjectBindingResolver', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager);
+        this.host = host ?? defaultTextDocumentHost;
     }
 
     public async resolveInheritedBinding(
@@ -37,7 +41,7 @@ export class InheritedGlobalObjectBindingResolver {
             const branchVisitedBindings = new Set(visitedBindings);
 
             try {
-                const parentDocument = await vscode.workspace.openTextDocument(vscode.Uri.parse(target.resolvedUri));
+                const parentDocument = await this.host.openTextDocument(vscode.Uri.parse(target.resolvedUri));
                 const parentBinding = await this.globalBindingResolver.resolveFileScopeBinding(
                     parentDocument,
                     identifierName,

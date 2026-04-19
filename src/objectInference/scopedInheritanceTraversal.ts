@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { ResolvedInheritTarget } from '../completion/types';
+import { defaultTextDocumentHost, type TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 
 export type ResolvedScopedInheritTarget = ResolvedInheritTarget & {
     resolvedUri: string;
@@ -22,6 +23,7 @@ export interface ScopedBranchCollection<TItem> {
 interface CollectScopedBranchItemsOptions<TItem> {
     astManager: ASTManager;
     inheritanceResolver: InheritanceResolver;
+    host?: Pick<TextDocumentHost, 'openTextDocument'>;
     seed: ResolvedScopedInheritTarget;
     visitedUris: Set<string>;
     collectFromDocument: (
@@ -74,7 +76,8 @@ export async function collectScopedBranchItems<TItem>(
     options.visitedUris.add(normalizedUri);
 
     try {
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(normalizedUri));
+        const host = options.host ?? defaultTextDocumentHost;
+        const document = await host.openTextDocument(vscode.Uri.parse(normalizedUri));
         const snapshot = options.astManager.getSemanticSnapshot(document, false);
         const items = options.collectFromDocument(document, snapshot);
         const nestedSeeds = resolveScopedDirectInheritSeeds(options.inheritanceResolver, snapshot);

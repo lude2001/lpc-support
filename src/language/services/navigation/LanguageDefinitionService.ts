@@ -4,6 +4,7 @@ import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabili
 import type { LanguageLocation, LanguagePosition } from '../../contracts/LanguagePosition';
 import { MacroManager } from '../../../macroManager';
 import { EfunDocsManager } from '../../../efunDocs';
+import { defaultWorkspaceDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
@@ -37,18 +38,7 @@ interface LanguageDefinitionDependencies {
     scopedMethodResolver?: ScopedMethodResolver;
 }
 
-const defaultDefinitionHost: LanguageDefinitionHost = {
-    onDidChangeTextDocument: (listener) => vscode.workspace.onDidChangeTextDocument(listener),
-    openTextDocument: async (target) => {
-        return typeof target === 'string'
-            ? vscode.workspace.openTextDocument(target)
-            : vscode.workspace.openTextDocument(target);
-    },
-    findFiles: async (pattern) => vscode.workspace.findFiles(pattern),
-    getWorkspaceFolder: (uri) => vscode.workspace.getWorkspaceFolder(uri),
-    getWorkspaceFolders: () => vscode.workspace.workspaceFolders,
-    fileExists: (filePath: string) => fs.existsSync(filePath)
-};
+const defaultDefinitionHost: LanguageDefinitionHost = defaultWorkspaceDocumentHost;
 
 export class AstBackedLanguageDefinitionService implements LanguageDefinitionService {
     private readonly macroManager: MacroManager;
