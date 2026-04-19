@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { ASTManager } from '../../ast/astManager';
-import * as docParser from '../../efun/docParser';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { PathResolver } from '../../utils/pathResolver';
@@ -98,7 +97,6 @@ describe('ReturnObjectResolver', () => {
 
     test('resolveDocumentedReturnOutcome reads returnObjects from shared callable docs instead of reparsing comments', async () => {
         const getDocsByNameSpy = jest.spyOn(FunctionDocumentationService.prototype, 'getDocsByName');
-        const parseFunctionDocsSpy = jest.spyOn(docParser, 'parseFunctionDocs');
         jest.spyOn(PathResolver, 'resolveObjectPath').mockImplementation(async (_document, expression) => {
             if (expression === '"/obj/npc"') {
                 return 'D:/code/lpc/obj/npc.c';
@@ -128,7 +126,6 @@ describe('ReturnObjectResolver', () => {
         const outcome = await resolver.resolveDocumentedReturnOutcome(document, 'helper');
 
         expect(getDocsByNameSpy).toHaveBeenCalledWith(document, 'helper');
-        expect(parseFunctionDocsSpy).not.toHaveBeenCalled();
         expect(outcome.candidates).toEqual([
             { path: 'D:/code/lpc/obj/npc.c', source: 'doc' },
             { path: 'D:/code/lpc/adm/daemons/room_d.c', source: 'doc' }

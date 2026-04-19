@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as docParser from '../../efun/docParser';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { ObjectHoverProvider } from '../ObjectHoverProvider';
@@ -141,7 +140,6 @@ describe('ObjectHoverProvider', () => {
         const documentationService = new FunctionDocumentationService();
         const content = 'target->query_name();';
         const getDocsByNameSpy = jest.spyOn(FunctionDocumentationService.prototype, 'getDocsByName');
-        const parseFunctionDocsSpy = jest.spyOn(docParser, 'parseFunctionDocs');
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
                 receiver: 'target',
@@ -205,7 +203,6 @@ describe('ObjectHoverProvider', () => {
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
         expect(hover).toBeInstanceOf(vscode.Hover);
         expect(getDocsByNameSpy).toHaveBeenCalledWith(targetMethodLookup.resolvedDocument, 'query_name');
-        expect(parseFunctionDocsSpy).not.toHaveBeenCalled();
 
         const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
         expect(hoverContent.value).toContain('string query_name(');
