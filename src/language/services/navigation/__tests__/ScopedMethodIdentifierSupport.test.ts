@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { SyntaxKind, type SyntaxDocument, type SyntaxNode } from '../../../../syntax/types';
 import {
-    configureScopedMethodIdentifierAnalysisService,
     findScopedMethodIdentifierAtPosition,
     isOnScopedMethodIdentifier
 } from '../ScopedMethodIdentifierSupport';
@@ -87,7 +86,6 @@ function createSyntaxDocument(nodes: readonly SyntaxNode[]): SyntaxDocument {
 describe('ScopedMethodIdentifierSupport', () => {
     afterEach(() => {
         jest.restoreAllMocks();
-        configureScopedMethodIdentifierAnalysisService(undefined);
     });
 
     test('finds bare ::create() method identifiers', () => {
@@ -105,12 +103,12 @@ describe('ScopedMethodIdentifierSupport', () => {
             [methodIdentifier]
         );
         const syntax = createSyntaxDocument([callExpression, methodIdentifier]);
-        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
+        const analysisService = createAnalysisService(syntax);
 
-        const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 8));
+        const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 8), analysisService);
 
         expect(result).toBe(methodIdentifier);
-        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 8), 'create')).toBe(true);
+        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 8), 'create', analysisService)).toBe(true);
     });
 
     test('finds qualified room::init() method identifiers', () => {
@@ -130,22 +128,22 @@ describe('ScopedMethodIdentifierSupport', () => {
             [memberAccess]
         );
         const syntax = createSyntaxDocument([callExpression, memberAccess, qualifier, methodIdentifier]);
-        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
+        const analysisService = createAnalysisService(syntax);
 
-        const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 11));
+        const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 11), analysisService);
 
         expect(result).toBe(methodIdentifier);
-        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 11), 'init')).toBe(true);
+        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 11), 'init', analysisService)).toBe(true);
     });
 
     test('finds room::init() method identifiers from the parser-backed syntax tree', () => {
         const document = createTextDocument('D:/workspace/demo.c', 'void demo() {\n    room::init();\n}\n');
-        configureScopedMethodIdentifierAnalysisService(DocumentSemanticSnapshotService.getInstance());
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
 
-        const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 11));
+        const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 11), analysisService);
 
         expect(result?.name).toBe('init');
-        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 11), 'init')).toBe(true);
+        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 11), 'init', analysisService)).toBe(true);
     });
 
     test('uses the smallest containing scoped call when nested calls overlap', () => {
@@ -175,13 +173,13 @@ describe('ScopedMethodIdentifierSupport', () => {
             [outerMethodIdentifier, innerCall]
         );
         const syntax = createSyntaxDocument([outerCall, innerCall, outerMethodIdentifier, innerQualifier, innerMethodIdentifier]);
-        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
+        const analysisService = createAnalysisService(syntax);
 
-        const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 18));
+        const result = findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 18), analysisService);
 
         expect(result).toBe(innerMethodIdentifier);
-        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 18), 'run')).toBe(true);
-        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 18), 'outer')).toBe(false);
+        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 18), 'run', analysisService)).toBe(true);
+        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 18), 'outer', analysisService)).toBe(false);
     });
 
     test('returns undefined for qualifier and argument positions', () => {
@@ -201,10 +199,10 @@ describe('ScopedMethodIdentifierSupport', () => {
             [memberAccess]
         );
         const syntax = createSyntaxDocument([callExpression, memberAccess, qualifier, methodIdentifier]);
-        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
+        const analysisService = createAnalysisService(syntax);
 
-        expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 5))).toBeUndefined();
-        expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 15))).toBeUndefined();
+        expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 5), analysisService)).toBeUndefined();
+        expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 15), analysisService)).toBeUndefined();
     });
 
     test('returns undefined for malformed partial scoped calls', () => {
@@ -223,9 +221,9 @@ describe('ScopedMethodIdentifierSupport', () => {
             [memberAccess]
         );
         const syntax = createSyntaxDocument([callExpression, memberAccess, qualifier]);
-        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
+        const analysisService = createAnalysisService(syntax);
 
-        expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 8))).toBeUndefined();
+        expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 8), analysisService)).toBeUndefined();
     });
 
     test('returns false when the method name does not match', () => {
@@ -243,16 +241,16 @@ describe('ScopedMethodIdentifierSupport', () => {
             [methodIdentifier]
         );
         const syntax = createSyntaxDocument([callExpression, methodIdentifier]);
-        configureScopedMethodIdentifierAnalysisService(createAnalysisService(syntax));
+        const analysisService = createAnalysisService(syntax);
 
-        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 8), 'init')).toBe(false);
+        expect(isOnScopedMethodIdentifier(document, new vscode.Position(1, 8), 'init', analysisService)).toBe(false);
     });
 
     test('returns undefined when no syntax document is available', () => {
         const document = createTextDocument('D:/workspace/demo.c', 'void demo() {\n    ::create();\n}\n');
-        configureScopedMethodIdentifierAnalysisService(createAnalysisService(undefined));
+        const analysisService = createAnalysisService(undefined);
 
-        expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 8))).toBeUndefined();
+        expect(findScopedMethodIdentifierAtPosition(document, new vscode.Position(1, 8), analysisService)).toBeUndefined();
     });
 });
 

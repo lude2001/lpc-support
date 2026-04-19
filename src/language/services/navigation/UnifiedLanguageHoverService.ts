@@ -1,11 +1,14 @@
 import * as vscode from 'vscode';
 import type { EfunDocsManager } from '../../../efunDocs';
 import type { MacroManager } from '../../../macroManager';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
 import { EfunLanguageHoverService } from './EfunLanguageHoverService';
 
 interface UnifiedLanguageHoverServiceDependencies {
     efunHoverService?: LanguageHoverService;
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
 }
 
 export class UnifiedLanguageHoverService implements LanguageHoverService {
@@ -17,7 +20,11 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
         private readonly macroManager: MacroManager,
         dependencies: UnifiedLanguageHoverServiceDependencies = {}
     ) {
-        this.efunHoverService = dependencies.efunHoverService ?? new EfunLanguageHoverService(efunDocsManager);
+        this.efunHoverService = dependencies.efunHoverService
+            ?? new EfunLanguageHoverService(
+                efunDocsManager,
+                assertAnalysisService('UnifiedLanguageHoverService', dependencies.analysisService)
+            );
     }
 
     public async provideHover(request: LanguageHoverRequest): Promise<LanguageHoverResult | undefined> {

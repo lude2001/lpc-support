@@ -10,18 +10,12 @@ import { MacroManager } from '../macroManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
-import { configureSimulatedEfunScannerAnalysisService } from '../efun/SimulatedEfunScanner';
-import { configureEfunHoverAnalysisService } from '../language/services/navigation/EfunLanguageHoverService';
-import { configureScopedMethodIdentifierAnalysisService } from '../language/services/navigation/ScopedMethodIdentifierSupport';
 
 let registeredProjectConfigService: LpcProjectConfigService | undefined;
 
 export function registerCoreServices(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     registry.register(Services.Analysis, analysisService);
-    configureSimulatedEfunScannerAnalysisService(analysisService);
-    configureEfunHoverAnalysisService(analysisService);
-    configureScopedMethodIdentifierAnalysisService(analysisService);
     const projectConfigService = new LpcProjectConfigService();
     registeredProjectConfigService = projectConfigService;
     registry.register(Services.ProjectConfig, projectConfigService);
@@ -30,7 +24,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     registry.register(Services.MacroManager, macroManager);
     context.subscriptions.push(macroManager);
 
-    const efunDocsManager = new EfunDocsManager(context, projectConfigService);
+    const efunDocsManager = new EfunDocsManager(context, projectConfigService, analysisService);
     registry.register(Services.EfunDocs, efunDocsManager);
 
     const completionInstrumentation = new CompletionInstrumentation();

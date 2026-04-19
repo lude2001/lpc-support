@@ -12,9 +12,6 @@ import { DocumentLifecycleService } from '../DocumentLifecycleService';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
-import { configureSimulatedEfunScannerAnalysisService } from '../../efun/SimulatedEfunScanner';
-import { configureEfunHoverAnalysisService } from '../../language/services/navigation/EfunLanguageHoverService';
-import { configureScopedMethodIdentifierAnalysisService } from '../../language/services/navigation/ScopedMethodIdentifierSupport';
 
 jest.mock('../../macroManager', () => ({
     MacroManager: jest.fn()
@@ -52,18 +49,6 @@ jest.mock('../../semantic/documentSemanticSnapshotService', () => ({
 
 jest.mock('../../parser/ParsedDocumentService', () => ({
     getGlobalParsedDocumentService: jest.fn()
-}));
-
-jest.mock('../../efun/SimulatedEfunScanner', () => ({
-    configureSimulatedEfunScannerAnalysisService: jest.fn()
-}));
-
-jest.mock('../../language/services/navigation/EfunLanguageHoverService', () => ({
-    configureEfunHoverAnalysisService: jest.fn()
-}));
-
-jest.mock('../../language/services/navigation/ScopedMethodIdentifierSupport', () => ({
-    configureScopedMethodIdentifierAnalysisService: jest.fn()
 }));
 
 describe('registerCoreServices', () => {
@@ -106,9 +91,6 @@ describe('registerCoreServices', () => {
         (DocumentLifecycleService as unknown as jest.Mock).mockReset().mockImplementation(() => lifecycle);
         (getGlobalParsedDocumentService as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
         ((DocumentSemanticSnapshotService as any).getInstance as jest.Mock).mockReset().mockReturnValue(analysisService);
-        (configureSimulatedEfunScannerAnalysisService as jest.Mock).mockReset();
-        (configureEfunHoverAnalysisService as jest.Mock).mockReset();
-        (configureScopedMethodIdentifierAnalysisService as jest.Mock).mockReset();
     });
 
     test('registers core services, tracks disposables, and wires lifecycle invalidation', () => {
@@ -117,7 +99,7 @@ describe('registerCoreServices', () => {
         expect(MacroManager).toHaveBeenCalledTimes(1);
         expect(MacroManager).toHaveBeenCalledWith(projectConfigService);
         expect(EfunDocsManager).toHaveBeenCalledTimes(1);
-        expect(EfunDocsManager).toHaveBeenCalledWith(context, projectConfigService);
+        expect(EfunDocsManager).toHaveBeenCalledWith(context, projectConfigService, analysisService);
         expect(CompletionInstrumentation).toHaveBeenCalledTimes(1);
         expect(LPCConfigManager).toHaveBeenCalledTimes(1);
         expect(LPCConfigManager).toHaveBeenCalledWith(context);
@@ -135,9 +117,6 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.Lifecycle)).toBe(lifecycle);
         expect(registry.get(Services.Analysis)).toBe(analysisService);
         expect(DocumentSemanticSnapshotService.getInstance).toHaveBeenCalledTimes(1);
-        expect(configureSimulatedEfunScannerAnalysisService).toHaveBeenCalledWith(analysisService);
-        expect(configureEfunHoverAnalysisService).toHaveBeenCalledWith(analysisService);
-        expect(configureScopedMethodIdentifierAnalysisService).toHaveBeenCalledWith(analysisService);
 
         expect(context.subscriptions).toEqual([macroManager, completionInstrumentation, lifecycle]);
         expect(typeof context.subscriptions[0].dispose).toBe('function');

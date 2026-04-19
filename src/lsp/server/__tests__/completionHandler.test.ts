@@ -16,7 +16,6 @@ import type {
 } from '../../../language/services/completion/LanguageCompletionService';
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
-import { configureScopedMethodIdentifierAnalysisService } from '../../../language/services/navigation/ScopedMethodIdentifierSupport';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLogger } from '../runtime/ServerLogger';
@@ -24,12 +23,10 @@ import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 describe('registerCompletionHandler', () => {
     beforeEach(() => {
-        configureScopedMethodIdentifierAnalysisService(DocumentSemanticSnapshotService.getInstance());
     });
 
     afterEach(() => {
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();
     });
 

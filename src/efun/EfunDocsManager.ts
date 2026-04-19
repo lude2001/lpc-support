@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import { BundledEfunLoader } from './BundledEfunLoader';
 import { buildEfunHoverMarkdown, createEfunHover } from './EfunHoverContent';
 import { FileFunctionDocTracker } from './FileFunctionDocTracker';
@@ -6,6 +7,7 @@ import { SimulatedEfunScanner } from './SimulatedEfunScanner';
 import type { EfunDoc, StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
 import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 
 export class EfunDocsManager {
     private bundledLoader: BundledEfunLoader;
@@ -14,10 +16,15 @@ export class EfunDocsManager {
     private efunDocs: Map<string, EfunDoc> = new Map();
     private efunCategories: Map<string, string[]> = new Map();
 
-    constructor(context: vscode.ExtensionContext, projectConfigService?: LpcProjectConfigService) {
+    constructor(
+        context: vscode.ExtensionContext,
+        projectConfigService?: LpcProjectConfigService,
+        analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>
+    ) {
+        const resolvedAnalysisService = assertAnalysisService('EfunDocsManager', analysisService);
         this.bundledLoader = new BundledEfunLoader(context);
         this.fileFunctionDocTracker = new FileFunctionDocTracker();
-        this.simulatedEfunScanner = new SimulatedEfunScanner(projectConfigService);
+        this.simulatedEfunScanner = new SimulatedEfunScanner(projectConfigService, resolvedAnalysisService);
         this.efunDocs = this.createBundledDocsMap();
         this.efunCategories = this.createBundledCategoriesMap();
 

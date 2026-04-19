@@ -27,7 +27,6 @@ import {
     AstBackedLanguageSymbolService,
     type LanguageSymbolService
 } from '../LanguageSymbolService';
-import { configureScopedMethodIdentifierAnalysisService } from '../ScopedMethodIdentifierSupport';
 
 interface RangeCapableLanguageDocument extends LanguageDocument {
     getText(range?: LanguageRange): string;
@@ -180,14 +179,9 @@ function createCallableDoc(name: string, label: string, summary: string) {
 describe('navigation services', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
-    beforeEach(() => {
-        configureScopedMethodIdentifierAnalysisService(analysisService);
-    });
-
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureScopedMethodIdentifierAnalysisService(undefined);
     });
 
     test('hover service can operate on host-agnostic documents via injected boundaries', async () => {

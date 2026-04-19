@@ -5,7 +5,6 @@ import { AstBackedLanguageDefinitionService } from '../LanguageDefinitionService
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
-import { configureScopedMethodIdentifierAnalysisService } from '../ScopedMethodIdentifierSupport';
 
 function createDeferred<T = void>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -148,13 +147,11 @@ describe('AstBackedLanguageDefinitionService', () => {
     }
 
     beforeEach(() => {
-        configureScopedMethodIdentifierAnalysisService(analysisService);
     });
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureScopedMethodIdentifierAnalysisService(undefined);
     });
 
     test('reuses simulated efun source locations from docs before graph traversal', async () => {

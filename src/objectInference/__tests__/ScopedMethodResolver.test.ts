@@ -4,7 +4,6 @@ import * as vscode from 'vscode';
 import { beforeEach, afterEach, describe, expect, jest, test } from '@jest/globals';
 import { ASTManager } from '../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
-import { configureScopedMethodIdentifierAnalysisService } from '../../language/services/navigation/ScopedMethodIdentifierSupport';
 
 declare const require: any;
 
@@ -97,7 +96,6 @@ describe('ScopedMethodResolver', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        configureScopedMethodIdentifierAnalysisService(analysisService);
         previousWorkspaceFolders = vscode.workspace.workspaceFolders;
         fixtureRoot = path.join(process.cwd(), '.tmp-scoped-method-resolver');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
@@ -127,7 +125,6 @@ describe('ScopedMethodResolver', () => {
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureScopedMethodIdentifierAnalysisService(undefined);
         (vscode.workspace as any).workspaceFolders = previousWorkspaceFolders;
         jest.restoreAllMocks();
         fs.rmSync(fixtureRoot, { recursive: true, force: true });

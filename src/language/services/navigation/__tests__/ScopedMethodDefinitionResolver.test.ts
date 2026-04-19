@@ -4,7 +4,6 @@ import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { ScopedMethodDefinitionResolver } from '../definition/ScopedMethodDefinitionResolver';
 import { DefinitionResolverSupport } from '../definition/DefinitionResolverSupport';
-import { configureScopedMethodIdentifierAnalysisService } from '../ScopedMethodIdentifierSupport';
 
 function createTextDocument(filePath: string, source: string): vscode.TextDocument {
     const lines = source.split(/\r?\n/);
@@ -78,20 +77,18 @@ function createSupport(): DefinitionResolverSupport {
 }
 
 describe('ScopedMethodDefinitionResolver', () => {
-    beforeEach(() => {
-        configureScopedMethodIdentifierAnalysisService(DocumentSemanticSnapshotService.getInstance());
-    });
+    const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureScopedMethodIdentifierAnalysisService(undefined);
     });
 
     test('returns locations for bare scoped method identifiers only', async () => {
         const document = createTextDocument('D:/workspace/room.c', 'void demo() {\n    ::create();\n}\n');
         const resolver = new ScopedMethodDefinitionResolver({
             astManager: ASTManager.getInstance(),
+            analysisService,
             support: createSupport(),
             scopedMethodResolver: {
                 resolveCallAt: jest.fn().mockResolvedValue({
@@ -124,6 +121,7 @@ describe('ScopedMethodDefinitionResolver', () => {
         const document = createTextDocument('D:/workspace/room.c', 'void demo() {\n    room::init(arg);\n}\n');
         const resolver = new ScopedMethodDefinitionResolver({
             astManager: ASTManager.getInstance(),
+            analysisService,
             support: createSupport(),
             scopedMethodResolver: {
                 resolveCallAt: jest.fn().mockResolvedValue({
@@ -150,6 +148,7 @@ describe('ScopedMethodDefinitionResolver', () => {
         const document = createTextDocument('D:/workspace/room.c', 'void demo() {\n    room::init();\n}\n');
         const resolver = new ScopedMethodDefinitionResolver({
             astManager: ASTManager.getInstance(),
+            analysisService,
             support: createSupport(),
             scopedMethodResolver: {
                 resolveCallAt: jest.fn().mockResolvedValue({

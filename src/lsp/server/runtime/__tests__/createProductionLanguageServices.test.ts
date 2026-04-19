@@ -11,9 +11,6 @@ const analysisService = {
     getSemanticSnapshot: jest.fn(),
     getBestAvailableSnapshot: jest.fn()
 };
-const configureSimulatedEfunScannerAnalysisService = jest.fn();
-const configureEfunHoverAnalysisService = jest.fn();
-const configureScopedMethodIdentifierAnalysisService = jest.fn();
 const efunHoverService = { provideHover: jest.fn() };
 const efunHoverCtor = jest.fn(() => efunHoverService);
 
@@ -23,17 +20,8 @@ jest.mock('../../../../semantic/documentSemanticSnapshotService', () => ({
     }
 }));
 
-jest.mock('../../../../efun/SimulatedEfunScanner', () => ({
-    configureSimulatedEfunScannerAnalysisService
-}));
-
 jest.mock('../../../../language/services/navigation/EfunLanguageHoverService', () => ({
-    EfunLanguageHoverService: efunHoverCtor,
-    configureEfunHoverAnalysisService
-}));
-
-jest.mock('../../../../language/services/navigation/ScopedMethodIdentifierSupport', () => ({
-    configureScopedMethodIdentifierAnalysisService
+    EfunLanguageHoverService: efunHoverCtor
 }));
 
 describe('createProductionLanguageServices', () => {
@@ -141,9 +129,8 @@ describe('createProductionLanguageServices', () => {
             const services = createProductionLanguageServices();
             const request = { example: true } as any;
 
-            expect(configureSimulatedEfunScannerAnalysisService).toHaveBeenCalledWith(analysisService);
-            expect(configureEfunHoverAnalysisService).toHaveBeenCalledWith(analysisService);
-            expect(configureScopedMethodIdentifierAnalysisService).toHaveBeenCalledWith(analysisService);
+            const { EfunDocsManager } = require('../../../../efun/EfunDocsManager') as typeof import('../../../../efun/EfunDocsManager');
+            expect(EfunDocsManager).toHaveBeenCalledWith(expect.anything(), projectConfigService, analysisService);
             expect(services.completionService).toBe(completionService);
             expect(services.diagnosticsService).toBe(diagnosticsService);
             expect(services.formattingService).toBe(formattingService);

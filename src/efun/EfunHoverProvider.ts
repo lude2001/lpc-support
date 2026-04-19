@@ -4,12 +4,16 @@ import type { EfunDocsManager } from './EfunDocsManager';
 import type { EfunDoc } from './types';
 import type { LanguageHoverResult } from '../language/services/navigation/LanguageHoverService';
 import { EfunLanguageHoverService } from '../language/services/navigation/EfunLanguageHoverService';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 
 export class EfunHoverProvider implements vscode.HoverProvider {
     private readonly hoverService: EfunLanguageHoverService;
 
-    public constructor(efunDocsManager: EfunDocsManager) {
-        this.hoverService = new EfunLanguageHoverService(efunDocsManager);
+    public constructor(
+        efunDocsManager: EfunDocsManager,
+        analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument'>
+    ) {
+        this.hoverService = new EfunLanguageHoverService(efunDocsManager, analysisService);
     }
 
     public async provideHover(

@@ -5,10 +5,8 @@ import * as path from 'path';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { EfunDocsManager } from '../../../../efunDocs';
-import { configureSimulatedEfunScannerAnalysisService } from '../../../../efun/SimulatedEfunScanner';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
-import { configureScopedMethodIdentifierAnalysisService } from '../../navigation/ScopedMethodIdentifierSupport';
 import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
 import type { CallableDoc } from '../../../documentation/types';
 import { TargetMethodLookup } from '../../../../targetMethodLookup';
@@ -201,15 +199,11 @@ describe('LanguageSignatureHelpService', () => {
     }
 
     beforeEach(() => {
-        configureSimulatedEfunScannerAnalysisService(analysisService);
-        configureScopedMethodIdentifierAnalysisService(analysisService);
     });
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureSimulatedEfunScannerAnalysisService(undefined);
-        configureScopedMethodIdentifierAnalysisService(undefined);
         clearGlobalParsedDocumentService();
         (vscode.workspace as any).workspaceFolders = originalWorkspaceFolders;
         jest.restoreAllMocks();
@@ -295,7 +289,7 @@ describe('LanguageSignatureHelpService', () => {
         const efunDocsManager = new EfunDocsManager({
             subscriptions: [],
             extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext);
+        } as unknown as vscode.ExtensionContext, undefined, analysisService);
         const service = createSignatureHelpService({
             efunDocsManager,
             host: {

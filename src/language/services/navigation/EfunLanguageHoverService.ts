@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { EfunDocsManager } from '../../../efunDocs';
 import type { EfunDoc } from '../../../efun/types';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import type { CallableDoc, CallableSignature } from '../../documentation/types';
@@ -9,21 +10,15 @@ import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } 
 
 type EfunHoverAnalysisService = Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
 
-let configuredEfunHoverAnalysisService: EfunHoverAnalysisService | undefined;
-
-export function configureEfunHoverAnalysisService(service?: EfunHoverAnalysisService): void {
-    configuredEfunHoverAnalysisService = service;
-}
-
 export class EfunLanguageHoverService implements LanguageHoverService {
     private readonly analysisService: EfunHoverAnalysisService;
     private readonly renderer = new CallableDocRenderer();
 
     public constructor(
         private readonly efunDocsManager: EfunDocsManager,
-        analysisService?: EfunHoverAnalysisService
+        analysisService: EfunHoverAnalysisService
     ) {
-        this.analysisService = analysisService ?? requireEfunHoverAnalysisService();
+        this.analysisService = assertAnalysisService('EfunLanguageHoverService', analysisService);
     }
 
     public async provideHover(request: LanguageHoverRequest): Promise<LanguageHoverResult | undefined> {
@@ -183,12 +178,4 @@ function createHoverResult(range: vscode.Range, value: string): LanguageHoverRes
             }
         }
     };
-}
-
-function requireEfunHoverAnalysisService(): EfunHoverAnalysisService {
-    if (!configuredEfunHoverAnalysisService) {
-        throw new Error('Efun hover analysis service has not been configured');
-    }
-
-    return configuredEfunHoverAnalysisService;
 }

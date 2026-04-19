@@ -10,13 +10,12 @@ import { createLanguageCodeActionService } from '../../../language/services/code
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
 import { createLanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
 import { AstBackedLanguageDefinitionService } from '../../../language/services/navigation/LanguageDefinitionService';
-import { EfunLanguageHoverService, configureEfunHoverAnalysisService } from '../../../language/services/navigation/EfunLanguageHoverService';
+import { EfunLanguageHoverService } from '../../../language/services/navigation/EfunLanguageHoverService';
 import {
     LanguageNavigationService,
     ObjectInferenceLanguageHoverService
 } from '../../../language/services/navigation/LanguageHoverService';
 import { InheritedSymbolRelationService } from '../../../language/services/navigation/InheritedSymbolRelationService';
-import { configureScopedMethodIdentifierAnalysisService } from '../../../language/services/navigation/ScopedMethodIdentifierSupport';
 import { UnifiedLanguageHoverService } from '../../../language/services/navigation/UnifiedLanguageHoverService';
 import { AstBackedLanguageReferenceService } from '../../../language/services/navigation/LanguageReferenceService';
 import { AstBackedLanguageRenameService } from '../../../language/services/navigation/LanguageRenameService';
@@ -34,20 +33,16 @@ import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResol
 import { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
-import { configureSimulatedEfunScannerAnalysisService } from '../../../efun/SimulatedEfunScanner';
 import { setServerWorkspaceRoots } from './serverHostState';
 
 export function createProductionLanguageServices(): LanguageFeatureServices {
     setServerWorkspaceRoots([process.cwd()]);
 
     const analysisService = DocumentSemanticSnapshotService.getInstance();
-    configureSimulatedEfunScannerAnalysisService(analysisService);
-    configureEfunHoverAnalysisService(analysisService);
-    configureScopedMethodIdentifierAnalysisService(analysisService);
 
     const projectConfigService = new LpcProjectConfigService();
     const macroManager = new MacroManager(projectConfigService);
-    const efunDocsManager = new EfunDocsManager(createServerExtensionContext(), projectConfigService);
+    const efunDocsManager = new EfunDocsManager(createServerExtensionContext(), projectConfigService, analysisService);
     const completionInstrumentation = new CompletionInstrumentation();
     const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService, analysisService);
     const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService);
@@ -90,7 +85,10 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         objectHoverService,
         efunDocsManager,
         macroManager,
-        { efunHoverService: new EfunLanguageHoverService(efunDocsManager, analysisService) }
+        {
+            analysisService,
+            efunHoverService: new EfunLanguageHoverService(efunDocsManager, analysisService)
+        }
     );
     const definitionService = new AstBackedLanguageDefinitionService(
         macroManager,

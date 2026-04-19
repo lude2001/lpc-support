@@ -233,13 +233,17 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
             ensureVsCodeBackedDocument(document),
             toVsCodePosition(request.position)
         );
+        const scopedAnalysisService = scopedResolution
+            ? assertAnalysisService('ObjectInferenceLanguageHoverService', this.analysisService)
+            : undefined;
         if (
             scopedResolution
+            && scopedAnalysisService
             && isOnScopedMethodIdentifier(
                 ensureVsCodeBackedDocument(document),
                 toVsCodePosition(request.position),
                 scopedResolution.methodName,
-                this.analysisService
+                scopedAnalysisService
             )
         ) {
             if (scopedResolution.status === 'unknown' || scopedResolution.status === 'unsupported') {

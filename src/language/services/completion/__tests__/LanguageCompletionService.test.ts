@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { QueryBackedLanguageCompletionService } from '../LanguageCompletionService';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
-import { configureScopedMethodIdentifierAnalysisService } from '../../navigation/ScopedMethodIdentifierSupport';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -66,12 +65,10 @@ describe('LanguageCompletionService scoped completion resolve', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     beforeEach(() => {
-        configureScopedMethodIdentifierAnalysisService(analysisService);
     });
 
     afterEach(() => {
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureScopedMethodIdentifierAnalysisService(undefined);
     });
 
     test('scoped completion resolveCompletionItem loads callable docs by declaration key', async () => {

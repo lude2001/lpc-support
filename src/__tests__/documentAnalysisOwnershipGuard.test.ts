@@ -60,15 +60,18 @@ describe('document analysis ownership guards', () => {
         expect(astSingletonCallSites).toEqual([]);
     });
 
-    test('production sources do not route analysis ownership through the scoped-method helper seam', () => {
+    test('scoped-method helper seam no longer exposes ambient analysis ownership hooks', () => {
         const ambientAnalysisAccessCallSites = listProductionTypeScriptFiles(srcRoot)
-            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('requireConfiguredDocumentAnalysisService('))
+            .filter((filePath) => {
+                const source = fs.readFileSync(filePath, 'utf8');
+                return source.includes('requireConfiguredDocumentAnalysisService(')
+                    || source.includes('getConfiguredDocumentAnalysisService(')
+                    || source.includes('configureScopedMethodIdentifierAnalysisService(');
+            })
             .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
             .sort();
 
-        expect(ambientAnalysisAccessCallSites).toEqual([
-            'src/language/services/navigation/ScopedMethodIdentifierSupport.ts'
-        ]);
+        expect(ambientAnalysisAccessCallSites).toEqual([]);
     });
 
     test('production scoped identifier lookups pass analysis services explicitly', () => {

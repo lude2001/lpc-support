@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { EfunDocsManager } from '../../efunDocs';
-import { configureSimulatedEfunScannerAnalysisService } from '../../efun/SimulatedEfunScanner';
-import { configureEfunHoverAnalysisService } from '../../language/services/navigation/EfunLanguageHoverService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { EfunHoverProvider } from '../EfunHoverProvider';
@@ -76,10 +74,6 @@ function createMemberAccessSyntaxDocument(memberName: string, memberStart: numbe
 describe('EfunHoverProvider', () => {
     beforeEach(() => {
         mockGetSyntaxDocument.mockReset();
-        configureSimulatedEfunScannerAnalysisService(DocumentSemanticSnapshotService.getInstance());
-        configureEfunHoverAnalysisService({
-            getSyntaxDocument: mockGetSyntaxDocument
-        } as any);
     });
 
     test('renders bundled standard efun documentation when no source-backed docs match', async () => {
@@ -88,8 +82,10 @@ describe('EfunHoverProvider', () => {
         const manager = new EfunDocsManager({
             subscriptions: [],
             extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext);
-        const provider = new EfunHoverProvider(manager);
+        } as unknown as vscode.ExtensionContext, undefined, DocumentSemanticSnapshotService.getInstance());
+        const provider = new EfunHoverProvider(manager, {
+            getSyntaxDocument: mockGetSyntaxDocument
+        } as any);
         const document = {
             uri: vscode.Uri.file('D:/code/lpc/room/test.c'),
             languageId: 'lpc',
@@ -153,7 +149,9 @@ describe('EfunHoverProvider', () => {
             getEfunDoc: jest.fn()
         } as any;
 
-        const provider = new EfunHoverProvider(manager);
+        const provider = new EfunHoverProvider(manager, {
+            getSyntaxDocument: mockGetSyntaxDocument
+        } as any);
         const document = {
             getWordRangeAtPosition: jest.fn().mockReturnValue(new vscode.Range(0, 0, 0, 11)),
             getText: jest.fn((range?: vscode.Range) => {
@@ -195,7 +193,9 @@ describe('EfunHoverProvider', () => {
             getEfunDoc: jest.fn()
         } as any;
 
-        const provider = new EfunHoverProvider(manager);
+        const provider = new EfunHoverProvider(manager, {
+            getSyntaxDocument: mockGetSyntaxDocument
+        } as any);
         const document = {
             getWordRangeAtPosition: jest.fn().mockReturnValue(new vscode.Range(0, 8, 0, 13)),
             getText: jest.fn((range?: vscode.Range) => {
@@ -229,7 +229,9 @@ describe('EfunHoverProvider', () => {
             getEfunDoc: jest.fn()
         } as any;
 
-        const provider = new EfunHoverProvider(manager);
+        const provider = new EfunHoverProvider(manager, {
+            getSyntaxDocument: mockGetSyntaxDocument
+        } as any);
         const document = {
             getWordRangeAtPosition: jest.fn().mockReturnValue(new vscode.Range(0, 19, 0, 24)),
             getText: jest.fn((range?: vscode.Range) => {
@@ -267,8 +269,10 @@ describe('EfunHoverProvider', () => {
         const manager = new EfunDocsManager({
             subscriptions: [],
             extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext);
-        const provider = new EfunHoverProvider(manager);
+        } as unknown as vscode.ExtensionContext, undefined, DocumentSemanticSnapshotService.getInstance());
+        const provider = new EfunHoverProvider(manager, {
+            getSyntaxDocument: mockGetSyntaxDocument
+        } as any);
         const document = {
             uri: vscode.Uri.file('D:/workspace/prototype-hover.c'),
             languageId: 'lpc',

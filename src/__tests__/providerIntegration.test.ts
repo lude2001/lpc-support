@@ -7,12 +7,10 @@ import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator'
 import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
-import { configureScopedMethodIdentifierAnalysisService } from '../language/services/navigation/ScopedMethodIdentifierSupport';
 import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
 import { ObjectInferenceService } from '../objectInference/ObjectInferenceService';
 import { ScopedMethodResolver } from '../objectInference/ScopedMethodResolver';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
-import { configureSimulatedEfunScannerAnalysisService } from '../efun/SimulatedEfunScanner';
 import { TargetMethodLookup } from '../targetMethodLookup';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
@@ -227,8 +225,6 @@ describe('language-service integration regression', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         analysisService = DocumentSemanticSnapshotService.getInstance();
-        configureSimulatedEfunScannerAnalysisService(analysisService);
-        configureScopedMethodIdentifierAnalysisService(analysisService);
         fixtureRoot = path.join(process.cwd(), '.tmp-provider-integration');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
         fs.mkdirSync(path.join(fixtureRoot, 'lib'), { recursive: true });
@@ -241,8 +237,6 @@ describe('language-service integration regression', () => {
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
-        configureSimulatedEfunScannerAnalysisService(undefined);
-        configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
     });

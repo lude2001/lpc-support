@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { InheritDirective, IncludeDirective } from '../semantic/documentSemanticTypes';
+import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { Trivia } from '../parser/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
@@ -10,21 +11,15 @@ import type { EfunDoc } from './types';
 
 type SimulatedEfunAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
 
-let configuredSimulatedEfunScannerAnalysisService: SimulatedEfunAnalysisService | undefined;
-
-export function configureSimulatedEfunScannerAnalysisService(service?: SimulatedEfunAnalysisService): void {
-    configuredSimulatedEfunScannerAnalysisService = service;
-}
-
 export class SimulatedEfunScanner {
     private docs: Map<string, EfunDoc> = new Map();
     private readonly analysisService: SimulatedEfunAnalysisService;
 
     constructor(
-        private readonly projectConfigService?: LpcProjectConfigService,
-        analysisService?: SimulatedEfunAnalysisService
+        private readonly projectConfigService: LpcProjectConfigService | undefined,
+        analysisService: SimulatedEfunAnalysisService
     ) {
-        this.analysisService = analysisService ?? requireSimulatedEfunAnalysisService();
+        this.analysisService = assertAnalysisService('SimulatedEfunScanner', analysisService);
     }
 
     public get(name: string): EfunDoc | undefined {
@@ -295,12 +290,4 @@ export class SimulatedEfunScanner {
 
         return lineStarts;
     }
-}
-
-function requireSimulatedEfunAnalysisService(): SimulatedEfunAnalysisService {
-    if (!configuredSimulatedEfunScannerAnalysisService) {
-        throw new Error('Simulated efun scanner analysis service has not been configured');
-    }
-
-    return configuredSimulatedEfunScannerAnalysisService;
 }

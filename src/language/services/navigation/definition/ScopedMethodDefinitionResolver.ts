@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
+import { assertAnalysisService } from '../../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../../semantic/documentAnalysisService';
 import { isOnScopedMethodIdentifier } from '../ScopedMethodIdentifierSupport';
 
@@ -16,13 +17,17 @@ export class ScopedMethodDefinitionResolver {
         position: vscode.Position
     ): Promise<vscode.Location[] | undefined> {
         const scopedResolution = await this.dependencies.scopedMethodResolver?.resolveCallAt(document, position);
+        const analysisService = this.dependencies.analysisService
+            ? assertAnalysisService('ScopedMethodDefinitionResolver', this.dependencies.analysisService)
+            : undefined;
         if (
             !scopedResolution
+            || !analysisService
             || !isOnScopedMethodIdentifier(
                 document,
                 position,
                 scopedResolution.methodName,
-                this.dependencies.analysisService
+                analysisService
             )
         ) {
             return undefined;

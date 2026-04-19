@@ -1,36 +1,18 @@
 import * as vscode from 'vscode';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
 
 export type ScopedMethodIdentifierAnalysisService = Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
 
-let configuredScopedMethodIdentifierAnalysisService: ScopedMethodIdentifierAnalysisService | undefined;
-
-export function configureScopedMethodIdentifierAnalysisService(
-    service?: ScopedMethodIdentifierAnalysisService
-): void {
-    configuredScopedMethodIdentifierAnalysisService = service;
-}
-
-export function getConfiguredDocumentAnalysisService(): ScopedMethodIdentifierAnalysisService | undefined {
-    return configuredScopedMethodIdentifierAnalysisService;
-}
-
-export function requireConfiguredDocumentAnalysisService(): ScopedMethodIdentifierAnalysisService {
-    if (!configuredScopedMethodIdentifierAnalysisService) {
-        throw new Error('Document analysis service has not been configured');
-    }
-
-    return configuredScopedMethodIdentifierAnalysisService;
-}
-
 export function findScopedMethodIdentifierAtPosition(
     document: vscode.TextDocument,
     position: vscode.Position,
-    analysisService: ScopedMethodIdentifierAnalysisService = requireScopedMethodIdentifierAnalysisService()
+    analysisService: ScopedMethodIdentifierAnalysisService
 ): SyntaxNode | undefined {
-    const syntax = analysisService.getSyntaxDocument(document, false)
-        ?? analysisService.getSyntaxDocument(document, true);
+    const resolvedAnalysisService = assertAnalysisService('findScopedMethodIdentifierAtPosition', analysisService);
+    const syntax = resolvedAnalysisService.getSyntaxDocument(document, false)
+        ?? resolvedAnalysisService.getSyntaxDocument(document, true);
     if (!syntax) {
         return undefined;
     }
@@ -53,7 +35,7 @@ export function isOnScopedMethodIdentifier(
     document: vscode.TextDocument,
     position: vscode.Position,
     methodName: string,
-    analysisService: ScopedMethodIdentifierAnalysisService = requireScopedMethodIdentifierAnalysisService()
+    analysisService: ScopedMethodIdentifierAnalysisService
 ): boolean {
     const methodIdentifier = findScopedMethodIdentifierAtPosition(document, position, analysisService);
     return Boolean(methodIdentifier && methodIdentifier.name === methodName);
@@ -105,8 +87,4 @@ function compareScopedCallCandidates(
 
 function getRangeSpanSize(document: vscode.TextDocument, range: vscode.Range): number {
     return document.offsetAt(range.end) - document.offsetAt(range.start);
-}
-
-function requireScopedMethodIdentifierAnalysisService(): ScopedMethodIdentifierAnalysisService {
-    return requireConfiguredDocumentAnalysisService();
 }

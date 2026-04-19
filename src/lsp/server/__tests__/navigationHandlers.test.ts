@@ -40,7 +40,6 @@ import {
     type LanguageRenameService
 } from '../../../language/services/navigation/LanguageRenameService';
 import type { LanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
-import { configureScopedMethodIdentifierAnalysisService } from '../../../language/services/navigation/ScopedMethodIdentifierSupport';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { registerDefinitionHandler } from '../handlers/navigation/registerDefinitionHandler';
 import { registerDocumentSymbolHandler } from '../handlers/navigation/registerDocumentSymbolHandler';
@@ -107,15 +106,9 @@ describe('lsp conversions', () => {
 });
 
 describe('navigation handlers', () => {
-    beforeEach(() => {
-        const analysisService = DocumentSemanticSnapshotService.getInstance();
-        configureScopedMethodIdentifierAnalysisService(analysisService);
-    });
-
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();
         jest.resetModules();
     });

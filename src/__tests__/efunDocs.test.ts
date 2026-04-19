@@ -4,15 +4,18 @@ import * as os from 'os';
 import * as path from 'path';
 import { ASTManager } from '../ast/astManager';
 import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManager';
-import {
-    SimulatedEfunScanner,
-    configureSimulatedEfunScannerAnalysisService
-} from '../efun/SimulatedEfunScanner';
+import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
-import { configureScopedMethodIdentifierAnalysisService } from '../language/services/navigation/ScopedMethodIdentifierSupport';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { TestHelper } from './utils/TestHelper';
+
+function createSimulatedScanner(projectConfigService?: any): SimulatedEfunScanner {
+    return new SimulatedEfunScanner(
+        projectConfigService,
+        DocumentSemanticSnapshotService.getInstance()
+    );
+}
 
 describe('EfunDocsManager', () => {
     let errorSpy: jest.SpyInstance;
@@ -20,9 +23,6 @@ describe('EfunDocsManager', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        const analysisService = DocumentSemanticSnapshotService.getInstance();
-        configureScopedMethodIdentifierAnalysisService(analysisService);
-        configureSimulatedEfunScannerAnalysisService(analysisService);
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((_: string, defaultValue?: unknown) => defaultValue),
             update: jest.fn().mockResolvedValue(undefined)
@@ -34,8 +34,6 @@ describe('EfunDocsManager', () => {
     });
 
     afterEach(() => {
-        configureScopedMethodIdentifierAnalysisService(undefined);
-        configureSimulatedEfunScannerAnalysisService(undefined);
         errorSpy.mockRestore();
         warnSpy.mockRestore();
     });
@@ -45,6 +43,14 @@ describe('EfunDocsManager', () => {
             subscriptions: [],
             extensionPath
         } as unknown as vscode.ExtensionContext;
+    }
+
+    function createManager(extensionPath: string): EfunDocsManager {
+        return new EfunDocsManager(
+            createContext(extensionPath),
+            undefined,
+            DocumentSemanticSnapshotService.getInstance()
+        );
     }
 
     function writeBundleFile(extensionPath: string, value: unknown | string): void {
@@ -184,7 +190,7 @@ describe('EfunDocsManager', () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-structured-'));
         writeBundleFile(extensionPath, createStructuredBundle());
 
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
         const allocateDoc = await manager.getEfunDoc('allocate');
         const callOtherDoc = await manager.getEfunDoc('call_other');
         const callOutDoc = await manager.getEfunDoc('call_out');
@@ -229,7 +235,7 @@ describe('EfunDocsManager', () => {
     test('should build bundled efun completion documentation through the shared completion service', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-completion-'));
         writeBundleFile(extensionPath, createStructuredBundle());
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
         const service = new QueryBackedLanguageCompletionService(manager, {
             getMacro: jest.fn(),
             getAllMacros: jest.fn(() => []),
@@ -285,7 +291,7 @@ describe('EfunDocsManager', () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-malformed-'));
         writeBundleFile(extensionPath, '{ invalid json');
 
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().size).toBe(0);
@@ -302,7 +308,7 @@ describe('EfunDocsManager', () => {
             }
         });
 
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().size).toBe(0);
@@ -334,7 +340,7 @@ describe('EfunDocsManager', () => {
             }
         });
 
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual(['call_out']);
         expect(manager.getStandardDoc('call_out')).toMatchObject({
@@ -353,7 +359,7 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
 
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual(['call_out']);
         expect(manager.getAllFunctions()).toEqual(expect.arrayContaining(['call_out', 'allocate', 'orphan_doc']));
@@ -384,7 +390,7 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getStandardDoc('wrong_key')).toBeUndefined();
@@ -439,7 +445,7 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
         const mixedReturnsDoc = await manager.getEfunDoc('mixed_returns');
         const lateOnlyDoc = await manager.getEfunDoc('late_only_return_type');
 
@@ -470,7 +476,7 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
@@ -503,14 +509,14 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = new EfunDocsManager(createContext(extensionPath));
+        const manager = createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
     });
 
     test('hover markdown is not trusted and preserves pointer-like parameter types in the table', () => {
-        const manager = new EfunDocsManager(createContext(process.cwd())) as any;
+        const manager = createManager(process.cwd()) as any;
         const hover = manager.createHoverContent({
             name: 'demo',
             syntax: 'mixed demo(mixed * items, string* label)',
@@ -524,7 +530,7 @@ describe('EfunDocsManager', () => {
     });
 
     test('hover parameter table escapes markdown-breaking pipe characters', () => {
-        const manager = new EfunDocsManager(createContext(process.cwd())) as any;
+        const manager = createManager(process.cwd()) as any;
         const hover = manager.createHoverContent({
             name: 'demo',
             syntax: 'void demo(string value)',
@@ -539,7 +545,6 @@ describe('EfunDocsManager', () => {
 describe('SimulatedEfunScanner', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        configureSimulatedEfunScannerAnalysisService(DocumentSemanticSnapshotService.getInstance());
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((_: string, defaultValue?: unknown) => defaultValue),
             update: jest.fn().mockResolvedValue(undefined)
@@ -550,12 +555,11 @@ describe('SimulatedEfunScanner', () => {
     });
 
     afterEach(() => {
-        configureSimulatedEfunScannerAnalysisService(undefined);
     });
 
     test('clears previously loaded docs when a later reload cannot scan', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-clear-'));
-        const scanner = new SimulatedEfunScanner();
+        const scanner = createSimulatedScanner();
 
         fs.writeFileSync(path.join(workspaceRoot, 'lpc-support.json'), JSON.stringify({
             version: 1,
@@ -570,7 +574,7 @@ describe('SimulatedEfunScanner', () => {
             ' */',
             'int sim_helper()'
         ].join('\n'));
-        const scannerWithProjectConfig = new SimulatedEfunScanner({
+        const scannerWithProjectConfig = createSimulatedScanner({
             getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(simulFile),
             getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' })
         } as any);
@@ -593,7 +597,7 @@ describe('SimulatedEfunScanner', () => {
             getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(entryFile),
             getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' })
         };
-        const scanner = new SimulatedEfunScanner(projectConfigService as any);
+        const scanner = createSimulatedScanner(projectConfigService as any);
 
         fs.mkdirSync(entryDir, { recursive: true });
         fs.writeFileSync(entryFile, [
@@ -618,7 +622,7 @@ describe('SimulatedEfunScanner', () => {
 
     test('does not auto-scan legacy simulated efun path when project config has no simulatedEfunFile', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-no-configured-file-'));
-        const scanner = new SimulatedEfunScanner(new (await import('../projectConfig/LpcProjectConfigService')).LpcProjectConfigService());
+        const scanner = createSimulatedScanner(new (await import('../projectConfig/LpcProjectConfigService')).LpcProjectConfigService());
         fs.writeFileSync(path.join(workspaceRoot, 'lpc-support.json'), JSON.stringify({
             version: 1,
             configHellPath: 'config.hell'
@@ -638,7 +642,7 @@ describe('SimulatedEfunScanner', () => {
         const entryFile = path.join(entryDir, 'simul_efun.c');
         const { LpcProjectConfigService } = await import('../projectConfig/LpcProjectConfigService');
         const projectConfigService = new LpcProjectConfigService();
-        const scanner = new SimulatedEfunScanner(projectConfigService);
+        const scanner = createSimulatedScanner(projectConfigService);
 
         fs.mkdirSync(entryDir, { recursive: true });
         fs.writeFileSync(entryFile, 'int sim_helper() { return 1; }');
@@ -701,7 +705,7 @@ describe('SimulatedEfunScanner', () => {
             getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(entryFile),
             getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' })
         };
-        const scanner = new SimulatedEfunScanner(projectConfigService as any);
+        const scanner = createSimulatedScanner(projectConfigService as any);
 
         (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
@@ -745,7 +749,7 @@ describe('SimulatedEfunScanner', () => {
             getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(entryFile),
             getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' })
         };
-        const scanner = new SimulatedEfunScanner(projectConfigService as any);
+        const scanner = createSimulatedScanner(projectConfigService as any);
 
         (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({

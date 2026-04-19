@@ -1,6 +1,7 @@
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageRange } from '../../contracts/LanguagePosition';
 import * as vscode from 'vscode';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import type { FunctionSummary, TypeDefinitionSummary, MemberSummary } from '../../../semantic/documentSemanticTypes';
 
@@ -153,16 +154,8 @@ export class AstBackedLanguageSymbolService implements LanguageSymbolService {
 
     private getSnapshotAdapter(): LanguageDocumentSymbolsSnapshotAdapter {
         return this.dependencies.snapshotAdapter
-            ?? new VsCodeDocumentSymbolsSnapshotAdapter(requireLanguageSymbolAnalysisService(this.dependencies.analysisService));
+            ?? new VsCodeDocumentSymbolsSnapshotAdapter(
+                assertAnalysisService('AstBackedLanguageSymbolService', this.dependencies.analysisService)
+            );
     }
-}
-
-function requireLanguageSymbolAnalysisService(
-    service?: Pick<DocumentAnalysisService, 'getBestAvailableSnapshot'>
-): Pick<DocumentAnalysisService, 'getBestAvailableSnapshot'> {
-    if (!service) {
-        throw new Error('Language symbol analysis service has not been configured');
-    }
-
-    return service;
 }

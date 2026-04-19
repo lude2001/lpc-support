@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { InheritedSymbolRelationService } from '../InheritedSymbolRelationService';
-import { configureScopedMethodIdentifierAnalysisService } from '../ScopedMethodIdentifierSupport';
 
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
     const uri = vscode.Uri.parse(uriValue);
@@ -117,13 +116,11 @@ describe('InheritedSymbolRelationService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     beforeEach(() => {
-        configureScopedMethodIdentifierAnalysisService(analysisService);
     });
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();
     });
 

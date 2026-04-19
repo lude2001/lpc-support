@@ -4,6 +4,7 @@ import { Token } from 'antlr4ts';
 import * as vscode from 'vscode';
 import { LPCLexer } from '../../../antlr/LPCLexer';
 import { SymbolType } from '../../../ast/symbolTable';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { DocumentSemanticSnapshot } from '../../../semantic/documentSemanticTypes';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
@@ -189,14 +190,17 @@ const EFUNS = loadConfiguredEfunNames();
 
 export class DefaultLanguageSemanticTokensService implements LanguageSemanticTokensService {
     public constructor(
-        private readonly analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>
+        private readonly analysisService: Pick<DocumentAnalysisService, 'parseDocument'>
     ) {}
 
     public async provideSemanticTokens(
         request: LanguageSemanticTokensRequest
     ): Promise<LanguageSemanticTokensResult> {
         const document = request.context.document;
-        const analysis = requireLanguageSemanticTokensAnalysisService(this.analysisService).parseDocument(document as any);
+        const analysis = assertAnalysisService(
+            'DefaultLanguageSemanticTokensService',
+            this.analysisService
+        ).parseDocument(document as any);
         const parsed = analysis.parsed;
 
         if (!parsed) {
@@ -352,14 +356,4 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
 
 function createHostPosition(line: number, character: number): HostPosition {
     return new vscode.Position(line, character);
-}
-
-function requireLanguageSemanticTokensAnalysisService(
-    service?: Pick<DocumentAnalysisService, 'parseDocument'>
-): Pick<DocumentAnalysisService, 'parseDocument'> {
-    if (!service) {
-        throw new Error('Language semantic tokens analysis service has not been configured');
-    }
-
-    return service;
 }
