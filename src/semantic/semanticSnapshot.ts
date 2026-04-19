@@ -9,7 +9,7 @@ import {
     MacroReference,
     ScopeSummary,
     TypeDefinitionSummary
-} from '../completion/types';
+} from './documentSemanticTypes';
 import { SyntaxDocument } from '../syntax/types';
 
 export interface SemanticSnapshot {
