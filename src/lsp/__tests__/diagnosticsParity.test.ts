@@ -6,6 +6,7 @@ import type { LanguageDocument } from '../../language/contracts/LanguageDocument
 import { createSharedDiagnosticsService } from '../../language/services/diagnostics/createSharedDiagnosticsService';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from '../../__tests__/testAstManagerSingleton';
 import {
@@ -196,7 +197,7 @@ async function collectHostDiagnostics(
         getIncludePath: jest.fn(() => undefined)
     };
     const resolvedCollectors = collectors ?? [];
-    const diagnosticsService = createSharedDiagnosticsService(ASTManager.getInstance(), resolvedCollectors);
+    const diagnosticsService = createSharedDiagnosticsService(getAstManagerForTests(), resolvedCollectors);
     const orchestrator = new DiagnosticsOrchestrator(
         { subscriptions: [], extensionPath: process.cwd() } as any,
         {

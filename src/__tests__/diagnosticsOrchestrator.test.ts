@@ -7,6 +7,7 @@ import { createSharedDiagnosticsService } from '../language/services/diagnostics
 import type { IDiagnosticCollector } from '../diagnostics/types';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from './testAstManagerSingleton';
 
@@ -164,7 +165,7 @@ describe('DiagnosticsOrchestrator', () => {
         (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
 
         const orchestrator = createOrchestrator({
-            diagnosticsService: createSharedDiagnosticsService(ASTManager.getInstance(), [])
+            diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), [])
         });
 
         const document = createDocument('int value;', '/workspace/project/src/sample.c');
@@ -215,7 +216,7 @@ describe('DiagnosticsOrchestrator', () => {
         (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
 
         const orchestrator = createOrchestrator({
-            diagnosticsService: createSharedDiagnosticsService(ASTManager.getInstance(), [])
+            diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), [])
         });
 
         const document = createDocument('int value;', '/workspace/project/src/sample.c');
@@ -277,7 +278,7 @@ describe('DiagnosticsOrchestrator', () => {
         }];
         const orchestrator = createOrchestrator({
             collectors,
-            diagnosticsService: createSharedDiagnosticsService(ASTManager.getInstance(), collectors as any)
+            diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), collectors as any)
         });
 
         await (orchestrator as any).collectDiagnostics(createDocument('int demo() { return 1; }'));
@@ -357,7 +358,7 @@ describe('DiagnosticsOrchestrator', () => {
 
         const orchestrator = createOrchestrator({
             collectors: collectors as any,
-            diagnosticsService: createSharedDiagnosticsService(ASTManager.getInstance(), collectors as any)
+            diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), collectors as any)
         });
         (orchestrator as any).yieldToMainThread = jest.fn().mockResolvedValue(undefined);
 
