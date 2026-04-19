@@ -1,104 +1,118 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
 import * as vscode from 'vscode';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { FileFunctionDocTracker } from '../FileFunctionDocTracker';
+import type { MaterializedFunctionDocLookup, RawFunctionDocLookup } from '../FunctionDocLookupTypes';
 
-function createTextDocument(filePath: string, content: string): vscode.TextDocument {
-    const normalized = content.replace(/\r\n/g, '\n');
-    const lineStarts = [0];
-    const lines = normalized.split('\n');
-
-    for (let index = 0; index < normalized.length; index += 1) {
-        if (normalized[index] === '\n') {
-            lineStarts.push(index + 1);
-        }
-    }
-
-    const offsetAt = (position: vscode.Position): number => {
-        const lineStart = lineStarts[position.line] ?? normalized.length;
-        return Math.min(lineStart + position.character, normalized.length);
-    };
-
-    const positionAt = (offset: number): vscode.Position => {
-        let line = 0;
-        for (let index = 0; index < lineStarts.length; index += 1) {
-            if (lineStarts[index] <= offset) {
-                line = index;
-            } else {
-                break;
-            }
-        }
-
-        return new vscode.Position(line, offset - lineStarts[line]);
-    };
-
+function createLookup(
+    overrides: Partial<RawFunctionDocLookup> = {}
+): RawFunctionDocLookup {
     return {
-        uri: vscode.Uri.file(filePath),
-        fileName: filePath,
-        languageId: filePath.endsWith('.h') || filePath.endsWith('.c') ? 'lpc' : 'plaintext',
-        version: 1,
-        lineCount: lineStarts.length,
-        isDirty: false,
-        isClosed: false,
-        isUntitled: false,
-        eol: vscode.EndOfLine.LF,
-        getText: (range?: vscode.Range) => {
-            if (!range) {
-                return normalized;
+        inheritedFiles: [],
+        currentFile: {
+            source: '当前文件',
+            filePath: '/virtual/main.c',
+            docs: {
+                uri: 'file:///virtual/main.c',
+                declarationOrder: [],
+                byDeclaration: new Map(),
+                byName: new Map()
             }
-
-            return normalized.slice(offsetAt(range.start), offsetAt(range.end));
         },
-        lineAt: (line: number) => ({
-            text: lines[line] ?? ''
-        }),
-        positionAt,
-        offsetAt,
-        save: async () => true,
-        validateRange: (range: vscode.Range) => range,
-        validatePosition: (position: vscode.Position) => position
-    } as unknown as vscode.TextDocument;
+        inheritedGroups: [],
+        includeGroups: [],
+        ...overrides
+    };
+}
+
+function createMaterializedLookup(
+    overrides: Partial<MaterializedFunctionDocLookup> = {}
+): MaterializedFunctionDocLookup {
+    return {
+        inheritedFiles: [],
+        currentFileDocs: new Map(),
+        inheritedFileDocs: new Map(),
+        includeFileDocs: new Map(),
+        lookup: {
+            currentFile: {
+                source: '当前文件',
+                filePath: '/virtual/main.c',
+                docs: new Map()
+            },
+            inheritedGroups: [],
+            includeGroups: []
+        },
+        ...overrides
+    };
 }
 
 describe('FileFunctionDocTracker', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        (vscode.workspace.workspaceFolders as unknown) = [];
-        (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string) => {
-            const filePath = typeof target === 'string' ? target : target.fsPath;
-            return createTextDocument(filePath, fs.readFileSync(filePath, 'utf8'));
-        });
     });
 
     test('only the latest async update wins when updates overlap', async () => {
-        const tracker = new FileFunctionDocTracker() as any;
-        tracker.parseInheritStatements = jest
-            .fn()
-            .mockImplementation((content: string) => content.includes('first') ? ['first.c'] : ['second.c']);
-        tracker.loadInheritedFileDocs = jest
-            .fn()
-            .mockImplementation(async (_currentFilePath: string, inheritedFiles: string[]) => {
-                if (inheritedFiles[0] === 'first.c') {
-                    await new Promise(resolve => setTimeout(resolve, 20));
-                    return new Map([['first-path', new Map()]]);
-                }
+        const buildLookup = jest.fn().mockImplementation(async (document: vscode.TextDocument) => {
+            if (document.fileName === 'first.c') {
+                await new Promise((resolve) => setTimeout(resolve, 20));
+                return createLookup({
+                    inheritedFiles: ['first.c'],
+                    inheritedGroups: [{
+                        source: '继承自 first.c',
+                        filePath: 'first-path',
+                        docs: {
+                            uri: 'file:///first-path',
+                            declarationOrder: [],
+                            byDeclaration: new Map(),
+                            byName: new Map()
+                        }
+                    }]
+                });
+            }
 
-                return new Map([['second-path', new Map()]]);
+            return createLookup({
+                inheritedFiles: ['second.c'],
+                inheritedGroups: [{
+                    source: '继承自 second.c',
+                    filePath: 'second-path',
+                    docs: {
+                        uri: 'file:///second-path',
+                        declarationOrder: [],
+                        byDeclaration: new Map(),
+                        byName: new Map()
+                    }
+                }]
             });
+        });
+        const materializeLookup = jest.fn().mockImplementation((lookup: RawFunctionDocLookup) => createMaterializedLookup({
+            inheritedFiles: lookup.inheritedFiles,
+            inheritedFileDocs: new Map(lookup.inheritedGroups.map((group) => [group.filePath, new Map()])),
+            lookup: {
+                currentFile: {
+                    source: '当前文件',
+                    filePath: 'virtual',
+                    docs: new Map()
+                },
+                inheritedGroups: [],
+                includeGroups: []
+            }
+        }));
 
+        const tracker = new FileFunctionDocTracker({
+            lookupBuilder: { buildLookup },
+            compatMaterializer: { materializeLookup } as any
+        }) as any;
         const firstDocument = {
             languageId: 'lpc',
             version: 1,
             fileName: 'first.c',
-            uri: { fsPath: 'first.c' },
+            uri: { fsPath: 'first.c', toString: () => 'file:///first.c' },
             getText: () => 'inherit "first";'
         } as vscode.TextDocument;
         const secondDocument = {
             languageId: 'lpc',
             version: 1,
             fileName: 'second.c',
-            uri: { fsPath: 'second.c' },
+            uri: { fsPath: 'second.c', toString: () => 'file:///second.c' },
             getText: () => 'inherit "second";'
         } as vscode.TextDocument;
 
@@ -111,85 +125,70 @@ describe('FileFunctionDocTracker', () => {
         expect(Array.from(tracker.inheritedFileDocs.keys())).toEqual(['second-path']);
     });
 
-    test('include lookup uses live unsaved document text', async () => {
-        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-tracker-live-'));
-        const includeDir = path.join(tempRoot, 'include');
-        const mainFile = path.join(tempRoot, 'main.c');
-        const includeFile = path.join(includeDir, 'helper.h');
+    test('public include lookup and grouped lookup reuse the same cached traversal result', async () => {
+        const includeDocs = new Map([['helper_live', { name: 'helper_live', category: '包含自 helper.h' } as any]]);
+        const buildLookup = jest.fn().mockResolvedValue(createLookup());
+        const materializeLookup = jest.fn().mockReturnValue(createMaterializedLookup({
+            includeFileDocs: new Map([['/virtual/include/helper.h', includeDocs]]),
+            lookup: {
+                currentFile: {
+                    source: '当前文件',
+                    filePath: '/virtual/main.c',
+                    docs: new Map()
+                },
+                inheritedGroups: [],
+                includeGroups: [{
+                    source: '包含自 helper.h',
+                    filePath: '/virtual/include/helper.h',
+                    docs: includeDocs
+                }]
+            }
+        }));
 
-        fs.mkdirSync(includeDir, { recursive: true });
-        fs.writeFileSync(mainFile, '');
-        fs.writeFileSync(
-            includeFile,
-            [
-                '/**',
-                ' * @brief live include helper',
-                ' */',
-                'int helper_live();'
-            ].join('\n')
-        );
-
-        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: tempRoot } }];
-
-        const tracker = new FileFunctionDocTracker();
+        const tracker = new FileFunctionDocTracker({
+            lookupBuilder: { buildLookup },
+            compatMaterializer: { materializeLookup } as any
+        });
         const document = {
-            uri: { fsPath: mainFile },
+            languageId: 'lpc',
+            version: 1,
+            fileName: '/virtual/main.c',
+            uri: { fsPath: '/virtual/main.c', toString: () => 'file:///virtual/main.c' },
             getText: () => '#include "/include/helper.h"\n'
         } as unknown as vscode.TextDocument;
 
-        const doc = await tracker.getDocFromIncludes(document, 'helper_live');
+        const includeDoc = await tracker.getDocFromIncludes(document, 'helper_live');
+        const lookup = await tracker.getFunctionDocLookup(document);
 
-        expect(doc).toMatchObject({
-            name: 'helper_live',
-            category: '包含自 helper.h',
-            description: 'live include helper',
-            syntax: 'int helper_live();'
-        });
-
-        fs.rmSync(tempRoot, { recursive: true, force: true });
+        expect(includeDoc).toBe(includeDocs.get('helper_live'));
+        expect(lookup.includeGroups).toHaveLength(1);
+        expect(lookup.includeGroups[0].docs.get('helper_live')).toBe(includeDocs.get('helper_live'));
+        expect(buildLookup).toHaveBeenCalledTimes(1);
+        expect(materializeLookup).toHaveBeenCalledTimes(1);
     });
 
-    test('multi-root workspaces resolve root-relative includes against the owning workspace folder', async () => {
-        const rootA = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-root-a-'));
-        const rootB = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-root-b-'));
-        const includeDir = path.join(rootB, 'include');
-        const mainFile = path.join(rootB, 'main.c');
-        const includeFile = path.join(includeDir, 'helper.h');
+    test('forceFresh bypasses cached lookup reuse for public lookups', async () => {
+        const buildLookup = jest.fn()
+            .mockResolvedValueOnce(createLookup())
+            .mockResolvedValueOnce(createLookup());
+        const materializeLookup = jest.fn().mockImplementation(() => createMaterializedLookup());
 
-        fs.mkdirSync(includeDir, { recursive: true });
-        fs.writeFileSync(mainFile, '#include "/include/helper.h"\n');
-        fs.writeFileSync(
-            includeFile,
-            [
-                '/**',
-                ' * @brief multi root helper',
-                ' */',
-                'int helper_multi_root();'
-            ].join('\n')
-        );
-
-        (vscode.workspace.workspaceFolders as unknown) = [
-            { uri: { fsPath: rootA } },
-            { uri: { fsPath: rootB } }
-        ];
-
-        const tracker = new FileFunctionDocTracker();
+        const tracker = new FileFunctionDocTracker({
+            lookupBuilder: { buildLookup },
+            compatMaterializer: { materializeLookup } as any
+        });
         const document = {
-            uri: { fsPath: mainFile },
-            getText: () => '#include "/include/helper.h"\n'
+            languageId: 'lpc',
+            version: 1,
+            fileName: '/virtual/main.c',
+            uri: { fsPath: '/virtual/main.c', toString: () => 'file:///virtual/main.c' },
+            getText: () => 'int test();\n'
         } as unknown as vscode.TextDocument;
 
-        const doc = await tracker.getDocFromIncludes(document, 'helper_multi_root');
+        await tracker.getFunctionDocLookup(document);
+        await tracker.getDocFromIncludes(document, 'helper_live', { forceFresh: true });
 
-        expect(doc).toMatchObject({
-            name: 'helper_multi_root',
-            category: '包含自 helper.h',
-            description: 'multi root helper',
-            syntax: 'int helper_multi_root();'
-        });
-
-        fs.rmSync(rootA, { recursive: true, force: true });
-        fs.rmSync(rootB, { recursive: true, force: true });
+        expect(buildLookup).toHaveBeenCalledTimes(2);
+        expect(materializeLookup).toHaveBeenCalledTimes(2);
     });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

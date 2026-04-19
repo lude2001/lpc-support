@@ -233,12 +233,34 @@ describe('document analysis ownership guards', () => {
             path.join(srcRoot, 'efun', 'FileFunctionDocTracker.ts'),
             'utf8'
         );
+        const lookupBuilderSource = fs.readFileSync(
+            path.join(srcRoot, 'efun', 'FunctionDocLookupBuilder.ts'),
+            'utf8'
+        );
+        const compatMaterializerSource = fs.readFileSync(
+            path.join(srcRoot, 'efun', 'FunctionDocCompatMaterializer.ts'),
+            'utf8'
+        );
 
         expect(functionDocPanelSource).not.toContain('parseInheritedFunctions(');
         expect(functionDocPanelSource).not.toContain('parseIncludedFunctions(');
         expect(functionDocPanelSource).not.toContain('processInheritedFile(');
         expect(functionDocPanelSource).not.toContain('getIncludeFiles(');
         expect(trackerSource).not.toContain('vscode.workspace.openTextDocument(');
+        expect(trackerSource).not.toContain('resolveWorkspaceRoot(');
+        expect(trackerSource).not.toContain('parseInheritStatements(');
+        expect(trackerSource).not.toContain('loadInheritedFileDocs(');
+        expect(trackerSource).not.toContain('loadIncludeFileDocs(');
+        expect(trackerSource).not.toContain('getIncludeFiles(');
+        expect(trackerSource).not.toContain('buildCompatDocsForDocument(');
+        expect(trackerSource).not.toContain('materializeCompatDoc(');
+
+        expect(lookupBuilderSource).toContain('parseInheritStatements(');
+        expect(lookupBuilderSource).toContain('loadInheritedFileDocs(');
+        expect(lookupBuilderSource).toContain('loadIncludeFileDocs(');
+        expect(lookupBuilderSource).toContain('getIncludeFiles(');
+        expect(compatMaterializerSource).toContain('materializeLookup(');
+        expect(compatMaterializerSource).toContain('materializeCompatDoc(');
     });
 
     test('direct workspace document opens remain only on the shared owner and example file', () => {
