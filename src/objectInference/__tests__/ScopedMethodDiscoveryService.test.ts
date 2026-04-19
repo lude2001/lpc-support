@@ -4,6 +4,10 @@ import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { ASTManager } from '../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../__tests__/testAstManagerSingleton';
 
 declare const require: any;
 
@@ -88,6 +92,7 @@ describe('ScopedMethodDiscoveryService', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        configureAstManagerSingletonForTests(analysisService);
         previousWorkspaceFolders = vscode.workspace.workspaceFolders;
         fixtureRoot = path.join(process.cwd(), '.tmp-scoped-method-discovery');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
@@ -115,8 +120,7 @@ describe('ScopedMethodDiscoveryService', () => {
     });
 
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
-        DocumentSemanticSnapshotService.getInstance().clear();
+        resetAstManagerSingletonForTests();
         (vscode.workspace as any).workspaceFolders = previousWorkspaceFolders;
         jest.restoreAllMocks();
         fs.rmSync(fixtureRoot, { recursive: true, force: true });

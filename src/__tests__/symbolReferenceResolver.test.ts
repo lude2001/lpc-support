@@ -6,6 +6,10 @@ import { AstBackedLanguageRenameService } from '../language/services/navigation/
 import { AstBackedLanguageSymbolService } from '../language/services/navigation/LanguageSymbolService';
 import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { resolveSymbolReferences } from '../symbolReferenceResolver';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from './testAstManagerSingleton';
 import { TestHelper } from './utils/TestHelper';
 
 function createContext(document: vscode.TextDocument) {
@@ -47,8 +51,12 @@ describe('local symbol references', () => {
         return new vscode.Position(line, column + 1);
     };
 
+    beforeEach(() => {
+        configureAstManagerSingletonForTests();
+    });
+
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
+        resetAstManagerSingletonForTests();
     });
 
     afterAll(() => {

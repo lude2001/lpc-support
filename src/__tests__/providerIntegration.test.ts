@@ -12,6 +12,10 @@ import { ObjectInferenceService } from '../objectInference/ObjectInferenceServic
 import { ScopedMethodResolver } from '../objectInference/ScopedMethodResolver';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { TargetMethodLookup } from '../targetMethodLookup';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from './testAstManagerSingleton';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -225,6 +229,7 @@ describe('language-service integration regression', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         analysisService = DocumentSemanticSnapshotService.getInstance();
+        configureAstManagerSingletonForTests(analysisService);
         fixtureRoot = path.join(process.cwd(), '.tmp-provider-integration');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
         fs.mkdirSync(path.join(fixtureRoot, 'lib'), { recursive: true });
@@ -236,7 +241,7 @@ describe('language-service integration regression', () => {
     });
 
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
+        resetAstManagerSingletonForTests();
         jest.restoreAllMocks();
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
     });

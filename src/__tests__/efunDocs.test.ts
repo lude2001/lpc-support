@@ -8,6 +8,10 @@ import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from './testAstManagerSingleton';
 import { TestHelper } from './utils/TestHelper';
 
 function createSimulatedScanner(projectConfigService?: any): SimulatedEfunScanner {
@@ -22,6 +26,7 @@ describe('EfunDocsManager', () => {
     let warnSpy: jest.SpyInstance;
 
     beforeEach(() => {
+        configureAstManagerSingletonForTests();
         jest.clearAllMocks();
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((_: string, defaultValue?: unknown) => defaultValue),
@@ -34,6 +39,7 @@ describe('EfunDocsManager', () => {
     });
 
     afterEach(() => {
+        resetAstManagerSingletonForTests();
         errorSpy.mockRestore();
         warnSpy.mockRestore();
     });
@@ -544,6 +550,7 @@ describe('EfunDocsManager', () => {
 
 describe('SimulatedEfunScanner', () => {
     beforeEach(() => {
+        configureAstManagerSingletonForTests();
         jest.clearAllMocks();
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((_: string, defaultValue?: unknown) => defaultValue),
@@ -555,6 +562,7 @@ describe('SimulatedEfunScanner', () => {
     });
 
     afterEach(() => {
+        resetAstManagerSingletonForTests();
     });
 
     test('clears previously loaded docs when a later reload cannot scan', async () => {

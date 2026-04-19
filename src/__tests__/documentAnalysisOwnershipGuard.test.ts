@@ -47,13 +47,22 @@ describe('document analysis ownership guards', () => {
             .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
             .sort();
 
+        const astConfigureCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => filePath !== path.join(srcRoot, 'ast', 'astManager.ts'))
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('ASTManager.configureSingleton('))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
         const astSingletonCallSites = listProductionTypeScriptFiles(srcRoot)
             .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('ASTManager.getInstance('))
             .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
             .sort();
 
         expect(snapshotSingletonCallSites).toEqual([
-            'src/ast/astManager.ts',
+            'src/lsp/server/runtime/createProductionLanguageServices.ts',
+            'src/modules/coreModule.ts'
+        ]);
+        expect(astConfigureCallSites).toEqual([
             'src/lsp/server/runtime/createProductionLanguageServices.ts',
             'src/modules/coreModule.ts'
         ]);

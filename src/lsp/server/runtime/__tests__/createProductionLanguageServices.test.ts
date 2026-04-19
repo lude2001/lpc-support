@@ -11,6 +11,8 @@ const analysisService = {
     getSemanticSnapshot: jest.fn(),
     getBestAvailableSnapshot: jest.fn()
 };
+const astManager = { kind: 'ast-manager' };
+const configureAstManagerSingleton = jest.fn(() => astManager);
 const efunHoverService = { provideHover: jest.fn() };
 const efunHoverCtor = jest.fn(() => efunHoverService);
 
@@ -70,7 +72,8 @@ describe('createProductionLanguageServices', () => {
             }));
             jest.doMock('../../../../ast/astManager', () => ({
                 ASTManager: {
-                    getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
+                    configureSingleton: configureAstManagerSingleton,
+                    getInstance: jest.fn(() => astManager)
                 }
             }));
             jest.doMock('../../../../diagnostics', () => ({
@@ -130,6 +133,7 @@ describe('createProductionLanguageServices', () => {
             const request = { example: true } as any;
 
             const { EfunDocsManager } = require('../../../../efun/EfunDocsManager') as typeof import('../../../../efun/EfunDocsManager');
+            expect(configureAstManagerSingleton).toHaveBeenCalledWith(analysisService);
             expect(EfunDocsManager).toHaveBeenCalledWith(expect.anything(), projectConfigService, analysisService);
             expect(services.completionService).toBe(completionService);
             expect(services.diagnosticsService).toBe(diagnosticsService);
@@ -180,7 +184,8 @@ describe('createProductionLanguageServices', () => {
             }));
             jest.doMock('../../../../ast/astManager', () => ({
                 ASTManager: {
-                    getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
+                    configureSingleton: configureAstManagerSingleton,
+                    getInstance: jest.fn(() => astManager)
                 }
             }));
             jest.doMock('../../../../diagnostics', () => ({
@@ -244,6 +249,7 @@ describe('createProductionLanguageServices', () => {
 
             createProductionLanguageServices();
 
+            expect(configureAstManagerSingleton).toHaveBeenCalledWith(analysisService);
             expect(scopedMethodResolverCtor).toHaveBeenCalledWith(
                 macroManager,
                 undefined,
@@ -297,7 +303,8 @@ describe('createProductionLanguageServices', () => {
             }));
             jest.doMock('../../../../ast/astManager', () => ({
                 ASTManager: {
-                    getInstance: jest.fn(() => ({ kind: 'ast-manager' }))
+                    configureSingleton: configureAstManagerSingleton,
+                    getInstance: jest.fn(() => astManager)
                 }
             }));
             jest.doMock('../../../../diagnostics', () => ({
@@ -364,6 +371,7 @@ describe('createProductionLanguageServices', () => {
 
             createProductionLanguageServices();
 
+            expect(configureAstManagerSingleton).toHaveBeenCalledWith(analysisService);
             expect(inheritedRelationCtor).toHaveBeenCalledWith(expect.objectContaining({
                 scopedMethodResolver: expect.anything(),
                 macroManager: expect.anything(),

@@ -7,6 +7,10 @@ import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSe
 import { EfunDocsManager } from '../../../../efunDocs';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../../../__tests__/testAstManagerSingleton';
 import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
 import type { CallableDoc } from '../../../documentation/types';
 import { TargetMethodLookup } from '../../../../targetMethodLookup';
@@ -199,11 +203,11 @@ describe('LanguageSignatureHelpService', () => {
     }
 
     beforeEach(() => {
+        configureAstManagerSingletonForTests(analysisService);
     });
 
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
-        DocumentSemanticSnapshotService.getInstance().clear();
+        resetAstManagerSingletonForTests();
         clearGlobalParsedDocumentService();
         (vscode.workspace as any).workspaceFolders = originalWorkspaceFolders;
         jest.restoreAllMocks();

@@ -6,6 +6,10 @@ import { CompletionContextAnalyzer } from '../completion/completionContextAnalyz
 import { CompletionQueryEngine } from '../completion/completionQueryEngine';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../completion/projectSymbolIndex';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from './testAstManagerSingleton';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -47,6 +51,7 @@ describe('Completion engine regression coverage', () => {
     let root: string;
 
     beforeEach(() => {
+        configureAstManagerSingletonForTests();
         root = path.join(process.cwd(), '.tmp-completion-engine');
         fs.rmSync(root, { recursive: true, force: true });
         fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
@@ -58,7 +63,7 @@ describe('Completion engine regression coverage', () => {
     });
 
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
+        resetAstManagerSingletonForTests();
         fs.rmSync(root, { recursive: true, force: true });
         jest.clearAllMocks();
     });

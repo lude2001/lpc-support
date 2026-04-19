@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
+import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 
 function createDocument(content: string, fileName: string = '/virtual/member-types.c', version: number = 1): vscode.TextDocument {
     const lineStarts = [0];
@@ -41,12 +42,26 @@ function createDocument(content: string, fileName: string = '/virtual/member-typ
 }
 
 describe('ASTManager facade', () => {
+    beforeEach(() => {
+        ASTManager.resetSingletonForTests();
+        DocumentSemanticSnapshotService.getInstance().clear();
+    });
+
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
+        DocumentSemanticSnapshotService.getInstance().clear();
+        ASTManager.resetSingletonForTests();
+    });
+
+    test('requires explicit singleton configuration before access', () => {
+        expect(() => ASTManager.getInstance()).toThrow(
+            'ASTManager singleton is not configured. Call ASTManager.configureSingleton(...) first.'
+        );
     });
 
     test('does not expose legacy product APIs on the facade', () => {
-        const manager = ASTManager.getInstance() as unknown as Record<string, unknown>;
+        const manager = ASTManager.configureSingleton(
+            DocumentSemanticSnapshotService.getInstance()
+        ) as unknown as Record<string, unknown>;
 
         expect(manager.getCompletionItems).toBeUndefined();
         expect(manager.getStructMemberCompletions).toBeUndefined();
@@ -60,7 +75,9 @@ describe('ASTManager facade', () => {
 
         const fileName = '/virtual/stale-snapshot.c';
         const firstDocument = createDocument('int first_call() { return 1; }', fileName, 1);
-        const manager = ASTManager.getInstance();
+        const manager = ASTManager.configureSingleton(
+            DocumentSemanticSnapshotService.getInstance()
+        );
         const initialSnapshot = manager.getSnapshot(firstDocument, false);
 
         expect(initialSnapshot.version).toBe(1);
@@ -93,7 +110,9 @@ describe('ASTManager facade', () => {
             '}'
         ].join('\n');
         const document = createDocument(source, '/virtual/semantic-snapshot.c', 1);
-        const semantic = ASTManager.getInstance().getSemanticSnapshot(document, false);
+        const semantic = ASTManager.configureSingleton(
+            DocumentSemanticSnapshotService.getInstance()
+        ).getSemanticSnapshot(document, false);
 
         expect(semantic.syntax.uri).toBe(document.uri.toString());
         expect(semantic.exportedFunctions.map(item => item.name)).toEqual(['query_hp']);

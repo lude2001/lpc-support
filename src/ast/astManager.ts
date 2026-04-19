@@ -10,7 +10,6 @@ import {
     DocumentSemanticAnalysis
 } from '../semantic/documentAnalysisService';
 import { DocumentSemanticSnapshot } from '../semantic/documentSemanticTypes';
-import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxDocument } from '../syntax/types';
 import { ParsedDocument as ParsedDoc } from '../parser/types';
@@ -26,18 +25,27 @@ export interface ParseResult {
 }
 
 export class ASTManager {
-    private static instance: ASTManager;
+    private static instance: ASTManager | undefined;
     private readonly snapshotService: DocumentAnalysisService;
 
-    private constructor(snapshotService: DocumentAnalysisService = DocumentSemanticSnapshotService.getInstance()) {
+    private constructor(snapshotService: DocumentAnalysisService) {
         this.snapshotService = snapshotService;
+    }
+
+    public static configureSingleton(snapshotService: DocumentAnalysisService): ASTManager {
+        ASTManager.instance = new ASTManager(snapshotService);
+        return ASTManager.instance;
     }
 
     public static getInstance(): ASTManager {
         if (!ASTManager.instance) {
-            ASTManager.instance = new ASTManager();
+            throw new Error('ASTManager singleton is not configured. Call ASTManager.configureSingleton(...) first.');
         }
         return ASTManager.instance;
+    }
+
+    public static resetSingletonForTests(): void {
+        ASTManager.instance = undefined;
     }
 
     // 解析文档并构建AST和符号表

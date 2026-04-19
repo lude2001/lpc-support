@@ -5,6 +5,10 @@ import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
 import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 import type { IDiagnosticCollector } from '../diagnostics/types';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from './testAstManagerSingleton';
 
 jest.mock('fs', () => {
     const actual = jest.requireActual('fs');
@@ -63,6 +67,15 @@ function createOrchestrator(
 }
 
 describe('DiagnosticsOrchestrator', () => {
+    beforeEach(() => {
+        configureAstManagerSingletonForTests();
+    });
+
+    afterEach(() => {
+        resetAstManagerSingletonForTests();
+        jest.restoreAllMocks();
+    });
+
     test('does not register host document lifecycle listeners and only keeps diagnostics UX wiring', () => {
         jest.spyOn(ASTManager, 'getInstance').mockReturnValue({
             parseDocument: jest.fn(),

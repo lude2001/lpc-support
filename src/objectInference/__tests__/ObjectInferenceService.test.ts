@@ -5,6 +5,10 @@ import { ASTManager } from '../../ast/astManager';
 import { SymbolType } from '../../ast/symbolTable';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { ObjectInferenceService } from '../ObjectInferenceService';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../__tests__/testAstManagerSingleton';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -76,6 +80,7 @@ describe('ObjectInferenceService', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        configureAstManagerSingletonForTests(analysisService);
         fixtureRoot = path.join(process.cwd(), '.tmp-object-inference');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
         fs.mkdirSync(path.join(fixtureRoot, 'adm', 'daemons'), { recursive: true });
@@ -115,8 +120,7 @@ describe('ObjectInferenceService', () => {
     });
 
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
-        DocumentSemanticSnapshotService.getInstance().clear();
+        resetAstManagerSingletonForTests();
         jest.restoreAllMocks();
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
     });

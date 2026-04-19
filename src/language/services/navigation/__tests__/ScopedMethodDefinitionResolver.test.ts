@@ -4,6 +4,10 @@ import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { ScopedMethodDefinitionResolver } from '../definition/ScopedMethodDefinitionResolver';
 import { DefinitionResolverSupport } from '../definition/DefinitionResolverSupport';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../../../__tests__/testAstManagerSingleton';
 
 function createTextDocument(filePath: string, source: string): vscode.TextDocument {
     const lines = source.split(/\r?\n/);
@@ -79,9 +83,12 @@ function createSupport(): DefinitionResolverSupport {
 describe('ScopedMethodDefinitionResolver', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
+    beforeEach(() => {
+        configureAstManagerSingletonForTests(analysisService);
+    });
+
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
-        DocumentSemanticSnapshotService.getInstance().clear();
+        resetAstManagerSingletonForTests();
     });
 
     test('returns locations for bare scoped method identifiers only', async () => {

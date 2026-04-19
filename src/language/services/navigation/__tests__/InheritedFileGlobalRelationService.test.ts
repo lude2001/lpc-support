@@ -3,6 +3,10 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { InheritedFileGlobalRelationService } from '../InheritedFileGlobalRelationService';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../../../__tests__/testAstManagerSingleton';
 
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
     const uri = vscode.Uri.parse(uriValue);
@@ -116,11 +120,11 @@ describe('InheritedFileGlobalRelationService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     beforeEach(() => {
+        configureAstManagerSingletonForTests(analysisService);
     });
 
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
-        DocumentSemanticSnapshotService.getInstance().clear();
+        resetAstManagerSingletonForTests();
         jest.restoreAllMocks();
     });
 

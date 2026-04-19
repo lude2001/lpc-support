@@ -3,6 +3,10 @@ import * as vscode from 'vscode';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { InheritedFunctionRelationService } from '../InheritedFunctionRelationService';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../../../__tests__/testAstManagerSingleton';
 
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
     const uri = vscode.Uri.parse(uriValue);
@@ -106,11 +110,11 @@ describe('InheritedFunctionRelationService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     beforeEach(() => {
+        configureAstManagerSingletonForTests(analysisService);
     });
 
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
-        DocumentSemanticSnapshotService.getInstance().clear();
+        resetAstManagerSingletonForTests();
     });
 
     test('collects provable inherit-family function references from visible symbols', async () => {

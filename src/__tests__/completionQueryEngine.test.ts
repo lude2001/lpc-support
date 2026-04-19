@@ -6,6 +6,10 @@ import { CompletionContextAnalyzer } from '../completion/completionContextAnalyz
 import { CompletionQueryEngine } from '../completion/completionQueryEngine';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../completion/projectSymbolIndex';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from './testAstManagerSingleton';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -47,6 +51,7 @@ describe('CompletionQueryEngine', () => {
     const root = path.join(process.cwd(), '.tmp-query-engine');
 
     beforeEach(() => {
+        configureAstManagerSingletonForTests();
         fs.rmSync(root, { recursive: true, force: true });
         fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
 
@@ -57,7 +62,7 @@ describe('CompletionQueryEngine', () => {
     });
 
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
+        resetAstManagerSingletonForTests();
         fs.rmSync(root, { recursive: true, force: true });
         jest.clearAllMocks();
     });

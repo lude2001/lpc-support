@@ -5,6 +5,10 @@ import * as docParser from '../../efun/docParser';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { PathResolver } from '../../utils/pathResolver';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../__tests__/testAstManagerSingleton';
 import { ReturnObjectResolver } from '../ReturnObjectResolver';
 
 function createTextDocument(filePath: string, content: string): vscode.TextDocument {
@@ -80,6 +84,7 @@ function findFirstCallExpression(document: vscode.TextDocument): SyntaxNode {
 
 describe('ReturnObjectResolver', () => {
     beforeEach(() => {
+        configureAstManagerSingletonForTests();
         jest.clearAllMocks();
         (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({
             uri: vscode.Uri.file('D:/code/lpc')
@@ -87,7 +92,7 @@ describe('ReturnObjectResolver', () => {
     });
 
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
+        resetAstManagerSingletonForTests();
         jest.restoreAllMocks();
     });
 

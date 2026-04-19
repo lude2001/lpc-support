@@ -5,6 +5,10 @@ import { DiagnosticsOrchestrator } from '../../diagnostics/DiagnosticsOrchestrat
 import type { LanguageDocument } from '../../language/contracts/LanguageDocument';
 import { createSharedDiagnosticsService } from '../../language/services/diagnostics/createSharedDiagnosticsService';
 import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../__tests__/testAstManagerSingleton';
+import {
     createLanguageDiagnosticsService,
     type LanguageDiagnostic,
     type LanguageDiagnosticsAnalysis,
@@ -225,6 +229,7 @@ function createHostParityCollector(): IDiagnosticCollector {
 
 describe('diagnostics parity harness', () => {
     beforeEach(() => {
+        configureAstManagerSingletonForTests();
         jest.clearAllMocks();
         (vscode.workspace as any).getWorkspaceFolder = jest.fn().mockReturnValue({
             uri: {
@@ -247,6 +252,10 @@ describe('diagnostics parity harness', () => {
             clear: jest.fn(),
             dispose: jest.fn()
         });
+    });
+
+    afterEach(() => {
+        resetAstManagerSingletonForTests();
     });
 
     test('shared diagnostics matches host diagnostics and stays on parser/syntax/semantic truth sources', async () => {

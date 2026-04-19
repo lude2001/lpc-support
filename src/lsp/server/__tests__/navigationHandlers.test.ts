@@ -28,6 +28,10 @@ import type { LanguageMarkupContent } from '../../../language/contracts/Language
 import { toLspLocation, toLspMarkupContent, toLspPosition, toLspRange } from '../../../language/adapters/lsp/conversions';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../../__tests__/testAstManagerSingleton';
+import {
     ObjectInferenceLanguageHoverService,
     type LanguageNavigationService
 } from '../../../language/services/navigation/LanguageHoverService';
@@ -106,9 +110,12 @@ describe('lsp conversions', () => {
 });
 
 describe('navigation handlers', () => {
+    beforeEach(() => {
+        configureAstManagerSingletonForTests();
+    });
+
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
-        DocumentSemanticSnapshotService.getInstance().clear();
+        resetAstManagerSingletonForTests();
         jest.restoreAllMocks();
         jest.resetModules();
     });

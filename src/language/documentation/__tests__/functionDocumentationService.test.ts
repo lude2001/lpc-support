@@ -4,6 +4,10 @@ import { ASTManager } from '../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { clearGlobalParsedDocumentService } from '../../../parser/ParsedDocumentService';
 import { FunctionDocumentationService } from '../FunctionDocumentationService';
+import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../../__tests__/testAstManagerSingleton';
 
 function createDocument(
     content: string,
@@ -60,9 +64,12 @@ function createDocument(
 }
 
 describe('FunctionDocumentationService', () => {
+    beforeEach(() => {
+        configureAstManagerSingletonForTests();
+    });
+
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
-        DocumentSemanticSnapshotService.getInstance().clear();
+        resetAstManagerSingletonForTests();
         clearGlobalParsedDocumentService();
     });
 

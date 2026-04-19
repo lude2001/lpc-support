@@ -7,6 +7,10 @@ import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMet
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import {
+    configureAstManagerSingletonForTests,
+    resetAstManagerSingletonForTests
+} from '../../../../__tests__/testAstManagerSingleton';
+import {
     ObjectInferenceLanguageHoverService,
     type LanguageHoverService
 } from '../LanguageHoverService';
@@ -179,9 +183,12 @@ function createCallableDoc(name: string, label: string, summary: string) {
 describe('navigation services', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
+    beforeEach(() => {
+        configureAstManagerSingletonForTests(analysisService);
+    });
+
     afterEach(() => {
-        ASTManager.getInstance().clearAllCache();
-        DocumentSemanticSnapshotService.getInstance().clear();
+        resetAstManagerSingletonForTests();
     });
 
     test('hover service can operate on host-agnostic documents via injected boundaries', async () => {
