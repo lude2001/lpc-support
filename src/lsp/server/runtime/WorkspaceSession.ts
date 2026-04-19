@@ -25,7 +25,7 @@ export class WorkspaceSession {
     private workspaceRoots: string[];
     private readonly workspaceConfigs = new Map<string, WorkspaceConfigSnapshot>();
 
-    public constructor(options: WorkspaceSessionOptions = {}) {
+    public constructor(options: WorkspaceSessionOptions) {
         this.workspaceRoots = normalizeServerWorkspaceRoots(options.workspaceRoots ?? []);
         setServerWorkspaceRoots(this.workspaceRoots);
     }

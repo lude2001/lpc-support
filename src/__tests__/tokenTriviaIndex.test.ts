@@ -24,7 +24,7 @@ function triviaKinds(entries: Trivia[]): string[] {
 }
 
 describe('TokenTriviaIndex', () => {
-    const parsedDocumentService = new ParsedDocumentService();
+    const parsedDocumentService = new ParsedDocumentService({});
 
     afterEach(() => {
         parsedDocumentService.clear();

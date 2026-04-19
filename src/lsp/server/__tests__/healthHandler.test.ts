@@ -74,7 +74,7 @@ describe('registerCapabilities', () => {
             })
         };
         const documentStore = new DocumentStore();
-        const workspaceSession = new WorkspaceSession();
+        const workspaceSession = new WorkspaceSession({});
         const logger = new ServerLogger({
             info: jest.fn(),
             warn: jest.fn(),

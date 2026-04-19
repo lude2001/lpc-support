@@ -20,7 +20,7 @@ export class FunctionDocLookupBuilder {
     private readonly documentationService: FunctionDocumentationService;
     private readonly pathSupport: WorkspaceDocumentPathSupport;
 
-    public constructor(options: FunctionDocLookupBuilderOptions = {}) {
+    public constructor(options: FunctionDocLookupBuilderOptions) {
         this.documentationService = assertDocumentationService('FunctionDocLookupBuilder', options.documentationService);
         this.pathSupport = assertDocumentPathSupport('FunctionDocLookupBuilder', options.pathSupport);
     }

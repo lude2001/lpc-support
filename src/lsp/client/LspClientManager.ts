@@ -22,7 +22,7 @@ export class LspClientManager implements vscode.Disposable {
     private stopPromise?: Promise<void>;
     private disposePromise?: Promise<void>;
 
-    public constructor(lifecycle: LspClientLifecycle = {}) {
+    public constructor(lifecycle: LspClientLifecycle) {
         this.lifecycle = lifecycle;
     }
 

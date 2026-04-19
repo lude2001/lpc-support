@@ -34,7 +34,7 @@ export class FileFunctionDocTracker {
     private readonly lookupBuilder: Pick<FunctionDocLookupBuilder, 'buildLookup'>;
     private readonly documentLookupCache = new Map<string, CachedDocumentDocsEntry>();
 
-    public constructor(options: FileFunctionDocTrackerOptions = {}) {
+    public constructor(options: FileFunctionDocTrackerOptions) {
         assertDocumentationService('FileFunctionDocTracker', options.documentationService);
         this.compatMaterializer = options.compatMaterializer
             ?? (() => {

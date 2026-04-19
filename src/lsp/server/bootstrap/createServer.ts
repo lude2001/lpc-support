@@ -41,7 +41,7 @@ export function createServer(options: CreateServerOptions = {}): LspServerRuntim
     const connection = createConnection(ProposedFeatures.all);
     const documentStore = new DocumentStore();
     const logger = new ServerLogger(connection.console);
-    const workspaceSession = new WorkspaceSession();
+    const workspaceSession = new WorkspaceSession({});
     const diagnosticsSession = options.diagnosticsService
         ? new DiagnosticsSession({
             documentStore,

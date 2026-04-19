@@ -108,7 +108,7 @@ export class DocumentCache<T> {
     private config: Required<DocumentCacheConfig>;
     private disposables: vscode.Disposable[] = [];
 
-    constructor(config: DocumentCacheConfig = {}) {
+    constructor(config: DocumentCacheConfig) {
         this.config = {
             maxSize: config.maxSize ?? 50,
             maxMemory: config.maxMemory ?? 10 * 1024 * 1024, // 10MB

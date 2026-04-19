@@ -16,7 +16,7 @@ export class ParsedDocumentService {
     private parseCount = 0;
     private totalParseTime = 0;
 
-    constructor(config: ParsedDocumentServiceConfig = {}) {
+    constructor(config: ParsedDocumentServiceConfig) {
         const vscodeConfig = vscode.workspace.getConfiguration('lpc.performance');
 
         this.documentCache = new DocumentCache<ParsedDocument>({
@@ -213,7 +213,7 @@ let globalParsedDocumentService: ParsedDocumentService | undefined;
 
 export function getGlobalParsedDocumentService(): ParsedDocumentService {
     if (!globalParsedDocumentService) {
-        globalParsedDocumentService = new ParsedDocumentService();
+        globalParsedDocumentService = new ParsedDocumentService({});
     }
 
     return globalParsedDocumentService;

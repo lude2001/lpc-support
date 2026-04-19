@@ -94,7 +94,7 @@ export function assertDocumentPathSupport(
 export class WorkspaceDocumentPathSupport {
     private readonly host: TextDocumentHost;
 
-    public constructor(private readonly options: WorkspaceDocumentPathSupportOptions = {}) {
+    public constructor(private readonly options: WorkspaceDocumentPathSupportOptions) {
         this.host = assertTextDocumentHost('WorkspaceDocumentPathSupport', options.host);
     }
 

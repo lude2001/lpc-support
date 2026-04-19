@@ -177,7 +177,7 @@ export class CacheManager<T> {
     private totalMemory = 0;
     private accessTimes: number[] = [];
 
-    constructor(config: Partial<CacheConfig> = {}) {
+    constructor(config: Partial<CacheConfig>) {
         this.config = {
             maxSize: config.maxSize ?? 100,
             maxMemory: config.maxMemory ?? -1,
