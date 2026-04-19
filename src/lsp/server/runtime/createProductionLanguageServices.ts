@@ -23,6 +23,8 @@ import {
     LanguageNavigationService,
     ObjectInferenceLanguageHoverService
 } from '../../../language/services/navigation/LanguageHoverService';
+import { InheritedFileGlobalRelationService } from '../../../language/services/navigation/InheritedFileGlobalRelationService';
+import { InheritedFunctionRelationService } from '../../../language/services/navigation/InheritedFunctionRelationService';
 import { InheritedSymbolRelationService } from '../../../language/services/navigation/InheritedSymbolRelationService';
 import { UnifiedLanguageHoverService } from '../../../language/services/navigation/UnifiedLanguageHoverService';
 import { AstBackedLanguageReferenceService } from '../../../language/services/navigation/LanguageReferenceService';
@@ -85,11 +87,23 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         functionDocCompatMaterializer,
         functionDocLookupBuilder
     );
-    const inheritedRelationService = new InheritedSymbolRelationService({
+    const inheritedFunctionRelationService = new InheritedFunctionRelationService({
         analysisService,
         macroManager,
+        inheritanceResolver: undefined,
         scopedMethodResolver,
         host: workspaceDocumentHost
+    });
+    const inheritedFileGlobalRelationService = new InheritedFileGlobalRelationService({
+        analysisService,
+        macroManager,
+        inheritanceResolver: undefined,
+        host: workspaceDocumentHost
+    });
+    const inheritedRelationService = new InheritedSymbolRelationService({
+        analysisService,
+        functionRelationService: inheritedFunctionRelationService,
+        fileGlobalRelationService: inheritedFileGlobalRelationService
     });
     const scopedMethodDiscoveryService = new ScopedMethodDiscoveryService(
         macroManager,

@@ -21,9 +21,8 @@ export type RenameTargetClassification =
     | { kind: 'unsupported' };
 
 export interface InheritedSymbolRelationServiceOptions extends InheritedFileGlobalRelationServiceOptions {
-    scopedMethodResolver?: Pick<ScopedMethodResolver, 'resolveCallAt'>;
-    functionRelationService?: Pick<InheritedFunctionRelationService, 'collectFunctionReferences'>;
-    fileGlobalRelationService?: Pick<InheritedFileGlobalRelationService, 'resolveVisibleBinding' | 'collectReferences'>;
+    functionRelationService: Pick<InheritedFunctionRelationService, 'collectFunctionReferences'>;
+    fileGlobalRelationService: Pick<InheritedFileGlobalRelationService, 'resolveVisibleBinding' | 'collectReferences'>;
 }
 
 export class InheritedSymbolRelationService {
@@ -31,26 +30,11 @@ export class InheritedSymbolRelationService {
     private readonly functionRelationService: Pick<InheritedFunctionRelationService, 'collectFunctionReferences'>;
     private readonly fileGlobalRelationService: Pick<InheritedFileGlobalRelationService, 'resolveVisibleBinding' | 'collectReferences'>;
 
-    public constructor(options: InheritedSymbolRelationServiceOptions = {}) {
+    public constructor(options: InheritedSymbolRelationServiceOptions) {
         const analysisService = assertAnalysisService('InheritedSymbolRelationService', options.analysisService);
         this.analysisService = analysisService;
-        this.functionRelationService = options.functionRelationService
-            ?? new InheritedFunctionRelationService({
-                analysisService,
-                macroManager: options.macroManager,
-                workspaceRoots: options.workspaceRoots,
-                inheritanceResolver: options.inheritanceResolver,
-                host: options.host,
-                scopedMethodResolver: options.scopedMethodResolver
-            });
-        this.fileGlobalRelationService = options.fileGlobalRelationService
-            ?? new InheritedFileGlobalRelationService({
-                analysisService,
-                macroManager: options.macroManager,
-                workspaceRoots: options.workspaceRoots,
-                inheritanceResolver: options.inheritanceResolver,
-                host: options.host
-            });
+        this.functionRelationService = options.functionRelationService;
+        this.fileGlobalRelationService = options.fileGlobalRelationService;
     }
 
     public async collectInheritedReferences(
