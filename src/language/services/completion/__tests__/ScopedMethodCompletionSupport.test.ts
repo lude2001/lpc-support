@@ -1,6 +1,7 @@
 import { describe, expect, jest, test } from '@jest/globals';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
 import { ScopedMethodDiscoveryResult } from '../../../../objectInference/ScopedMethodDiscoveryService';
 
 declare const require: any;
@@ -55,7 +56,8 @@ describe('ScopedMethodCompletionSupport', () => {
     test('scoped completion buildCandidates converts discovery results into scoped-method candidates', () => {
         const ScopedMethodCompletionSupport = loadSupport();
         const support = new ScopedMethodCompletionSupport({
-            documentLoader: jest.fn()
+            documentLoader: jest.fn(),
+            documentationService: new FunctionDocumentationService()
         });
         const document = createDocument(
             path.join(process.cwd(), '.tmp-scoped-method-completion', 'std', 'room.c'),

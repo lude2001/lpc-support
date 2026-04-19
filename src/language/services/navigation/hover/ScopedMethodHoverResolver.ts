@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { CallableDocRenderer } from '../../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../../../documentation/assertDocumentationService';
 import type { CallableDoc } from '../../../documentation/types';
 import type { LanguageHoverResult } from '../LanguageHoverService';
 import type { DocumentAnalysisService } from '../../../../semantic/documentAnalysisService';
@@ -29,7 +30,10 @@ export class ScopedMethodHoverResolver {
     private readonly isScopedIdentifier: ScopedIdentifierTester;
 
     public constructor(private readonly dependencies: ScopedHoverDependencies) {
-        this.documentationService = dependencies.documentationService ?? new FunctionDocumentationService();
+        this.documentationService = assertDocumentationService(
+            'ScopedMethodHoverResolver',
+            dependencies.documentationService as FunctionDocumentationService | undefined
+        );
         this.renderer = dependencies.renderer ?? new CallableDocRenderer();
         this.isScopedIdentifier = dependencies.isScopedIdentifier ?? isOnScopedMethodIdentifier;
     }

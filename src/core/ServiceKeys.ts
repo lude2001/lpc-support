@@ -3,6 +3,7 @@ import type { LPCCompiler } from '../compiler';
 import type { LPCConfigManager } from '../config';
 import type { DiagnosticsOrchestrator } from '../diagnostics';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
+import type { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import type { DocumentLifecycleService } from './DocumentLifecycleService';
 import type { EfunDocsManager } from '../efunDocs';
 import type { ErrorTreeDataProvider } from '../errorTreeDataProvider';
@@ -17,6 +18,7 @@ export const Services = {
     Compiler: new ServiceKey<LPCCompiler>('Compiler'),
     ProjectConfig: new ServiceKey<LpcProjectConfigService>('ProjectConfig'),
     Analysis: new ServiceKey<DocumentAnalysisService>('Analysis'),
+    FunctionDocumentation: new ServiceKey<FunctionDocumentationService>('FunctionDocumentation'),
     Lifecycle: new ServiceKey<DocumentLifecycleService>('Lifecycle'),
     Diagnostics: new ServiceKey<DiagnosticsOrchestrator>('Diagnostics'),
     ErrorTree: new ServiceKey<ErrorTreeDataProvider>('ErrorTree'),

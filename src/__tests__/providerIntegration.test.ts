@@ -6,6 +6,7 @@ import { ASTManager } from '../ast/astManager';
 import { DiagnosticsOrchestrator } from '../diagnostics/DiagnosticsOrchestrator';
 import { createSharedDiagnosticsService } from '../language/services/diagnostics/createSharedDiagnosticsService';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
 import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
 import { ObjectInferenceService } from '../objectInference/ObjectInferenceService';
@@ -176,9 +177,10 @@ describe('language-service integration regression', () => {
 
     let fixtureRoot: string;
     let analysisService: DocumentSemanticSnapshotService;
+    let documentationService: FunctionDocumentationService;
 
     const createObjectInference = (projectConfig?: unknown) =>
-        new ObjectInferenceService(macroManager as any, projectConfig as any, analysisService);
+        new ObjectInferenceService(macroManager as any, projectConfig as any, analysisService, documentationService);
 
     const createCompletionService = (
         objectInferenceService?: ObjectInferenceService,
@@ -195,6 +197,7 @@ describe('language-service integration regression', () => {
         },
         {
             analysisService,
+            documentationService,
             ...dependencies
         } as any
     );
@@ -209,10 +212,12 @@ describe('language-service integration regression', () => {
         const resolvedDependencies = 'onDidChangeTextDocument' in hostOrDependencies
             ? {
                 host: hostOrDependencies,
-                analysisService
+                analysisService,
+                documentationService
             }
             : {
                 analysisService,
+                documentationService,
                 ...hostOrDependencies
             };
 
@@ -229,6 +234,7 @@ describe('language-service integration regression', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         analysisService = DocumentSemanticSnapshotService.getInstance();
+        documentationService = new FunctionDocumentationService();
         configureAstManagerSingletonForTests(analysisService);
         fixtureRoot = path.join(process.cwd(), '.tmp-provider-integration');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });

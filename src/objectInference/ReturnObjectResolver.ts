@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
@@ -26,7 +27,7 @@ export class ReturnObjectResolver {
         documentationService?: FunctionDocumentationService,
         private readonly scopedMethodResolver?: ScopedMethodResolver
     ) {
-        this.documentationService = documentationService ?? new FunctionDocumentationService();
+        this.documentationService = assertDocumentationService('ReturnObjectResolver', documentationService);
     }
 
     public attachScopedMethodReturnResolver(resolver: ScopedMethodReturnResolver): void {

@@ -3,6 +3,7 @@ import { normalizeLpcType } from '../../../ast/typeNormalization';
 import type { CompletionCandidate } from '../../../completion/types';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import type { CallableDoc } from '../../documentation/types';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
 import { defaultTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
@@ -29,7 +30,10 @@ export class ScopedMethodCompletionSupport {
     private readonly renderer = new CallableDocRenderer();
 
     constructor(dependencies: ScopedMethodCompletionSupportDependencies = {}) {
-        this.documentationService = dependencies.documentationService ?? new FunctionDocumentationService();
+        this.documentationService = assertDocumentationService(
+            'ScopedMethodCompletionSupport',
+            dependencies.documentationService as FunctionDocumentationService | undefined
+        );
         this.documentLoader = dependencies.documentLoader ?? createDefaultDocumentLoader();
     }
 

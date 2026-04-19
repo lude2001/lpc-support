@@ -15,6 +15,7 @@ import {
     type LanguageHoverService
 } from '../LanguageHoverService';
 import { UnifiedLanguageHoverService } from '../UnifiedLanguageHoverService';
+import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
 import {
     AstBackedLanguageDefinitionService,
     type LanguageDefinitionService
@@ -199,6 +200,7 @@ describe('navigation services', () => {
             undefined,
             undefined,
             {
+                documentationService: new FunctionDocumentationService(),
                 objectAccessProvider: {
                     inferObjectAccess: jest.fn().mockResolvedValue({
                         memberName: 'query_name',
@@ -231,6 +233,44 @@ describe('navigation services', () => {
         expect(hover).toBeDefined();
         expect(hover?.contents[0].value).toContain('string query_name()');
         expect(hover?.contents[0].value).toContain('返回名字');
+    });
+
+    test('hover service can rely on injected hover resolvers without requiring documentation service', async () => {
+        const document = createDocument('target->query_name();');
+        const scopedHoverResolver = {
+            provideScopedHover: jest.fn().mockResolvedValue(undefined)
+        };
+        const objectMethodHoverResolver = {
+            provideObjectHover: jest.fn().mockResolvedValue({
+                contents: [{ kind: 'markdown', value: 'injected docs' }]
+            })
+        };
+        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+            {} as any,
+            undefined,
+            undefined,
+            undefined,
+            {
+                scopedHoverResolver,
+                objectMethodHoverResolver
+            }
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document),
+            position: { line: 0, character: 10 }
+        });
+
+        expect(scopedHoverResolver.provideScopedHover).toHaveBeenCalled();
+        expect(objectMethodHoverResolver.provideObjectHover).toHaveBeenCalled();
+        expect(hover).toEqual({
+            contents: [
+                {
+                    kind: 'markdown',
+                    value: 'injected docs'
+                }
+            ]
+        });
     });
 
     test('hover service can render bare ::create() docs through injected scoped boundaries', async () => {

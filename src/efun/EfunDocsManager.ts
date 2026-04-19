@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import { BundledEfunLoader } from './BundledEfunLoader';
 import { buildEfunHoverMarkdown, createEfunHover } from './EfunHoverContent';
 import { FileFunctionDocTracker, type FunctionDocLookup } from './FileFunctionDocTracker';
@@ -21,11 +23,16 @@ export class EfunDocsManager {
         context: vscode.ExtensionContext,
         projectConfigService?: LpcProjectConfigService,
         analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>,
-        macroManager?: Pick<MacroManager, 'getMacro'>
+        macroManager?: Pick<MacroManager, 'getMacro'>,
+        documentationService?: FunctionDocumentationService
     ) {
         const resolvedAnalysisService = assertAnalysisService('EfunDocsManager', analysisService);
+        const resolvedDocumentationService = assertDocumentationService('EfunDocsManager', documentationService);
         this.bundledLoader = new BundledEfunLoader(context);
-        this.fileFunctionDocTracker = new FileFunctionDocTracker({ macroManager });
+        this.fileFunctionDocTracker = new FileFunctionDocTracker({
+            macroManager,
+            documentationService: resolvedDocumentationService
+        });
         this.simulatedEfunScanner = new SimulatedEfunScanner(projectConfigService, resolvedAnalysisService);
         this.efunDocs = this.createBundledDocsMap();
         this.efunCategories = this.createBundledCategoriesMap();

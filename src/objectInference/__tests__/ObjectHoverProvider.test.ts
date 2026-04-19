@@ -73,6 +73,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('hovering the receiver side of USER_D->query_name() does not return object-method hover', async () => {
+        const documentationService = new FunctionDocumentationService();
         const content = 'USER_D->query_name();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -112,7 +113,14 @@ describe('ObjectHoverProvider', () => {
             })
         };
 
-        const provider = new ObjectHoverProvider(objectInferenceService as any, undefined, targetMethodLookup as any);
+        const provider = new ObjectHoverProvider(
+            objectInferenceService as any,
+            undefined,
+            targetMethodLookup as any,
+            undefined,
+            undefined,
+            documentationService
+        );
         const document = {
             getWordRangeAtPosition: jest.fn(() => new vscode.Range(0, 0, 0, 6)),
             getText: jest.fn((range?: vscode.Range) => {
@@ -130,6 +138,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('resolved target file shows method syntax and structured shared docs without legacy reparsing', async () => {
+        const documentationService = new FunctionDocumentationService();
         const content = 'target->query_name();';
         const getDocsByNameSpy = jest.spyOn(FunctionDocumentationService.prototype, 'getDocsByName');
         const parseFunctionDocsSpy = jest.spyOn(docParser, 'parseFunctionDocs');
@@ -172,7 +181,14 @@ describe('ObjectHoverProvider', () => {
             location: new vscode.Location(vscode.Uri.file('D:/code/lpc/obj/npc.c'), new vscode.Position(3, 0))
         });
 
-        const provider = new (ObjectHoverProvider as any)(objectInferenceService as any, undefined, targetMethodLookup as any);
+        const provider = new (ObjectHoverProvider as any)(
+            objectInferenceService as any,
+            undefined,
+            targetMethodLookup as any,
+            undefined,
+            undefined,
+            documentationService
+        );
         const document = {
             getWordRangeAtPosition: jest.fn(() => new vscode.Range(0, 8, 0, 18)),
             getText: jest.fn((range?: vscode.Range) => {
@@ -203,6 +219,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('merged candidates without unique implementation return a conservative summary containing 可能来自多个对象', async () => {
+        const documentationService = new FunctionDocumentationService();
         const content = 'ob->start();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -221,7 +238,14 @@ describe('ObjectHoverProvider', () => {
             findMethod: jest.fn().mockResolvedValue(undefined)
         };
 
-        const provider = new (ObjectHoverProvider as any)(objectInferenceService as any, undefined, targetMethodLookup as any);
+        const provider = new (ObjectHoverProvider as any)(
+            objectInferenceService as any,
+            undefined,
+            targetMethodLookup as any,
+            undefined,
+            undefined,
+            documentationService
+        );
 
         const hover = await provider.provideHover({
             getWordRangeAtPosition: jest.fn(() => new vscode.Range(0, 4, 0, 9)),
@@ -240,6 +264,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('include-backed method hover reuses shared lookup results', async () => {
+        const documentationService = new FunctionDocumentationService();
         const content = 'factory->method();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -272,7 +297,10 @@ describe('ObjectHoverProvider', () => {
         const provider = new (ObjectHoverProvider as any)(
             objectInferenceService as any,
             undefined,
-            targetMethodLookup as any
+            targetMethodLookup as any,
+            undefined,
+            undefined,
+            documentationService
         );
         const document = {
             getWordRangeAtPosition: jest.fn(() => new vscode.Range(0, 9, 0, 15)),
@@ -295,6 +323,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('method not found in direct file but found in inherited parent shows parent doc', async () => {
+        const documentationService = new FunctionDocumentationService();
         const content = 'child->quest_info();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -323,7 +352,14 @@ describe('ObjectHoverProvider', () => {
             })
         };
 
-        const provider = new (ObjectHoverProvider as any)(objectInferenceService as any, undefined, targetMethodLookup as any);
+        const provider = new (ObjectHoverProvider as any)(
+            objectInferenceService as any,
+            undefined,
+            targetMethodLookup as any,
+            undefined,
+            undefined,
+            documentationService
+        );
         const document = {
             getWordRangeAtPosition: jest.fn(() => new vscode.Range(0, 7, 0, 17)),
             getText: jest.fn((range?: vscode.Range) => {
@@ -344,6 +380,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('multiple candidates converging to same parent implementation shows the unique doc', async () => {
+        const documentationService = new FunctionDocumentationService();
         const content = 'ob->shared_method();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -376,7 +413,14 @@ describe('ObjectHoverProvider', () => {
             })
         };
 
-        const provider = new (ObjectHoverProvider as any)(objectInferenceService as any, undefined, targetMethodLookup as any);
+        const provider = new (ObjectHoverProvider as any)(
+            objectInferenceService as any,
+            undefined,
+            targetMethodLookup as any,
+            undefined,
+            undefined,
+            documentationService
+        );
         const document = {
             getWordRangeAtPosition: jest.fn(() => new vscode.Range(0, 4, 0, 17)),
             getText: jest.fn((range?: vscode.Range) => {
@@ -398,6 +442,7 @@ describe('ObjectHoverProvider', () => {
     });
 
     test('distinct implementations render separate hover blocks even when docs are similar', async () => {
+        const documentationService = new FunctionDocumentationService();
         const content = 'ob->start();';
         const objectInferenceService = {
             inferObjectAccess: jest.fn().mockResolvedValue({
@@ -432,7 +477,10 @@ describe('ObjectHoverProvider', () => {
         const provider = new (ObjectHoverProvider as any)(
             objectInferenceService as any,
             undefined,
-            targetMethodLookup as any
+            targetMethodLookup as any,
+            undefined,
+            undefined,
+            documentationService
         );
         const document = {
             getWordRangeAtPosition: jest.fn(() => new vscode.Range(0, 4, 0, 9)),

@@ -13,6 +13,7 @@ import type {
 import type { LanguageDocumentSymbol, LanguageSymbolRequest } from './LanguageSymbolService';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
@@ -206,34 +207,39 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
         dependencies?: HoverServiceDependencies
     ) {
         this.documentAdapter = dependencies?.documentAdapter ?? new VsCodeHoverDocumentAdapter();
-        const objectAccessProvider = dependencies?.objectAccessProvider
-            ?? new VsCodeHoverObjectAccessProvider(objectInferenceService);
-        const methodResolver = dependencies?.methodResolver
-            ?? new VsCodeHoverMethodResolver(
-                targetMethodLookup
-                ?? new TargetMethodLookup(
-                    macroManager,
-                    projectConfigService,
-                    assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies?.analysisService)
-                )
-            );
-        const documentationService = dependencies?.documentationService ?? new FunctionDocumentationService();
         const renderer = dependencies?.renderer ?? new CallableDocRenderer();
+        const requiresDocumentationService = !dependencies?.objectMethodHoverResolver
+            || (!dependencies?.scopedHoverResolver && Boolean(dependencies?.scopedMethodResolver));
+        const documentationService = requiresDocumentationService
+            ? assertDocumentationService(
+                'ObjectInferenceLanguageHoverService',
+                dependencies?.documentationService
+            )
+            : dependencies?.documentationService;
 
         this.scopedHoverResolver = dependencies?.scopedHoverResolver
             ?? (dependencies?.scopedMethodResolver
                 ? new ScopedMethodHoverResolver({
                     scopedMethodResolver: dependencies.scopedMethodResolver,
-                    documentationService,
+                    documentationService: documentationService!,
                     renderer,
                     analysisService: assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies?.analysisService)
                 })
                 : undefined);
         this.objectMethodHoverResolver = dependencies?.objectMethodHoverResolver
             ?? new ObjectMethodHoverResolver({
-                objectAccessProvider,
-                methodResolver,
-                documentationService,
+                objectAccessProvider: dependencies?.objectAccessProvider
+                    ?? new VsCodeHoverObjectAccessProvider(objectInferenceService),
+                methodResolver: dependencies?.methodResolver
+                    ?? new VsCodeHoverMethodResolver(
+                        targetMethodLookup
+                        ?? new TargetMethodLookup(
+                            macroManager,
+                            projectConfigService,
+                            assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies?.analysisService)
+                        )
+                    ),
+                documentationService: documentationService!,
                 renderer,
                 documentationSupport: {
                     toDocumentationTextDocument

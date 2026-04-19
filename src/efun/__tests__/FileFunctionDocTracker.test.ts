@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { FileFunctionDocTracker } from '../FileFunctionDocTracker';
 import type { MaterializedFunctionDocLookup, RawFunctionDocLookup } from '../FunctionDocLookupTypes';
 
@@ -99,6 +100,7 @@ describe('FileFunctionDocTracker', () => {
 
         const tracker = new FileFunctionDocTracker({
             lookupBuilder: { buildLookup },
+            documentationService: new FunctionDocumentationService(),
             compatMaterializer: { materializeLookup } as any
         }) as any;
         const firstDocument = {
@@ -147,6 +149,7 @@ describe('FileFunctionDocTracker', () => {
 
         const tracker = new FileFunctionDocTracker({
             lookupBuilder: { buildLookup },
+            documentationService: new FunctionDocumentationService(),
             compatMaterializer: { materializeLookup } as any
         });
         const document = {
@@ -175,6 +178,7 @@ describe('FileFunctionDocTracker', () => {
 
         const tracker = new FileFunctionDocTracker({
             lookupBuilder: { buildLookup },
+            documentationService: new FunctionDocumentationService(),
             compatMaterializer: { materializeLookup } as any
         });
         const document = {

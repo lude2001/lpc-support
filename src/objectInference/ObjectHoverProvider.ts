@@ -3,6 +3,8 @@ import * as path from 'path';
 import { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { TargetMethodLookup } from '../targetMethodLookup';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import {
     type LanguageHoverResult,
     LanguageHoverService,
@@ -18,13 +20,20 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
         macroManager?: MacroManager,
         targetMethodLookup?: TargetMethodLookup,
         projectConfigService?: LpcProjectConfigService,
-        hoverService?: LanguageHoverService
+        hoverService?: LanguageHoverService,
+        documentationService?: FunctionDocumentationService
     ) {
+        const resolvedDocumentationService = hoverService
+            ? documentationService
+            : assertDocumentationService('ObjectHoverProvider', documentationService);
         this.hoverService = hoverService ?? new ObjectInferenceLanguageHoverService(
             objectInferenceService,
             macroManager,
             targetMethodLookup,
-            projectConfigService
+            projectConfigService,
+            {
+                documentationService: resolvedDocumentationService
+            }
         );
     }
 

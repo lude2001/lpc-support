@@ -7,6 +7,7 @@ import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManage
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import {
     configureAstManagerSingletonForTests,
@@ -55,7 +56,9 @@ describe('EfunDocsManager', () => {
         return new EfunDocsManager(
             createContext(extensionPath),
             undefined,
-            DocumentSemanticSnapshotService.getInstance()
+            DocumentSemanticSnapshotService.getInstance(),
+            undefined,
+            new FunctionDocumentationService()
         );
     }
 
@@ -249,7 +252,8 @@ describe('EfunDocsManager', () => {
             scanMacros: jest.fn().mockResolvedValue(undefined),
             getIncludePath: jest.fn()
         } as any, undefined, undefined, undefined, {
-            analysisService: DocumentSemanticSnapshotService.getInstance()
+            analysisService: DocumentSemanticSnapshotService.getInstance(),
+            documentationService: new FunctionDocumentationService()
         });
         const document = TestHelper.createMockDocument('allo');
         const completion = await service.provideCompletion({

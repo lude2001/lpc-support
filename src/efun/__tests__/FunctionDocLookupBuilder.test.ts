@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { FunctionDocCompatMaterializer } from '../FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../FunctionDocLookupBuilder';
+import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 
 function createTextDocument(filePath: string, content: string): vscode.TextDocument {
     const normalized = content.replace(/\r\n/g, '\n');
@@ -93,7 +94,9 @@ describe('FunctionDocLookupBuilder', () => {
 
         (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({ uri: { fsPath: tempRoot } });
 
-        const builder = new FunctionDocLookupBuilder();
+        const builder = new FunctionDocLookupBuilder({
+            documentationService: new FunctionDocumentationService()
+        });
         const materializer = new FunctionDocCompatMaterializer();
         const document = {
             uri: { fsPath: mainFile },
@@ -147,7 +150,9 @@ describe('FunctionDocLookupBuilder', () => {
             return undefined;
         });
 
-        const builder = new FunctionDocLookupBuilder();
+        const builder = new FunctionDocLookupBuilder({
+            documentationService: new FunctionDocumentationService()
+        });
         const materializer = new FunctionDocCompatMaterializer();
         const document = {
             uri: { fsPath: mainFile },
@@ -191,6 +196,7 @@ describe('FunctionDocLookupBuilder', () => {
         (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({ uri: { fsPath: tempRoot } });
 
         const builder = new FunctionDocLookupBuilder({
+            documentationService: new FunctionDocumentationService(),
             macroManager: {
                 getMacro: jest.fn().mockReturnValue({ value: '"/inherit/base"' })
             } as any

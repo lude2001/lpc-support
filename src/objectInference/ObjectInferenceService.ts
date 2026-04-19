@@ -3,6 +3,8 @@ import { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { PathResolver } from '../utils/pathResolver';
@@ -30,9 +32,14 @@ export class ObjectInferenceService {
     constructor(
         private readonly macroManager?: MacroManager,
         playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
-        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>
+        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>,
+        documentationService?: FunctionDocumentationService
     ) {
         this.analysisService = assertAnalysisService('ObjectInferenceService', analysisService);
+        const resolvedDocumentationService = assertDocumentationService(
+            'ObjectInferenceService',
+            documentationService
+        );
         const projectConfigService = typeof playerObjectPathOrProjectConfig === 'string'
             ? undefined
             : playerObjectPathOrProjectConfig;
@@ -45,7 +52,7 @@ export class ObjectInferenceService {
         this.returnObjectResolver = new ReturnObjectResolver(
             macroManager,
             playerObjectPathOrProjectConfig,
-            undefined,
+            resolvedDocumentationService,
             scopedMethodResolver
         );
         const scopedMethodReturnResolver = new ScopedMethodReturnResolver(

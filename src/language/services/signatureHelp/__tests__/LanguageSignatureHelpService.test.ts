@@ -5,6 +5,7 @@ import * as path from 'path';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { EfunDocsManager } from '../../../../efunDocs';
+import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
 import {
@@ -196,8 +197,10 @@ describe('LanguageSignatureHelpService', () => {
     function createSignatureHelpService(
         dependencies: ConstructorParameters<typeof LanguageSignatureHelpService>[0] = {}
     ): LanguageSignatureHelpService {
+        const documentationService = dependencies.documentationService ?? new FunctionDocumentationService();
         return new LanguageSignatureHelpService({
             analysisService,
+            documentationService,
             ...dependencies
         });
     }
@@ -274,6 +277,53 @@ describe('LanguageSignatureHelpService', () => {
         });
     });
 
+    test('supports fully injected discovery and doc resolvers without requiring documentation service', async () => {
+        const source = 'void test() {\n    local_call(1);\n}';
+        const document = createDocument(source);
+        const service = new LanguageSignatureHelpService({
+            analysisService,
+            discoveryService: createDiscoveryService({
+                localOrInherited: () => [{
+                    kind: 'local',
+                    name: 'local_call',
+                    targetKey: 'decl:local-call',
+                    declarationKey: 'decl:local-call',
+                    sourceLabel: 'current-file',
+                    priority: 1
+                }]
+            }),
+            docResolver: createDocResolver({
+                'decl:local-call': createCallableDoc(
+                    'local_call',
+                    'local',
+                    'decl:local-call',
+                    [{
+                        label: 'int local_call(int value)',
+                        returnType: 'int',
+                        isVariadic: false,
+                        parameters: [{ name: 'value', type: 'int', description: 'Single value' }]
+                    }]
+                )
+            })
+        });
+
+        const result = await service.provideSignatureHelp({
+            context: createContext(document),
+            position: positionAfter(source, '1')
+        });
+
+        expect(result).toEqual({
+            signatures: [{
+                label: 'int local_call(int value)',
+                documentation: expect.stringContaining('Source: current-file'),
+                sourceLabel: 'current-file',
+                parameters: [{ label: 'int value', documentation: 'int value: Single value' }]
+            }],
+            activeSignature: 0,
+            activeParameter: 0
+        });
+    });
+
     test('prefers the in-file implementation signature help over a leading prototype with the same name', async () => {
         const source = [
             'private mapping execute_command(object actor, string arg);',
@@ -290,11 +340,13 @@ describe('LanguageSignatureHelpService', () => {
             '}'
         ].join('\n');
         const document = createDocument(source, 'D:/workspace/prototype-signature.c');
+        const documentationService = new FunctionDocumentationService();
         const efunDocsManager = new EfunDocsManager({
             subscriptions: [],
             extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext, undefined, analysisService);
+        } as unknown as vscode.ExtensionContext, undefined, analysisService, undefined, documentationService);
         const service = createSignatureHelpService({
+            documentationService,
             efunDocsManager,
             host: {
                 openTextDocument: jest.fn(async () => document)
@@ -762,7 +814,8 @@ describe('LanguageSignatureHelpService', () => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
             return createDocument(fs.readFileSync(filePath, 'utf8'), filePath);
         });
-        const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService);
+        const documentationService = new FunctionDocumentationService();
+        const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService, documentationService);
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup(undefined, undefined, analysisService);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
@@ -784,6 +837,7 @@ describe('LanguageSignatureHelpService', () => {
             })
         };
         const service = createSignatureHelpService({
+            documentationService,
             objectInferenceService,
             targetMethodLookup,
             docResolver
@@ -844,7 +898,8 @@ describe('LanguageSignatureHelpService', () => {
                 .replace(/\//g, path.sep);
             return createDocument(fs.readFileSync(normalizedPath, 'utf8'), normalizedPath);
         });
-        const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService);
+        const documentationService = new FunctionDocumentationService();
+        const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService, documentationService);
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup(undefined, undefined, analysisService);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
@@ -866,6 +921,7 @@ describe('LanguageSignatureHelpService', () => {
             })
         };
         const service = createSignatureHelpService({
+            documentationService,
             objectInferenceService,
             targetMethodLookup,
             docResolver

@@ -36,6 +36,7 @@ describe('createProductionLanguageServices', () => {
         const projectConfigService = { kind: 'project-config' };
         const macroManager = { kind: 'macro-manager' };
         const efunDocsManager = { kind: 'efun-docs-manager' };
+        const documentationService = { kind: 'function-documentation-service' };
         const completionInstrumentation = { kind: 'completion-instrumentation' };
         const objectInferenceService = { kind: 'object-inference-service' };
         const targetMethodLookup = { kind: 'target-method-lookup' };
@@ -46,6 +47,7 @@ describe('createProductionLanguageServices', () => {
             formatRange: jest.fn()
         };
         const hoverService = { provideHover: jest.fn() };
+        const signatureHelpService = { provideSignatureHelp: jest.fn() };
         const definitionService = { provideDefinition: jest.fn() };
         const referenceService = { provideReferences: jest.fn() };
         const renameService = {
@@ -66,6 +68,9 @@ describe('createProductionLanguageServices', () => {
             }));
             jest.doMock('../../../../efun/EfunDocsManager', () => ({
                 EfunDocsManager: jest.fn(() => efunDocsManager)
+            }));
+            jest.doMock('../../../../language/documentation/FunctionDocumentationService', () => ({
+                FunctionDocumentationService: jest.fn(() => documentationService)
             }));
             jest.doMock('../../../../completion/completionInstrumentation', () => ({
                 CompletionInstrumentation: jest.fn(() => completionInstrumentation)
@@ -103,6 +108,9 @@ describe('createProductionLanguageServices', () => {
             jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
                 AstBackedLanguageDefinitionService: jest.fn(() => definitionService)
             }));
+            jest.doMock('../../../../language/services/signatureHelp/LanguageSignatureHelpService', () => ({
+                LanguageSignatureHelpService: jest.fn(() => signatureHelpService)
+            }));
             jest.doMock('../../../../language/services/navigation/LanguageReferenceService', () => ({
                 AstBackedLanguageReferenceService: jest.fn(() => referenceService)
             }));
@@ -133,12 +141,72 @@ describe('createProductionLanguageServices', () => {
             const request = { example: true } as any;
 
             const { EfunDocsManager } = require('../../../../efun/EfunDocsManager') as typeof import('../../../../efun/EfunDocsManager');
+            const { FunctionDocumentationService } = require('../../../../language/documentation/FunctionDocumentationService') as typeof import('../../../../language/documentation/FunctionDocumentationService');
+            const { ObjectInferenceService } = require('../../../../objectInference/ObjectInferenceService') as typeof import('../../../../objectInference/ObjectInferenceService');
+            const { QueryBackedLanguageCompletionService } = require('../../../../language/services/completion/LanguageCompletionService') as typeof import('../../../../language/services/completion/LanguageCompletionService');
+            const { ObjectInferenceLanguageHoverService } = require('../../../../language/services/navigation/LanguageHoverService') as typeof import('../../../../language/services/navigation/LanguageHoverService');
+            const { AstBackedLanguageDefinitionService } = require('../../../../language/services/navigation/LanguageDefinitionService') as typeof import('../../../../language/services/navigation/LanguageDefinitionService');
+            const { LanguageSignatureHelpService } = require('../../../../language/services/signatureHelp/LanguageSignatureHelpService') as typeof import('../../../../language/services/signatureHelp/LanguageSignatureHelpService');
             expect(configureAstManagerSingleton).toHaveBeenCalledWith(analysisService);
-            expect(EfunDocsManager).toHaveBeenCalledWith(expect.anything(), projectConfigService, analysisService, macroManager);
+            expect(FunctionDocumentationService).toHaveBeenCalledTimes(1);
+            expect(ObjectInferenceService).toHaveBeenCalledWith(
+                macroManager,
+                projectConfigService,
+                analysisService,
+                documentationService
+            );
+            expect(EfunDocsManager).toHaveBeenCalledWith(
+                expect.anything(),
+                projectConfigService,
+                analysisService,
+                macroManager,
+                documentationService
+            );
+            expect(QueryBackedLanguageCompletionService).toHaveBeenCalledWith(
+                efunDocsManager,
+                macroManager,
+                completionInstrumentation,
+                objectInferenceService,
+                undefined,
+                expect.objectContaining({
+                    analysisService,
+                    documentationService
+                })
+            );
+            expect(ObjectInferenceLanguageHoverService).toHaveBeenCalledWith(
+                objectInferenceService,
+                macroManager,
+                targetMethodLookup,
+                projectConfigService,
+                expect.objectContaining({
+                    analysisService,
+                    documentationService
+                })
+            );
+            expect(AstBackedLanguageDefinitionService).toHaveBeenCalledWith(
+                macroManager,
+                efunDocsManager,
+                objectInferenceService,
+                targetMethodLookup,
+                projectConfigService,
+                expect.objectContaining({
+                    analysisService
+                })
+            );
+            expect(LanguageSignatureHelpService).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    analysisService,
+                    efunDocsManager,
+                    objectInferenceService,
+                    targetMethodLookup,
+                    documentationService
+                })
+            );
             expect(services.completionService).toBe(completionService);
             expect(services.diagnosticsService).toBe(diagnosticsService);
             expect(services.formattingService).toBe(formattingService);
             expect(services.codeActionsService).toBe(codeActionsService);
+            expect(services.signatureHelpService).toBe(signatureHelpService);
             services.navigationService?.provideHover(request);
             services.navigationService?.provideDefinition(request);
             services.navigationService?.provideReferences(request);
@@ -148,6 +216,7 @@ describe('createProductionLanguageServices', () => {
             services.structureService?.provideFoldingRanges(request);
             services.structureService?.provideSemanticTokens(request);
             services.codeActionsService?.provideCodeActions(request);
+            services.signatureHelpService?.provideSignatureHelp(request);
 
             expect(hoverService.provideHover).toHaveBeenCalledWith(request);
             expect(definitionService.provideDefinition).toHaveBeenCalledWith(request);
@@ -158,6 +227,7 @@ describe('createProductionLanguageServices', () => {
             expect(foldingService.provideFoldingRanges).toHaveBeenCalledWith(request);
             expect(semanticTokensService.provideSemanticTokens).toHaveBeenCalledWith(request);
             expect(codeActionsService.provideCodeActions).toHaveBeenCalledWith(request);
+            expect(signatureHelpService.provideSignatureHelp).toHaveBeenCalledWith(request);
         });
     });
 
@@ -178,6 +248,9 @@ describe('createProductionLanguageServices', () => {
             }));
             jest.doMock('../../../../efun/EfunDocsManager', () => ({
                 EfunDocsManager: jest.fn(() => ({ kind: 'efun-docs-manager' }))
+            }));
+            jest.doMock('../../../../language/documentation/FunctionDocumentationService', () => ({
+                FunctionDocumentationService: jest.fn(() => ({ kind: 'function-documentation-service' }))
             }));
             jest.doMock('../../../../completion/completionInstrumentation', () => ({
                 CompletionInstrumentation: jest.fn(() => ({ kind: 'completion-instrumentation' }))

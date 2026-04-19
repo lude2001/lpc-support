@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { ASTManager } from '../../ast/astManager';
 import { SymbolType } from '../../ast/symbolTable';
+import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { ObjectInferenceService } from '../ObjectInferenceService';
 import {
@@ -75,8 +76,14 @@ describe('ObjectInferenceService', () => {
     let service: ObjectInferenceService;
     let macroManager: { getMacro: jest.Mock };
     const analysisService = DocumentSemanticSnapshotService.getInstance();
+    let documentationService: FunctionDocumentationService;
     const createService = (playerObjectPathOrProjectConfig?: unknown) =>
-        new ObjectInferenceService(macroManager as any, playerObjectPathOrProjectConfig as any, analysisService);
+        new ObjectInferenceService(
+            macroManager as any,
+            playerObjectPathOrProjectConfig as any,
+            analysisService,
+            documentationService
+        );
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -115,6 +122,7 @@ describe('ObjectInferenceService', () => {
         macroManager = {
             getMacro: jest.fn()
         };
+        documentationService = new FunctionDocumentationService();
 
         service = createService();
     });
@@ -1463,7 +1471,8 @@ describe('ObjectInferenceService', () => {
         const projectConfiguredService = new ObjectInferenceService(
             macroManager as any,
             projectConfigService as any,
-            analysisService as any
+            analysisService as any,
+            documentationService
         );
         const source = [
             'void demo() {',
@@ -2525,7 +2534,8 @@ describe('ObjectInferenceService', () => {
         const projectConfiguredService = new ObjectInferenceService(
             macroManager as any,
             projectConfigService as any,
-            analysisService as any
+            analysisService as any,
+            documentationService
         );
         const source = [
             'object FACTORY = load_object("/adm/objects/configured-global-include-child-factory");',

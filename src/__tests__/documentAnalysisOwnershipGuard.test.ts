@@ -69,6 +69,18 @@ describe('document analysis ownership guards', () => {
         expect(astSingletonCallSites).toEqual([]);
     });
 
+    test('FunctionDocumentationService instances are only created in composition roots', () => {
+        const documentationInstantiationCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('new FunctionDocumentationService('))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(documentationInstantiationCallSites).toEqual([
+            'src/lsp/server/runtime/createProductionLanguageServices.ts',
+            'src/modules/coreModule.ts'
+        ]);
+    });
+
     test('scoped-method helper seam no longer exposes ambient analysis ownership hooks', () => {
         const ambientAnalysisAccessCallSites = listProductionTypeScriptFiles(srcRoot)
             .filter((filePath) => {

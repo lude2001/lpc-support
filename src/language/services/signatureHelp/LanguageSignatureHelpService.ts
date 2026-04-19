@@ -3,6 +3,7 @@ import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabili
 import type { LanguagePosition } from '../../contracts/LanguagePosition';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import type { CallableDoc } from '../../documentation/types';
 import type { EfunDocsManager } from '../../../efun/EfunDocsManager';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
@@ -102,7 +103,6 @@ export class LanguageSignatureHelpService {
     private readonly docResolver: CallableDocResolver;
 
     public constructor(dependencies: LanguageSignatureHelpDependencies = {}) {
-        const documentationService = dependencies.documentationService ?? new FunctionDocumentationService();
         const host = dependencies.host ?? defaultHost;
         this.renderer = dependencies.renderer ?? new CallableDocRenderer();
         this.callSiteAnalyzer = dependencies.callSiteAnalyzer
@@ -114,8 +114,14 @@ export class LanguageSignatureHelpService {
                 dependencies.targetMethodLookup,
                 dependencies.scopedMethodResolver
             );
+        const documentationService = dependencies.docResolver
+            ? dependencies.documentationService
+            : assertDocumentationService(
+                'LanguageSignatureHelpService',
+                dependencies.documentationService
+            );
         this.docResolver = dependencies.docResolver
-            ?? new DefaultCallableDocResolver(documentationService, dependencies.efunDocsManager, host);
+            ?? new DefaultCallableDocResolver(documentationService!, dependencies.efunDocsManager, host);
     }
 
     public async provideSignatureHelp(

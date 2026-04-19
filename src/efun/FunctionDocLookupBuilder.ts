@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import type { DocumentCallableDocs } from '../language/documentation/types';
 import type { MacroManager } from '../macroManager';
 import { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
@@ -17,7 +18,7 @@ export class FunctionDocLookupBuilder {
     private readonly pathSupport: WorkspaceDocumentPathSupport;
 
     public constructor(options: FunctionDocLookupBuilderOptions = {}) {
-        this.documentationService = options.documentationService ?? new FunctionDocumentationService();
+        this.documentationService = assertDocumentationService('FunctionDocLookupBuilder', options.documentationService);
         this.pathSupport = options.pathSupport ?? new WorkspaceDocumentPathSupport({
             macroManager: options.macroManager
         });

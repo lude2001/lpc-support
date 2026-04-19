@@ -35,6 +35,7 @@ import {
     ObjectInferenceLanguageHoverService,
     type LanguageNavigationService
 } from '../../../language/services/navigation/LanguageHoverService';
+import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import {
     AstBackedLanguageReferenceService,
     type LanguageReferenceService
@@ -223,7 +224,8 @@ describe('navigation handlers', () => {
                             '}'
                         ].join('\n')
                     })
-                }
+                },
+                documentationService: new FunctionDocumentationService()
             } as any
         );
         const navigationService = {

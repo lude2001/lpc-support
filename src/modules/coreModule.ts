@@ -6,6 +6,7 @@ import { CompletionInstrumentation } from '../completion/completionInstrumentati
 import { LPCConfigManager } from '../config';
 import { LPCCompiler } from '../compiler';
 import { EfunDocsManager } from '../efunDocs';
+import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { MacroManager } from '../macroManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
@@ -22,11 +23,20 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     registeredProjectConfigService = projectConfigService;
     registry.register(Services.ProjectConfig, projectConfigService);
 
+    const documentationService = new FunctionDocumentationService();
+    registry.register(Services.FunctionDocumentation, documentationService);
+
     const macroManager = new MacroManager(projectConfigService);
     registry.register(Services.MacroManager, macroManager);
     context.subscriptions.push(macroManager);
 
-    const efunDocsManager = new EfunDocsManager(context, projectConfigService, analysisService, macroManager);
+    const efunDocsManager = new EfunDocsManager(
+        context,
+        projectConfigService,
+        analysisService,
+        macroManager,
+        documentationService
+    );
     registry.register(Services.EfunDocs, efunDocsManager);
 
     const completionInstrumentation = new CompletionInstrumentation();

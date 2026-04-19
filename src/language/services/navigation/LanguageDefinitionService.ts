@@ -11,6 +11,8 @@ import { TargetMethodLookup } from '../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
+import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import { DefinitionResolverSupport } from './definition/DefinitionResolverSupport';
 import { DirectSymbolDefinitionResolver } from './definition/DirectSymbolDefinitionResolver';
 import { FunctionFamilyDefinitionResolver } from './definition/FunctionFamilyDefinitionResolver';
@@ -36,6 +38,7 @@ interface LanguageDefinitionDependencies {
     host?: LanguageDefinitionHost;
     semanticAdapter?: DefinitionSemanticAdapter;
     scopedMethodResolver?: ScopedMethodResolver;
+    documentationService?: FunctionDocumentationService;
 }
 
 const defaultDefinitionHost: LanguageDefinitionHost = defaultWorkspaceDocumentHost;
@@ -68,8 +71,11 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         this.projectConfigService = projectConfigService;
         const dependencies = this.resolveDependencies(hostOrDependencies);
         const analysisService = assertAnalysisService('AstBackedLanguageDefinitionService', dependencies.analysisService);
+        const documentationService = objectInferenceService
+            ? dependencies.documentationService
+            : assertDocumentationService('AstBackedLanguageDefinitionService', dependencies.documentationService);
         this.objectInferenceService = objectInferenceService
-            ?? new ObjectInferenceService(macroManager, projectConfigService, analysisService);
+            ?? new ObjectInferenceService(macroManager, projectConfigService, analysisService, documentationService);
         this.targetMethodLookup = targetMethodLookup
             ?? new TargetMethodLookup(macroManager, projectConfigService, analysisService);
         this.host = dependencies.host;
@@ -110,6 +116,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot' | 'getBestAvailableSnapshot' | 'getSyntaxDocument'>;
         semanticAdapter?: DefinitionSemanticAdapter;
         scopedMethodResolver?: ScopedMethodResolver;
+        documentationService?: FunctionDocumentationService;
     } {
         if ('onDidChangeTextDocument' in hostOrDependencies) {
             return {
@@ -121,7 +128,8 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
             host: hostOrDependencies.host ?? defaultDefinitionHost,
             analysisService: hostOrDependencies.analysisService,
             semanticAdapter: hostOrDependencies.semanticAdapter,
-            scopedMethodResolver: hostOrDependencies.scopedMethodResolver
+            scopedMethodResolver: hostOrDependencies.scopedMethodResolver,
+            documentationService: hostOrDependencies.documentationService
         };
     }
 

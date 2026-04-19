@@ -111,7 +111,7 @@ describe('ReturnObjectResolver', () => {
             return undefined;
         });
 
-        const resolver = new ReturnObjectResolver();
+        const resolver = new ReturnObjectResolver(undefined, undefined, new FunctionDocumentationService());
         const document = createTextDocument(
             'D:/code/lpc/obj/test.c',
             [

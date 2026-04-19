@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import type { MacroManager } from '../macroManager';
 import { FunctionDocCompatMaterializer } from './FunctionDocCompatMaterializer';
@@ -41,7 +42,7 @@ export class FileFunctionDocTracker {
     private currentFileUpdateVersion = 0;
 
     public constructor(options: FileFunctionDocTrackerOptions = {}) {
-        const documentationService = options.documentationService ?? new FunctionDocumentationService();
+        const documentationService = assertDocumentationService('FileFunctionDocTracker', options.documentationService);
         const pathSupport = options.pathSupport ?? new WorkspaceDocumentPathSupport({
             macroManager: options.macroManager
         });

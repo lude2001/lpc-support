@@ -15,6 +15,7 @@ import { ScopedMethodDiscoveryService } from '../../../objectInference/ScopedMet
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
+import { assertDocumentationService } from '../../documentation/assertDocumentationService';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
 import type { LanguagePosition } from '../../contracts/LanguagePosition';
@@ -126,7 +127,12 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         this.macroManager = macroManager;
         this.analysisService = assertAnalysisService('QueryBackedLanguageCompletionService', dependencies?.analysisService);
         this.instrumentation = instrumentation ?? new CompletionInstrumentation();
-        this.objectInferenceService = objectInferenceService ?? new ObjectInferenceService(macroManager, undefined, this.analysisService);
+        const documentationService = assertDocumentationService(
+            'QueryBackedLanguageCompletionService',
+            dependencies?.documentationService
+        );
+        this.objectInferenceService = objectInferenceService
+            ?? new ObjectInferenceService(macroManager, undefined, this.analysisService, documentationService);
         this.inheritanceReporter = inheritanceReporter;
         this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
         this.inheritedIndexService = new CompletionInheritedIndexService(
@@ -138,7 +144,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             ?? new ScopedMethodDiscoveryService(macroManager, undefined, this.analysisService);
         this.scopedCompletionSupport = dependencies?.scopedCompletionSupport
             ?? new ScopedMethodCompletionSupport({
-                documentationService: dependencies?.documentationService ?? new FunctionDocumentationService(),
+                documentationService,
                 documentLoader: dependencies?.scopedDocumentLoader
                     ?? (async (uri: string) => this.inheritedIndexService.getDocumentForUri(uri))
             });

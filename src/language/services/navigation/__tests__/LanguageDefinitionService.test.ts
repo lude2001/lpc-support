@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, tes
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { AstBackedLanguageDefinitionService } from '../LanguageDefinitionService';
+import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
@@ -133,10 +134,12 @@ describe('AstBackedLanguageDefinitionService', () => {
         const resolvedDependencies = 'onDidChangeTextDocument' in hostOrDependencies
             ? {
                 host: hostOrDependencies,
-                analysisService
+                analysisService,
+                documentationService: new FunctionDocumentationService()
             }
             : {
                 analysisService,
+                documentationService: new FunctionDocumentationService(),
                 ...hostOrDependencies
             };
 

@@ -6,6 +6,7 @@ import { CompletionInstrumentation } from '../../../completion/completionInstrum
 import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
 import { ASTManager } from '../../../ast/astManager';
+import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
 import { defaultTextDocumentHost } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { createLanguageCodeActionService } from '../../../language/services/codeActions/LanguageCodeActionService';
@@ -45,15 +46,22 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
 
     const projectConfigService = new LpcProjectConfigService();
     const macroManager = new MacroManager(projectConfigService);
+    const documentationService = new FunctionDocumentationService();
     const completionInstrumentation = new CompletionInstrumentation();
-    const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService, analysisService);
+    const objectInferenceService = new ObjectInferenceService(
+        macroManager,
+        projectConfigService,
+        analysisService,
+        documentationService
+    );
     const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService);
     const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService, analysisService);
     const efunDocsManager = new EfunDocsManager(
         createServerExtensionContext(),
         projectConfigService,
         analysisService,
-        macroManager
+        macroManager,
+        documentationService
     );
     const inheritedRelationService = new InheritedSymbolRelationService({
         analysisService,
@@ -69,7 +77,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         objectInferenceService,
         undefined,
         {
-            analysisService
+            analysisService,
+            documentationService
         }
     );
     const codeActionsService = createLanguageCodeActionService();
@@ -82,7 +91,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         projectConfigService,
         {
             analysisService,
-            scopedMethodResolver
+            scopedMethodResolver,
+            documentationService
         }
     );
     const hoverService = new UnifiedLanguageHoverService(
@@ -121,7 +131,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         efunDocsManager,
         objectInferenceService,
         targetMethodLookup,
-        scopedMethodResolver
+        scopedMethodResolver,
+        documentationService
     });
     const foldingService = new DefaultLanguageFoldingService(analysisService);
     const semanticTokensService = new DefaultLanguageSemanticTokensService(analysisService);

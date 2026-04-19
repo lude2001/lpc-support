@@ -96,12 +96,13 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             efunDocsManager as any,
             macroManager as any,
             undefined,
-            undefined,
+            {} as any,
             undefined,
             {
                 analysisService,
                 documentationService: documentationService as any,
-                scopedDocumentLoader
+                scopedDocumentLoader,
+                objectInferenceService: {} as any
             }
         ) as any;
 
@@ -160,12 +161,13 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             efunDocsManager as any,
             macroManager as any,
             undefined,
-            undefined,
+            {} as any,
             undefined,
             {
                 analysisService,
                 documentationService: documentationService as any,
-                scopedDocumentLoader
+                scopedDocumentLoader,
+                objectInferenceService: {} as any
             }
         ) as any;
 
