@@ -2,6 +2,7 @@ import { describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ObjectMethodDefinitionResolver } from '../definition/ObjectMethodDefinitionResolver';
 import { DefinitionResolverSupport } from '../definition/DefinitionResolverSupport';
+import { WorkspaceDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
 
 function createTextDocument(filePath: string, source: string): vscode.TextDocument {
     return {
@@ -15,16 +16,18 @@ function createTextDocument(filePath: string, source: string): vscode.TextDocume
 }
 
 function createSupport(): DefinitionResolverSupport {
+    const host = {
+        onDidChangeTextDocument: () => ({ dispose() {} }),
+        openTextDocument: jest.fn(),
+        findFiles: jest.fn(),
+        getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:/workspace' } })),
+        getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:/workspace' } }]),
+        fileExists: jest.fn().mockReturnValue(false)
+    };
     return new DefinitionResolverSupport({
         astManager: {} as any,
-        host: {
-            onDidChangeTextDocument: () => ({ dispose() {} }),
-            openTextDocument: jest.fn(),
-            findFiles: jest.fn(),
-            getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:/workspace' } })),
-            getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:/workspace' } }]),
-            fileExists: jest.fn().mockReturnValue(false)
-        },
+        host,
+        pathSupport: new WorkspaceDocumentPathSupport({ host }),
         macroManager: { getMacro: jest.fn() } as any
     } as any);
 }

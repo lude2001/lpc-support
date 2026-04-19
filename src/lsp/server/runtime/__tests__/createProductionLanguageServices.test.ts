@@ -13,6 +13,9 @@ const analysisService = {
 };
 const efunHoverService = { provideHover: jest.fn() };
 const efunHoverCtor = jest.fn(() => efunHoverService);
+const hoverDocumentAdapterCtor = jest.fn(() => ({}));
+const hoverObjectAccessProviderCtor = jest.fn(() => ({}));
+const hoverMethodResolverCtor = jest.fn(() => ({}));
 
 jest.mock('../../../../semantic/documentSemanticSnapshotService', () => ({
     DocumentSemanticSnapshotService: {
@@ -100,7 +103,10 @@ describe('createProductionLanguageServices', () => {
                 createDefaultQueryBackedLanguageCompletionService: jest.fn(() => completionService)
             }));
             jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
-                createDefaultObjectInferenceLanguageHoverService: jest.fn(() => hoverService)
+                createDefaultObjectInferenceLanguageHoverService: jest.fn(() => hoverService),
+                VsCodeHoverDocumentAdapter: hoverDocumentAdapterCtor,
+                VsCodeHoverObjectAccessProvider: hoverObjectAccessProviderCtor,
+                VsCodeHoverMethodResolver: hoverMethodResolverCtor
             }));
             jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
                 AstBackedLanguageDefinitionService: jest.fn(() => definitionService)
@@ -290,7 +296,10 @@ describe('createProductionLanguageServices', () => {
                 createDefaultQueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
-                createDefaultObjectInferenceLanguageHoverService: hoverFactoryCtor
+                createDefaultObjectInferenceLanguageHoverService: hoverFactoryCtor,
+                VsCodeHoverDocumentAdapter: hoverDocumentAdapterCtor,
+                VsCodeHoverObjectAccessProvider: hoverObjectAccessProviderCtor,
+                VsCodeHoverMethodResolver: hoverMethodResolverCtor
             }));
             jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
                 AstBackedLanguageDefinitionService: definitionCtor
@@ -420,7 +429,10 @@ describe('createProductionLanguageServices', () => {
                 createDefaultQueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
-                createDefaultObjectInferenceLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
+                createDefaultObjectInferenceLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() })),
+                VsCodeHoverDocumentAdapter: hoverDocumentAdapterCtor,
+                VsCodeHoverObjectAccessProvider: hoverObjectAccessProviderCtor,
+                VsCodeHoverMethodResolver: hoverMethodResolverCtor
             }));
             jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
                 AstBackedLanguageDefinitionService: jest.fn(() => ({ provideDefinition: jest.fn() }))
@@ -516,7 +528,10 @@ describe('createProductionLanguageServices', () => {
                 createDefaultQueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageHoverService', () => ({
-                createDefaultObjectInferenceLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
+                createDefaultObjectInferenceLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() })),
+                VsCodeHoverDocumentAdapter: hoverDocumentAdapterCtor,
+                VsCodeHoverObjectAccessProvider: hoverObjectAccessProviderCtor,
+                VsCodeHoverMethodResolver: hoverMethodResolverCtor
             }));
             jest.doMock('../../../../language/services/navigation/LanguageDefinitionService', () => ({
                 AstBackedLanguageDefinitionService: jest.fn(() => ({ provideDefinition: jest.fn() }))

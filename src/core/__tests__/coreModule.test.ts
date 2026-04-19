@@ -5,7 +5,7 @@ import { Services } from '../ServiceKeys';
 import { registerCoreServices } from '../../modules/coreModule';
 import { MacroManager } from '../../macroManager';
 import { EfunDocsManager } from '../../efunDocs';
-import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import { createDefaultFunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { CompletionInstrumentation } from '../../completion/completionInstrumentation';
 import { LPCConfigManager } from '../../config';
 import { LPCCompiler } from '../../compiler';
@@ -23,7 +23,7 @@ jest.mock('../../efunDocs', () => ({
 }));
 
 jest.mock('../../language/documentation/FunctionDocumentationService', () => ({
-    FunctionDocumentationService: jest.fn()
+    createDefaultFunctionDocumentationService: jest.fn()
 }));
 
 jest.mock('../../completion/completionInstrumentation', () => ({
@@ -91,7 +91,7 @@ describe('registerCoreServices', () => {
 
         (MacroManager as unknown as jest.Mock).mockReset().mockImplementation(() => macroManager);
         (EfunDocsManager as unknown as jest.Mock).mockReset().mockImplementation(() => efunDocsManager);
-        (FunctionDocumentationService as unknown as jest.Mock).mockReset().mockImplementation(() => documentationService);
+        (createDefaultFunctionDocumentationService as unknown as jest.Mock).mockReset().mockImplementation(() => documentationService);
         (CompletionInstrumentation as unknown as jest.Mock).mockReset().mockImplementation(() => completionInstrumentation);
         (LPCConfigManager as unknown as jest.Mock).mockReset().mockImplementation(() => configManager);
         (LPCCompiler as unknown as jest.Mock).mockReset().mockImplementation(() => compiler);
@@ -111,7 +111,7 @@ describe('registerCoreServices', () => {
                 openTextDocument: expect.any(Function)
             })
         );
-        expect(FunctionDocumentationService).toHaveBeenCalledTimes(1);
+        expect(createDefaultFunctionDocumentationService).toHaveBeenCalledTimes(1);
         expect(EfunDocsManager).toHaveBeenCalledTimes(1);
         expect(EfunDocsManager).toHaveBeenCalledWith(
             context,

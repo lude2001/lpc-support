@@ -7,7 +7,8 @@ import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMet
 import { ASTManager } from '../../../../ast/astManager';
 import {
     WorkspaceDocumentPathSupport,
-    createVsCodeTextDocumentHost
+    createVsCodeTextDocumentHost,
+    createVsCodeWorkspaceDocumentHost
 } from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import {
@@ -269,7 +270,7 @@ describe('navigation services', () => {
     });
 
     test('hover service can rely on injected hover resolvers without requiring documentation service', async () => {
-        const document = createDocument('target->query_name();');
+        const document = createVsCodeTextDocument('D:/workspace/test.c', 'target->query_name();');
         const scopedHoverResolver = {
             provideScopedHover: jest.fn().mockResolvedValue(undefined)
         };
@@ -280,16 +281,14 @@ describe('navigation services', () => {
         };
         const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
             {
-                documentAdapter: {
-                    fromLanguageDocument: jest.fn((inputDocument) => inputDocument as any)
-                },
+                documentAdapter: new VsCodeHoverDocumentAdapter(),
                 scopedHoverResolver,
                 objectMethodHoverResolver
             }
         );
 
         const hover = await service.provideHover({
-            context: createContext(document),
+            context: createContext(document as any),
             position: { line: 0, character: 10 }
         });
 
@@ -701,7 +700,11 @@ describe('navigation services', () => {
     test('definition service can operate on host-agnostic documents via injected boundaries', async () => {
         const source = 'local_call();';
         const document = createDocument(source);
-        const { host, pathSupport } = createDocumentPathDependencies();
+        const host = {
+            ...createVsCodeWorkspaceDocumentHost(),
+            onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() })
+        };
+        const pathSupport = new WorkspaceDocumentPathSupport({ host });
         const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
         const service: LanguageDefinitionService = new AstBackedLanguageDefinitionService(
             {} as any,

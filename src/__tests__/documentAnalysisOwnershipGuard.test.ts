@@ -80,9 +80,9 @@ describe('document analysis ownership guards', () => {
             .sort();
 
         expect(documentationInstantiationCallSites).toEqual([
+            'src/language/documentation/FunctionDocumentationService.ts',
             'src/lsp/server/runtime/createProductionLanguageServices.ts',
-            'src/modules/coreModule.ts',
-            'src/language/documentation/FunctionDocumentationService.ts'
+            'src/modules/coreModule.ts'
         ]);
     });
 

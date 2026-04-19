@@ -49,6 +49,7 @@ import {
 import { DefaultLanguageSemanticTokensService } from '../../../language/services/structure/LanguageSemanticTokensService';
 import { MacroManager } from '../../../macroManager';
 import { createDefaultObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
+import { createDefaultScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
@@ -117,7 +118,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         functionRelationService: inheritedFunctionRelationService,
         fileGlobalRelationService: inheritedFileGlobalRelationService
     });
-    const scopedMethodDiscoveryService = new ScopedMethodDiscoveryService({
+    const scopedMethodDiscoveryService = createDefaultScopedMethodDiscoveryService({
         analysisService,
         inheritanceResolver,
         host: workspaceDocumentHost

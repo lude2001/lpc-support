@@ -52,6 +52,7 @@ export interface ScopedMethodDiscoveryServiceDependencies {
 export interface DefaultScopedMethodDiscoveryServiceDependencies {
     macroManager?: MacroManager;
     workspaceRoots?: string[];
+    inheritanceResolver?: InheritanceResolver;
     analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     host?: Pick<TextDocumentHost, 'openTextDocument'>;
 }
@@ -375,7 +376,8 @@ export function createDefaultScopedMethodDiscoveryService(
 ): ScopedMethodDiscoveryService {
     return new ScopedMethodDiscoveryService({
         analysisService: dependencies.analysisService,
-        inheritanceResolver: new InheritanceResolver(dependencies.macroManager, dependencies.workspaceRoots),
+        inheritanceResolver: dependencies.inheritanceResolver
+            ?? new InheritanceResolver(dependencies.macroManager, dependencies.workspaceRoots),
         host: dependencies.host
     });
 }

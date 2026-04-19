@@ -6,8 +6,7 @@
 
 核心设计原则是：统一的 `ObjectInferenceService` 作为唯一入口，被多个语言服务共享调用，避免各 Provider 各自实现推导逻辑。
 
-自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾尝试引入工作区级 `references / rename`；自 `0.45.1` 起，导航主路径重新收窄为“当前文件级 + 可证明继承链级”的保守边界，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。
-自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾引入工作区级 `references` / 安全 `rename` 尝试；自 `0.45.1` 起，导航链重新收窄为“当前文件级 + 可证明继承链级”的保守边界：函数 `references` 不再做工作区级名字扩散，`rename` 仅保留局部变量、函数参数和文件级全局变量，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。
+自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾尝试引入工作区级 `references / rename`；自 `0.45.1` 起，导航主路径重新收窄为“当前文件级 + 可证明继承链级”的保守边界，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。自 `0.45.2` 起，completion / hover / signature help / navigation / object inference / runtime document source 的 owner 进一步统一回到显式 composition root 与默认 factory，历史 fallback / self-assembly 路径已基本清空。
 
 ## 2. 架构总览
 

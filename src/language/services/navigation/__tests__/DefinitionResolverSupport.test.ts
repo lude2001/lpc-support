@@ -1,6 +1,7 @@
 import { describe, expect, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { DefinitionResolverSupport } from '../definition/DefinitionResolverSupport';
+import { WorkspaceDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
 
 function createDocument(filePath: string): vscode.TextDocument {
     return {
@@ -75,6 +76,19 @@ function createSupportHarness() {
             exportedFunctions: []
         };
     });
+    const host = {
+        onDidChangeTextDocument: (listener: (event: { document: { uri: { fsPath: string } } }) => void) => {
+            changeListener = listener;
+            return { dispose() {} };
+        },
+        openTextDocument,
+        findFiles: jest.fn(),
+        getWorkspaceFolder: () => ({ uri: { fsPath: 'D:/workspace' } }),
+        getWorkspaceFolders: () => [{ uri: { fsPath: 'D:/workspace' } }],
+        fileExists: jest.fn((filePath: string) =>
+            normalizePath(filePath).endsWith('test.c')
+            || normalizePath(filePath).endsWith('shared.h'))
+    } as any;
     const semanticAdapter = {
         findFunctionLocation: jest.fn((document: vscode.TextDocument, functionName: string) => {
             if (normalizePath(document.uri.fsPath) === normalizePath(headerPath) && functionName === 'headerFn') {
@@ -99,19 +113,8 @@ function createSupportHarness() {
         astManager: {
             getSemanticSnapshot
         } as any,
-        host: {
-            onDidChangeTextDocument: (listener) => {
-                changeListener = listener;
-                return { dispose() {} };
-            },
-            openTextDocument,
-            findFiles: jest.fn(),
-            getWorkspaceFolder: () => ({ uri: { fsPath: 'D:/workspace' } }),
-            getWorkspaceFolders: () => [{ uri: { fsPath: 'D:/workspace' } }],
-            fileExists: jest.fn((filePath: string) =>
-                normalizePath(filePath).endsWith('test.c')
-                || normalizePath(filePath).endsWith('shared.h'))
-        } as any,
+        host,
+        pathSupport: new WorkspaceDocumentPathSupport({ host }),
         semanticAdapter: semanticAdapter as any
     } as any);
 
@@ -138,11 +141,16 @@ function createSupportHarness() {
 
 describe('DefinitionResolverSupport', () => {
     test('createRequestState returns fresh traversal state per request', () => {
+        const host = {
+            onDidChangeTextDocument: () => ({ dispose() {} }),
+            openTextDocument: jest.fn(),
+            fileExists: jest.fn().mockReturnValue(false),
+            getWorkspaceFolder: jest.fn(() => undefined)
+        } as any;
         const support = new DefinitionResolverSupport({
             astManager: {} as any,
-            host: {
-                onDidChangeTextDocument: () => ({ dispose() {} })
-            } as any
+            host,
+            pathSupport: new WorkspaceDocumentPathSupport({ host })
         } as any);
 
         const first = support.createRequestState();
@@ -157,11 +165,16 @@ describe('DefinitionResolverSupport', () => {
     });
 
     test('toVsCodeLocation preserves the original language source uri for downstream normalization', () => {
+        const host = {
+            onDidChangeTextDocument: () => ({ dispose() {} }),
+            openTextDocument: jest.fn(),
+            fileExists: jest.fn().mockReturnValue(false),
+            getWorkspaceFolder: jest.fn(() => undefined)
+        } as any;
         const support = new DefinitionResolverSupport({
             astManager: {} as any,
-            host: {
-                onDidChangeTextDocument: () => ({ dispose() {} })
-            } as any
+            host,
+            pathSupport: new WorkspaceDocumentPathSupport({ host })
         } as any);
 
         const location = support.toVsCodeLocation({
@@ -178,12 +191,16 @@ describe('DefinitionResolverSupport', () => {
     });
 
     test('getWorkspaceRoot falls back to the document directory when the host has no workspace folder', () => {
+        const host = {
+            onDidChangeTextDocument: () => ({ dispose() {} }),
+            openTextDocument: jest.fn(),
+            fileExists: jest.fn().mockReturnValue(false),
+            getWorkspaceFolder: () => undefined
+        } as any;
         const support = new DefinitionResolverSupport({
             astManager: {} as any,
-            host: {
-                onDidChangeTextDocument: () => ({ dispose() {} }),
-                getWorkspaceFolder: () => undefined
-            }
+            host,
+            pathSupport: new WorkspaceDocumentPathSupport({ host })
         } as any);
 
         expect(support.getWorkspaceRoot(createDocument('D:/workspace/cmds/std/test.c'))).toBe('D:/workspace/cmds/std');

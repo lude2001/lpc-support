@@ -5,8 +5,7 @@ import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import {
-    InheritedFileGlobalRelationService,
-    type InheritedFileGlobalRelationServiceOptions
+    InheritedFileGlobalRelationService
 } from './InheritedFileGlobalRelationService';
 import { InheritedFunctionRelationService } from './InheritedFunctionRelationService';
 
@@ -20,7 +19,8 @@ export type RenameTargetClassification =
     | { kind: 'file-global' }
     | { kind: 'unsupported' };
 
-export interface InheritedSymbolRelationServiceOptions extends InheritedFileGlobalRelationServiceOptions {
+export interface InheritedSymbolRelationServiceOptions {
+    analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     functionRelationService: Pick<InheritedFunctionRelationService, 'collectFunctionReferences'>;
     fileGlobalRelationService: Pick<InheritedFileGlobalRelationService, 'resolveVisibleBinding' | 'collectReferences'>;
 }

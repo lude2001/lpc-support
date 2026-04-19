@@ -2,6 +2,15 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.45.2] - 2026-04-20
+
+### Architecture Cleanup
+
+- 完成 analysis / documentation / completion / hover / signature help / navigation / object inference / runtime document source 的 ownership normalization，主要语言服务现在统一退回到 composition root + factory 装配，不再在主服务内部偷偷自组装依赖。
+- 统一函数文档、scoped completion、hover renderer、document symbol snapshot、reference / rename adapter 和 document host/path support 的 owner，移除多条历史 fallback 与 self-assembly 路径。
+- 收紧 `ASTManager`、`WorkspaceSession`、`ParsedDocumentService`、`LspClientManager` 等基础设施入口，减少零参默认配置与隐式单例残影，主语言能力链的基础设施使用方式更加一致。
+- 这次发布不引入新的语言功能，重点是稳定现有能力、清理死代码和降低后续功能演进的结构阻力。
+
 ## [0.45.1] - 2026-04-18
 
 ### Navigation Capability Narrowing

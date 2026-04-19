@@ -2,6 +2,7 @@ import { describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { DirectSymbolDefinitionResolver } from '../definition/DirectSymbolDefinitionResolver';
 import { DefinitionResolverSupport } from '../definition/DefinitionResolverSupport';
+import { WorkspaceDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
 
 function createDocument(filePath: string, source: string): vscode.TextDocument {
     const lines = source.split(/\r?\n/);
@@ -27,6 +28,15 @@ function createDocument(filePath: string, source: string): vscode.TextDocument {
 }
 
 function createSupport(overrides: Partial<ConstructorParameters<typeof DefinitionResolverSupport>[0]> = {}): DefinitionResolverSupport {
+    const defaultHost = {
+        onDidChangeTextDocument: () => ({ dispose() {} }),
+        openTextDocument: jest.fn(),
+        findFiles: jest.fn(),
+        getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:/workspace' } })),
+        getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:/workspace' } }]),
+        fileExists: jest.fn().mockReturnValue(true)
+    };
+    const resolvedHost = (overrides.host as any) ?? defaultHost;
     return new DefinitionResolverSupport({
         astManager: {
             getSemanticSnapshot: jest.fn(() => ({
@@ -37,14 +47,8 @@ function createSupport(overrides: Partial<ConstructorParameters<typeof Definitio
                 }
             }))
         } as any,
-        host: {
-            onDidChangeTextDocument: () => ({ dispose() {} }),
-            openTextDocument: jest.fn(),
-            findFiles: jest.fn(),
-            getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:/workspace' } })),
-            getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:/workspace' } }]),
-            fileExists: jest.fn().mockReturnValue(true)
-        },
+        host: resolvedHost,
+        pathSupport: new WorkspaceDocumentPathSupport({ host: resolvedHost }),
         macroManager: { getMacro: jest.fn() } as any,
         ...overrides
     } as any);

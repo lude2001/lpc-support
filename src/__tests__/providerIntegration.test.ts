@@ -260,12 +260,10 @@ describe('language-service integration regression', () => {
         const resolvedDependencies = 'onDidChangeTextDocument' in hostOrDependencies
             ? {
                 host: hostOrDependencies,
-                analysisService,
-                pathSupport
+                analysisService
             }
             : {
                 analysisService,
-                pathSupport,
                 host: {
                     onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
                     openTextDocument: vscode.workspace.openTextDocument as any,
@@ -278,10 +276,15 @@ describe('language-service integration regression', () => {
                 },
                 ...hostOrDependencies
             };
+        const resolvedPathSupport = new WorkspaceDocumentPathSupport({
+            host: resolvedDependencies.host as any,
+            macroManager: macroManager as any,
+            projectConfigService: projectConfigService as any
+        });
         const resolvedObjectInferenceService = objectInferenceService
             ?? createObjectInference(projectConfigService);
         const resolvedTargetMethodLookup = targetMethodLookup
-            ?? new TargetMethodLookup(analysisService, pathSupport);
+            ?? new TargetMethodLookup(analysisService, resolvedPathSupport);
 
         return new AstBackedLanguageDefinitionService(
             macroManager as any,
@@ -289,7 +292,10 @@ describe('language-service integration regression', () => {
             resolvedObjectInferenceService as any,
             resolvedTargetMethodLookup as any,
             projectConfigService as any,
-            resolvedDependencies as any
+            {
+                ...resolvedDependencies,
+                pathSupport: resolvedPathSupport
+            } as any
         );
     };
 

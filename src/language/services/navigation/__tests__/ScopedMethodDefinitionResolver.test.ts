@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { ScopedMethodDefinitionResolver } from '../definition/ScopedMethodDefinitionResolver';
 import { DefinitionResolverSupport } from '../definition/DefinitionResolverSupport';
+import { WorkspaceDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
 import {
     configureAstManagerSingletonForTests,
     getAstManagerForTests,
@@ -66,16 +67,18 @@ function createTextDocument(filePath: string, source: string): vscode.TextDocume
 }
 
 function createSupport(): DefinitionResolverSupport {
+    const host = {
+        onDidChangeTextDocument: () => ({ dispose() {} }),
+        openTextDocument: jest.fn(),
+        findFiles: jest.fn(),
+        getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:/workspace' } })),
+        getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:/workspace' } }]),
+        fileExists: jest.fn().mockReturnValue(false)
+    };
     return new DefinitionResolverSupport({
         astManager: getAstManagerForTests(),
-        host: {
-            onDidChangeTextDocument: () => ({ dispose() {} }),
-            openTextDocument: jest.fn(),
-            findFiles: jest.fn(),
-            getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:/workspace' } })),
-            getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:/workspace' } }]),
-            fileExists: jest.fn().mockReturnValue(false)
-        },
+        host,
+        pathSupport: new WorkspaceDocumentPathSupport({ host }),
         macroManager: { getMacro: jest.fn() } as any
     } as any);
 }
