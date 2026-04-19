@@ -59,38 +59,6 @@ export class EfunDocsManager {
         this.registerSimulatedEfunCommand(context);
 
         this.runBackgroundTask(this.simulatedEfunScanner.load(), '加载模拟函数库文档失败');
-
-        this.registerDocumentListeners(context);
-
-        this.refreshActiveFileDocs();
-    }
-
-    private refreshCurrentFileDocs(document: vscode.TextDocument): void {
-        this.runBackgroundTask(this.updateCurrentFileDocs(document), '更新当前文件函数文档失败');
-    }
-
-    private refreshActiveFileDocs(): void {
-        const activeEditor = vscode.window.activeTextEditor;
-        if (!activeEditor || !this.isRelevantDocument(activeEditor.document)) {
-            return;
-        }
-
-        this.refreshCurrentFileDocs(activeEditor.document);
-    }
-
-    private registerDocumentListeners(context: vscode.ExtensionContext): void {
-        context.subscriptions.push(
-            vscode.workspace.onDidChangeTextDocument((event) => {
-                if (this.isRelevantDocument(event.document)) {
-                    this.refreshCurrentFileDocs(event.document);
-                }
-            }),
-            vscode.window.onDidChangeActiveTextEditor((editor) => {
-                if (editor && this.isRelevantDocument(editor.document)) {
-                    this.refreshCurrentFileDocs(editor.document);
-                }
-            })
-        );
     }
 
     private registerSimulatedEfunCommand(context: vscode.ExtensionContext): void {
@@ -111,22 +79,10 @@ export class EfunDocsManager {
         );
     }
 
-    private isRelevantDocument(document: vscode.TextDocument): boolean {
-        return document.languageId === 'lpc' || document.fileName.endsWith('.c');
-    }
-
     private runBackgroundTask(task: Promise<void>, message: string): void {
         void task.catch(error => {
             console.error(message, error);
         });
-    }
-
-    public async prepareHoverLookup(document: vscode.TextDocument): Promise<void> {
-        await this.updateCurrentFileDocs(document);
-    }
-
-    public getCurrentFileDoc(funcName: string): EfunDoc | undefined {
-        return this.fileFunctionDocTracker.getDoc(funcName);
     }
 
     public async getCurrentFileDocForDocument(
@@ -134,10 +90,6 @@ export class EfunDocsManager {
         funcName: string
     ): Promise<EfunDoc | undefined> {
         return this.fileFunctionDocTracker.getDocForDocument(document, funcName);
-    }
-
-    public getInheritedFileDoc(funcName: string): EfunDoc | undefined {
-        return this.fileFunctionDocTracker.getDocFromInherited(funcName);
     }
 
     public async getInheritedFileDocForDocument(
@@ -174,14 +126,6 @@ export class EfunDocsManager {
 
     public async getEfunDoc(funcName: string): Promise<EfunDoc | undefined> {
         return this.getStandardDoc(funcName);
-    }
-
-    /**
-     * 更新当前文件的函数文档
-     * @param document 当前活动的文档
-     */
-    private async updateCurrentFileDocs(document: vscode.TextDocument): Promise<void> {
-        await this.fileFunctionDocTracker.update(document);
     }
 
     public createHoverContent(doc: EfunDoc): vscode.Hover {

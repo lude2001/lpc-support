@@ -43,14 +43,16 @@ export class EfunLanguageHoverService implements LanguageHoverService {
             return undefined;
         }
 
-        await this.efunDocsManager.prepareHoverLookup(document);
-
-        const currentDoc = this.efunDocsManager.getCurrentFileDoc(word);
+        const currentDoc = await this.efunDocsManager.getCurrentFileDocForDocument(document, word);
         if (currentDoc) {
             return this.renderer.renderHover(materializeCallableDoc(currentDoc, 'local'));
         }
 
-        const inheritedDoc = this.efunDocsManager.getInheritedFileDoc(word);
+        const inheritedDoc = await this.efunDocsManager.getInheritedFileDocForDocument(
+            document,
+            word,
+            { forceFresh: true }
+        );
         if (inheritedDoc) {
             return this.renderer.renderHover(materializeCallableDoc(inheritedDoc, 'inherit'));
         }

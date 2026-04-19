@@ -33,14 +33,6 @@ export class FileFunctionDocTracker {
     private readonly compatMaterializer: FunctionDocCompatMaterializer;
     private readonly lookupBuilder: Pick<FunctionDocLookupBuilder, 'buildLookup'>;
     private readonly documentLookupCache = new Map<string, CachedDocumentDocsEntry>();
-    private currentFileDocs: Map<string, EfunDoc> = new Map();
-    private inheritedFileDocs: Map<string, Map<string, EfunDoc>> = new Map();
-    private includeFileDocs: Map<string, Map<string, EfunDoc>> = new Map();
-    private currentFilePath = '';
-    private inheritedFiles: string[] = [];
-    private currentFileUpdatePromise: Promise<void> | undefined;
-    private currentDocumentVersion = -1;
-    private currentFileUpdateVersion = 0;
 
     public constructor(options: FileFunctionDocTrackerOptions = {}) {
         assertDocumentationService('FileFunctionDocTracker', options.documentationService);
@@ -52,21 +44,6 @@ export class FileFunctionDocTracker {
             ?? (() => {
                 throw new Error('FileFunctionDocTracker requires an injected FunctionDocLookupBuilder');
             })();
-    }
-
-    public getDoc(name: string): EfunDoc | undefined {
-        return this.currentFileDocs.get(name);
-    }
-
-    public getDocFromInherited(name: string): EfunDoc | undefined {
-        for (const funcDocs of this.inheritedFileDocs.values()) {
-            const inheritedDoc = funcDocs.get(name);
-            if (inheritedDoc) {
-                return inheritedDoc;
-            }
-        }
-
-        return undefined;
     }
 
     public async getDocFromIncludes(
@@ -116,60 +93,6 @@ export class FileFunctionDocTracker {
         return lookup.lookup;
     }
 
-    public async update(document: vscode.TextDocument): Promise<void> {
-        if (document.uri.fsPath === this.currentFilePath && document.version === this.currentDocumentVersion) {
-            if (this.currentFileUpdatePromise) {
-                await this.currentFileUpdatePromise;
-            }
-            return;
-        }
-
-        const updatePromise = this.performUpdate(document);
-        this.currentFileUpdatePromise = updatePromise;
-
-        try {
-            await updatePromise;
-        } finally {
-            if (this.currentFileUpdatePromise === updatePromise) {
-                this.currentFileUpdatePromise = undefined;
-            }
-        }
-    }
-
-    public isCurrentDocument(document: vscode.TextDocument): boolean {
-        return document.uri.fsPath === this.currentFilePath;
-    }
-
-    public async waitForPendingUpdate(): Promise<void> {
-        if (this.currentFileUpdatePromise) {
-            await this.currentFileUpdatePromise;
-        }
-    }
-
-    private async performUpdate(document: vscode.TextDocument): Promise<void> {
-        if (document.languageId !== 'lpc' && !document.fileName.endsWith('.c')) {
-            return;
-        }
-
-        const updateVersion = ++this.currentFileUpdateVersion;
-        const lookup = this.materializeLookup(await this.lookupBuilder.buildLookup(document));
-
-        if (updateVersion !== this.currentFileUpdateVersion) {
-            return;
-        }
-
-        this.currentFilePath = document.uri.fsPath;
-        this.currentDocumentVersion = document.version;
-        this.currentFileDocs = lookup.currentFileDocs;
-        this.inheritedFiles = [...lookup.inheritedFiles];
-        this.inheritedFileDocs = lookup.inheritedFileDocs;
-        this.includeFileDocs = lookup.includeFileDocs;
-        this.documentLookupCache.set(document.uri.toString(), {
-            version: document.version,
-            text: document.getText(),
-            ...lookup
-        });
-    }
 
     private async getOrBuildDocumentLookup(
         document: vscode.TextDocument,

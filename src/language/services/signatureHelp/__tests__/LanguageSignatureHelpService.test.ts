@@ -475,7 +475,6 @@ describe('LanguageSignatureHelpService', () => {
         };
         const getCurrentFileDocForDocument = jest.fn(async () => currentFileDoc);
         const getInheritedFileDocForDocument = jest.fn(async () => undefined);
-        const prepareHoverLookup = jest.fn(async () => undefined);
         const getCurrentFileDoc = jest.fn(() => currentFileDoc);
         const getInheritedFileDoc = jest.fn(() => undefined);
         const docResolver = createDocResolver({
@@ -488,7 +487,6 @@ describe('LanguageSignatureHelpService', () => {
         });
         const service = createSignatureHelpService({
             efunDocsManager: {
-                prepareHoverLookup,
                 getCurrentFileDocForDocument,
                 getInheritedFileDocForDocument,
                 getCurrentFileDoc,
@@ -514,7 +512,6 @@ describe('LanguageSignatureHelpService', () => {
         }));
         expect(getCurrentFileDocForDocument).toHaveBeenCalledWith(document, 'local_call');
         expect(getInheritedFileDocForDocument).toHaveBeenCalledWith(document, 'local_call', { forceFresh: true });
-        expect(prepareHoverLookup).not.toHaveBeenCalled();
         expect(getCurrentFileDoc).not.toHaveBeenCalled();
         expect(getInheritedFileDoc).not.toHaveBeenCalled();
     });
