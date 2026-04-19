@@ -48,6 +48,31 @@ describe('WorkspaceDocumentPathSupport', () => {
         );
     });
 
+    test('resolves object file paths from string literals and macros through the shared owner', () => {
+        const workspaceRoot = 'D:/workspace';
+        const document = createDocument('D:/workspace/obj/room.c');
+        const support = new WorkspaceDocumentPathSupport({
+            host: {
+                openTextDocument: jest.fn(),
+                fileExists: jest.fn((candidate: string) => candidate.replace(/\\/g, '/') === 'D:/workspace/std/base_room.c'),
+                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
+            },
+            macroManager: {
+                getMacro: jest.fn((name: string) => name === 'ROOM_BASE'
+                    ? { value: '"/std/base_room"' }
+                    : undefined)
+            } as any
+        });
+
+        expect(support.resolveObjectFilePath(document, '"/std/base_room"')?.replace(/\\/g, '/')).toBe(
+            'D:/workspace/std/base_room.c'
+        );
+        expect(support.resolveObjectFilePath(document, 'ROOM_BASE')?.replace(/\\/g, '/')).toBe(
+            'D:/workspace/std/base_room.c'
+        );
+        expect(support.resolveObjectFilePath(document, 'relative_room')).toBeUndefined();
+    });
+
     test('resolves system include paths from project configuration first', async () => {
         const workspaceRoot = 'D:/workspace';
         const document = createDocument('D:/workspace/obj/room.c');

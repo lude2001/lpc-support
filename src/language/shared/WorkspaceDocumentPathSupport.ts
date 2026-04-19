@@ -163,6 +163,34 @@ export class WorkspaceDocumentPathSupport {
         return path.resolve(path.dirname(document.uri.fsPath), resolvedValue);
     }
 
+    public resolveObjectFilePath(
+        document: vscode.TextDocument,
+        pathExpression: string
+    ): string | undefined {
+        const resolvedValue = this.resolveObjectPathExpression(pathExpression);
+        if (!resolvedValue) {
+            return undefined;
+        }
+
+        const normalizedTargetPath = this.ensureExtension(resolvedValue, '.c');
+        let candidatePath: string;
+
+        if (this.isWorkspaceAbsolutePath(normalizedTargetPath)) {
+            candidatePath = normalizedTargetPath;
+        } else if (normalizedTargetPath.startsWith('/')) {
+            const workspaceRoot = this.getWorkspaceFolderRoot(document);
+            if (!workspaceRoot) {
+                return undefined;
+            }
+
+            candidatePath = path.join(workspaceRoot, normalizedTargetPath.substring(1));
+        } else {
+            candidatePath = path.resolve(path.dirname(document.uri.fsPath), normalizedTargetPath);
+        }
+
+        return this.fileExists(candidatePath) ? candidatePath : undefined;
+    }
+
     public async resolveIncludeFilePaths(
         document: vscode.TextDocument,
         includePath: string,
@@ -317,6 +345,23 @@ export class WorkspaceDocumentPathSupport {
 
     private ensureExtension(filePath: string, extension: '.c' | '.h'): string {
         return filePath.endsWith(extension) ? filePath : `${filePath}${extension}`;
+    }
+
+    private resolveObjectPathExpression(pathExpression: string): string | undefined {
+        if (pathExpression.startsWith('"') && pathExpression.endsWith('"')) {
+            return pathExpression.slice(1, -1);
+        }
+
+        if (/^[A-Z_][A-Z0-9_]*$/.test(pathExpression)) {
+            const macroValue = this.options.macroManager?.getMacro(pathExpression)?.value;
+            if (!macroValue) {
+                return undefined;
+            }
+
+            return macroValue.replace(/^["']|["']$/g, '');
+        }
+
+        return undefined;
     }
 
     private isWorkspaceAbsolutePath(targetPath: string): boolean {

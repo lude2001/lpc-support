@@ -7,11 +7,11 @@ import { FunctionDocumentationService } from '../language/documentation/Function
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import {
     assertTextDocumentHost,
-    type TextDocumentHost
+    type TextDocumentHost,
+    WorkspaceDocumentPathSupport
 } from '../language/shared/WorkspaceDocumentPathSupport';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { TargetMethodLookup } from '../targetMethodLookup';
-import { PathResolver } from '../utils/pathResolver';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
 import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
 import { InheritedGlobalObjectBindingResolver } from './InheritedGlobalObjectBindingResolver';
@@ -27,6 +27,7 @@ export class ObjectInferenceService {
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly classifier = new ReceiverClassifier();
     private readonly candidateResolver = new ObjectCandidateResolver();
+    private readonly pathSupport: WorkspaceDocumentPathSupport;
     private readonly returnObjectResolver: ReturnObjectResolver;
     private readonly objectMethodReturnResolver: ObjectMethodReturnResolver;
     private readonly traceService: ReceiverTraceService;
@@ -49,6 +50,11 @@ export class ObjectInferenceService {
         const projectConfigService = typeof playerObjectPathOrProjectConfig === 'string'
             ? undefined
             : playerObjectPathOrProjectConfig;
+        this.pathSupport = new WorkspaceDocumentPathSupport({
+            host: textDocumentHost,
+            macroManager,
+            projectConfigService
+        });
         const targetMethodLookup = new TargetMethodLookup(
             macroManager,
             projectConfigService,
@@ -60,7 +66,8 @@ export class ObjectInferenceService {
             macroManager,
             playerObjectPathOrProjectConfig,
             resolvedDocumentationService,
-            scopedMethodResolver
+            scopedMethodResolver,
+            this.pathSupport
         );
         const scopedMethodReturnResolver = new ScopedMethodReturnResolver(
             (document, functionName, options) =>
@@ -243,7 +250,7 @@ export class ObjectInferenceService {
         expression: string,
         source: 'literal' | 'macro'
     ): Promise<ObjectCandidate[]> {
-        const resolvedPath = await PathResolver.resolveObjectPath(document, expression, this.macroManager);
+        const resolvedPath = this.pathSupport.resolveObjectFilePath(document, expression);
         if (!resolvedPath) {
             return [];
         }

@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { ASTManager } from '../../ast/astManager';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import { WorkspaceDocumentPathSupport } from '../../language/shared/WorkspaceDocumentPathSupport';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
-import { PathResolver } from '../../utils/pathResolver';
 import {
     configureAstManagerSingletonForTests,
     resetAstManagerSingletonForTests
@@ -82,12 +82,17 @@ function findFirstCallExpression(document: vscode.TextDocument): SyntaxNode {
 }
 
 describe('ReturnObjectResolver', () => {
+    let pathSupport: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>;
+
     beforeEach(() => {
         configureAstManagerSingletonForTests();
         jest.clearAllMocks();
         (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({
             uri: vscode.Uri.file('D:/code/lpc')
         });
+        pathSupport = {
+            resolveObjectFilePath: jest.fn()
+        };
     });
 
     afterEach(() => {
@@ -97,7 +102,7 @@ describe('ReturnObjectResolver', () => {
 
     test('resolveDocumentedReturnOutcome reads returnObjects from shared callable docs instead of reparsing comments', async () => {
         const getDocsByNameSpy = jest.spyOn(FunctionDocumentationService.prototype, 'getDocsByName');
-        jest.spyOn(PathResolver, 'resolveObjectPath').mockImplementation(async (_document, expression) => {
+        (pathSupport.resolveObjectFilePath as jest.Mock).mockImplementation(((_document, expression) => {
             if (expression === '"/obj/npc"') {
                 return 'D:/code/lpc/obj/npc.c';
             }
@@ -107,9 +112,15 @@ describe('ReturnObjectResolver', () => {
             }
 
             return undefined;
-        });
+        }) as any);
 
-        const resolver = new ReturnObjectResolver(undefined, undefined, new FunctionDocumentationService());
+        const resolver = new ReturnObjectResolver(
+            undefined,
+            undefined,
+            new FunctionDocumentationService(),
+            undefined,
+            pathSupport
+        );
         const document = createTextDocument(
             'D:/code/lpc/obj/test.c',
             [
@@ -149,7 +160,13 @@ describe('ReturnObjectResolver', () => {
                 }]
             })
         };
-        const resolver = new ReturnObjectResolver(undefined, undefined, documentationService, scopedMethodResolver as any);
+        const resolver = new ReturnObjectResolver(
+            undefined,
+            undefined,
+            documentationService,
+            scopedMethodResolver as any,
+            pathSupport
+        );
         const scopedMethodReturnResolver = {
             resolveScopedMethodReturnOutcome: jest.fn().mockResolvedValue({
                 candidates: [{ path: 'D:/code/lpc/obj/sword.c', source: 'doc' }]
@@ -184,7 +201,13 @@ describe('ReturnObjectResolver', () => {
                 }]
             })
         };
-        const resolver = new ReturnObjectResolver(undefined, undefined, documentationService, scopedMethodResolver as any);
+        const resolver = new ReturnObjectResolver(
+            undefined,
+            undefined,
+            documentationService,
+            scopedMethodResolver as any,
+            pathSupport
+        );
         const scopedMethodReturnResolver = {
             resolveScopedMethodReturnOutcome: jest.fn().mockResolvedValue({
                 candidates: [{ path: 'D:/code/lpc/obj/room_item.c', source: 'doc' }]

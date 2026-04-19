@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
+import type { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
-import { PathResolver } from '../utils/pathResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ScopedMethodResolver } from './ScopedMethodResolver';
 import { ScopedMethodReturnResolver } from './ScopedMethodReturnResolver';
@@ -19,15 +19,21 @@ export interface ObjectResolutionOutcome {
 export class ReturnObjectResolver {
     private readonly classifier = new ReceiverClassifier();
     private readonly documentationService: FunctionDocumentationService;
+    private readonly pathSupport: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>;
     private scopedMethodReturnResolver?: ScopedMethodReturnResolver;
 
     constructor(
         private readonly macroManager?: MacroManager,
         private readonly playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
         documentationService?: FunctionDocumentationService,
-        private readonly scopedMethodResolver?: ScopedMethodResolver
+        private readonly scopedMethodResolver?: ScopedMethodResolver,
+        pathSupport?: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>
     ) {
         this.documentationService = assertDocumentationService('ReturnObjectResolver', documentationService);
+        if (!pathSupport) {
+            throw new Error('ReturnObjectResolver requires an injected object path support');
+        }
+        this.pathSupport = pathSupport;
     }
 
     public attachScopedMethodReturnResolver(resolver: ScopedMethodReturnResolver): void {
@@ -166,7 +172,7 @@ export class ReturnObjectResolver {
             return [];
         }
 
-        const resolvedPath = await PathResolver.resolveObjectPath(document, receiver.firstArgument, this.macroManager);
+        const resolvedPath = this.pathSupport.resolveObjectFilePath(document, receiver.firstArgument);
         if (!resolvedPath) {
             return [];
         }
@@ -220,7 +226,7 @@ export class ReturnObjectResolver {
         expression: string,
         source: ObjectCandidate['source']
     ): Promise<ObjectCandidate[]> {
-        const resolvedPath = await PathResolver.resolveObjectPath(document, expression, this.macroManager);
+        const resolvedPath = this.pathSupport.resolveObjectFilePath(document, expression);
         if (!resolvedPath) {
             return [];
         }
@@ -242,10 +248,9 @@ export class ReturnObjectResolver {
     ): Promise<ObjectCandidate[]> {
         const candidates: ObjectCandidate[] = [];
         for (const objectPath of returnObjects) {
-            const resolvedPath = await PathResolver.resolveObjectPath(
+            const resolvedPath = this.pathSupport.resolveObjectFilePath(
                 document,
-                this.toObjectPathExpression(objectPath),
-                this.macroManager
+                this.toObjectPathExpression(objectPath)
             );
             if (resolvedPath) {
                 candidates.push({ path: resolvedPath, source: 'doc' });
@@ -282,10 +287,9 @@ export class ReturnObjectResolver {
             return undefined;
         }
 
-        return PathResolver.resolveObjectPath(
+        return this.pathSupport.resolveObjectFilePath(
             document,
-            this.toObjectPathExpression(playerObjectPath),
-            this.macroManager
+            this.toObjectPathExpression(playerObjectPath)
         );
     }
 
