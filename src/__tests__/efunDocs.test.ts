@@ -14,6 +14,9 @@ import { ScopedMethodCompletionSupport } from '../language/services/completion/S
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { ScopedMethodDiscoveryService } from '../objectInference/ScopedMethodDiscoveryService';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
+import { CompletionContextAnalyzer } from '../completion/completionContextAnalyzer';
+import { InheritanceResolver } from '../completion/inheritanceResolver';
+import { ProjectSymbolIndex } from '../completion/projectSymbolIndex';
 import {
     WorkspaceDocumentPathSupport,
     createVsCodeTextDocumentHost
@@ -300,6 +303,8 @@ describe('EfunDocsManager', () => {
                 show: jest.fn(),
                 appendLine: jest.fn()
             } as any,
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(undefined)),
+            contextAnalyzer: new CompletionContextAnalyzer(),
             scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
                 undefined,
                 undefined,

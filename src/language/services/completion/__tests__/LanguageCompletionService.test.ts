@@ -4,7 +4,10 @@ import * as vscode from 'vscode';
 import {
     createDefaultQueryBackedLanguageCompletionService
 } from '../LanguageCompletionService';
+import { CompletionContextAnalyzer } from '../../../../completion/completionContextAnalyzer';
 import { CompletionInstrumentation } from '../../../../completion/completionInstrumentation';
+import { InheritanceResolver } from '../../../../completion/inheritanceResolver';
+import { ProjectSymbolIndex } from '../../../../completion/projectSymbolIndex';
 import { ScopedMethodCompletionSupport } from '../ScopedMethodCompletionSupport';
 import { createVsCodeTextDocumentHost } from '../../../shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
@@ -111,6 +114,8 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 show: jest.fn(),
                 appendLine: jest.fn()
             } as any,
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any)),
+            contextAnalyzer: new CompletionContextAnalyzer(),
             scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
                 macroManager as any,
                 undefined,
@@ -187,6 +192,8 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 show: jest.fn(),
                 appendLine: jest.fn()
             } as any,
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any)),
+            contextAnalyzer: new CompletionContextAnalyzer(),
             scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
                 macroManager as any,
                 undefined,

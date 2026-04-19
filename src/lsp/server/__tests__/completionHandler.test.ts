@@ -21,6 +21,9 @@ import { createVsCodeTextDocumentHost } from '../../../language/shared/Workspace
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { ScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
+import { CompletionContextAnalyzer } from '../../../completion/completionContextAnalyzer';
+import { InheritanceResolver } from '../../../completion/inheritanceResolver';
+import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLogger } from '../runtime/ServerLogger';
@@ -417,6 +420,8 @@ describe('registerCompletionHandler', () => {
                 show: jest.fn(),
                 appendLine: jest.fn()
             } as any,
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any)),
+            contextAnalyzer: new CompletionContextAnalyzer(),
             scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
                 macroManager as any,
                 undefined,

@@ -4,11 +4,13 @@ import * as vscode from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
 import { InheritanceResolver } from '../../../completion/inheritanceResolver';
+import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
 import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
 import { FunctionDocCompatMaterializer } from '../../../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../../../efun/FunctionDocLookupBuilder';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
+import { CompletionContextAnalyzer } from '../../../completion/completionContextAnalyzer';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
 import {
     WorkspaceDocumentPathSupport,
@@ -80,6 +82,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     });
     const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService, workspaceDocumentHost);
     const inheritanceResolver = new InheritanceResolver(macroManager, undefined);
+    const projectSymbolIndex = new ProjectSymbolIndex(inheritanceResolver);
     const targetMethodLookup = new TargetMethodLookup(analysisService, documentPathSupport);
     const efunDocsManager = new EfunDocsManager(
         createServerExtensionContext(),
@@ -126,6 +129,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         objectInferenceService,
         instrumentation: completionInstrumentation,
         inheritanceReporter: vscode.window.createOutputChannel('LPC Inheritance'),
+        projectSymbolIndex,
+        contextAnalyzer: new CompletionContextAnalyzer(),
         scopedMethodDiscoveryService,
         scopedCompletionSupport
     });

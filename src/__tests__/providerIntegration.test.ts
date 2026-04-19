@@ -22,6 +22,9 @@ import { ScopedMethodResolver } from '../objectInference/ScopedMethodResolver';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
+import { CompletionContextAnalyzer } from '../completion/completionContextAnalyzer';
+import { InheritanceResolver } from '../completion/inheritanceResolver';
+import { ProjectSymbolIndex } from '../completion/projectSymbolIndex';
 import {
     configureAstManagerSingletonForTests,
     getAstManagerForTests,
@@ -216,6 +219,8 @@ describe('language-service integration regression', () => {
             show: jest.fn(),
             appendLine: jest.fn()
         } as any,
+        projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any, [fixtureRoot])),
+        contextAnalyzer: new CompletionContextAnalyzer(),
         scopedMethodDiscoveryService: new ScopedMethodDiscoveryService(
             macroManager as any,
             [fixtureRoot],

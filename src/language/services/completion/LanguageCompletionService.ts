@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { CompletionContextAnalyzer } from '../../../completion/completionContextAnalyzer';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
 import { CompletionQueryEngine } from '../../../completion/completionQueryEngine';
-import { InheritanceResolver } from '../../../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
 import {
     CompletionCandidate,
@@ -88,10 +87,6 @@ type CompletionAnalysisService = Pick<
     | 'hasFreshSnapshot'
 >;
 
-function createDefaultInheritanceReporter(): CompletionInheritanceReporter {
-    return vscode.window.createOutputChannel('LPC Inheritance');
-}
-
 interface QueryBackedLanguageCompletionDependencies {
     efunDocsManager: EfunDocsManager;
     macroManager: MacroManager;
@@ -99,6 +94,8 @@ interface QueryBackedLanguageCompletionDependencies {
     objectInferenceService: ObjectInferenceService;
     instrumentation: CompletionInstrumentation;
     inheritanceReporter: CompletionInheritanceReporter;
+    projectSymbolIndex: ProjectSymbolIndex;
+    contextAnalyzer: CompletionContextAnalyzer;
     scopedMethodDiscoveryService: ScopedMethodDiscoveryService;
     documentationService?: FunctionDocumentationService;
     scopedCompletionSupport: ScopedMethodCompletionSupport;
@@ -244,10 +241,9 @@ export function createDefaultQueryBackedLanguageCompletionService(
         dependencies.documentationService
     );
 
-    const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(dependencies.macroManager));
     const inheritedIndexService = new CompletionInheritedIndexService(
         analysisService,
-        projectSymbolIndex,
+        dependencies.projectSymbolIndex,
         dependencies.inheritanceReporter
     );
     const candidateResolver = new CompletionCandidateResolver(
@@ -259,13 +255,13 @@ export function createDefaultQueryBackedLanguageCompletionService(
     const presentationService = new CompletionItemPresentationService(
         dependencies.efunDocsManager,
         dependencies.macroManager,
-        projectSymbolIndex,
+        dependencies.projectSymbolIndex,
         dependencies.scopedCompletionSupport
     );
     const queryEngine = new CompletionQueryEngine({
         snapshotProvider: analysisService,
-        projectSymbolIndex,
-        contextAnalyzer: new CompletionContextAnalyzer(),
+        projectSymbolIndex: dependencies.projectSymbolIndex,
+        contextAnalyzer: dependencies.contextAnalyzer,
         macroManager: dependencies.macroManager,
         efunProvider: {
             getAllFunctions: () => dependencies.efunDocsManager.getAllFunctions(),
