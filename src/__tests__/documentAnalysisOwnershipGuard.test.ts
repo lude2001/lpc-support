@@ -199,6 +199,27 @@ describe('document analysis ownership guards', () => {
         expect(inheritedFileGlobalRelationSource).not.toContain("const defaultHost = {");
         expect(productionServicesSource).not.toContain("openTextDocument: async (target: string | vscode.Uri)");
     });
+
+    test('LanguageCodeActionService stays a coordinator without inline quick-fix builders or text helpers', () => {
+        const codeActionServiceSource = fs.readFileSync(
+            path.join(srcRoot, 'language', 'services', 'codeActions', 'LanguageCodeActionService.ts'),
+            'utf8'
+        );
+
+        expect(codeActionServiceSource).not.toContain('private createRemoveVariableAction(');
+        expect(codeActionServiceSource).not.toContain('private createCommentVariableAction(');
+        expect(codeActionServiceSource).not.toContain('private createMakeGlobalAction(');
+        expect(codeActionServiceSource).not.toContain('private createRenameVariableCaseAction(');
+        expect(codeActionServiceSource).not.toContain('private createMoveVariableToBlockStartAction(');
+        expect(codeActionServiceSource).not.toContain('private createMoveVariableToFunctionStartAction(');
+        expect(codeActionServiceSource).not.toContain('private createWorkspaceEdit(');
+        expect(codeActionServiceSource).not.toContain('private createLineRange(');
+        expect(codeActionServiceSource).not.toContain('private createLineRangeIncludingBreak(');
+        expect(codeActionServiceSource).not.toContain('private toSnakeCase(');
+        expect(codeActionServiceSource).not.toContain('private toCamelCase(');
+        expect(codeActionServiceSource).not.toContain('private findBlockStart(');
+        expect(codeActionServiceSource).not.toContain('private findFunctionStart(');
+    });
 });
 
 function listProductionTypeScriptFiles(rootDir: string): string[] {
