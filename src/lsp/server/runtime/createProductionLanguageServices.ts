@@ -6,6 +6,7 @@ import { CompletionInstrumentation } from '../../../completion/completionInstrum
 import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
+import { defaultTextDocumentHost } from '../../../language/shared/WorkspaceDocumentPathSupport';
 import { createLanguageCodeActionService } from '../../../language/services/codeActions/LanguageCodeActionService';
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
 import { createLanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
@@ -51,11 +52,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         analysisService,
         macroManager,
         scopedMethodResolver,
-        host: {
-            openTextDocument: async (target: string | vscode.Uri) => typeof target === 'string'
-                ? vscode.workspace.openTextDocument(target)
-                : vscode.workspace.openTextDocument(target)
-        }
+        host: defaultTextDocumentHost
     });
 
     const completionService = new QueryBackedLanguageCompletionService(

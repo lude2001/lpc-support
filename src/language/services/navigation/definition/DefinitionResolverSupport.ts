@@ -1,6 +1,6 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { Symbol, SymbolType } from '../../../../ast/symbolTable';
+import { WorkspaceDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
 import { SemanticSnapshot } from '../../../../semantic/semanticSnapshot';
 import type { LanguageLocation } from '../../../contracts/LanguagePosition';
 import type { LanguageWorkspaceProjectConfig } from '../../../contracts/LanguageWorkspaceContext';
@@ -15,11 +15,17 @@ import {
 export class DefinitionResolverSupport {
     private readonly includeFileCache = new Map<string, string[]>();
     private readonly headerFunctionCache = new Map<string, Map<string, vscode.Location>>();
+    private readonly pathSupport: WorkspaceDocumentPathSupport;
 
     public constructor(private readonly context: Pick<
         DefinitionResolverContext,
         'astManager' | 'host' | 'macroManager' | 'projectConfigService' | 'semanticAdapter'
     >) {
+        this.pathSupport = new WorkspaceDocumentPathSupport({
+            host: context.host,
+            macroManager: context.macroManager,
+            projectConfigService: context.projectConfigService
+        });
         this.context.host.onDidChangeTextDocument((event) => {
             const filePath = this.normalizeCachePath(event.document.uri.fsPath);
             if (filePath.endsWith('.h')) {
@@ -159,36 +165,11 @@ export class DefinitionResolverSupport {
         workspaceRoot: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string | undefined> {
-        if (!workspaceRoot) {
-            return undefined;
-        }
-
-        return this.doResolveIncludeFilePath(document, includePath, isSystemInclude, workspaceRoot, projectConfig);
+        return this.pathSupport.resolveIncludeFilePath(document, includePath, isSystemInclude, workspaceRoot, projectConfig);
     }
 
     public resolveInheritedFilePath(document: vscode.TextDocument, inheritValue: string): string | undefined {
-        let resolvedValue = inheritValue;
-        if (/^[A-Z_][A-Z0-9_]*$/.test(resolvedValue)) {
-            const macro = this.context.macroManager.getMacro(resolvedValue);
-            if (!macro?.value) {
-                return undefined;
-            }
-
-            resolvedValue = macro.value.replace(/^\"(.*)\"$/, '$1');
-        }
-
-        resolvedValue = this.ensureExtension(resolvedValue, '.c');
-
-        const workspaceRoot = this.getWorkspaceRoot(document);
-        if (!workspaceRoot) {
-            return undefined;
-        }
-
-        if (resolvedValue.startsWith('/')) {
-            return path.join(workspaceRoot, resolvedValue.substring(1));
-        }
-
-        return path.resolve(path.dirname(document.uri.fsPath), resolvedValue);
+        return this.pathSupport.resolveInheritedFilePath(document, inheritValue, this.getWorkspaceRoot(document));
     }
 
     public async openInheritedDocument(
@@ -206,17 +187,7 @@ export class DefinitionResolverSupport {
     }
 
     public resolveWorkspaceFilePath(document: vscode.TextDocument, filePath: string): string | undefined {
-        if (path.isAbsolute(filePath)) {
-            return filePath;
-        }
-
-        const workspaceRoot = this.getWorkspaceRoot(document);
-        if (!workspaceRoot) {
-            return undefined;
-        }
-
-        const relativePath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
-        return path.join(workspaceRoot, relativePath);
+        return this.pathSupport.resolveWorkspaceFilePath(document, filePath, this.getWorkspaceRoot(document));
     }
 
     public async openWorkspaceDocument(
@@ -232,19 +203,15 @@ export class DefinitionResolverSupport {
     }
 
     public async tryOpenTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument | undefined> {
-        try {
-            return await this.context.host.openTextDocument(target);
-        } catch {
-            return undefined;
-        }
+        return this.pathSupport.tryOpenTextDocument(target);
     }
 
     public fileExists(filePath: string): boolean {
-        return this.context.host.fileExists(filePath);
+        return this.pathSupport.fileExists(filePath);
     }
 
     public getWorkspaceRoot(document: vscode.TextDocument): string {
-        return this.context.host.getWorkspaceFolder(document.uri)?.uri.fsPath ?? path.dirname(document.uri.fsPath);
+        return this.pathSupport.getWorkspaceRoot(document);
     }
 
     public resolveProjectPath(
@@ -252,70 +219,25 @@ export class DefinitionResolverSupport {
         configPath: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): string {
-        if (this.isWorkspaceAbsolutePath(configPath)) {
-            return configPath;
-        }
-
-        const mudlibDirectory = projectConfig?.resolvedConfig?.mudlibDirectory;
-        const mudlibRoot = mudlibDirectory
-            ? this.resolveWorkspacePath(workspaceRoot, mudlibDirectory)
-            : workspaceRoot;
-        const normalizedPath = configPath.startsWith('/') ? configPath.substring(1) : configPath;
-        return path.join(mudlibRoot, normalizedPath);
+        return this.pathSupport.resolveProjectPath(workspaceRoot, configPath, projectConfig);
     }
 
     public async getPrimaryIncludeDirectory(
         workspaceRoot: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string | undefined> {
-        const fromContext = projectConfig?.resolvedConfig?.includeDirectories?.[0];
-        if (fromContext) {
-            return this.resolveProjectPath(workspaceRoot, fromContext, projectConfig);
-        }
-
-        const fromService = await this.context.projectConfigService?.getPrimaryIncludeDirectoryForWorkspace(workspaceRoot);
-        if (fromService) {
-            return fromService;
-        }
-
-        return undefined;
+        return this.pathSupport.getPrimaryIncludeDirectory(workspaceRoot, projectConfig);
     }
 
     public async getConfiguredSimulatedEfunFile(
         workspaceRoot: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string | undefined> {
-        const fromContext = projectConfig?.resolvedConfig?.simulatedEfunFile;
-        if (fromContext) {
-            return this.resolveExistingCodePath(
-                this.resolveProjectPath(workspaceRoot, fromContext, projectConfig)
-            );
-        }
-
-        const fromService = await this.context.projectConfigService?.getSimulatedEfunFileForWorkspace(workspaceRoot);
-        if (fromService) {
-            return fromService;
-        }
-
-        return undefined;
+        return this.pathSupport.getConfiguredSimulatedEfunFile(workspaceRoot, projectConfig);
     }
 
     public resolveExistingCodePath(targetPath: string): string {
-        if (this.context.host.fileExists(targetPath)) {
-            return targetPath;
-        }
-
-        if (path.extname(targetPath)) {
-            return targetPath;
-        }
-
-        for (const candidate of [`${targetPath}.c`, `${targetPath}.h`]) {
-            if (this.context.host.fileExists(candidate)) {
-                return candidate;
-            }
-        }
-
-        return targetPath;
+        return this.pathSupport.resolveExistingCodePath(targetPath);
     }
 
     public async getIncludeFiles(
@@ -371,54 +293,6 @@ export class DefinitionResolverSupport {
             .find((candidate) => candidate.type === SymbolType.FUNCTION && candidate.name === functionName);
 
         return symbol ? this.toSymbolLocation(document.uri, symbol) : undefined;
-    }
-
-    private async doResolveIncludeFilePath(
-        document: vscode.TextDocument,
-        includePath: string,
-        isSystemInclude: boolean,
-        workspaceRoot: string,
-        projectConfig?: LanguageWorkspaceProjectConfig
-    ): Promise<string | undefined> {
-        let normalizedPath = this.ensureHeaderOrSourceExtension(includePath);
-
-        if (isSystemInclude) {
-            const globalIncludePath = await this.getPrimaryIncludeDirectory(workspaceRoot, projectConfig);
-            if (!globalIncludePath) {
-                return path.join(workspaceRoot, 'include', normalizedPath);
-            }
-
-            return path.join(globalIncludePath, normalizedPath);
-        }
-
-        if (path.isAbsolute(normalizedPath)) {
-            const relativePath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
-            return path.join(workspaceRoot, relativePath);
-        }
-
-        return path.resolve(path.dirname(document.uri.fsPath), normalizedPath);
-    }
-
-    private ensureHeaderOrSourceExtension(filePath: string): string {
-        if (filePath.endsWith('.h') || filePath.endsWith('.c')) {
-            return filePath;
-        }
-
-        return `${filePath}.h`;
-    }
-
-    private ensureExtension(filePath: string, extension: '.c' | '.h'): string {
-        return filePath.endsWith(extension) ? filePath : `${filePath}${extension}`;
-    }
-
-    private isWorkspaceAbsolutePath(targetPath: string): boolean {
-        return /^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\');
-    }
-
-    private resolveWorkspacePath(workspaceRoot: string, targetPath: string): string {
-        return this.isWorkspaceAbsolutePath(targetPath)
-            ? targetPath
-            : path.resolve(workspaceRoot, targetPath);
     }
 
     private normalizeCachePath(filePath: string): string {

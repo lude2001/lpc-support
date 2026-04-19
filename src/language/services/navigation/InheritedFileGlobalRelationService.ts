@@ -8,6 +8,7 @@ import type { DocumentAnalysisService } from '../../../semantic/documentAnalysis
 import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { resolveScopedDirectInheritSeeds } from '../../../objectInference/scopedInheritanceTraversal';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
+import { defaultTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import { normalizeWorkspaceUri } from './navigationPathUtils';
 export interface FileGlobalBinding {
     name: string;
@@ -30,12 +31,6 @@ export interface InheritedFileGlobalRelationServiceOptions {
     };
 }
 
-const defaultHost = {
-    openTextDocument: async (target: string | vscode.Uri) => typeof target === 'string'
-        ? vscode.workspace.openTextDocument(target)
-        : vscode.workspace.openTextDocument(target)
-};
-
 export class InheritedFileGlobalRelationService {
     private readonly analysisService: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
     private readonly inheritanceResolver: Pick<InheritanceResolver, 'resolveInheritTargets'>;
@@ -47,7 +42,7 @@ export class InheritedFileGlobalRelationService {
         this.analysisService = assertAnalysisService('InheritedFileGlobalRelationService', options.analysisService);
         this.inheritanceResolver = options.inheritanceResolver
             ?? new InheritanceResolver(options.macroManager, options.workspaceRoots);
-        this.host = options.host ?? defaultHost;
+        this.host = options.host ?? defaultTextDocumentHost;
     }
 
     public async resolveVisibleBinding(

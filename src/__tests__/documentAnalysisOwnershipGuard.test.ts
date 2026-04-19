@@ -168,6 +168,37 @@ describe('document analysis ownership guards', () => {
         expect(signatureHelpServiceSource).not.toContain('function selectActiveSignature(');
         expect(signatureHelpServiceSource).not.toContain('function countActiveParameterIndex(');
     });
+
+    test('document host and path infrastructure stays on the shared owner instead of reappearing inline', () => {
+        const targetMethodLookupSource = fs.readFileSync(
+            path.join(srcRoot, 'targetMethodLookup.ts'),
+            'utf8'
+        );
+        const inheritedFunctionRelationSource = fs.readFileSync(
+            path.join(srcRoot, 'language', 'services', 'navigation', 'InheritedFunctionRelationService.ts'),
+            'utf8'
+        );
+        const inheritedFileGlobalRelationSource = fs.readFileSync(
+            path.join(srcRoot, 'language', 'services', 'navigation', 'InheritedFileGlobalRelationService.ts'),
+            'utf8'
+        );
+        const productionServicesSource = fs.readFileSync(
+            path.join(srcRoot, 'lsp', 'server', 'runtime', 'createProductionLanguageServices.ts'),
+            'utf8'
+        );
+
+        expect(targetMethodLookupSource).not.toContain('private async resolveIncludeFilePaths(');
+        expect(targetMethodLookupSource).not.toContain('private async getIncludeDirectories(');
+        expect(targetMethodLookupSource).not.toContain('private resolveInheritedFilePath(');
+        expect(targetMethodLookupSource).not.toContain('private resolveWorkspaceFilePath(');
+        expect(targetMethodLookupSource).not.toContain('private ensureHeaderOrSourceExtension(');
+        expect(targetMethodLookupSource).not.toContain('private ensureExtension(');
+        expect(targetMethodLookupSource).not.toContain('private async tryOpenTextDocument(');
+
+        expect(inheritedFunctionRelationSource).not.toContain("const defaultHost = {");
+        expect(inheritedFileGlobalRelationSource).not.toContain("const defaultHost = {");
+        expect(productionServicesSource).not.toContain("openTextDocument: async (target: string | vscode.Uri)");
+    });
 });
 
 function listProductionTypeScriptFiles(rootDir: string): string[] {

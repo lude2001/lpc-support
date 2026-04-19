@@ -9,6 +9,7 @@ import type { DocumentAnalysisService } from '../../../semantic/documentAnalysis
 import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { resolveSymbolReferences, resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
+import { defaultTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import { normalizeWorkspaceUri } from './navigationPathUtils';
 import {
     isOnScopedMethodIdentifier
@@ -25,12 +26,6 @@ export interface InheritedFunctionRelationServiceOptions {
     scopedMethodResolver?: Pick<ScopedMethodResolver, 'resolveCallAt'>;
 }
 
-const defaultHost = {
-    openTextDocument: async (target: string | vscode.Uri) => typeof target === 'string'
-        ? vscode.workspace.openTextDocument(target)
-        : vscode.workspace.openTextDocument(target)
-};
-
 export class InheritedFunctionRelationService {
     private readonly analysisService: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
     private readonly inheritanceResolver: Pick<InheritanceResolver, 'resolveInheritTargets'>;
@@ -43,7 +38,7 @@ export class InheritedFunctionRelationService {
         this.analysisService = assertAnalysisService('InheritedFunctionRelationService', options.analysisService);
         this.inheritanceResolver = options.inheritanceResolver
             ?? new InheritanceResolver(options.macroManager, options.workspaceRoots);
-        this.host = options.host ?? defaultHost;
+        this.host = options.host ?? defaultTextDocumentHost;
         this.scopedMethodResolver = options.scopedMethodResolver;
     }
 

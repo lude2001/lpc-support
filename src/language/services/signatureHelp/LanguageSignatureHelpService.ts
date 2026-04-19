@@ -9,6 +9,7 @@ import type { DocumentAnalysisService } from '../../../semantic/documentAnalysis
 import type { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import type { TargetMethodLookup } from '../../../targetMethodLookup';
+import { defaultTextDocumentHost } from '../../shared/WorkspaceDocumentPathSupport';
 import {
     type CallSiteAnalyzer,
     countActiveParameterIndex,
@@ -92,11 +93,7 @@ interface LanguageSignatureHelpDependencies {
     host?: SignatureHelpDocumentHost;
 }
 
-const defaultHost: SignatureHelpDocumentHost = {
-    openTextDocument: async (target) => typeof target === 'string'
-        ? vscode.workspace.openTextDocument(target)
-        : vscode.workspace.openTextDocument(target)
-};
+const defaultHost: SignatureHelpDocumentHost = defaultTextDocumentHost;
 
 export class LanguageSignatureHelpService {
     private readonly renderer: CallableDocRenderer;
