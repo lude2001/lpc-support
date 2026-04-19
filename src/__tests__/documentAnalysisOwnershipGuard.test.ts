@@ -179,6 +179,22 @@ describe('document analysis ownership guards', () => {
         expect(hoverServiceSource).not.toContain('function createSyntheticDocumentationUri(');
     });
 
+    test('reference and rename services keep current-file adapter assembly in dedicated default factories', () => {
+        const referenceServiceSource = fs.readFileSync(
+            path.join(srcRoot, 'language', 'services', 'navigation', 'LanguageReferenceService.ts'),
+            'utf8'
+        );
+        const renameServiceSource = fs.readFileSync(
+            path.join(srcRoot, 'language', 'services', 'navigation', 'LanguageRenameService.ts'),
+            'utf8'
+        );
+
+        expect(referenceServiceSource).not.toContain('private getReferenceResolver(');
+        expect(renameServiceSource).not.toContain('private getReferenceResolver(');
+        expect(referenceServiceSource).toContain('createDefaultAstBackedLanguageReferenceService(');
+        expect(renameServiceSource).toContain('createDefaultAstBackedLanguageRenameService(');
+    });
+
     test('LanguageSignatureHelpService stays a coordinator without inline analyzer/discovery/doc/presentation ownership', () => {
         const signatureHelpServiceSource = fs.readFileSync(
             path.join(srcRoot, 'language', 'services', 'signatureHelp', 'LanguageSignatureHelpService.ts'),

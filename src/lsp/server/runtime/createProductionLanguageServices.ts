@@ -34,8 +34,8 @@ import { InheritedFileGlobalRelationService } from '../../../language/services/n
 import { InheritedFunctionRelationService } from '../../../language/services/navigation/InheritedFunctionRelationService';
 import { InheritedSymbolRelationService } from '../../../language/services/navigation/InheritedSymbolRelationService';
 import { UnifiedLanguageHoverService } from '../../../language/services/navigation/UnifiedLanguageHoverService';
-import { AstBackedLanguageReferenceService } from '../../../language/services/navigation/LanguageReferenceService';
-import { AstBackedLanguageRenameService } from '../../../language/services/navigation/LanguageRenameService';
+import { createDefaultAstBackedLanguageReferenceService } from '../../../language/services/navigation/LanguageReferenceService';
+import { createDefaultAstBackedLanguageRenameService } from '../../../language/services/navigation/LanguageRenameService';
 import { DefaultCallableDocResolver } from '../../../language/services/signatureHelp/DefaultCallableDocResolver';
 import { DefaultCallableTargetDiscoveryService } from '../../../language/services/signatureHelp/DefaultCallableTargetDiscoveryService';
 import { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
@@ -178,11 +178,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
             pathSupport: documentPathSupport
         }
     );
-    const referenceService = new AstBackedLanguageReferenceService({
+    const referenceService = createDefaultAstBackedLanguageReferenceService({
         analysisService,
         inheritedRelationService
     });
-    const renameService = new AstBackedLanguageRenameService({
+    const renameService = createDefaultAstBackedLanguageRenameService({
         analysisService,
         inheritedRelationService
     });

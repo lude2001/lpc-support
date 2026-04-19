@@ -40,10 +40,12 @@ import { CallableDocRenderer } from '../../../language/documentation/CallableDoc
 import { createDefaultFunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import {
     AstBackedLanguageReferenceService,
+    createDefaultAstBackedLanguageReferenceService,
     type LanguageReferenceService
 } from '../../../language/services/navigation/LanguageReferenceService';
 import {
     AstBackedLanguageRenameService,
+    createDefaultAstBackedLanguageRenameService,
     type LanguageRenameService
 } from '../../../language/services/navigation/LanguageRenameService';
 import type { LanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
@@ -405,10 +407,10 @@ describe('navigation handlers', () => {
                 ];
             })
         };
-        const referenceService: LanguageReferenceService = new AstBackedLanguageReferenceService({
+        const referenceService: LanguageReferenceService = createDefaultAstBackedLanguageReferenceService({
             analysisService: DocumentSemanticSnapshotService.getInstance(),
             inheritedRelationService
-        } as any);
+        });
         const navigationService = {
             ...createNavigationServiceStub(),
             provideReferences: referenceService.provideReferences.bind(referenceService)
@@ -609,7 +611,7 @@ describe('navigation handlers', () => {
                 }
             } as any;
         });
-        const renameService = new AstBackedLanguageRenameService({
+        const renameService = createDefaultAstBackedLanguageRenameService({
             analysisService: { parseDocument: parseDocumentMock } as any
         });
         const navigationService = {

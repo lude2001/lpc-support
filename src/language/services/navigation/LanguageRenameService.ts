@@ -40,14 +40,18 @@ export interface LanguageRenameService {
     provideRenameEdits(request: LanguageRenameRequest): Promise<LanguageWorkspaceEdit>;
 }
 
+export interface DefaultLanguageRenameServiceDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>;
+    inheritedRelationService?: Pick<InheritedSymbolRelationService, 'classifyRenameTarget' | 'buildInheritedRenameEdits'>;
+}
+
 // Rename keeps the single-file adapter as a fallback when workspace relations are unavailable.
 export class AstBackedLanguageRenameService implements LanguageRenameService {
     public constructor(
         private readonly dependencies: {
-            referenceResolver?: LanguageSymbolReferenceAdapter;
-            analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>;
+            referenceResolver: LanguageSymbolReferenceAdapter;
             inheritedRelationService?: Pick<InheritedSymbolRelationService, 'classifyRenameTarget' | 'buildInheritedRenameEdits'>;
-        } = {}
+        }
     ) {}
 
     public async prepareRename(
@@ -121,7 +125,7 @@ export class AstBackedLanguageRenameService implements LanguageRenameService {
     private prepareCurrentFileRename(
         request: LanguagePrepareRenameRequest
     ): LanguagePrepareRenameResult | undefined {
-        const references = this.getReferenceResolver().resolveReferences(request.context.document, request.position);
+        const references = this.dependencies.referenceResolver.resolveReferences(request.context.document, request.position);
         if (!references) {
             return undefined;
         }
@@ -133,7 +137,7 @@ export class AstBackedLanguageRenameService implements LanguageRenameService {
     }
 
     private provideCurrentFileRenameEdits(request: LanguageRenameRequest): LanguageWorkspaceEdit {
-        const references = this.getReferenceResolver().resolveReferences(request.context.document, request.position);
+        const references = this.dependencies.referenceResolver.resolveReferences(request.context.document, request.position);
         if (!references) {
             return { changes: {} };
         }
@@ -147,11 +151,15 @@ export class AstBackedLanguageRenameService implements LanguageRenameService {
             }
         };
     }
+}
 
-    private getReferenceResolver(): LanguageSymbolReferenceAdapter {
-        return this.dependencies.referenceResolver
-            ?? createVsCodeSymbolReferenceAdapter(this.dependencies.analysisService);
-    }
+export function createDefaultAstBackedLanguageRenameService(
+    dependencies: DefaultLanguageRenameServiceDependencies = {}
+): AstBackedLanguageRenameService {
+    return new AstBackedLanguageRenameService({
+        referenceResolver: createVsCodeSymbolReferenceAdapter(dependencies.analysisService),
+        inheritedRelationService: dependencies.inheritedRelationService
+    });
 }
 
 function mergeWorkspaceEdits(

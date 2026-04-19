@@ -34,6 +34,7 @@ import {
 } from '../LanguageReferenceService';
 import {
     AstBackedLanguageRenameService,
+    createDefaultAstBackedLanguageRenameService,
     type LanguageRenameService
 } from '../LanguageRenameService';
 import {
@@ -750,8 +751,6 @@ describe('navigation services', () => {
     test('reference service can operate on host-agnostic documents via injected boundaries', async () => {
         const document = createDocument('int round; round += 1;');
         const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
-            analysisService,
-            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -798,8 +797,6 @@ describe('navigation services', () => {
     test('rename service can operate on host-agnostic documents via injected boundaries', async () => {
         const document = createDocument('int round; round += 1;');
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
-            analysisService,
-            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -889,7 +886,6 @@ describe('navigation services', () => {
             })
         };
         const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
-            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -952,7 +948,6 @@ describe('navigation services', () => {
             })
         };
         const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
-            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -1061,10 +1056,10 @@ describe('navigation services', () => {
             classifyRenameTarget: jest.fn().mockResolvedValue({ kind: 'unsupported' }),
             buildInheritedRenameEdits: jest.fn()
         };
-        const service: LanguageRenameService = new AstBackedLanguageRenameService({
+        const service: LanguageRenameService = createDefaultAstBackedLanguageRenameService({
             analysisService,
             inheritedRelationService
-        } as any);
+        });
 
         const prepared = await service.prepareRename({
             context: createContext(document),
@@ -1082,7 +1077,6 @@ describe('navigation services', () => {
             buildInheritedRenameEdits: jest.fn()
         };
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
-            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -1168,7 +1162,6 @@ describe('navigation services', () => {
             })
         };
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
-            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -1241,7 +1234,6 @@ describe('navigation services', () => {
             buildInheritedRenameEdits: jest.fn().mockResolvedValue({})
         };
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
-            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {

@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
-import { AstBackedLanguageReferenceService } from '../language/services/navigation/LanguageReferenceService';
-import { AstBackedLanguageRenameService } from '../language/services/navigation/LanguageRenameService';
+import { createDefaultAstBackedLanguageReferenceService } from '../language/services/navigation/LanguageReferenceService';
+import { createDefaultAstBackedLanguageRenameService } from '../language/services/navigation/LanguageRenameService';
 import { createDefaultAstBackedLanguageSymbolService } from '../language/services/navigation/LanguageSymbolService';
 import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { resolveSymbolReferences } from '../symbolReferenceResolver';
@@ -82,7 +82,7 @@ describe('local symbol references', () => {
         const analysisService = {
             parseDocument: astManager.parseDocument.bind(astManager)
         };
-        const service = new AstBackedLanguageReferenceService({ analysisService });
+        const service = createDefaultAstBackedLanguageReferenceService({ analysisService });
         const locations = await service.provideReferences({
             context: createContext(document),
             position: {
@@ -101,7 +101,7 @@ describe('local symbol references', () => {
         const analysisService = {
             parseDocument: astManager.parseDocument.bind(astManager)
         };
-        const service = new AstBackedLanguageRenameService({ analysisService });
+        const service = createDefaultAstBackedLanguageRenameService({ analysisService });
         const edits = await service.provideRenameEdits({
             context: createContext(document),
             position: {
@@ -122,7 +122,7 @@ describe('local symbol references', () => {
         const analysisService = {
             parseDocument: astManager.parseDocument.bind(astManager)
         };
-        const service = new AstBackedLanguageReferenceService({ analysisService });
+        const service = createDefaultAstBackedLanguageReferenceService({ analysisService });
 
         const references = await service.provideReferences({
             context: createContext(document),
@@ -142,7 +142,7 @@ describe('local symbol references', () => {
         const analysisService = {
             parseDocument: astManager.parseDocument.bind(astManager)
         };
-        const service = new AstBackedLanguageRenameService({ analysisService });
+        const service = createDefaultAstBackedLanguageRenameService({ analysisService });
 
         const edit = await service.provideRenameEdits({
             context: createContext(document),

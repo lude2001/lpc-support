@@ -20,14 +20,18 @@ export interface LanguageReferenceService {
     provideReferences(request: LanguageReferenceRequest): Promise<LanguageLocation[]>;
 }
 
+export interface DefaultLanguageReferenceServiceDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>;
+    inheritedRelationService?: Pick<InheritedSymbolRelationService, 'collectInheritedReferences'>;
+}
+
 // Reuses the existing current-file resolver so host integrations share the same contract.
 export class AstBackedLanguageReferenceService implements LanguageReferenceService {
     public constructor(
         private readonly dependencies: {
-            referenceResolver?: LanguageSymbolReferenceAdapter;
-            analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>;
+            referenceResolver: LanguageSymbolReferenceAdapter;
             inheritedRelationService?: Pick<InheritedSymbolRelationService, 'collectInheritedReferences'>;
-        } = {}
+        }
     ) {}
 
     public async provideReferences(request: LanguageReferenceRequest): Promise<LanguageLocation[]> {
@@ -53,7 +57,7 @@ export class AstBackedLanguageReferenceService implements LanguageReferenceServi
     }
 
     private provideCurrentFileReferences(request: LanguageReferenceRequest): LanguageLocation[] {
-        const references = this.getReferenceResolver().resolveReferences(request.context.document, request.position);
+        const references = this.dependencies.referenceResolver.resolveReferences(request.context.document, request.position);
         if (!references) {
             return [];
         }
@@ -65,11 +69,15 @@ export class AstBackedLanguageReferenceService implements LanguageReferenceServi
                 range: match.range
             }));
     }
+}
 
-    private getReferenceResolver(): LanguageSymbolReferenceAdapter {
-        return this.dependencies.referenceResolver
-            ?? createVsCodeSymbolReferenceAdapter(this.dependencies.analysisService);
-    }
+export function createDefaultAstBackedLanguageReferenceService(
+    dependencies: DefaultLanguageReferenceServiceDependencies = {}
+): AstBackedLanguageReferenceService {
+    return new AstBackedLanguageReferenceService({
+        referenceResolver: createVsCodeSymbolReferenceAdapter(dependencies.analysisService),
+        inheritedRelationService: dependencies.inheritedRelationService
+    });
 }
 
 function dedupeLocations(locations: LanguageLocation[]): LanguageLocation[] {

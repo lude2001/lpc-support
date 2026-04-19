@@ -115,10 +115,10 @@ describe('createProductionLanguageServices', () => {
                 DefaultCallableDocResolver: jest.fn(() => callableDocResolver)
             }));
             jest.doMock('../../../../language/services/navigation/LanguageReferenceService', () => ({
-                AstBackedLanguageReferenceService: jest.fn(() => referenceService)
+                createDefaultAstBackedLanguageReferenceService: jest.fn(() => referenceService)
             }));
             jest.doMock('../../../../language/services/navigation/LanguageRenameService', () => ({
-                AstBackedLanguageRenameService: jest.fn(() => renameService)
+                createDefaultAstBackedLanguageRenameService: jest.fn(() => renameService)
             }));
             jest.doMock('../../../../language/services/navigation/LanguageSymbolService', () => ({
                 createDefaultAstBackedLanguageSymbolService: jest.fn(() => symbolService)
@@ -305,10 +305,10 @@ describe('createProductionLanguageServices', () => {
                 UnifiedLanguageHoverService: jest.fn(() => ({ provideHover: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageReferenceService', () => ({
-                AstBackedLanguageReferenceService: jest.fn(() => ({ provideReferences: jest.fn() }))
+                createDefaultAstBackedLanguageReferenceService: jest.fn(() => ({ provideReferences: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageRenameService', () => ({
-                AstBackedLanguageRenameService: jest.fn(() => ({ prepareRename: jest.fn(), provideRenameEdits: jest.fn() }))
+                createDefaultAstBackedLanguageRenameService: jest.fn(() => ({ prepareRename: jest.fn(), provideRenameEdits: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageSymbolService', () => ({
                 createDefaultAstBackedLanguageSymbolService: jest.fn(() => ({ provideDocumentSymbols: jest.fn() }))
@@ -426,10 +426,10 @@ describe('createProductionLanguageServices', () => {
                 AstBackedLanguageDefinitionService: jest.fn(() => ({ provideDefinition: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageReferenceService', () => ({
-                AstBackedLanguageReferenceService: referenceCtor
+                createDefaultAstBackedLanguageReferenceService: referenceCtor
             }));
             jest.doMock('../../../../language/services/navigation/LanguageRenameService', () => ({
-                AstBackedLanguageRenameService: renameCtor
+                createDefaultAstBackedLanguageRenameService: renameCtor
             }));
             jest.doMock('../../../../language/services/navigation/LanguageSymbolService', () => ({
                 createDefaultAstBackedLanguageSymbolService: jest.fn(() => ({ provideDocumentSymbols: jest.fn() }))
@@ -522,10 +522,10 @@ describe('createProductionLanguageServices', () => {
                 AstBackedLanguageDefinitionService: jest.fn(() => ({ provideDefinition: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageReferenceService', () => ({
-                AstBackedLanguageReferenceService: jest.fn(() => ({ provideReferences: jest.fn() }))
+                createDefaultAstBackedLanguageReferenceService: jest.fn(() => ({ provideReferences: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageRenameService', () => ({
-                AstBackedLanguageRenameService: jest.fn(() => ({ prepareRename: jest.fn(), provideRenameEdits: jest.fn() }))
+                createDefaultAstBackedLanguageRenameService: jest.fn(() => ({ prepareRename: jest.fn(), provideRenameEdits: jest.fn() }))
             }));
             jest.doMock('../../../../language/services/navigation/LanguageSymbolService', () => ({
                 createDefaultAstBackedLanguageSymbolService: jest.fn(() => ({ provideDocumentSymbols: jest.fn() }))
