@@ -77,18 +77,28 @@ describe('document analysis ownership guards', () => {
     test('production scoped identifier lookups pass analysis services explicitly', () => {
         const explicitScopedCallSites = listProductionTypeScriptFiles(srcRoot)
             .filter((filePath) => filePath !== path.join(srcRoot, 'language', 'services', 'navigation', 'ScopedMethodIdentifierSupport.ts'))
-            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('isOnScopedMethodIdentifier('))
+            .filter((filePath) => {
+                const source = fs.readFileSync(filePath, 'utf8');
+                return source.includes('isOnScopedMethodIdentifier(')
+                    || source.includes('isScopedIdentifier?: ScopedIdentifierTester')
+                    || source.includes('dependencies.isScopedIdentifier ?? isOnScopedMethodIdentifier');
+            })
             .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
             .sort();
 
         expect(explicitScopedCallSites).toEqual([
             'src/language/services/navigation/InheritedFunctionRelationService.ts',
-            'src/language/services/navigation/LanguageHoverService.ts',
-            'src/language/services/navigation/definition/ScopedMethodDefinitionResolver.ts'
+            'src/language/services/navigation/definition/ScopedMethodDefinitionResolver.ts',
+            'src/language/services/navigation/hover/ScopedMethodHoverResolver.ts'
         ]);
 
         for (const relativePath of explicitScopedCallSites) {
             const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+            if (relativePath === 'src/language/services/navigation/hover/ScopedMethodHoverResolver.ts') {
+                expect(source).toContain('dependencies.isScopedIdentifier ?? isOnScopedMethodIdentifier');
+                continue;
+            }
+
             expect(source).toMatch(/isOnScopedMethodIdentifier\([\s\S]*?,[\s\S]*?,[\s\S]*?,[\s\S]*?\)/);
         }
     });
@@ -125,6 +135,22 @@ describe('document analysis ownership guards', () => {
         expect(completionServiceSource).not.toContain('projectSymbolIndex.updateFromSnapshot(');
         expect(completionServiceSource).not.toContain('projectSymbolIndex.removeFile(');
         expect(completionServiceSource).not.toContain('projectSymbolIndex.clear(');
+    });
+
+    test('LanguageHoverService stays a coordinator without scoped/object/doc-shim helper ownership', () => {
+        const hoverServiceSource = fs.readFileSync(
+            path.join(srcRoot, 'language', 'services', 'navigation', 'LanguageHoverService.ts'),
+            'utf8'
+        );
+
+        expect(hoverServiceSource).not.toContain('private isHoveringMemberName(');
+        expect(hoverServiceSource).not.toContain('private loadMethodDocsFromCandidates(');
+        expect(hoverServiceSource).not.toContain('private renderResolvedCandidatesHover(');
+        expect(hoverServiceSource).not.toContain('private renderMultipleCandidatesHover(');
+        expect(hoverServiceSource).not.toContain('private loadScopedMethodDoc(');
+        expect(hoverServiceSource).not.toContain('function toDocumentationTextDocument(');
+        expect(hoverServiceSource).not.toContain('function createCompletedTextDocumentShim(');
+        expect(hoverServiceSource).not.toContain('function createSyntheticDocumentationUri(');
     });
 });
 

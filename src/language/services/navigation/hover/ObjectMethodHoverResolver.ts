@@ -1,8 +1,8 @@
 import { CallableDocRenderer } from '../../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../../documentation/FunctionDocumentationService';
 import type { CallableDoc } from '../../../documentation/types';
-import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
-import type { LanguagePosition, LanguageRange } from '../../contracts/LanguagePosition';
+import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
+import type { LanguagePosition, LanguageRange } from '../../../contracts/LanguagePosition';
 import type { LanguageHoverResult } from '../LanguageHoverService';
 import type { InferredObjectAccess } from '../../../../objectInference/types';
 import { toDocumentationTextDocument, type HoverResolvedMethodDocumentSource } from './HoverDocumentationSupport';
