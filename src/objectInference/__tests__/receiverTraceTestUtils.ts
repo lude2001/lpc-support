@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ASTManager } from '../../ast/astManager';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../../syntax/types';
+import { getAstManagerForTests } from '../../__tests__/testAstManagerSingleton';
 
 export function createTextDocument(filePath: string, source: string, version = 1): vscode.TextDocument {
     const lines = source.split(/\r?\n/);
@@ -77,8 +78,9 @@ export function createTextDocument(filePath: string, source: string, version = 1
 }
 
 export function getSyntaxDocument(document: vscode.TextDocument): SyntaxDocument {
-    const syntax = ASTManager.getInstance().getSyntaxDocument(document, false)
-        ?? ASTManager.getInstance().getSyntaxDocument(document, true);
+    const astManager = getAstManagerForTests();
+    const syntax = astManager.getSyntaxDocument(document, false)
+        ?? astManager.getSyntaxDocument(document, true);
     if (!syntax) {
         throw new Error('Expected syntax document for receiver trace test.');
     }

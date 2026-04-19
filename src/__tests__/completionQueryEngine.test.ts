@@ -8,6 +8,7 @@ import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../completion/projectSymbolIndex';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from './testAstManagerSingleton';
 
@@ -94,7 +95,7 @@ describe('CompletionQueryEngine', () => {
 
         const baseDocument = createDocument(basePath, baseContent);
         const childDocument = createDocument(childPath, childContent);
-        const astManager = ASTManager.getInstance();
+        const astManager = getAstManagerForTests();
         const resolver = new InheritanceResolver(undefined, [root]);
         const projectSymbolIndex = new ProjectSymbolIndex(resolver);
         const engine = new CompletionQueryEngine({
@@ -148,7 +149,7 @@ describe('CompletionQueryEngine', () => {
         fs.writeFileSync(filePath, content, 'utf8');
 
         const document = createDocument(filePath, content);
-        const astManager = ASTManager.getInstance();
+        const astManager = getAstManagerForTests();
         const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
@@ -180,7 +181,7 @@ describe('CompletionQueryEngine', () => {
         fs.writeFileSync(path.join(root, 'lib', 'base.c'), 'int inherited_call() { return 1; }', 'utf8');
 
         const childDocument = createDocument(childPath, childContent);
-        const astManager = ASTManager.getInstance();
+        const astManager = getAstManagerForTests();
         const resolver = new InheritanceResolver(undefined, [root]);
         const projectSymbolIndex = new ProjectSymbolIndex(resolver);
         const engine = new CompletionQueryEngine({

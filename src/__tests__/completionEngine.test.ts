@@ -8,6 +8,7 @@ import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../completion/projectSymbolIndex';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from './testAstManagerSingleton';
 
@@ -77,7 +78,7 @@ describe('Completion engine regression coverage', () => {
         fs.writeFileSync(basePath, baseContent, 'utf8');
         fs.writeFileSync(childPath, childContent, 'utf8');
 
-        const astManager = ASTManager.getInstance();
+        const astManager = getAstManagerForTests();
         const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver({
             getMacro: (name: string) => name === 'BASE_D' ? { value: '"/lib/base"' } as any : undefined,
             getIncludePath: () => undefined
@@ -118,7 +119,7 @@ describe('Completion engine regression coverage', () => {
 
         fs.writeFileSync(filePath, content, 'utf8');
 
-        const astManager = ASTManager.getInstance();
+        const astManager = getAstManagerForTests();
         const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
@@ -142,7 +143,7 @@ describe('Completion engine regression coverage', () => {
         const filePath = path.join(root, 'cancel.c');
         const content = 'write';
         const document = createDocument(filePath, content);
-        const astManager = ASTManager.getInstance();
+        const astManager = getAstManagerForTests();
         const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,

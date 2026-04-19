@@ -10,6 +10,10 @@ export function configureAstManagerSingletonForTests(
     return analysisService;
 }
 
+export function getAstManagerForTests(): ASTManager {
+    return ASTManager.getInstance();
+}
+
 export function resetAstManagerSingletonForTests(): void {
     try {
         ASTManager.getInstance().clearAllCache();

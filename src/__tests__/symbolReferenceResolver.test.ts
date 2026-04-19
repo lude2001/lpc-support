@@ -8,6 +8,7 @@ import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentServ
 import { resolveSymbolReferences } from '../symbolReferenceResolver';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from './testAstManagerSingleton';
 import { TestHelper } from './utils/TestHelper';
@@ -65,8 +66,9 @@ describe('local symbol references', () => {
 
     test('resolves only references bound to the local variable in the current function', () => {
         const document = TestHelper.createMockDocument(source);
+        const astManager = getAstManagerForTests();
         const analysisService = {
-            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+            parseDocument: astManager.parseDocument.bind(astManager)
         };
         const references = resolveSymbolReferences(document, getRoundPosition(2), analysisService);
 
@@ -76,8 +78,9 @@ describe('local symbol references', () => {
 
     test('reference service excludes same-named locals from other functions', async () => {
         const document = TestHelper.createMockDocument(source);
+        const astManager = getAstManagerForTests();
         const analysisService = {
-            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+            parseDocument: astManager.parseDocument.bind(astManager)
         };
         const service = new AstBackedLanguageReferenceService({ analysisService });
         const locations = await service.provideReferences({
@@ -94,8 +97,9 @@ describe('local symbol references', () => {
 
     test('rename service only edits the selected local variable scope', async () => {
         const document = TestHelper.createMockDocument(source);
+        const astManager = getAstManagerForTests();
         const analysisService = {
-            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+            parseDocument: astManager.parseDocument.bind(astManager)
         };
         const service = new AstBackedLanguageRenameService({ analysisService });
         const edits = await service.provideRenameEdits({
@@ -114,8 +118,9 @@ describe('local symbol references', () => {
 
     test('reference service preserves includeDeclaration filtering for current-file references', async () => {
         const document = TestHelper.createMockDocument(source);
+        const astManager = getAstManagerForTests();
         const analysisService = {
-            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+            parseDocument: astManager.parseDocument.bind(astManager)
         };
         const service = new AstBackedLanguageReferenceService({ analysisService });
 
@@ -133,8 +138,9 @@ describe('local symbol references', () => {
 
     test('rename service returns precise same-file edit ranges from resolved references', async () => {
         const document = TestHelper.createMockDocument(source);
+        const astManager = getAstManagerForTests();
         const analysisService = {
-            parseDocument: ASTManager.getInstance().parseDocument.bind(ASTManager.getInstance())
+            parseDocument: astManager.parseDocument.bind(astManager)
         };
         const service = new AstBackedLanguageRenameService({ analysisService });
 

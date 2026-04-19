@@ -16,6 +16,7 @@ import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSna
 import { TargetMethodLookup } from '../targetMethodLookup';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from './testAstManagerSingleton';
 
@@ -659,7 +660,7 @@ describe('language-service integration regression', () => {
         const orchestrator = new DiagnosticsOrchestrator(
             { subscriptions: [], extensionPath: process.cwd() } as any,
             {
-                diagnosticsService: createSharedDiagnosticsService(ASTManager.getInstance(), [])
+                diagnosticsService: createSharedDiagnosticsService(getAstManagerForTests(), [])
             }
         );
         const document = createDocument(
@@ -690,7 +691,7 @@ describe('language-service integration regression', () => {
             1
         );
 
-        ASTManager.getInstance().getSemanticSnapshot(initialDocument, false);
+        getAstManagerForTests().getSemanticSnapshot(initialDocument, false);
 
         const updatedDocument = createDocument(
             fileName,

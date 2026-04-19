@@ -5,6 +5,7 @@ import { SyntaxBuilder } from '../syntax/SyntaxBuilder';
 import { SyntaxKind } from '../syntax/types';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from './testAstManagerSingleton';
 
@@ -59,7 +60,7 @@ function createDocument(content: string, fileName: string = '/virtual/syntax.c',
 }
 
 function buildSyntaxDocument(document: vscode.TextDocument): any {
-    return ASTManager.getInstance().parseDocument(document, false).syntax!;
+    return getAstManagerForTests().parseDocument(document, false).syntax!;
 }
 
 function getFunctionDeclarations(syntaxDocument: any): any[] {
@@ -114,7 +115,7 @@ describe('SyntaxBuilder', () => {
             '}'
         ].join('\n');
         const document = createDocument(source, '/virtual/repeated.c');
-        const syntaxDocument = ASTManager.getInstance().parseDocument(document, false).syntax!;
+        const syntaxDocument = getAstManagerForTests().parseDocument(document, false).syntax!;
         const alphaNodes = syntaxDocument.nodes.filter((node) => node.kind === SyntaxKind.Identifier && node.name === 'alpha');
 
         expect(alphaNodes).toHaveLength(3);

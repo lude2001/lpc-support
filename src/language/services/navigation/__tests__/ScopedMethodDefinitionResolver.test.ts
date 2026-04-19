@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { ScopedMethodDefinitionResolver } from '../definition/ScopedMethodDefinitionResolver';
 import { DefinitionResolverSupport } from '../definition/DefinitionResolverSupport';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from '../../../../__tests__/testAstManagerSingleton';
 
@@ -67,7 +67,7 @@ function createTextDocument(filePath: string, source: string): vscode.TextDocume
 
 function createSupport(): DefinitionResolverSupport {
     return new DefinitionResolverSupport({
-        astManager: ASTManager.getInstance(),
+        astManager: getAstManagerForTests(),
         host: {
             onDidChangeTextDocument: () => ({ dispose() {} }),
             openTextDocument: jest.fn(),
@@ -94,7 +94,7 @@ describe('ScopedMethodDefinitionResolver', () => {
     test('returns locations for bare scoped method identifiers only', async () => {
         const document = createTextDocument('D:/workspace/room.c', 'void demo() {\n    ::create();\n}\n');
         const resolver = new ScopedMethodDefinitionResolver({
-            astManager: ASTManager.getInstance(),
+            astManager: getAstManagerForTests(),
             analysisService,
             support: createSupport(),
             scopedMethodResolver: {
@@ -127,7 +127,7 @@ describe('ScopedMethodDefinitionResolver', () => {
     test('returns undefined on qualifier and argument positions', async () => {
         const document = createTextDocument('D:/workspace/room.c', 'void demo() {\n    room::init(arg);\n}\n');
         const resolver = new ScopedMethodDefinitionResolver({
-            astManager: ASTManager.getInstance(),
+            astManager: getAstManagerForTests(),
             analysisService,
             support: createSupport(),
             scopedMethodResolver: {
@@ -154,7 +154,7 @@ describe('ScopedMethodDefinitionResolver', () => {
     test('returns an empty handled result for ambiguous scoped resolutions', async () => {
         const document = createTextDocument('D:/workspace/room.c', 'void demo() {\n    room::init();\n}\n');
         const resolver = new ScopedMethodDefinitionResolver({
-            astManager: ASTManager.getInstance(),
+            astManager: getAstManagerForTests(),
             analysisService,
             support: createSupport(),
             scopedMethodResolver: {

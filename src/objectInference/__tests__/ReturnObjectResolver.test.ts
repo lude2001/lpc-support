@@ -6,6 +6,7 @@ import { WorkspaceDocumentPathSupport } from '../../language/shared/WorkspaceDoc
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from '../../__tests__/testAstManagerSingleton';
 import { ReturnObjectResolver } from '../ReturnObjectResolver';
@@ -66,7 +67,7 @@ function createTextDocument(filePath: string, content: string): vscode.TextDocum
 }
 
 function findFirstCallExpression(document: vscode.TextDocument): SyntaxNode {
-    const astManager = ASTManager.getInstance();
+    const astManager = getAstManagerForTests();
     const syntax = astManager.getSyntaxDocument(document, false)
         ?? astManager.getSyntaxDocument(document, true);
     if (!syntax) {

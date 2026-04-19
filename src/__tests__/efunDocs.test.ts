@@ -18,6 +18,7 @@ import {
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import {
     configureAstManagerSingletonForTests,
+    getAstManagerForTests,
     resetAstManagerSingletonForTests
 } from './testAstManagerSingleton';
 import { TestHelper } from './utils/TestHelper';
@@ -764,7 +765,7 @@ describe('SimulatedEfunScanner', () => {
 
     test('parser trivia exposes include directives for simulated efun entry files', () => {
         const document = TestHelper.createMockDocument('#include "/adm/simul_efun/helper.c"\n', 'lpc', 'simul_efun.c');
-        const parsed = ASTManager.getInstance().parseDocument(document, false).parsed;
+        const parsed = getAstManagerForTests().parseDocument(document, false).parsed;
 
         expect(parsed?.tokenTriviaIndex.getAllTrivia().filter(trivia => trivia.kind === 'directive').map(trivia => trivia.text.trim()))
             .toEqual(['#include "/adm/simul_efun/helper.c"']);
