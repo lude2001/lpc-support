@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
-import { MacroManager } from '../macroManager';
 import { assertTextDocumentHost, type TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
@@ -12,13 +11,13 @@ export class InheritedGlobalObjectBindingResolver {
     private readonly host: Pick<TextDocumentHost, 'openTextDocument'>;
 
     constructor(
-        macroManager: MacroManager | undefined,
+        inheritanceResolver: InheritanceResolver,
         private readonly globalBindingResolver: GlobalObjectBindingResolver,
         analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>,
         host?: Pick<TextDocumentHost, 'openTextDocument'>
     ) {
         this.analysisService = assertAnalysisService('InheritedGlobalObjectBindingResolver', analysisService);
-        this.inheritanceResolver = new InheritanceResolver(macroManager);
+        this.inheritanceResolver = inheritanceResolver;
         this.host = assertTextDocumentHost('InheritedGlobalObjectBindingResolver', host as TextDocumentHost | undefined);
     }
 

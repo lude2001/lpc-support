@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
@@ -53,6 +54,7 @@ export class ObjectInferenceService {
             ? undefined
             : playerObjectPathOrProjectConfig;
         this.pathSupport = assertDocumentPathSupport('ObjectInferenceService', pathSupport);
+        const inheritanceResolver = new InheritanceResolver(macroManager);
         const targetMethodLookup = new TargetMethodLookup(
             this.analysisService,
             this.pathSupport
@@ -74,12 +76,12 @@ export class ObjectInferenceService {
         this.globalBindingResolver = new GlobalObjectBindingResolver(
             this.returnObjectResolver,
             this.objectMethodReturnResolver,
-            macroManager,
+            inheritanceResolver,
             this.analysisService,
             textDocumentHost
         );
         this.inheritedGlobalBindingResolver = new InheritedGlobalObjectBindingResolver(
-            macroManager,
+            inheritanceResolver,
             this.globalBindingResolver,
             this.analysisService,
             textDocumentHost

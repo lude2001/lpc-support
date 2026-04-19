@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { Symbol } from '../ast/symbolTable';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
-import { MacroManager } from '../macroManager';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
@@ -41,12 +40,12 @@ export class GlobalObjectBindingResolver {
     constructor(
         private readonly returnObjectResolver: ReturnObjectResolver,
         private readonly objectMethodReturnResolver: ObjectMethodReturnResolver,
-        macroManager?: MacroManager,
+        inheritanceResolver: InheritanceResolver,
         analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>,
         host?: Pick<TextDocumentHost, 'openTextDocument'>
     ) {
         this.analysisService = assertAnalysisService('GlobalObjectBindingResolver', analysisService);
-        this.inheritanceResolver = new InheritanceResolver(macroManager);
+        this.inheritanceResolver = inheritanceResolver;
         this.host = assertTextDocumentHost('GlobalObjectBindingResolver', host as TextDocumentHost | undefined);
     }
 
