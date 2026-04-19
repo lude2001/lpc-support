@@ -5,7 +5,7 @@ import { DocumentLifecycleService } from '../core/DocumentLifecycleService';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import { LPCConfigManager } from '../config';
 import { LPCCompiler } from '../compiler';
-import { configureDiagnosticsAnalysisService } from '../diagnostics/createDiagnosticsStack';
+import { configureDiagnosticsAnalysisService } from '../diagnostics';
 import { EfunDocsManager } from '../efunDocs';
 import { MacroManager } from '../macroManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';

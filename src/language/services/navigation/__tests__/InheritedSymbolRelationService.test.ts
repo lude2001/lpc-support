@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, jest, test } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ASTManager } from '../../../../ast/astManager';
+import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { InheritedSymbolRelationService } from '../InheritedSymbolRelationService';
+import { configureScopedMethodIdentifierAnalysisService } from '../ScopedMethodIdentifierSupport';
 
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
     const uri = vscode.Uri.parse(uriValue);
@@ -112,8 +114,16 @@ function documentLookupKey(target: string | vscode.Uri): string {
 }
 
 describe('InheritedSymbolRelationService', () => {
+    const analysisService = DocumentSemanticSnapshotService.getInstance();
+
+    beforeEach(() => {
+        configureScopedMethodIdentifierAnalysisService(analysisService);
+    });
+
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();
     });
 
@@ -131,6 +141,7 @@ describe('InheritedSymbolRelationService', () => {
         ]);
 
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -209,6 +220,7 @@ describe('InheritedSymbolRelationService', () => {
         };
 
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [])
             } as any,
@@ -236,6 +248,7 @@ describe('InheritedSymbolRelationService', () => {
         const childSource = 'void demo() {\n    room::init();\n}\n';
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [])
             } as any,
@@ -265,6 +278,7 @@ describe('InheritedSymbolRelationService', () => {
         const childSource = 'void create() {}\n';
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [{
                     rawValue: '/base',
@@ -299,6 +313,7 @@ describe('InheritedSymbolRelationService', () => {
         ]);
 
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -369,6 +384,7 @@ describe('InheritedSymbolRelationService', () => {
         const localDocument = createTextDocument('file:///D:/workspace/local.c', localSource);
         const parameterDocument = createTextDocument('file:///D:/workspace/parameter.c', parameterSource);
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [])
             } as any,
@@ -394,6 +410,7 @@ describe('InheritedSymbolRelationService', () => {
     ] as const)('classifyRenameTarget returns unsupported for %s symbols', async (_label, source, symbol) => {
         const document = createTextDocument(`file:///D:/workspace/${symbol}.c`, source);
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [])
             } as any,
@@ -412,6 +429,7 @@ describe('InheritedSymbolRelationService', () => {
         const source = 'int GLOBAL_D;\nvoid demo() { GLOBAL_D += 1; }\n';
         const document = createTextDocument('file:///D:/workspace/current-global.c', source);
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [])
             } as any,
@@ -436,6 +454,7 @@ describe('InheritedSymbolRelationService', () => {
             [parentDocument.uri.fsPath, parentDocument]
         ]);
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -480,6 +499,7 @@ describe('InheritedSymbolRelationService', () => {
             [parentDocument.uri.fsPath, parentDocument]
         ]);
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -536,6 +556,7 @@ describe('InheritedSymbolRelationService', () => {
             collectFunctionReferences: jest.fn(async () => [])
         };
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -595,6 +616,7 @@ describe('InheritedSymbolRelationService', () => {
             collectFunctionReferences: jest.fn(async () => [])
         };
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -669,6 +691,7 @@ describe('InheritedSymbolRelationService', () => {
             [rootDocument.uri.fsPath, rootDocument]
         ]);
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -757,6 +780,7 @@ describe('InheritedSymbolRelationService', () => {
             [parentDocument.uri.fsPath, parentDocument]
         ]);
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -825,6 +849,7 @@ describe('InheritedSymbolRelationService', () => {
         ]);
 
         const service = new InheritedSymbolRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {

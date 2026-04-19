@@ -8,6 +8,7 @@ import { EfunDocsManager } from '../../../../efunDocs';
 import { configureSimulatedEfunScannerAnalysisService } from '../../../../efun/SimulatedEfunScanner';
 import { clearGlobalParsedDocumentService } from '../../../../parser/ParsedDocumentService';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
+import { configureScopedMethodIdentifierAnalysisService } from '../../navigation/ScopedMethodIdentifierSupport';
 import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
 import type { CallableDoc } from '../../../documentation/types';
 import { TargetMethodLookup, configureTargetMethodLookupAnalysisService } from '../../../../targetMethodLookup';
@@ -188,9 +189,21 @@ function createDocResolver(docsByTargetKey: Record<string, CallableDoc>): Callab
 }
 
 describe('LanguageSignatureHelpService', () => {
+    const analysisService = DocumentSemanticSnapshotService.getInstance();
+
+    function createSignatureHelpService(
+        dependencies: ConstructorParameters<typeof LanguageSignatureHelpService>[0] = {}
+    ): LanguageSignatureHelpService {
+        return new LanguageSignatureHelpService({
+            analysisService,
+            ...dependencies
+        });
+    }
+
     beforeEach(() => {
-        configureTargetMethodLookupAnalysisService(DocumentSemanticSnapshotService.getInstance());
-        configureSimulatedEfunScannerAnalysisService(DocumentSemanticSnapshotService.getInstance());
+        configureTargetMethodLookupAnalysisService(analysisService);
+        configureSimulatedEfunScannerAnalysisService(analysisService);
+        configureScopedMethodIdentifierAnalysisService(analysisService);
     });
 
     afterEach(() => {
@@ -198,6 +211,7 @@ describe('LanguageSignatureHelpService', () => {
         DocumentSemanticSnapshotService.getInstance().clear();
         configureTargetMethodLookupAnalysisService(undefined);
         configureSimulatedEfunScannerAnalysisService(undefined);
+        configureScopedMethodIdentifierAnalysisService(undefined);
         clearGlobalParsedDocumentService();
         (vscode.workspace as any).workspaceFolders = originalWorkspaceFolders;
         jest.restoreAllMocks();
@@ -236,7 +250,7 @@ describe('LanguageSignatureHelpService', () => {
                 }
             )
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService,
             docResolver
         });
@@ -284,7 +298,7 @@ describe('LanguageSignatureHelpService', () => {
             subscriptions: [],
             extensionPath: process.cwd()
         } as unknown as vscode.ExtensionContext);
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             efunDocsManager,
             host: {
                 openTextDocument: jest.fn(async () => document)
@@ -352,7 +366,7 @@ describe('LanguageSignatureHelpService', () => {
                 parameters: [{ name: 'value', type: 'int', description: 'Include value' }]
             }])
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService,
             docResolver
         });
@@ -414,7 +428,7 @@ describe('LanguageSignatureHelpService', () => {
                 parameters: [{ name: 'value', type: 'int', description: 'Local value' }]
             }])
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             efunDocsManager: {
                 prepareHoverLookup,
                 getCurrentFileDocForDocument,
@@ -496,7 +510,7 @@ describe('LanguageSignatureHelpService', () => {
                 parameters: [{ name: 'value', type: 'int', description: 'Efun value' }]
             }])
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService,
             docResolver
         });
@@ -560,7 +574,7 @@ describe('LanguageSignatureHelpService', () => {
                 ]
             }])
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService,
             docResolver
         });
@@ -614,7 +628,7 @@ describe('LanguageSignatureHelpService', () => {
                 }])
                 : undefined)
         };
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             scopedMethodResolver: scopedMethodResolver as any,
             docResolver
         });
@@ -653,7 +667,7 @@ describe('LanguageSignatureHelpService', () => {
                 targets: []
             }))
         };
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             scopedMethodResolver: scopedMethodResolver as any,
             efunDocsManager: {
                 getCurrentFileDocForDocument: jest.fn(async () => undefined),
@@ -706,7 +720,7 @@ describe('LanguageSignatureHelpService', () => {
                 }])
                 : undefined)
         };
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             scopedMethodResolver: scopedMethodResolver as any,
             docResolver
         });
@@ -752,7 +766,7 @@ describe('LanguageSignatureHelpService', () => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
             return createDocument(fs.readFileSync(filePath, 'utf8'), filePath);
         });
-        const objectInferenceService = new ObjectInferenceService();
+        const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService);
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup();
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
@@ -773,7 +787,7 @@ describe('LanguageSignatureHelpService', () => {
                 }]);
             })
         };
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             objectInferenceService,
             targetMethodLookup,
             docResolver
@@ -834,7 +848,7 @@ describe('LanguageSignatureHelpService', () => {
                 .replace(/\//g, path.sep);
             return createDocument(fs.readFileSync(normalizedPath, 'utf8'), normalizedPath);
         });
-        const objectInferenceService = new ObjectInferenceService();
+        const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService);
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup();
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
@@ -855,7 +869,7 @@ describe('LanguageSignatureHelpService', () => {
                 }]);
             })
         };
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             objectInferenceService,
             targetMethodLookup,
             docResolver
@@ -908,7 +922,7 @@ describe('LanguageSignatureHelpService', () => {
                 ]
             }])
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService,
             docResolver
         });
@@ -993,7 +1007,7 @@ describe('LanguageSignatureHelpService', () => {
             'decl:header': createCallableDoc('shared_call', 'include', 'decl:header', primaryDoc.signatures),
             'decl:simul': createCallableDoc('shared_call', 'simulEfun', 'decl:simul', primaryDoc.signatures)
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService,
             docResolver
         });
@@ -1065,7 +1079,7 @@ describe('LanguageSignatureHelpService', () => {
                 }
             ])
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService,
             docResolver
         });
@@ -1118,7 +1132,7 @@ describe('LanguageSignatureHelpService', () => {
                 }
             ])
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService,
             docResolver
         });
@@ -1167,7 +1181,7 @@ describe('LanguageSignatureHelpService', () => {
                 ]
             }])
         });
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService,
             docResolver
         });
@@ -1237,7 +1251,7 @@ describe('LanguageSignatureHelpService', () => {
                 candidates: [{ path: '/obj/npc.c', source: 'literal' }]
             }
         }));
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             documentationService: {
                 getDocumentDocs: jest.fn(),
                 getDocsByName,
@@ -1306,7 +1320,7 @@ describe('LanguageSignatureHelpService', () => {
                 parameters: [{ name: 'value', type: 'int', description: 'Bar value' }]
             }]))
         };
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             objectInferenceService: {
                 inferObjectAccess
             } as any,
@@ -1357,7 +1371,7 @@ describe('LanguageSignatureHelpService', () => {
     test('returns undefined when the callable target cannot be resolved', async () => {
         const source = 'void test() {\n    missing_call(1);\n}';
         const document = createDocument(source);
-        const service = new LanguageSignatureHelpService({
+        const service = createSignatureHelpService({
             discoveryService: createDiscoveryService({}),
             docResolver: createDocResolver({})
         });

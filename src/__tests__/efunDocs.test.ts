@@ -10,6 +10,7 @@ import {
 } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
+import { configureScopedMethodIdentifierAnalysisService } from '../language/services/navigation/ScopedMethodIdentifierSupport';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { configureTargetMethodLookupAnalysisService } from '../targetMethodLookup';
 import { TestHelper } from './utils/TestHelper';
@@ -21,6 +22,7 @@ describe('EfunDocsManager', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         const analysisService = DocumentSemanticSnapshotService.getInstance();
+        configureScopedMethodIdentifierAnalysisService(analysisService);
         configureSimulatedEfunScannerAnalysisService(analysisService);
         configureTargetMethodLookupAnalysisService(analysisService);
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
@@ -34,6 +36,7 @@ describe('EfunDocsManager', () => {
     });
 
     afterEach(() => {
+        configureScopedMethodIdentifierAnalysisService(undefined);
         configureSimulatedEfunScannerAnalysisService(undefined);
         configureTargetMethodLookupAnalysisService(undefined);
         errorSpy.mockRestore();
@@ -236,7 +239,9 @@ describe('EfunDocsManager', () => {
             getMacroHoverContent: jest.fn(),
             scanMacros: jest.fn().mockResolvedValue(undefined),
             getIncludePath: jest.fn()
-        } as any);
+        } as any, undefined, undefined, undefined, {
+            analysisService: DocumentSemanticSnapshotService.getInstance()
+        });
         const document = TestHelper.createMockDocument('allo');
         const completion = await service.provideCompletion({
             context: {

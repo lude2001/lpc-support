@@ -1,8 +1,10 @@
-import { describe, expect, jest, test } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ASTManager } from '../../../../ast/astManager';
+import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { ScopedMethodDefinitionResolver } from '../definition/ScopedMethodDefinitionResolver';
 import { DefinitionResolverSupport } from '../definition/DefinitionResolverSupport';
+import { configureScopedMethodIdentifierAnalysisService } from '../ScopedMethodIdentifierSupport';
 
 function createTextDocument(filePath: string, source: string): vscode.TextDocument {
     const lines = source.split(/\r?\n/);
@@ -76,8 +78,14 @@ function createSupport(): DefinitionResolverSupport {
 }
 
 describe('ScopedMethodDefinitionResolver', () => {
+    beforeEach(() => {
+        configureScopedMethodIdentifierAnalysisService(DocumentSemanticSnapshotService.getInstance());
+    });
+
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureScopedMethodIdentifierAnalysisService(undefined);
     });
 
     test('returns locations for bare scoped method identifiers only', async () => {

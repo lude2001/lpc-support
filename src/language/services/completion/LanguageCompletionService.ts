@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../ast/astManager';
 import { normalizeLpcType } from '../../../ast/typeNormalization';
 import { SymbolType } from '../../../ast/symbolTable';
 import { CompletionContextAnalyzer } from '../../../completion/completionContextAnalyzer';
@@ -20,6 +19,8 @@ import { MacroManager } from '../../../macroManager';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import { ScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { ObjectInferenceResult } from '../../../objectInference/types';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { PathResolver } from '../../../utils/pathResolver';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
@@ -75,7 +76,21 @@ export interface LanguageCompletionService {
     scanInheritance?(document: vscode.TextDocument): Promise<void>;
 }
 
-type IndexSnapshot = SemanticSnapshot | ReturnType<ASTManager['getSnapshot']>;
+type CompletionAnalysisService = Pick<
+    DocumentAnalysisService,
+    | 'getSyntaxDocument'
+    | 'getSnapshot'
+    | 'getBestAvailableSnapshot'
+    | 'getSemanticSnapshot'
+    | 'getBestAvailableSemanticSnapshot'
+    | 'scheduleRefresh'
+    | 'clearCache'
+    | 'clearAllCache'
+    | 'hasSnapshot'
+    | 'hasFreshSnapshot'
+>;
+
+type IndexSnapshot = SemanticSnapshot | ReturnType<DocumentAnalysisService['getSnapshot']>;
 
 interface InheritanceReporter {
     clear(): void;
@@ -88,6 +103,7 @@ function createDefaultInheritanceReporter(): InheritanceReporter {
 }
 
 interface QueryBackedLanguageCompletionDependencies {
+    analysisService: CompletionAnalysisService;
     scopedMethodDiscoveryService?: ScopedMethodDiscoveryService;
     documentationService?: FunctionDocumentationService;
     scopedDocumentLoader?: (uri: string) => Promise<vscode.TextDocument | undefined>;
@@ -97,7 +113,7 @@ interface QueryBackedLanguageCompletionDependencies {
 export class QueryBackedLanguageCompletionService implements LanguageCompletionService {
     private readonly efunDocsManager: EfunDocsManager;
     private readonly macroManager: MacroManager;
-    private readonly astManager: ASTManager;
+    private readonly analysisService: CompletionAnalysisService;
     private readonly projectSymbolIndex: ProjectSymbolIndex;
     private readonly queryEngine: CompletionQueryEngine;
     private readonly instrumentation: CompletionInstrumentation;
@@ -116,12 +132,12 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     ) {
         this.efunDocsManager = efunDocsManager;
         this.macroManager = macroManager;
-        this.astManager = ASTManager.getInstance();
+        this.analysisService = assertAnalysisService('QueryBackedLanguageCompletionService', dependencies?.analysisService);
         this.instrumentation = instrumentation ?? new CompletionInstrumentation();
-        this.objectInferenceService = objectInferenceService ?? new ObjectInferenceService(macroManager);
+        this.objectInferenceService = objectInferenceService ?? new ObjectInferenceService(macroManager, undefined, this.analysisService);
         this.inheritanceReporter = inheritanceReporter;
         this.scopedMethodDiscoveryService = dependencies?.scopedMethodDiscoveryService
-            ?? new ScopedMethodDiscoveryService(macroManager);
+            ?? new ScopedMethodDiscoveryService(macroManager, undefined, this.analysisService);
         this.scopedCompletionSupport = dependencies?.scopedCompletionSupport
             ?? new ScopedMethodCompletionSupport({
                 documentationService: dependencies?.documentationService ?? new FunctionDocumentationService(),
@@ -130,7 +146,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             });
         this.projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(this.macroManager));
         this.queryEngine = new CompletionQueryEngine({
-            snapshotProvider: this.astManager,
+            snapshotProvider: this.analysisService,
             projectSymbolIndex: this.projectSymbolIndex,
             contextAnalyzer: new CompletionContextAnalyzer(),
             macroManager: this.macroManager,
@@ -243,19 +259,19 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     }
 
     public handleDocumentChange(document: vscode.TextDocument): void {
-        this.astManager.scheduleSnapshotRefresh(document, () => {
+        this.analysisService.scheduleRefresh(document, () => {
             this.projectSymbolIndex.updateFromSnapshot(this.getBestAvailableIndexSnapshot(document));
         });
     }
 
     public clearCache(document?: vscode.TextDocument): void {
         if (document) {
-            this.astManager.clearCache(document.uri.toString());
+            this.analysisService.clearCache(document.uri.toString());
             this.projectSymbolIndex.removeFile(document.uri.toString());
             return;
         }
 
-        this.astManager.clearAllCache();
+        this.analysisService.clearAllCache();
         this.projectSymbolIndex.clear();
     }
 
@@ -485,9 +501,9 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
 
         let snapshot: SemanticSnapshot;
         try {
-            snapshot = this.astManager.getBestAvailableSemanticSnapshot(targetDocument);
+            snapshot = this.analysisService.getBestAvailableSemanticSnapshot(targetDocument);
         } catch {
-            snapshot = this.astManager.getSemanticSnapshot(targetDocument, false);
+            snapshot = this.analysisService.getSemanticSnapshot(targetDocument, false);
         }
 
         this.projectSymbolIndex.updateFromSnapshot(snapshot);
@@ -676,12 +692,12 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     private getIndexSnapshot(document: vscode.TextDocument, bestAvailable: boolean): IndexSnapshot {
         try {
             return bestAvailable
-                ? this.astManager.getBestAvailableSemanticSnapshot(document)
-                : this.astManager.getSemanticSnapshot(document, false);
+                ? this.analysisService.getBestAvailableSemanticSnapshot(document)
+                : this.analysisService.getSemanticSnapshot(document, false);
         } catch {
             return bestAvailable
-                ? this.astManager.getBestAvailableSnapshot(document)
-                : this.astManager.getSnapshot(document, false);
+                ? this.analysisService.getBestAvailableSnapshot(document)
+                : this.analysisService.getSnapshot(document, false);
         }
     }
 

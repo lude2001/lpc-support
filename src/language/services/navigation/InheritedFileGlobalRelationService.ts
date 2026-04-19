@@ -1,13 +1,14 @@
 import * as vscode from 'vscode';
 import { LPCLexer } from '../../../antlr/LPCLexer';
-import { ASTManager } from '../../../ast/astManager';
 import { Symbol as LPCSymbol, SymbolType } from '../../../ast/symbolTable';
 import { InheritanceResolver } from '../../../completion/inheritanceResolver';
 import type { MacroManager } from '../../../macroManager';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
+import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { resolveScopedDirectInheritSeeds } from '../../../objectInference/scopedInheritanceTraversal';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { normalizeWorkspaceUri } from './navigationPathUtils';
-
 export interface FileGlobalBinding {
     name: string;
     ownerUri: string;
@@ -20,6 +21,7 @@ export type FileGlobalBindingResolution =
     | { status: 'ambiguous' | 'unresolved' | 'none' };
 
 export interface InheritedFileGlobalRelationServiceOptions {
+    analysisService?: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
     macroManager?: MacroManager;
     workspaceRoots?: string[];
     inheritanceResolver?: Pick<InheritanceResolver, 'resolveInheritTargets'>;
@@ -35,13 +37,14 @@ const defaultHost = {
 };
 
 export class InheritedFileGlobalRelationService {
-    private readonly astManager = ASTManager.getInstance();
+    private readonly analysisService: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
     private readonly inheritanceResolver: Pick<InheritanceResolver, 'resolveInheritTargets'>;
     private readonly host: {
         openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
     };
 
     public constructor(options: InheritedFileGlobalRelationServiceOptions = {}) {
+        this.analysisService = assertAnalysisService('InheritedFileGlobalRelationService', options.analysisService);
         this.inheritanceResolver = options.inheritanceResolver
             ?? new InheritanceResolver(options.macroManager, options.workspaceRoots);
         this.host = options.host ?? defaultHost;
@@ -64,7 +67,7 @@ export class InheritedFileGlobalRelationService {
         const cache = new Map<string, FileGlobalBindingResolution>();
 
         for (const chainDocument of binding.pathDocuments) {
-            const parseResult = this.astManager.parseDocument(chainDocument, false);
+            const parseResult = this.analysisService.parseDocument(chainDocument, false);
             const tokenStream = parseResult.parsed?.tokens;
             if (!tokenStream) {
                 continue;
@@ -119,7 +122,7 @@ export class InheritedFileGlobalRelationService {
         position: vscode.Position,
         cache: Map<string, FileGlobalBindingResolution>
     ): Promise<FileGlobalBindingResolution> {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const resolvedSymbol = resolveVisibleSymbol(snapshot.symbolTable, symbolName, position);
         if (resolvedSymbol) {
             if (resolvedSymbol.type === SymbolType.VARIABLE && resolvedSymbol.scope === snapshot.symbolTable.getGlobalScope()) {
@@ -152,7 +155,7 @@ export class InheritedFileGlobalRelationService {
             return cached;
         }
 
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const localSymbol = this.findFileGlobalSymbol(snapshot, symbolName);
         if (localSymbol) {
             const resolved = {
@@ -239,7 +242,7 @@ export class InheritedFileGlobalRelationService {
     }
 
     private findFileGlobalSymbol(
-        snapshot: ReturnType<ASTManager['getSemanticSnapshot']>,
+        snapshot: SemanticSnapshot,
         symbolName: string
     ): LPCSymbol | undefined {
         const symbol = snapshot.symbolTable.getGlobalScope().symbols.get(symbolName);

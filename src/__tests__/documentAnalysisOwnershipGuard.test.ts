@@ -57,19 +57,37 @@ describe('document analysis ownership guards', () => {
             'src/lsp/server/runtime/createProductionLanguageServices.ts',
             'src/modules/coreModule.ts'
         ]);
-        expect(astSingletonCallSites).toEqual([
-            'src/language/services/completion/LanguageCompletionService.ts',
-            'src/language/services/navigation/InheritedFileGlobalRelationService.ts',
-            'src/language/services/navigation/InheritedFunctionRelationService.ts',
-            'src/language/services/navigation/InheritedSymbolRelationService.ts',
-            'src/language/services/navigation/LanguageDefinitionService.ts',
-            'src/language/services/signatureHelp/LanguageSignatureHelpService.ts',
-            'src/objectInference/GlobalObjectBindingResolver.ts',
-            'src/objectInference/InheritedGlobalObjectBindingResolver.ts',
-            'src/objectInference/ObjectInferenceService.ts',
-            'src/objectInference/ScopedMethodDiscoveryService.ts',
-            'src/objectInference/ScopedMethodResolver.ts'
+        expect(astSingletonCallSites).toEqual([]);
+    });
+
+    test('production sources do not route analysis ownership through the scoped-method helper seam', () => {
+        const ambientAnalysisAccessCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('requireConfiguredDocumentAnalysisService('))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(ambientAnalysisAccessCallSites).toEqual([
+            'src/language/services/navigation/ScopedMethodIdentifierSupport.ts'
         ]);
+    });
+
+    test('production scoped identifier lookups pass analysis services explicitly', () => {
+        const explicitScopedCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => filePath !== path.join(srcRoot, 'language', 'services', 'navigation', 'ScopedMethodIdentifierSupport.ts'))
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('isOnScopedMethodIdentifier('))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(explicitScopedCallSites).toEqual([
+            'src/language/services/navigation/InheritedFunctionRelationService.ts',
+            'src/language/services/navigation/LanguageHoverService.ts',
+            'src/language/services/navigation/definition/ScopedMethodDefinitionResolver.ts'
+        ]);
+
+        for (const relativePath of explicitScopedCallSites) {
+            const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+            expect(source).toMatch(/isOnScopedMethodIdentifier\([\s\S]*?,[\s\S]*?,[\s\S]*?,[\s\S]*?\)/);
+        }
     });
 });
 

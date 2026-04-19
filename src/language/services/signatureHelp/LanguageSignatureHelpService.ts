@@ -6,13 +6,13 @@ import { FunctionDocumentationService } from '../../documentation/FunctionDocume
 import type { CallableDoc, CallableParameter } from '../../documentation/types';
 import type { EfunDoc } from '../../../efun/types';
 import type { EfunDocsManager } from '../../../efun/EfunDocsManager';
-import { ASTManager } from '../../../ast/astManager';
-import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
+import { SyntaxKind, type SyntaxDocument, type SyntaxNode } from '../../../syntax/types';
 import type { InferredObjectAccess } from '../../../objectInference/types';
 import type { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import type { TargetMethodLookup } from '../../../targetMethodLookup';
-
 export interface LanguageSignatureHelpRequest {
     context: LanguageCapabilityContext;
     position: LanguagePosition;
@@ -73,6 +73,7 @@ interface SignatureHelpDocumentHost {
 }
 
 interface LanguageSignatureHelpDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
     discoveryService?: CallableTargetDiscoveryService;
     docResolver?: CallableDocResolver;
     renderer?: CallableDocRenderer;
@@ -118,9 +119,11 @@ export class LanguageSignatureHelpService {
     public constructor(dependencies: LanguageSignatureHelpDependencies = {}) {
         const documentationService = dependencies.documentationService ?? new FunctionDocumentationService();
         const host = dependencies.host ?? defaultHost;
-
         this.renderer = dependencies.renderer ?? new CallableDocRenderer();
-        this.callSiteAnalyzer = dependencies.callSiteAnalyzer ?? new SyntaxAwareCallSiteAnalyzer();
+        this.callSiteAnalyzer = dependencies.callSiteAnalyzer
+            ?? new SyntaxAwareCallSiteAnalyzer(
+                assertAnalysisService('LanguageSignatureHelpService', dependencies.analysisService)
+            );
         this.discoveryService = dependencies.discoveryService
             ?? new DefaultCallableTargetDiscoveryService(
                 dependencies.efunDocsManager,
@@ -204,11 +207,13 @@ export class LanguageSignatureHelpService {
 }
 
 class SyntaxAwareCallSiteAnalyzer implements CallSiteAnalyzer {
-    private readonly astManager = ASTManager.getInstance();
+    public constructor(
+        private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument'>
+    ) {}
 
     public analyze(document: vscode.TextDocument, position: vscode.Position): AnalyzedCallSite | undefined {
-        const syntax = this.astManager.getSyntaxDocument(document, false)
-            ?? this.astManager.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, false)
+            ?? this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             return undefined;
         }
@@ -787,7 +792,7 @@ function fromVsCodeRange(range: vscode.Range): LanguageRange {
     };
 }
 
-function getParsedDocument(syntax: NonNullable<ReturnType<ASTManager['getSyntaxDocument']>>) {
+function getParsedDocument(syntax: SyntaxDocument) {
     return syntax.parsed;
 }
 

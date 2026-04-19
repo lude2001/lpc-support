@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, jest, test } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ASTManager } from '../../../../ast/astManager';
+import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { InheritedFileGlobalRelationService } from '../InheritedFileGlobalRelationService';
+import { configureScopedMethodIdentifierAnalysisService } from '../ScopedMethodIdentifierSupport';
 
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
     const uri = vscode.Uri.parse(uriValue);
@@ -112,8 +114,16 @@ function documentLookupKey(target: string | vscode.Uri): string {
 }
 
 describe('InheritedFileGlobalRelationService', () => {
+    const analysisService = DocumentSemanticSnapshotService.getInstance();
+
+    beforeEach(() => {
+        configureScopedMethodIdentifierAnalysisService(analysisService);
+    });
+
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();
     });
 
@@ -127,6 +137,7 @@ describe('InheritedFileGlobalRelationService', () => {
             [parentDocument.uri.fsPath, parentDocument]
         ]);
         const service = new InheritedFileGlobalRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -185,6 +196,7 @@ describe('InheritedFileGlobalRelationService', () => {
             [parentBDocument.uri.fsPath, parentBDocument]
         ]);
         const service = new InheritedFileGlobalRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -235,6 +247,7 @@ describe('InheritedFileGlobalRelationService', () => {
         const childSource = 'inherit "/base";\nvoid demo() { GLOBAL_D += 1; }\n';
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
         const service = new InheritedFileGlobalRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [{
                     rawValue: '/base',
@@ -268,6 +281,7 @@ describe('InheritedFileGlobalRelationService', () => {
             [parentDocument.uri.fsPath, parentDocument]
         ]);
         const service = new InheritedFileGlobalRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -327,6 +341,7 @@ describe('InheritedFileGlobalRelationService', () => {
             [nestedParentDocument.uri.fsPath, nestedParentDocument]
         ]);
         const service = new InheritedFileGlobalRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -399,6 +414,7 @@ describe('InheritedFileGlobalRelationService', () => {
             [rootDocument.uri.fsPath, rootDocument]
         ]);
         const service = new InheritedFileGlobalRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -476,6 +492,7 @@ describe('InheritedFileGlobalRelationService', () => {
             [parentDocument.uri.fsPath, parentDocument]
         ]);
         const service = new InheritedFileGlobalRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -526,6 +543,7 @@ describe('InheritedFileGlobalRelationService', () => {
             [grandParentDocument.uri.fsPath, grandParentDocument]
         ]);
         const service = new InheritedFileGlobalRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {

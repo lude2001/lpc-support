@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { beforeEach, afterEach, describe, expect, jest, test } from '@jest/globals';
 import { ASTManager } from '../../ast/astManager';
+import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
+import { configureScopedMethodIdentifierAnalysisService } from '../../language/services/navigation/ScopedMethodIdentifierSupport';
 
 declare const require: any;
 
@@ -80,6 +82,7 @@ describe('ScopedMethodResolver', () => {
     let fixtureRoot: string;
     let macroManager: { getMacro: jest.Mock };
     let previousWorkspaceFolders: readonly vscode.WorkspaceFolder[] | undefined;
+    const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     function fixturePath(relativePath: string): string {
         return path.join(fixtureRoot, relativePath.replace(/^[/\\]+/, ''));
@@ -94,6 +97,7 @@ describe('ScopedMethodResolver', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        configureScopedMethodIdentifierAnalysisService(analysisService);
         previousWorkspaceFolders = vscode.workspace.workspaceFolders;
         fixtureRoot = path.join(process.cwd(), '.tmp-scoped-method-resolver');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
@@ -122,6 +126,8 @@ describe('ScopedMethodResolver', () => {
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureScopedMethodIdentifierAnalysisService(undefined);
         (vscode.workspace as any).workspaceFolders = previousWorkspaceFolders;
         jest.restoreAllMocks();
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
@@ -141,7 +147,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/room.c', source);
         const document = createDocument(fixturePath('/d/city/room.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, '::create'));
 
         expect(result.status).toBe('resolved');
@@ -164,7 +170,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/room.c', source);
         const document = createDocument(fixturePath('/d/city/room.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, '::init'));
 
         expect(result.status).toBe('resolved');
@@ -186,7 +192,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/room.c', source);
         const document = createDocument(fixturePath('/d/city/room.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, '::query_name'));
 
         expect(result.status).toBe('resolved');
@@ -208,7 +214,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/room.c', source);
         const document = createDocument(fixturePath('/d/city/room.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, '::init'));
 
         expect(result.status).toBe('unknown');
@@ -229,7 +235,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/unresolved_direct_scope.c', source);
         const document = createDocument(fixturePath('/d/city/unresolved_direct_scope.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, '::init'));
 
         expect(result.status).toBe('unknown');
@@ -251,7 +257,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/mixed_room.c', source);
         const document = createDocument(fixturePath('/d/city/mixed_room.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, 'room::init'));
 
         expect(result.status).toBe('resolved');
@@ -273,7 +279,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/ambiguous_room.c', source);
         const document = createDocument(fixturePath('/d/city/ambiguous_room.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, 'room::init'));
 
         expect(result.status).toBe('unknown');
@@ -294,7 +300,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/unresolved_named_scope.c', source);
         const document = createDocument(fixturePath('/d/city/unresolved_named_scope.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, 'room::init'));
 
         expect(result.status).toBe('unknown');
@@ -310,7 +316,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/bad_scope.c', source);
         const document = createDocument(fixturePath('/d/city/bad_scope.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, '::init'));
 
         expect(result.status).toBe('unsupported');
@@ -332,7 +338,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/multi_scope.c', source);
         const document = createDocument(fixturePath('/d/city/multi_scope.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, '::init'));
 
         expect(result.status).toBe('multiple');
@@ -359,7 +365,7 @@ describe('ScopedMethodResolver', () => {
         writeFixture('/d/city/unresolved_nested_scope.c', source);
         const document = createDocument(fixturePath('/d/city/unresolved_nested_scope.c'), source);
 
-        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot]);
+        const resolver = new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
         const result = await resolver.resolveCallAt(document, positionAfter(source, '::init'));
 
         expect(result.status).toBe('unknown');

@@ -52,10 +52,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const macroManager = new MacroManager(projectConfigService);
     const efunDocsManager = new EfunDocsManager(createServerExtensionContext(), projectConfigService);
     const completionInstrumentation = new CompletionInstrumentation();
-    const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService);
-    const scopedMethodResolver = new ScopedMethodResolver(macroManager);
+    const objectInferenceService = new ObjectInferenceService(macroManager, projectConfigService, analysisService);
+    const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, analysisService);
     const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService, analysisService);
     const inheritedRelationService = new InheritedSymbolRelationService({
+        analysisService,
         macroManager,
         scopedMethodResolver,
         host: {
@@ -69,7 +70,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         efunDocsManager,
         macroManager,
         completionInstrumentation,
-        objectInferenceService
+        objectInferenceService,
+        undefined,
+        {
+            analysisService
+        }
     );
     const codeActionsService = createLanguageCodeActionService();
     const { diagnosticsService } = createDiagnosticsStack(macroManager, analysisService);
@@ -79,7 +84,10 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         macroManager,
         targetMethodLookup,
         projectConfigService,
-        { scopedMethodResolver }
+        {
+            analysisService,
+            scopedMethodResolver
+        }
     );
     const hoverService = new UnifiedLanguageHoverService(
         objectHoverService,
@@ -93,14 +101,24 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         objectInferenceService,
         targetMethodLookup,
         projectConfigService,
-        { scopedMethodResolver }
+        {
+            analysisService,
+            scopedMethodResolver
+        }
     );
-    const referenceService = new AstBackedLanguageReferenceService({ inheritedRelationService });
-    const renameService = new AstBackedLanguageRenameService({ inheritedRelationService });
+    const referenceService = new AstBackedLanguageReferenceService({
+        analysisService,
+        inheritedRelationService
+    });
+    const renameService = new AstBackedLanguageRenameService({
+        analysisService,
+        inheritedRelationService
+    });
     const symbolService = new AstBackedLanguageSymbolService({
         analysisService
     });
     const signatureHelpService = new LanguageSignatureHelpService({
+        analysisService,
         efunDocsManager,
         objectInferenceService,
         targetMethodLookup,

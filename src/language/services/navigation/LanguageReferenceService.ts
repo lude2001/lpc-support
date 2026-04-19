@@ -1,6 +1,7 @@
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageLocation } from '../../contracts/LanguagePosition';
 import type { LanguagePosition } from '../../contracts/LanguagePosition';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import {
     createVsCodeSymbolReferenceAdapter,
     getLanguageDocumentUri,
@@ -24,6 +25,7 @@ export class AstBackedLanguageReferenceService implements LanguageReferenceServi
     public constructor(
         private readonly dependencies: {
             referenceResolver?: LanguageSymbolReferenceAdapter;
+            analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>;
             inheritedRelationService?: Pick<InheritedSymbolRelationService, 'collectInheritedReferences'>;
         } = {}
     ) {}
@@ -65,7 +67,8 @@ export class AstBackedLanguageReferenceService implements LanguageReferenceServi
     }
 
     private getReferenceResolver(): LanguageSymbolReferenceAdapter {
-        return this.dependencies.referenceResolver ?? createVsCodeSymbolReferenceAdapter();
+        return this.dependencies.referenceResolver
+            ?? createVsCodeSymbolReferenceAdapter(this.dependencies.analysisService);
     }
 }
 

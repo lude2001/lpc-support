@@ -3,7 +3,9 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { ASTManager } from '../../ast/astManager';
 import { SymbolType } from '../../ast/symbolTable';
+import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { ObjectInferenceService } from '../ObjectInferenceService';
+import { configureScopedMethodIdentifierAnalysisService } from '../../language/services/navigation/ScopedMethodIdentifierSupport';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -69,9 +71,13 @@ describe('ObjectInferenceService', () => {
     let fixtureRoot: string;
     let service: ObjectInferenceService;
     let macroManager: { getMacro: jest.Mock };
+    const analysisService = DocumentSemanticSnapshotService.getInstance();
+    const createService = (playerObjectPathOrProjectConfig?: unknown) =>
+        new ObjectInferenceService(macroManager as any, playerObjectPathOrProjectConfig as any, analysisService);
 
     beforeEach(() => {
         jest.clearAllMocks();
+        configureScopedMethodIdentifierAnalysisService(analysisService);
         fixtureRoot = path.join(process.cwd(), '.tmp-object-inference');
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
         fs.mkdirSync(path.join(fixtureRoot, 'adm', 'daemons'), { recursive: true });
@@ -107,11 +113,13 @@ describe('ObjectInferenceService', () => {
             getMacro: jest.fn()
         };
 
-        service = new ObjectInferenceService(macroManager as any);
+        service = createService();
     });
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();
         fs.rmSync(fixtureRoot, { recursive: true, force: true });
     });
@@ -143,7 +151,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('this_player() resolves when playerObjectPath is configured', async () => {
-        const playerService = new ObjectInferenceService(macroManager as any, '/adm/objects/player');
+        const playerService = createService('/adm/objects/player');
         const source = [
             'void demo() {',
             '    this_player()->query_name();',
@@ -189,7 +197,7 @@ describe('ObjectInferenceService', () => {
             }))
         };
 
-        const playerService = new ObjectInferenceService(macroManager as any, projectConfigService as any);
+        const playerService = createService(projectConfigService);
         const source = [
             'void demo() {',
             '    this_player()->query_name();',
@@ -230,7 +238,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('this_player with arguments does not resolve', async () => {
-        const playerService = new ObjectInferenceService(macroManager as any, '/adm/objects/player');
+        const playerService = createService('/adm/objects/player');
         const source = [
             'void demo() {',
             '    this_player(1)->query_name();',
@@ -1411,38 +1419,6 @@ describe('ObjectInferenceService', () => {
             'utf8'
         );
 
-        const astManager = ASTManager.getInstance();
-        const originalGetSemanticSnapshot = astManager.getSemanticSnapshot.bind(astManager);
-        jest.spyOn(astManager, 'getSemanticSnapshot').mockImplementation((targetDocument: vscode.TextDocument, useCache?: boolean) => {
-            const targetPath = targetDocument.uri.fsPath.replace(/^\/+([A-Za-z]:[\\/])/, '$1');
-            if (path.resolve(targetPath) === path.resolve(childFactoryPath)) {
-                return {
-                    includeStatements: [{ value: 'factory_method.h', isSystemInclude: true }],
-                    inheritStatements: [],
-                    symbolTable: {
-                        getAllSymbols: () => []
-                    }
-                } as any;
-            }
-
-            if (path.resolve(targetPath) === path.resolve(includeFilePath)) {
-                return {
-                    includeStatements: [],
-                    inheritStatements: [],
-                    symbolTable: {
-                        getAllSymbols: () => [{
-                            type: SymbolType.FUNCTION,
-                            name: 'method',
-                            range: new vscode.Range(5, 0, 5, 15),
-                            selectionRange: new vscode.Range(5, 0, 5, 15)
-                        }]
-                    }
-                } as any;
-            }
-
-            return originalGetSemanticSnapshot(targetDocument, useCache);
-        });
-
         const projectConfigService = {
             loadForWorkspace: jest.fn(async () => ({
                 version: 1 as const,
@@ -1450,7 +1426,44 @@ describe('ObjectInferenceService', () => {
             })),
             getIncludeDirectoriesForWorkspace: jest.fn(async () => [configuredIncludeDir])
         };
-        const projectConfiguredService = new ObjectInferenceService(macroManager as any, projectConfigService as any);
+        const baseAnalysisService = DocumentSemanticSnapshotService.getInstance();
+        const analysisService = {
+            getSyntaxDocument: baseAnalysisService.getSyntaxDocument.bind(baseAnalysisService),
+            getSemanticSnapshot: jest.fn((targetDocument: vscode.TextDocument, useCache?: boolean) => {
+                const sourceText = targetDocument.getText();
+                if (sourceText.includes('include <factory_method.h>;')) {
+                    return {
+                        includeStatements: [{ value: 'factory_method.h', isSystemInclude: true }],
+                        inheritStatements: [],
+                        symbolTable: {
+                            getAllSymbols: () => []
+                        }
+                    } as any;
+                }
+
+                if (sourceText.includes('object method();')) {
+                    return {
+                        includeStatements: [],
+                        inheritStatements: [],
+                        symbolTable: {
+                            getAllSymbols: () => [{
+                                type: SymbolType.FUNCTION,
+                                name: 'method',
+                                range: new vscode.Range(5, 0, 5, 15),
+                                selectionRange: new vscode.Range(5, 0, 5, 15)
+                            }]
+                        }
+                    } as any;
+                }
+
+                return baseAnalysisService.getSemanticSnapshot(targetDocument, useCache);
+            })
+        };
+        const projectConfiguredService = new ObjectInferenceService(
+            macroManager as any,
+            projectConfigService as any,
+            analysisService as any
+        );
         const source = [
             'void demo() {',
             '    object factory = load_object("/adm/objects/configured-include-child-factory");',
@@ -2468,38 +2481,6 @@ describe('ObjectInferenceService', () => {
             'utf8'
         );
 
-        const astManager = ASTManager.getInstance();
-        const originalGetSemanticSnapshot = astManager.getSemanticSnapshot.bind(astManager);
-        jest.spyOn(astManager, 'getSemanticSnapshot').mockImplementation((targetDocument: vscode.TextDocument, useCache?: boolean) => {
-            const targetPath = targetDocument.uri.fsPath.replace(/^\/+([A-Za-z]:[\\/])/, '$1');
-            if (path.resolve(targetPath) === path.resolve(childFactoryPath)) {
-                return {
-                    includeStatements: [{ value: 'factory_method.h', isSystemInclude: true }],
-                    inheritStatements: [],
-                    symbolTable: {
-                        getAllSymbols: () => []
-                    }
-                } as any;
-            }
-
-            if (path.resolve(targetPath) === path.resolve(includeFilePath)) {
-                return {
-                    includeStatements: [],
-                    inheritStatements: [],
-                    symbolTable: {
-                        getAllSymbols: () => [{
-                            type: SymbolType.FUNCTION,
-                            name: 'method',
-                            range: new vscode.Range(5, 0, 5, 15),
-                            selectionRange: new vscode.Range(5, 0, 5, 15)
-                        }]
-                    }
-                } as any;
-            }
-
-            return originalGetSemanticSnapshot(targetDocument, useCache);
-        });
-
         const projectConfigService = {
             loadForWorkspace: jest.fn(async () => ({
                 version: 1 as const,
@@ -2507,7 +2488,44 @@ describe('ObjectInferenceService', () => {
             })),
             getIncludeDirectoriesForWorkspace: jest.fn(async () => [configuredIncludeDir])
         };
-        const projectConfiguredService = new ObjectInferenceService(macroManager as any, projectConfigService as any);
+        const baseAnalysisService = DocumentSemanticSnapshotService.getInstance();
+        const analysisService = {
+            getSyntaxDocument: baseAnalysisService.getSyntaxDocument.bind(baseAnalysisService),
+            getSemanticSnapshot: jest.fn((targetDocument: vscode.TextDocument, useCache?: boolean) => {
+                const sourceText = targetDocument.getText();
+                if (sourceText.includes('include <factory_method.h>;')) {
+                    return {
+                        includeStatements: [{ value: 'factory_method.h', isSystemInclude: true }],
+                        inheritStatements: [],
+                        symbolTable: {
+                            getAllSymbols: () => []
+                        }
+                    } as any;
+                }
+
+                if (sourceText.includes('object method();')) {
+                    return {
+                        includeStatements: [],
+                        inheritStatements: [],
+                        symbolTable: {
+                            getAllSymbols: () => [{
+                                type: SymbolType.FUNCTION,
+                                name: 'method',
+                                range: new vscode.Range(5, 0, 5, 15),
+                                selectionRange: new vscode.Range(5, 0, 5, 15)
+                            }]
+                        }
+                    } as any;
+                }
+
+                return baseAnalysisService.getSemanticSnapshot(targetDocument, useCache);
+            })
+        };
+        const projectConfiguredService = new ObjectInferenceService(
+            macroManager as any,
+            projectConfigService as any,
+            analysisService as any
+        );
         const source = [
             'object FACTORY = load_object("/adm/objects/configured-global-include-child-factory");',
             'object weapon = FACTORY->method();',

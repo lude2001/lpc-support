@@ -173,10 +173,60 @@ describe('language-service integration regression', () => {
     };
 
     let fixtureRoot: string;
+    let analysisService: DocumentSemanticSnapshotService;
+
+    const createObjectInference = (projectConfig?: unknown) =>
+        new ObjectInferenceService(macroManager as any, projectConfig as any, analysisService);
+
+    const createCompletionService = (
+        objectInferenceService?: ObjectInferenceService,
+        dependencies: Record<string, unknown> = {}
+    ) => new QueryBackedLanguageCompletionService(
+        efunDocsManager as any,
+        macroManager as any,
+        undefined,
+        objectInferenceService,
+        {
+            clear: jest.fn(),
+            show: jest.fn(),
+            appendLine: jest.fn()
+        },
+        {
+            analysisService,
+            ...dependencies
+        } as any
+    );
+    const createScopedMethodResolver = () =>
+        new ScopedMethodResolver(macroManager as any, [fixtureRoot], analysisService);
+    const createDefinitionService = (
+        objectInferenceService?: unknown,
+        targetMethodLookup?: unknown,
+        projectConfigService?: unknown,
+        hostOrDependencies: Record<string, unknown> = {}
+    ) => {
+        const resolvedDependencies = 'onDidChangeTextDocument' in hostOrDependencies
+            ? {
+                host: hostOrDependencies,
+                analysisService
+            }
+            : {
+                analysisService,
+                ...hostOrDependencies
+            };
+
+        return new AstBackedLanguageDefinitionService(
+            macroManager as any,
+            efunDocsManager as any,
+            objectInferenceService as any,
+            targetMethodLookup as any,
+            projectConfigService as any,
+            resolvedDependencies as any
+        );
+    };
 
     beforeEach(() => {
         jest.clearAllMocks();
-        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        analysisService = DocumentSemanticSnapshotService.getInstance();
         configureTargetMethodLookupAnalysisService(analysisService);
         configureSimulatedEfunScannerAnalysisService(analysisService);
         configureScopedMethodIdentifierAnalysisService(analysisService);
@@ -200,7 +250,7 @@ describe('language-service integration regression', () => {
     });
 
     test('completion requests stay on semantic snapshots instead of any secondary parse facade', async () => {
-        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
+        const service = createCompletionService();
         const document = createDocument(
             path.join(fixtureRoot, 'completion.c'),
             [
@@ -244,19 +294,9 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'global-object-completion.c'), source);
-        const objectInferenceService = new ObjectInferenceService(macroManager as any);
+        const objectInferenceService = createObjectInference();
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
-        const service = new QueryBackedLanguageCompletionService(
-            efunDocsManager as any,
-            macroManager as any,
-            undefined,
-            objectInferenceService as any,
-            {
-                clear: jest.fn(),
-                show: jest.fn(),
-                appendLine: jest.fn()
-            }
-        );
+        const service = createCompletionService(objectInferenceService as any);
 
         const result = await service.provideCompletion({
             context: createLanguageContext(document, fixtureRoot),
@@ -296,7 +336,7 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'inherited-global-completion.c'), source);
-        const objectInferenceService = new ObjectInferenceService(macroManager as any);
+        const objectInferenceService = createObjectInference();
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
@@ -305,17 +345,7 @@ describe('language-service integration regression', () => {
                 .replace(/\//g, path.sep);
             return createDocument(normalizedPath, fs.readFileSync(normalizedPath, 'utf8'));
         });
-        const service = new QueryBackedLanguageCompletionService(
-            efunDocsManager as any,
-            macroManager as any,
-            undefined,
-            objectInferenceService as any,
-            {
-                clear: jest.fn(),
-                show: jest.fn(),
-                appendLine: jest.fn()
-            }
-        );
+        const service = createCompletionService(objectInferenceService as any);
 
         const result = await service.provideCompletion({
             context: createLanguageContext(document, fixtureRoot),
@@ -350,7 +380,7 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'bare-scoped-completion.c'), source);
-        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
+        const service = createCompletionService();
 
         const result = await service.provideCompletion({
             context: createLanguageContext(document, fixtureRoot),
@@ -392,7 +422,7 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'named-scoped-completion.c'), source);
-        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
+        const service = createCompletionService();
 
         const result = await service.provideCompletion({
             context: createLanguageContext(document, fixtureRoot),
@@ -422,7 +452,7 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'ambiguous-scoped-completion.c'), source);
-        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
+        const service = createCompletionService();
 
         const result = await service.provideCompletion({
             context: createLanguageContext(document, fixtureRoot),
@@ -442,7 +472,7 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'unresolved-scoped-completion.c'), source);
-        const service = new QueryBackedLanguageCompletionService(efunDocsManager as any, macroManager as any);
+        const service = createCompletionService();
 
         const result = await service.provideCompletion({
             context: createLanguageContext(document, fixtureRoot),
@@ -471,25 +501,30 @@ describe('language-service integration regression', () => {
             fileExists: jest.fn((targetPath: string) => fs.existsSync(targetPath))
         };
 
-        const service = new AstBackedLanguageDefinitionService(
-            macroManager as any,
-            efunDocsManager as any,
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        const service = createDefinitionService(
             {
                 inferObjectAccess: jest.fn().mockResolvedValue(undefined)
-            } as any,
+            },
             undefined,
-            projectConfigService as any,
-            host as any
-        );
-        jest.spyOn(ASTManager.getInstance(), 'getSemanticSnapshot').mockReturnValue({
-            includeStatements: [
-                {
-                    value: 'global',
-                    isSystemInclude: true,
-                    range: new vscode.Range(0, 0, 0, 16)
+            projectConfigService,
+            {
+                host,
+                analysisService: {
+                    getSyntaxDocument: analysisService.getSyntaxDocument.bind(analysisService),
+                    getBestAvailableSnapshot: analysisService.getBestAvailableSnapshot.bind(analysisService),
+                    getSemanticSnapshot: jest.fn().mockReturnValue({
+                        includeStatements: [
+                            {
+                                value: 'global',
+                                isSystemInclude: true,
+                                range: new vscode.Range(0, 0, 0, 16)
+                            }
+                        ]
+                    })
                 }
-            ]
-        } as any);
+            }
+        );
         const source = 'include anything;\n';
         const document = createDocument(path.join(fixtureRoot, 'include-user.c'), source);
 
@@ -533,13 +568,11 @@ describe('language-service integration regression', () => {
             return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
         });
 
-        const service = new AstBackedLanguageDefinitionService(
-            macroManager as any,
-            efunDocsManager as any,
+        const service = createDefinitionService(
             undefined,
             undefined,
-            projectConfigService as any,
-            host as any
+            projectConfigService,
+            host
         );
         const document = createDocument(
             path.join(fixtureRoot, 'simul-call.c'),
@@ -618,7 +651,7 @@ describe('language-service integration regression', () => {
     });
 
     test('definition requests use a version-matching semantic snapshot after edits', async () => {
-        const service = new AstBackedLanguageDefinitionService(macroManager as any, efunDocsManager as any);
+        const service = createDefinitionService();
         const fileName = path.join(fixtureRoot, 'definition.c');
         const initialDocument = createDocument(
             fileName,
@@ -685,10 +718,8 @@ describe('language-service integration regression', () => {
                 }
             })
         };
-        const service = new AstBackedLanguageDefinitionService(
-            macroManager as any,
-            efunDocsManager as any,
-            objectInferenceService as any,
+        const service = createDefinitionService(
+            objectInferenceService,
             {
                 findMethod: jest.fn().mockResolvedValue(
                     {
@@ -696,7 +727,7 @@ describe('language-service integration regression', () => {
                         location: new vscode.Location(vscode.Uri.file(fileName), new vscode.Position(0, 0))
                     }
                 )
-            } as any
+            }
         );
 
         const definition = await provideDefinition(
@@ -732,20 +763,15 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'global-object-definition.c'), source);
-        const objectInferenceService = new ObjectInferenceService(macroManager as any);
+        const objectInferenceService = createObjectInference();
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
-        const targetMethodLookup = new TargetMethodLookup(macroManager as any);
+        const targetMethodLookup = new TargetMethodLookup(macroManager as any, undefined, analysisService);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
             return createDocument(filePath, fs.readFileSync(filePath, 'utf8'));
         });
-        const service = new AstBackedLanguageDefinitionService(
-            macroManager as any,
-            efunDocsManager as any,
-            objectInferenceService as any,
-            targetMethodLookup as any
-        );
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
 
         const definition = await provideDefinition(
             service,
@@ -786,9 +812,9 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'inherited-global-definition.c'), source);
-        const objectInferenceService = new ObjectInferenceService(macroManager as any);
+        const objectInferenceService = createObjectInference();
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
-        const targetMethodLookup = new TargetMethodLookup(macroManager as any);
+        const targetMethodLookup = new TargetMethodLookup(macroManager as any, undefined, analysisService);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
@@ -797,12 +823,7 @@ describe('language-service integration regression', () => {
                 .replace(/\//g, path.sep);
             return createDocument(normalizedPath, fs.readFileSync(normalizedPath, 'utf8'));
         });
-        const service = new AstBackedLanguageDefinitionService(
-            macroManager as any,
-            efunDocsManager as any,
-            objectInferenceService as any,
-            targetMethodLookup as any
-        );
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
 
         const definition = await provideDefinition(
             service,
@@ -846,10 +867,8 @@ describe('language-service integration regression', () => {
                 }
             })
         };
-        const service = new AstBackedLanguageDefinitionService(
-            macroManager as any,
-            efunDocsManager as any,
-            objectInferenceService as any,
+        const service = createDefinitionService(
+            objectInferenceService,
             {
                 findMethod: jest.fn(async (_document: vscode.TextDocument, targetFilePath: string) => {
                     if (targetFilePath === swordFile) {
@@ -868,7 +887,7 @@ describe('language-service integration regression', () => {
 
                     return undefined;
                 })
-            } as any
+            }
         );
 
         const definition = await provideDefinition(
@@ -899,16 +918,9 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room.c'), source);
-        const service = new AstBackedLanguageDefinitionService(
-            macroManager as any,
-            efunDocsManager as any,
-            undefined,
-            undefined,
-            undefined,
-            {
-                scopedMethodResolver: new ScopedMethodResolver(macroManager as any, [fixtureRoot])
-            } as any
-        );
+        const service = createDefinitionService(undefined, undefined, undefined, {
+            scopedMethodResolver: createScopedMethodResolver()
+        });
 
         const definition = await provideDefinition(
             service,
@@ -947,15 +959,13 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room-scoped-factory.c'), source);
-        const service = new AstBackedLanguageDefinitionService(
-            macroManager as any,
-            efunDocsManager as any,
-            new ObjectInferenceService(macroManager as any) as any,
+        const service = createDefinitionService(
+            createObjectInference(),
             undefined,
             undefined,
             {
-                scopedMethodResolver: new ScopedMethodResolver(macroManager as any, [fixtureRoot])
-            } as any
+                scopedMethodResolver: createScopedMethodResolver()
+            }
         );
 
         const definition = await provideDefinition(
@@ -997,15 +1007,13 @@ describe('language-service integration regression', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'named-room.c'), source);
-        const service = new AstBackedLanguageDefinitionService(
-            macroManager as any,
-            efunDocsManager as any,
-            new ObjectInferenceService(macroManager as any) as any,
+        const service = createDefinitionService(
+            createObjectInference(),
             undefined,
             undefined,
             {
-                scopedMethodResolver: new ScopedMethodResolver(macroManager as any, [fixtureRoot])
-            } as any
+                scopedMethodResolver: createScopedMethodResolver()
+            }
         );
 
         const definition = await provideDefinition(

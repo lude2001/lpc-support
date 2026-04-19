@@ -1,5 +1,6 @@
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguagePosition, LanguageRange } from '../../contracts/LanguagePosition';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import {
     createVsCodeSymbolReferenceAdapter,
     getLanguageDocumentUri,
@@ -44,6 +45,7 @@ export class AstBackedLanguageRenameService implements LanguageRenameService {
     public constructor(
         private readonly dependencies: {
             referenceResolver?: LanguageSymbolReferenceAdapter;
+            analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>;
             inheritedRelationService?: Pick<InheritedSymbolRelationService, 'classifyRenameTarget' | 'buildInheritedRenameEdits'>;
         } = {}
     ) {}
@@ -147,7 +149,8 @@ export class AstBackedLanguageRenameService implements LanguageRenameService {
     }
 
     private getReferenceResolver(): LanguageSymbolReferenceAdapter {
-        return this.dependencies.referenceResolver ?? createVsCodeSymbolReferenceAdapter();
+        return this.dependencies.referenceResolver
+            ?? createVsCodeSymbolReferenceAdapter(this.dependencies.analysisService);
     }
 }
 

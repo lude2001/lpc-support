@@ -265,7 +265,11 @@ describe('createProductionLanguageServices', () => {
 
             createProductionLanguageServices();
 
-            expect(scopedMethodResolverCtor).toHaveBeenCalledWith(macroManager);
+            expect(scopedMethodResolverCtor).toHaveBeenCalledWith(
+                macroManager,
+                undefined,
+                analysisService
+            );
             expect(scopedMethodResolverCtor).not.toHaveBeenCalledWith(macroManager, [process.cwd()]);
             expect(hoverCtor).toHaveBeenCalledWith(
                 expect.anything(),

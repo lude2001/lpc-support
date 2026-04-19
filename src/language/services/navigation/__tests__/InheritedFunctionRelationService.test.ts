@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, jest, test } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ASTManager } from '../../../../ast/astManager';
+import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { InheritedFunctionRelationService } from '../InheritedFunctionRelationService';
+import { configureScopedMethodIdentifierAnalysisService } from '../ScopedMethodIdentifierSupport';
 
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
     const uri = vscode.Uri.parse(uriValue);
@@ -102,8 +104,16 @@ function positionOn(source: string, symbol: string, occurrence: number = 1): vsc
 }
 
 describe('InheritedFunctionRelationService', () => {
+    const analysisService = DocumentSemanticSnapshotService.getInstance();
+
+    beforeEach(() => {
+        configureScopedMethodIdentifierAnalysisService(analysisService);
+    });
+
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureScopedMethodIdentifierAnalysisService(undefined);
     });
 
     test('collects provable inherit-family function references from visible symbols', async () => {
@@ -120,6 +130,7 @@ describe('InheritedFunctionRelationService', () => {
         ]);
 
         const service = new InheritedFunctionRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn((snapshot: { uri: string }) => {
                     if (snapshot.uri === childDocument.uri.toString()) {
@@ -190,6 +201,7 @@ describe('InheritedFunctionRelationService', () => {
         const childSource = 'void demo() {\n    room::init();\n}\n';
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
         const service = new InheritedFunctionRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [])
             } as any,
@@ -219,6 +231,7 @@ describe('InheritedFunctionRelationService', () => {
         const childSource = 'void create() {}\n';
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
         const service = new InheritedFunctionRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [{
                     rawValue: '/base',
@@ -248,6 +261,7 @@ describe('InheritedFunctionRelationService', () => {
         const baseDocument = createTextDocument('file:///D:/workspace/base.c', baseSource);
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
         const service = new InheritedFunctionRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [])
             } as any,
@@ -285,6 +299,7 @@ describe('InheritedFunctionRelationService', () => {
         const baseDocument = createTextDocument('file:///D:/workspace/base.c', baseSource);
         const childDocument = createTextDocument('file:///D:/workspace/room.c', childSource);
         const service = new InheritedFunctionRelationService({
+            analysisService,
             inheritanceResolver: {
                 resolveInheritTargets: jest.fn(() => [])
             } as any,

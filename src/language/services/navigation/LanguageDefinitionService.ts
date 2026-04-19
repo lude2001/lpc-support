@@ -2,13 +2,14 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageLocation, LanguagePosition } from '../../contracts/LanguagePosition';
-import { ASTManager } from '../../../ast/astManager';
 import { MacroManager } from '../../../macroManager';
 import { EfunDocsManager } from '../../../efunDocs';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { DefinitionResolverSupport } from './definition/DefinitionResolverSupport';
 import { DirectSymbolDefinitionResolver } from './definition/DirectSymbolDefinitionResolver';
 import { FunctionFamilyDefinitionResolver } from './definition/FunctionFamilyDefinitionResolver';
@@ -30,6 +31,7 @@ export interface LanguageDefinitionService {
 }
 
 interface LanguageDefinitionDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot' | 'getBestAvailableSnapshot' | 'getSyntaxDocument'>;
     host?: LanguageDefinitionHost;
     semanticAdapter?: DefinitionSemanticAdapter;
     scopedMethodResolver?: ScopedMethodResolver;
@@ -51,7 +53,6 @@ const defaultDefinitionHost: LanguageDefinitionHost = {
 export class AstBackedLanguageDefinitionService implements LanguageDefinitionService {
     private readonly macroManager: MacroManager;
     private readonly efunDocsManager: EfunDocsManager;
-    private readonly astManager: ASTManager;
     private readonly objectInferenceService: ObjectInferenceService;
     private readonly projectConfigService?: LpcProjectConfigService;
     private readonly targetMethodLookup: TargetMethodLookup;
@@ -74,22 +75,25 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     ) {
         this.macroManager = macroManager;
         this.efunDocsManager = efunDocsManager;
-        this.astManager = ASTManager.getInstance();
         this.projectConfigService = projectConfigService;
-        this.objectInferenceService = objectInferenceService ?? new ObjectInferenceService(macroManager, projectConfigService);
-        this.targetMethodLookup = targetMethodLookup ?? new TargetMethodLookup(macroManager, projectConfigService);
         const dependencies = this.resolveDependencies(hostOrDependencies);
+        const analysisService = assertAnalysisService('AstBackedLanguageDefinitionService', dependencies.analysisService);
+        this.objectInferenceService = objectInferenceService
+            ?? new ObjectInferenceService(macroManager, projectConfigService, analysisService);
+        this.targetMethodLookup = targetMethodLookup
+            ?? new TargetMethodLookup(macroManager, projectConfigService, analysisService);
         this.host = dependencies.host;
         this.semanticAdapter = dependencies.semanticAdapter;
         this.scopedMethodResolver = dependencies.scopedMethodResolver;
         this.support = new DefinitionResolverSupport({
-            astManager: this.astManager,
+            astManager: createDefinitionAnalysisFacade(analysisService),
             host: this.host,
             macroManager: this.macroManager,
             projectConfigService: this.projectConfigService,
             semanticAdapter: this.semanticAdapter
         });
         this.scopedDefinitionResolver = new ScopedMethodDefinitionResolver({
+            analysisService,
             scopedMethodResolver: this.scopedMethodResolver
         });
         this.objectMethodDefinitionResolver = new ObjectMethodDefinitionResolver({
@@ -113,6 +117,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         hostOrDependencies: LanguageDefinitionHost | LanguageDefinitionDependencies
     ): {
         host: LanguageDefinitionHost;
+        analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot' | 'getBestAvailableSnapshot' | 'getSyntaxDocument'>;
         semanticAdapter?: DefinitionSemanticAdapter;
         scopedMethodResolver?: ScopedMethodResolver;
     } {
@@ -124,6 +129,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
 
         return {
             host: hostOrDependencies.host ?? defaultDefinitionHost,
+            analysisService: hostOrDependencies.analysisService,
             semanticAdapter: hostOrDependencies.semanticAdapter,
             scopedMethodResolver: hostOrDependencies.scopedMethodResolver
         };
@@ -177,4 +183,15 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     ): LanguageLocation[] {
         return this.support.toLanguageLocations(result);
     }
+}
+
+function createDefinitionAnalysisFacade(
+    analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot' | 'getBestAvailableSnapshot'>
+) {
+    return {
+        getSemanticSnapshot: (document: vscode.TextDocument, useCache: boolean = true) =>
+            analysisService.getSemanticSnapshot(document, useCache),
+        getBestAvailableSnapshot: (document: vscode.TextDocument) =>
+            analysisService.getBestAvailableSnapshot(document)
+    } as any;
 }

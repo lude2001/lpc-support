@@ -26,6 +26,7 @@ import { SymbolTable, SymbolType } from '../../../ast/symbolTable';
 import type { LanguageLocation, LanguageRange } from '../../../language/contracts/LanguagePosition';
 import type { LanguageMarkupContent } from '../../../language/contracts/LanguageMarkup';
 import { toLspLocation, toLspMarkupContent, toLspPosition, toLspRange } from '../../../language/adapters/lsp/conversions';
+import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import {
     ObjectInferenceLanguageHoverService,
     type LanguageNavigationService
@@ -39,6 +40,7 @@ import {
     type LanguageRenameService
 } from '../../../language/services/navigation/LanguageRenameService';
 import type { LanguageSymbolService } from '../../../language/services/navigation/LanguageSymbolService';
+import { configureScopedMethodIdentifierAnalysisService } from '../../../language/services/navigation/ScopedMethodIdentifierSupport';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { registerDefinitionHandler } from '../handlers/navigation/registerDefinitionHandler';
 import { registerDocumentSymbolHandler } from '../handlers/navigation/registerDocumentSymbolHandler';
@@ -49,6 +51,8 @@ import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLanguageContextFactory } from '../runtime/ServerLanguageContextFactory';
 import { ServerLogger } from '../runtime/ServerLogger';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
+import { configureSymbolReferenceAnalysisService } from '../../../symbolReferenceResolver';
+import { configureTargetMethodLookupAnalysisService } from '../../../targetMethodLookup';
 
 type NavigationHandlerService =
     LanguageNavigationService &
@@ -105,7 +109,19 @@ describe('lsp conversions', () => {
 });
 
 describe('navigation handlers', () => {
+    beforeEach(() => {
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        configureScopedMethodIdentifierAnalysisService(analysisService);
+        configureSymbolReferenceAnalysisService(analysisService);
+        configureTargetMethodLookupAnalysisService(analysisService);
+    });
+
     afterEach(() => {
+        ASTManager.getInstance().clearAllCache();
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureScopedMethodIdentifierAnalysisService(undefined);
+        configureSymbolReferenceAnalysisService(undefined);
+        configureTargetMethodLookupAnalysisService(undefined);
         jest.restoreAllMocks();
         jest.resetModules();
     });
@@ -393,6 +409,7 @@ describe('navigation handlers', () => {
             })
         };
         const referenceService: LanguageReferenceService = new AstBackedLanguageReferenceService({
+            analysisService: DocumentSemanticSnapshotService.getInstance(),
             inheritedRelationService
         } as any);
         const navigationService = {
@@ -559,19 +576,7 @@ describe('navigation handlers', () => {
             })
         });
         const documentStore = new DocumentStore();
-        const renameService = new AstBackedLanguageRenameService();
-        const navigationService = {
-            ...createNavigationServiceStub(),
-            prepareRename: renameService.prepareRename.bind(renameService),
-            provideRenameEdits: renameService.provideRenameEdits.bind(renameService)
-        };
-        const workspaceSession = new WorkspaceSession({
-            workspaceRoots: ['D:/workspace'],
-            featureServices: {
-                navigationService
-            }
-        });
-        const parseDocumentSpy = jest.spyOn(ASTManager.getInstance(), 'parseDocument').mockImplementation((document) => {
+        const parseDocumentMock = jest.fn((document: vscode.TextDocument) => {
             const symbolTable = new SymbolTable(document.uri.toString());
             const declarationRange = new vscode.Range(0, 4, 0, 9);
             symbolTable.addSymbol({
@@ -607,6 +612,21 @@ describe('navigation handlers', () => {
                 }
             } as any;
         });
+        const renameService = new AstBackedLanguageRenameService({
+            analysisService: { parseDocument: parseDocumentMock } as any
+        });
+        const navigationService = {
+            ...createNavigationServiceStub(),
+            prepareRename: renameService.prepareRename.bind(renameService),
+            provideRenameEdits: renameService.provideRenameEdits.bind(renameService)
+        };
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace'],
+            featureServices: {
+                navigationService
+            }
+        });
+        configureSymbolReferenceAnalysisService({ parseDocument: parseDocumentMock } as any);
 
         documentStore.open('file:///D:/workspace/nav.c', 1, 'int round; round += 1;');
 
@@ -627,7 +647,7 @@ describe('navigation handlers', () => {
             newName: 'turn'
         } as RenameParams);
 
-        expect(parseDocumentSpy).toHaveBeenCalled();
+        expect(parseDocumentMock).toHaveBeenCalled();
         expect(prepareResult).toEqual({
             range: {
                 start: { line: 0, character: 11 },

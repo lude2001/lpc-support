@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguagePosition, LanguageRange } from '../../contracts/LanguagePosition';
 import { resolveSymbolReferences } from '../../../symbolReferenceResolver';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 
 export type LanguageRangeReadableDocument = LanguageCapabilityContext['document'] & {
     getText(range?: LanguageRange): string;
@@ -43,13 +44,18 @@ function toLanguageRange(range: vscode.Range): LanguageRange {
 }
 
 class VsCodeSymbolReferenceAdapter implements LanguageSymbolReferenceAdapter {
+    public constructor(
+        private readonly analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>
+    ) {}
+
     public resolveReferences(
         document: LanguageCapabilityContext['document'],
         position: LanguagePosition
     ): LanguageResolvedSymbolReferences | undefined {
         const resolvedReferences = resolveSymbolReferences(
             document as unknown as vscode.TextDocument,
-            new vscode.Position(position.line, position.character)
+            new vscode.Position(position.line, position.character),
+            this.analysisService
         );
         if (!resolvedReferences) {
             return undefined;
@@ -65,6 +71,8 @@ class VsCodeSymbolReferenceAdapter implements LanguageSymbolReferenceAdapter {
     }
 }
 
-export function createVsCodeSymbolReferenceAdapter(): LanguageSymbolReferenceAdapter {
-    return new VsCodeSymbolReferenceAdapter();
+export function createVsCodeSymbolReferenceAdapter(
+    analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>
+): LanguageSymbolReferenceAdapter {
+    return new VsCodeSymbolReferenceAdapter(analysisService);
 }

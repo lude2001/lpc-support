@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as docParser from '../../efun/docParser';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
+import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
+import { configureTargetMethodLookupAnalysisService } from '../../targetMethodLookup';
 import { ObjectHoverProvider } from '../ObjectHoverProvider';
 import type { LanguageHoverService } from '../../language/services/navigation/LanguageHoverService';
 
@@ -20,7 +22,13 @@ jest.mock('fs', () => ({
 
 describe('ObjectHoverProvider', () => {
     beforeEach(() => {
+        configureTargetMethodLookupAnalysisService(DocumentSemanticSnapshotService.getInstance());
         (vscode.workspace.openTextDocument as jest.Mock).mockReset();
+    });
+
+    afterEach(() => {
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureTargetMethodLookupAnalysisService(undefined);
     });
 
     test('delegates hover requests through LanguageHoverService without changing the returned markdown', async () => {

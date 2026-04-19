@@ -1,16 +1,21 @@
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../ast/astManager';
 import { Symbol as LPCSymbol, SymbolType } from '../../../ast/symbolTable';
 import { InheritanceResolver } from '../../../completion/inheritanceResolver';
 import type { MacroManager } from '../../../macroManager';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { resolveScopedDirectInheritSeeds } from '../../../objectInference/scopedInheritanceTraversal';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
+import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { resolveSymbolReferences, resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
 import { normalizeWorkspaceUri } from './navigationPathUtils';
-import { isOnScopedMethodIdentifier } from './ScopedMethodIdentifierSupport';
+import {
+    isOnScopedMethodIdentifier
+} from './ScopedMethodIdentifierSupport';
 
 export interface InheritedFunctionRelationServiceOptions {
+    analysisService?: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
     macroManager?: MacroManager;
     workspaceRoots?: string[];
     inheritanceResolver?: Pick<InheritanceResolver, 'resolveInheritTargets'>;
@@ -27,7 +32,7 @@ const defaultHost = {
 };
 
 export class InheritedFunctionRelationService {
-    private readonly astManager = ASTManager.getInstance();
+    private readonly analysisService: Pick<DocumentAnalysisService, 'parseDocument' | 'getSemanticSnapshot' | 'getSyntaxDocument'>;
     private readonly inheritanceResolver: Pick<InheritanceResolver, 'resolveInheritTargets'>;
     private readonly host: {
         openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
@@ -35,6 +40,7 @@ export class InheritedFunctionRelationService {
     private readonly scopedMethodResolver?: Pick<ScopedMethodResolver, 'resolveCallAt'>;
 
     public constructor(options: InheritedFunctionRelationServiceOptions = {}) {
+        this.analysisService = assertAnalysisService('InheritedFunctionRelationService', options.analysisService);
         this.inheritanceResolver = options.inheritanceResolver
             ?? new InheritanceResolver(options.macroManager, options.workspaceRoots);
         this.host = options.host ?? defaultHost;
@@ -52,7 +58,7 @@ export class InheritedFunctionRelationService {
             return [];
         }
 
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const resolvedSymbol = resolveVisibleSymbol(snapshot.symbolTable, functionName, targetPosition);
 
         if (resolvedSymbol?.type === SymbolType.FUNCTION) {
@@ -108,13 +114,17 @@ export class InheritedFunctionRelationService {
         functionName: string,
         options: { includeDeclaration: boolean }
     ): Array<{ uri: string; range: vscode.Range }> {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const symbol = this.findGlobalFunctionSymbol(snapshot, functionName);
         if (!symbol) {
             return [];
         }
 
-        const resolvedReferences = resolveSymbolReferences(document, symbol.selectionRange?.start ?? symbol.range.start);
+        const resolvedReferences = resolveSymbolReferences(
+            document,
+            symbol.selectionRange?.start ?? symbol.range.start,
+            { parseDocument: this.analysisService.parseDocument.bind(this.analysisService) }
+        );
         if (!resolvedReferences) {
             return [];
         }
@@ -132,8 +142,8 @@ export class InheritedFunctionRelationService {
         functionName: string,
         familyUris: Set<string>
     ): Promise<Array<{ uri: string; range: vscode.Range }>> {
-        const syntax = this.astManager.getSyntaxDocument(document, false)
-            ?? this.astManager.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, false)
+            ?? this.analysisService.getSyntaxDocument(document, true);
         if (!syntax || !this.scopedMethodResolver) {
             return [];
         }
@@ -204,7 +214,7 @@ export class InheritedFunctionRelationService {
         if (!resolution || resolution.status !== 'resolved' || resolution.targets.length === 0) {
             return undefined;
         }
-        if (!isOnScopedMethodIdentifier(document, position, resolution.methodName)) {
+        if (!isOnScopedMethodIdentifier(document, position, resolution.methodName, this.analysisService)) {
             return undefined;
         }
 
@@ -224,7 +234,7 @@ export class InheritedFunctionRelationService {
         functionName: string,
         visitedUris: Set<string>
     ): Promise<{ documents: vscode.TextDocument[]; hasUnresolvedTargets: boolean }> {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver as any, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return { documents: [], hasUnresolvedTargets: true };
@@ -241,7 +251,7 @@ export class InheritedFunctionRelationService {
 
             try {
                 const inheritedDocument = await this.host.openTextDocument(vscode.Uri.parse(seed.resolvedUri));
-                const inheritedSnapshot = this.astManager.getSemanticSnapshot(inheritedDocument, false);
+                const inheritedSnapshot = this.analysisService.getSemanticSnapshot(inheritedDocument, false);
                 if (this.findGlobalFunctionSymbol(inheritedSnapshot, functionName)) {
                     documents.set(targetUri, inheritedDocument);
                 }
@@ -270,7 +280,7 @@ export class InheritedFunctionRelationService {
     }
 
     private findGlobalFunctionSymbol(
-        snapshot: ReturnType<ASTManager['getSemanticSnapshot']>,
+        snapshot: SemanticSnapshot,
         functionName: string
     ): LPCSymbol | undefined {
         const symbol = snapshot.symbolTable.getGlobalScope().symbols.get(functionName);

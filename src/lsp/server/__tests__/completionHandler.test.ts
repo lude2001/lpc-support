@@ -15,13 +15,21 @@ import type {
     LanguageCompletionService
 } from '../../../language/services/completion/LanguageCompletionService';
 import { QueryBackedLanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
+import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
+import { configureScopedMethodIdentifierAnalysisService } from '../../../language/services/navigation/ScopedMethodIdentifierSupport';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLogger } from '../runtime/ServerLogger';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 describe('registerCompletionHandler', () => {
+    beforeEach(() => {
+        configureScopedMethodIdentifierAnalysisService(DocumentSemanticSnapshotService.getInstance());
+    });
+
     afterEach(() => {
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();
     });
 
@@ -395,7 +403,13 @@ describe('registerCompletionHandler', () => {
         };
         const realService = new QueryBackedLanguageCompletionService(
             efunDocsManager as any,
-            macroManager as any
+            macroManager as any,
+            undefined,
+            undefined,
+            undefined,
+            {
+                analysisService: DocumentSemanticSnapshotService.getInstance()
+            }
         );
         const completionService: LanguageCompletionService = {
             provideCompletion: jest.fn(async (request) => {

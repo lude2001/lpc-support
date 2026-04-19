@@ -5,6 +5,8 @@ import type { LanguageDocument } from '../../../contracts/LanguageDocument';
 import type { LanguagePosition, LanguageRange } from '../../../contracts/LanguagePosition';
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import { ASTManager } from '../../../../ast/astManager';
+import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
+import { configureTargetMethodLookupAnalysisService } from '../../../../targetMethodLookup';
 import {
     ObjectInferenceLanguageHoverService,
     type LanguageHoverService
@@ -26,6 +28,7 @@ import {
     AstBackedLanguageSymbolService,
     type LanguageSymbolService
 } from '../LanguageSymbolService';
+import { configureScopedMethodIdentifierAnalysisService } from '../ScopedMethodIdentifierSupport';
 
 interface RangeCapableLanguageDocument extends LanguageDocument {
     getText(range?: LanguageRange): string;
@@ -176,8 +179,18 @@ function createCallableDoc(name: string, label: string, summary: string) {
 }
 
 describe('navigation services', () => {
+    const analysisService = DocumentSemanticSnapshotService.getInstance();
+
+    beforeEach(() => {
+        configureScopedMethodIdentifierAnalysisService(analysisService);
+        configureTargetMethodLookupAnalysisService(analysisService);
+    });
+
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
+        DocumentSemanticSnapshotService.getInstance().clear();
+        configureScopedMethodIdentifierAnalysisService(undefined);
+        configureTargetMethodLookupAnalysisService(undefined);
     });
 
     test('hover service can operate on host-agnostic documents via injected boundaries', async () => {
@@ -402,7 +415,7 @@ describe('navigation services', () => {
             const service: LanguageHoverService = new IsolatedHoverService(
                 {} as any,
                 undefined,
-                undefined,
+                {} as any,
                 undefined,
                 {
                     scopedMethodResolver: createScopedMethodResolverStub({
@@ -620,6 +633,7 @@ describe('navigation services', () => {
             undefined,
             undefined,
             {
+                analysisService,
                 host: {
                     onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
                     openTextDocument: jest.fn(),
@@ -664,6 +678,8 @@ describe('navigation services', () => {
     test('reference service can operate on host-agnostic documents via injected boundaries', async () => {
         const document = createDocument('int round; round += 1;');
         const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
+            analysisService,
+            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -710,6 +726,8 @@ describe('navigation services', () => {
     test('rename service can operate on host-agnostic documents via injected boundaries', async () => {
         const document = createDocument('int round; round += 1;');
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            analysisService,
+            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -799,6 +817,7 @@ describe('navigation services', () => {
             })
         };
         const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
+            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -861,6 +880,7 @@ describe('navigation services', () => {
             })
         };
         const service: LanguageReferenceService = new AstBackedLanguageReferenceService({
+            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -970,6 +990,7 @@ describe('navigation services', () => {
             buildInheritedRenameEdits: jest.fn()
         };
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            analysisService,
             inheritedRelationService
         } as any);
 
@@ -989,6 +1010,7 @@ describe('navigation services', () => {
             buildInheritedRenameEdits: jest.fn()
         };
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -1074,6 +1096,7 @@ describe('navigation services', () => {
             })
         };
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {
@@ -1146,6 +1169,7 @@ describe('navigation services', () => {
             buildInheritedRenameEdits: jest.fn().mockResolvedValue({})
         };
         const service: LanguageRenameService = new AstBackedLanguageRenameService({
+            analysisService,
             referenceResolver: {
                 resolveReferences: jest.fn().mockReturnValue({
                     wordRange: {

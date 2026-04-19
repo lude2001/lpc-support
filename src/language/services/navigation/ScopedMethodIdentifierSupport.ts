@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { SyntaxKind, type SyntaxNode } from '../../../syntax/types';
 
-type ScopedMethodIdentifierAnalysisService = Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
+export type ScopedMethodIdentifierAnalysisService = Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
 
 let configuredScopedMethodIdentifierAnalysisService: ScopedMethodIdentifierAnalysisService | undefined;
 
@@ -10,6 +10,18 @@ export function configureScopedMethodIdentifierAnalysisService(
     service?: ScopedMethodIdentifierAnalysisService
 ): void {
     configuredScopedMethodIdentifierAnalysisService = service;
+}
+
+export function getConfiguredDocumentAnalysisService(): ScopedMethodIdentifierAnalysisService | undefined {
+    return configuredScopedMethodIdentifierAnalysisService;
+}
+
+export function requireConfiguredDocumentAnalysisService(): ScopedMethodIdentifierAnalysisService {
+    if (!configuredScopedMethodIdentifierAnalysisService) {
+        throw new Error('Document analysis service has not been configured');
+    }
+
+    return configuredScopedMethodIdentifierAnalysisService;
 }
 
 export function findScopedMethodIdentifierAtPosition(
@@ -96,9 +108,5 @@ function getRangeSpanSize(document: vscode.TextDocument, range: vscode.Range): n
 }
 
 function requireScopedMethodIdentifierAnalysisService(): ScopedMethodIdentifierAnalysisService {
-    if (!configuredScopedMethodIdentifierAnalysisService) {
-        throw new Error('Scoped method identifier analysis service has not been configured');
-    }
-
-    return configuredScopedMethodIdentifierAnalysisService;
+    return requireConfiguredDocumentAnalysisService();
 }

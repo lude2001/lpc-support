@@ -14,6 +14,7 @@ import type { LanguageDocumentSymbol, LanguageSymbolRequest } from './LanguageSy
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import type { CallableDoc } from '../../documentation/types';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
@@ -81,6 +82,7 @@ interface HoverDocumentAdapter {
 }
 
 export interface HoverServiceDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
     documentAdapter?: HoverDocumentAdapter;
     objectAccessProvider?: HoverObjectAccessProvider;
     methodResolver?: HoverMethodResolver;
@@ -196,6 +198,7 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
     private readonly documentationService: FunctionDocumentationService;
     private readonly renderer: CallableDocRenderer;
     private readonly scopedMethodResolver?: ScopedMethodResolver;
+    private readonly analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
 
     public constructor(
         objectInferenceService: ObjectInferenceService,
@@ -204,13 +207,14 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
         projectConfigService?: LpcProjectConfigService,
         dependencies?: HoverServiceDependencies
     ) {
-        const effectiveLookup = targetMethodLookup ?? new TargetMethodLookup(macroManager, projectConfigService);
         this.documentAdapter = dependencies?.documentAdapter ?? new VsCodeHoverDocumentAdapter();
         this.objectAccessProvider = dependencies?.objectAccessProvider ?? new VsCodeHoverObjectAccessProvider(objectInferenceService);
-        this.methodResolver = dependencies?.methodResolver ?? new VsCodeHoverMethodResolver(effectiveLookup);
+        this.methodResolver = dependencies?.methodResolver
+            ?? new VsCodeHoverMethodResolver(targetMethodLookup ?? new TargetMethodLookup(macroManager, projectConfigService));
         this.documentationService = dependencies?.documentationService ?? new FunctionDocumentationService();
         this.renderer = dependencies?.renderer ?? new CallableDocRenderer();
         this.scopedMethodResolver = dependencies?.scopedMethodResolver;
+        this.analysisService = dependencies?.analysisService;
     }
 
     public async provideHover(request: LanguageHoverRequest): Promise<LanguageHoverResult | undefined> {
@@ -224,7 +228,8 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
             && isOnScopedMethodIdentifier(
                 ensureVsCodeBackedDocument(document),
                 toVsCodePosition(request.position),
-                scopedResolution.methodName
+                scopedResolution.methodName,
+                this.analysisService
             )
         ) {
             if (scopedResolution.status === 'unknown' || scopedResolution.status === 'unsupported') {

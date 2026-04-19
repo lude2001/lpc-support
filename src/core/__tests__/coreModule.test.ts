@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ServiceRegistry } from '../ServiceRegistry';
 import { Services } from '../ServiceKeys';
@@ -11,7 +12,7 @@ import { DocumentLifecycleService } from '../DocumentLifecycleService';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
-import { configureDiagnosticsAnalysisService } from '../../diagnostics/createDiagnosticsStack';
+import { configureDiagnosticsAnalysisService } from '../../diagnostics';
 import { configureSimulatedEfunScannerAnalysisService } from '../../efun/SimulatedEfunScanner';
 import { configureSymbolReferenceAnalysisService } from '../../symbolReferenceResolver';
 import { configureTargetMethodLookupAnalysisService } from '../../targetMethodLookup';

@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
-import { ASTManager } from '../ast/astManager';
 import { Symbol } from '../ast/symbolTable';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
+import { assertAnalysisService } from '../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
@@ -32,14 +33,16 @@ export interface GlobalBindingResolveContext {
 }
 
 export class GlobalObjectBindingResolver {
-    private readonly astManager = ASTManager.getInstance();
+    private readonly analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
 
     constructor(
         private readonly returnObjectResolver: ReturnObjectResolver,
         private readonly objectMethodReturnResolver: ObjectMethodReturnResolver,
-        macroManager?: MacroManager
+        macroManager?: MacroManager,
+        analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>
     ) {
+        this.analysisService = assertAnalysisService('GlobalObjectBindingResolver', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager);
     }
 
@@ -57,7 +60,7 @@ export class GlobalObjectBindingResolver {
         identifierName: string,
         options?: FileScopeBindingResolveOptions
     ): Promise<GlobalBindingResolution | undefined> {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         return this.resolveNamedBindingInSnapshot({
             document,
             snapshot,
@@ -280,7 +283,7 @@ export class GlobalObjectBindingResolver {
         identifierName: string,
         visitedUris: Set<string> = new Set([document.uri.toString()])
     ): Promise<boolean> {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const resolvedTargets = this.inheritanceResolver.resolveInheritTargets(snapshot);
 
         for (const target of resolvedTargets) {
@@ -295,7 +298,7 @@ export class GlobalObjectBindingResolver {
                 const parentDocument = await vscode.workspace.openTextDocument(
                     this.toWorkspaceFilePath(target.resolvedUri)
                 );
-                const parentSnapshot = this.astManager.getSemanticSnapshot(parentDocument, false);
+                const parentSnapshot = this.analysisService.getSemanticSnapshot(parentDocument, false);
                 const parentSymbol = this.findGlobalScopeSymbol(parentSnapshot, identifierName);
                 const globalScope = parentSnapshot.symbolTable.getGlobalScope();
                 if (

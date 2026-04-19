@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../ast/astManager';
 import { SymbolType } from '../../../ast/symbolTable';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { resolveVisibleSymbol } from '../../../symbolReferenceResolver';
 import {
     InheritedFileGlobalRelationService,
@@ -26,14 +27,30 @@ export interface InheritedSymbolRelationServiceOptions extends InheritedFileGlob
 }
 
 export class InheritedSymbolRelationService {
+    private readonly analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     private readonly functionRelationService: Pick<InheritedFunctionRelationService, 'collectFunctionReferences'>;
     private readonly fileGlobalRelationService: Pick<InheritedFileGlobalRelationService, 'resolveVisibleBinding' | 'collectReferences'>;
 
     public constructor(options: InheritedSymbolRelationServiceOptions = {}) {
+        const analysisService = assertAnalysisService('InheritedSymbolRelationService', options.analysisService);
+        this.analysisService = analysisService;
         this.functionRelationService = options.functionRelationService
-            ?? new InheritedFunctionRelationService(options);
+            ?? new InheritedFunctionRelationService({
+                analysisService,
+                macroManager: options.macroManager,
+                workspaceRoots: options.workspaceRoots,
+                inheritanceResolver: options.inheritanceResolver,
+                host: options.host,
+                scopedMethodResolver: options.scopedMethodResolver
+            });
         this.fileGlobalRelationService = options.fileGlobalRelationService
-            ?? new InheritedFileGlobalRelationService(options);
+            ?? new InheritedFileGlobalRelationService({
+                analysisService,
+                macroManager: options.macroManager,
+                workspaceRoots: options.workspaceRoots,
+                inheritanceResolver: options.inheritanceResolver,
+                host: options.host
+            });
     }
 
     public async collectInheritedReferences(
@@ -70,7 +87,7 @@ export class InheritedSymbolRelationService {
             return { kind: 'unsupported' };
         }
 
-        const snapshot = ASTManager.getInstance().getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const resolvedSymbol = resolveVisibleSymbol(snapshot.symbolTable, symbolName, targetPosition);
         if (resolvedSymbol?.type === SymbolType.PARAMETER) {
             return { kind: 'current-file-only' };

@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { ASTManager } from '../ast/astManager';
 import { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
+import { assertAnalysisService } from '../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { PathResolver } from '../utils/pathResolver';
@@ -17,7 +18,7 @@ import { ScopedMethodReturnResolver } from './ScopedMethodReturnResolver';
 import { ClassifiedReceiver, InferredObjectAccess, ObjectCandidate } from './types';
 
 export class ObjectInferenceService {
-    private readonly astManager = ASTManager.getInstance();
+    private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly classifier = new ReceiverClassifier();
     private readonly candidateResolver = new ObjectCandidateResolver();
     private readonly returnObjectResolver: ReturnObjectResolver;
@@ -28,13 +29,19 @@ export class ObjectInferenceService {
 
     constructor(
         private readonly macroManager?: MacroManager,
-        playerObjectPathOrProjectConfig?: string | LpcProjectConfigService
+        playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
+        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>
     ) {
+        this.analysisService = assertAnalysisService('ObjectInferenceService', analysisService);
         const projectConfigService = typeof playerObjectPathOrProjectConfig === 'string'
             ? undefined
             : playerObjectPathOrProjectConfig;
-        const targetMethodLookup = new TargetMethodLookup(macroManager, projectConfigService);
-        const scopedMethodResolver = new ScopedMethodResolver(macroManager);
+        const targetMethodLookup = new TargetMethodLookup(
+            macroManager,
+            projectConfigService,
+            this.analysisService
+        );
+        const scopedMethodResolver = new ScopedMethodResolver(macroManager, undefined, this.analysisService);
         this.returnObjectResolver = new ReturnObjectResolver(
             macroManager,
             playerObjectPathOrProjectConfig,
@@ -50,11 +57,13 @@ export class ObjectInferenceService {
         this.globalBindingResolver = new GlobalObjectBindingResolver(
             this.returnObjectResolver,
             this.objectMethodReturnResolver,
-            macroManager
+            macroManager,
+            this.analysisService
         );
         this.inheritedGlobalBindingResolver = new InheritedGlobalObjectBindingResolver(
             macroManager,
-            this.globalBindingResolver
+            this.globalBindingResolver,
+            this.analysisService
         );
         this.traceService = new ReceiverTraceService(
             this.returnObjectResolver,
@@ -68,8 +77,8 @@ export class ObjectInferenceService {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<InferredObjectAccess | undefined> {
-        const syntax = this.astManager.getSyntaxDocument(document, false)
-            ?? this.astManager.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, false)
+            ?? this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             return undefined;
         }

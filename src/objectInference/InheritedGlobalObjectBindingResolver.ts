@@ -1,17 +1,20 @@
 import * as vscode from 'vscode';
-import { ASTManager } from '../ast/astManager';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
+import { assertAnalysisService } from '../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { GlobalBindingResolution, GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
 
 export class InheritedGlobalObjectBindingResolver {
-    private readonly astManager = ASTManager.getInstance();
+    private readonly analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
 
     constructor(
         macroManager: MacroManager | undefined,
-        private readonly globalBindingResolver: GlobalObjectBindingResolver
+        private readonly globalBindingResolver: GlobalObjectBindingResolver,
+        analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>
     ) {
+        this.analysisService = assertAnalysisService('InheritedGlobalObjectBindingResolver', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager);
     }
 
@@ -21,7 +24,7 @@ export class InheritedGlobalObjectBindingResolver {
         visitedUris: Set<string> = new Set([document.uri.toString()]),
         visitedBindings: Set<string> = new Set()
     ): Promise<GlobalBindingResolution | undefined> {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const resolvedTargets = this.inheritanceResolver.resolveInheritTargets(snapshot);
 
         for (const target of resolvedTargets) {

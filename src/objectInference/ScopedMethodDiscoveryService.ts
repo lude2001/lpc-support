@@ -1,10 +1,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { LPCParser } from '../antlr/LPCParser';
-import { ASTManager } from '../ast/astManager';
 import { FunctionSummary } from '../completion/types';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
+import { assertAnalysisService } from '../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import {
     collectScopedBranchItems,
@@ -42,13 +43,15 @@ interface ScopedMethodCollection {
 }
 
 export class ScopedMethodDiscoveryService {
-    private readonly astManager = ASTManager.getInstance();
+    private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
 
     constructor(
         macroManager?: MacroManager,
-        workspaceRoots?: string[]
+        workspaceRoots?: string[],
+        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>
     ) {
+        this.analysisService = assertAnalysisService('ScopedMethodDiscoveryService', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager, workspaceRoots);
     }
 
@@ -56,8 +59,8 @@ export class ScopedMethodDiscoveryService {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<ScopedMethodDiscoveryResult> {
-        const syntax = this.astManager.getSyntaxDocument(document, false)
-            ?? this.astManager.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, false)
+            ?? this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             return {
                 status: 'unknown',
@@ -82,7 +85,7 @@ export class ScopedMethodDiscoveryService {
             };
         }
 
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return {
@@ -258,7 +261,7 @@ export class ScopedMethodDiscoveryService {
         visitedUris: Set<string>
     ): Promise<ScopedMethodCollection> {
         const collection = await collectScopedBranchItems({
-            astManager: this.astManager,
+            astManager: createScopedTraversalAnalysisFacade(this.analysisService),
             inheritanceResolver: this.inheritanceResolver,
             seed,
             visitedUris,
@@ -352,4 +355,13 @@ export class ScopedMethodDiscoveryService {
     private getRangeSize(range: vscode.Range): number {
         return (range.end.line - range.start.line) * 10_000 + (range.end.character - range.start.character);
     }
+}
+
+function createScopedTraversalAnalysisFacade(
+    analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>
+) {
+    return {
+        getSemanticSnapshot: (document: vscode.TextDocument, useCache: boolean = true) =>
+            analysisService.getSemanticSnapshot(document, useCache)
+    } as any;
 }

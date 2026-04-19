@@ -1,8 +1,10 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ASTManager } from '../ast/astManager';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
+import { assertAnalysisService } from '../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
+import type { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import {
     collectScopedBranchItems,
@@ -40,13 +42,15 @@ type ScopedCallShape =
     | { kind: 'unsupported'; methodName: string; qualifier?: string };
 
 export class ScopedMethodResolver {
-    private readonly astManager = ASTManager.getInstance();
+    private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly inheritanceResolver: InheritanceResolver;
 
     constructor(
         macroManager?: MacroManager,
-        workspaceRoots?: string[]
+        workspaceRoots?: string[],
+        analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>
     ) {
+        this.analysisService = assertAnalysisService('ScopedMethodResolver', analysisService);
         this.inheritanceResolver = new InheritanceResolver(macroManager, workspaceRoots);
     }
 
@@ -54,8 +58,8 @@ export class ScopedMethodResolver {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<ScopedMethodResolution | undefined> {
-        const syntax = this.astManager.getSyntaxDocument(document, false)
-            ?? this.astManager.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, false)
+            ?? this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             return undefined;
         }
@@ -191,7 +195,7 @@ export class ScopedMethodResolver {
         document: vscode.TextDocument,
         methodName: string
     ): Promise<ScopedTargetCollection> {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return {
@@ -205,7 +209,7 @@ export class ScopedMethodResolver {
 
         for (const seed of directSeeds.resolvedTargets) {
             const branchResult = await collectScopedBranchItems({
-                astManager: this.astManager,
+                astManager: createScopedTraversalAnalysisFacade(this.analysisService),
                 inheritanceResolver: this.inheritanceResolver,
                 seed,
                 visitedUris,
@@ -235,7 +239,7 @@ export class ScopedMethodResolver {
         qualifier: string,
         methodName: string
     ): Promise<ScopedTargetCollection> {
-        const snapshot = this.astManager.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return {
@@ -253,7 +257,7 @@ export class ScopedMethodResolver {
         }
 
         const matchedCollection = await collectScopedBranchItems({
-            astManager: this.astManager,
+            astManager: createScopedTraversalAnalysisFacade(this.analysisService),
             inheritanceResolver: this.inheritanceResolver,
             seed: matchedSeeds[0],
             visitedUris: new Set<string>(),
@@ -271,7 +275,7 @@ export class ScopedMethodResolver {
 
     private findMethodTarget(
         document: vscode.TextDocument,
-        snapshot: ReturnType<ASTManager['getSemanticSnapshot']>,
+        snapshot: SemanticSnapshot,
         methodName: string
     ): ScopedMethodTarget | undefined {
         const symbol = snapshot.symbolTable.getGlobalScope().symbols.get(methodName);
@@ -366,4 +370,13 @@ export class ScopedMethodResolver {
     private getRangeSize(range: vscode.Range): number {
         return (range.end.line - range.start.line) * 10_000 + (range.end.character - range.start.character);
     }
+}
+
+function createScopedTraversalAnalysisFacade(
+    analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>
+) {
+    return {
+        getSemanticSnapshot: (document: vscode.TextDocument, useCache: boolean = true) =>
+            analysisService.getSemanticSnapshot(document, useCache)
+    } as any;
 }
