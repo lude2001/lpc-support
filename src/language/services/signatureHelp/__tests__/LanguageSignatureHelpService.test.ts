@@ -11,7 +11,7 @@ import { ObjectInferenceService } from '../../../../objectInference/ObjectInfere
 import { configureScopedMethodIdentifierAnalysisService } from '../../navigation/ScopedMethodIdentifierSupport';
 import type { LanguageCapabilityContext } from '../../../contracts/LanguageCapabilityContext';
 import type { CallableDoc } from '../../../documentation/types';
-import { TargetMethodLookup, configureTargetMethodLookupAnalysisService } from '../../../../targetMethodLookup';
+import { TargetMethodLookup } from '../../../../targetMethodLookup';
 import {
     LanguageSignatureHelpService,
     type CallableDiscoveryRequest,
@@ -201,7 +201,6 @@ describe('LanguageSignatureHelpService', () => {
     }
 
     beforeEach(() => {
-        configureTargetMethodLookupAnalysisService(analysisService);
         configureSimulatedEfunScannerAnalysisService(analysisService);
         configureScopedMethodIdentifierAnalysisService(analysisService);
     });
@@ -209,7 +208,6 @@ describe('LanguageSignatureHelpService', () => {
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureTargetMethodLookupAnalysisService(undefined);
         configureSimulatedEfunScannerAnalysisService(undefined);
         configureScopedMethodIdentifierAnalysisService(undefined);
         clearGlobalParsedDocumentService();
@@ -768,7 +766,7 @@ describe('LanguageSignatureHelpService', () => {
         });
         const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService);
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
-        const targetMethodLookup = new TargetMethodLookup();
+        const targetMethodLookup = new TargetMethodLookup(undefined, undefined, analysisService);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         const docResolver: CallableDocResolver = {
             resolveFromTarget: jest.fn(async (target) => {
@@ -850,7 +848,7 @@ describe('LanguageSignatureHelpService', () => {
         });
         const objectInferenceService = new ObjectInferenceService(undefined, undefined, analysisService);
         const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
-        const targetMethodLookup = new TargetMethodLookup();
+        const targetMethodLookup = new TargetMethodLookup(undefined, undefined, analysisService);
         const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         const docResolver: CallableDocResolver = {
             resolveFromTarget: jest.fn(async (target) => {

@@ -20,21 +20,15 @@ export interface TargetMethodLookupOptions {
 
 type TargetMethodAnalysisService = Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
 
-let configuredTargetMethodLookupAnalysisService: TargetMethodAnalysisService | undefined;
-
-export function configureTargetMethodLookupAnalysisService(service?: TargetMethodAnalysisService): void {
-    configuredTargetMethodLookupAnalysisService = service;
-}
-
 export class TargetMethodLookup {
     private readonly analysisService: TargetMethodAnalysisService;
 
     constructor(
-        private readonly macroManager?: MacroManager,
-        private readonly projectConfigService?: LpcProjectConfigService,
-        analysisService?: TargetMethodAnalysisService
+        private readonly macroManager: MacroManager | undefined,
+        private readonly projectConfigService: LpcProjectConfigService | undefined,
+        analysisService: TargetMethodAnalysisService
     ) {
-        this.analysisService = analysisService ?? requireTargetMethodLookupAnalysisService();
+        this.analysisService = analysisService;
     }
 
     public async findMethod(
@@ -279,12 +273,4 @@ export class TargetMethodLookup {
             return undefined;
         }
     }
-}
-
-function requireTargetMethodLookupAnalysisService(): TargetMethodAnalysisService {
-    if (!configuredTargetMethodLookupAnalysisService) {
-        throw new Error('Target method lookup analysis service has not been configured');
-    }
-
-    return configuredTargetMethodLookupAnalysisService;
 }

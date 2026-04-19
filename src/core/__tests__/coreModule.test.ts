@@ -12,10 +12,7 @@ import { DocumentLifecycleService } from '../DocumentLifecycleService';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
-import { configureDiagnosticsAnalysisService } from '../../diagnostics';
 import { configureSimulatedEfunScannerAnalysisService } from '../../efun/SimulatedEfunScanner';
-import { configureSymbolReferenceAnalysisService } from '../../symbolReferenceResolver';
-import { configureTargetMethodLookupAnalysisService } from '../../targetMethodLookup';
 import { configureEfunHoverAnalysisService } from '../../language/services/navigation/EfunLanguageHoverService';
 import { configureScopedMethodIdentifierAnalysisService } from '../../language/services/navigation/ScopedMethodIdentifierSupport';
 
@@ -57,20 +54,8 @@ jest.mock('../../parser/ParsedDocumentService', () => ({
     getGlobalParsedDocumentService: jest.fn()
 }));
 
-jest.mock('../../diagnostics/createDiagnosticsStack', () => ({
-    configureDiagnosticsAnalysisService: jest.fn()
-}));
-
 jest.mock('../../efun/SimulatedEfunScanner', () => ({
     configureSimulatedEfunScannerAnalysisService: jest.fn()
-}));
-
-jest.mock('../../symbolReferenceResolver', () => ({
-    configureSymbolReferenceAnalysisService: jest.fn()
-}));
-
-jest.mock('../../targetMethodLookup', () => ({
-    configureTargetMethodLookupAnalysisService: jest.fn()
 }));
 
 jest.mock('../../language/services/navigation/EfunLanguageHoverService', () => ({
@@ -121,10 +106,7 @@ describe('registerCoreServices', () => {
         (DocumentLifecycleService as unknown as jest.Mock).mockReset().mockImplementation(() => lifecycle);
         (getGlobalParsedDocumentService as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
         ((DocumentSemanticSnapshotService as any).getInstance as jest.Mock).mockReset().mockReturnValue(analysisService);
-        (configureDiagnosticsAnalysisService as jest.Mock).mockReset();
         (configureSimulatedEfunScannerAnalysisService as jest.Mock).mockReset();
-        (configureSymbolReferenceAnalysisService as jest.Mock).mockReset();
-        (configureTargetMethodLookupAnalysisService as jest.Mock).mockReset();
         (configureEfunHoverAnalysisService as jest.Mock).mockReset();
         (configureScopedMethodIdentifierAnalysisService as jest.Mock).mockReset();
     });
@@ -151,11 +133,9 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.ProjectConfig)).toBe(projectConfigService);
         expect(registry.get(Services.CompletionInstrumentation)).toBe(completionInstrumentation);
         expect(registry.get(Services.Lifecycle)).toBe(lifecycle);
+        expect(registry.get(Services.Analysis)).toBe(analysisService);
         expect(DocumentSemanticSnapshotService.getInstance).toHaveBeenCalledTimes(1);
-        expect(configureDiagnosticsAnalysisService).toHaveBeenCalledWith(analysisService);
         expect(configureSimulatedEfunScannerAnalysisService).toHaveBeenCalledWith(analysisService);
-        expect(configureSymbolReferenceAnalysisService).toHaveBeenCalledWith(analysisService);
-        expect(configureTargetMethodLookupAnalysisService).toHaveBeenCalledWith(analysisService);
         expect(configureEfunHoverAnalysisService).toHaveBeenCalledWith(analysisService);
         expect(configureScopedMethodIdentifierAnalysisService).toHaveBeenCalledWith(analysisService);
 

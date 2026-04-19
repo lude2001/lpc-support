@@ -5,10 +5,7 @@ import { AstBackedLanguageReferenceService } from '../language/services/navigati
 import { AstBackedLanguageRenameService } from '../language/services/navigation/LanguageRenameService';
 import { AstBackedLanguageSymbolService } from '../language/services/navigation/LanguageSymbolService';
 import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
-import {
-    configureSymbolReferenceAnalysisService,
-    resolveSymbolReferences
-} from '../symbolReferenceResolver';
+import { resolveSymbolReferences } from '../symbolReferenceResolver';
 import { TestHelper } from './utils/TestHelper';
 
 function createContext(document: vscode.TextDocument) {
@@ -52,7 +49,6 @@ describe('local symbol references', () => {
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
-        configureSymbolReferenceAnalysisService(undefined);
     });
 
     afterAll(() => {

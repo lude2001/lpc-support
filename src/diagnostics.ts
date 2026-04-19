@@ -10,7 +10,6 @@ export { DiagnosticsOrchestrator as LPCDiagnostics } from './diagnostics/Diagnos
 // 导出 diagnostics stack factory
 export { createDiagnosticsStack } from './diagnostics/createDiagnosticsStack';
 export type { DiagnosticsStack } from './diagnostics/createDiagnosticsStack';
-export { configureDiagnosticsAnalysisService } from './diagnostics/createDiagnosticsStack';
 
 // 导出类型定义
 export type { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './diagnostics/types';

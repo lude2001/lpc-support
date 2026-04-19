@@ -6,7 +6,6 @@ import type { LanguagePosition, LanguageRange } from '../../../contracts/Languag
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
-import { configureTargetMethodLookupAnalysisService } from '../../../../targetMethodLookup';
 import {
     ObjectInferenceLanguageHoverService,
     type LanguageHoverService
@@ -183,14 +182,12 @@ describe('navigation services', () => {
 
     beforeEach(() => {
         configureScopedMethodIdentifierAnalysisService(analysisService);
-        configureTargetMethodLookupAnalysisService(analysisService);
     });
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
         configureScopedMethodIdentifierAnalysisService(undefined);
-        configureTargetMethodLookupAnalysisService(undefined);
     });
 
     test('hover service can operate on host-agnostic documents via injected boundaries', async () => {
@@ -252,6 +249,7 @@ describe('navigation services', () => {
             undefined,
             undefined,
             {
+                analysisService,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     methodName: 'create',
@@ -302,6 +300,7 @@ describe('navigation services', () => {
             undefined,
             undefined,
             {
+                analysisService,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     qualifier: 'room',
@@ -353,6 +352,7 @@ describe('navigation services', () => {
             undefined,
             undefined,
             {
+                analysisService,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     methodName: 'create',
@@ -418,6 +418,7 @@ describe('navigation services', () => {
                 {} as any,
                 undefined,
                 {
+                    analysisService,
                     scopedMethodResolver: createScopedMethodResolverStub({
                         status,
                         qualifier: 'room',
@@ -468,6 +469,7 @@ describe('navigation services', () => {
             undefined,
             undefined,
             {
+                analysisService,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     qualifier: 'room',
@@ -511,6 +513,7 @@ describe('navigation services', () => {
             undefined,
             undefined,
             {
+                analysisService,
                 scopedMethodResolver: createScopedMethodResolverStub({
                     status: 'resolved',
                     qualifier: 'room',

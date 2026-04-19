@@ -2,6 +2,7 @@ import type { CompletionInstrumentation } from '../completion/completionInstrume
 import type { LPCCompiler } from '../compiler';
 import type { LPCConfigManager } from '../config';
 import type { DiagnosticsOrchestrator } from '../diagnostics';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import type { DocumentLifecycleService } from './DocumentLifecycleService';
 import type { EfunDocsManager } from '../efunDocs';
 import type { ErrorTreeDataProvider } from '../errorTreeDataProvider';
@@ -15,6 +16,7 @@ export const Services = {
     ConfigManager: new ServiceKey<LPCConfigManager>('ConfigManager'),
     Compiler: new ServiceKey<LPCCompiler>('Compiler'),
     ProjectConfig: new ServiceKey<LpcProjectConfigService>('ProjectConfig'),
+    Analysis: new ServiceKey<DocumentAnalysisService>('Analysis'),
     Lifecycle: new ServiceKey<DocumentLifecycleService>('Lifecycle'),
     Diagnostics: new ServiceKey<DiagnosticsOrchestrator>('Diagnostics'),
     ErrorTree: new ServiceKey<ErrorTreeDataProvider>('ErrorTree'),

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguagePosition, LanguageRange } from '../../contracts/LanguagePosition';
 import { resolveSymbolReferences } from '../../../symbolReferenceResolver';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 
 export type LanguageRangeReadableDocument = LanguageCapabilityContext['document'] & {
@@ -45,7 +46,7 @@ function toLanguageRange(range: vscode.Range): LanguageRange {
 
 class VsCodeSymbolReferenceAdapter implements LanguageSymbolReferenceAdapter {
     public constructor(
-        private readonly analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>
+        private readonly analysisService: Pick<DocumentAnalysisService, 'parseDocument'>
     ) {}
 
     public resolveReferences(
@@ -74,5 +75,7 @@ class VsCodeSymbolReferenceAdapter implements LanguageSymbolReferenceAdapter {
 export function createVsCodeSymbolReferenceAdapter(
     analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>
 ): LanguageSymbolReferenceAdapter {
-    return new VsCodeSymbolReferenceAdapter(analysisService);
+    return new VsCodeSymbolReferenceAdapter(
+        assertAnalysisService('createVsCodeSymbolReferenceAdapter', analysisService)
+    );
 }

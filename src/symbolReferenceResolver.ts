@@ -17,16 +17,10 @@ export interface ResolvedSymbolReferences {
 
 type SymbolReferenceAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
 
-let configuredSymbolReferenceAnalysisService: SymbolReferenceAnalysisService | undefined;
-
-export function configureSymbolReferenceAnalysisService(service?: SymbolReferenceAnalysisService): void {
-    configuredSymbolReferenceAnalysisService = service;
-}
-
 export function resolveSymbolReferences(
     document: vscode.TextDocument,
     position: vscode.Position,
-    analysisService: SymbolReferenceAnalysisService = requireSymbolReferenceAnalysisService()
+    analysisService: SymbolReferenceAnalysisService
 ): ResolvedSymbolReferences | undefined {
     const resolvedWord = resolveWordAtPosition(document, position);
     if (!resolvedWord) {
@@ -74,14 +68,6 @@ export function resolveSymbolReferences(
         wordRange: resolvedWord.wordRange,
         matches
     };
-}
-
-function requireSymbolReferenceAnalysisService(): SymbolReferenceAnalysisService {
-    if (!configuredSymbolReferenceAnalysisService) {
-        throw new Error('Symbol reference analysis service has not been configured');
-    }
-
-    return configuredSymbolReferenceAnalysisService;
 }
 
 function resolveWordAtPosition(

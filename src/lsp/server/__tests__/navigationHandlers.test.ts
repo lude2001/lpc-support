@@ -51,8 +51,6 @@ import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLanguageContextFactory } from '../runtime/ServerLanguageContextFactory';
 import { ServerLogger } from '../runtime/ServerLogger';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
-import { configureSymbolReferenceAnalysisService } from '../../../symbolReferenceResolver';
-import { configureTargetMethodLookupAnalysisService } from '../../../targetMethodLookup';
 
 type NavigationHandlerService =
     LanguageNavigationService &
@@ -112,16 +110,12 @@ describe('navigation handlers', () => {
     beforeEach(() => {
         const analysisService = DocumentSemanticSnapshotService.getInstance();
         configureScopedMethodIdentifierAnalysisService(analysisService);
-        configureSymbolReferenceAnalysisService(analysisService);
-        configureTargetMethodLookupAnalysisService(analysisService);
     });
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
         DocumentSemanticSnapshotService.getInstance().clear();
         configureScopedMethodIdentifierAnalysisService(undefined);
-        configureSymbolReferenceAnalysisService(undefined);
-        configureTargetMethodLookupAnalysisService(undefined);
         jest.restoreAllMocks();
         jest.resetModules();
     });
@@ -626,7 +620,6 @@ describe('navigation handlers', () => {
                 navigationService
             }
         });
-        configureSymbolReferenceAnalysisService({ parseDocument: parseDocumentMock } as any);
 
         documentStore.open('file:///D:/workspace/nav.c', 1, 'int round; round += 1;');
 

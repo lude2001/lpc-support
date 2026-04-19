@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as docParser from '../../efun/docParser';
 import { FunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
-import { configureTargetMethodLookupAnalysisService } from '../../targetMethodLookup';
 import { ObjectHoverProvider } from '../ObjectHoverProvider';
 import type { LanguageHoverService } from '../../language/services/navigation/LanguageHoverService';
 
@@ -22,13 +21,11 @@ jest.mock('fs', () => ({
 
 describe('ObjectHoverProvider', () => {
     beforeEach(() => {
-        configureTargetMethodLookupAnalysisService(DocumentSemanticSnapshotService.getInstance());
         (vscode.workspace.openTextDocument as jest.Mock).mockReset();
     });
 
     afterEach(() => {
         DocumentSemanticSnapshotService.getInstance().clear();
-        configureTargetMethodLookupAnalysisService(undefined);
     });
 
     test('delegates hover requests through LanguageHoverService without changing the returned markdown', async () => {
@@ -97,8 +94,25 @@ describe('ObjectHoverProvider', () => {
                 '}'
             ].join('\n')
         });
+        const targetMethodLookup = {
+            findMethod: jest.fn().mockResolvedValue({
+                path: 'D:/code/lpc/obj/userd.c',
+                document: {
+                    uri: vscode.Uri.file('D:/code/lpc/obj/userd.c'),
+                    getText: () => [
+                        '/**',
+                        ' * @brief 返回名字。',
+                        ' */',
+                        'string query_name() {',
+                        '    return "npc";',
+                        '}'
+                    ].join('\n')
+                },
+                location: new vscode.Location(vscode.Uri.file('D:/code/lpc/obj/userd.c'), new vscode.Position(3, 0))
+            })
+        };
 
-        const provider = new ObjectHoverProvider(objectInferenceService as any);
+        const provider = new ObjectHoverProvider(objectInferenceService as any, undefined, targetMethodLookup as any);
         const document = {
             getWordRangeAtPosition: jest.fn(() => new vscode.Range(0, 0, 0, 6)),
             getText: jest.fn((range?: vscode.Range) => {

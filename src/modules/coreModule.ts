@@ -5,15 +5,12 @@ import { DocumentLifecycleService } from '../core/DocumentLifecycleService';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import { LPCConfigManager } from '../config';
 import { LPCCompiler } from '../compiler';
-import { configureDiagnosticsAnalysisService } from '../diagnostics';
 import { EfunDocsManager } from '../efunDocs';
 import { MacroManager } from '../macroManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { configureSimulatedEfunScannerAnalysisService } from '../efun/SimulatedEfunScanner';
-import { configureSymbolReferenceAnalysisService } from '../symbolReferenceResolver';
-import { configureTargetMethodLookupAnalysisService } from '../targetMethodLookup';
 import { configureEfunHoverAnalysisService } from '../language/services/navigation/EfunLanguageHoverService';
 import { configureScopedMethodIdentifierAnalysisService } from '../language/services/navigation/ScopedMethodIdentifierSupport';
 
@@ -21,9 +18,7 @@ let registeredProjectConfigService: LpcProjectConfigService | undefined;
 
 export function registerCoreServices(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
-    configureDiagnosticsAnalysisService(analysisService);
-    configureSymbolReferenceAnalysisService(analysisService);
-    configureTargetMethodLookupAnalysisService(analysisService);
+    registry.register(Services.Analysis, analysisService);
     configureSimulatedEfunScannerAnalysisService(analysisService);
     configureEfunHoverAnalysisService(analysisService);
     configureScopedMethodIdentifierAnalysisService(analysisService);

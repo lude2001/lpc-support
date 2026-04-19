@@ -12,7 +12,6 @@ import { EfunDocsManager } from '../efunDocs';
 import { QueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
 import { configureScopedMethodIdentifierAnalysisService } from '../language/services/navigation/ScopedMethodIdentifierSupport';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
-import { configureTargetMethodLookupAnalysisService } from '../targetMethodLookup';
 import { TestHelper } from './utils/TestHelper';
 
 describe('EfunDocsManager', () => {
@@ -24,7 +23,6 @@ describe('EfunDocsManager', () => {
         const analysisService = DocumentSemanticSnapshotService.getInstance();
         configureScopedMethodIdentifierAnalysisService(analysisService);
         configureSimulatedEfunScannerAnalysisService(analysisService);
-        configureTargetMethodLookupAnalysisService(analysisService);
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: jest.fn((_: string, defaultValue?: unknown) => defaultValue),
             update: jest.fn().mockResolvedValue(undefined)
@@ -38,7 +36,6 @@ describe('EfunDocsManager', () => {
     afterEach(() => {
         configureScopedMethodIdentifierAnalysisService(undefined);
         configureSimulatedEfunScannerAnalysisService(undefined);
-        configureTargetMethodLookupAnalysisService(undefined);
         errorSpy.mockRestore();
         warnSpy.mockRestore();
     });

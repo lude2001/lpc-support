@@ -18,12 +18,6 @@ export interface DiagnosticsStack {
 
 type DiagnosticsAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
 
-let configuredDiagnosticsAnalysisService: DiagnosticsAnalysisService | undefined;
-
-export function configureDiagnosticsAnalysisService(service?: DiagnosticsAnalysisService): void {
-    configuredDiagnosticsAnalysisService = service;
-}
-
 export function createDefaultDiagnosticsCollectors(macroManager: MacroManager): IDiagnosticCollector[] {
     return [
         new StringLiteralCollector(),
@@ -38,11 +32,11 @@ export function createDefaultDiagnosticsCollectors(macroManager: MacroManager): 
 
 export function createDiagnosticsStack(
     macroManager: MacroManager,
-    analysisService?: DiagnosticsAnalysisService
+    analysisService: DiagnosticsAnalysisService
 ): DiagnosticsStack {
     const collectors = createDefaultDiagnosticsCollectors(macroManager);
     const diagnosticsService = createSharedDiagnosticsService(
-        createAnalysisBackedAstManager(analysisService ?? requireDiagnosticsAnalysisService()),
+        createAnalysisBackedAstManager(analysisService),
         collectors
     );
 
@@ -50,14 +44,6 @@ export function createDiagnosticsStack(
         collectors,
         diagnosticsService
     };
-}
-
-function requireDiagnosticsAnalysisService(): DiagnosticsAnalysisService {
-    if (!configuredDiagnosticsAnalysisService) {
-        throw new Error('Diagnostics analysis service has not been configured');
-    }
-
-    return configuredDiagnosticsAnalysisService;
 }
 
 function createAnalysisBackedAstManager(analysisService: DiagnosticsAnalysisService) {

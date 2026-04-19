@@ -33,8 +33,7 @@ import { ObjectInferenceService } from '../../../objectInference/ObjectInference
 import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
-import { configureSymbolReferenceAnalysisService } from '../../../symbolReferenceResolver';
-import { TargetMethodLookup, configureTargetMethodLookupAnalysisService } from '../../../targetMethodLookup';
+import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { configureSimulatedEfunScannerAnalysisService } from '../../../efun/SimulatedEfunScanner';
 import { setServerWorkspaceRoots } from './serverHostState';
 
@@ -42,8 +41,6 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     setServerWorkspaceRoots([process.cwd()]);
 
     const analysisService = DocumentSemanticSnapshotService.getInstance();
-    configureSymbolReferenceAnalysisService(analysisService);
-    configureTargetMethodLookupAnalysisService(analysisService);
     configureSimulatedEfunScannerAnalysisService(analysisService);
     configureEfunHoverAnalysisService(analysisService);
     configureScopedMethodIdentifierAnalysisService(analysisService);

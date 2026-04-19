@@ -13,7 +13,7 @@ import { ObjectInferenceService } from '../objectInference/ObjectInferenceServic
 import { ScopedMethodResolver } from '../objectInference/ScopedMethodResolver';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { configureSimulatedEfunScannerAnalysisService } from '../efun/SimulatedEfunScanner';
-import { TargetMethodLookup, configureTargetMethodLookupAnalysisService } from '../targetMethodLookup';
+import { TargetMethodLookup } from '../targetMethodLookup';
 
 function createDocument(fileName: string, content: string, version = 1): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -227,7 +227,6 @@ describe('language-service integration regression', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         analysisService = DocumentSemanticSnapshotService.getInstance();
-        configureTargetMethodLookupAnalysisService(analysisService);
         configureSimulatedEfunScannerAnalysisService(analysisService);
         configureScopedMethodIdentifierAnalysisService(analysisService);
         fixtureRoot = path.join(process.cwd(), '.tmp-provider-integration');
@@ -242,7 +241,6 @@ describe('language-service integration regression', () => {
 
     afterEach(() => {
         ASTManager.getInstance().clearAllCache();
-        configureTargetMethodLookupAnalysisService(undefined);
         configureSimulatedEfunScannerAnalysisService(undefined);
         configureScopedMethodIdentifierAnalysisService(undefined);
         jest.restoreAllMocks();

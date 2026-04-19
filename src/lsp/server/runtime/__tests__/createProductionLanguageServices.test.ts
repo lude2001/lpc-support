@@ -11,7 +11,6 @@ const analysisService = {
     getSemanticSnapshot: jest.fn(),
     getBestAvailableSnapshot: jest.fn()
 };
-const configureSymbolReferenceAnalysisService = jest.fn();
 const configureSimulatedEfunScannerAnalysisService = jest.fn();
 const configureEfunHoverAnalysisService = jest.fn();
 const configureScopedMethodIdentifierAnalysisService = jest.fn();
@@ -22,10 +21,6 @@ jest.mock('../../../../semantic/documentSemanticSnapshotService', () => ({
     DocumentSemanticSnapshotService: {
         getInstance: jest.fn(() => analysisService)
     }
-}));
-
-jest.mock('../../../../symbolReferenceResolver', () => ({
-    configureSymbolReferenceAnalysisService
 }));
 
 jest.mock('../../../../efun/SimulatedEfunScanner', () => ({
@@ -106,8 +101,7 @@ describe('createProductionLanguageServices', () => {
                 ObjectInferenceService: jest.fn(() => objectInferenceService)
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
-                TargetMethodLookup: jest.fn(() => targetMethodLookup),
-                configureTargetMethodLookupAnalysisService: jest.fn()
+                TargetMethodLookup: jest.fn(() => targetMethodLookup)
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
                 QueryBackedLanguageCompletionService: jest.fn(() => completionService)
@@ -147,7 +141,6 @@ describe('createProductionLanguageServices', () => {
             const services = createProductionLanguageServices();
             const request = { example: true } as any;
 
-            expect(configureSymbolReferenceAnalysisService).toHaveBeenCalledWith(analysisService);
             expect(configureSimulatedEfunScannerAnalysisService).toHaveBeenCalledWith(analysisService);
             expect(configureEfunHoverAnalysisService).toHaveBeenCalledWith(analysisService);
             expect(configureScopedMethodIdentifierAnalysisService).toHaveBeenCalledWith(analysisService);
@@ -222,8 +215,7 @@ describe('createProductionLanguageServices', () => {
                 ScopedMethodResolver: scopedMethodResolverCtor
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
-                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' })),
-                configureTargetMethodLookupAnalysisService: jest.fn()
+                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
                 QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
@@ -340,8 +332,7 @@ describe('createProductionLanguageServices', () => {
                 ScopedMethodResolver: jest.fn(() => ({ kind: 'scoped-method-resolver' }))
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
-                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' })),
-                configureTargetMethodLookupAnalysisService: jest.fn()
+                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
                 QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
@@ -439,8 +430,7 @@ describe('createProductionLanguageServices', () => {
                 ScopedMethodResolver: jest.fn(() => ({ kind: 'scoped-method-resolver' }))
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
-                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' })),
-                configureTargetMethodLookupAnalysisService: jest.fn()
+                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
                 QueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))

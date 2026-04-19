@@ -14,6 +14,7 @@ import type { LanguageDocumentSymbol, LanguageSymbolRequest } from './LanguageSy
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import type { CallableDoc } from '../../documentation/types';
+import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
@@ -82,7 +83,7 @@ interface HoverDocumentAdapter {
 }
 
 export interface HoverServiceDependencies {
-    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     documentAdapter?: HoverDocumentAdapter;
     objectAccessProvider?: HoverObjectAccessProvider;
     methodResolver?: HoverMethodResolver;
@@ -209,8 +210,17 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
     ) {
         this.documentAdapter = dependencies?.documentAdapter ?? new VsCodeHoverDocumentAdapter();
         this.objectAccessProvider = dependencies?.objectAccessProvider ?? new VsCodeHoverObjectAccessProvider(objectInferenceService);
-        this.methodResolver = dependencies?.methodResolver
-            ?? new VsCodeHoverMethodResolver(targetMethodLookup ?? new TargetMethodLookup(macroManager, projectConfigService));
+        if (dependencies?.methodResolver) {
+            this.methodResolver = dependencies.methodResolver;
+        } else {
+            const resolvedTargetMethodLookup = targetMethodLookup
+                ?? new TargetMethodLookup(
+                    macroManager,
+                    projectConfigService,
+                    assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies?.analysisService)
+                );
+            this.methodResolver = new VsCodeHoverMethodResolver(resolvedTargetMethodLookup);
+        }
         this.documentationService = dependencies?.documentationService ?? new FunctionDocumentationService();
         this.renderer = dependencies?.renderer ?? new CallableDocRenderer();
         this.scopedMethodResolver = dependencies?.scopedMethodResolver;
