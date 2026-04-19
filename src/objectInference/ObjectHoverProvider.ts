@@ -3,11 +3,10 @@ import * as path from 'path';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
-import type { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import {
+    createDefaultObjectInferenceLanguageHoverService,
     type LanguageHoverResult,
-    LanguageHoverService,
-    ObjectInferenceLanguageHoverService
+    LanguageHoverService
 } from '../language/services/navigation/LanguageHoverService';
 import { ObjectInferenceService } from './ObjectInferenceService';
 
@@ -18,18 +17,18 @@ export class ObjectHoverProvider implements vscode.HoverProvider {
         objectInferenceService: ObjectInferenceService,
         targetMethodLookup?: TargetMethodLookup,
         hoverService?: LanguageHoverService,
-        documentationService?: FunctionDocumentationService,
-        pathSupport?: WorkspaceDocumentPathSupport
+        documentationService?: FunctionDocumentationService
     ) {
         const resolvedDocumentationService = hoverService
             ? documentationService
             : assertDocumentationService('ObjectHoverProvider', documentationService);
-        this.hoverService = hoverService ?? new ObjectInferenceLanguageHoverService(
+        this.hoverService = hoverService ?? createDefaultObjectInferenceLanguageHoverService(
             objectInferenceService,
-            targetMethodLookup,
+            targetMethodLookup ?? (() => {
+                throw new Error('ObjectHoverProvider requires an injected TargetMethodLookup when no hover service is provided');
+            })(),
             {
-                documentationService: resolvedDocumentationService,
-                pathSupport
+                documentationService: resolvedDocumentationService
             }
         );
     }

@@ -15,6 +15,7 @@ import {
     resetAstManagerSingletonForTests
 } from '../../../../__tests__/testAstManagerSingleton';
 import {
+    createDefaultObjectInferenceLanguageHoverService,
     ObjectInferenceLanguageHoverService,
     type LanguageHoverService
 } from '../LanguageHoverService';
@@ -207,7 +208,7 @@ describe('navigation services', () => {
 
     test('hover service can operate on host-agnostic documents via injected boundaries', async () => {
         const document = createDocument('target->query_name();');
-        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+        const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
             {
@@ -294,7 +295,7 @@ describe('navigation services', () => {
                 'void create() {}'
             ].join('\n')
         );
-        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+        const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
             {
@@ -346,7 +347,7 @@ describe('navigation services', () => {
                 'void init() {}'
             ].join('\n')
         );
-        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+        const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
             {
@@ -399,7 +400,7 @@ describe('navigation services', () => {
                 'void create() {}'
             ].join('\n')
         );
-        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+        const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
             {
@@ -452,7 +453,7 @@ describe('navigation services', () => {
             }));
 
             const {
-                ObjectInferenceLanguageHoverService: IsolatedHoverService
+                createDefaultObjectInferenceLanguageHoverService: createIsolatedHoverService
             } = require('../LanguageHoverService') as typeof import('../LanguageHoverService');
             const document = createVsCodeTextDocument('D:/workspace/test.c', 'room::init();');
             const targetDocument = createVsCodeTextDocument(
@@ -465,7 +466,7 @@ describe('navigation services', () => {
                 ].join('\n')
             );
 
-            const service: LanguageHoverService = new IsolatedHoverService(
+            const service: LanguageHoverService = createIsolatedHoverService(
                 {} as any,
                 undefined,
                 {
@@ -515,7 +516,7 @@ describe('navigation services', () => {
                 createCallableDoc('init', 'void init()', '房间初始化')
             )
         };
-        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+        const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
             {
@@ -560,7 +561,7 @@ describe('navigation services', () => {
                 createCallableDoc('init', 'void init()', '房间初始化')
             )
         };
-        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+        const service: LanguageHoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             new TargetMethodLookup(analysisService, pathSupport),
             {

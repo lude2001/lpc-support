@@ -14,10 +14,6 @@ import type { LanguageDocumentSymbol, LanguageSymbolRequest } from './LanguageSy
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../../documentation/assertDocumentationService';
-import {
-    assertDocumentPathSupport,
-    type WorkspaceDocumentPathSupport
-} from '../../shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
@@ -87,16 +83,18 @@ interface HoverDocumentAdapter {
 }
 
 export interface HoverServiceDependencies {
-    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     documentAdapter?: HoverDocumentAdapter;
+    scopedHoverResolver?: Pick<ScopedMethodHoverResolver, 'provideScopedHover'>;
+    objectMethodHoverResolver: Pick<ObjectMethodHoverResolver, 'provideObjectHover'>;
+}
+
+export interface DefaultObjectInferenceHoverServiceDependencies {
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     objectAccessProvider?: HoverObjectAccessProvider;
     methodResolver?: HoverMethodResolver;
     documentationService?: FunctionDocumentationService;
     renderer?: CallableDocRenderer;
     scopedMethodResolver?: ScopedMethodResolver;
-    scopedHoverResolver?: Pick<ScopedMethodHoverResolver, 'provideScopedHover'>;
-    objectMethodHoverResolver?: Pick<ObjectMethodHoverResolver, 'provideObjectHover'>;
-    pathSupport?: WorkspaceDocumentPathSupport;
 }
 
 interface VsCodeBackedHoverDocument extends HoverDocument {
@@ -203,49 +201,11 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
     private readonly objectMethodHoverResolver: Pick<ObjectMethodHoverResolver, 'provideObjectHover'>;
 
     public constructor(
-        objectInferenceService: ObjectInferenceService,
-        targetMethodLookup?: TargetMethodLookup,
-        dependencies?: HoverServiceDependencies
+        dependencies: HoverServiceDependencies
     ) {
         this.documentAdapter = dependencies?.documentAdapter ?? new VsCodeHoverDocumentAdapter();
-        const renderer = dependencies?.renderer ?? new CallableDocRenderer();
-        const requiresDocumentationService = !dependencies?.objectMethodHoverResolver
-            || (!dependencies?.scopedHoverResolver && Boolean(dependencies?.scopedMethodResolver));
-        const documentationService = requiresDocumentationService
-            ? assertDocumentationService(
-                'ObjectInferenceLanguageHoverService',
-                dependencies?.documentationService
-            )
-            : dependencies?.documentationService;
-
-        this.scopedHoverResolver = dependencies?.scopedHoverResolver
-            ?? (dependencies?.scopedMethodResolver
-                ? new ScopedMethodHoverResolver({
-                    scopedMethodResolver: dependencies.scopedMethodResolver,
-                    documentationService: documentationService!,
-                    renderer,
-                    analysisService: assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies?.analysisService)
-                })
-                : undefined);
-        this.objectMethodHoverResolver = dependencies?.objectMethodHoverResolver
-            ?? new ObjectMethodHoverResolver({
-                objectAccessProvider: dependencies?.objectAccessProvider
-                    ?? new VsCodeHoverObjectAccessProvider(objectInferenceService),
-                methodResolver: dependencies?.methodResolver
-                    ?? new VsCodeHoverMethodResolver(
-                        targetMethodLookup ?? (() => {
-                            throw new Error(
-                                'ObjectInferenceLanguageHoverService requires an injected TargetMethodLookup '
-                                + 'when no HoverMethodResolver is provided'
-                            );
-                        })()
-                    ),
-                documentationService: documentationService!,
-                renderer,
-                documentationSupport: {
-                    toDocumentationTextDocument
-                }
-            });
+        this.scopedHoverResolver = dependencies.scopedHoverResolver;
+        this.objectMethodHoverResolver = dependencies.objectMethodHoverResolver;
     }
 
     public async provideHover(request: LanguageHoverRequest): Promise<LanguageHoverResult | undefined> {
@@ -266,4 +226,47 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
             request.position
         );
     }
+}
+
+export function createDefaultObjectInferenceLanguageHoverService(
+    objectInferenceService: ObjectInferenceService,
+    targetMethodLookup: TargetMethodLookup | undefined,
+    dependencies: DefaultObjectInferenceHoverServiceDependencies
+): ObjectInferenceLanguageHoverService {
+    const renderer = dependencies.renderer ?? new CallableDocRenderer();
+    const documentationService = assertDocumentationService(
+        'ObjectInferenceLanguageHoverService',
+        dependencies.documentationService
+    );
+    const scopedHoverResolver = dependencies.scopedMethodResolver
+        ? new ScopedMethodHoverResolver({
+            scopedMethodResolver: dependencies.scopedMethodResolver,
+            documentationService,
+            renderer,
+            analysisService: assertAnalysisService('ObjectInferenceLanguageHoverService', dependencies.analysisService)
+        })
+        : undefined;
+    const objectMethodHoverResolver = new ObjectMethodHoverResolver({
+        objectAccessProvider: dependencies.objectAccessProvider
+            ?? new VsCodeHoverObjectAccessProvider(objectInferenceService),
+        methodResolver: dependencies.methodResolver
+            ?? new VsCodeHoverMethodResolver(
+                targetMethodLookup ?? (() => {
+                    throw new Error(
+                        'createDefaultObjectInferenceLanguageHoverService requires an injected TargetMethodLookup '
+                        + 'when no HoverMethodResolver is provided'
+                    );
+                })()
+            ),
+        documentationService,
+        renderer,
+        documentationSupport: {
+            toDocumentationTextDocument
+        }
+    });
+
+    return new ObjectInferenceLanguageHoverService({
+        scopedHoverResolver,
+        objectMethodHoverResolver
+    });
 }

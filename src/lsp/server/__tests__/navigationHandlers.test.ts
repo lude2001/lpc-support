@@ -32,7 +32,7 @@ import {
     resetAstManagerSingletonForTests
 } from '../../../__tests__/testAstManagerSingleton';
 import {
-    ObjectInferenceLanguageHoverService,
+    createDefaultObjectInferenceLanguageHoverService,
     type LanguageNavigationService
 } from '../../../language/services/navigation/LanguageHoverService';
 import { FunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
@@ -198,7 +198,7 @@ describe('navigation handlers', () => {
             })
         });
         const documentStore = new DocumentStore();
-        const hoverService = new ObjectInferenceLanguageHoverService(
+        const hoverService = createDefaultObjectInferenceLanguageHoverService(
             {} as any,
             undefined,
             {

@@ -20,8 +20,8 @@ import { createLanguageFormattingService } from '../../../language/services/form
 import { AstBackedLanguageDefinitionService } from '../../../language/services/navigation/LanguageDefinitionService';
 import { EfunLanguageHoverService } from '../../../language/services/navigation/EfunLanguageHoverService';
 import {
-    LanguageNavigationService,
-    ObjectInferenceLanguageHoverService
+    createDefaultObjectInferenceLanguageHoverService,
+    LanguageNavigationService
 } from '../../../language/services/navigation/LanguageHoverService';
 import { InheritedFileGlobalRelationService } from '../../../language/services/navigation/InheritedFileGlobalRelationService';
 import { InheritedFunctionRelationService } from '../../../language/services/navigation/InheritedFunctionRelationService';
@@ -132,14 +132,13 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const codeActionsService = createLanguageCodeActionService();
     const { diagnosticsService } = createDiagnosticsStack(macroManager, analysisService);
     const formattingService = createLanguageFormattingService(new FormattingService());
-    const objectHoverService = new ObjectInferenceLanguageHoverService(
+    const objectHoverService = createDefaultObjectInferenceLanguageHoverService(
         objectInferenceService,
         targetMethodLookup,
         {
             analysisService,
             scopedMethodResolver,
-            documentationService,
-            pathSupport: documentPathSupport
+            documentationService
         }
     );
     const hoverService = new UnifiedLanguageHoverService(
