@@ -9,6 +9,7 @@ import type { LanguageCodeActionService } from '../../../language/services/codeA
 import type { LanguageDiagnostic, LanguageDiagnosticsService } from '../../../language/services/diagnostics/LanguageDiagnosticsService';
 import type { LanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
 import type { LanguageNavigationService } from '../../../language/services/navigation/LanguageHoverService';
+import type { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import type { LanguageStructureService } from '../../../language/services/structure/LanguageFoldingService';
 import { registerCapabilities } from './registerCapabilities';
 import { DiagnosticsSession } from '../runtime/DiagnosticsSession';
@@ -24,6 +25,7 @@ export interface CreateServerOptions {
     diagnosticsService?: LanguageDiagnosticsService;
     formattingService?: LanguageFormattingService;
     navigationService?: LanguageNavigationService;
+    signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
 }
 
@@ -39,31 +41,7 @@ export function createServer(options: CreateServerOptions = {}): LspServerRuntim
     const connection = createConnection(ProposedFeatures.all);
     const documentStore = new DocumentStore();
     const logger = new ServerLogger(connection.console);
-    const featureServices = {
-        ...(options.codeActionsService ? {
-            codeActionsService: options.codeActionsService
-        } : {}),
-        ...(options.completionService ? {
-            completionService: options.completionService
-        } : {}),
-        ...(options.diagnosticsService ? {
-            diagnosticsService: options.diagnosticsService
-        } : {}),
-        ...(options.formattingService ? {
-            formattingService: options.formattingService
-        } : {}),
-        ...(options.navigationService ? {
-            navigationService: options.navigationService
-        } : {}),
-        ...(options.structureService ? {
-            structureService: options.structureService
-        } : {})
-    };
-    const workspaceSession = new WorkspaceSession({
-        featureServices: Object.keys(featureServices).length > 0
-            ? featureServices
-            : undefined
-    });
+    const workspaceSession = new WorkspaceSession();
     const diagnosticsSession = options.diagnosticsService
         ? new DiagnosticsSession({
             documentStore,
@@ -85,9 +63,12 @@ export function createServer(options: CreateServerOptions = {}): LspServerRuntim
         logger,
         serverVersion: PHASE_A_SERVER_VERSION,
         workspaceSession,
+        navigationService: options.navigationService,
         codeActionsService: options.codeActionsService,
         completionService: options.completionService,
-        formattingService: options.formattingService
+        formattingService: options.formattingService,
+        signatureHelpService: options.signatureHelpService,
+        structureService: options.structureService
     });
 
     return {

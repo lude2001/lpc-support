@@ -126,7 +126,6 @@ describe('navigation handlers', () => {
             provideHover: jest.fn(async (request) => {
                 expect(request.position).toEqual({ line: 1, character: 4 });
                 expect(request.context.workspace.workspaceRoot).toBe('D:/workspace');
-                expect(request.context.workspace.services?.navigationService).toBe(navigationService);
                 expect(request.context.document.uri.toString()).toBe('file:///D:/workspace/nav.c');
                 expect(request.context.document.getText()).toBe('int main() {\n    call_other();\n}');
 
@@ -1147,7 +1146,8 @@ describe('navigation handlers', () => {
             documentStore: new DocumentStore(),
             logger,
             serverVersion: '0.40.0-test',
-            workspaceSession
+            workspaceSession,
+            navigationService
         });
 
         expect(initializeHandler?.({} as InitializeParams)).toEqual({
@@ -1257,7 +1257,8 @@ describe('navigation handlers', () => {
             documentStore,
             logger,
             serverVersion: '0.40.0-test',
-            workspaceSession
+            workspaceSession,
+            codeActionsService: codeActionsService as any
         });
 
         expect(initializeHandler?.({} as InitializeParams)).toEqual(expect.objectContaining({
@@ -1325,7 +1326,7 @@ describe('navigation handlers', () => {
         ]);
     });
 
-    test('createServer threads the shared navigation service into the workspace session before bootstrap registration', () => {
+    test('createServer passes the shared navigation service directly into bootstrap registration', () => {
         const fakeConnection = {
             console: {
                 info: jest.fn(),
@@ -1353,11 +1354,14 @@ describe('navigation handlers', () => {
             const runtime = createServer({ navigationService });
             const registrationContext = registerCapabilitiesMock.mock.calls[0]?.[0] as {
                 workspaceSession: WorkspaceSession;
+                navigationService: NavigationHandlerService;
             };
 
-            expect(runtime.workspaceSession.toLanguageWorkspaceContext('').services?.navigationService).toBe(navigationService);
-            expect(registrationContext.workspaceSession.toLanguageWorkspaceContext('').services?.navigationService)
-                .toBe(navigationService);
+            expect(runtime.workspaceSession.toLanguageWorkspaceContext('')).toEqual({
+                workspaceRoot: '',
+                projectConfig: undefined
+            });
+            expect(registrationContext.navigationService).toBe(navigationService);
         });
     });
 });

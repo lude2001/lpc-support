@@ -32,6 +32,7 @@ import type { LanguageCodeActionService } from '../../../language/services/codeA
 import type { LanguageFormattingService } from '../../../language/services/formatting/LanguageFormattingService';
 import type { LanguageNavigationService } from '../../../language/services/navigation/LanguageHoverService';
 import type { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
+import type { LanguageStructureService } from '../../../language/services/structure/LanguageFoldingService';
 import { HealthRequest } from '../../shared/protocol/health';
 import {
     WorkspaceConfigSyncNotification,
@@ -95,24 +96,32 @@ export interface ServerRegistrationContext {
     logger: ServerLogger;
     serverVersion: string;
     workspaceSession: WorkspaceSession;
+    navigationService?: LanguageNavigationService;
     completionService?: LanguageCompletionService;
     codeActionsService?: LanguageCodeActionService;
     formattingService?: LanguageFormattingService;
+    signatureHelpService?: LanguageSignatureHelpService;
+    structureService?: LanguageStructureService;
 }
 
 export function registerCapabilities(context: ServerRegistrationContext): void {
-    const { connection, documentStore, diagnosticsSession, logger, serverVersion, workspaceSession, completionService, codeActionsService } = context;
+    const {
+        connection,
+        documentStore,
+        diagnosticsSession,
+        logger,
+        serverVersion,
+        workspaceSession,
+        navigationService,
+        completionService,
+        codeActionsService,
+        formattingService,
+        signatureHelpService,
+        structureService
+    } = context;
     __bindDocumentStore(documentStore);
     const contextFactory = new ServerLanguageContextFactory(documentStore, workspaceSession);
-    const navigationService: LanguageNavigationService | undefined =
-        workspaceSession.toLanguageWorkspaceContext('').services?.navigationService;
-    const effectiveCodeActionsService = codeActionsService
-        ?? workspaceSession.toLanguageWorkspaceContext('').services?.codeActionsService;
-    const signatureHelpService: LanguageSignatureHelpService | undefined =
-        workspaceSession.toLanguageWorkspaceContext('').services?.signatureHelpService;
-    const structureService = workspaceSession.toLanguageWorkspaceContext('').services?.structureService;
-    const formattingService = context.formattingService
-        ?? workspaceSession.toLanguageWorkspaceContext('').services?.formattingService;
+    const effectiveCodeActionsService = codeActionsService;
     const supportsFormattingHandlers = Boolean(connection.onDocumentFormatting && connection.onDocumentRangeFormatting);
     const formattingConnection = supportsFormattingHandlers
         ? connection as Pick<Connection, 'onDocumentFormatting' | 'onDocumentRangeFormatting'>

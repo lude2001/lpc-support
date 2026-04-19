@@ -1,5 +1,4 @@
 import type { LpcResolvedConfig } from '../../../projectConfig/LpcProjectConfig';
-import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
 import type {
     LanguageWorkspaceContext,
     LanguageWorkspaceProjectConfig
@@ -21,21 +20,16 @@ export interface WorkspaceConfigSnapshot {
 export interface WorkspaceSessionOptions {
     workspaceRoots?: string[];
     runtimeReferences?: Record<string, unknown>;
-    featureServices?: LanguageFeatureServices;
 }
 
 export class WorkspaceSession {
     private workspaceRoots: string[];
     private readonly workspaceConfigs = new Map<string, WorkspaceConfigSnapshot>();
     private readonly runtimeReferences: Record<string, unknown>;
-    private readonly featureServices?: LanguageFeatureServices;
 
     public constructor(options: WorkspaceSessionOptions = {}) {
         this.workspaceRoots = normalizeServerWorkspaceRoots(options.workspaceRoots ?? []);
         this.runtimeReferences = { ...(options.runtimeReferences ?? {}) };
-        this.featureServices = options.featureServices
-            ? { ...options.featureServices }
-            : undefined;
         setServerWorkspaceRoots(this.workspaceRoots);
     }
 
@@ -89,8 +83,7 @@ export class WorkspaceSession {
         const normalizedWorkspaceRoot = normalizeServerWorkspaceRoot(workspaceRoot);
         return {
             workspaceRoot: normalizedWorkspaceRoot,
-            projectConfig: toLanguageWorkspaceProjectConfig(this.workspaceConfigs.get(normalizedWorkspaceRoot)),
-            services: this.featureServices ? { ...this.featureServices } : undefined
+            projectConfig: toLanguageWorkspaceProjectConfig(this.workspaceConfigs.get(normalizedWorkspaceRoot))
         };
     }
 }

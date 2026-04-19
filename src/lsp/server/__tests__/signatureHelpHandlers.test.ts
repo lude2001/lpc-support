@@ -140,7 +140,8 @@ describe('signature help handlers', () => {
             documentStore: new DocumentStore(),
             logger,
             serverVersion: '0.40.0-test',
-            workspaceSession
+            workspaceSession,
+            signatureHelpService: signatureHelpService as any
         });
 
         expect(initializeHandler?.({} as InitializeParams)).toEqual({

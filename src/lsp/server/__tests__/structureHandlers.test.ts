@@ -53,7 +53,6 @@ describe('structure handlers', () => {
         const structureService = createStructureServiceStub({
             provideFoldingRanges: jest.fn(async (request) => {
                 expect(request.context.workspace.workspaceRoot).toBe('D:/workspace');
-                expect(request.context.workspace.services?.structureService).toBe(structureService);
                 expect(request.context.document.uri.toString()).toBe('file:///D:/workspace/structure.c');
                 expect(request.context.document.getText()).toBe('if (value) {\n    call_other();\n}\n');
 
@@ -135,7 +134,6 @@ describe('structure handlers', () => {
         const structureService = createStructureServiceStub({
             provideSemanticTokens: jest.fn(async (request) => {
                 expect(request.context.workspace.workspaceRoot).toBe('D:/workspace');
-                expect(request.context.workspace.services?.structureService).toBe(structureService);
                 expect(request.context.document.uri.toString()).toBe('file:///D:/workspace/structure.c');
 
                 return {
@@ -220,7 +218,8 @@ describe('structure handlers', () => {
             documentStore: new DocumentStore(),
             logger,
             serverVersion: '0.40.0-test',
-            workspaceSession
+            workspaceSession,
+            structureService
         });
 
         expect(initializeHandler?.({} as InitializeParams)).toEqual({
@@ -268,17 +267,19 @@ describe('structure handlers', () => {
             const isolatedCreateServer = (
                 require('../bootstrap/createServer') as typeof import('../bootstrap/createServer')
             ).createServer;
-            const runtime = isolatedCreateServer({ structureService });
-            const registrationContext = registerCapabilitiesMock.mock.calls[0]?.[0] as {
-                workspaceSession: WorkspaceSession;
-            };
+        const runtime = isolatedCreateServer({ structureService });
+        const registrationContext = registerCapabilitiesMock.mock.calls[0]?.[0] as {
+            workspaceSession: WorkspaceSession;
+            structureService: LanguageStructureService;
+        };
 
-            expect(runtime.workspaceSession.toLanguageWorkspaceContext('').services?.structureService)
-                .toBe(structureService);
-            expect(registrationContext.workspaceSession.toLanguageWorkspaceContext('').services?.structureService)
-                .toBe(structureService);
+        expect(runtime.workspaceSession.toLanguageWorkspaceContext('')).toEqual({
+            workspaceRoot: '',
+            projectConfig: undefined
         });
+        expect(registrationContext.structureService).toBe(structureService);
     });
+});
 });
 
 function createStructureServiceStub(

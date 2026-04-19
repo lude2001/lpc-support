@@ -1,10 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 import type { WorkspaceConfigSyncPayload } from '../../shared/protocol/workspaceConfigSync';
-import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
-import type { LanguageCompletionService } from '../../../language/services/completion/LanguageCompletionService';
-import type { LanguageNavigationService } from '../../../language/services/navigation/LanguageHoverService';
-import type { LanguageStructureService } from '../../../language/services/structure/LanguageFoldingService';
 import { Uri, workspace } from '../runtime/vscodeShim';
 
 describe('WorkspaceSession', () => {
@@ -153,27 +149,14 @@ describe('WorkspaceSession', () => {
         expect(workspace.getWorkspaceFolder(Uri.file('D:/workspace-a/src/example.c'))).toBeUndefined();
     });
 
-    test('exposes services through the language workspace context', () => {
+    test('language workspace context contains only workspace identity and config state', () => {
         const workspaceRoot = 'D:/code/lpc-support';
-        const completionService = {} as LanguageCompletionService;
-        const navigationService = {} as LanguageNavigationService;
-        const structureService = {} as LanguageStructureService;
-
         const session = new WorkspaceSession({
-            workspaceRoots: [workspaceRoot],
-            featureServices: {
-                completionService,
-                navigationService,
-                structureService
-            }
+            workspaceRoots: [workspaceRoot]
         });
 
         const context = session.toLanguageWorkspaceContext(workspaceRoot);
-        const services: LanguageFeatureServices | undefined = context.services;
 
-        expect(services).toBeDefined();
-        expect(services.completionService).toBe(completionService);
-        expect(services.navigationService).toBe(navigationService);
-        expect(services.structureService).toBe(structureService);
+        expect(Object.keys(context).sort()).toEqual(['projectConfig', 'workspaceRoot']);
     });
 });

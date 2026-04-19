@@ -599,12 +599,7 @@ async function buildRuntime(): Promise<RuntimeResult> {
     const connection = createConnection(handlers);
     const documentStore = new DocumentStore();
     const workspaceSession = new WorkspaceSession({
-        workspaceRoots: [workspaceRoot],
-        featureServices: {
-            completionService,
-            navigationService,
-            structureService
-        }
+        workspaceRoots: [workspaceRoot]
     });
     const logger = new ServerLogger({
         info: jest.fn(),
@@ -631,7 +626,9 @@ async function buildRuntime(): Promise<RuntimeResult> {
         logger,
         serverVersion: '0.40.0-test',
         workspaceSession,
-        completionService
+        completionService,
+        navigationService,
+        structureService
     });
 
     const initializeResult = handlers.initialize?.({} as InitializeParams);
