@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { normalizeLpcType } from '../../../ast/typeNormalization';
-import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
 import {
     CompletionCandidate,
     CompletionCandidateSourceType,
@@ -12,16 +11,20 @@ import { ScopedMethodDiscoveryService } from '../../../objectInference/ScopedMet
 import { ObjectInferenceResult } from '../../../objectInference/types';
 import { CompletionInheritedIndexService } from './CompletionInheritedIndexService';
 import { ScopedMethodCompletionSupport } from './ScopedMethodCompletionSupport';
+import { buildFunctionSnippet } from './completionSnippetUtils';
 
 export class CompletionCandidateResolver {
     constructor(
-        private readonly projectSymbolIndex: ProjectSymbolIndex,
         private readonly objectInferenceService: Pick<ObjectInferenceService, 'inferObjectAccess'>,
         private readonly scopedMethodDiscoveryService: Pick<ScopedMethodDiscoveryService, 'discoverAt'>,
         private readonly scopedCompletionSupport: Pick<ScopedMethodCompletionSupport, 'buildCandidates'>,
         private readonly completionInheritedIndexService: Pick<
             CompletionInheritedIndexService,
-            'refreshInheritedIndex' | 'getDocumentForUri'
+            | 'refreshInheritedIndex'
+            | 'getDocumentForUri'
+            | 'getRecord'
+            | 'getResolvedInheritTargets'
+            | 'getInheritedSymbols'
         >
     ) {}
 
@@ -81,7 +84,7 @@ export class CompletionCandidateResolver {
 
         this.completionInheritedIndexService.refreshInheritedIndex(document);
 
-        const inheritedSymbols = this.projectSymbolIndex.getInheritedSymbols(document.uri.toString());
+        const inheritedSymbols = this.completionInheritedIndexService.getInheritedSymbols(document.uri.toString());
         if (inheritedSymbols.functions.length === 0 && inheritedSymbols.types.length === 0) {
             return result.candidates;
         }
@@ -192,7 +195,7 @@ export class CompletionCandidateResolver {
                     label: func.name,
                     kind: vscode.CompletionItemKind.Method,
                     detail: `${normalizeLpcType(func.returnType)} ${func.name}`,
-                    insertText: this.buildFunctionSnippet(func.name, func.parameters.map(parameter => parameter.name)),
+                    insertText: buildFunctionSnippet(func.name, func.parameters.map(parameter => parameter.name)),
                     sortGroup: 'inherited',
                     metadata: {
                         sourceUri: func.sourceUri,
@@ -215,7 +218,7 @@ export class CompletionCandidateResolver {
 
         visited.add(targetUri);
 
-        let record = this.projectSymbolIndex.getRecord(targetUri);
+        let record = this.completionInheritedIndexService.getRecord(targetUri);
         if (!record) {
             const targetDocument = targetUri === ownerDocument.uri.toString()
                 ? ownerDocument
@@ -225,14 +228,14 @@ export class CompletionCandidateResolver {
             }
 
             this.completionInheritedIndexService.refreshInheritedIndex(targetDocument);
-            record = this.projectSymbolIndex.getRecord(targetUri);
+            record = this.completionInheritedIndexService.getRecord(targetUri);
             if (!record) {
                 return [];
             }
         }
 
         const functions = [...record.exportedFunctions];
-        for (const inheritTarget of this.projectSymbolIndex.getResolvedInheritTargets(targetUri)) {
+        for (const inheritTarget of this.completionInheritedIndexService.getResolvedInheritTargets(targetUri)) {
             if (!inheritTarget.resolvedUri) {
                 continue;
             }
@@ -266,16 +269,5 @@ export class CompletionCandidateResolver {
         }
 
         return Array.from(merged.values());
-    }
-
-    private buildFunctionSnippet(name: string, parameterNames: string[]): string {
-        if (parameterNames.length === 0) {
-            return `${name}()`;
-        }
-
-        const params = parameterNames
-            .map((parameterName, index) => `\${${index + 1}:${parameterName}}`)
-            .join(', ');
-        return `${name}(${params})`;
     }
 }

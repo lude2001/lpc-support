@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
 import { normalizeLpcType } from '../../../ast/typeNormalization';
-import type { CompletionCandidate, ParameterSummary } from '../../../completion/types';
+import type { CompletionCandidate } from '../../../completion/types';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import type { CallableDoc } from '../../documentation/types';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
 import type { ScopedMethodDiscoveryResult } from '../../../objectInference/ScopedMethodDiscoveryService';
 import type { LanguageCompletionItem } from './LanguageCompletionService';
+import { buildFunctionSnippet } from './completionSnippetUtils';
 
 type DeclarationDocProvider = Pick<FunctionDocumentationService, 'getDocForDeclaration'>;
 type ScopedDocumentLoader = (uri: string) => Promise<vscode.TextDocument | undefined>;
@@ -188,13 +189,3 @@ function createDefaultDocumentLoader(): ScopedDocumentLoader {
     };
 }
 
-function buildFunctionSnippet(name: string, parameters: ParameterSummary[]): string {
-    if (parameters.length === 0) {
-        return `${name}()`;
-    }
-
-    const placeholders = parameters
-        .map((parameter, index) => `\${${index + 1}:${parameter.name}}`)
-        .join(', ');
-    return `${name}(${placeholders})`;
-}

@@ -102,6 +102,30 @@ describe('document analysis ownership guards', () => {
         expect(astManagerSource).not.toContain('getHoverInfo(');
         expect(astManagerSource).not.toContain('getDiagnostics(');
     });
+
+    test('LanguageCompletionService stays a coordinator without inherited-index, candidate, or presentation helpers', () => {
+        const completionServiceSource = fs.readFileSync(
+            path.join(srcRoot, 'language', 'services', 'completion', 'LanguageCompletionService.ts'),
+            'utf8'
+        );
+
+        expect(completionServiceSource).not.toContain('private warmInheritedIndex(');
+        expect(completionServiceSource).not.toContain('private refreshInheritedIndex(');
+        expect(completionServiceSource).not.toContain('private indexMissingInheritedSnapshots(');
+        expect(completionServiceSource).not.toContain('private createReadonlyDocumentFromUri(');
+        expect(completionServiceSource).not.toContain('private getDocumentForUri(');
+        expect(completionServiceSource).not.toContain('private resolveCompletionCandidates(');
+        expect(completionServiceSource).not.toContain('private appendInheritedFallbackCandidates(');
+        expect(completionServiceSource).not.toContain('private buildObjectMemberCandidates(');
+        expect(completionServiceSource).not.toContain('private createCompletionItem(');
+        expect(completionServiceSource).not.toContain('private applyStructuredDocumentation(');
+        expect(completionServiceSource).not.toContain('private applyEfunDocumentation(');
+        expect(completionServiceSource).not.toContain('private applyMacroDocumentation(');
+        expect(completionServiceSource).not.toContain('private applyKeywordDocumentation(');
+        expect(completionServiceSource).not.toContain('projectSymbolIndex.updateFromSnapshot(');
+        expect(completionServiceSource).not.toContain('projectSymbolIndex.removeFile(');
+        expect(completionServiceSource).not.toContain('projectSymbolIndex.clear(');
+    });
 });
 
 function listProductionTypeScriptFiles(rootDir: string): string[] {

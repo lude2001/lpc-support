@@ -141,11 +141,16 @@ describe('CompletionCandidateResolver', () => {
         projectSymbolIndex.updateFromSnapshot(parentSnapshot);
 
         const resolver = new CompletionCandidateResolver(
-            projectSymbolIndex,
             { inferObjectAccess: jest.fn() } as any,
             { discoverAt: jest.fn() } as any,
             { buildCandidates: jest.fn() } as any,
-            { refreshInheritedIndex: jest.fn() } as any
+            {
+                refreshInheritedIndex: jest.fn(),
+                getInheritedSymbols: jest.fn((uri: string) => projectSymbolIndex.getInheritedSymbols(uri)),
+                getRecord: jest.fn((uri: string) => projectSymbolIndex.getRecord(uri)),
+                getResolvedInheritTargets: jest.fn((uri: string) => projectSymbolIndex.getResolvedInheritTargets(uri)),
+                getDocumentForUri: jest.fn()
+            } as any
         );
 
         const resolved = await resolver.resolveCompletionCandidates(
@@ -184,7 +189,6 @@ describe('CompletionCandidateResolver', () => {
         }));
 
         const resolver = new CompletionCandidateResolver(
-            projectSymbolIndex,
             {
                 inferObjectAccess: jest.fn(async () => ({
                     inference: {
@@ -200,6 +204,9 @@ describe('CompletionCandidateResolver', () => {
             { buildCandidates: jest.fn() } as any,
             {
                 refreshInheritedIndex: jest.fn(),
+                getInheritedSymbols: jest.fn((uri: string) => projectSymbolIndex.getInheritedSymbols(uri)),
+                getRecord: jest.fn((uri: string) => projectSymbolIndex.getRecord(uri)),
+                getResolvedInheritTargets: jest.fn((uri: string) => projectSymbolIndex.getResolvedInheritTargets(uri)),
                 getDocumentForUri: jest.fn()
             } as any
         );
@@ -229,11 +236,16 @@ describe('CompletionCandidateResolver', () => {
             metadata: { sourceType: 'scoped-method' }
         }]);
         const resolver = new CompletionCandidateResolver(
-            new ProjectSymbolIndex(new InheritanceResolver(undefined as any, [workspaceRoot])),
             { inferObjectAccess } as any,
             { discoverAt } as any,
             { buildCandidates } as any,
-            { refreshInheritedIndex: jest.fn() } as any
+            {
+                refreshInheritedIndex: jest.fn(),
+                getInheritedSymbols: jest.fn(() => ({ chain: [], functions: [], types: [], unresolvedTargets: [] })),
+                getRecord: jest.fn(),
+                getResolvedInheritTargets: jest.fn(() => []),
+                getDocumentForUri: jest.fn()
+            } as any
         );
 
         const resolved = await resolver.resolveCompletionCandidates(
@@ -270,7 +282,6 @@ describe('CompletionCandidateResolver', () => {
         }));
 
         const resolver = new CompletionCandidateResolver(
-            projectSymbolIndex,
             {
                 inferObjectAccess: jest.fn(async () => ({
                     inference: {
@@ -283,6 +294,9 @@ describe('CompletionCandidateResolver', () => {
             { buildCandidates: jest.fn() } as any,
             {
                 refreshInheritedIndex: jest.fn(),
+                getInheritedSymbols: jest.fn((uri: string) => projectSymbolIndex.getInheritedSymbols(uri)),
+                getRecord: jest.fn((uri: string) => projectSymbolIndex.getRecord(uri)),
+                getResolvedInheritTargets: jest.fn((uri: string) => projectSymbolIndex.getResolvedInheritTargets(uri)),
                 getDocumentForUri: jest.fn()
             } as any
         );

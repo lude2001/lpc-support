@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import type { FileSymbolRecord, InheritedSymbolSet, ResolvedInheritTarget } from '../../../completion/types';
+import { normalizeLpcType } from '../../../ast/typeNormalization';
 import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
@@ -10,6 +12,9 @@ export type CompletionIndexAnalysisService = Pick<
     | 'getBestAvailableSnapshot'
     | 'getSemanticSnapshot'
     | 'getBestAvailableSemanticSnapshot'
+    | 'scheduleRefresh'
+    | 'clearCache'
+    | 'clearAllCache'
 >;
 
 export interface CompletionInheritanceReporter {
@@ -40,6 +45,76 @@ export class CompletionInheritedIndexService {
 
     public getDocumentForUri(uri: string): vscode.TextDocument | undefined {
         return this.getOpenDocument(uri) || this.createReadonlyDocumentFromUri(uri);
+    }
+
+    public getRecord(uri: string): FileSymbolRecord | undefined {
+        return this.projectSymbolIndex.getRecord(uri);
+    }
+
+    public getResolvedInheritTargets(uri: string): ResolvedInheritTarget[] {
+        return this.projectSymbolIndex.getResolvedInheritTargets(uri);
+    }
+
+    public getInheritedSymbols(uri: string): InheritedSymbolSet {
+        return this.projectSymbolIndex.getInheritedSymbols(uri);
+    }
+
+    public handleDocumentChange(document: vscode.TextDocument): void {
+        this.analysisService.scheduleRefresh(document, () => {
+            this.projectSymbolIndex.updateFromSnapshot(this.getBestAvailableIndexSnapshot(document));
+        });
+    }
+
+    public clearCache(document?: vscode.TextDocument): void {
+        if (document) {
+            this.analysisService.clearCache(document.uri.toString());
+            this.projectSymbolIndex.removeFile(document.uri.toString());
+            return;
+        }
+
+        this.analysisService.clearAllCache();
+        this.projectSymbolIndex.clear();
+    }
+
+    public async scanInheritance(document: vscode.TextDocument): Promise<void> {
+        this.inheritanceReporter.clear();
+        this.inheritanceReporter.show(true);
+        this.inheritanceReporter.appendLine(`正在分析文件: ${document.fileName}`);
+
+        try {
+            const snapshot = this.getIndexSnapshot(document, false);
+            this.projectSymbolIndex.updateFromSnapshot(snapshot);
+            this.refreshInheritedIndex(document);
+
+            const inheritedSymbols = this.projectSymbolIndex.getInheritedSymbols(document.uri.toString());
+            this.inheritanceReporter.appendLine('解析完成:');
+            this.inheritanceReporter.appendLine(`  - 当前文件导出函数: ${snapshot.exportedFunctions.length}`);
+            this.inheritanceReporter.appendLine(`  - 当前文件类型定义: ${snapshot.typeDefinitions.length}`);
+            this.inheritanceReporter.appendLine(`  - 继承链长度: ${inheritedSymbols.chain.length}`);
+
+            if (snapshot.inheritStatements.length > 0) {
+                this.inheritanceReporter.appendLine('\ninherit 列表:');
+                snapshot.inheritStatements.forEach(statement => {
+                    this.inheritanceReporter.appendLine(`  - ${statement.value} (${statement.expressionKind})`);
+                });
+            }
+
+            if (inheritedSymbols.functions.length > 0) {
+                this.inheritanceReporter.appendLine('\n继承函数:');
+                inheritedSymbols.functions.forEach(func => {
+                    this.inheritanceReporter.appendLine(`  - ${normalizeLpcType(func.returnType)} ${func.name}()`);
+                });
+            }
+
+            if (inheritedSymbols.unresolvedTargets.length > 0) {
+                this.inheritanceReporter.appendLine('\n未解析继承目标:');
+                inheritedSymbols.unresolvedTargets.forEach(target => {
+                    this.inheritanceReporter.appendLine(`  - ${target.rawValue}`);
+                });
+            }
+        } catch (error) {
+            this.inheritanceReporter.appendLine(`错误: ${error}`);
+        }
     }
 
     public getBestAvailableIndexSnapshot(document: vscode.TextDocument): IndexSnapshot {

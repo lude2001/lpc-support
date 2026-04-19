@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import { normalizeLpcType } from '../../../ast/typeNormalization';
-import { SymbolType } from '../../../ast/symbolTable';
 import { CompletionContextAnalyzer } from '../../../completion/completionContextAnalyzer';
 import { CompletionInstrumentation } from '../../../completion/completionInstrumentation';
 import { CompletionQueryEngine } from '../../../completion/completionQueryEngine';
@@ -8,20 +6,14 @@ import { InheritanceResolver } from '../../../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
 import {
     CompletionCandidate,
-    CompletionCandidateSourceType,
-    CompletionQueryResult,
-    FunctionSummary,
-    TypeDefinitionSummary
+    CompletionQueryResult
 } from '../../../completion/types';
-import { EfunDoc, EfunDocsManager } from '../../../efunDocs';
+import { EfunDocsManager } from '../../../efunDocs';
 import { MacroManager } from '../../../macroManager';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import { ScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
-import { ObjectInferenceResult } from '../../../objectInference/types';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
-import { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
-import { PathResolver } from '../../../utils/pathResolver';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageMarkupContent } from '../../contracts/LanguageMarkup';
@@ -31,6 +23,7 @@ import {
     CompletionInheritedIndexService,
     type CompletionInheritanceReporter
 } from './CompletionInheritedIndexService';
+import { CompletionItemPresentationService } from './CompletionItemPresentationService';
 import { ScopedMethodCompletionSupport } from './ScopedMethodCompletionSupport';
 
 export interface LanguageCompletionRequest {
@@ -117,6 +110,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     private readonly inheritanceReporter: CompletionInheritanceReporter;
     private readonly inheritedIndexService: CompletionInheritedIndexService;
     private readonly candidateResolver: CompletionCandidateResolver;
+    private readonly presentationService: CompletionItemPresentationService;
     private readonly scopedMethodDiscoveryService: ScopedMethodDiscoveryService;
     private readonly scopedCompletionSupport: ScopedMethodCompletionSupport;
 
@@ -149,11 +143,16 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
                     ?? (async (uri: string) => this.inheritedIndexService.getDocumentForUri(uri))
             });
         this.candidateResolver = new CompletionCandidateResolver(
-            this.projectSymbolIndex,
             this.objectInferenceService,
             this.scopedMethodDiscoveryService,
             this.scopedCompletionSupport,
             this.inheritedIndexService
+        );
+        this.presentationService = new CompletionItemPresentationService(
+            this.efunDocsManager,
+            this.macroManager,
+            this.projectSymbolIndex,
+            this.scopedCompletionSupport
         );
         this.queryEngine = new CompletionQueryEngine({
             snapshotProvider: this.analysisService,
@@ -203,7 +202,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
                 cancellation,
                 result
             );
-            const items = candidates.map(candidate => this.createCompletionItem(candidate, result, document));
+            const items = candidates.map(candidate => this.presentationService.createCompletionItem(candidate, result, document));
             trace.complete(result.context.kind, items.length);
             return { items, isIncomplete: false };
         } catch (error) {
@@ -231,38 +230,12 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
             documentVersion: data.documentVersion
         });
         const candidate = data.candidate;
-        const resolvedItem: LanguageCompletionItem = {
+        let resolvedItem: LanguageCompletionItem = {
             ...request.item
         };
 
         await trace.measureAsync('item-resolve', async () => {
-            if (candidate.insertText) {
-                resolvedItem.insertText = candidate.insertText;
-            }
-
-            switch (candidate.metadata.sourceType) {
-                case 'efun':
-                    this.applyEfunDocumentation(resolvedItem, this.efunDocsManager.getStandardDoc(candidate.label));
-                    break;
-                case 'simul-efun':
-                    this.applyEfunDocumentation(resolvedItem, this.efunDocsManager.getSimulatedDoc(candidate.label));
-                    break;
-                case 'macro':
-                    this.applyMacroDocumentation(resolvedItem, candidate.label);
-                    break;
-                case 'scoped-method':
-                    await this.scopedCompletionSupport.applyScopedDocumentation(resolvedItem, candidate);
-                    break;
-                case 'local':
-                case 'inherited':
-                case 'struct-member':
-                    this.applyStructuredDocumentation(resolvedItem, candidate);
-                    break;
-                case 'keyword':
-                default:
-                    this.applyKeywordDocumentation(resolvedItem, candidate);
-                    break;
-            }
+            resolvedItem = await this.presentationService.resolveCompletionItem(resolvedItem, candidate);
         }, { candidateCount: 1 });
 
         resolvedItem.data = {
@@ -274,20 +247,11 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     }
 
     public handleDocumentChange(document: vscode.TextDocument): void {
-        this.analysisService.scheduleRefresh(document, () => {
-            this.projectSymbolIndex.updateFromSnapshot(this.inheritedIndexService.getBestAvailableIndexSnapshot(document));
-        });
+        this.inheritedIndexService.handleDocumentChange(document);
     }
 
     public clearCache(document?: vscode.TextDocument): void {
-        if (document) {
-            this.analysisService.clearCache(document.uri.toString());
-            this.projectSymbolIndex.removeFile(document.uri.toString());
-            return;
-        }
-
-        this.analysisService.clearAllCache();
-        this.projectSymbolIndex.clear();
+        this.inheritedIndexService.clearCache(document);
     }
 
     public getInstrumentation(): CompletionInstrumentation {
@@ -299,235 +263,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     }
 
     public async scanInheritance(document: vscode.TextDocument): Promise<void> {
-        this.inheritanceReporter.clear();
-        this.inheritanceReporter.show(true);
-        this.inheritanceReporter.appendLine(`正在分析文件: ${document.fileName}`);
-
-        try {
-            const snapshot = this.inheritedIndexService.getIndexSnapshot(document, false);
-            this.projectSymbolIndex.updateFromSnapshot(snapshot);
-            this.inheritedIndexService.refreshInheritedIndex(document);
-
-            const inheritedSymbols = this.projectSymbolIndex.getInheritedSymbols(document.uri.toString());
-            this.inheritanceReporter.appendLine('解析完成:');
-            this.inheritanceReporter.appendLine(`  - 当前文件导出函数: ${snapshot.exportedFunctions.length}`);
-            this.inheritanceReporter.appendLine(`  - 当前文件类型定义: ${snapshot.typeDefinitions.length}`);
-            this.inheritanceReporter.appendLine(`  - 继承链长度: ${inheritedSymbols.chain.length}`);
-
-            if (snapshot.inheritStatements.length > 0) {
-                this.inheritanceReporter.appendLine('\ninherit 列表:');
-                snapshot.inheritStatements.forEach(statement => {
-                    this.inheritanceReporter.appendLine(`  - ${statement.value} (${statement.expressionKind})`);
-                });
-            }
-
-            if (inheritedSymbols.functions.length > 0) {
-                this.inheritanceReporter.appendLine('\n继承函数:');
-                inheritedSymbols.functions.forEach(func => {
-                    this.inheritanceReporter.appendLine(`  - ${normalizeLpcType(func.returnType)} ${func.name}()`);
-                });
-            }
-
-            if (inheritedSymbols.unresolvedTargets.length > 0) {
-                this.inheritanceReporter.appendLine('\n未解析继承目标:');
-                inheritedSymbols.unresolvedTargets.forEach(target => {
-                    this.inheritanceReporter.appendLine(`  - ${target.rawValue}`);
-                });
-            }
-        } catch (error) {
-            this.inheritanceReporter.appendLine(`错误: ${error}`);
-        }
+        await this.inheritedIndexService.scanInheritance(document);
     }
 
-    private createCompletionItem(
-        candidate: CompletionCandidate,
-        result: CompletionQueryResult,
-        document: vscode.TextDocument
-    ): LanguageCompletionItem {
-        return {
-            label: candidate.label,
-            kind: this.mapCompletionKind(candidate.kind),
-            detail: candidate.detail,
-            sortText: `${this.getSortPrefix(candidate.sortGroup)}_${this.getCandidateSortBucket(candidate)}_${candidate.label}`,
-            data: {
-                candidate,
-                context: result.context,
-                documentUri: document.uri.toString(),
-                documentVersion: document.version,
-                resolved: false
-            }
-        };
-    }
-
-    private mapCompletionKind(kind: vscode.CompletionItemKind): string {
-        switch (kind) {
-            case vscode.CompletionItemKind.Method:
-                return 'method';
-            case vscode.CompletionItemKind.Function:
-                return 'function';
-            case vscode.CompletionItemKind.Struct:
-                return 'struct';
-            case vscode.CompletionItemKind.Class:
-                return 'class';
-            case vscode.CompletionItemKind.Field:
-                return 'field';
-            case vscode.CompletionItemKind.Variable:
-                return 'variable';
-            case vscode.CompletionItemKind.Keyword:
-                return 'keyword';
-            default:
-                return 'text';
-        }
-    }
-
-    private getSortPrefix(group: CompletionCandidate['sortGroup']): string {
-        switch (group) {
-            case 'scope': return '0';
-            case 'type-member': return '1';
-            case 'inherited': return '2';
-            case 'builtin': return '3';
-            case 'keyword': return '4';
-            default: return '9';
-        }
-    }
-
-    private applyEfunDocumentation(item: LanguageCompletionItem, doc?: EfunDoc): void {
-        if (!doc) {
-            return;
-        }
-
-        const sections: string[] = [];
-        if (doc.syntax) {
-            sections.push(`\`\`\`lpc\n${doc.syntax}\n\`\`\``);
-        }
-        if (doc.returnType) {
-            sections.push(`**Return Type:** \`${doc.returnType}\``);
-        }
-        if (doc.description) {
-            sections.push(doc.description);
-        }
-        if (doc.example) {
-            sections.push(`**Example**\n\`\`\`lpc\n${doc.example}\n\`\`\``);
-        }
-
-        item.documentation = {
-            kind: 'markdown',
-            value: sections.join('\n\n')
-        };
-        item.detail = doc.returnType ? `${doc.returnType} ${item.label}` : item.detail;
-        item.insertText = `${item.label}($1)`;
-    }
-
-    private applyMacroDocumentation(item: LanguageCompletionItem, macroName: string): void {
-        const macro = this.macroManager.getMacro(macroName);
-        if (!macro) {
-            return;
-        }
-
-        const documentation = this.macroManager.getMacroHoverContent(macro);
-        if (documentation) {
-            item.documentation = {
-                kind: 'markdown',
-                value: documentation.value
-            };
-        }
-    }
-
-    private applyStructuredDocumentation(item: LanguageCompletionItem, candidate: CompletionCandidate): void {
-        const sections: string[] = [];
-        const record = candidate.metadata.sourceUri ? this.projectSymbolIndex.getRecord(candidate.metadata.sourceUri) : undefined;
-        const symbol = candidate.metadata.symbol;
-        const exportedFunction = record?.exportedFunctions.find(func => func.name === candidate.label);
-
-        if (symbol?.definition) {
-            sections.push(`\`\`\`lpc\n${symbol.definition}\n\`\`\``);
-        } else if (exportedFunction?.definition) {
-            sections.push(`\`\`\`lpc\n${exportedFunction.definition}\n\`\`\``);
-        } else if (candidate.detail) {
-            sections.push(`\`\`\`lpc\n${candidate.detail}\n\`\`\``);
-        }
-
-        if (symbol?.documentation) {
-            sections.push(symbol.documentation);
-        } else if (exportedFunction?.documentation) {
-            sections.push(exportedFunction.documentation);
-        }
-
-        if (candidate.metadata.sourceType === 'inherited' && candidate.metadata.sourceUri) {
-            sections.push(`*Inherited from* \`${vscode.Uri.parse(candidate.metadata.sourceUri).fsPath}\``);
-        }
-
-        if (candidate.metadata.sourceType === 'struct-member' && candidate.metadata.sourceUri) {
-            const member = this.findMemberDefinition(candidate.label, record?.typeDefinitions || []);
-            if (member?.definition) {
-                sections.push(`**Member Definition**\n\`\`\`lpc\n${member.definition}\n\`\`\``);
-            }
-        }
-
-        if (sections.length > 0) {
-            item.documentation = {
-                kind: 'markdown',
-                value: sections.join('\n\n')
-            };
-        }
-
-        if (symbol?.type === SymbolType.FUNCTION && symbol.parameters && symbol.parameters.length > 0) {
-            item.insertText = this.buildFunctionSnippet(symbol.name, symbol.parameters.map(parameter => parameter.name));
-        }
-
-        if ((candidate.metadata.sourceType === 'local' || candidate.metadata.sourceType === 'inherited') && exportedFunction) {
-            item.insertText = this.buildFunctionSnippet(
-                exportedFunction.name,
-                exportedFunction.parameters.map(parameter => parameter.name)
-            );
-        }
-    }
-
-    private getCandidateSortBucket(candidate: CompletionCandidate): string {
-        if (candidate.key.startsWith('object-member:shared:')) {
-            return '0';
-        }
-
-        if (candidate.key.startsWith('object-member:specific:')) {
-            return '1';
-        }
-
-        return '9';
-    }
-
-    private applyKeywordDocumentation(item: LanguageCompletionItem, candidate: CompletionCandidate): void {
-        item.documentation = {
-            kind: 'markdown',
-            value: `\`\`\`lpc\n${candidate.label}\n\`\`\`\n\n${candidate.detail}`
-        };
-
-        if (candidate.label === 'new') {
-            item.insertText = 'new(${1:struct_type}${2:, ${3:field1}: ${4:value1}})';
-        }
-    }
-
-    private buildFunctionSnippet(name: string, parameterNames: string[]): string {
-        if (parameterNames.length === 0) {
-            return `${name}()`;
-        }
-
-        const params = parameterNames
-            .map((parameterName, index) => `\${${index + 1}:${parameterName}}`)
-            .join(', ');
-        return `${name}(${params})`;
-    }
-
-    private findMemberDefinition(
-        memberName: string,
-        definitions: TypeDefinitionSummary[]
-    ): TypeDefinitionSummary['members'][number] | undefined {
-        for (const definition of definitions) {
-            const member = definition.members.find(candidate => candidate.name === memberName);
-            if (member) {
-                return member;
-            }
-        }
-
-        return undefined;
-    }
 }

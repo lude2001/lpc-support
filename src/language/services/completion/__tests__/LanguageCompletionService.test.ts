@@ -104,7 +104,6 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 scopedDocumentLoader
             }
         ) as any;
-        const applyStructuredDocumentation = jest.spyOn(service, 'applyStructuredDocumentation');
 
         const resolved = await service.resolveCompletionItem({
             context: {
@@ -143,9 +142,9 @@ describe('LanguageCompletionService scoped completion resolve', () => {
 
         expect(scopedDocumentLoader).toHaveBeenCalledWith(targetDocument.uri.toString());
         expect(documentationService.getDocForDeclaration).toHaveBeenCalledWith(targetDocument, `${targetDocument.uri.toString()}#3:0-5:1`);
-        expect(applyStructuredDocumentation).not.toHaveBeenCalled();
         expect(resolved.documentation?.value ?? '').toContain('object create()');
         expect(resolved.documentation?.value ?? '').toContain('Base room create');
+        expect(resolved.documentation?.value ?? '').not.toContain('scoped detail sentinel');
     });
 
     test('scoped completion resolveCompletionItem does not fabricate docs for ambiguous merged candidates', async () => {
@@ -169,7 +168,6 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 scopedDocumentLoader
             }
         ) as any;
-        const applyStructuredDocumentation = jest.spyOn(service, 'applyStructuredDocumentation');
 
         const resolved = await service.resolveCompletionItem({
             context: {
@@ -205,7 +203,6 @@ describe('LanguageCompletionService scoped completion resolve', () => {
 
         expect(scopedDocumentLoader).not.toHaveBeenCalled();
         expect(documentationService.getDocForDeclaration).not.toHaveBeenCalled();
-        expect(applyStructuredDocumentation).not.toHaveBeenCalled();
         expect(resolved.documentation).toBeUndefined();
     });
 });
