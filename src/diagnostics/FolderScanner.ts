@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { defaultTextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 
 type AnalyzeDocument = (
     document: vscode.TextDocument,
@@ -60,7 +61,7 @@ export class FolderScanner {
                         });
 
                         try {
-                            const document = await vscode.workspace.openTextDocument(file);
+                            const document = await defaultTextDocumentHost.openTextDocument(file);
                             const fileDiagnostics = await this.analyzeDocument(document, false);
 
                             if (fileDiagnostics.length > 0) {

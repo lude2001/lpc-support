@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { Services } from '../core/ServiceKeys';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { FunctionDocPanel } from '../functionDocPanel';
+import { defaultTextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { getLpcprjStartCommand, hasLpcprjCommand } from '../utils/lpcprj';
 
 type CompilationMode = 'local' | 'remote';
@@ -92,7 +93,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         const fileUri = vscode.Uri.file(filePath);
 
         try {
-            const document = await vscode.workspace.openTextDocument(fileUri);
+            const document = await defaultTextDocumentHost.openTextDocument(fileUri);
             const editor = await vscode.window.showTextDocument(document);
             const line = errorItem.line - 1;
             const range = new vscode.Range(line, 0, line, 100);

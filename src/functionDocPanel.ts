@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EfunDocsManager } from './efunDocs';
 import type { EfunDoc } from './efun/types';
+import { defaultTextDocumentHost } from './language/shared/WorkspaceDocumentPathSupport';
 import { FunctionInfo } from './types/functionInfo';
 
 type FunctionDocSourceGroup = {
@@ -264,7 +265,7 @@ export class FunctionDocPanel {
     }
 
     private async gotoDefinition(filePath: string, line: number) {
-        const document = await vscode.workspace.openTextDocument(filePath);
+        const document = await defaultTextDocumentHost.openTextDocument(filePath);
         const editor = await vscode.window.showTextDocument(document, { preview: false });
         const pos = new vscode.Position(line, 0);
         editor.selection = new vscode.Selection(pos, pos);
@@ -273,7 +274,7 @@ export class FunctionDocPanel {
 
     private async generateJavadocForFunction(filePath: string, line: number, _functionName: string) {
         try {
-            const document = await vscode.workspace.openTextDocument(filePath);
+            const document = await defaultTextDocumentHost.openTextDocument(filePath);
             const editor = await vscode.window.showTextDocument(document, { preview: false });
             const position = new vscode.Position(line, 0);
             editor.selection = new vscode.Selection(position, position);

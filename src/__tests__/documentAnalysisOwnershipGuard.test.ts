@@ -241,6 +241,18 @@ describe('document analysis ownership guards', () => {
         expect(trackerSource).not.toContain('vscode.workspace.openTextDocument(');
     });
 
+    test('direct workspace document opens remain only on the shared owner and example file', () => {
+        const directOpenCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('vscode.workspace.openTextDocument('))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(directOpenCallSites).toEqual([
+            'src/language/shared/WorkspaceDocumentPathSupport.ts',
+            'src/utils/pathResolver.example.ts'
+        ]);
+    });
+
     test('LanguageCodeActionService stays a coordinator without inline quick-fix builders or text helpers', () => {
         const codeActionServiceSource = fs.readFileSync(
             path.join(srcRoot, 'language', 'services', 'codeActions', 'LanguageCodeActionService.ts'),
