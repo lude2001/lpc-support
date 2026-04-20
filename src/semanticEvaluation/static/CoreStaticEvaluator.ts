@@ -8,17 +8,9 @@ import { StatementTransfer } from './StatementTransfer';
 
 export class CoreStaticEvaluator {
     private readonly expressionEvaluator: ExpressionEvaluator;
-    private readonly statementTransfer: StatementTransfer;
-    private remainingStatements: number;
 
     public constructor(private readonly context: StaticEvaluationContext) {
-        this.remainingStatements = context.budget.maxStatements;
         this.expressionEvaluator = new ExpressionEvaluator(context);
-        this.statementTransfer = new StatementTransfer(
-            context,
-            this.expressionEvaluator,
-            () => this.consumeStatementBudget()
-        );
     }
 
     public evaluateFunction(functionNode: SyntaxNode): SemanticValue {
@@ -36,7 +28,21 @@ export class CoreStaticEvaluator {
             environment: this.context.initialEnvironment
         })
     ): SemanticValue {
-        const finalState = this.statementTransfer.executeBlock(blockNode, initialState);
+        let remainingStatements = this.context.budget.maxStatements;
+        const statementTransfer = new StatementTransfer(
+            this.context,
+            this.expressionEvaluator,
+            () => {
+                if (remainingStatements <= 0) {
+                    return false;
+                }
+
+                remainingStatements -= 1;
+                return true;
+            }
+        );
+
+        const finalState = statementTransfer.executeBlock(blockNode, initialState);
         if (!finalState) {
             return unknownValue();
         }
@@ -44,14 +50,5 @@ export class CoreStaticEvaluator {
         return finalState.returns.values.length > 0
             ? finalState.returns.result
             : unknownValue();
-    }
-
-    private consumeStatementBudget(): boolean {
-        if (this.remainingStatements <= 0) {
-            return false;
-        }
-
-        this.remainingStatements -= 1;
-        return true;
     }
 }

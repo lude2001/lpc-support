@@ -155,6 +155,30 @@ function evaluateFunction(
     return evaluator.evaluateFunction(functionNode);
 }
 
+function createFunctionEvaluator(
+    source: string,
+    options: {
+        bindings?: Record<string, unknown>;
+        budget?: Parameters<typeof createStaticEvaluationContext>[0]['budget'];
+    } = {}
+) {
+    const functionNode = getFunctionDeclaration(source);
+    const context = createStaticEvaluationContext({
+        metadata: {
+            documentUri: '/virtual/semantic-eval.c',
+            functionName: functionNode.name ?? 'demo',
+            callDepth: 0
+        },
+        budget: options.budget,
+        initialEnvironment: createValueEnvironment(options.bindings as Record<string, any> | undefined)
+    });
+
+    return {
+        functionNode,
+        evaluator: new CoreStaticEvaluator(context)
+    };
+}
+
 describe('ExpressionEvaluator', () => {
     afterEach(() => {
         clearGlobalParsedDocumentService();
@@ -330,6 +354,20 @@ describe('ExpressionEvaluator', () => {
         expect(result).toEqual(unknownValue());
     });
 
+    test('downgrades unsupported loops to unknown even with an empty environment', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    while (flag) {',
+            '    }',
+            '    return "login";',
+            '}'
+        ].join('\n'), {
+            bindings: { flag: unknownValue() }
+        });
+
+        expect(result).toEqual(unknownValue());
+    });
+
     test('surfaces budget exhaustion as unknown instead of throwing', () => {
         const result = evaluateFunction([
             'mixed demo() {',
@@ -342,5 +380,20 @@ describe('ExpressionEvaluator', () => {
         });
 
         expect(result).toEqual(unknownValue());
+    });
+
+    test('does not leak exhausted statement budget across repeated evaluator calls', () => {
+        const { evaluator, functionNode } = createFunctionEvaluator([
+            'mixed demo() {',
+            '    string model;',
+            '    model = "login";',
+            '    return model;',
+            '}'
+        ].join('\n'), {
+            budget: { maxStatements: 3 }
+        });
+
+        expect(evaluator.evaluateFunction(functionNode)).toEqual(literalValue('login'));
+        expect(evaluator.evaluateFunction(functionNode)).toEqual(literalValue('login'));
     });
 });

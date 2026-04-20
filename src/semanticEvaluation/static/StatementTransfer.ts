@@ -95,9 +95,9 @@ export class StatementTransfer {
             case SyntaxKind.DoWhileStatement:
             case SyntaxKind.ForStatement:
             case SyntaxKind.ForeachStatement:
-                return this.downgradeEnvironmentToUnknown(state);
+                return this.terminateWithUnknownBarrier(state);
             default:
-                return this.downgradeEnvironmentToUnknown(state);
+                return this.terminateWithUnknownBarrier(state);
         }
     }
 
@@ -160,7 +160,7 @@ export class StatementTransfer {
         const right = node.children[1];
 
         if (operator !== '=' || left?.kind !== SyntaxKind.Identifier || !left.name || !right) {
-            return this.downgradeEnvironmentToUnknown(state);
+            return this.terminateWithUnknownBarrier(state);
         }
 
         const rightValue = this.expressionEvaluator.evaluate(right, state);
@@ -217,13 +217,9 @@ export class StatementTransfer {
         };
     }
 
-    private downgradeEnvironmentToUnknown(
+    private terminateWithUnknownBarrier(
         state: StaticEvaluationState
     ): StaticEvaluationState {
-        if (state.environment.bindings.size === 0) {
-            return state;
-        }
-
         const downgradedBindings = new Map<string, ReturnType<typeof unknownValue>>();
         for (const [symbolName] of state.environment.bindings.entries()) {
             downgradedBindings.set(symbolName, unknownValue());
@@ -231,7 +227,11 @@ export class StatementTransfer {
 
         return createStaticEvaluationState({
             environment: createValueEnvironment(downgradedBindings),
-            controlFlow: state.controlFlow,
+            controlFlow: createControlFlowState({
+                reachable: false,
+                hasReturned: false,
+                termination: 'terminated'
+            }),
             returns: state.returns
         });
     }
