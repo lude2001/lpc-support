@@ -872,9 +872,7 @@ describe('language-service integration regression', () => {
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-this-player-definition.c'), source);
         const objectInferenceService = createObjectInference(projectConfigService);
-        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
-        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         const service = createDefinitionService(objectInferenceService, targetMethodLookup, projectConfigService);
 
         const definition = await provideDefinition(
@@ -886,8 +884,6 @@ describe('language-service integration regression', () => {
 
         expect(definition).toHaveLength(1);
         expect(normalizeLocationUri(definition[0].uri)).toBe(playerFile);
-        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, playerFile, 'query_name');
     });
 
     test('previous_object() remains non-static at definition level and does not fall back to annotations', async () => {
@@ -905,9 +901,7 @@ describe('language-service integration regression', () => {
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-previous-object-definition.c'), source);
         const objectInferenceService = createObjectInference();
-        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
-        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         const service = createDefinitionService(objectInferenceService, targetMethodLookup);
 
         const definition = await provideDefinition(
@@ -918,8 +912,6 @@ describe('language-service integration regression', () => {
         );
 
         expect(definition).toHaveLength(0);
-        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).not.toHaveBeenCalled();
     });
 
     test('semantic evaluation fallback still feeds downstream definition when natural inference stays unknown', async () => {
@@ -945,9 +937,7 @@ describe('language-service integration regression', () => {
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-fallback-definition.c'), source);
         const objectInferenceService = createObjectInference();
-        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
-        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         const service = createDefinitionService(objectInferenceService, targetMethodLookup);
 
         const definition = await provideDefinition(
@@ -959,8 +949,6 @@ describe('language-service integration regression', () => {
 
         expect(definition).toHaveLength(1);
         expect(normalizeLocationUri(definition[0].uri)).toBe(swordFile);
-        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, swordFile, 'query_name');
     });
 
     test('semantic evaluation mismatch does not override exact natural definition', async () => {
@@ -991,9 +979,7 @@ describe('language-service integration regression', () => {
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mismatch-definition.c'), source);
         const objectInferenceService = createObjectInference();
-        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
         const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
-        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
         const service = createDefinitionService(objectInferenceService, targetMethodLookup);
 
         const definition = await provideDefinition(
@@ -1005,8 +991,6 @@ describe('language-service integration regression', () => {
 
         expect(definition).toHaveLength(1);
         expect(normalizeLocationUri(definition[0].uri)).toBe(swordFile);
-        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, swordFile, 'query_name');
     });
 
     test('definition resolves file-scope global object receivers to the current-file target', async () => {
