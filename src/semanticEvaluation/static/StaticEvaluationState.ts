@@ -114,14 +114,17 @@ export function createStaticEvaluationState(
 }
 
 function joinValueEnvironments(states: readonly StaticEvaluationState[]): ValueEnvironment {
-    if (states.length === 0) {
+    const liveStates = states.filter((state) => !state.controlFlow.hasReturned);
+    const contributingStates = liveStates.length > 0 ? liveStates : states;
+
+    if (contributingStates.length === 0) {
         return createValueEnvironment();
     }
 
     const valuesBySymbol = new Map<string, SemanticValue[]>();
     const symbolCounts = new Map<string, number>();
 
-    for (const state of states) {
+    for (const state of contributingStates) {
         for (const [symbolName, value] of state.environment.bindings.entries()) {
             const existingValues = valuesBySymbol.get(symbolName) ?? [];
             existingValues.push(value);
@@ -132,7 +135,7 @@ function joinValueEnvironments(states: readonly StaticEvaluationState[]): ValueE
 
     const joinedBindings = new Map<string, SemanticValue>();
     for (const [symbolName, values] of valuesBySymbol.entries()) {
-        if (symbolCounts.get(symbolName) !== states.length) {
+        if (symbolCounts.get(symbolName) !== contributingStates.length) {
             continue;
         }
 

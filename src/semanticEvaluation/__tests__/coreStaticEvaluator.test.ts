@@ -328,6 +328,27 @@ describe('ExpressionEvaluator', () => {
         ]));
     });
 
+    test('preserves the continuing branch return after a partial-return join', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    string ob;',
+            '    if (flag) {',
+            '        return "sword";',
+            '    } else {',
+            '        ob = "shield";',
+            '    }',
+            '    return ob;',
+            '}'
+        ].join('\n'), {
+            bindings: { flag: unknownValue() }
+        });
+
+        expect(result).toEqual(unionValue([
+            literalValue('sword'),
+            literalValue('shield')
+        ]));
+    });
+
     test('returns through a local variable', () => {
         const result = evaluateFunction([
             'mixed demo() {',

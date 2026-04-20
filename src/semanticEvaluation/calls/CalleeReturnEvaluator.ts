@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
+import type { WorkspaceDocumentPathSupport } from '../../language/shared/WorkspaceDocumentPathSupport';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import type { SemanticValue } from '../types';
 import { unknownValue } from '../valueFactories';
 import { CoreStaticEvaluator } from '../static/CoreStaticEvaluator';
 import {
+    createResolvedEnvironmentCallKey,
     createStaticEvaluationContext,
     type StaticEvaluationContext
 } from '../static/StaticEvaluationContext';
@@ -13,10 +15,13 @@ import {
     type StaticEvaluationState
 } from '../static/StaticEvaluationState';
 import { ExpressionEvaluator } from '../static/ExpressionEvaluator';
-import type { CallTargetResolver } from './CallTargetResolver';
+import type { EnvironmentSemanticRegistry } from '../environment/EnvironmentSemanticRegistry';
+import type { CallTargetResolver, ResolvedCallTarget } from './CallTargetResolver';
 
 export interface CalleeReturnEvaluatorOptions {
     callTargetResolver?: Pick<CallTargetResolver, 'resolveCallTarget'>;
+    environmentRegistry?: Pick<EnvironmentSemanticRegistry, 'evaluate'>;
+    pathSupport?: Pick<WorkspaceDocumentPathSupport, 'getWorkspaceFolderRoot' | 'resolveObjectFilePath'>;
 }
 
 function collectDirectIdentifierCalls(root: SyntaxNode): SyntaxNode[] {
@@ -45,6 +50,8 @@ function getArgumentExpressions(callExpression: SyntaxNode): readonly SyntaxNode
 
 export class CalleeReturnEvaluator {
     private readonly callTargetResolver: Pick<CallTargetResolver, 'resolveCallTarget'>;
+    private readonly environmentRegistry?: Pick<EnvironmentSemanticRegistry, 'evaluate'>;
+    private readonly pathSupport?: Pick<WorkspaceDocumentPathSupport, 'getWorkspaceFolderRoot' | 'resolveObjectFilePath'>;
 
     public constructor(options: CalleeReturnEvaluatorOptions) {
         if (!options.callTargetResolver) {
@@ -52,6 +59,8 @@ export class CalleeReturnEvaluator {
         }
 
         this.callTargetResolver = options.callTargetResolver;
+        this.environmentRegistry = options.environmentRegistry;
+        this.pathSupport = options.pathSupport;
     }
 
     public async evaluateCallExpression(
@@ -75,22 +84,15 @@ export class CalleeReturnEvaluator {
             return unknownValue();
         }
 
-        const resolvedDirectCalls = new Map<string, typeof target>();
-        for (const directCall of collectDirectIdentifierCalls(target.functionNode)) {
-            const directCallee = directCall.children[0];
-            if (directCallee?.kind !== SyntaxKind.Identifier || !directCallee.name) {
-                continue;
-            }
-
-            if (resolvedDirectCalls.has(directCallee.name)) {
-                continue;
-            }
-
-            const nestedTarget = await this.callTargetResolver.resolveCallTarget(target.document, directCall);
-            if (nestedTarget) {
-                resolvedDirectCalls.set(directCallee.name, nestedTarget);
-            }
-        }
+        const resolvedDirectCalls = new Map<string, ResolvedCallTarget>();
+        const resolvedEnvironmentCalls = new Map(callerContext.resolvedEnvironmentCalls ?? []);
+        await this.collectResolvedCallSemantics(
+            target,
+            resolvedDirectCalls,
+            resolvedEnvironmentCalls,
+            new Set<string>(),
+            callerContext.budget.maxCallDepth - nextCallDepth
+        );
 
         const callerExpressionEvaluator = new ExpressionEvaluator(callerContext);
         const argumentValues = getArgumentExpressions(callExpression).map((argument) =>
@@ -112,6 +114,7 @@ export class CalleeReturnEvaluator {
             semantic: target.semantic,
             functionSummary: target.functionSummary,
             resolvedDirectCalls,
+            resolvedEnvironmentCalls,
             budget: callerContext.budget,
             metadata: {
                 documentUri: target.document.uri.toString(),
@@ -122,5 +125,81 @@ export class CalleeReturnEvaluator {
         });
 
         return new CoreStaticEvaluator(calleeContext).evaluateFunction(target.functionNode);
+    }
+
+    private async collectResolvedCallSemantics(
+        target: ResolvedCallTarget,
+        resolvedDirectCalls: Map<string, ResolvedCallTarget>,
+        resolvedEnvironmentCalls: Map<string, SemanticValue>,
+        visitedFunctions: Set<string>,
+        remainingDepth: number
+    ): Promise<void> {
+        const targetKey = `${target.document.uri.toString()}|${target.functionSummary.name}`;
+        if (visitedFunctions.has(targetKey)) {
+            return;
+        }
+
+        visitedFunctions.add(targetKey);
+
+        for (const directCall of collectDirectIdentifierCalls(target.functionNode)) {
+            const directCallee = directCall.children[0];
+            if (directCallee?.kind !== SyntaxKind.Identifier || !directCallee.name) {
+                continue;
+            }
+
+            const argumentCount = getArgumentExpressions(directCall).length;
+            const environmentCallKey = createResolvedEnvironmentCallKey(
+                target.document.uri.toString(),
+                directCallee.name,
+                argumentCount
+            );
+            if (!resolvedEnvironmentCalls.has(environmentCallKey)) {
+                const environmentValue = await this.evaluateEnvironmentCall(
+                    target.document,
+                    directCallee.name,
+                    argumentCount
+                );
+                if (environmentValue) {
+                    resolvedEnvironmentCalls.set(environmentCallKey, environmentValue);
+                }
+            }
+
+            const nestedTarget = await this.callTargetResolver.resolveCallTarget(target.document, directCall);
+            if (!nestedTarget) {
+                continue;
+            }
+
+            if (!resolvedDirectCalls.has(directCallee.name)) {
+                resolvedDirectCalls.set(directCallee.name, nestedTarget);
+            }
+
+            if (remainingDepth > 0) {
+                await this.collectResolvedCallSemantics(
+                    nestedTarget,
+                    resolvedDirectCalls,
+                    resolvedEnvironmentCalls,
+                    visitedFunctions,
+                    remainingDepth - 1
+                );
+            }
+        }
+    }
+
+    private async evaluateEnvironmentCall(
+        document: vscode.TextDocument,
+        calleeName: string,
+        argumentCount: number
+    ): Promise<SemanticValue | undefined> {
+        if (!this.environmentRegistry || !this.pathSupport) {
+            return undefined;
+        }
+
+        return this.environmentRegistry.evaluate({
+            document,
+            calleeName,
+            argumentCount,
+            workspaceRoot: this.pathSupport.getWorkspaceFolderRoot(document),
+            pathSupport: this.pathSupport
+        });
     }
 }

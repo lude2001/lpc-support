@@ -111,6 +111,7 @@ export class CoreStaticEvaluator {
             semantic: resolvedTarget?.semantic ?? this.context.semantic,
             functionSummary: targetSummary,
             resolvedDirectCalls: undefined,
+            resolvedEnvironmentCalls: this.context.resolvedEnvironmentCalls,
             metadata: {
                 ...this.context.metadata,
                 documentUri: resolvedTarget?.document.uri.toString() ?? this.context.metadata.documentUri,

@@ -8,7 +8,10 @@ import {
     unknownValue
 } from '../valueFactories';
 import { joinSemanticValues } from '../valueJoin';
-import type { StaticEvaluationContext } from './StaticEvaluationContext';
+import {
+    createResolvedEnvironmentCallKey,
+    type StaticEvaluationContext
+} from './StaticEvaluationContext';
 import {
     getEnvironmentValue,
     type StaticEvaluationState
@@ -299,6 +302,31 @@ export class ExpressionEvaluator {
                 const targetValue = this.evaluate(firstArgument, state);
                 return this.asObjectSourceValue(targetValue);
             }
+
+            const naturalValue = this.options.evaluateDirectCall
+                ? this.options.evaluateDirectCall(node, state)
+                : unknownValue();
+            if (naturalValue.kind !== 'unknown') {
+                return naturalValue;
+            }
+
+            if (!callee.name) {
+                return naturalValue;
+            }
+
+            const argumentCount = node.children.find((child) => child.kind === SyntaxKind.ArgumentList)?.children.length ?? 0;
+            const resolvedEnvironmentValue = this.context.resolvedEnvironmentCalls?.get(
+                createResolvedEnvironmentCallKey(
+                    this.context.metadata.documentUri,
+                    callee.name,
+                    argumentCount
+                )
+            );
+            if (resolvedEnvironmentValue) {
+                return resolvedEnvironmentValue;
+            }
+
+            return naturalValue;
         }
 
         return this.options.evaluateDirectCall

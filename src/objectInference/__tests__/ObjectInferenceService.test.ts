@@ -353,6 +353,28 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('semantic evaluation previous_object with arguments remains terminal before return-objects fallback', async () => {
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object previous_object(int depth);',
+            '',
+            'void demo() {',
+            '    previous_object(1)->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-previous-object-arity-terminal.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'query_name'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            reason: 'non-static',
+            candidates: []
+        });
+    });
+
     test('load_object("/adm/daemons/combat_d") resolves to fixture file', async () => {
         const source = [
             'void demo() {',

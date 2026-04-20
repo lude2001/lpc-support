@@ -2,6 +2,7 @@ import type { ResolvedCallTarget } from '../calls/CallTargetResolver';
 import type { FunctionSummary } from '../../semantic/documentSemanticTypes';
 import type { SemanticSnapshot } from '../../semantic/semanticSnapshot';
 import type { SyntaxDocument } from '../../syntax/types';
+import type { SemanticValue } from '../types';
 import {
     createValueEnvironment,
     ValueEnvironment
@@ -25,6 +26,7 @@ export interface StaticEvaluationContext {
     semantic?: SemanticSnapshot;
     functionSummary?: FunctionSummary;
     resolvedDirectCalls?: ReadonlyMap<string, ResolvedCallTarget>;
+    resolvedEnvironmentCalls?: ReadonlyMap<string, SemanticValue>;
     budget: StaticEvaluationBudget;
     metadata: StaticEvaluationMetadata;
     initialEnvironment: ValueEnvironment;
@@ -35,9 +37,18 @@ export interface CreateStaticEvaluationContextOptions {
     semantic?: SemanticSnapshot;
     functionSummary?: FunctionSummary;
     resolvedDirectCalls?: ReadonlyMap<string, ResolvedCallTarget>;
+    resolvedEnvironmentCalls?: ReadonlyMap<string, SemanticValue>;
     budget?: Partial<StaticEvaluationBudget>;
     metadata: StaticEvaluationMetadata;
     initialEnvironment?: ValueEnvironment;
+}
+
+export function createResolvedEnvironmentCallKey(
+    documentUri: string,
+    calleeName: string,
+    argumentCount: number
+): string {
+    return `${documentUri}|${calleeName}|${argumentCount}`;
 }
 
 const DEFAULT_STATIC_EVALUATION_BUDGET: StaticEvaluationBudget = {
@@ -64,6 +75,7 @@ export function createStaticEvaluationContext(
         semantic: options.semantic,
         functionSummary: options.functionSummary,
         resolvedDirectCalls: options.resolvedDirectCalls,
+        resolvedEnvironmentCalls: options.resolvedEnvironmentCalls,
         budget: createStaticEvaluationBudget(options.budget),
         metadata: options.metadata,
         initialEnvironment: options.initialEnvironment ?? createValueEnvironment()

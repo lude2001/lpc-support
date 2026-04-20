@@ -243,24 +243,105 @@ export class SemanticEvaluationService {
             environment: context.initialEnvironment
         });
 
-        for (const child of blockNode.children) {
-            if (!currentState.controlFlow.reachable || currentState.controlFlow.hasReturned) {
+        return this.buildStateBeforeCallWithinContainer(
+            blockNode,
+            callExpression,
+            currentState,
+            statementTransfer
+        );
+    }
+
+    private buildStateBeforeCallWithinContainer(
+        containerNode: SyntaxNode,
+        callExpression: SyntaxNode,
+        currentState: StaticEvaluationState,
+        statementTransfer: StatementTransfer
+    ): StaticEvaluationState | undefined {
+        let state = currentState;
+
+        for (const child of containerNode.children) {
+            if (!state.controlFlow.reachable || state.controlFlow.hasReturned) {
                 break;
             }
 
-            if (child.range.contains(callExpression.range.start)) {
-                return currentState;
+            if (!child.range.contains(callExpression.range.start)) {
+                const nextState = statementTransfer.transfer(child, state);
+                if (!nextState) {
+                    return undefined;
+                }
+
+                state = nextState;
+                continue;
             }
 
-            const nextState = statementTransfer.transfer(child, currentState);
-            if (!nextState) {
+            if (child.kind === SyntaxKind.Block) {
+                return this.buildStateBeforeCallWithinContainer(
+                    child,
+                    callExpression,
+                    state,
+                    statementTransfer
+                );
+            }
+
+            if (child.kind === SyntaxKind.IfStatement) {
+                const branch = child.children.slice(1, 3).find((entry) =>
+                    entry.range.contains(callExpression.range.start)
+                );
+                if (branch) {
+                    return this.buildStateBeforeCallWithinNestedIfBranch(
+                        branch,
+                        callExpression,
+                        state,
+                        statementTransfer
+                    );
+                }
+            }
+
+            switch (child.kind) {
+                case SyntaxKind.WhileStatement:
+                case SyntaxKind.DoWhileStatement:
+                case SyntaxKind.ForStatement:
+                case SyntaxKind.ForeachStatement:
+                case SyntaxKind.SwitchStatement:
+                case SyntaxKind.CaseClause:
+                case SyntaxKind.DefaultClause:
+                    return undefined;
+                default:
+                    return state;
+            }
+        }
+
+        return state;
+    }
+
+    private buildStateBeforeCallWithinNestedIfBranch(
+        branchNode: SyntaxNode,
+        callExpression: SyntaxNode,
+        currentState: StaticEvaluationState,
+        statementTransfer: StatementTransfer
+    ): StaticEvaluationState | undefined {
+        if (branchNode.kind === SyntaxKind.IfStatement) {
+            const nestedBranch = branchNode.children.slice(1, 3).find((entry) =>
+                entry.range.contains(callExpression.range.start)
+            );
+            if (!nestedBranch) {
                 return undefined;
             }
 
-            currentState = nextState;
+            return this.buildStateBeforeCallWithinNestedIfBranch(
+                nestedBranch,
+                callExpression,
+                currentState,
+                statementTransfer
+            );
         }
 
-        return currentState;
+        return this.buildStateBeforeCallWithinContainer(
+            branchNode,
+            callExpression,
+            currentState,
+            statementTransfer
+        );
     }
 }
 
@@ -276,9 +357,6 @@ export function createDefaultSemanticEvaluationService(
         analysisService: dependencies.analysisService,
         pathSupport
     });
-    const calleeReturnEvaluator = new DefaultCalleeReturnEvaluator({
-        callTargetResolver
-    });
     const environmentRegistry = new DefaultEnvironmentSemanticRegistry([
         new ThisPlayerProvider({
             playerObjectPath: dependencies.playerObjectPath,
@@ -286,6 +364,11 @@ export function createDefaultSemanticEvaluationService(
         }),
         new RuntimeNonStaticProvider()
     ]);
+    const calleeReturnEvaluator = new DefaultCalleeReturnEvaluator({
+        callTargetResolver,
+        environmentRegistry,
+        pathSupport
+    });
 
     return new SemanticEvaluationService({
         analysisService: dependencies.analysisService,

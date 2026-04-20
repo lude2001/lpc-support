@@ -84,6 +84,33 @@ describe('static evaluation state primitives', () => {
         expect(getEnvironmentValue(joined.environment, 'model')).toBeUndefined();
     });
 
+    test('keeps live bindings from the continuing path when joining partial returns', () => {
+        const returning = createStaticEvaluationState({
+            environment: bindEnvironmentValue(
+                createValueEnvironment(),
+                'sword',
+                literalValue('sword')
+            ),
+            controlFlow: createControlFlowState({
+                reachable: true,
+                hasReturned: true,
+                termination: 'return'
+            })
+        });
+        const continuing = createStaticEvaluationState({
+            environment: bindEnvironmentValue(
+                createValueEnvironment(),
+                'ob',
+                literalValue('shield')
+            )
+        });
+
+        const joined = joinStaticEvaluationStates([returning, continuing]);
+
+        expect(getEnvironmentValue(joined.environment, 'ob')).toEqual(literalValue('shield'));
+        expect(getEnvironmentValue(joined.environment, 'sword')).toBeUndefined();
+    });
+
     test('accumulates return values and exposes the joined result', () => {
         const accumulator = appendReturnValue(
             appendReturnValue(

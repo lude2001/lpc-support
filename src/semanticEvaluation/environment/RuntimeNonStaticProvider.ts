@@ -5,7 +5,7 @@ export class RuntimeNonStaticProvider implements EnvironmentSemanticProvider {
     public readonly id = 'runtime-non-static';
 
     public match(request: EnvironmentSemanticRequest): 'exact' | undefined {
-        if (request.calleeName !== 'previous_object' || request.argumentCount !== 0) {
+        if (request.calleeName !== 'previous_object') {
             return undefined;
         }
 
