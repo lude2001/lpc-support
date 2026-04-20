@@ -301,6 +301,24 @@ describe('language-service integration regression', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        macroManager.getMacro.mockReset();
+        macroManager.getMacro.mockReturnValue(undefined);
+        macroManager.getAllMacros.mockReset();
+        macroManager.getAllMacros.mockReturnValue([]);
+        macroManager.getMacroHoverContent.mockReset();
+        macroManager.scanMacros.mockReset();
+        macroManager.getIncludePath.mockReset();
+        macroManager.getIncludePath.mockReturnValue(undefined);
+        macroManager.canResolveMacro.mockReset();
+        macroManager.canResolveMacro.mockResolvedValue(false);
+        efunDocsManager.getAllFunctions.mockReset();
+        efunDocsManager.getAllFunctions.mockReturnValue(['write']);
+        efunDocsManager.getStandardDoc.mockReset();
+        efunDocsManager.getStandardDoc.mockReturnValue(undefined);
+        efunDocsManager.getAllSimulatedFunctions.mockReset();
+        efunDocsManager.getAllSimulatedFunctions.mockReturnValue([]);
+        efunDocsManager.getSimulatedDoc.mockReset();
+        efunDocsManager.getSimulatedDoc.mockReturnValue(undefined);
         analysisService = DocumentSemanticSnapshotService.getInstance();
         documentationService = createDefaultFunctionDocumentationService();
         documentHost = createVsCodeTextDocumentHost();
@@ -913,6 +931,52 @@ describe('language-service integration regression', () => {
         expect(definition[0].range.start.line).toBe(0);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
         expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name');
+    });
+
+    test('definition resolves local receivers initialized from new(CLASSIFY_POP) through macro-backed object inference', async () => {
+        const targetFile = path.join(fixtureRoot, 'std', 'classify_pop.c');
+        fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+        fs.writeFileSync(
+            targetFile,
+            [
+                'void add_data_button(string label, string command) {',
+                '}'
+            ].join('\n')
+        );
+        macroManager.getMacro.mockReturnValue({
+            name: 'CLASSIFY_POP',
+            value: '/std/classify_pop',
+            file: path.join(fixtureRoot, 'include', 'globals.h'),
+            line: 1
+        });
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'int main(object me, string arg) {',
+            '    object classify_pop;',
+            '    classify_pop = new(CLASSIFY_POP);',
+            '    classify_pop->add_data_button("label", "command");',
+            '    return 1;',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'cmds', 'new-classify-pop.c'), source);
+        const objectInferenceService = createObjectInference();
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'add_data_button("label", "command");'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'add_data_button');
     });
 
     test('merged candidates from if/else return two locations when each file implements query_name', async () => {

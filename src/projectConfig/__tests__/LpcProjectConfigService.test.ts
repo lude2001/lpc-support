@@ -103,6 +103,37 @@ describe('LpcProjectConfigService', () => {
             .resolves.toBe(path.join(workspaceRoot, 'adm', 'single', 'simul_efun.c'));
     });
 
+    test('resolves mudlibDirectory relative to configHellPath instead of workspace root', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-confighell-base-'));
+        const configDir = path.join(workspaceRoot, 'config');
+        const configPath = path.join(workspaceRoot, 'lpc-support.json');
+        const hellPath = path.join(configDir, 'config.dev');
+        const service = new LpcProjectConfigService();
+
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.mkdirSync(path.join(workspaceRoot, 'include'), { recursive: true });
+        fs.mkdirSync(path.join(workspaceRoot, 'adm', 'single'), { recursive: true });
+        fs.writeFileSync(path.join(workspaceRoot, 'adm', 'single', 'simul_efun.c'), 'int sim_helper() { return 1; }');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 1,
+            configHellPath: path.join('config', 'config.dev')
+        }, null, 2));
+        fs.writeFileSync(hellPath, [
+            'mudlib directory : ../',
+            'include directories : /include',
+            'simulated efun file : /adm/single/simul_efun'
+        ].join('\n'));
+
+        await service.loadForWorkspace(workspaceRoot);
+
+        await expect(service.getMudlibRootForWorkspace(workspaceRoot))
+            .resolves.toBe(workspaceRoot);
+        await expect(service.getIncludeDirectoriesForWorkspace(workspaceRoot))
+            .resolves.toEqual([path.join(workspaceRoot, 'include')]);
+        await expect(service.getSimulatedEfunFileForWorkspace(workspaceRoot))
+            .resolves.toBe(path.join(workspaceRoot, 'adm', 'single', 'simul_efun.c'));
+    });
+
     test('keeps previous resolved fields when config.hell is missing', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-missing-'));
         const configPath = path.join(workspaceRoot, 'lpc-support.json');

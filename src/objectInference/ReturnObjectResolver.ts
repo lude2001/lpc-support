@@ -55,6 +55,10 @@ export class ReturnObjectResolver {
             return this.resolveExpressionOutcome(document, expression.children[0]);
         }
 
+        if (expression.kind === SyntaxKind.NewExpression) {
+            return this.resolveNewExpressionOutcome(document, expression);
+        }
+
         if (expression.kind === SyntaxKind.CallExpression) {
             const scopedOutcome = await this.resolveScopedExpressionOutcome(document, expression);
             if (scopedOutcome) {
@@ -180,6 +184,26 @@ export class ReturnObjectResolver {
         return [{ path: resolvedPath, source: 'builtin-call' }];
     }
 
+    private async resolveNewExpressionOutcome(
+        document: vscode.TextDocument,
+        expression: SyntaxNode
+    ): Promise<ObjectResolutionOutcome> {
+        const targetNode = expression.children[0];
+        if (!targetNode) {
+            return { candidates: [] };
+        }
+
+        const targetExpression = this.getNewTargetExpression(targetNode);
+        if (!targetExpression) {
+            return { candidates: [] };
+        }
+
+        const source: ObjectCandidate['source'] = this.isStringLiteral(targetExpression) ? 'literal' : 'macro';
+        return {
+            candidates: await this.resolvePathCandidate(document, targetExpression, source)
+        };
+    }
+
     private async resolveDocumentedReturnObjects(
         document: vscode.TextDocument,
         functionName: string
@@ -262,6 +286,32 @@ export class ReturnObjectResolver {
 
     private isBuiltinCall(name: string): boolean {
         return ['this_object', 'this_player', 'load_object', 'find_object', 'clone_object'].includes(name);
+    }
+
+    private getNewTargetExpression(node: SyntaxNode): string | undefined {
+        if (node.kind === SyntaxKind.ParenthesizedExpression && node.children[0]) {
+            return this.getNewTargetExpression(node.children[0]);
+        }
+
+        if (node.kind === SyntaxKind.Identifier && node.name) {
+            return node.name;
+        }
+
+        if (node.kind === SyntaxKind.Literal) {
+            return typeof node.metadata?.text === 'string' ? node.metadata.text : undefined;
+        }
+
+        if (node.kind === SyntaxKind.TypeReference) {
+            if (node.name) {
+                return node.name;
+            }
+
+            return typeof node.metadata?.text === 'string'
+                ? node.metadata.text.trim()
+                : undefined;
+        }
+
+        return undefined;
     }
 
     private isStringLiteral(value: string): boolean {

@@ -229,6 +229,12 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         diagnosticsService,
         formattingService,
         navigationService,
+        onWorkspaceConfigSync: async () => {
+            await Promise.all([
+                macroManager.refreshWorkspaceState(true),
+                efunDocsManager.refreshWorkspaceState()
+            ]);
+        },
         signatureHelpService,
         structureService
     };

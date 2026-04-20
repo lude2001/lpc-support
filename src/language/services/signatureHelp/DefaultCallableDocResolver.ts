@@ -22,7 +22,11 @@ export class DefaultCallableDocResolver implements CallableDocResolver {
         }
 
         if (target.kind === 'simulEfun' && (!target.documentUri || !target.declarationKey)) {
-            const simulatedDoc = this.efunDocsManager?.getSimulatedDoc(target.name);
+            const simulatedDoc = this.efunDocsManager
+                ? this.efunDocsManager.getSimulatedDocAsync
+                    ? await this.efunDocsManager.getSimulatedDocAsync(target.name)
+                    : this.efunDocsManager.getSimulatedDoc(target.name)
+                : undefined;
             return simulatedDoc ? materializeCompatCallableDoc(simulatedDoc, 'simulEfun') : undefined;
         }
 

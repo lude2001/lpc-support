@@ -25,6 +25,7 @@ export interface CreateServerOptions {
     diagnosticsService?: LanguageDiagnosticsService;
     formattingService?: LanguageFormattingService;
     navigationService?: LanguageNavigationService;
+    onWorkspaceConfigSync?: () => Promise<void>;
     signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
 }
@@ -68,7 +69,8 @@ export function createServer(options: CreateServerOptions = {}): LspServerRuntim
         completionService: options.completionService,
         formattingService: options.formattingService,
         signatureHelpService: options.signatureHelpService,
-        structureService: options.structureService
+        structureService: options.structureService,
+        onWorkspaceConfigSync: options.onWorkspaceConfigSync
     });
 
     return {

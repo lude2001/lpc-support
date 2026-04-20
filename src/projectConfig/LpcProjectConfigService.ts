@@ -163,12 +163,15 @@ export class LpcProjectConfigService {
     }
 
     public async getIncludeDirectoriesForWorkspace(workspaceRoot: string): Promise<string[] | undefined> {
-        const resolved = await this.getResolvedForWorkspace(workspaceRoot);
+        const config = await this.loadForWorkspace(workspaceRoot);
+        const resolved = config?.resolved;
         if (!resolved?.includeDirectories?.length) {
             return undefined;
         }
 
-        return resolved.includeDirectories.map((entry) => this.resolveMudlibPath(workspaceRoot, resolved, entry));
+        return resolved.includeDirectories.map((entry) =>
+            this.resolveMudlibPath(workspaceRoot, resolved, entry, config?.configHellPath)
+        );
     }
 
     public async getPrimaryIncludeDirectoryForWorkspace(workspaceRoot: string): Promise<string | undefined> {
@@ -176,19 +179,35 @@ export class LpcProjectConfigService {
     }
 
     public async getSimulatedEfunFileForWorkspace(workspaceRoot: string): Promise<string | undefined> {
-        const resolved = await this.getResolvedForWorkspace(workspaceRoot);
+        const config = await this.loadForWorkspace(workspaceRoot);
+        const resolved = config?.resolved;
         if (!resolved?.simulatedEfunFile) {
             return undefined;
         }
 
         return this.resolveExistingCodePath(
-            this.resolveMudlibPath(workspaceRoot, resolved, resolved.simulatedEfunFile)
+            this.resolveMudlibPath(workspaceRoot, resolved, resolved.simulatedEfunFile, config?.configHellPath)
         );
     }
 
-    private resolveMudlibPath(workspaceRoot: string, resolved: LpcResolvedConfig, targetPath: string): string {
+    public async getMudlibRootForWorkspace(workspaceRoot: string): Promise<string | undefined> {
+        const config = await this.loadForWorkspace(workspaceRoot);
+        const resolved = config?.resolved;
+        if (!resolved?.mudlibDirectory) {
+            return undefined;
+        }
+
+        return this.resolveMudlibRoot(workspaceRoot, resolved.mudlibDirectory, config?.configHellPath);
+    }
+
+    private resolveMudlibPath(
+        workspaceRoot: string,
+        resolved: LpcResolvedConfig,
+        targetPath: string,
+        configHellPath?: string
+    ): string {
         const mudlibDirectory = resolved.mudlibDirectory ?? '.';
-        const mudlibRoot = this.resolveWorkspacePath(workspaceRoot, mudlibDirectory);
+        const mudlibRoot = this.resolveMudlibRoot(workspaceRoot, mudlibDirectory, configHellPath);
 
         if (/^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\')) {
             return targetPath;
@@ -199,6 +218,19 @@ export class LpcProjectConfigService {
         }
 
         return path.resolve(mudlibRoot, targetPath);
+    }
+
+    private resolveMudlibRoot(workspaceRoot: string, mudlibDirectory: string, configHellPath?: string): string {
+        if (this.isAbsolutePath(mudlibDirectory)) {
+            return mudlibDirectory;
+        }
+
+        if (configHellPath) {
+            const configHellAbsolutePath = this.resolveWorkspacePath(workspaceRoot, configHellPath);
+            return path.resolve(path.dirname(configHellAbsolutePath), mudlibDirectory);
+        }
+
+        return this.resolveWorkspacePath(workspaceRoot, mudlibDirectory);
     }
 
     public resolveWorkspacePath(workspaceRoot: string, targetPath: string): string {

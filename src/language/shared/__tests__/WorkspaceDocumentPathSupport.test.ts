@@ -121,4 +121,36 @@ describe('WorkspaceDocumentPathSupport', () => {
         expect(simulatedPath?.replace(/\\/g, '/')).toBe('D:/workspace/adm/simul_efun.c');
         expect(support.resolveExistingCodePath('D:/workspace/adm/simul_efun').replace(/\\/g, '/')).toBe('D:/workspace/adm/simul_efun.c');
     });
+
+    test('resolves mudlibDirectory relative to configHellPath when project config comes from workspace sync', async () => {
+        const workspaceRoot = 'D:/code/shuiyuzhengfeng_lpc';
+        const support = new WorkspaceDocumentPathSupport({
+            host: {
+                openTextDocument: jest.fn(),
+                fileExists: jest.fn((candidate: string) =>
+                    ['D:/code/shuiyuzhengfeng_lpc/include/globals.h', 'D:/code/shuiyuzhengfeng_lpc/adm/single/simul_efun.c']
+                        .includes(candidate.replace(/\\/g, '/'))
+                ),
+                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
+            },
+            projectConfigService: {
+                getSimulatedEfunFileForWorkspace: jest.fn(async () => undefined)
+            } as any
+        });
+
+        const projectConfig = {
+            configHellPath: 'config/config.dev',
+            resolvedConfig: {
+                mudlibDirectory: '../',
+                includeDirectories: ['/include'],
+                simulatedEfunFile: '/adm/single/simul_efun'
+            }
+        } as any;
+
+        const includeDir = await support.getPrimaryIncludeDirectory(workspaceRoot, projectConfig);
+        const simulatedPath = await support.getConfiguredSimulatedEfunFile(workspaceRoot, projectConfig);
+
+        expect(includeDir?.replace(/\\/g, '/')).toBe('D:/code/shuiyuzhengfeng_lpc/include');
+        expect(simulatedPath?.replace(/\\/g, '/')).toBe('D:/code/shuiyuzhengfeng_lpc/adm/single/simul_efun.c');
+    });
 });

@@ -18,6 +18,8 @@ export class SimulatedEfunScanner {
     private readonly analysisService: SimulatedEfunAnalysisService;
     private readonly documentationService: FunctionDocumentationService;
     private readonly compatMaterializer: FunctionDocCompatMaterializer;
+    private hasLoadedWorkspaceState = false;
+    private loadedWorkspaceRoot: string | undefined;
 
     constructor(
         private readonly projectConfigService: LpcProjectConfigService | undefined,
@@ -37,6 +39,11 @@ export class SimulatedEfunScanner {
         return this.docs.get(name);
     }
 
+    public async getAsync(name: string): Promise<EfunDoc | undefined> {
+        await this.ensureWorkspaceStateCurrent();
+        return this.get(name);
+    }
+
     public getAllNames(): string[] {
         return Array.from(this.docs.keys());
     }
@@ -47,6 +54,17 @@ export class SimulatedEfunScanner {
 
     public async load(): Promise<void> {
         return this.loadSimulatedEfuns();
+    }
+
+    public async refreshWorkspaceState(force: boolean = false): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!force && this.hasLoadedWorkspaceState && workspaceRoot === this.loadedWorkspaceRoot) {
+            return;
+        }
+
+        await this.loadSimulatedEfuns();
+        this.hasLoadedWorkspaceState = true;
+        this.loadedWorkspaceRoot = workspaceRoot;
     }
 
     public async configureSimulatedEfuns(): Promise<void> {
@@ -93,6 +111,13 @@ export class SimulatedEfunScanner {
         }
     }
 
+    private async ensureWorkspaceStateCurrent(): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!this.hasLoadedWorkspaceState || workspaceRoot !== this.loadedWorkspaceRoot) {
+            await this.refreshWorkspaceState(true);
+        }
+    }
+
     private async loadFromProjectConfigEntry(workspaceRoot: string, entryFilePath: string): Promise<void> {
         const mudlibRoot = await this.resolveMudlibRoot(workspaceRoot);
         const queue = [entryFilePath];
@@ -110,7 +135,8 @@ export class SimulatedEfunScanner {
             const text = await fs.promises.readFile(currentFile, 'utf8');
             this.storeParsedDocs(currentFile, text);
 
-            for (const relationFile of this.extractRelatedSourceFiles(currentFile, text, mudlibRoot)) {
+            const relatedFiles = this.extractRelatedSourceFiles(currentFile, text, mudlibRoot);
+            for (const relationFile of relatedFiles) {
                 if (!visited.has(path.normalize(relationFile))) {
                     queue.push(relationFile);
                 }
@@ -119,6 +145,13 @@ export class SimulatedEfunScanner {
     }
 
     private async resolveMudlibRoot(workspaceRoot: string): Promise<string> {
+        if (this.projectConfigService && typeof this.projectConfigService.getMudlibRootForWorkspace === 'function') {
+            const configuredMudlibRoot = await this.projectConfigService.getMudlibRootForWorkspace(workspaceRoot);
+            if (configuredMudlibRoot) {
+                return configuredMudlibRoot;
+            }
+        }
+
         const resolved = this.projectConfigService && typeof this.projectConfigService.getResolvedForWorkspace === 'function'
             ? await this.projectConfigService.getResolvedForWorkspace(workspaceRoot)
             : undefined;

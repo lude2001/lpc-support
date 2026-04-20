@@ -158,7 +158,9 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
         }
 
         const targets: ResolvedCallableTarget[] = [];
-        const simulatedDoc = this.efunDocsManager.getSimulatedDoc(request.calleeName);
+        const simulatedDoc = this.efunDocsManager.getSimulatedDocAsync
+            ? await this.efunDocsManager.getSimulatedDocAsync(request.calleeName)
+            : this.efunDocsManager.getSimulatedDoc(request.calleeName);
         const simulatedTarget = toSourceBackedTarget(simulatedDoc, request.calleeName, 'simulEfun', 'simul_efun', 5)
             ?? (simulatedDoc
                 ? {

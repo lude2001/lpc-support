@@ -12,6 +12,7 @@ export interface LanguageFeatureServices {
     diagnosticsService?: LanguageDiagnosticsService;
     formattingService?: LanguageFormattingService;
     navigationService?: LanguageNavigationService;
+    onWorkspaceConfigSync?: () => Promise<void>;
     signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
 }

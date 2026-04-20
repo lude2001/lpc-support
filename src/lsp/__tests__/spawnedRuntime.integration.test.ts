@@ -8,6 +8,7 @@ import {
     DidOpenTextDocumentNotification,
     DefinitionRequest,
     DocumentFormattingRequest,
+    HoverRequest,
     ExitNotification,
     InitializeRequest,
     InitializedNotification,
@@ -239,6 +240,238 @@ describe('spawned LSP runtime integration', () => {
             '    local_points += 1;',
             '}'
         ].join('\n'));
+    }, 30000);
+
+    test('resolves macro definitions from workspace include directories after runtime startup', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-macro-definition-'));
+        const includeDir = path.join(workspaceRoot, 'include');
+        const headerPath = path.join(includeDir, 'defs.h');
+        const sourcePath = path.join(workspaceRoot, 'macro-use.c');
+
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'lpc-support.json'),
+            JSON.stringify({
+                version: 1,
+                configHellPath: 'config.hell',
+                resolved: {
+                    includeDirectories: ['include']
+                }
+            }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(headerPath, '#define USER_D "/adm/obj/user"\n', 'utf8');
+        fs.writeFileSync(sourcePath, 'void demo() { USER_D->query_name(); }\n', 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(sourcePath, fs.readFileSync(sourcePath, 'utf8'));
+
+        const definition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: {
+                line: 0,
+                character: 14
+            }
+        });
+
+        expect(normalizeDefinitionLocations(definition)).toEqual([
+            {
+                uri: uriFromPath(headerPath),
+                range: {
+                    start: { line: 0, character: 0 },
+                    end: { line: 0, character: '#define USER_D "/adm/obj/user"'.length }
+                }
+            }
+        ]);
+    }, 30000);
+
+    test('loads simulated efun hover and definition from workspace config after runtime startup', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-simulefun-runtime-'));
+        const simulPath = path.join(workspaceRoot, 'adm', 'simul_efun.c');
+        const sourcePath = path.join(workspaceRoot, 'simul-use.c');
+
+        fs.mkdirSync(path.dirname(simulPath), { recursive: true });
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'lpc-support.json'),
+            JSON.stringify({
+                version: 1,
+                configHellPath: 'config.hell',
+                resolved: {
+                    simulatedEfunFile: 'adm/simul_efun'
+                }
+            }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(
+            simulPath,
+            [
+                '/**',
+                ' * @brief 发送模拟函数消息。',
+                ' */',
+                'void message_vision(string msg) {',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            sourcePath,
+            [
+                'void demo() {',
+                '    message_vision("ok");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(sourcePath, fs.readFileSync(sourcePath, 'utf8'));
+
+        const hover = await harness.connection.sendRequest(HoverRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: {
+                line: 1,
+                character: 8
+            }
+        });
+        const definition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: {
+                line: 1,
+                character: 8
+            }
+        });
+
+        expect(hover).toEqual(expect.objectContaining({
+            contents: expect.objectContaining({
+                kind: 'markdown',
+                value: expect.stringContaining('发送模拟函数消息')
+            })
+        }));
+        expect(normalizeDefinitionLocations(definition)).toEqual([
+            {
+                uri: uriFromPath(simulPath),
+                range: {
+                    start: { line: 3, character: 0 },
+                    end: { line: 4, character: 1 }
+                }
+            }
+        ]);
+    }, 30000);
+
+    test('loads simulated efun docs through included source files when mudlibDirectory is relative to configHellPath', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-simulefun-confighell-'));
+        const configDir = path.join(workspaceRoot, 'config');
+        const lpcSupportPath = path.join(workspaceRoot, 'lpc-support.json');
+        const configHellPath = path.join(configDir, 'config.dev');
+        const simulEntryPath = path.join(workspaceRoot, 'adm', 'single', 'simul_efun.c');
+        const simulMessagePath = path.join(workspaceRoot, 'adm', 'simul_efun', 'message.c');
+        const sourcePath = path.join(workspaceRoot, 'simul-use.c');
+
+        fs.mkdirSync(path.dirname(simulEntryPath), { recursive: true });
+        fs.mkdirSync(path.dirname(simulMessagePath), { recursive: true });
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(
+            lpcSupportPath,
+            JSON.stringify({
+                version: 1,
+                configHellPath: path.join('config', 'config.dev')
+            }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(
+            configHellPath,
+            [
+                'mudlib directory : ../',
+                'simulated efun file : /adm/single/simul_efun'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            simulEntryPath,
+            [
+                '#include "/adm/simul_efun/message.c"'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            simulMessagePath,
+            [
+                '/**',
+                ' * @brief 从包含文件载入的模拟函数消息。',
+                ' */',
+                'void message_vision(string msg) {',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            sourcePath,
+            [
+                'void demo() {',
+                '    message_vision("ok");',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.connection.sendNotification(WorkspaceConfigSyncNotification.type, {
+            workspaceRoots: [workspaceRoot],
+            workspaces: [
+                {
+                    workspaceRoot,
+                    projectConfigPath: lpcSupportPath,
+                    configHellPath: path.join('config', 'config.dev'),
+                    resolvedConfig: {
+                        mudlibDirectory: '../',
+                        simulatedEfunFile: '/adm/single/simul_efun'
+                    },
+                    lastSyncedAt: new Date('2026-04-20T00:00:00.000Z').toISOString()
+                }
+            ]
+        });
+        await harness.openDocument(sourcePath, fs.readFileSync(sourcePath, 'utf8'));
+
+        const hover = await harness.connection.sendRequest(HoverRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: {
+                line: 1,
+                character: 8
+            }
+        });
+        const definition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: {
+                line: 1,
+                character: 8
+            }
+        });
+
+        expect(hover).toEqual(expect.objectContaining({
+            contents: expect.objectContaining({
+                kind: 'markdown',
+                value: expect.stringContaining('从包含文件载入的模拟函数消息')
+            })
+        }));
+        expect(normalizeDefinitionLocations(definition)).toEqual([
+            {
+                uri: uriFromPath(simulMessagePath),
+                range: {
+                    start: { line: 3, character: 0 },
+                    end: { line: 4, character: 1 }
+                }
+            }
+        ]);
     }, 30000);
 });
 

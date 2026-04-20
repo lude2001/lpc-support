@@ -75,7 +75,9 @@ export class DirectSymbolDefinitionResolver {
     }
 
     private async findMacroDefinition(word: string): Promise<vscode.Location | undefined> {
-        const macro = this.dependencies.macroManager.getMacro?.(word);
+        const macro = this.dependencies.macroManager.getMacroAsync
+            ? await this.dependencies.macroManager.getMacroAsync(word)
+            : this.dependencies.macroManager.getMacro?.(word);
         if (!macro) {
             return undefined;
         }
@@ -95,7 +97,11 @@ export class DirectSymbolDefinitionResolver {
         workspaceRoot: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.Location | undefined> {
-        const simulatedDoc = this.dependencies.efunDocsManager.getSimulatedDoc(word);
+        const simulatedDoc = 'getSimulatedDocAsync' in this.dependencies.efunDocsManager
+            ? await (this.dependencies.efunDocsManager as EfunDocsManager & {
+                getSimulatedDocAsync(funcName: string): Promise<ReturnType<EfunDocsManager['getSimulatedDoc']>>;
+            }).getSimulatedDocAsync(word)
+            : this.dependencies.efunDocsManager.getSimulatedDoc(word);
         if (!simulatedDoc) {
             return undefined;
         }

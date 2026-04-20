@@ -51,7 +51,9 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
             return undefined;
         }
 
-        const macro = this.macroManager.getMacro(word);
+        const macro = this.macroManager.getMacroAsync
+            ? await this.macroManager.getMacroAsync(word)
+            : this.macroManager.getMacro(word);
         if (macro) {
             return {
                 contents: [toLanguageMarkdownContent(this.macroManager.getMacroHoverContent(macro))],

@@ -124,6 +124,7 @@ describe('ObjectInferenceService', () => {
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'player.c'), 'void query_name() {}\n', 'utf8');
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'sword.c'), 'void query() {}\n', 'utf8');
         fs.writeFileSync(path.join(fixtureRoot, 'adm', 'objects', 'shield.c'), 'void query() {}\n', 'utf8');
+        fs.writeFileSync(path.join(fixtureRoot, 'std', 'classify_pop.c'), 'void add_data_button(string label, string command) {}\n', 'utf8');
 
         (vscode.workspace.openTextDocument as jest.Mock).mockImplementation(async (target: string | vscode.Uri) => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
@@ -476,6 +477,34 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('new(CLASSIFY_POP) resolves macro-backed object candidates for direct member access', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'CLASSIFY_POP',
+            value: '/std/classify_pop',
+            file: path.join(fixtureRoot, 'include', 'globals.h'),
+            line: 1
+        });
+
+        const source = [
+            'void demo() {',
+            '    new(CLASSIFY_POP)->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'new-macro-direct.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'add_data_button'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'macro'
+                }
+            ]
+        });
+    });
+
     test('macro object path resolves when macro manager returns a path', async () => {
         macroManager.getMacro.mockReturnValue({
             name: 'COMBAT_D',
@@ -698,6 +727,35 @@ describe('ObjectInferenceService', () => {
                 {
                     path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
                     source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('local variable assigned from new(CLASSIFY_POP) resolves through identifier tracing', async () => {
+        macroManager.getMacro.mockReturnValue({
+            name: 'CLASSIFY_POP',
+            value: '/std/classify_pop',
+            file: path.join(fixtureRoot, 'include', 'globals.h'),
+            line: 1
+        });
+
+        const source = [
+            'void demo() {',
+            '    object classify_pop = new(CLASSIFY_POP);',
+            '    classify_pop->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'new-macro-assignment.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'classify_pop->add_data_button'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'macro'
                 }
             ]
         });

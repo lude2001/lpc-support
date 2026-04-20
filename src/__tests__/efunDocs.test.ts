@@ -795,6 +795,59 @@ describe('SimulatedEfunScanner', () => {
         });
     });
 
+    test('realistic simul_efun entry with pragma and multiple includes loads message_vision from message.c', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-realistic-entry-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const includeDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(entryFile, [
+            '#pragma optimize',
+            '',
+            '',
+            '#include "/adm/simul_efun/atoi.c"',
+            '#include "/adm/simul_efun/message.c"',
+            '',
+            'void create()',
+            '{',
+            '}'
+        ].join('\n'));
+        fs.writeFileSync(path.join(includeDir, 'atoi.c'), 'int atoi(string value) { return 0; }\n');
+        fs.writeFileSync(path.join(includeDir, 'message.c'), [
+            '/**',
+            ' * @brief 发送动作消息',
+            ' * @param string msg 消息模板',
+            ' * @param object me 动作发起者',
+            ' * @param object you 动作接收者',
+            ' */',
+            'varargs void message_vision(string msg, object me, object you)',
+            '{',
+            '}'
+        ].join('\n'));
+
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(entryFile),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' }),
+            getMudlibRootForWorkspace: jest.fn().mockResolvedValue(workspaceRoot)
+        };
+        const scanner = createSimulatedScanner(projectConfigService as any);
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn(() => undefined),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
+
+        await scanner.loadSimulatedEfuns();
+
+        expect(scanner.get('message_vision')).toMatchObject({
+            name: 'message_vision',
+            description: '发送动作消息'
+        });
+    });
+
     test('parser trivia exposes include directives for simulated efun entry files', () => {
         const document = TestHelper.createMockDocument('#include "/adm/simul_efun/helper.c"\n', 'lpc', 'simul_efun.c');
         const parsed = getAstManagerForTests().parseDocument(document, false).parsed;

@@ -298,4 +298,34 @@ describe('FunctionDocumentationService', () => {
         expect(secondRead).not.toBe(firstRead);
         expect(secondDoc).not.toBe(cachedDoc);
     });
+
+    test('keeps building callable docs when function bodies contain efun:: scoped calls', () => {
+        const source = [
+            '/**',
+            ' * @brief Wrapper summary',
+            ' */',
+            'void wrapper(string msg, object target) {',
+            '    if (target) {',
+            '        efun::message("vision", msg, target);',
+            '    }',
+            '}',
+            '',
+            '/**',
+            ' * @brief Later summary',
+            ' */',
+            'int later_doc() {',
+            '    return 1;',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/efun-scope-body.c');
+        const service = createDefaultFunctionDocumentationService();
+
+        const docs = service.getDocumentDocs(document);
+        const wrapperDocs = service.getDocsByName(document, 'wrapper');
+        const laterDocs = service.getDocsByName(document, 'later_doc');
+
+        expect(docs.declarationOrder).toHaveLength(2);
+        expect(wrapperDocs[0]?.summary).toBe('Wrapper summary');
+        expect(laterDocs[0]?.summary).toBe('Later summary');
+    });
 });

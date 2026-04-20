@@ -102,6 +102,7 @@ export interface ServerRegistrationContext {
     formattingService?: LanguageFormattingService;
     signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
+    onWorkspaceConfigSync?: () => Promise<void>;
 }
 
 export function registerCapabilities(context: ServerRegistrationContext): void {
@@ -117,7 +118,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         codeActionsService,
         formattingService,
         signatureHelpService,
-        structureService
+        structureService,
+        onWorkspaceConfigSync
     } = context;
     __bindDocumentStore(documentStore);
     const contextFactory = new ServerLanguageContextFactory(documentStore, workspaceSession);
@@ -205,6 +207,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
 
     connection.onNotification(WorkspaceConfigSyncNotification.type, (payload: WorkspaceConfigSyncPayload) => {
         workspaceSession.applyWorkspaceConfigSync(payload);
+        void onWorkspaceConfigSync?.();
     });
 
     connection.onRequest(

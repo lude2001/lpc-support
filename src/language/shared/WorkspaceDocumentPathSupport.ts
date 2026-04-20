@@ -256,7 +256,7 @@ export class WorkspaceDocumentPathSupport {
 
         const mudlibDirectory = projectConfig?.resolvedConfig?.mudlibDirectory;
         const mudlibRoot = mudlibDirectory
-            ? this.resolveWorkspacePath(workspaceRoot, mudlibDirectory)
+            ? this.resolveMudlibRoot(workspaceRoot, mudlibDirectory, projectConfig?.configHellPath)
             : workspaceRoot;
         const normalizedPath = configPath.startsWith('/') ? configPath.substring(1) : configPath;
         return path.join(mudlibRoot, normalizedPath);
@@ -372,5 +372,18 @@ export class WorkspaceDocumentPathSupport {
         return this.isWorkspaceAbsolutePath(targetPath)
             ? targetPath
             : path.resolve(workspaceRoot, targetPath);
+    }
+
+    private resolveMudlibRoot(workspaceRoot: string, mudlibDirectory: string, configHellPath?: string): string {
+        if (this.isWorkspaceAbsolutePath(mudlibDirectory)) {
+            return mudlibDirectory;
+        }
+
+        if (configHellPath) {
+            const configHellAbsolutePath = this.resolveWorkspacePath(workspaceRoot, configHellPath);
+            return path.resolve(path.dirname(configHellAbsolutePath), mudlibDirectory);
+        }
+
+        return this.resolveWorkspacePath(workspaceRoot, mudlibDirectory);
     }
 }

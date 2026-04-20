@@ -127,6 +127,10 @@ export class ObjectInferenceService {
         receiverNode: SyntaxNode,
         receiver: ClassifiedReceiver
     ): Promise<ObjectResolutionOutcome> {
+        if (receiverNode.kind === SyntaxKind.NewExpression) {
+            return this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
+        }
+
         if (
             receiverNode.kind === SyntaxKind.CallExpression
             && receiverNode.children[0]?.kind === SyntaxKind.MemberAccessExpression

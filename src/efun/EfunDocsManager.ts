@@ -143,6 +143,14 @@ export class EfunDocsManager {
     public getSimulatedDoc(funcName: string): EfunDoc | undefined {
         return this.simulatedEfunScanner.get(funcName);
     }
+
+    public async getSimulatedDocAsync(funcName: string): Promise<EfunDoc | undefined> {
+        return this.simulatedEfunScanner.getAsync(funcName);
+    }
+
+    public async refreshWorkspaceState(): Promise<void> {
+        await this.simulatedEfunScanner.refreshWorkspaceState(true);
+    }
 }
 
 function materializeCallableDoc(structuredDoc: StructuredEfunDoc): CallableDoc {

@@ -15,6 +15,8 @@ export class MacroManager {
     private scanningPromise: Promise<void> | null = null;
     private readonly initializationPromise: Promise<void>;
     private readonly textDocumentHost: TextDocumentHost;
+    private hasInitializedWorkspaceState = false;
+    private initializedWorkspaceRoot: string | undefined;
 
     constructor(
         private readonly projectConfigService?: LpcProjectConfigService,
@@ -25,9 +27,7 @@ export class MacroManager {
     }
 
     private async initialize(): Promise<void> {
-        await this.loadIncludePath();
-        this.setupFileWatcher();
-        await this.startInitialScan();
+        await this.refreshWorkspaceState();
     }
 
     private async loadIncludePath(): Promise<void> {
@@ -40,17 +40,16 @@ export class MacroManager {
         console.log(`MacroManager: 配置的包含路径: ${this.includePath || '未配置'}`);
 
         if (!this.includePath) {
+            this.macros.clear();
             console.warn(`MacroManager: 未配置包含路径，无法扫描宏定义`);
             return;
         }
 
         if (!this.hasValidIncludePath()) {
+            this.macros.clear();
             console.warn(`MacroManager: 包含路径不存在: ${this.includePath}`);
             return;
         }
-
-        console.log(`MacroManager: 包含路径存在，开始扫描宏定义`);
-        await this.scanMacros();
     }
 
     private setupFileWatcher(): void {
@@ -183,6 +182,25 @@ export class MacroManager {
         }
     }
 
+    public async refreshWorkspaceState(force: boolean = false): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!force && this.hasInitializedWorkspaceState && workspaceRoot === this.initializedWorkspaceRoot) {
+            return;
+        }
+
+        await this.loadIncludePath();
+        this.setupFileWatcher();
+        await this.startInitialScan();
+        this.hasInitializedWorkspaceState = true;
+        this.initializedWorkspaceRoot = workspaceRoot;
+    }
+
+    public async getMacroAsync(name: string): Promise<MacroDefinition | undefined> {
+        await this.initializationPromise;
+        await this.ensureWorkspaceStateCurrent();
+        return this.getMacro(name);
+    }
+
     public getMacro(name: string): MacroDefinition | undefined {
         return this.macros.get(name);
     }
@@ -245,13 +263,12 @@ export class MacroManager {
 
     public async refreshMacros(): Promise<void> {
         await this.initializationPromise;
-
-        // 重新加载宏定义
-        await this.scanMacros();
+        await this.refreshWorkspaceState(true);
     }
 
     public async canResolveMacro(macroName: string): Promise<boolean> {
         await this.initializationPromise;
+        await this.ensureWorkspaceStateCurrent();
 
         // 等待初始扫描完成
         if (this.scanningPromise) {
@@ -275,6 +292,13 @@ export class MacroManager {
         );
 
         await this.scanningPromise;
+    }
+
+    private async ensureWorkspaceStateCurrent(): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (workspaceRoot !== this.initializedWorkspaceRoot) {
+            await this.refreshWorkspaceState(true);
+        }
     }
 
     public getMacroHoverContent(macro: MacroDefinition): vscode.MarkdownString {

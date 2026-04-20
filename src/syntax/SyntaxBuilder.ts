@@ -462,7 +462,12 @@ export class SyntaxBuilder {
         options: Partial<Pick<SyntaxNode, 'name' | 'metadata'>> = {}
     ): SyntaxNode {
         const normalizedStart = this.normalizeStartToken(startToken, stopToken);
-        const normalizedStop = this.normalizeStopToken(stopToken, normalizedStart);
+        const normalizedStopCandidate = this.normalizeStopToken(stopToken, normalizedStart);
+        const normalizedStop = normalizedStart
+            && normalizedStopCandidate
+            && normalizedStopCandidate.tokenIndex < normalizedStart.tokenIndex
+            ? normalizedStart
+            : normalizedStopCandidate;
         const tokenRange = createTokenRange(
             normalizedStart?.tokenIndex ?? 0,
             normalizedStop?.tokenIndex ?? normalizedStart?.tokenIndex ?? 0
