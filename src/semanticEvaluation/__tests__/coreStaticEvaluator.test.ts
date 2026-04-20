@@ -197,6 +197,14 @@ describe('ExpressionEvaluator', () => {
         expect(result).toEqual(literalValue('login'));
     });
 
+    test('treats exact object-valued conditional expressions as truthy', () => {
+        const result = evaluateReturnedExpression(
+            'mixed demo() { return new("/adm/model/login") ? "login" : "logout"; }'
+        );
+
+        expect(result).toEqual(literalValue('login'));
+    });
+
     test('joins conditional expressions over object values when the condition is unknown', () => {
         const result = evaluateReturnedExpression(
             'mixed demo() { return flag ? load_object("/adm/model/login") : new("/adm/model/logout"); }',

@@ -77,6 +77,10 @@ function literalValueToArrayIndex(value: SemanticValue): number | undefined {
 }
 
 function isDefinitelyTruthy(value: SemanticValue): boolean | undefined {
+    if (value.kind === 'object') {
+        return true;
+    }
+
     if (value.kind !== 'literal') {
         return undefined;
     }
