@@ -114,18 +114,28 @@ export function createStaticEvaluationState(
 }
 
 function joinValueEnvironments(states: readonly StaticEvaluationState[]): ValueEnvironment {
+    if (states.length === 0) {
+        return createValueEnvironment();
+    }
+
     const valuesBySymbol = new Map<string, SemanticValue[]>();
+    const symbolCounts = new Map<string, number>();
 
     for (const state of states) {
         for (const [symbolName, value] of state.environment.bindings.entries()) {
             const existingValues = valuesBySymbol.get(symbolName) ?? [];
             existingValues.push(value);
             valuesBySymbol.set(symbolName, existingValues);
+            symbolCounts.set(symbolName, (symbolCounts.get(symbolName) ?? 0) + 1);
         }
     }
 
     const joinedBindings = new Map<string, SemanticValue>();
     for (const [symbolName, values] of valuesBySymbol.entries()) {
+        if (symbolCounts.get(symbolName) !== states.length) {
+            continue;
+        }
+
         joinedBindings.set(symbolName, joinSemanticValues(values));
     }
 

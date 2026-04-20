@@ -68,6 +68,21 @@ describe('static evaluation state primitives', () => {
         });
     });
 
+    test('does not decide partial-binding branch policy during environment join', () => {
+        const left = createStaticEvaluationState({
+            environment: bindEnvironmentValue(
+                createValueEnvironment(),
+                'model',
+                objectValue('/adm/protocol/model/login_model')
+            )
+        });
+        const right = createStaticEvaluationState();
+
+        const joined = joinStaticEvaluationStates([left, right]);
+
+        expect(getEnvironmentValue(joined.environment, 'model')).toBeUndefined();
+    });
+
     test('accumulates return values and exposes the joined result', () => {
         const accumulator = appendReturnValue(
             appendReturnValue(
