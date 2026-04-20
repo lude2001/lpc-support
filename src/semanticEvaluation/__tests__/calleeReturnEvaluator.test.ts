@@ -610,4 +610,48 @@ describe('CalleeReturnEvaluator', () => {
 
         expect(result).toEqual(unknownValue());
     });
+
+    test('model_get query_model_registry include-backed helpers still drive natural return inference', async () => {
+        const result = await evaluateReturnCall({
+            'file:///D:/workspace/adm/protocol/protocol_registry.c': [
+                'private mapping query_model_registry() {',
+                '    return ([',
+                '        "login": ([',
+                '            "path": "/adm/protocol/model/login_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '    ]);',
+                '}'
+            ].join('\n'),
+            'file:///D:/workspace/adm/protocol/protocol_server.c': [
+                'private mapping query_model_registry();',
+                '#include "protocol_registry.c"',
+                '',
+                'object model_get(string model_name) {',
+                '    mapping registry;',
+                '    mapping info;',
+                '    object model;',
+                '',
+                '    registry = query_model_registry();',
+                '    info = registry[model_name];',
+                '    if (info["mode"] == "new") {',
+                '        model = new(info["path"]);',
+                '    } else {',
+                '        model = load_object(info["path"]);',
+                '    }',
+                '',
+                '    return model;',
+                '}'
+            ].join('\n'),
+            'file:///D:/workspace/demo.c': [
+                'mixed demo() {',
+                '    return PROTOCOL_D->model_get("login")->error_result("ban_msg");',
+                '}'
+            ].join('\n')
+        }, 'file:///D:/workspace/demo.c', {
+            PROTOCOL_D: objectValue('/adm/protocol/protocol_server')
+        }, (node) => getCallExpressionName(node) === 'model_get');
+
+        expect(result).toEqual(objectValue('/adm/protocol/model/login_model'));
+    });
 });

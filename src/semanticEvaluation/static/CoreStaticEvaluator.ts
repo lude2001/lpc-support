@@ -73,12 +73,15 @@ export class CoreStaticEvaluator {
             return unknownValue();
         }
 
-        const functionSummary = this.context.semantic.exportedFunctions.find((entry) => entry.name === callee.name);
-        if (!functionSummary) {
+        const resolvedTarget = this.context.resolvedDirectCalls?.get(callee.name);
+        const targetSummary = resolvedTarget?.functionSummary
+            ?? this.context.semantic.exportedFunctions.find((entry) => entry.name === callee.name);
+        if (!targetSummary) {
             return unknownValue();
         }
 
-        const functionNode = this.context.syntax.nodes.find((node) =>
+        const targetSyntax = resolvedTarget?.syntax ?? this.context.syntax;
+        const functionNode = resolvedTarget?.functionNode ?? targetSyntax.nodes.find((node) =>
             node.kind === SyntaxKind.FunctionDeclaration
             && node.name === callee.name
             && node.children.some((child) => child.kind === SyntaxKind.Block)
@@ -93,8 +96,8 @@ export class CoreStaticEvaluator {
         ) ?? [];
 
         let initialEnvironment = createValueEnvironment();
-        for (let index = 0; index < functionSummary.parameters.length; index += 1) {
-            const parameter = functionSummary.parameters[index];
+        for (let index = 0; index < targetSummary.parameters.length; index += 1) {
+            const parameter = targetSummary.parameters[index];
             initialEnvironment = bindEnvironmentValue(
                 initialEnvironment,
                 parameter.name,
@@ -104,10 +107,14 @@ export class CoreStaticEvaluator {
 
         return new CoreStaticEvaluator({
             ...this.context,
-            functionSummary,
+            syntax: targetSyntax,
+            semantic: resolvedTarget?.semantic ?? this.context.semantic,
+            functionSummary: targetSummary,
+            resolvedDirectCalls: undefined,
             metadata: {
                 ...this.context.metadata,
-                functionName: functionSummary.name,
+                documentUri: resolvedTarget?.document.uri.toString() ?? this.context.metadata.documentUri,
+                functionName: targetSummary.name,
                 callDepth: nextCallDepth
             },
             initialEnvironment

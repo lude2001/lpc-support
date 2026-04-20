@@ -1,3 +1,4 @@
+import type { ResolvedCallTarget } from '../calls/CallTargetResolver';
 import type { FunctionSummary } from '../../semantic/documentSemanticTypes';
 import type { SemanticSnapshot } from '../../semantic/semanticSnapshot';
 import type { SyntaxDocument } from '../../syntax/types';
@@ -23,6 +24,7 @@ export interface StaticEvaluationContext {
     syntax?: SyntaxDocument;
     semantic?: SemanticSnapshot;
     functionSummary?: FunctionSummary;
+    resolvedDirectCalls?: ReadonlyMap<string, ResolvedCallTarget>;
     budget: StaticEvaluationBudget;
     metadata: StaticEvaluationMetadata;
     initialEnvironment: ValueEnvironment;
@@ -32,6 +34,7 @@ export interface CreateStaticEvaluationContextOptions {
     syntax?: SyntaxDocument;
     semantic?: SemanticSnapshot;
     functionSummary?: FunctionSummary;
+    resolvedDirectCalls?: ReadonlyMap<string, ResolvedCallTarget>;
     budget?: Partial<StaticEvaluationBudget>;
     metadata: StaticEvaluationMetadata;
     initialEnvironment?: ValueEnvironment;
@@ -60,6 +63,7 @@ export function createStaticEvaluationContext(
         syntax: options.syntax,
         semantic: options.semantic,
         functionSummary: options.functionSummary,
+        resolvedDirectCalls: options.resolvedDirectCalls,
         budget: createStaticEvaluationBudget(options.budget),
         metadata: options.metadata,
         initialEnvironment: options.initialEnvironment ?? createValueEnvironment()

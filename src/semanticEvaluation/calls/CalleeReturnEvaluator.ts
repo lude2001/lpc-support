@@ -19,6 +19,25 @@ export interface CalleeReturnEvaluatorOptions {
     callTargetResolver?: Pick<CallTargetResolver, 'resolveCallTarget'>;
 }
 
+function collectDirectIdentifierCalls(root: SyntaxNode): SyntaxNode[] {
+    const calls: SyntaxNode[] = [];
+    const queue: SyntaxNode[] = [root];
+
+    while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (
+            current.kind === SyntaxKind.CallExpression
+            && current.children[0]?.kind === SyntaxKind.Identifier
+        ) {
+            calls.push(current);
+        }
+
+        queue.push(...current.children);
+    }
+
+    return calls;
+}
+
 function getArgumentExpressions(callExpression: SyntaxNode): readonly SyntaxNode[] {
     const argumentList = callExpression.children.find((child) => child.kind === SyntaxKind.ArgumentList);
     return argumentList?.children ?? [];
@@ -56,6 +75,23 @@ export class CalleeReturnEvaluator {
             return unknownValue();
         }
 
+        const resolvedDirectCalls = new Map<string, typeof target>();
+        for (const directCall of collectDirectIdentifierCalls(target.functionNode)) {
+            const directCallee = directCall.children[0];
+            if (directCallee?.kind !== SyntaxKind.Identifier || !directCallee.name) {
+                continue;
+            }
+
+            if (resolvedDirectCalls.has(directCallee.name)) {
+                continue;
+            }
+
+            const nestedTarget = await this.callTargetResolver.resolveCallTarget(target.document, directCall);
+            if (nestedTarget) {
+                resolvedDirectCalls.set(directCallee.name, nestedTarget);
+            }
+        }
+
         const callerExpressionEvaluator = new ExpressionEvaluator(callerContext);
         const argumentValues = getArgumentExpressions(callExpression).map((argument) =>
             callerExpressionEvaluator.evaluate(argument, callerState)
@@ -75,6 +111,7 @@ export class CalleeReturnEvaluator {
             syntax: target.syntax,
             semantic: target.semantic,
             functionSummary: target.functionSummary,
+            resolvedDirectCalls,
             budget: callerContext.budget,
             metadata: {
                 documentUri: target.document.uri.toString(),
