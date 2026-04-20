@@ -120,7 +120,6 @@ describe('ReturnObjectResolver', () => {
 
         const resolver = new ReturnObjectResolver(
             undefined,
-            undefined,
             createDefaultFunctionDocumentationService(),
             undefined,
             pathSupport
@@ -166,7 +165,6 @@ describe('ReturnObjectResolver', () => {
         };
         const resolver = new ReturnObjectResolver(
             undefined,
-            undefined,
             documentationService,
             scopedMethodResolver as any,
             pathSupport
@@ -206,7 +204,6 @@ describe('ReturnObjectResolver', () => {
             })
         };
         const resolver = new ReturnObjectResolver(
-            undefined,
             undefined,
             documentationService,
             scopedMethodResolver as any,

@@ -473,6 +473,207 @@ describe('spawned LSP runtime integration', () => {
             }
         ]);
     }, 30000);
+
+    test('model_get mismatch still resolves to the natural runtime-backed definition', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-model-get-mismatch-'));
+        const protocolPath = path.join(workspaceRoot, 'adm', 'protocol', 'protocol_server.c');
+        const loginModelPath = path.join(workspaceRoot, 'adm', 'protocol', 'model', 'login_model.c');
+        const shieldModelPath = path.join(workspaceRoot, 'adm', 'protocol', 'model', 'shield_model.c');
+        const sourcePath = path.join(workspaceRoot, 'semantic-model-get-runtime.c');
+
+        fs.mkdirSync(path.dirname(loginModelPath), { recursive: true });
+        fs.writeFileSync(
+            protocolPath,
+            [
+                '/**',
+                ' * @lpc-return-objects {"/adm/protocol/model/shield_model"}',
+                ' */',
+                'object model_get(string model_name) {',
+                '    mapping info = query_model_registry()[model_name];',
+                '    if (info["mode"] == "new") {',
+                '        return new(info["path"]);',
+                '    }',
+                '    return load_object(info["path"]);',
+                '}',
+                '',
+                'mapping query_model_registry() {',
+                '    return ([',
+                '        "login": ([',
+                '            "path": "/adm/protocol/model/login_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '        "shield": ([',
+                '            "path": "/adm/protocol/model/shield_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '    ]);',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(loginModelPath, 'void error_result(string message) {}\n', 'utf8');
+        fs.writeFileSync(shieldModelPath, 'void error_result(string message) {}\n', 'utf8');
+        const sourceText = [
+            'void demo() {',
+            '    object protocol = load_object("/adm/protocol/protocol_server");',
+            '    protocol->model_get("login")->error_result("ban");',
+            '}'
+        ].join('\n');
+        fs.writeFileSync(sourcePath, sourceText, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(sourcePath, sourceText);
+
+        const definition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: positionOfSubstring(sourceText, 'error_result')
+        });
+
+        const locations = normalizeDefinitionLocations(definition);
+        expect(locations).toHaveLength(1);
+        expect(locations[0].uri).toBe(uriFromPath(loginModelPath));
+        expect(locations[0].range.start.line).toBe(0);
+    }, 30000);
+
+    test('this_player semantic provider resolves config-backed runtime definitions', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-this-player-'));
+        const playerPath = path.join(workspaceRoot, 'adm', 'objects', 'player.c');
+        const sourcePath = path.join(workspaceRoot, 'semantic-this-player-runtime.c');
+
+        fs.mkdirSync(path.dirname(playerPath), { recursive: true });
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'lpc-support.json'),
+            JSON.stringify({
+                version: 1,
+                configHellPath: 'config.hell',
+                playerObjectPath: '/adm/objects/player'
+            }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(playerPath, 'string query_name() { return "player"; }\n', 'utf8');
+        const sourceText = [
+            'void demo() {',
+            '    this_player()->query_name();',
+            '}'
+        ].join('\n');
+        fs.writeFileSync(sourcePath, sourceText, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(sourcePath, sourceText);
+
+        const definition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: positionOfSubstring(sourceText, 'query_name')
+        });
+
+        const locations = normalizeDefinitionLocations(definition);
+        expect(locations).toHaveLength(1);
+        expect(locations[0].uri).toBe(uriFromPath(playerPath));
+        expect(locations[0].range.start.line).toBe(0);
+    }, 30000);
+
+    test('fallback annotations still resolve runtime definitions when natural evaluation stays unknown', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-fallback-'));
+        const swordPath = path.join(workspaceRoot, 'adm', 'objects', 'sword.c');
+        const sourcePath = path.join(workspaceRoot, 'semantic-fallback-runtime.c');
+
+        fs.mkdirSync(path.dirname(swordPath), { recursive: true });
+        fs.writeFileSync(swordPath, 'string query_name() { return "sword"; }\n', 'utf8');
+        const sourceText = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/sword"}',
+            ' */',
+            'object helper(string target) {',
+            '    return load_object(target);',
+            '}',
+            '',
+            'void demo(string target) {',
+            '    helper(target)->query_name();',
+            '}'
+        ].join('\n');
+        fs.writeFileSync(sourcePath, sourceText, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(sourcePath, sourceText);
+
+        const definition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: positionOfSubstring(sourceText, 'query_name')
+        });
+
+        const locations = normalizeDefinitionLocations(definition);
+        expect(locations).toHaveLength(1);
+        expect(locations[0].uri).toBe(uriFromPath(swordPath));
+        expect(locations[0].range.start.line).toBe(0);
+    }, 30000);
+
+    test('this_object builtin path still resolves runtime definitions after provider extraction', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-this-object-'));
+        const sourcePath = path.join(workspaceRoot, 'self.c');
+        const sourceText = [
+            'string query_self() {',
+            '    return "me";',
+            '}',
+            '',
+            'void demo() {',
+            '    this_object()->query_self();',
+            '}'
+        ].join('\n');
+        fs.writeFileSync(sourcePath, sourceText, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(sourcePath, sourceText);
+
+        const definition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: positionOfSubstring(sourceText, 'query_self();')
+        });
+
+        const locations = normalizeDefinitionLocations(definition);
+        expect(locations).toHaveLength(1);
+        expect(locations[0].uri).toBe(uriFromPath(sourcePath));
+        expect(locations[0].range.start.line).toBe(0);
+    }, 30000);
+
+    test('previous_object stays non-static at runtime and does not fall back to annotations', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-previous-object-'));
+        const shieldPath = path.join(workspaceRoot, 'adm', 'objects', 'shield.c');
+        const sourcePath = path.join(workspaceRoot, 'semantic-previous-object-runtime.c');
+
+        fs.mkdirSync(path.dirname(shieldPath), { recursive: true });
+        fs.writeFileSync(shieldPath, 'string query_name() { return "shield"; }\n', 'utf8');
+        const sourceText = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object previous_object();',
+            '',
+            'void demo() {',
+            '    previous_object()->query_name();',
+            '}'
+        ].join('\n');
+        fs.writeFileSync(sourcePath, sourceText, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(sourcePath, sourceText);
+
+        const definition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: positionOfSubstring(sourceText, 'query_name')
+        });
+
+        expect(normalizeDefinitionLocations(definition)).toEqual([]);
+    }, 30000);
 });
 
 class SpawnedServerHarness {
@@ -671,6 +872,26 @@ function uriFromPath(filePath: string): string {
     return normalizedPath.startsWith('/')
         ? `file://${encodeURI(normalizedPath)}`
         : `file:///${encodeURI(normalizedPath)}`;
+}
+
+function positionOfSubstring(text: string, substring: string): { line: number; character: number } {
+    const offset = text.indexOf(substring);
+    if (offset === -1) {
+        throw new Error(`Substring not found: ${substring}`);
+    }
+
+    let line = 0;
+    let character = 0;
+    for (let index = 0; index < offset; index += 1) {
+        if (text[index] === '\n') {
+            line += 1;
+            character = 0;
+        } else {
+            character += 1;
+        }
+    }
+
+    return { line, character: character + 1 };
 }
 
 function applyTextEdits(source: string, edits: readonly TextEdit[]): string {

@@ -54,6 +54,12 @@ export interface CallableDoc {
     details?: string;
     note?: string;
     returns?: CallableReturnDoc;
+    /**
+     * Fallback-only object hint.
+     *
+     * Consumers must prefer natural semantic evaluation and environment providers
+     * whenever they produce a non-unknown result.
+     */
     returnObjects?: CallableReturnObjects;
     sourceKind: CallableSourceKind;
     sourcePath?: string;

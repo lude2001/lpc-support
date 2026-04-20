@@ -18,6 +18,7 @@ import {
     WorkspaceDocumentPathSupport,
     createVsCodeTextDocumentHost
 } from '../language/shared/WorkspaceDocumentPathSupport';
+import { createDefaultSemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
 import { AstBackedLanguageDefinitionService } from '../language/services/navigation/LanguageDefinitionService';
 import { DefaultLanguageSemanticTokensService } from '../language/services/structure/LanguageSemanticTokensService';
 import {
@@ -204,15 +205,22 @@ describe('language-service integration regression', () => {
     let documentHost: ReturnType<typeof createVsCodeTextDocumentHost>;
     let pathSupport: WorkspaceDocumentPathSupport;
 
-    const createObjectInference = (projectConfig?: unknown) =>
-        createDefaultObjectInferenceService({
+    const createObjectInference = (projectConfig?: unknown) => {
+        const semanticEvaluationService = createDefaultSemanticEvaluationService({
+            analysisService,
+            pathSupport,
+            projectConfigService: projectConfig as any
+        });
+
+        return createDefaultObjectInferenceService({
             macroManager: macroManager as any,
-            playerObjectPathOrProjectConfig: projectConfig as any,
             analysisService,
             documentationService,
             host: documentHost,
-            pathSupport
+            pathSupport,
+            semanticEvaluationService
         });
+    };
 
     const createCompletionService = (
         objectInferenceService?: ObjectInferenceService,
@@ -837,6 +845,154 @@ describe('language-service integration regression', () => {
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
     });
 
+    test('this_player()->query_name() resolves through the config-backed semantic provider', async () => {
+        const playerFile = path.join(fixtureRoot, 'adm', 'objects', 'player.c');
+        fs.mkdirSync(path.dirname(playerFile), { recursive: true });
+        fs.writeFileSync(
+            playerFile,
+            'string query_name() { return "player"; }\n'
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const projectConfigService = {
+            loadForWorkspace: jest.fn(async (workspaceRoot: string) =>
+                workspaceRoot === fixtureRoot
+                    ? {
+                        version: 1 as const,
+                        configHellPath: 'config.hell',
+                        playerObjectPath: '/adm/objects/player'
+                    }
+                    : undefined
+            )
+        };
+        const source = [
+            'void demo() {',
+            '    this_player()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-this-player-definition.c'), source);
+        const objectInferenceService = createObjectInference(projectConfigService);
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup, projectConfigService);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(playerFile);
+    });
+
+    test('previous_object() remains non-static at definition level and does not fall back to annotations', async () => {
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object previous_object();',
+            '',
+            'void demo() {',
+            '    previous_object()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-previous-object-definition.c'), source);
+        const objectInferenceService = createObjectInference();
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(0);
+    });
+
+    test('semantic evaluation fallback still feeds downstream definition when natural inference stays unknown', async () => {
+        const swordFile = path.join(fixtureRoot, 'adm', 'objects', 'sword.c');
+        fs.mkdirSync(path.dirname(swordFile), { recursive: true });
+        fs.writeFileSync(
+            swordFile,
+            'string query_name() { return "sword"; }\n'
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/sword"}',
+            ' */',
+            'object helper(string target) {',
+            '    return load_object(target);',
+            '}',
+            '',
+            'void demo(string target) {',
+            '    helper(target)->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-fallback-definition.c'), source);
+        const objectInferenceService = createObjectInference();
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(swordFile);
+    });
+
+    test('semantic evaluation mismatch does not override exact natural definition', async () => {
+        const swordFile = path.join(fixtureRoot, 'adm', 'objects', 'sword.c');
+        const shieldFile = path.join(fixtureRoot, 'adm', 'objects', 'shield.c');
+        fs.mkdirSync(path.dirname(swordFile), { recursive: true });
+        fs.writeFileSync(
+            swordFile,
+            'string query_name() { return "sword"; }\n'
+        );
+        fs.writeFileSync(
+            shieldFile,
+            'string query_name() { return "shield"; }\n'
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return load_object("/adm/objects/sword");',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mismatch-definition.c'), source);
+        const objectInferenceService = createObjectInference();
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(swordFile);
+    });
+
     test('definition resolves file-scope global object receivers to the current-file target', async () => {
         const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
         fs.mkdirSync(path.dirname(targetFile), { recursive: true });
@@ -977,6 +1133,78 @@ describe('language-service integration regression', () => {
         expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
         expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'add_data_button');
+    });
+
+    test('semantic evaluation model_get feeds downstream object-method definition', async () => {
+        const protocolFile = path.join(fixtureRoot, 'adm', 'protocol', 'protocol_server.c');
+        const loginModelFile = path.join(fixtureRoot, 'adm', 'protocol', 'model', 'login_model.c');
+        fs.mkdirSync(path.dirname(loginModelFile), { recursive: true });
+        fs.writeFileSync(
+            protocolFile,
+            [
+                '/**',
+                ' * @lpc-return-objects {"/adm/protocol/model/login_model", "/adm/protocol/model/classify_popup_model"}',
+                ' */',
+                'object model_get(string model_name) {',
+                '    mapping info;',
+                '    mapping registry = query_model_registry();',
+                '',
+                '    info = registry[model_name];',
+                '    if (info["mode"] == "new") {',
+                '        return new(info["path"]);',
+                '    }',
+                '',
+                '    return load_object(info["path"]);',
+                '}',
+                '',
+                'mapping query_model_registry() {',
+                '    return ([',
+                '        "login": ([',
+                '            "path": "/adm/protocol/model/login_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '        "classify_popup": ([',
+                '            "path": "/adm/protocol/model/classify_popup_model",',
+                '            "mode": "new",',
+                '        ]),',
+                '    ]);',
+                '}'
+            ].join('\n')
+        );
+        fs.writeFileSync(
+            loginModelFile,
+            'void error_result(string message) {}\n'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'protocol', 'model', 'classify_popup_model.c'),
+            'void add_data_button(string label, string command) {}\n'
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'void demo() {',
+            '    object protocol = load_object("/adm/protocol/protocol_server");',
+            '    protocol->model_get("login")->error_result("ban");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-model-get-definition.c'), source);
+        const objectInferenceService = createObjectInference();
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'error_result("ban");'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(loginModelFile);
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethod).toHaveBeenCalledWith(document, loginModelFile, 'error_result');
     });
 
     test('merged candidates from if/else return two locations when each file implements query_name', async () => {

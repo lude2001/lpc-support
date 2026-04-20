@@ -6,7 +6,7 @@
 
 核心设计原则是：统一的 `ObjectInferenceService` 作为唯一入口，被多个语言服务共享调用，避免各 Provider 各自实现推导逻辑。
 
-自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾尝试引入工作区级 `references / rename`；自 `0.45.1` 起，导航主路径重新收窄为“当前文件级 + 可证明继承链级”的保守边界，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。自 `0.45.2` 起，completion / hover / signature help / navigation / object inference / runtime document source 的 owner 进一步统一回到显式 composition root 与默认 factory，历史 fallback / self-assembly 路径已基本清空。
+自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾尝试引入工作区级 `references / rename`；自 `0.45.1` 起，导航主路径重新收窄为“当前文件级 + 可证明继承链级”的保守边界，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。自 `0.45.2` 起，completion / hover / signature help / navigation / object inference / runtime document source 的 owner 进一步统一回到显式 composition root 与默认 factory，历史 fallback / self-assembly 路径已基本清空。自语义求值基础接入后，`ObjectInferenceService` 在 direct/member call receiver 上不再只依赖 ad-hoc builtin/doc 规则，而会先消费 `SemanticEvaluationService` 的自然 return 推导与环境 provider 结果；`@lpc-return-objects` 仍保留，但已经降级为 fallback-only 提示。
 
 ## 2. 架构总览
 
@@ -285,7 +285,7 @@ void test() {
 
 ### 4.3 文档注释推导
 
-当调用表达式不是内建函数时，`ReturnObjectResolver` 会尝试从当前文件的 Javadoc 注释中提取 `@lpc-return-objects` 标注：
+当调用表达式不是内建函数，或自然语义推导在白区外保守降级为 `UnknownValue` 时，`ReturnObjectResolver` 才会从当前文件的 Javadoc 注释中提取 `@lpc-return-objects` 标注：
 
 ```c
 /**
@@ -298,7 +298,15 @@ object get_helper() {
 get_helper()->query();   // 候选：combat_d 和 health_d → status: multiple
 ```
 
-每条路径通过 `PathResolver.resolveObjectPath` 解析，来源标记为 `doc`。
+每条路径通过 `PathResolver.resolveObjectPath` 解析，来源标记为 `doc`。  
+注意：`@lpc-return-objects` 现在是 **fallback hint**，不是 authority。优先级固定为：
+
+1. 自然语义推导（callee return / registry factory / 白区静态值流）
+2. 环境语义 provider（如 `this_player()`）
+3. `@lpc-return-objects`
+4. `unknown`
+
+只有 `UnknownValue` 允许继续回退到注解；`ConfiguredCandidateSetValue`、`CandidateSetValue`、`NonStaticValue` 等任何非 `UnknownValue` 结果都必须在注解之前终止。
 
 ### 4.4 保守降级语义
 

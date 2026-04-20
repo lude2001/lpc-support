@@ -23,6 +23,7 @@ export class ObjectCandidateResolver {
             return {
                 status: 'unknown',
                 candidates: [],
+                reason,
                 diagnostics: resultDiagnostics
             };
         }

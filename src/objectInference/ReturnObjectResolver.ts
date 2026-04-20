@@ -3,8 +3,9 @@ import { FunctionDocumentationService } from '../language/documentation/Function
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import type { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { MacroManager } from '../macroManager';
-import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
+import { SemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
+import type { SemanticValue } from '../semanticEvaluation/types';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ScopedMethodResolver } from './ScopedMethodResolver';
 import { ScopedMethodReturnResolver } from './ScopedMethodReturnResolver';
@@ -16,24 +17,31 @@ export interface ObjectResolutionOutcome {
     diagnostics?: ObjectInferenceDiagnostic[];
 }
 
+type SemanticCandidateCollectionOutcome =
+    | { kind: 'candidates'; candidates: ObjectCandidate[] }
+    | { kind: 'unknown' }
+    | { kind: 'non-static' };
+
 export class ReturnObjectResolver {
     private readonly classifier = new ReceiverClassifier();
     private readonly documentationService: FunctionDocumentationService;
     private readonly pathSupport: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>;
     private scopedMethodReturnResolver?: ScopedMethodReturnResolver;
+    private readonly semanticEvaluationService?: SemanticEvaluationService;
 
     constructor(
         private readonly macroManager?: MacroManager,
-        private readonly playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
         documentationService?: FunctionDocumentationService,
         private readonly scopedMethodResolver?: ScopedMethodResolver,
-        pathSupport?: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>
+        pathSupport?: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>,
+        semanticEvaluationService?: SemanticEvaluationService
     ) {
         this.documentationService = assertDocumentationService('ReturnObjectResolver', documentationService);
         if (!pathSupport) {
             throw new Error('ReturnObjectResolver requires an injected object path support');
         }
         this.pathSupport = pathSupport;
+        this.semanticEvaluationService = semanticEvaluationService;
     }
 
     public attachScopedMethodReturnResolver(resolver: ScopedMethodReturnResolver): void {
@@ -63,6 +71,11 @@ export class ReturnObjectResolver {
             const scopedOutcome = await this.resolveScopedExpressionOutcome(document, expression);
             if (scopedOutcome) {
                 return scopedOutcome;
+            }
+
+            const semanticOutcome = await this.resolveSemanticExpressionOutcome(document, expression);
+            if (semanticOutcome) {
+                return semanticOutcome;
             }
         }
 
@@ -155,19 +168,6 @@ export class ReturnObjectResolver {
             return [{ path: document.fileName, source: 'builtin-call' }];
         }
 
-        if (receiver.calleeName === 'this_player') {
-            if (receiver.argumentCount !== 0) {
-                return [];
-            }
-
-            const resolvedPlayerPath = await this.resolveConfiguredPlayerObjectPath(document);
-            if (!resolvedPlayerPath) {
-                return [];
-            }
-
-            return [{ path: resolvedPlayerPath, source: 'builtin-call' }];
-        }
-
         if (!['load_object', 'find_object', 'clone_object'].includes(receiver.calleeName)) {
             return [];
         }
@@ -245,6 +245,45 @@ export class ReturnObjectResolver {
         );
     }
 
+    private async resolveSemanticExpressionOutcome(
+        document: vscode.TextDocument,
+        expression: SyntaxNode
+    ): Promise<ObjectResolutionOutcome | undefined> {
+        if (!this.semanticEvaluationService || expression.kind !== SyntaxKind.CallExpression) {
+            return undefined;
+        }
+
+        const semanticOutcome = await this.semanticEvaluationService.evaluateCallExpression(document, expression);
+        if (semanticOutcome.value.kind === 'unknown') {
+            return undefined;
+        }
+
+        if (semanticOutcome.value.kind === 'non-static') {
+            return {
+                candidates: [],
+                reason: 'non-static'
+            };
+        }
+
+        const semanticCandidates = this.collectSemanticCandidates(document, semanticOutcome.value);
+        if (semanticCandidates.kind === 'non-static') {
+            return {
+                candidates: [],
+                reason: 'non-static'
+            };
+        }
+
+        if (semanticCandidates.kind === 'unknown') {
+            return {
+                candidates: []
+            };
+        }
+
+        return {
+            candidates: semanticCandidates.candidates
+        };
+    }
+
     private async resolvePathCandidate(
         document: vscode.TextDocument,
         expression: string,
@@ -285,7 +324,7 @@ export class ReturnObjectResolver {
     }
 
     private isBuiltinCall(name: string): boolean {
-        return ['this_object', 'this_player', 'load_object', 'find_object', 'clone_object'].includes(name);
+        return ['this_object', 'load_object', 'find_object', 'clone_object'].includes(name);
     }
 
     private getNewTargetExpression(node: SyntaxNode): string | undefined {
@@ -318,31 +357,6 @@ export class ReturnObjectResolver {
         return value.length >= 2 && value.startsWith('"') && value.endsWith('"');
     }
 
-    private async resolveConfiguredPlayerObjectPath(document: vscode.TextDocument): Promise<string | undefined> {
-        let playerObjectPath: string | undefined;
-
-        if (typeof this.playerObjectPathOrProjectConfig === 'string') {
-            playerObjectPath = this.playerObjectPathOrProjectConfig;
-        } else if (this.playerObjectPathOrProjectConfig) {
-            const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-            if (!workspaceFolder) {
-                return undefined;
-            }
-
-            const projectConfig = await this.playerObjectPathOrProjectConfig.loadForWorkspace(workspaceFolder.uri.fsPath);
-            playerObjectPath = projectConfig?.playerObjectPath;
-        }
-
-        if (!playerObjectPath) {
-            return undefined;
-        }
-
-        return this.pathSupport.resolveObjectFilePath(
-            document,
-            this.toObjectPathExpression(playerObjectPath)
-        );
-    }
-
     private toObjectPathExpression(objectPath: string): string {
         if (this.macroManager?.getMacro(objectPath)) {
             return objectPath;
@@ -351,5 +365,66 @@ export class ReturnObjectResolver {
         return this.isStringLiteral(objectPath)
             ? objectPath
             : `"${objectPath}"`;
+    }
+
+    private collectSemanticCandidates(
+        document: vscode.TextDocument,
+        value: SemanticValue
+    ): SemanticCandidateCollectionOutcome {
+        switch (value.kind) {
+            case 'object':
+                return this.resolveSemanticObjectCandidate(document, value.path);
+            case 'candidate-set':
+            case 'configured-candidate-set':
+            case 'union':
+                return this.collectAggregateSemanticCandidates(document, value.values);
+            case 'non-static':
+                return { kind: 'non-static' };
+            default:
+                return { kind: 'unknown' };
+        }
+    }
+
+    private collectAggregateSemanticCandidates(
+        document: vscode.TextDocument,
+        values: readonly SemanticValue[]
+    ): SemanticCandidateCollectionOutcome {
+        const candidates: ObjectCandidate[] = [];
+
+        for (const value of values) {
+            const outcome = this.collectSemanticCandidates(document, value);
+            if (outcome.kind === 'non-static') {
+                return outcome;
+            }
+
+            if (outcome.kind === 'unknown') {
+                return outcome;
+            }
+
+            candidates.push(...outcome.candidates);
+        }
+
+        return {
+            kind: 'candidates',
+            candidates
+        };
+    }
+
+    private resolveSemanticObjectCandidate(
+        document: vscode.TextDocument,
+        path: string
+    ): SemanticCandidateCollectionOutcome {
+        const resolvedPath = this.pathSupport.resolveObjectFilePath(
+            document,
+            this.toObjectPathExpression(path)
+        );
+        if (!resolvedPath) {
+            return { kind: 'unknown' };
+        }
+
+        return {
+            kind: 'candidates',
+            candidates: [{ path: resolvedPath, source: 'builtin-call' }]
+        };
     }
 }

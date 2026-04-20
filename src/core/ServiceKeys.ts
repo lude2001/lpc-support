@@ -9,6 +9,7 @@ import type { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceD
 import type { DocumentLifecycleService } from './DocumentLifecycleService';
 import type { EfunDocsManager } from '../efunDocs';
 import type { ErrorTreeDataProvider } from '../errorTreeDataProvider';
+import type { SemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
 import type { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { ServiceKey } from './ServiceRegistry';
@@ -23,6 +24,7 @@ export const Services = {
     FunctionDocumentation: new ServiceKey<FunctionDocumentationService>('FunctionDocumentation'),
     TextDocumentHost: new ServiceKey<TextDocumentHost>('TextDocumentHost'),
     DocumentPathSupport: new ServiceKey<WorkspaceDocumentPathSupport>('DocumentPathSupport'),
+    SemanticEvaluation: new ServiceKey<SemanticEvaluationService>('SemanticEvaluation'),
     Lifecycle: new ServiceKey<DocumentLifecycleService>('Lifecycle'),
     Diagnostics: new ServiceKey<DiagnosticsOrchestrator>('Diagnostics'),
     ErrorTree: new ServiceKey<ErrorTreeDataProvider>('ErrorTree'),

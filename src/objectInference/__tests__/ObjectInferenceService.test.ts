@@ -11,11 +11,20 @@ import {
     WorkspaceDocumentPathSupport,
     createVsCodeTextDocumentHost
 } from '../../language/shared/WorkspaceDocumentPathSupport';
+import { createDefaultSemanticEvaluationService } from '../../semanticEvaluation/SemanticEvaluationService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import {
     ObjectInferenceService,
     createDefaultObjectInferenceService
 } from '../ObjectInferenceService';
+import {
+    candidateSetValue,
+    configuredCandidateSetValue,
+    nonStaticValue,
+    objectValue,
+    unionValue,
+    unknownValue
+} from '../../semanticEvaluation/valueFactories';
 import {
     configureAstManagerSingletonForTests,
     resetAstManagerSingletonForTests
@@ -88,21 +97,32 @@ describe('ObjectInferenceService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     let documentationService: FunctionDocumentationService;
     const documentHost = createVsCodeTextDocumentHost();
-    const createService = (playerObjectPathOrProjectConfig?: unknown) =>
-        createDefaultObjectInferenceService({
+    const createService = (_playerObjectPathOrProjectConfig?: unknown, overrideSemanticEvaluationService?: unknown) => {
+        const projectConfigService = typeof _playerObjectPathOrProjectConfig === 'string'
+            ? undefined
+            : _playerObjectPathOrProjectConfig as any;
+        const pathSupport = new WorkspaceDocumentPathSupport({
+            host: documentHost,
             macroManager: macroManager as any,
-            playerObjectPathOrProjectConfig: playerObjectPathOrProjectConfig as any,
+            projectConfigService
+        });
+        const semanticEvaluationService = overrideSemanticEvaluationService ?? createDefaultSemanticEvaluationService({
+            analysisService,
+            pathSupport,
+            ...(typeof _playerObjectPathOrProjectConfig === 'string'
+                ? { playerObjectPath: _playerObjectPathOrProjectConfig }
+                : { projectConfigService })
+        });
+
+        return createDefaultObjectInferenceService({
+            macroManager: macroManager as any,
             analysisService,
             documentationService,
             host: documentHost,
-            pathSupport: new WorkspaceDocumentPathSupport({
-                host: documentHost,
-                macroManager: macroManager as any,
-                projectConfigService: typeof playerObjectPathOrProjectConfig === 'string'
-                    ? undefined
-                    : playerObjectPathOrProjectConfig as any
-            })
+            pathSupport,
+            semanticEvaluationService: semanticEvaluationService as any
         });
+    };
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -280,6 +300,77 @@ describe('ObjectInferenceService', () => {
         expect(result?.inference).toEqual({
             status: 'unsupported',
             reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
+    test('semantic evaluation this_player outranks return-objects fallback', async () => {
+        const playerService = createService('/adm/objects/player');
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object this_player();',
+            '',
+            'void demo() {',
+            '    this_player()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-this-player-priority.c'), source);
+
+        const result = await playerService.inferObjectAccess(document, positionAfter(source, 'query_name'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'player.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('semantic evaluation previous_object remains terminal before return-objects fallback', async () => {
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object previous_object();',
+            '',
+            'void demo() {',
+            '    previous_object()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-previous-object-terminal.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'query_name'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            reason: 'non-static',
+            candidates: []
+        });
+    });
+
+    test('semantic evaluation previous_object with arguments remains terminal before return-objects fallback', async () => {
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object previous_object(int depth);',
+            '',
+            'void demo() {',
+            '    previous_object(1)->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-previous-object-arity-terminal.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'query_name'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            reason: 'non-static',
             candidates: []
         });
     });
@@ -1039,6 +1130,334 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('semantic evaluation outranks return-objects annotation for exact helper returns', async () => {
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return load_object("/adm/objects/sword");',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-return-objects-exact.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('semantic evaluation return-objects fallback still works when natural inference stays unknown', async () => {
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/sword"}',
+            ' */',
+            'object helper(string target) {',
+            '    return load_object(target);',
+            '}',
+            '',
+            'void demo(string target) {',
+            '    helper(target)->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-return-objects-fallback.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'helper(target)->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'doc'
+                }
+            ]
+        });
+    });
+
+    test('semantic evaluation return-objects fallback cannot override natural candidate-set results', async () => {
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/daemons/combat_d"}',
+            ' */',
+            'object helper(int flag) {',
+            '    if (flag) {',
+            '        return load_object("/adm/objects/sword");',
+            '    }',
+            '',
+            '    return load_object("/adm/objects/shield");',
+            '}',
+            '',
+            'void demo(int flag) {',
+            '    helper(flag)->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-return-objects-candidate-set.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'helper(flag)->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'multiple',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'builtin-call'
+                },
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'shield.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('semantic evaluation mixed union object and unknown does not collapse to resolved candidates', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: unionValue([
+                    objectValue('/adm/objects/sword'),
+                    unknownValue()
+                ])
+            }))
+        };
+        const mixedService = createService(undefined, semanticEvaluationService);
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return 0;',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mixed-union-unknown.c'), source);
+
+        const result = await mixedService.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('semantic evaluation mixed union object and non-static remains terminal', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: unionValue([
+                    objectValue('/adm/objects/sword'),
+                    nonStaticValue('previous_object() depends on runtime call stack')
+                ])
+            }))
+        };
+        const mixedService = createService(undefined, semanticEvaluationService);
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return 0;',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mixed-union-non-static.c'), source);
+
+        const result = await mixedService.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            reason: 'non-static',
+            candidates: []
+        });
+    });
+
+    test('semantic evaluation mixed candidate-set and unknown does not permit return-objects fallback', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: candidateSetValue([
+                    objectValue('/adm/objects/sword'),
+                    unknownValue()
+                ])
+            }))
+        };
+        const mixedService = createService(undefined, semanticEvaluationService);
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return 0;',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mixed-candidate-unknown.c'), source);
+
+        const result = await mixedService.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('semantic evaluation mixed configured-candidate-set and unknown does not permit return-objects fallback', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'environment' as const,
+                value: configuredCandidateSetValue('this_player', [
+                    objectValue('/adm/objects/sword'),
+                    unknownValue()
+                ])
+            }))
+        };
+        const mixedService = createService(undefined, semanticEvaluationService);
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return 0;',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mixed-configured-candidate-unknown.c'), source);
+
+        const result = await mixedService.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('semantic evaluation model_get natural return inference keeps backward-compatible object inference statuses', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'adm', 'protocol', 'model'), { recursive: true });
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'protocol', 'protocol_server.c'),
+            [
+                '/**',
+                ' * @lpc-return-objects {"/adm/protocol/model/login_model", "/adm/protocol/model/classify_popup_model"}',
+                ' */',
+                'object model_get(string model_name) {',
+                '    mapping info;',
+                '    mapping registry = query_model_registry();',
+                '',
+                '    info = registry[model_name];',
+                '    if (info["mode"] == "new") {',
+                '        return new(info["path"]);',
+                '    }',
+                '',
+                '    return load_object(info["path"]);',
+                '}',
+                '',
+                'mapping query_model_registry() {',
+                '    return ([',
+                '        "login": ([',
+                '            "path": "/adm/protocol/model/login_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '        "classify_popup": ([',
+                '            "path": "/adm/protocol/model/classify_popup_model",',
+                '            "mode": "new",',
+                '        ]),',
+                '    ]);',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'protocol', 'model', 'login_model.c'),
+            'void error_result(string message) {}\n',
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'adm', 'protocol', 'model', 'classify_popup_model.c'),
+            'void add_data_button(string label, string command) {}\n',
+            'utf8'
+        );
+
+        const exactSource = [
+            'void demo() {',
+            '    object protocol = load_object("/adm/protocol/protocol_server");',
+            '    protocol->model_get("login")->error_result("ban");',
+            '}'
+        ].join('\n');
+        const exactDocument = createDocument(path.join(fixtureRoot, 'room', 'semantic-model-get-exact.c'), exactSource);
+
+        const exactResult = await service.inferObjectAccess(
+            exactDocument,
+            positionAfter(exactSource, 'error_result')
+        );
+
+        expect(exactResult?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'protocol', 'model', 'login_model.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+
+        const multipleSource = [
+            'void demo(int flag) {',
+            '    string model_name;',
+            '    object protocol = load_object("/adm/protocol/protocol_server");',
+            '    if (flag) {',
+            '        model_name = "login";',
+            '    } else {',
+            '        model_name = "classify_popup";',
+            '    }',
+            '    protocol->model_get(model_name)->query();',
+            '}'
+        ].join('\n');
+        const multipleDocument = createDocument(path.join(fixtureRoot, 'room', 'semantic-model-get-multiple.c'), multipleSource);
+
+        const multipleResult = await service.inferObjectAccess(
+            multipleDocument,
+            positionAfter(multipleSource, 'query')
+        );
+
+        expect(multipleResult?.inference).toEqual({
+            status: 'multiple',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'protocol', 'model', 'classify_popup_model.c'),
+                    source: 'builtin-call'
+                },
+                {
+                    path: path.join(fixtureRoot, 'adm', 'protocol', 'model', 'login_model.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
     test('single-candidate object method return objects propagate through assignment tracing', async () => {
         fs.writeFileSync(
             path.join(fixtureRoot, 'adm', 'objects', 'factory.c'),
@@ -1547,7 +1966,6 @@ describe('ObjectInferenceService', () => {
         };
         const projectConfiguredService = createDefaultObjectInferenceService({
             macroManager: macroManager as any,
-            playerObjectPathOrProjectConfig: projectConfigService as any,
             analysisService: analysisService as any,
             documentationService,
             host: documentHost,
@@ -2616,7 +3034,6 @@ describe('ObjectInferenceService', () => {
         };
         const projectConfiguredService = createDefaultObjectInferenceService({
             macroManager: macroManager as any,
-            playerObjectPathOrProjectConfig: projectConfigService as any,
             analysisService: analysisService as any,
             documentationService,
             host: documentHost,
