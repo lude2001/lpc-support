@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/github/license/lude2001/lpc-support?color=orange)](https://github.com/lude2001/lpc-support/blob/main/LICENSE)
 
 LPC Support 是一个面向 VS Code 的 LPC / FluffOS 开发扩展，当前版本为 `0.45.2`。
+自 `0.40` 版本起的扩展暂不打包进入市场，它还在接收大量的实战检验，当前可查看源仓库查看进度。
 
 它提供日常 LPC 开发常用的语言能力，包括补全、悬停、跳转、引用、重命名、诊断、语义高亮、格式化、函数文档和编译管理。
 
