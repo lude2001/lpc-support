@@ -46,7 +46,12 @@ export class CalleeReturnEvaluator {
             return unknownValue();
         }
 
-        const target = await this.callTargetResolver.resolveCallTarget(document, callExpression);
+        const target = await this.callTargetResolver.resolveCallTarget(
+            document,
+            callExpression,
+            callerContext,
+            callerState
+        );
         if (!target) {
             return unknownValue();
         }

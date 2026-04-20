@@ -14,6 +14,10 @@ import {
     type StaticEvaluationState
 } from './StaticEvaluationState';
 
+export interface ExpressionEvaluatorOptions {
+    evaluateDirectCall?: (callExpression: SyntaxNode, state: StaticEvaluationState) => SemanticValue;
+}
+
 function getMetadataText(node: SyntaxNode): string | undefined {
     const text = node.metadata?.text;
     return typeof text === 'string' ? text : undefined;
@@ -76,6 +80,29 @@ function literalValueToArrayIndex(value: SemanticValue): number | undefined {
     return value.value;
 }
 
+function collectStaticStringSet(value: SemanticValue): string[] | undefined {
+    if (value.kind === 'literal' && typeof value.value === 'string') {
+        return [value.value];
+    }
+
+    if (
+        value.kind === 'union'
+        || value.kind === 'candidate-set'
+        || value.kind === 'configured-candidate-set'
+    ) {
+        const parts = value.values
+            .map((entry) => collectStaticStringSet(entry))
+            .filter((entry): entry is string[] => Boolean(entry));
+        if (parts.length !== value.values.length) {
+            return undefined;
+        }
+
+        return [...new Set(parts.flat())].sort();
+    }
+
+    return undefined;
+}
+
 function isDefinitelyTruthy(value: SemanticValue): boolean | undefined {
     if (value.kind === 'object') {
         return true;
@@ -105,7 +132,10 @@ function isDefinitelyTruthy(value: SemanticValue): boolean | undefined {
 }
 
 export class ExpressionEvaluator {
-    public constructor(private readonly context: StaticEvaluationContext) {}
+    public constructor(
+        private readonly context: StaticEvaluationContext,
+        private readonly options: ExpressionEvaluatorOptions = {}
+    ) {}
 
     public evaluate(node: SyntaxNode | undefined, state: StaticEvaluationState): SemanticValue {
         if (!node) {
@@ -125,6 +155,8 @@ export class ExpressionEvaluator {
                 return this.evaluateArrayLiteral(node, state);
             case SyntaxKind.IndexExpression:
                 return this.evaluateIndexExpression(node, state);
+            case SyntaxKind.BinaryExpression:
+                return this.evaluateBinaryExpression(node, state);
             case SyntaxKind.ConditionalExpression:
                 return this.evaluateConditionalExpression(node, state);
             case SyntaxKind.NewExpression:
@@ -178,13 +210,33 @@ export class ExpressionEvaluator {
         const target = this.evaluate(node.children[0], state);
         const index = this.evaluate(node.children[1], state);
 
+        return this.evaluateIndexOnTarget(target, index);
+    }
+
+    private evaluateIndexOnTarget(target: SemanticValue, index: SemanticValue): SemanticValue {
+        if (target.kind === 'union') {
+            return joinSemanticValues(
+                target.values.map((entry) => this.evaluateIndexOnTarget(entry, index))
+            );
+        }
+
         if (target.kind === 'mapping-shape') {
-            const entryKey = literalValueToStaticKey(index);
-            if (entryKey === undefined) {
+            const entryKeys = collectStaticStringSet(index);
+            if (!entryKeys || entryKeys.length === 0) {
                 return unknownValue();
             }
 
-            return target.entries[entryKey] ?? unknownValue();
+            const values: SemanticValue[] = [];
+            for (const entryKey of entryKeys) {
+                const entryValue = target.entries[entryKey];
+                if (!entryValue) {
+                    return unknownValue();
+                }
+
+                values.push(entryValue);
+            }
+
+            return joinSemanticValues(values);
         }
 
         if (target.kind === 'array-shape') {
@@ -194,6 +246,22 @@ export class ExpressionEvaluator {
             }
 
             return target.elements[elementIndex];
+        }
+
+        return unknownValue();
+    }
+
+    private evaluateBinaryExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
+        const operator = node.metadata?.operator;
+        const left = this.evaluate(node.children[0], state);
+        const right = this.evaluate(node.children[1], state);
+
+        if ((operator === '==' || operator === '===') && left.kind === 'literal' && right.kind === 'literal') {
+            return literalValue(left.value === right.value, 'boolean');
+        }
+
+        if ((operator === '!=' || operator === '!==') && left.kind === 'literal' && right.kind === 'literal') {
+            return literalValue(left.value !== right.value, 'boolean');
         }
 
         return unknownValue();
@@ -219,28 +287,29 @@ export class ExpressionEvaluator {
 
     private evaluateNewExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
         const targetValue = this.evaluate(node.children[0], state);
-        return this.asExactObjectValue(targetValue);
+        return this.asObjectSourceValue(targetValue);
     }
 
     private evaluateCallExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
         const callee = node.children[0];
-        if (!callee || callee.kind !== SyntaxKind.Identifier) {
-            return unknownValue();
+        if (callee?.kind === SyntaxKind.Identifier) {
+            if (callee.name === 'load_object' || callee.name === 'find_object') {
+                const argumentList = node.children[1];
+                const firstArgument = argumentList?.children[0];
+                const targetValue = this.evaluate(firstArgument, state);
+                return this.asObjectSourceValue(targetValue);
+            }
         }
 
-        if (callee.name !== 'load_object' && callee.name !== 'find_object') {
-            return unknownValue();
-        }
-
-        const argumentList = node.children[1];
-        const firstArgument = argumentList?.children[0];
-        const targetValue = this.evaluate(firstArgument, state);
-        return this.asExactObjectValue(targetValue);
+        return this.options.evaluateDirectCall
+            ? this.options.evaluateDirectCall(node, state)
+            : unknownValue();
     }
 
-    private asExactObjectValue(targetValue: SemanticValue): SemanticValue {
-        if (targetValue.kind === 'literal' && typeof targetValue.value === 'string') {
-            return objectValue(targetValue.value);
+    private asObjectSourceValue(targetValue: SemanticValue): SemanticValue {
+        const targetPaths = collectStaticStringSet(targetValue);
+        if (targetPaths?.length) {
+            return joinSemanticValues(targetPaths.map((targetPath) => objectValue(targetPath)));
         }
 
         return unknownValue();

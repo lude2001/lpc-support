@@ -5,7 +5,8 @@ import { clearGlobalParsedDocumentService } from '../../parser/ParsedDocumentSer
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { WorkspaceDocumentPathSupport } from '../../language/shared/WorkspaceDocumentPathSupport';
-import { unknownValue, literalValue, unionValue } from '../valueFactories';
+import { literalValue, objectValue, unionValue, unknownValue } from '../valueFactories';
+import type { SemanticValue } from '../types';
 import { createStaticEvaluationContext } from '../static/StaticEvaluationContext';
 import { createStaticEvaluationState } from '../static/StaticEvaluationState';
 import { ExpressionEvaluator } from '../static/ExpressionEvaluator';
@@ -141,10 +142,33 @@ function findFirstNode(root: SyntaxNode, predicate: (node: SyntaxNode) => boolea
     return undefined;
 }
 
+function getCallExpressionName(node: SyntaxNode): string | undefined {
+    if (node.kind !== SyntaxKind.CallExpression) {
+        return undefined;
+    }
+
+    const callee = node.children[0];
+    if (callee?.kind === SyntaxKind.Identifier && callee.name) {
+        return callee.name;
+    }
+
+    if (callee?.kind === SyntaxKind.MemberAccessExpression) {
+        const member = callee.children[1];
+        if (member?.kind === SyntaxKind.Identifier && member.name) {
+            return member.name;
+        }
+    }
+
+    return typeof node.name === 'string'
+        ? node.name
+        : undefined;
+}
+
 function prepareCallEvaluation(
     documents: readonly vscode.TextDocument[],
     callerDocument: vscode.TextDocument,
-    initialBindings: Record<string, ReturnType<typeof literalValue> | ReturnType<typeof unknownValue>> = {}
+    initialBindings: Record<string, SemanticValue> = {},
+    predicate: (node: SyntaxNode) => boolean = (node) => node.kind === SyntaxKind.CallExpression
 ): {
     context: ReturnType<typeof createStaticEvaluationContext>;
     state: ReturnType<typeof createStaticEvaluationState>;
@@ -208,8 +232,11 @@ function prepareCallEvaluation(
     let callExpression: SyntaxNode | undefined;
 
     for (const statement of blockNode.children) {
-        if (statement.kind === SyntaxKind.ReturnStatement) {
-            callExpression = statement.children[0];
+        const matchedCall = findFirstNode(statement, (node) =>
+            node.kind === SyntaxKind.CallExpression && predicate(node)
+        );
+        if (matchedCall) {
+            callExpression = matchedCall;
             break;
         }
 
@@ -231,7 +258,8 @@ function prepareCallEvaluation(
 async function evaluateReturnCall(
     sourceByUri: Record<string, string>,
     callerUri: string,
-    initialBindings: Record<string, ReturnType<typeof literalValue> | ReturnType<typeof unknownValue>> = {}
+    initialBindings: Record<string, SemanticValue> = {},
+    predicate: (node: SyntaxNode) => boolean = (node) => node.kind === SyntaxKind.CallExpression
 ) {
     const documents = Object.entries(sourceByUri).map(([uri, source]) => createTextDocument(uri, source));
     const callerFsPath = normalizeWorkspaceFsPath(vscode.Uri.parse(callerUri).fsPath);
@@ -248,7 +276,12 @@ async function evaluateReturnCall(
         pathSupport
     });
 
-    const { context, state, callExpression } = prepareCallEvaluation(documents, callerDocument, initialBindings);
+    const { context, state, callExpression } = prepareCallEvaluation(
+        documents,
+        callerDocument,
+        initialBindings,
+        predicate
+    );
     const evaluator = new CalleeReturnEvaluator({
         callTargetResolver
     });
@@ -385,5 +418,196 @@ describe('CalleeReturnEvaluator', () => {
         }, 'file:///D:/workspace/demo.c');
 
         expect(result).toEqual(literalValue('login'));
+    });
+
+    test('model_get query_model_registry resolves PROTOCOL_D->model_get("login") to the exact model object', async () => {
+        const result = await evaluateReturnCall({
+            'file:///D:/workspace/adm/protocol/protocol_server.c': [
+                'private mapping query_model_registry() {',
+                '    return ([',
+                '        "login": ([',
+                '            "path": "/adm/protocol/model/login_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '        "classify_popup": ([',
+                '            "path": "/adm/protocol/model/classify_popup_model",',
+                '            "mode": "new",',
+                '        ]),',
+                '    ]);',
+                '}',
+                '',
+                'object model_get(string model_name) {',
+                '    mapping registry;',
+                '    mapping info;',
+                '    object model;',
+                '',
+                '    registry = query_model_registry();',
+                '    info = registry[model_name];',
+                '    if (info["mode"] == "new") {',
+                '        model = new(info["path"]);',
+                '    } else {',
+                '        model = load_object(info["path"]);',
+                '    }',
+                '',
+                '    return model;',
+                '}'
+            ].join('\n'),
+            'file:///D:/workspace/demo.c': [
+                'mixed demo() {',
+                '    return PROTOCOL_D->model_get("login")->error_result("ban_msg");',
+                '}'
+            ].join('\n')
+        }, 'file:///D:/workspace/demo.c', {
+            PROTOCOL_D: objectValue('/adm/protocol/protocol_server')
+        }, (node) => getCallExpressionName(node) === 'model_get');
+
+        expect(result).toEqual(objectValue('/adm/protocol/model/login_model'));
+    });
+
+    test('model_get query_model_registry resolves local aliases to classify_popup objects', async () => {
+        const result = await evaluateReturnCall({
+            'file:///D:/workspace/adm/protocol/protocol_server.c': [
+                'private mapping query_model_registry() {',
+                '    return ([',
+                '        "login": ([',
+                '            "path": "/adm/protocol/model/login_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '        "classify_popup": ([',
+                '            "path": "/adm/protocol/model/classify_popup_model",',
+                '            "mode": "new",',
+                '        ]),',
+                '    ]);',
+                '}',
+                '',
+                'object model_get(string model_name) {',
+                '    mapping registry;',
+                '    mapping info;',
+                '    object model;',
+                '',
+                '    registry = query_model_registry();',
+                '    info = registry[model_name];',
+                '    if (info["mode"] == "new") {',
+                '        model = new(info["path"]);',
+                '    } else {',
+                '        model = load_object(info["path"]);',
+                '    }',
+                '',
+                '    return model;',
+                '}'
+            ].join('\n'),
+            'file:///D:/workspace/demo.c': [
+                'mixed demo() {',
+                '    string model_name = "classify_popup";',
+                '    return PROTOCOL_D->model_get(model_name);',
+                '}'
+            ].join('\n')
+        }, 'file:///D:/workspace/demo.c', {
+            PROTOCOL_D: objectValue('/adm/protocol/protocol_server')
+        });
+
+        expect(result).toEqual(objectValue('/adm/protocol/model/classify_popup_model'));
+    });
+
+    test('model_get query_model_registry returns unions when keys come from simple if else flow', async () => {
+        const result = await evaluateReturnCall({
+            'file:///D:/workspace/adm/protocol/protocol_server.c': [
+                'private mapping query_model_registry() {',
+                '    return ([',
+                '        "login": ([',
+                '            "path": "/adm/protocol/model/login_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '        "classify_popup": ([',
+                '            "path": "/adm/protocol/model/classify_popup_model",',
+                '            "mode": "new",',
+                '        ]),',
+                '    ]);',
+                '}',
+                '',
+                'object model_get(string model_name) {',
+                '    mapping registry;',
+                '    mapping info;',
+                '    object model;',
+                '',
+                '    registry = query_model_registry();',
+                '    info = registry[model_name];',
+                '    if (info["mode"] == "new") {',
+                '        model = new(info["path"]);',
+                '    } else {',
+                '        model = load_object(info["path"]);',
+                '    }',
+                '',
+                '    return model;',
+                '}'
+            ].join('\n'),
+            'file:///D:/workspace/demo.c': [
+                'mixed demo() {',
+                '    string model_name;',
+                '    if (flag) {',
+                '        model_name = "login";',
+                '    } else {',
+                '        model_name = "classify_popup";',
+                '    }',
+                '    return PROTOCOL_D->model_get(model_name);',
+                '}'
+            ].join('\n')
+        }, 'file:///D:/workspace/demo.c', {
+            PROTOCOL_D: objectValue('/adm/protocol/protocol_server'),
+            flag: unknownValue()
+        });
+
+        expect(result.kind).toBe('union');
+        if (result.kind !== 'union') {
+            throw new Error('Expected union result for model_get registry branch join.');
+        }
+
+        expect(result.values).toHaveLength(2);
+        expect(result.values).toEqual(expect.arrayContaining([
+            objectValue('/adm/protocol/model/login_model'),
+            objectValue('/adm/protocol/model/classify_popup_model')
+        ]));
+    });
+
+    test('model_get query_model_registry returns unknown when the registry shape is not statically evaluable', async () => {
+        const result = await evaluateReturnCall({
+            'file:///D:/workspace/adm/protocol/protocol_server.c': [
+                'private mapping query_model_registry() {',
+                '    mapping registry;',
+                '',
+                '    registry = ([]);',
+                '    registry["login"] = ([',
+                '        "path": "/adm/protocol/model/login_model",',
+                '        "mode": "load",',
+                '    ]);',
+                '    return registry;',
+                '}',
+                '',
+                'object model_get(string model_name) {',
+                '    mapping registry;',
+                '    mapping info;',
+                '    object model;',
+                '',
+                '    registry = query_model_registry();',
+                '    info = registry[model_name];',
+                '    if (info["mode"] == "new") {',
+                '        model = new(info["path"]);',
+                '    } else {',
+                '        model = load_object(info["path"]);',
+                '    }',
+                '',
+                '    return model;',
+                '}'
+            ].join('\n'),
+            'file:///D:/workspace/demo.c': [
+                'mixed demo() {',
+                '    return PROTOCOL_D->model_get("login");',
+                '}'
+            ].join('\n')
+        }, 'file:///D:/workspace/demo.c', {
+            PROTOCOL_D: objectValue('/adm/protocol/protocol_server')
+        });
+
+        expect(result).toEqual(unknownValue());
     });
 });

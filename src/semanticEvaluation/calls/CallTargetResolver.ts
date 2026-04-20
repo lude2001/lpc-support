@@ -7,6 +7,9 @@ import {
     WorkspaceDocumentPathSupport,
     assertDocumentPathSupport
 } from '../../language/shared/WorkspaceDocumentPathSupport';
+import { ExpressionEvaluator } from '../static/ExpressionEvaluator';
+import type { StaticEvaluationContext } from '../static/StaticEvaluationContext';
+import type { StaticEvaluationState } from '../static/StaticEvaluationState';
 
 export interface ResolvedCallTarget {
     document: vscode.TextDocument;
@@ -30,6 +33,24 @@ function getDirectCalleeName(callExpression: SyntaxNode): string | undefined {
     return typeof callExpression.name === 'string'
         ? callExpression.name
         : undefined;
+}
+
+function getMemberCallee(callExpression: SyntaxNode): { receiver: SyntaxNode; name: string } | undefined {
+    const callee = callExpression.children[0];
+    if (callee?.kind !== SyntaxKind.MemberAccessExpression || callee.metadata?.operator !== '->') {
+        return undefined;
+    }
+
+    const receiver = callee.children[0];
+    const memberNode = callee.children[1];
+    if (!receiver || memberNode?.kind !== SyntaxKind.Identifier || !memberNode.name) {
+        return undefined;
+    }
+
+    return {
+        receiver,
+        name: memberNode.name
+    };
 }
 
 function getLiteralDirectiveValue(node: SyntaxNode | undefined): string | undefined {
@@ -130,14 +151,50 @@ export class CallTargetResolver {
 
     public async resolveCallTarget(
         document: vscode.TextDocument,
-        callExpression: SyntaxNode
+        callExpression: SyntaxNode,
+        callerContext?: StaticEvaluationContext,
+        callerState?: StaticEvaluationState
     ): Promise<ResolvedCallTarget | undefined> {
         const functionName = getDirectCalleeName(callExpression);
         if (!functionName) {
-            return undefined;
+            const memberCall = getMemberCallee(callExpression);
+            if (!memberCall || !callerContext || !callerState) {
+                return undefined;
+            }
+
+            const receiverValue = new ExpressionEvaluator(callerContext).evaluate(memberCall.receiver, callerState);
+            if (receiverValue.kind !== 'object') {
+                return undefined;
+            }
+
+            return this.resolveObjectFunctionTarget(
+                document,
+                receiverValue.path,
+                memberCall.name,
+                new Set<string>()
+            );
         }
 
         return this.resolveFunctionTarget(document, functionName, new Set<string>());
+    }
+
+    private async resolveObjectFunctionTarget(
+        document: vscode.TextDocument,
+        objectPath: string,
+        functionName: string,
+        visitedDocuments: Set<string>
+    ): Promise<ResolvedCallTarget | undefined> {
+        const objectFile = this.pathSupport.resolveObjectFilePath(document, `"${objectPath}"`);
+        if (!objectFile || !this.pathSupport.fileExists(objectFile)) {
+            return undefined;
+        }
+
+        const objectDocument = await this.pathSupport.tryOpenTextDocument(objectFile);
+        if (!objectDocument) {
+            return undefined;
+        }
+
+        return this.resolveFunctionTarget(objectDocument, functionName, visitedDocuments);
     }
 
     private async resolveFunctionTarget(
