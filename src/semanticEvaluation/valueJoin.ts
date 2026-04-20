@@ -24,13 +24,17 @@ function serializeSemanticValue(value: SemanticValue): string {
         case 'candidate-set':
             return JSON.stringify({
                 kind: value.kind,
-                values: value.values.map(serializeSemanticValue)
+                values: value.values
+                    .map(serializeSemanticValue)
+                    .sort()
             });
         case 'configured-candidate-set':
             return JSON.stringify({
                 kind: value.kind,
                 provider: value.provider,
-                values: value.values.map(serializeSemanticValue)
+                values: value.values
+                    .map(serializeSemanticValue)
+                    .sort()
             });
         case 'mapping-shape': {
             const entries = Object.keys(value.entries)

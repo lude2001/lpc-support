@@ -1,5 +1,6 @@
 import {
     arrayShapeValue,
+    candidateSetValue,
     configuredCandidateSetValue,
     literalValue,
     mappingShapeValue,
@@ -117,5 +118,45 @@ describe('semantic evaluation value domain', () => {
                 }
             ]
         });
+    });
+
+    test('treats candidate-set order as semantically equivalent', () => {
+        expect(candidateSetValue([
+            literalValue('login'),
+            objectValue('/adm/protocol/model/login_model')
+        ])).toEqual(candidateSetValue([
+            literalValue('login'),
+            objectValue('/adm/protocol/model/login_model')
+        ]));
+
+        expect(joinSemanticValues([
+            candidateSetValue([
+                literalValue('login'),
+                objectValue('/adm/protocol/model/login_model')
+            ]),
+            candidateSetValue([
+                objectValue('/adm/protocol/model/login_model'),
+                literalValue('login')
+            ])
+        ])).toEqual(candidateSetValue([
+            literalValue('login'),
+            objectValue('/adm/protocol/model/login_model')
+        ]));
+    });
+
+    test('treats configured candidate-set order as semantically equivalent', () => {
+        expect(joinSemanticValues([
+            configuredCandidateSetValue('this-player', [
+                objectValue('/std/user'),
+                objectValue('/std/player')
+            ]),
+            configuredCandidateSetValue('this-player', [
+                objectValue('/std/player'),
+                objectValue('/std/user')
+            ])
+        ])).toEqual(configuredCandidateSetValue('this-player', [
+            objectValue('/std/user'),
+            objectValue('/std/player')
+        ]));
     });
 });

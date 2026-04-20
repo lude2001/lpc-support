@@ -62,7 +62,7 @@ export function objectValue(path: string): ObjectValue {
 export function candidateSetValue(values: SemanticValue[]): CandidateSetValue {
     return {
         kind: 'candidate-set',
-        values
+        values: values.slice()
     };
 }
 
@@ -73,7 +73,7 @@ export function configuredCandidateSetValue(
     return {
         kind: 'configured-candidate-set',
         provider,
-        values
+        values: values.slice()
     };
 }
 
