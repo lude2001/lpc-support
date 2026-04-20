@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { describe, expect, test } from '@jest/globals';
 import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
 import { SyntaxBuilder } from '../../syntax/SyntaxBuilder';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';

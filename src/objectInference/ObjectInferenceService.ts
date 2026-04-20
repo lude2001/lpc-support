@@ -140,13 +140,21 @@ export class ObjectInferenceService {
             && receiverNode.children[0].metadata?.operator === '->'
         ) {
             const semanticOutcome = await this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
-            if (semanticOutcome.candidates.length > 0 || semanticOutcome.reason || semanticOutcome.diagnostics?.length) {
+            if (
+                semanticOutcome.candidates.length > 0
+                || semanticOutcome.reason === 'non-static'
+                || semanticOutcome.diagnostics?.length
+            ) {
                 return semanticOutcome;
             }
 
             const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
             if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
                 return tracedOutcome;
+            }
+
+            if (semanticOutcome.reason) {
+                return semanticOutcome;
             }
         }
 
