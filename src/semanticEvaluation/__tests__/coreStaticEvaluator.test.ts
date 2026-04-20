@@ -16,6 +16,7 @@ import {
     createStaticEvaluationState,
     createValueEnvironment
 } from '../static/StaticEvaluationState';
+import { CoreStaticEvaluator } from '../static/CoreStaticEvaluator';
 
 function createDocument(content: string, fileName = '/virtual/semantic-eval.c'): vscode.TextDocument {
     const lines = content.split('\n');
@@ -118,6 +119,42 @@ function evaluateReturnedExpression(
     return evaluator.evaluate(expression, state);
 }
 
+function getFunctionDeclaration(source: string): SyntaxNode {
+    const syntaxDocument = buildSyntaxDocument(source);
+    const functionNode = findFirstNode(
+        syntaxDocument.root,
+        (node) => node.kind === SyntaxKind.FunctionDeclaration
+    );
+
+    if (!functionNode) {
+        throw new Error('Expected function declaration in test fixture.');
+    }
+
+    return functionNode;
+}
+
+function evaluateFunction(
+    source: string,
+    options: {
+        bindings?: Record<string, unknown>;
+        budget?: Parameters<typeof createStaticEvaluationContext>[0]['budget'];
+    } = {}
+) {
+    const functionNode = getFunctionDeclaration(source);
+    const context = createStaticEvaluationContext({
+        metadata: {
+            documentUri: '/virtual/semantic-eval.c',
+            functionName: functionNode.name ?? 'demo',
+            callDepth: 0
+        },
+        budget: options.budget,
+        initialEnvironment: createValueEnvironment(options.bindings as Record<string, any> | undefined)
+    });
+    const evaluator = new CoreStaticEvaluator(context);
+
+    return evaluator.evaluateFunction(functionNode);
+}
+
 describe('ExpressionEvaluator', () => {
     afterEach(() => {
         clearGlobalParsedDocumentService();
@@ -215,5 +252,95 @@ describe('ExpressionEvaluator', () => {
             objectValue('/adm/model/login'),
             objectValue('/adm/model/logout')
         ]));
+    });
+
+    test('supports local declaration and assignment statements', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    string model;',
+            '    model = "login";',
+            '    return model;',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(literalValue('login'));
+    });
+
+    test('joins simple if/else statement branches', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    string model;',
+            '    if (flag)',
+            '        model = "login";',
+            '    else',
+            '        model = "logout";',
+            '    return model;',
+            '}'
+        ].join('\n'), {
+            bindings: { flag: unknownValue() }
+        });
+
+        expect(result).toEqual(unionValue([
+            literalValue('login'),
+            literalValue('logout')
+        ]));
+    });
+
+    test('uses real conditional expressions inside statement transfer joins', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    object model;',
+            '    model = flag ? load_object("/adm/model/login") : new("/adm/model/logout");',
+            '    return model;',
+            '}'
+        ].join('\n'), {
+            bindings: { flag: unknownValue() }
+        });
+
+        expect(result).toEqual(unionValue([
+            objectValue('/adm/model/login'),
+            objectValue('/adm/model/logout')
+        ]));
+    });
+
+    test('returns through a local variable', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    object model = load_object("/adm/model/login");',
+            '    return model;',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(objectValue('/adm/model/login'));
+    });
+
+    test('downgrades unsupported loops to unknown', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    string model = "login";',
+            '    while (flag) {',
+            '        model = "logout";',
+            '    }',
+            '    return model;',
+            '}'
+        ].join('\n'), {
+            bindings: { flag: unknownValue() }
+        });
+
+        expect(result).toEqual(unknownValue());
+    });
+
+    test('surfaces budget exhaustion as unknown instead of throwing', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    string model;',
+            '    model = "login";',
+            '    return model;',
+            '}'
+        ].join('\n'), {
+            budget: { maxStatements: 2 }
+        });
+
+        expect(result).toEqual(unknownValue());
     });
 });
