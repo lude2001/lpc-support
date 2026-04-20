@@ -19,6 +19,7 @@ import {
 } from '../ObjectInferenceService';
 import {
     candidateSetValue,
+    configuredCandidateSetValue,
     nonStaticValue,
     objectValue,
     unionValue,
@@ -1290,6 +1291,39 @@ describe('ObjectInferenceService', () => {
             '}'
         ].join('\n');
         const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mixed-candidate-unknown.c'), source);
+
+        const result = await mixedService.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('semantic evaluation mixed configured-candidate-set and unknown does not permit return-objects fallback', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'environment' as const,
+                value: configuredCandidateSetValue('this_player', [
+                    objectValue('/adm/objects/sword'),
+                    unknownValue()
+                ])
+            }))
+        };
+        const mixedService = createService(undefined, semanticEvaluationService);
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return 0;',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mixed-configured-candidate-unknown.c'), source);
 
         const result = await mixedService.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
 
