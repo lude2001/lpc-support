@@ -106,6 +106,24 @@ function createDocumentHost(documents: readonly vscode.TextDocument[]) {
     const byUri = new Map<string, vscode.TextDocument>();
     const byFsPath = new Map<string, vscode.TextDocument>();
     const normalizeFsPath = (value: string) => normalizeWorkspaceFsPath(value);
+    const splitSegments = (value: string) => normalizeFsPath(value).split(/[\\/]+/);
+    const allSegments = documents.map((document) => splitSegments(document.uri.fsPath));
+    const commonSegments: string[] = [];
+    const shortestLength = Math.min(...allSegments.map((segments) => segments.length));
+
+    for (let index = 0; index < shortestLength; index += 1) {
+        const segment = allSegments[0][index];
+        if (allSegments.every((segments) => segments[index] === segment)) {
+            commonSegments.push(segment);
+            continue;
+        }
+
+        break;
+    }
+
+    const workspaceRoot = commonSegments.length > 0
+        ? commonSegments.join(path.sep)
+        : path.dirname(documents[0]?.uri.fsPath ?? 'D:\\workspace');
 
     for (const document of documents) {
         byUri.set(document.uri.toString(), document);
@@ -123,7 +141,7 @@ function createDocumentHost(documents: readonly vscode.TextDocument[]) {
             return document;
         }),
         fileExists: (filePath: string) => byFsPath.has(normalizeFsPath(filePath)),
-        getWorkspaceFolder: (uri: vscode.Uri) => ({ uri: { fsPath: path.dirname(uri.fsPath) } })
+        getWorkspaceFolder: () => ({ uri: { fsPath: workspaceRoot } })
     };
 }
 
@@ -626,6 +644,49 @@ describe('CalleeReturnEvaluator', () => {
             'file:///D:/workspace/adm/protocol/protocol_server.c': [
                 'private mapping query_model_registry();',
                 '#include "protocol_registry.c"',
+                '',
+                'object model_get(string model_name) {',
+                '    mapping registry;',
+                '    mapping info;',
+                '    object model;',
+                '',
+                '    registry = query_model_registry();',
+                '    info = registry[model_name];',
+                '    if (info["mode"] == "new") {',
+                '        model = new(info["path"]);',
+                '    } else {',
+                '        model = load_object(info["path"]);',
+                '    }',
+                '',
+                '    return model;',
+                '}'
+            ].join('\n'),
+            'file:///D:/workspace/demo.c': [
+                'mixed demo() {',
+                '    return PROTOCOL_D->model_get("login")->error_result("ban_msg");',
+                '}'
+            ].join('\n')
+        }, 'file:///D:/workspace/demo.c', {
+            PROTOCOL_D: objectValue('/adm/protocol/protocol_server')
+        }, (node) => getCallExpressionName(node) === 'model_get');
+
+        expect(result).toEqual(objectValue('/adm/protocol/model/login_model'));
+    });
+
+    test('model_get query_model_registry inherit-backed helpers still drive natural return inference', async () => {
+        const result = await evaluateReturnCall({
+            'file:///D:/workspace/adm/protocol/protocol_registry.c': [
+                'mapping query_model_registry() {',
+                '    return ([',
+                '        "login": ([',
+                '            "path": "/adm/protocol/model/login_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '    ]);',
+                '}'
+            ].join('\n'),
+            'file:///D:/workspace/adm/protocol/protocol_server.c': [
+                'inherit "/adm/protocol/protocol_registry";',
                 '',
                 'object model_get(string model_name) {',
                 '    mapping registry;',
