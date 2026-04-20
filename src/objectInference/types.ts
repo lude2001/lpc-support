@@ -2,7 +2,7 @@ export type ObjectCandidateSource = 'literal' | 'macro' | 'builtin-call' | 'assi
 
 export type ObjectInferenceStatus = 'resolved' | 'multiple' | 'unknown' | 'unsupported';
 
-export type ObjectInferenceReason = 'unsupported-expression';
+export type ObjectInferenceReason = 'unsupported-expression' | 'non-static';
 
 export type ObjectInferenceDiagnosticCode = 'missing-return-annotation';
 

@@ -12,6 +12,10 @@ import {
     WorkspaceDocumentPathSupport
 } from '../language/shared/WorkspaceDocumentPathSupport';
 import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
+import {
+    SemanticEvaluationService,
+    createDefaultSemanticEvaluationService
+} from '../semanticEvaluation/SemanticEvaluationService';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
 import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
@@ -39,6 +43,7 @@ export interface DefaultObjectInferenceServiceDependencies {
     documentationService?: FunctionDocumentationService;
     host?: TextDocumentHost;
     pathSupport?: WorkspaceDocumentPathSupport;
+    semanticEvaluationService?: SemanticEvaluationService;
 }
 
 export class ObjectInferenceService {
@@ -134,6 +139,11 @@ export class ObjectInferenceService {
             && receiverNode.children[0]?.kind === SyntaxKind.MemberAccessExpression
             && receiverNode.children[0].metadata?.operator === '->'
         ) {
+            const semanticOutcome = await this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
+            if (semanticOutcome.candidates.length > 0 || semanticOutcome.reason || semanticOutcome.diagnostics?.length) {
+                return semanticOutcome;
+            }
+
             const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
             if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
                 return tracedOutcome;
@@ -245,6 +255,11 @@ export function createDefaultObjectInferenceService(
         dependencies.documentationService
     );
     const pathSupport = assertDocumentPathSupport('ObjectInferenceService', dependencies.pathSupport);
+    const semanticEvaluationService = dependencies.semanticEvaluationService
+        ?? createDefaultSemanticEvaluationService({
+            analysisService,
+            pathSupport
+        });
     const inheritanceResolver = new InheritanceResolver(dependencies.macroManager);
     const targetMethodLookup = new TargetMethodLookup(
         analysisService,
@@ -259,7 +274,8 @@ export function createDefaultObjectInferenceService(
         dependencies.macroManager,
         resolvedDocumentationService,
         scopedMethodResolver,
-        pathSupport
+        pathSupport,
+        semanticEvaluationService
     );
     const scopedMethodReturnResolver = new ScopedMethodReturnResolver(
         (document, functionName, options) =>

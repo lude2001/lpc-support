@@ -53,6 +53,7 @@ import { createDefaultScopedMethodDiscoveryService } from '../../../objectInfere
 import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
+import { createDefaultSemanticEvaluationService } from '../../../semanticEvaluation/SemanticEvaluationService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { setServerWorkspaceRoots } from './serverHostState';
 
@@ -76,12 +77,18 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         documentationService,
         pathSupport: documentPathSupport
     });
+    const semanticEvaluationService = createDefaultSemanticEvaluationService({
+        analysisService,
+        pathSupport: documentPathSupport,
+        projectConfigService
+    });
     const objectInferenceService = createDefaultObjectInferenceService({
         macroManager,
         analysisService,
         documentationService,
         host: workspaceDocumentHost,
-        pathSupport: documentPathSupport
+        pathSupport: documentPathSupport,
+        semanticEvaluationService
     });
     const inheritanceResolver = new InheritanceResolver(macroManager, undefined);
     const scopedMethodResolver = new ScopedMethodResolver({

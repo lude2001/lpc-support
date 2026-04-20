@@ -14,6 +14,7 @@ import { MacroManager } from '../macroManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
+import { createDefaultSemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
 
 let registeredProjectConfigService: LpcProjectConfigService | undefined;
 
@@ -40,6 +41,12 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
         projectConfigService
     });
     registry.register(Services.DocumentPathSupport, documentPathSupport);
+    const semanticEvaluationService = createDefaultSemanticEvaluationService({
+        analysisService,
+        pathSupport: documentPathSupport,
+        projectConfigService
+    });
+    registry.register(Services.SemanticEvaluation, semanticEvaluationService);
     const functionDocCompatMaterializer = new FunctionDocCompatMaterializer();
     const functionDocLookupBuilder = new FunctionDocLookupBuilder({
         documentationService,

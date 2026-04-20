@@ -4,6 +4,8 @@ import { assertDocumentationService } from '../language/documentation/assertDocu
 import type { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { MacroManager } from '../macroManager';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
+import { SemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
+import type { SemanticValue } from '../semanticEvaluation/types';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ScopedMethodResolver } from './ScopedMethodResolver';
 import { ScopedMethodReturnResolver } from './ScopedMethodReturnResolver';
@@ -20,18 +22,21 @@ export class ReturnObjectResolver {
     private readonly documentationService: FunctionDocumentationService;
     private readonly pathSupport: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>;
     private scopedMethodReturnResolver?: ScopedMethodReturnResolver;
+    private readonly semanticEvaluationService?: SemanticEvaluationService;
 
     constructor(
         private readonly macroManager?: MacroManager,
         documentationService?: FunctionDocumentationService,
         private readonly scopedMethodResolver?: ScopedMethodResolver,
-        pathSupport?: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>
+        pathSupport?: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>,
+        semanticEvaluationService?: SemanticEvaluationService
     ) {
         this.documentationService = assertDocumentationService('ReturnObjectResolver', documentationService);
         if (!pathSupport) {
             throw new Error('ReturnObjectResolver requires an injected object path support');
         }
         this.pathSupport = pathSupport;
+        this.semanticEvaluationService = semanticEvaluationService;
     }
 
     public attachScopedMethodReturnResolver(resolver: ScopedMethodReturnResolver): void {
@@ -61,6 +66,11 @@ export class ReturnObjectResolver {
             const scopedOutcome = await this.resolveScopedExpressionOutcome(document, expression);
             if (scopedOutcome) {
                 return scopedOutcome;
+            }
+
+            const semanticOutcome = await this.resolveSemanticExpressionOutcome(document, expression);
+            if (semanticOutcome) {
+                return semanticOutcome;
             }
         }
 
@@ -230,6 +240,31 @@ export class ReturnObjectResolver {
         );
     }
 
+    private async resolveSemanticExpressionOutcome(
+        document: vscode.TextDocument,
+        expression: SyntaxNode
+    ): Promise<ObjectResolutionOutcome | undefined> {
+        if (!this.semanticEvaluationService || expression.kind !== SyntaxKind.CallExpression) {
+            return undefined;
+        }
+
+        const semanticOutcome = await this.semanticEvaluationService.evaluateCallExpression(document, expression);
+        if (semanticOutcome.value.kind === 'unknown') {
+            return undefined;
+        }
+
+        if (semanticOutcome.value.kind === 'non-static') {
+            return {
+                candidates: [],
+                reason: 'non-static'
+            };
+        }
+
+        return {
+            candidates: this.collectSemanticCandidates(document, semanticOutcome.value)
+        };
+    }
+
     private async resolvePathCandidate(
         document: vscode.TextDocument,
         expression: string,
@@ -311,5 +346,30 @@ export class ReturnObjectResolver {
         return this.isStringLiteral(objectPath)
             ? objectPath
             : `"${objectPath}"`;
+    }
+
+    private collectSemanticCandidates(document: vscode.TextDocument, value: SemanticValue): ObjectCandidate[] {
+        switch (value.kind) {
+            case 'object':
+                return this.resolveSemanticObjectCandidate(document, value.path);
+            case 'candidate-set':
+            case 'configured-candidate-set':
+            case 'union':
+                return value.values.flatMap((entry) => this.collectSemanticCandidates(document, entry));
+            default:
+                return [];
+        }
+    }
+
+    private resolveSemanticObjectCandidate(document: vscode.TextDocument, path: string): ObjectCandidate[] {
+        const resolvedPath = this.pathSupport.resolveObjectFilePath(
+            document,
+            this.toObjectPathExpression(path)
+        );
+        if (!resolvedPath) {
+            return [];
+        }
+
+        return [{ path: resolvedPath, source: 'builtin-call' }];
     }
 }
