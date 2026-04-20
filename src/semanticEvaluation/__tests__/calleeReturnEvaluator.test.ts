@@ -13,10 +13,21 @@ import { StatementTransfer } from '../static/StatementTransfer';
 import { CallTargetResolver } from '../calls/CallTargetResolver';
 import { CalleeReturnEvaluator } from '../calls/CalleeReturnEvaluator';
 
+function normalizeWorkspaceFsPath(filePath: string): string {
+    return path.normalize(filePath.replace(/^\/([A-Za-z]:)/, '$1'));
+}
+
 function createTextDocument(uriValue: string, source: string, version: number = 1): vscode.TextDocument {
-    const uri = uriValue.startsWith('file:')
-        ? vscode.Uri.file(vscode.Uri.parse(uriValue).fsPath)
-        : vscode.Uri.file(uriValue);
+    const fsPath = normalizeWorkspaceFsPath(
+        uriValue.startsWith('file:')
+            ? vscode.Uri.parse(uriValue).fsPath
+            : uriValue
+    );
+    const uri = vscode.Uri.file(fsPath);
+    Object.defineProperty(uri, 'fsPath', {
+        value: fsPath,
+        configurable: true
+    });
     const lines = source.split(/\r?\n/);
     const lineStarts = [0];
 
@@ -46,7 +57,7 @@ function createTextDocument(uriValue: string, source: string, version: number = 
 
     return {
         uri,
-        fileName: uri.fsPath,
+        fileName: fsPath,
         languageId: 'lpc',
         version,
         lineCount: lines.length,
@@ -93,7 +104,7 @@ function createTextDocument(uriValue: string, source: string, version: number = 
 function createDocumentHost(documents: readonly vscode.TextDocument[]) {
     const byUri = new Map<string, vscode.TextDocument>();
     const byFsPath = new Map<string, vscode.TextDocument>();
-    const normalizeFsPath = (value: string) => path.normalize(value);
+    const normalizeFsPath = (value: string) => normalizeWorkspaceFsPath(value);
 
     for (const document of documents) {
         byUri.set(document.uri.toString(), document);
@@ -223,7 +234,8 @@ async function evaluateReturnCall(
     initialBindings: Record<string, ReturnType<typeof literalValue> | ReturnType<typeof unknownValue>> = {}
 ) {
     const documents = Object.entries(sourceByUri).map(([uri, source]) => createTextDocument(uri, source));
-    const callerDocument = documents.find((document) => document.uri.fsPath === vscode.Uri.parse(callerUri).fsPath);
+    const callerFsPath = normalizeWorkspaceFsPath(vscode.Uri.parse(callerUri).fsPath);
+    const callerDocument = documents.find((document) => document.fileName === callerFsPath);
     if (!callerDocument) {
         throw new Error(`Missing caller document for ${callerUri}`);
     }
@@ -319,6 +331,41 @@ describe('CalleeReturnEvaluator', () => {
         }, 'file:///D:/workspace/demo.c');
 
         expect(result).toEqual(unknownValue());
+    });
+
+    test('resolves include-backed callees when a local prototype shadows the body', async () => {
+        const sourceByUri = {
+            'file:///D:/workspace/helper.c': [
+                'string include_name(string model) {',
+                '    return model;',
+                '}'
+            ].join('\n'),
+            'file:///D:/workspace/demo.c': [
+                'string include_name(string model);',
+                '#include "helper.c"',
+                '',
+                'mixed demo() {',
+                    '    return include_name("login");',
+                '}'
+            ].join('\n')
+        };
+        const documents = Object.entries(sourceByUri).map(([uri, source]) => createTextDocument(uri, source));
+        const includeCallerFsPath = normalizeWorkspaceFsPath(vscode.Uri.parse('file:///D:/workspace/demo.c').fsPath);
+        const callerDocument = documents.find((document) => document.fileName === includeCallerFsPath);
+        if (!callerDocument) {
+            throw new Error('Missing include caller document');
+        }
+        const host = createDocumentHost(documents);
+        const pathSupport = new WorkspaceDocumentPathSupport({ host });
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        const resolver = new CallTargetResolver({ analysisService, pathSupport });
+        const { callExpression } = prepareCallEvaluation(documents, callerDocument, {});
+        const target = await resolver.resolveCallTarget(callerDocument, callExpression);
+        expect(target).toBeDefined();
+
+        const result = await evaluateReturnCall(sourceByUri, 'file:///D:/workspace/demo.c');
+
+        expect(result).toEqual(literalValue('login'));
     });
 
     test('resolves inherit-backed callable targets', async () => {

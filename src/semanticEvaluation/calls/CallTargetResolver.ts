@@ -61,6 +61,7 @@ function getLiteralDirectiveValue(node: SyntaxNode | undefined): string | undefi
 }
 
 function collectIncludeSpecs(
+    document: vscode.TextDocument,
     syntax: SyntaxDocument,
     semantic: SemanticSnapshot
 ): Array<{ value: string; isSystemInclude: boolean }> {
@@ -71,13 +72,33 @@ function collectIncludeSpecs(
         }));
     }
 
-    return syntax.root.children
+    const syntaxFallback = syntax.root.children
         .filter((child) => child.kind === SyntaxKind.IncludeDirective)
         .map((child) => ({
             value: getLiteralDirectiveValue(child.children[0]) ?? '',
             isSystemInclude: false
         }))
         .filter((entry) => entry.value.length > 0);
+    if (syntaxFallback.length > 0) {
+        return syntaxFallback;
+    }
+
+    const textFallback = document.getText()
+        .split(/\r?\n/)
+        .map((line) => {
+            const match = line.match(/^\s*#include\s+([<"])([^>"]+)[>"]/);
+            if (!match) {
+                return undefined;
+            }
+
+            return {
+                value: match[2],
+                isSystemInclude: match[1] === '<'
+            };
+        })
+        .filter((entry): entry is { value: string; isSystemInclude: boolean } => Boolean(entry));
+
+    return textFallback;
 }
 
 function collectInheritValues(
@@ -144,7 +165,7 @@ export class CallTargetResolver {
 
         const semantic = this.analysisService.getSemanticSnapshot(document, false);
 
-        for (const includeStatement of collectIncludeSpecs(syntax, semantic)) {
+        for (const includeStatement of collectIncludeSpecs(document, syntax, semantic)) {
             const includeFiles = await this.pathSupport.resolveIncludeFilePaths(
                 document,
                 includeStatement.value,
@@ -222,7 +243,7 @@ export class CallTargetResolver {
         );
         const functionNode = candidateNodes.find((node) =>
             node.children.some((child) => child.kind === SyntaxKind.Block)
-        ) ?? candidateNodes[0];
+        );
         if (!functionNode) {
             return undefined;
         }
