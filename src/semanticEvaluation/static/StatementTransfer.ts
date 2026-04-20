@@ -195,6 +195,13 @@ export class StatementTransfer {
             return undefined;
         }
 
+        if (
+            thenState.controlFlow.termination === 'terminated'
+            || elseState.controlFlow.termination === 'terminated'
+        ) {
+            return this.terminateWithUnknownBarrier(state);
+        }
+
         return joinStaticEvaluationStates([thenState, elseState]);
     }
 

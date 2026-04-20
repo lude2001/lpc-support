@@ -368,6 +368,23 @@ describe('ExpressionEvaluator', () => {
         expect(result).toEqual(unknownValue());
     });
 
+    test('does not let exact sibling returns escape when an unknown branch hits an unsupported loop', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    if (flag) {',
+            '        while (flag) {',
+            '        }',
+            '    } else {',
+            '        return "login";',
+            '    }',
+            '}'
+        ].join('\n'), {
+            bindings: { flag: unknownValue() }
+        });
+
+        expect(result).toEqual(unknownValue());
+    });
+
     test('surfaces budget exhaustion as unknown instead of throwing', () => {
         const result = evaluateFunction([
             'mixed demo() {',
