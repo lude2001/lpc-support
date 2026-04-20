@@ -845,6 +845,170 @@ describe('language-service integration regression', () => {
         expect(objectInferenceService.inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
     });
 
+    test('this_player()->query_name() resolves through the config-backed semantic provider', async () => {
+        const playerFile = path.join(fixtureRoot, 'adm', 'objects', 'player.c');
+        fs.mkdirSync(path.dirname(playerFile), { recursive: true });
+        fs.writeFileSync(
+            playerFile,
+            'string query_name() { return "player"; }\n'
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const projectConfigService = {
+            loadForWorkspace: jest.fn(async (workspaceRoot: string) =>
+                workspaceRoot === fixtureRoot
+                    ? {
+                        version: 1 as const,
+                        configHellPath: 'config.hell',
+                        playerObjectPath: '/adm/objects/player'
+                    }
+                    : undefined
+            )
+        };
+        const source = [
+            'void demo() {',
+            '    this_player()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-this-player-definition.c'), source);
+        const objectInferenceService = createObjectInference(projectConfigService);
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup, projectConfigService);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(playerFile);
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethod).toHaveBeenCalledWith(document, playerFile, 'query_name');
+    });
+
+    test('previous_object() remains non-static at definition level and does not fall back to annotations', async () => {
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object previous_object();',
+            '',
+            'void demo() {',
+            '    previous_object()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-previous-object-definition.c'), source);
+        const objectInferenceService = createObjectInference();
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(0);
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethod).not.toHaveBeenCalled();
+    });
+
+    test('semantic evaluation fallback still feeds downstream definition when natural inference stays unknown', async () => {
+        const swordFile = path.join(fixtureRoot, 'adm', 'objects', 'sword.c');
+        fs.mkdirSync(path.dirname(swordFile), { recursive: true });
+        fs.writeFileSync(
+            swordFile,
+            'string query_name() { return "sword"; }\n'
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/sword"}',
+            ' */',
+            'object helper(string target) {',
+            '    return load_object(target);',
+            '}',
+            '',
+            'void demo(string target) {',
+            '    helper(target)->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-fallback-definition.c'), source);
+        const objectInferenceService = createObjectInference();
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(swordFile);
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethod).toHaveBeenCalledWith(document, swordFile, 'query_name');
+    });
+
+    test('semantic evaluation mismatch does not override exact natural definition', async () => {
+        const swordFile = path.join(fixtureRoot, 'adm', 'objects', 'sword.c');
+        const shieldFile = path.join(fixtureRoot, 'adm', 'objects', 'shield.c');
+        fs.mkdirSync(path.dirname(swordFile), { recursive: true });
+        fs.writeFileSync(
+            swordFile,
+            'string query_name() { return "sword"; }\n'
+        );
+        fs.writeFileSync(
+            shieldFile,
+            'string query_name() { return "shield"; }\n'
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return load_object("/adm/objects/sword");',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mismatch-definition.c'), source);
+        const objectInferenceService = createObjectInference();
+        const inferObjectAccess = jest.spyOn(objectInferenceService, 'inferObjectAccess');
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'query_name();'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(swordFile);
+        expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
+        expect(findMethod).toHaveBeenCalledWith(document, swordFile, 'query_name');
+    });
+
     test('definition resolves file-scope global object receivers to the current-file target', async () => {
         const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
         fs.mkdirSync(path.dirname(targetFile), { recursive: true });
