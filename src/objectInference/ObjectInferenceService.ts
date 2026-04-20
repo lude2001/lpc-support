@@ -259,7 +259,6 @@ export function createDefaultObjectInferenceService(
     });
     const returnObjectResolver = new ReturnObjectResolver(
         dependencies.macroManager,
-        dependencies.playerObjectPathOrProjectConfig,
         resolvedDocumentationService,
         scopedMethodResolver,
         pathSupport

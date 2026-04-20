@@ -83,6 +83,19 @@ describe('environment semantic providers', () => {
         );
     });
 
+    test('this_object() is outside the provider registry and remains a core builtin concern', async () => {
+        const registry = new EnvironmentSemanticRegistry([
+            new ThisPlayerProvider(),
+            new RuntimeNonStaticProvider()
+        ]);
+
+        const result = await registry.evaluate(createRequest({
+            calleeName: 'this_object'
+        }));
+
+        expect(result).toBeUndefined();
+    });
+
     test('registry dispatch prefers exact matching provider', async () => {
         const exactProvider: EnvironmentSemanticProvider = {
             id: 'exact-provider',

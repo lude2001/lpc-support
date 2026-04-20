@@ -3,7 +3,6 @@ import { FunctionDocumentationService } from '../language/documentation/Function
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import type { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { MacroManager } from '../macroManager';
-import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { ReceiverClassifier } from './ReceiverClassifier';
 import { ScopedMethodResolver } from './ScopedMethodResolver';
@@ -24,7 +23,6 @@ export class ReturnObjectResolver {
 
     constructor(
         private readonly macroManager?: MacroManager,
-        private readonly playerObjectPathOrProjectConfig?: string | LpcProjectConfigService,
         documentationService?: FunctionDocumentationService,
         private readonly scopedMethodResolver?: ScopedMethodResolver,
         pathSupport?: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>
@@ -155,19 +153,6 @@ export class ReturnObjectResolver {
             return [{ path: document.fileName, source: 'builtin-call' }];
         }
 
-        if (receiver.calleeName === 'this_player') {
-            if (receiver.argumentCount !== 0) {
-                return [];
-            }
-
-            const resolvedPlayerPath = await this.resolveConfiguredPlayerObjectPath(document);
-            if (!resolvedPlayerPath) {
-                return [];
-            }
-
-            return [{ path: resolvedPlayerPath, source: 'builtin-call' }];
-        }
-
         if (!['load_object', 'find_object', 'clone_object'].includes(receiver.calleeName)) {
             return [];
         }
@@ -285,7 +270,7 @@ export class ReturnObjectResolver {
     }
 
     private isBuiltinCall(name: string): boolean {
-        return ['this_object', 'this_player', 'load_object', 'find_object', 'clone_object'].includes(name);
+        return ['this_object', 'load_object', 'find_object', 'clone_object'].includes(name);
     }
 
     private getNewTargetExpression(node: SyntaxNode): string | undefined {
@@ -316,31 +301,6 @@ export class ReturnObjectResolver {
 
     private isStringLiteral(value: string): boolean {
         return value.length >= 2 && value.startsWith('"') && value.endsWith('"');
-    }
-
-    private async resolveConfiguredPlayerObjectPath(document: vscode.TextDocument): Promise<string | undefined> {
-        let playerObjectPath: string | undefined;
-
-        if (typeof this.playerObjectPathOrProjectConfig === 'string') {
-            playerObjectPath = this.playerObjectPathOrProjectConfig;
-        } else if (this.playerObjectPathOrProjectConfig) {
-            const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-            if (!workspaceFolder) {
-                return undefined;
-            }
-
-            const projectConfig = await this.playerObjectPathOrProjectConfig.loadForWorkspace(workspaceFolder.uri.fsPath);
-            playerObjectPath = projectConfig?.playerObjectPath;
-        }
-
-        if (!playerObjectPath) {
-            return undefined;
-        }
-
-        return this.pathSupport.resolveObjectFilePath(
-            document,
-            this.toObjectPathExpression(playerObjectPath)
-        );
     }
 
     private toObjectPathExpression(objectPath: string): string {
