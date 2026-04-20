@@ -17,6 +17,11 @@ export interface ObjectResolutionOutcome {
     diagnostics?: ObjectInferenceDiagnostic[];
 }
 
+type SemanticCandidateCollectionOutcome =
+    | { kind: 'candidates'; candidates: ObjectCandidate[] }
+    | { kind: 'unknown' }
+    | { kind: 'non-static' };
+
 export class ReturnObjectResolver {
     private readonly classifier = new ReceiverClassifier();
     private readonly documentationService: FunctionDocumentationService;
@@ -260,8 +265,22 @@ export class ReturnObjectResolver {
             };
         }
 
+        const semanticCandidates = this.collectSemanticCandidates(document, semanticOutcome.value);
+        if (semanticCandidates.kind === 'non-static') {
+            return {
+                candidates: [],
+                reason: 'non-static'
+            };
+        }
+
+        if (semanticCandidates.kind === 'unknown') {
+            return {
+                candidates: []
+            };
+        }
+
         return {
-            candidates: this.collectSemanticCandidates(document, semanticOutcome.value)
+            candidates: semanticCandidates.candidates
         };
     }
 
@@ -348,28 +367,64 @@ export class ReturnObjectResolver {
             : `"${objectPath}"`;
     }
 
-    private collectSemanticCandidates(document: vscode.TextDocument, value: SemanticValue): ObjectCandidate[] {
+    private collectSemanticCandidates(
+        document: vscode.TextDocument,
+        value: SemanticValue
+    ): SemanticCandidateCollectionOutcome {
         switch (value.kind) {
             case 'object':
                 return this.resolveSemanticObjectCandidate(document, value.path);
             case 'candidate-set':
             case 'configured-candidate-set':
             case 'union':
-                return value.values.flatMap((entry) => this.collectSemanticCandidates(document, entry));
+                return this.collectAggregateSemanticCandidates(document, value.values);
+            case 'non-static':
+                return { kind: 'non-static' };
             default:
-                return [];
+                return { kind: 'unknown' };
         }
     }
 
-    private resolveSemanticObjectCandidate(document: vscode.TextDocument, path: string): ObjectCandidate[] {
+    private collectAggregateSemanticCandidates(
+        document: vscode.TextDocument,
+        values: readonly SemanticValue[]
+    ): SemanticCandidateCollectionOutcome {
+        const candidates: ObjectCandidate[] = [];
+
+        for (const value of values) {
+            const outcome = this.collectSemanticCandidates(document, value);
+            if (outcome.kind === 'non-static') {
+                return outcome;
+            }
+
+            if (outcome.kind === 'unknown') {
+                return outcome;
+            }
+
+            candidates.push(...outcome.candidates);
+        }
+
+        return {
+            kind: 'candidates',
+            candidates
+        };
+    }
+
+    private resolveSemanticObjectCandidate(
+        document: vscode.TextDocument,
+        path: string
+    ): SemanticCandidateCollectionOutcome {
         const resolvedPath = this.pathSupport.resolveObjectFilePath(
             document,
             this.toObjectPathExpression(path)
         );
         if (!resolvedPath) {
-            return [];
+            return { kind: 'unknown' };
         }
 
-        return [{ path: resolvedPath, source: 'builtin-call' }];
+        return {
+            kind: 'candidates',
+            candidates: [{ path: resolvedPath, source: 'builtin-call' }]
+        };
     }
 }

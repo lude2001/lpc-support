@@ -18,6 +18,13 @@ import {
     createDefaultObjectInferenceService
 } from '../ObjectInferenceService';
 import {
+    candidateSetValue,
+    nonStaticValue,
+    objectValue,
+    unionValue,
+    unknownValue
+} from '../../semanticEvaluation/valueFactories';
+import {
     configureAstManagerSingletonForTests,
     resetAstManagerSingletonForTests
 } from '../../__tests__/testAstManagerSingleton';
@@ -89,7 +96,7 @@ describe('ObjectInferenceService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     let documentationService: FunctionDocumentationService;
     const documentHost = createVsCodeTextDocumentHost();
-    const createService = (_playerObjectPathOrProjectConfig?: unknown) => {
+    const createService = (_playerObjectPathOrProjectConfig?: unknown, overrideSemanticEvaluationService?: unknown) => {
         const projectConfigService = typeof _playerObjectPathOrProjectConfig === 'string'
             ? undefined
             : _playerObjectPathOrProjectConfig as any;
@@ -98,7 +105,7 @@ describe('ObjectInferenceService', () => {
             macroManager: macroManager as any,
             projectConfigService
         });
-        const semanticEvaluationService = createDefaultSemanticEvaluationService({
+        const semanticEvaluationService = overrideSemanticEvaluationService ?? createDefaultSemanticEvaluationService({
             analysisService,
             pathSupport,
             ...(typeof _playerObjectPathOrProjectConfig === 'string'
@@ -112,7 +119,7 @@ describe('ObjectInferenceService', () => {
             documentationService,
             host: documentHost,
             pathSupport,
-            semanticEvaluationService
+            semanticEvaluationService: semanticEvaluationService as any
         });
     };
 
@@ -1189,6 +1196,106 @@ describe('ObjectInferenceService', () => {
                     source: 'builtin-call'
                 }
             ]
+        });
+    });
+
+    test('semantic evaluation mixed union object and unknown does not collapse to resolved candidates', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: unionValue([
+                    objectValue('/adm/objects/sword'),
+                    unknownValue()
+                ])
+            }))
+        };
+        const mixedService = createService(undefined, semanticEvaluationService);
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return 0;',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mixed-union-unknown.c'), source);
+
+        const result = await mixedService.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('semantic evaluation mixed union object and non-static remains terminal', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: unionValue([
+                    objectValue('/adm/objects/sword'),
+                    nonStaticValue('previous_object() depends on runtime call stack')
+                ])
+            }))
+        };
+        const mixedService = createService(undefined, semanticEvaluationService);
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return 0;',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mixed-union-non-static.c'), source);
+
+        const result = await mixedService.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            reason: 'non-static',
+            candidates: []
+        });
+    });
+
+    test('semantic evaluation mixed candidate-set and unknown does not permit return-objects fallback', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: candidateSetValue([
+                    objectValue('/adm/objects/sword'),
+                    unknownValue()
+                ])
+            }))
+        };
+        const mixedService = createService(undefined, semanticEvaluationService);
+        const source = [
+            '/**',
+            ' * @lpc-return-objects {"/adm/objects/shield"}',
+            ' */',
+            'object helper() {',
+            '    return 0;',
+            '}',
+            '',
+            'void demo() {',
+            '    helper()->query();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-mixed-candidate-unknown.c'), source);
+
+        const result = await mixedService.inferObjectAccess(document, positionAfter(source, 'helper()->query'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
         });
     });
 
