@@ -1,10 +1,18 @@
-import * as vscode from 'vscode';
-import type { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import { configuredCandidateSetValue, objectValue, unknownValue } from '../valueFactories';
 import type { EnvironmentSemanticProvider, EnvironmentSemanticRequest } from './types';
+import type { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
+
+export interface ThisPlayerProviderDependencies {
+    playerObjectPath?: string;
+    projectConfigService?: Pick<LpcProjectConfigService, 'loadForWorkspace'>;
+}
 
 export class ThisPlayerProvider implements EnvironmentSemanticProvider {
     public readonly id = 'this_player';
+
+    constructor(
+        private readonly dependencies: ThisPlayerProviderDependencies = {}
+    ) {}
 
     public match(request: EnvironmentSemanticRequest): 'exact' | undefined {
         if (request.calleeName !== 'this_player' || request.argumentCount !== 0) {
@@ -34,22 +42,15 @@ export class ThisPlayerProvider implements EnvironmentSemanticProvider {
     private async resolveConfiguredPlayerObjectPath(
         request: EnvironmentSemanticRequest
     ): Promise<string | undefined> {
-        const configured = request.playerObjectPathOrProjectConfig;
-        if (typeof configured === 'string') {
-            return configured;
+        if (this.dependencies.playerObjectPath) {
+            return this.dependencies.playerObjectPath;
         }
 
-        if (!configured) {
+        if (!this.dependencies.projectConfigService || !request.workspaceRoot) {
             return undefined;
         }
 
-        const workspaceRoot = request.workspaceRoot
-            ?? vscode.workspace.getWorkspaceFolder(request.document.uri)?.uri.fsPath;
-        if (!workspaceRoot) {
-            return undefined;
-        }
-
-        const projectConfig = await configured.loadForWorkspace(workspaceRoot);
+        const projectConfig = await this.dependencies.projectConfigService.loadForWorkspace(request.workspaceRoot);
         return projectConfig?.playerObjectPath;
     }
 

@@ -50,11 +50,11 @@ function createRequest(
 
 describe('environment semantic providers', () => {
     test('this_player() returns a configured candidate set when playerObjectPath is configured', async () => {
-        const provider = new ThisPlayerProvider();
+        const provider = new ThisPlayerProvider({
+            playerObjectPath: '/adm/objects/player'
+        });
 
-        const result = await provider.evaluate(createRequest({
-            playerObjectPathOrProjectConfig: '/adm/objects/player'
-        }));
+        const result = await provider.evaluate(createRequest());
 
         expect(result).toEqual(
             configuredCandidateSetValue('this_player', [
@@ -83,6 +83,50 @@ describe('environment semantic providers', () => {
         );
     });
 
+    test('this_player() resolves project config only when workspaceRoot is explicitly provided', async () => {
+        const projectConfigService = {
+            loadForWorkspace: jest.fn(async (workspaceRoot: string) => ({
+                version: 1 as const,
+                configHellPath: 'config.hell',
+                playerObjectPath: workspaceRoot === 'D:\\workspace'
+                    ? '/adm/objects/player'
+                    : undefined
+            }))
+        };
+        const provider = new ThisPlayerProvider({
+            projectConfigService
+        });
+
+        const result = await provider.evaluate(createRequest());
+
+        expect(result).toEqual(
+            configuredCandidateSetValue('this_player', [
+                objectValue(path.join('D:\\workspace', 'adm', 'objects', 'player.c'))
+            ])
+        );
+        expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('D:\\workspace');
+    });
+
+    test('this_player() does not fall back to ambient workspace state when workspaceRoot is absent', async () => {
+        const projectConfigService = {
+            loadForWorkspace: jest.fn(async () => ({
+                version: 1 as const,
+                configHellPath: 'config.hell',
+                playerObjectPath: '/adm/objects/player'
+            }))
+        };
+        const provider = new ThisPlayerProvider({
+            projectConfigService
+        });
+
+        const result = await provider.evaluate(createRequest({
+            workspaceRoot: undefined
+        }));
+
+        expect(result).toEqual(unknownValue());
+        expect(projectConfigService.loadForWorkspace).not.toHaveBeenCalled();
+    });
+
     test('this_object() is outside the provider registry and remains a core builtin concern', async () => {
         const registry = new EnvironmentSemanticRegistry([
             new ThisPlayerProvider(),
@@ -109,9 +153,7 @@ describe('environment semantic providers', () => {
         };
         const registry = new EnvironmentSemanticRegistry([compatibleProvider, exactProvider]);
 
-        const result = await registry.evaluate(createRequest({
-            playerObjectPathOrProjectConfig: '/adm/objects/player'
-        }));
+        const result = await registry.evaluate(createRequest());
 
         expect(result).toEqual(
             configuredCandidateSetValue('exact-provider', [objectValue('/exact.c')])

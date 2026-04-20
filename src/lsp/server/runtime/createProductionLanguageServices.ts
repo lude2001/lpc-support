@@ -78,7 +78,6 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     });
     const objectInferenceService = createDefaultObjectInferenceService({
         macroManager,
-        playerObjectPathOrProjectConfig: projectConfigService,
         analysisService,
         documentationService,
         host: workspaceDocumentHost,

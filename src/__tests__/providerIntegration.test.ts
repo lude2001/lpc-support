@@ -207,7 +207,6 @@ describe('language-service integration regression', () => {
     const createObjectInference = (projectConfig?: unknown) =>
         createDefaultObjectInferenceService({
             macroManager: macroManager as any,
-            playerObjectPathOrProjectConfig: projectConfig as any,
             analysisService,
             documentationService,
             host: documentHost,

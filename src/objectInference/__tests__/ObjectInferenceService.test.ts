@@ -88,19 +88,18 @@ describe('ObjectInferenceService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     let documentationService: FunctionDocumentationService;
     const documentHost = createVsCodeTextDocumentHost();
-    const createService = (playerObjectPathOrProjectConfig?: unknown) =>
+    const createService = (_playerObjectPathOrProjectConfig?: unknown) =>
         createDefaultObjectInferenceService({
             macroManager: macroManager as any,
-            playerObjectPathOrProjectConfig: playerObjectPathOrProjectConfig as any,
             analysisService,
             documentationService,
             host: documentHost,
             pathSupport: new WorkspaceDocumentPathSupport({
                 host: documentHost,
                 macroManager: macroManager as any,
-                projectConfigService: typeof playerObjectPathOrProjectConfig === 'string'
+                projectConfigService: typeof _playerObjectPathOrProjectConfig === 'string'
                     ? undefined
-                    : playerObjectPathOrProjectConfig as any
+                    : _playerObjectPathOrProjectConfig as any
             })
         });
 
@@ -1547,7 +1546,6 @@ describe('ObjectInferenceService', () => {
         };
         const projectConfiguredService = createDefaultObjectInferenceService({
             macroManager: macroManager as any,
-            playerObjectPathOrProjectConfig: projectConfigService as any,
             analysisService: analysisService as any,
             documentationService,
             host: documentHost,
@@ -2616,7 +2614,6 @@ describe('ObjectInferenceService', () => {
         };
         const projectConfiguredService = createDefaultObjectInferenceService({
             macroManager: macroManager as any,
-            playerObjectPathOrProjectConfig: projectConfigService as any,
             analysisService: analysisService as any,
             documentationService,
             host: documentHost,

@@ -160,7 +160,6 @@ describe('createProductionLanguageServices', () => {
             expect(createDefaultObjectInferenceService).toHaveBeenCalledWith(
                 expect.objectContaining({
                     macroManager,
-                    playerObjectPathOrProjectConfig: projectConfigService,
                     analysisService,
                     documentationService,
                     host: expect.objectContaining({

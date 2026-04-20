@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { MacroManager } from '../macroManager';
-import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
@@ -36,7 +35,6 @@ export interface ObjectInferenceServiceDependencies {
 
 export interface DefaultObjectInferenceServiceDependencies {
     macroManager?: MacroManager;
-    playerObjectPathOrProjectConfig?: string | LpcProjectConfigService;
     analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     documentationService?: FunctionDocumentationService;
     host?: TextDocumentHost;
