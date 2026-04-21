@@ -204,6 +204,27 @@ describe('LpcConstantEvaluator', () => {
         expect(evaluator.evaluate(createBinaryNode('+', left, right), createStaticEvaluationState()))
             .toEqual(literalValue(3, 'int'));
     });
+
+    test('folds mixed numeric literals into a float literal sum', () => {
+        const left = createLiteralNode('1');
+        const right = createLiteralNode('2.5');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return literalValue(1);
+                }
+
+                if (node === right) {
+                    return literalValue(2.5, 'float');
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('+', left, right), createStaticEvaluationState()))
+            .toEqual(literalValue(3.5, 'float'));
+    });
 });
 
 describe('ExpressionEvaluator constant delegation', () => {
