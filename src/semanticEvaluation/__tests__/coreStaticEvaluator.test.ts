@@ -259,6 +259,18 @@ describe('ExpressionEvaluator', () => {
         expect(result).toEqual(literalValue('login'));
     });
 
+    test('treats falsy literals as false in conditional expressions', () => {
+        const result = evaluateReturnedExpression('mixed demo() { return 0 ? "login" : "logout"; }');
+
+        expect(result).toEqual(literalValue('logout'));
+    });
+
+    test('treats exact objects as false in unary negation consumers', () => {
+        const result = evaluateReturnedExpression('mixed demo() { return !new("/adm/model/login"); }');
+
+        expect(result).toEqual(literalValue(false, 'boolean'));
+    });
+
     test('treats exact object-valued conditional expressions as truthy', () => {
         const result = evaluateReturnedExpression(
             'mixed demo() { return new("/adm/model/login") ? "login" : "logout"; }'
@@ -309,6 +321,21 @@ describe('ExpressionEvaluator', () => {
             literalValue('login'),
             literalValue('logout')
         ]));
+    });
+
+    test('takes the truthy object branch in if statements', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    string model;',
+            '    if (new("/adm/model/login"))',
+            '        model = "login";',
+            '    else',
+            '        model = "logout";',
+            '    return model;',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(literalValue('login'));
     });
 
     test('uses real conditional expressions inside statement transfer joins', () => {
