@@ -322,4 +322,40 @@ describe('LpcContainerShapeEvaluator', () => {
 
         expect(result).toEqual(literalValue('/adm/model/login'));
     });
+
+    test('indexes mappings through configured candidate sets via ExpressionEvaluator', () => {
+        const evaluator = new ExpressionEvaluator(
+            createStaticEvaluationContext({
+                metadata: {
+                    documentUri: '/virtual/container-eval.c',
+                    functionName: 'demo',
+                    callDepth: 0
+                }
+            })
+        );
+
+        const result = evaluator.evaluate(
+            createIndexExpressionNode(
+                createIdentifierNode('mappingValue'),
+                createIdentifierNode('candidateKeys')
+            ),
+            createStaticEvaluationState({
+                environment: createValueEnvironment({
+                    mappingValue: mappingShapeValue({
+                        left: literalValue('left-value'),
+                        right: literalValue('right-value')
+                    }),
+                    candidateKeys: configuredCandidateSetValue('test', [
+                        literalValue('left'),
+                        literalValue('right')
+                    ])
+                })
+            })
+        );
+
+        expect(result).toEqual(unionValue([
+            literalValue('left-value'),
+            literalValue('right-value')
+        ]));
+    });
 });
