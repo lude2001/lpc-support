@@ -20,6 +20,7 @@ import {
     evaluateLpcTypePredicate,
     isLpcTypePredicateName
 } from './LpcTypePredicateEvaluator';
+import { evaluateLpcTruthiness } from './LpcConditionEvaluator';
 import { evaluateLpcLiteralNode } from './LpcLiteralEvaluator';
 
 export interface ExpressionEvaluatorOptions {
@@ -72,34 +73,6 @@ function collectStaticStringSet(value: SemanticValue): string[] | undefined {
         }
 
         return [...new Set(parts.flat())].sort();
-    }
-
-    return undefined;
-}
-
-function isDefinitelyTruthy(value: SemanticValue): boolean | undefined {
-    if (value.kind === 'object') {
-        return true;
-    }
-
-    if (value.kind !== 'literal') {
-        return undefined;
-    }
-
-    if (typeof value.value === 'boolean') {
-        return value.value;
-    }
-
-    if (typeof value.value === 'number') {
-        return value.value !== 0;
-    }
-
-    if (value.value === null) {
-        return false;
-    }
-
-    if (typeof value.value === 'string') {
-        return value.value.length > 0;
     }
 
     return undefined;
@@ -245,7 +218,7 @@ export class ExpressionEvaluator {
 
     private evaluateConditionalExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
         const conditionValue = this.evaluate(node.children[0], state);
-        const truthiness = isDefinitelyTruthy(conditionValue);
+        const truthiness = evaluateLpcTruthiness(conditionValue);
 
         if (truthiness === true) {
             return this.evaluate(node.children[1], state);
@@ -266,7 +239,7 @@ export class ExpressionEvaluator {
         const operandValue = this.evaluate(node.children[node.children.length - 1], state);
 
         if (operator === '!') {
-            const truthiness = isDefinitelyTruthy(operandValue);
+            const truthiness = evaluateLpcTruthiness(operandValue);
             return truthiness === undefined
                 ? unknownValue()
                 : literalValue(!truthiness, 'boolean');
