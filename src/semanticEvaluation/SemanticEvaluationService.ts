@@ -110,7 +110,7 @@ export class SemanticEvaluationService {
         document: vscode.TextDocument,
         callExpression: SyntaxNode
     ): Promise<SemanticEvaluationOutcome> {
-        const naturalValue = await this.evaluateNaturalReturn(document, callExpression);
+        const naturalValue = await this.evaluateNaturalCallExpression(document, callExpression);
         if (naturalValue.kind !== 'unknown') {
             return {
                 value: naturalValue,
@@ -132,7 +132,25 @@ export class SemanticEvaluationService {
         };
     }
 
-    private async evaluateNaturalReturn(
+    public async evaluateExpressionAtPosition(
+        document: vscode.TextDocument,
+        expression: SyntaxNode
+    ): Promise<SemanticEvaluationOutcome> {
+        const naturalValue = await this.evaluateNaturalExpression(document, expression);
+        if (naturalValue.kind !== 'unknown') {
+            return {
+                value: naturalValue,
+                source: 'natural'
+            };
+        }
+
+        return {
+            value: unknownValue(),
+            source: 'unknown'
+        };
+    }
+
+    private async evaluateNaturalCallExpression(
         document: vscode.TextDocument,
         callExpression: SyntaxNode
     ): Promise<SemanticValue> {
@@ -147,6 +165,19 @@ export class SemanticEvaluationService {
             containingFunction.context,
             containingFunction.state
         );
+    }
+
+    private async evaluateNaturalExpression(
+        document: vscode.TextDocument,
+        expression: SyntaxNode
+    ): Promise<SemanticValue> {
+        const containingFunction = this.resolveContainingFunctionEvaluation(document, expression);
+        if (!containingFunction) {
+            return unknownValue();
+        }
+
+        const expressionEvaluator = new ExpressionEvaluator(containingFunction.context);
+        return expressionEvaluator.evaluate(expression, containingFunction.state);
     }
 
     private async evaluateEnvironment(
@@ -169,7 +200,7 @@ export class SemanticEvaluationService {
 
     private resolveContainingFunctionEvaluation(
         document: vscode.TextDocument,
-        callExpression: SyntaxNode
+        targetNode: SyntaxNode
     ): ContainingFunctionEvaluation | undefined {
         const syntax = this.analysisService.getSyntaxDocument(document, false)
             ?? this.analysisService.getSyntaxDocument(document, true);
@@ -181,7 +212,7 @@ export class SemanticEvaluationService {
         const functionNode = syntax.nodes
             .filter((node) =>
                 node.kind === SyntaxKind.FunctionDeclaration
-                && node.range.contains(callExpression.range.start)
+                && node.range.contains(targetNode.range.start)
                 && node.children.some((child) => child.kind === SyntaxKind.Block)
             )
             .sort((left, right) => rangeSize(left.range) - rangeSize(right.range))[0];
@@ -190,7 +221,7 @@ export class SemanticEvaluationService {
         }
 
         const functionSummary = semantic.exportedFunctions.find((entry) =>
-            entry.name === functionNode.name && entry.range.contains(callExpression.range.start)
+            entry.name === functionNode.name && entry.range.contains(targetNode.range.start)
         ) ?? semantic.exportedFunctions.find((entry) => entry.name === functionNode.name);
         if (!functionSummary) {
             return undefined;
@@ -212,7 +243,7 @@ export class SemanticEvaluationService {
             },
             initialEnvironment
         });
-        const state = this.buildStateBeforeCall(functionNode, callExpression, context);
+        const state = this.buildStateBeforeCall(functionNode, targetNode, context);
         if (!state) {
             return undefined;
         }
@@ -225,7 +256,7 @@ export class SemanticEvaluationService {
 
     private buildStateBeforeCall(
         functionNode: SyntaxNode,
-        callExpression: SyntaxNode,
+        targetNode: SyntaxNode,
         context: StaticEvaluationContext
     ): StaticEvaluationState | undefined {
         const blockNode = functionNode.children.find((child) => child.kind === SyntaxKind.Block);
@@ -245,7 +276,7 @@ export class SemanticEvaluationService {
 
         return this.buildStateBeforeCallWithinContainer(
             blockNode,
-            callExpression,
+            targetNode,
             currentState,
             statementTransfer
         );
@@ -253,7 +284,7 @@ export class SemanticEvaluationService {
 
     private buildStateBeforeCallWithinContainer(
         containerNode: SyntaxNode,
-        callExpression: SyntaxNode,
+        targetNode: SyntaxNode,
         currentState: StaticEvaluationState,
         statementTransfer: StatementTransfer
     ): StaticEvaluationState | undefined {
@@ -264,7 +295,7 @@ export class SemanticEvaluationService {
                 break;
             }
 
-            if (!child.range.contains(callExpression.range.start)) {
+            if (!child.range.contains(targetNode.range.start)) {
                 const nextState = statementTransfer.transfer(child, state);
                 if (!nextState) {
                     return undefined;
@@ -277,7 +308,7 @@ export class SemanticEvaluationService {
             if (child.kind === SyntaxKind.Block) {
                 return this.buildStateBeforeCallWithinContainer(
                     child,
-                    callExpression,
+                    targetNode,
                     state,
                     statementTransfer
                 );
@@ -285,12 +316,12 @@ export class SemanticEvaluationService {
 
             if (child.kind === SyntaxKind.IfStatement) {
                 const branch = child.children.slice(1, 3).find((entry) =>
-                    entry.range.contains(callExpression.range.start)
+                    entry.range.contains(targetNode.range.start)
                 );
                 if (branch) {
                     return this.buildStateBeforeCallWithinNestedIfBranch(
                         branch,
-                        callExpression,
+                        targetNode,
                         state,
                         statementTransfer
                     );
@@ -316,13 +347,13 @@ export class SemanticEvaluationService {
 
     private buildStateBeforeCallWithinNestedIfBranch(
         branchNode: SyntaxNode,
-        callExpression: SyntaxNode,
+        targetNode: SyntaxNode,
         currentState: StaticEvaluationState,
         statementTransfer: StatementTransfer
     ): StaticEvaluationState | undefined {
         if (branchNode.kind === SyntaxKind.IfStatement) {
             const nestedBranch = branchNode.children.slice(1, 3).find((entry) =>
-                entry.range.contains(callExpression.range.start)
+                entry.range.contains(targetNode.range.start)
             );
             if (!nestedBranch) {
                 return undefined;
@@ -330,7 +361,7 @@ export class SemanticEvaluationService {
 
             return this.buildStateBeforeCallWithinNestedIfBranch(
                 nestedBranch,
-                callExpression,
+                targetNode,
                 currentState,
                 statementTransfer
             );
@@ -338,7 +369,7 @@ export class SemanticEvaluationService {
 
         return this.buildStateBeforeCallWithinContainer(
             branchNode,
-            callExpression,
+            targetNode,
             currentState,
             statementTransfer
         );
