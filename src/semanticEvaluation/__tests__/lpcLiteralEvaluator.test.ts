@@ -4,8 +4,10 @@ import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { literalValue, unknownValue } from '../valueFactories';
 import {
     evaluateLpcLiteralNode,
-    getMetadataText
 } from '../static/LpcLiteralEvaluator';
+import { ExpressionEvaluator } from '../static/ExpressionEvaluator';
+import { createStaticEvaluationContext } from '../static/StaticEvaluationContext';
+import { createStaticEvaluationState } from '../static/StaticEvaluationState';
 
 function createLiteralNode(text?: string): SyntaxNode {
     return {
@@ -23,11 +25,6 @@ function createLiteralNode(text?: string): SyntaxNode {
 }
 
 describe('LpcLiteralEvaluator', () => {
-    test('reads metadata text when present', () => {
-        expect(getMetadataText(createLiteralNode('"login"'))).toBe('"login"');
-        expect(getMetadataText(createLiteralNode())).toBeUndefined();
-    });
-
     test('evaluates supported literal texts without changing value shapes', () => {
         expect(evaluateLpcLiteralNode(createLiteralNode('"login"'))).toEqual(literalValue('login'));
         expect(evaluateLpcLiteralNode(createLiteralNode("'x'"))).toEqual(literalValue('x'));
@@ -42,5 +39,21 @@ describe('LpcLiteralEvaluator', () => {
     test('downgrades unsupported or missing literal text to unknown', () => {
         expect(evaluateLpcLiteralNode(createLiteralNode('login'))).toEqual(unknownValue());
         expect(evaluateLpcLiteralNode(createLiteralNode())).toEqual(unknownValue());
+    });
+
+    test('delegates literal evaluation through ExpressionEvaluator', () => {
+        const evaluator = new ExpressionEvaluator(
+            createStaticEvaluationContext({
+                metadata: {
+                    documentUri: '/virtual/literal-eval.c',
+                    functionName: 'demo',
+                    callDepth: 0
+                }
+            })
+        );
+
+        expect(
+            evaluator.evaluate(createLiteralNode('"delegated"'), createStaticEvaluationState())
+        ).toEqual(literalValue('delegated'));
     });
 });

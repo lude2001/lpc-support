@@ -2,7 +2,7 @@ import { SyntaxNode } from '../../syntax/types';
 import type { SemanticValue } from '../types';
 import { literalValue, unknownValue } from '../valueFactories';
 
-export function getMetadataText(node: SyntaxNode): string | undefined {
+function getMetadataText(node: SyntaxNode): string | undefined {
     const text = node.metadata?.text;
     return typeof text === 'string' ? text : undefined;
 }
