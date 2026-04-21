@@ -189,6 +189,21 @@ describe('SyntaxBuilder', () => {
         expect(emptyStatements).toHaveLength(1);
     });
 
+    test('does not classify malformed statements as empty statements', () => {
+        const source = [
+            'void demo(int flag) {',
+            '    if (flag) ; else',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/malformed-empty-statement.c');
+        const syntaxDocument = new SyntaxBuilder(getGlobalParsedDocumentService().get(document)).build();
+        const missingNodes = syntaxDocument.nodes.filter((node) => node.kind === SyntaxKind.Missing);
+        const emptyStatements = syntaxDocument.nodes.filter((node) => node.kind === SyntaxKind.EmptyStatement);
+
+        expect(emptyStatements).toHaveLength(1);
+        expect(missingNodes.length).toBeGreaterThan(0);
+    });
+
     test('attaches Javadoc blocks directly above modifiers', () => {
         const source = [
             '/**',

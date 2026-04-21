@@ -31,6 +31,26 @@ describe('formatter printer', () => {
         ].join('\n'));
     });
 
+    test('空语句会被格式化为单独的分号', async () => {
+        const source = 'void test(){;}';
+
+        await expect(format(source)).resolves.toBe([
+            'void test()',
+            '{',
+            '    ;',
+            '}'
+        ].join('\n'));
+    });
+
+    test('if 分支的空语句会保留为可见空体', async () => {
+        const source = 'void test(){if(x);return;}';
+        const output = await format(source);
+
+        expect(output).toContain('if (x)');
+        expect(output).toContain('    ;');
+        expect(output).toContain('return;');
+    });
+
     test('匿名函数按小型 Allman 函数输出', async () => {
         const source = 'function f = function(int x){return x+1;};';
 

@@ -175,6 +175,13 @@ export function printExpressionStatement(
     return appendToLastLine(`${context.indent()}${rendered}`, ';');
 }
 
+export function printEmptyStatement(
+    node: FormatNode,
+    context: PrintContext
+): string {
+    return `${context.indent()};`;
+}
+
 export function printReturnStatement(
     node: FormatNode,
     context: PrintContext,
@@ -239,5 +246,6 @@ export function registerStatementPrinters(
     delegates.set(SyntaxKind.CaseClause, (node, context) => printSwitchClause(node, context, ctx));
     delegates.set(SyntaxKind.DefaultClause, (node, context) => printDefaultClause(node, context, ctx));
     delegates.set(SyntaxKind.ExpressionStatement, (node, context) => printExpressionStatement(node, context, ctx));
+    delegates.set(SyntaxKind.EmptyStatement, (node, context) => printEmptyStatement(node, context));
     delegates.set(SyntaxKind.ReturnStatement, (node, context) => printReturnStatement(node, context, ctx));
 }
