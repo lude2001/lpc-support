@@ -422,6 +422,38 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('identifier receiver tracing keeps visible unresolved bindings before semantic receiver values', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'unknown' as const,
+                value: unknownValue()
+            })),
+            evaluateExpressionAtPosition: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: objectValue('/std/classify_pop')
+            }))
+        };
+        const semanticReceiverService = createService(undefined, semanticEvaluationService);
+        const source = [
+            'void demo() {',
+            '    object model;',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-visible-unresolved-binding.c'), source);
+
+        const result = await semanticReceiverService.inferObjectAccess(
+            document,
+            positionAfter(source, 'model->add_data_button')
+        );
+
+        expect(semanticEvaluationService.evaluateExpressionAtPosition).toHaveBeenCalled();
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
     test('semantic receiver evaluation resolves public load_object receiver values', async () => {
         const source = [
             'void demo() {',

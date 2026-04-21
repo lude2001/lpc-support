@@ -306,7 +306,7 @@ export class ObjectInferenceService {
         receiverKind?: ClassifiedReceiver['kind']
     ): ObjectResolutionOutcome {
         if (receiverKind === 'identifier') {
-            if (this.isTerminalLegacyOutcome(legacyOutcome)) {
+            if (this.isTerminalIdentifierLegacyOutcome(legacyOutcome)) {
                 return legacyOutcome;
             }
 
@@ -326,6 +326,14 @@ export class ObjectInferenceService {
         }
 
         return legacyOutcome;
+    }
+
+    private isTerminalIdentifierLegacyOutcome(outcome: ObjectResolutionOutcome): boolean {
+        return this.isTerminalLegacyOutcome(outcome)
+            || (
+                (outcome as { hasVisibleBinding?: boolean }).hasVisibleBinding === true
+                && outcome.reason === undefined
+            );
     }
 
     private isTerminalLegacyOutcome(outcome: ObjectResolutionOutcome): boolean {
