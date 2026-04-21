@@ -113,10 +113,10 @@ function getIdentifierCallExpression(source: string, fileName: string, calleeNam
     return callExpression;
 }
 
-function getMemberAccessReceiverIdentifier(
+function getMemberAccessReceiverIdentifierAtMemberCall(
     source: string,
     fileName: string,
-    receiverName: string
+    memberName: string
 ): SyntaxNode {
     const document = createTextDocument(fileName, source);
     const syntaxDocument = new SyntaxBuilder(getGlobalParsedDocumentService().get(document)).build();
@@ -124,12 +124,12 @@ function getMemberAccessReceiverIdentifier(
         syntaxDocument.root,
         (node) =>
             node.kind === SyntaxKind.MemberAccessExpression
-            && node.children[0]?.kind === SyntaxKind.Identifier
-            && node.children[0].name === receiverName
+            && node.children[1]?.kind === SyntaxKind.Identifier
+            && node.children[1].name === memberName
     )?.children[0];
 
     if (!receiverIdentifier) {
-        throw new Error(`Expected member access receiver identifier for ${receiverName}.`);
+        throw new Error(`Expected member access receiver identifier for ${memberName}.`);
     }
 
     return receiverIdentifier;
@@ -429,10 +429,10 @@ describe('SemanticEvaluationService', () => {
             analysisService,
             pathSupport
         });
-        const receiverIdentifier = getMemberAccessReceiverIdentifier(
+        const receiverIdentifier = getMemberAccessReceiverIdentifierAtMemberCall(
             callerSource,
             'file:///D:/workspace/demo.c',
-            'model'
+            'create_action'
         );
 
         const result = await semanticEvaluationService.evaluateExpressionAtPosition(
@@ -461,10 +461,10 @@ describe('SemanticEvaluationService', () => {
             analysisService,
             pathSupport
         });
-        const receiverIdentifier = getMemberAccessReceiverIdentifier(
+        const receiverIdentifier = getMemberAccessReceiverIdentifierAtMemberCall(
             callerSource,
             'file:///D:/workspace/demo.c',
-            'model'
+            'create_action'
         );
 
         const result = await semanticEvaluationService.evaluateExpressionAtPosition(
