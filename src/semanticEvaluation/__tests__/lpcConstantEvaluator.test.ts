@@ -123,19 +123,48 @@ describe('LpcConstantEvaluator', () => {
 });
 
 describe('ExpressionEvaluator constant delegation', () => {
+    const evaluator = new ExpressionEvaluator(
+        createStaticEvaluationContext({
+            metadata: {
+                documentUri: '/virtual/constant-eval.c',
+                functionName: 'demo',
+                callDepth: 0
+            }
+        })
+    );
+
+    function evaluateBinary(operator: string, left: SyntaxNode, right: SyntaxNode) {
+        return evaluator.evaluate(createBinaryNode(operator, left, right), createStaticEvaluationState());
+    }
+
     test('evaluates parenthesized expressions through the facade', () => {
-        const evaluator = new ExpressionEvaluator(
-            createStaticEvaluationContext({
-                metadata: {
-                    documentUri: '/virtual/constant-eval.c',
-                    functionName: 'demo',
-                    callDepth: 0
-                }
-            })
-        );
         const child = createLiteralNode('"delegated"');
 
         expect(evaluator.evaluate(createParenthesizedNode(child), createStaticEvaluationState()))
             .toEqual(literalValue('delegated'));
+    });
+
+    test('folds equality through the public facade', () => {
+        expect(
+            evaluateBinary('==', createLiteralNode('"login"'), createLiteralNode('"login"'))
+        ).toEqual(literalValue(true, 'boolean'));
+        expect(
+            evaluateBinary('===', createLiteralNode('42'), createLiteralNode('42'))
+        ).toEqual(literalValue(true, 'boolean'));
+    });
+
+    test('folds inequality through the public facade', () => {
+        expect(
+            evaluateBinary('!=', createLiteralNode('"login"'), createLiteralNode('"logout"'))
+        ).toEqual(literalValue(true, 'boolean'));
+        expect(
+            evaluateBinary('!==', createLiteralNode('42'), createLiteralNode('7'))
+        ).toEqual(literalValue(true, 'boolean'));
+    });
+
+    test('returns unknown for unsupported binary operators through the public facade', () => {
+        expect(
+            evaluateBinary('+', createLiteralNode('1'), createLiteralNode('2'))
+        ).toEqual(unknownValue());
     });
 });

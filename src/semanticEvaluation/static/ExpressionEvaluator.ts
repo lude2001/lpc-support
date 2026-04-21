@@ -54,7 +54,7 @@ export class ExpressionEvaluator {
             case SyntaxKind.Identifier:
                 return getEnvironmentValue(state.environment, node.name ?? '') ?? unknownValue();
             case SyntaxKind.ParenthesizedExpression:
-                return this.constantEvaluator.evaluate(node, state) ?? unknownValue();
+                return this.constantEvaluator.evaluate(node, state);
             case SyntaxKind.UnaryExpression:
                 return this.evaluateUnaryExpression(node, state);
             case SyntaxKind.MappingLiteralExpression:
@@ -64,7 +64,7 @@ export class ExpressionEvaluator {
             case SyntaxKind.IndexExpression:
                 return this.containerShapeEvaluator.evaluateIndexExpression(node, state);
             case SyntaxKind.BinaryExpression:
-                return this.constantEvaluator.evaluate(node, state) ?? unknownValue();
+                return this.constantEvaluator.evaluate(node, state);
             case SyntaxKind.ConditionalExpression:
                 return this.evaluateConditionalExpression(node, state);
             case SyntaxKind.NewExpression:

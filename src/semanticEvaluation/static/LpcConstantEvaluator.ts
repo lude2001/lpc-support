@@ -10,9 +10,9 @@ export interface LpcConstantEvaluatorDependencies {
 export class LpcConstantEvaluator {
     public constructor(private readonly dependencies: LpcConstantEvaluatorDependencies) {}
 
-    public evaluate(node: SyntaxNode | undefined, state: StaticEvaluationState): SemanticValue | undefined {
+    public evaluate(node: SyntaxNode | undefined, state: StaticEvaluationState): SemanticValue {
         if (!node) {
-            return undefined;
+            return unknownValue();
         }
 
         switch (node.kind) {
@@ -21,7 +21,7 @@ export class LpcConstantEvaluator {
             case SyntaxKind.BinaryExpression:
                 return this.evaluateBinaryExpression(node, state);
             default:
-                return undefined;
+                return unknownValue();
         }
     }
 
