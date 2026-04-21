@@ -20,43 +20,10 @@ import {
     evaluateLpcTypePredicate,
     isLpcTypePredicateName
 } from './LpcTypePredicateEvaluator';
+import { evaluateLpcLiteralNode } from './LpcLiteralEvaluator';
 
 export interface ExpressionEvaluatorOptions {
     evaluateDirectCall?: (callExpression: SyntaxNode, state: StaticEvaluationState) => SemanticValue;
-}
-
-function getMetadataText(node: SyntaxNode): string | undefined {
-    const text = node.metadata?.text;
-    return typeof text === 'string' ? text : undefined;
-}
-
-function parseLiteralNode(node: SyntaxNode): SemanticValue {
-    const text = getMetadataText(node);
-    if (!text) {
-        return unknownValue();
-    }
-
-    if (text.startsWith('"') && text.endsWith('"')) {
-        return literalValue(text.slice(1, -1));
-    }
-
-    if (text.startsWith("'") && text.endsWith("'")) {
-        return literalValue(text.slice(1, -1));
-    }
-
-    if (text === 'true' || text === 'false') {
-        return literalValue(text === 'true', 'boolean');
-    }
-
-    if (/^-?\d+$/.test(text)) {
-        return literalValue(Number.parseInt(text, 10), 'int');
-    }
-
-    if (/^-?\d+\.\d+$/.test(text)) {
-        return literalValue(Number.parseFloat(text), 'float');
-    }
-
-    return unknownValue();
 }
 
 function literalValueToStaticKey(value: SemanticValue): string | undefined {
@@ -151,7 +118,7 @@ export class ExpressionEvaluator {
 
         switch (node.kind) {
             case SyntaxKind.Literal:
-                return parseLiteralNode(node);
+                return evaluateLpcLiteralNode(node);
             case SyntaxKind.Identifier:
                 return getEnvironmentValue(state.environment, node.name ?? '') ?? unknownValue();
             case SyntaxKind.ParenthesizedExpression:
