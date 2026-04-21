@@ -19,6 +19,11 @@ export interface TargetMethodLookupOptions {
     useFreshSnapshots?: boolean;
 }
 
+interface ResolvedFunctionRange {
+    declarationRange: vscode.Range;
+    navigationRange: vscode.Range;
+}
+
 type TargetMethodAnalysisService = Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
 
 export class TargetMethodLookup {
@@ -82,8 +87,8 @@ export class TargetMethodLookup {
             return {
                 path: targetDocument.uri.fsPath,
                 document: targetDocument,
-                location: new vscode.Location(targetDocument.uri, directRange.start),
-                declarationRange: directRange
+                location: new vscode.Location(targetDocument.uri, directRange.navigationRange),
+                declarationRange: directRange.declarationRange
             };
         }
 
@@ -143,17 +148,17 @@ export class TargetMethodLookup {
                     continue;
                 }
 
-                const declarationRange = this.findFunctionRangeInSemanticSnapshot(
+                const functionRange = this.findFunctionRangeInSemanticSnapshot(
                     includeDocument,
                     methodName,
                     options?.useFreshSnapshots === true ? false : true
                 );
-                if (declarationRange) {
+                if (functionRange) {
                     return {
                         path: includeDocument.uri.fsPath,
                         document: includeDocument,
-                        location: new vscode.Location(includeDocument.uri, declarationRange.start),
-                        declarationRange
+                        location: new vscode.Location(includeDocument.uri, functionRange.navigationRange),
+                        declarationRange: functionRange.declarationRange
                     };
                 }
             }
@@ -166,7 +171,7 @@ export class TargetMethodLookup {
         document: vscode.TextDocument,
         functionName: string,
         useCache: boolean = true
-    ): vscode.Range | undefined {
+    ): ResolvedFunctionRange | undefined {
         const symbol = this.getSemanticSnapshot(document, useCache).symbolTable
             .getAllSymbols()
             .find((candidate) => candidate.type === SymbolType.FUNCTION && candidate.name === functionName);
@@ -175,7 +180,10 @@ export class TargetMethodLookup {
             return undefined;
         }
 
-        return symbol.selectionRange ?? symbol.range;
+        return {
+            declarationRange: symbol.range,
+            navigationRange: symbol.selectionRange ?? symbol.range
+        };
     }
 
     private getSemanticSnapshot(document: vscode.TextDocument, useCache: boolean = true): SemanticSnapshot {

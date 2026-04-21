@@ -6,7 +6,7 @@
 
 核心设计原则是：统一的 `ObjectInferenceService` 作为唯一入口，被多个语言服务共享调用，避免各 Provider 各自实现推导逻辑。
 
-自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾尝试引入工作区级 `references / rename`；自 `0.45.1` 起，导航主路径重新收窄为“当前文件级 + 可证明继承链级”的保守边界，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。自 `0.45.2` 起，completion / hover / signature help / navigation / object inference / runtime document source 的 owner 进一步统一回到显式 composition root 与默认 factory，历史 fallback / self-assembly 路径已基本清空。自语义求值基础接入后，`ObjectInferenceService` 在 direct/member call receiver 上不再只依赖 ad-hoc builtin/doc 规则，而会先消费 `SemanticEvaluationService` 的自然 return 推导与环境 provider 结果；`@lpc-return-objects` 仍保留，但已经降级为 fallback-only 提示。自 `0.45.4` 起，receiver 表达式本身也可以消费受限语义求值结果，静态路径拼接、可证明逻辑 guard 和 folded `new(...)` 会进入对象推导主链，同时 identifier 可见绑定与代码块作用域仍由 legacy tracing 保护，避免内层局部变量泄漏到外层或污染宏 fallback。
+自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾尝试引入工作区级 `references / rename`；自 `0.45.1` 起，导航主路径重新收窄为“当前文件级 + 可证明继承链级”的保守边界，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。自 `0.45.2` 起，completion / hover / signature help / navigation / object inference / runtime document source 的 owner 进一步统一回到显式 composition root 与默认 factory，历史 fallback / self-assembly 路径已基本清空。自语义求值基础接入后，`ObjectInferenceService` 在 direct/member call receiver 上不再只依赖 ad-hoc builtin/doc 规则，而会先消费 `SemanticEvaluationService` 的自然 return 推导与环境 provider 结果；`@lpc-return-objects` 仍保留，但已经降级为 fallback-only 提示。自 `0.45.4` 起，receiver 表达式本身也可以消费受限语义求值结果，静态路径拼接、可证明逻辑 guard 和 folded `new(...)` 会进入对象推导主链，同时 identifier 可见绑定与代码块作用域仍由 legacy tracing 保护，避免内层局部变量泄漏到外层或污染宏 fallback。自 `0.45.5` 起，scoped method 与对象方法 lookup 明确区分“文档声明范围”和“跳转定位范围”：hover / signature help / completion resolve 使用完整函数范围组装 declaration key，definition 仍定位到函数名 token。
 
 ## 2. 架构总览
 
@@ -422,6 +422,7 @@ get_helper()->query();   // 候选：combat_d 和 health_d → status: multiple
   - 负责解析裸 `::method()` 与具名 `room::method()`
   - 只沿 inherit 图做查找，不回退到当前文件、include、普通函数、模拟函数或 efun
   - qualifier 歧义、direct inherit 未解析或父链不完整时，保守降级为 `unknown`
+  - 返回目标同时保留两类范围：完整函数范围用于 callable-documentation declaration key，函数名 token 范围用于 definition 定位
 - `src/objectInference/ScopedMethodDiscoveryService.ts`
   - 负责枚举裸 `::` 与具名 `room::` 前缀下可补全的方法候选
   - 复用同一套 scoped inherit 遍历规则，不把“已写出的具体调用解析”与“前缀候选发现”混成一台装置
@@ -436,6 +437,7 @@ get_helper()->query();   // 候选：combat_d 和 health_d → status: multiple
 - Completion：支持 `::method()` / `room::method()` scoped 调用补全，且 discovery 仍严格保持 inherit-only 与 qualifier 唯一匹配语义
 - Definition：支持 `::method()` / `room::method()` 直接跳转到父实现或指定 inherit 分支实现
 - Hover：支持 scoped 方法文档悬停，且只在 callee 方法标识符位置触发
+- Hover fallback：普通函数 / efun hover 不会抢占 `::method()` 或 `room::method()`，避免 scoped 解析失败时错误显示当前文件同名函数文档
 - References / Rename：导航侧当前刻意保持“当前文件级 + 可证明继承链级”的保守边界，不再尝试为函数提供工作区级静态调用图或函数级重命名
 - Signature Help：支持 scoped 调用进入统一 callable-documentation 签名帮助链
 
@@ -470,7 +472,7 @@ get_helper()->query();   // 候选：combat_d 和 health_d → status: multiple
 | `src/__tests__/completionProvider.test.ts` | Completion Provider 集成：推导结果到补全候选的完整链路验证 |
 | `src/__tests__/completionContextAnalyzer.test.ts` / `src/language/services/completion/__tests__/ScopedMethodCompletionSupport.test.ts` / `src/language/services/completion/__tests__/LanguageCompletionService.test.ts` | scoped completion 上下文识别、候选构建、declaration-based 文档 resolve 与 service 级保守降级 |
 | `src/language/services/signatureHelp/__tests__/LanguageSignatureHelpService.test.ts` | scoped method / object method / ordinary callable 的统一签名帮助行为 |
-| `src/language/services/navigation/__tests__/LanguageDefinitionService.test.ts` / `navigationServices.test.ts` | scoped definition / hover 的 consumer 边界、多行 `::` 与 qualifier / argument 防误触回归 |
+| `src/language/services/navigation/__tests__/LanguageDefinitionService.test.ts` / `navigationServices.test.ts` | scoped definition / hover 的 consumer 边界、多行 `::`、qualifier / argument 防误触和 ordinary hover fallback 回归 |
 
 ## 8. 已知限制与后续方向
 

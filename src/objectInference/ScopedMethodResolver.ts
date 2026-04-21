@@ -298,12 +298,13 @@ export class ScopedMethodResolver {
             return undefined;
         }
 
-        const declarationRange = symbol.selectionRange ?? symbol.range;
+        const declarationRange = symbol.range;
+        const navigationRange = symbol.selectionRange ?? symbol.range;
         return {
             path: this.normalizeFsPath(document.uri.fsPath),
             methodName,
             document,
-            location: new vscode.Location(document.uri, declarationRange),
+            location: new vscode.Location(document.uri, navigationRange),
             declarationRange,
             sourceLabel: document.uri.fsPath
         };

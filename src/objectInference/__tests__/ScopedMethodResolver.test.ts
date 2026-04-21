@@ -219,6 +219,34 @@ describe('ScopedMethodResolver', () => {
         expect(result.targets[0].path).toBe(fixturePath('/std/base_room.c'));
     });
 
+    test('scoped target keeps full function range for docs while definition location stays on the method name', async () => {
+        writeFixture('/std/base_room.c', [
+            '/**',
+            ' * @brief base query',
+            ' */',
+            'varargs mixed query(string prop, int raw)',
+            '{',
+            '    return 0;',
+            '}'
+        ].join('\n'));
+        const source = [
+            'inherit "/std/base_room";',
+            '',
+            'void demo() {',
+            '    ::query("name", 1);',
+            '}'
+        ].join('\n');
+        writeFixture('/d/city/ranged_scope.c', source);
+        const document = createDocument(fixturePath('/d/city/ranged_scope.c'), source);
+
+        const resolver = createResolver(macroManager, fixtureRoot, analysisService, documentHost);
+        const result = await resolver.resolveCallAt(document, positionAfter(source, '::query'));
+
+        expect(result.status).toBe('resolved');
+        expect(result.targets[0].declarationRange).toEqual(new vscode.Range(3, 0, 6, 1));
+        expect(result.targets[0].location.range).toEqual(new vscode.Range(3, 14, 3, 19));
+    });
+
     test('bare ::init() returns unknown when no inherit target implements it', async () => {
         writeFixture('/std/base_room.c', 'void reset() {}\n');
 

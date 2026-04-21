@@ -2,6 +2,15 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.45.5] - 2026-04-22
+
+### Scoped Hover and Callable Documentation Fixes
+
+- 修复 `::query(...)` scoped 父类调用 hover 错误回退到当前文件同名函数文档的问题；当 scoped 解析失败时，普通函数 hover 不再抢占 `::method()` 场景。
+- 修复 `char::query(...)` 这类具名 inherit 分支调用 definition 可跳转但 hover 为空的问题；scoped hover 现在会使用完整函数声明范围装配 callable-documentation。
+- 统一 scoped method 与对象方法 lookup 的 declaration key 语义：文档与 signature help 使用完整函数范围，definition 仍定位到函数名 token，避免多候选链路和文档索引互相污染。
+- 补充 scoped range、ordinary hover fallback、object-method lookup declaration range 和真实 `user.c` scoped query 场景回归。
+
 ## [0.45.4] - 2026-04-21
 
 ### Syntax and Semantic Object Inference Hardening

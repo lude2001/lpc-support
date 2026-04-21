@@ -39,6 +39,10 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         position: vscode.Position,
         word: string
     ): Promise<string | undefined> {
+        if (this.isScopedMethodAccess(document, position, word)) {
+            return undefined;
+        }
+
         if (this.isArrowMemberAccess(document, position, word)) {
             return undefined;
         }
@@ -76,6 +80,23 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         return standardDoc ? this.renderer.renderHover(materializeCallableDoc(standardDoc, 'efun')) : undefined;
     }
 
+    private isScopedMethodAccess(document: vscode.TextDocument, position: vscode.Position, word: string): boolean {
+        const syntax = this.getSyntaxDocument(document);
+        if (!syntax) {
+            return false;
+        }
+
+        const candidates = this.getContainingSyntaxNodes(syntax, position);
+
+        for (const node of candidates) {
+            if (node.kind === SyntaxKind.CallExpression && this.isMatchingScopedMethod(node.children[0], word)) {
+                return true;
+            }
+        }
+
+        return candidates.some((node) => this.isMatchingScopedMethod(node, word));
+    }
+
     private isArrowMemberAccess(document: vscode.TextDocument, position: vscode.Position, word: string): boolean {
         const syntax = this.getSyntaxDocument(document);
         if (!syntax) {
@@ -109,7 +130,29 @@ export class EfunLanguageHoverService implements LanguageHoverService {
     }
 
     private isMatchingArrowMember(node: SyntaxNode | undefined, word: string): boolean {
-        if (!node || node.kind !== SyntaxKind.MemberAccessExpression || node.children.length < 2) {
+        if (
+            !node
+            || node.kind !== SyntaxKind.MemberAccessExpression
+            || node.metadata?.operator !== '->'
+            || node.children.length < 2
+        ) {
+            return false;
+        }
+
+        const memberNode = node.children[1];
+        return memberNode.kind === SyntaxKind.Identifier && memberNode.name === word;
+    }
+
+    private isMatchingScopedMethod(node: SyntaxNode | undefined, word: string): boolean {
+        if (!node) {
+            return false;
+        }
+
+        if (node.kind === SyntaxKind.Identifier) {
+            return node.metadata?.scopeQualifier === '::' && node.name === word;
+        }
+
+        if (node.kind !== SyntaxKind.MemberAccessExpression || node.metadata?.operator !== '::' || node.children.length < 2) {
             return false;
         }
 

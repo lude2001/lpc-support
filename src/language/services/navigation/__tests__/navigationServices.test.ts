@@ -28,6 +28,7 @@ import {
     AstBackedLanguageDefinitionService,
     type LanguageDefinitionService
 } from '../LanguageDefinitionService';
+import { EfunLanguageHoverService } from '../EfunLanguageHoverService';
 import { TargetMethodLookup } from '../../../../targetMethodLookup';
 import {
     AstBackedLanguageReferenceService,
@@ -695,6 +696,48 @@ describe('navigation services', () => {
                 }
             ]
         });
+    });
+
+    test('efun hover does not claim bare scoped calls as current-file functions', async () => {
+        const source = [
+            'void demo() {',
+            '    ::query("name", 1);',
+            '}',
+            '',
+            '/**',
+            ' * @brief current query',
+            ' */',
+            'mixed query(string prop, int raw) {',
+            '    return 0;',
+            '}'
+        ].join('\n');
+        const document = createVsCodeTextDocument('D:/workspace/test.c', source);
+        const currentFileDoc = {
+            name: 'query',
+            syntax: 'mixed query(string prop, int raw)',
+            description: 'current query'
+        };
+        const efunDocsManager = {
+            getCurrentFileDocForDocument: jest.fn(async () => currentFileDoc),
+            getInheritedFileDocForDocument: jest.fn(async () => undefined),
+            getIncludedFileDoc: jest.fn(async () => undefined),
+            getSimulatedDocAsync: jest.fn(async () => undefined),
+            getStandardCallableDoc: jest.fn(() => undefined),
+            getStandardDoc: jest.fn(() => undefined)
+        };
+        const service = new EfunLanguageHoverService(
+            efunDocsManager as any,
+            analysisService,
+            new CallableDocRenderer()
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document as any),
+            position: { line: 1, character: 7 }
+        });
+
+        expect(hover).toBeUndefined();
+        expect(efunDocsManager.getCurrentFileDocForDocument).not.toHaveBeenCalled();
     });
 
     test('definition service can operate on host-agnostic documents via injected boundaries', async () => {

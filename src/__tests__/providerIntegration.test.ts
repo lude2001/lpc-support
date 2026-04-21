@@ -376,6 +376,31 @@ describe('language-service integration regression', () => {
         expect(result.items.map((item) => item.label)).toContain('local_call');
     });
 
+    test('target method lookup keeps full function declaration range for documentation keys', async () => {
+        installWorkspaceOpenTextDocumentFixture();
+        const targetFile = path.join(fixtureRoot, 'lib', 'npc.c');
+        fs.writeFileSync(
+            targetFile,
+            [
+                '/**',
+                ' * @brief target query',
+                ' */',
+                'string query_name(int mode)',
+                '{',
+                '    return "npc";',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        const document = createDocument(path.join(fixtureRoot, 'room.c'), 'void test() {}');
+        const lookup = new TargetMethodLookup(analysisService, pathSupport);
+
+        const result = await lookup.findMethod(document, targetFile, 'query_name');
+
+        expect(result?.declarationRange).toEqual(new vscode.Range(3, 0, 6, 1));
+        expect(result?.location.range).toEqual(new vscode.Range(3, 7, 3, 17));
+    });
+
     test('completion resolves file-scope global object receivers through inferred target files', async () => {
         const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
         fs.mkdirSync(path.dirname(targetFile), { recursive: true });
