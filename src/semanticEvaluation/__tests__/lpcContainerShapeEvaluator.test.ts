@@ -4,9 +4,7 @@ import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { ExpressionEvaluator } from '../static/ExpressionEvaluator';
 import {
     collectStaticStringSet,
-    LpcContainerShapeEvaluator,
-    literalValueToArrayIndex,
-    literalValueToStaticKey
+    LpcContainerShapeEvaluator
 } from '../static/LpcContainerShapeEvaluator';
 import { evaluateLpcLiteralNode } from '../static/LpcLiteralEvaluator';
 import { createStaticEvaluationContext } from '../static/StaticEvaluationContext';
@@ -18,6 +16,7 @@ import {
 import {
     arrayShapeValue,
     candidateSetValue,
+    configuredCandidateSetValue,
     literalValue,
     mappingShapeValue,
     unknownValue,
@@ -43,10 +42,6 @@ function createNode(
         metadata,
         name
     };
-}
-
-function createLiteralNode(text: string): SyntaxNode {
-    return createNode(SyntaxKind.Literal, [], { text });
 }
 
 function createIdentifierNode(name: string): SyntaxNode {
@@ -116,18 +111,6 @@ function createContainerEvaluator() {
 }
 
 describe('LpcContainerShapeEvaluator', () => {
-    test('exports static literal helpers without changing their shapes', () => {
-        expect(literalValueToStaticKey(literalValue('path'))).toBe('path');
-        expect(literalValueToStaticKey(literalValue(7, 'int'))).toBe('7');
-        expect(literalValueToStaticKey(literalValue(true, 'boolean'))).toBe('true');
-        expect(literalValueToStaticKey(literalValue(null, 'null'))).toBe('null');
-        expect(literalValueToStaticKey(unknownValue())).toBeUndefined();
-
-        expect(literalValueToArrayIndex(literalValue(3, 'int'))).toBe(3);
-        expect(literalValueToArrayIndex(literalValue(3.5, 'float'))).toBeUndefined();
-        expect(literalValueToArrayIndex(literalValue('3'))).toBeUndefined();
-    });
-
     test('collects static string sets from unions and candidate sets', () => {
         expect(collectStaticStringSet(unionValue([
             literalValue('path'),
@@ -138,6 +121,14 @@ describe('LpcContainerShapeEvaluator', () => {
             literalValue('login'),
             literalValue('logout')
         ]))).toEqual(['login', 'logout']);
+
+        expect(collectStaticStringSet(configuredCandidateSetValue(
+            'provider-a',
+            [
+                literalValue('login'),
+                literalValue('logout')
+            ]
+        ))).toEqual(['login', 'logout']);
     });
 
     test('builds static mapping shapes from mapping literals', () => {
@@ -145,8 +136,8 @@ describe('LpcContainerShapeEvaluator', () => {
 
         const result = evaluator.evaluateMappingLiteral(
             createMappingLiteralNode([
-                createMappingEntryNode(createLiteralNode('"path"'), createLiteralNode('"/adm/model/login"')),
-                createMappingEntryNode(createLiteralNode('"mode"'), createLiteralNode('"load"'))
+                createMappingEntryNode(createNode(SyntaxKind.Literal, [], { text: '"path"' }), createNode(SyntaxKind.Literal, [], { text: '"/adm/model/login"' })),
+                createMappingEntryNode(createNode(SyntaxKind.Literal, [], { text: '"mode"' }), createNode(SyntaxKind.Literal, [], { text: '"load"' }))
             ]),
             createStaticEvaluationState()
         );
@@ -162,7 +153,7 @@ describe('LpcContainerShapeEvaluator', () => {
 
         const result = evaluator.evaluateMappingLiteral(
             createMappingLiteralNode([
-                createMappingEntryNode(createIdentifierNode('path'), createLiteralNode('"/adm/model/login"'))
+                createMappingEntryNode(createIdentifierNode('path'), createNode(SyntaxKind.Literal, [], { text: '"/adm/model/login"' }))
             ]),
             createStaticEvaluationState()
         );
@@ -175,8 +166,8 @@ describe('LpcContainerShapeEvaluator', () => {
 
         const mappingValue = evaluator.evaluateMappingLiteral(
             createMappingLiteralNode([
-                createMappingEntryNode(createLiteralNode('"path"'), createLiteralNode('"/adm/model/login"')),
-                createMappingEntryNode(createLiteralNode('"mode"'), createLiteralNode('"load"'))
+                createMappingEntryNode(createNode(SyntaxKind.Literal, [], { text: '"path"' }), createNode(SyntaxKind.Literal, [], { text: '"/adm/model/login"' })),
+                createMappingEntryNode(createNode(SyntaxKind.Literal, [], { text: '"mode"' }), createNode(SyntaxKind.Literal, [], { text: '"load"' }))
             ]),
             createStaticEvaluationState()
         );
@@ -185,10 +176,10 @@ describe('LpcContainerShapeEvaluator', () => {
             evaluator.evaluateIndexExpression(
                 createIndexExpressionNode(
                     createMappingLiteralNode([
-                        createMappingEntryNode(createLiteralNode('"path"'), createLiteralNode('"/adm/model/login"')),
-                        createMappingEntryNode(createLiteralNode('"mode"'), createLiteralNode('"load"'))
+                        createMappingEntryNode(createNode(SyntaxKind.Literal, [], { text: '"path"' }), createNode(SyntaxKind.Literal, [], { text: '"/adm/model/login"' })),
+                        createMappingEntryNode(createNode(SyntaxKind.Literal, [], { text: '"mode"' }), createNode(SyntaxKind.Literal, [], { text: '"load"' }))
                     ]),
-                    createLiteralNode('"path"')
+                    createNode(SyntaxKind.Literal, [], { text: '"path"' })
                 ),
                 createStaticEvaluationState()
             )
@@ -232,6 +223,27 @@ describe('LpcContainerShapeEvaluator', () => {
             literalValue('load'),
             literalValue('/adm/model/login')
         ]));
+
+        expect(
+            evaluator.evaluateIndexExpression(
+                createIndexExpressionNode(
+                    createIdentifierNode('mappingValue'),
+                    createIdentifierNode('configuredKeys')
+                ),
+                createStaticEvaluationState({
+                    environment: createValueEnvironment({
+                        mappingValue,
+                        configuredKeys: configuredCandidateSetValue('provider-a', [
+                            literalValue('path'),
+                            literalValue('mode')
+                        ])
+                    })
+                })
+            )
+        ).toEqual(unionValue([
+            literalValue('load'),
+            literalValue('/adm/model/login')
+        ]));
     });
 
     test('returns unknown for missing mapping keys, array spreads, and non-integer indexes', () => {
@@ -241,9 +253,9 @@ describe('LpcContainerShapeEvaluator', () => {
             evaluator.evaluateIndexExpression(
                 createIndexExpressionNode(
                     createMappingLiteralNode([
-                        createMappingEntryNode(createLiteralNode('"path"'), createLiteralNode('"/adm/model/login"'))
+                        createMappingEntryNode(createNode(SyntaxKind.Literal, [], { text: '"path"' }), createNode(SyntaxKind.Literal, [], { text: '"/adm/model/login"' }))
                     ]),
-                    createLiteralNode('"mode"')
+                    createNode(SyntaxKind.Literal, [], { text: '"mode"' })
                 ),
                 createStaticEvaluationState()
             )
@@ -252,8 +264,8 @@ describe('LpcContainerShapeEvaluator', () => {
         expect(
             evaluator.evaluateArrayLiteral(
                 createArrayLiteralNode([
-                    createLiteralNode('"alpha"'),
-                    createLiteralNode('"beta"')
+                    createNode(SyntaxKind.Literal, [], { text: '"alpha"' }),
+                    createNode(SyntaxKind.Literal, [], { text: '"beta"' })
                 ]),
                 createStaticEvaluationState()
             )
@@ -266,10 +278,10 @@ describe('LpcContainerShapeEvaluator', () => {
             evaluator.evaluateIndexExpression(
                 createIndexExpressionNode(
                     createArrayLiteralNode([
-                        createLiteralNode('"alpha"'),
-                        createLiteralNode('"beta"')
+                        createNode(SyntaxKind.Literal, [], { text: '"alpha"' }),
+                        createNode(SyntaxKind.Literal, [], { text: '"beta"' })
                     ]),
-                    createLiteralNode('1')
+                    createNode(SyntaxKind.Literal, [], { text: '1' })
                 ),
                 createStaticEvaluationState()
             )
@@ -279,7 +291,7 @@ describe('LpcContainerShapeEvaluator', () => {
             evaluator.evaluateArrayLiteral(
                 createNode(SyntaxKind.ArrayLiteralExpression, [
                     createExpressionListNode([
-                        createSpreadElementNode(createLiteralNode('"alpha"'))
+                        createSpreadElementNode(createNode(SyntaxKind.Literal, [], { text: '"alpha"' }))
                     ])
                 ]),
                 createStaticEvaluationState()
@@ -301,9 +313,9 @@ describe('LpcContainerShapeEvaluator', () => {
         const result = evaluator.evaluate(
             createIndexExpressionNode(
                 createNode(SyntaxKind.MappingLiteralExpression, [
-                    createMappingEntryNode(createLiteralNode('"path"'), createLiteralNode('"/adm/model/login"'))
+                    createMappingEntryNode(createNode(SyntaxKind.Literal, [], { text: '"path"' }), createNode(SyntaxKind.Literal, [], { text: '"/adm/model/login"' }))
                 ]),
-                createLiteralNode('"path"')
+                createNode(SyntaxKind.Literal, [], { text: '"path"' })
             ),
             createStaticEvaluationState()
         );

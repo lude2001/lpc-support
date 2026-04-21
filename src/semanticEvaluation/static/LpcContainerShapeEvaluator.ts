@@ -8,7 +8,7 @@ export interface LpcContainerShapeEvaluatorDependencies {
     evaluateExpression: (node: SyntaxNode | undefined, state: StaticEvaluationState) => SemanticValue;
 }
 
-export function literalValueToStaticKey(value: SemanticValue): string | undefined {
+function literalValueToStaticKey(value: SemanticValue): string | undefined {
     if (value.kind !== 'literal') {
         return undefined;
     }
@@ -28,7 +28,7 @@ export function literalValueToStaticKey(value: SemanticValue): string | undefine
     return undefined;
 }
 
-export function literalValueToArrayIndex(value: SemanticValue): number | undefined {
+function literalValueToArrayIndex(value: SemanticValue): number | undefined {
     if (value.kind !== 'literal' || typeof value.value !== 'number' || !Number.isInteger(value.value)) {
         return undefined;
     }
