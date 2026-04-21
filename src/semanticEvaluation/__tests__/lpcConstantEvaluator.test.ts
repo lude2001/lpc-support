@@ -142,7 +142,7 @@ describe('LpcConstantEvaluator', () => {
             .toEqual(literalValue('/adm/model'));
     });
 
-    test('folds mixed string and numeric literals into a literal string', () => {
+    test('returns unknown for mixed string and numeric literals', () => {
         const left = createLiteralNode('"/adm/"');
         const right = createLiteralNode('1');
         const evaluator = new LpcConstantEvaluator({
@@ -160,7 +160,7 @@ describe('LpcConstantEvaluator', () => {
         });
 
         expect(evaluator.evaluate(createBinaryNode('+', left, right), createStaticEvaluationState()))
-            .toEqual(literalValue('/adm/1'));
+            .toEqual(unknownValue());
     });
 
     test('returns unknown when a plus operand is not literal', () => {

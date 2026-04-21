@@ -60,22 +60,19 @@ export class LpcConstantEvaluator {
             return unknownValue();
         }
 
-        const leftType = left.valueType;
-        const rightType = right.valueType;
-
-        if (leftType === 'string' || rightType === 'string') {
-            return literalValue(String(left.value) + String(right.value), 'string');
+        if (left.valueType === 'string' && right.valueType === 'string') {
+            return literalValue(`${left.value}${right.value}`, 'string');
         }
 
         if (
-            (leftType !== 'int' && leftType !== 'float')
-            || (rightType !== 'int' && rightType !== 'float')
+            (left.valueType !== 'int' && left.valueType !== 'float')
+            || (right.valueType !== 'int' && right.valueType !== 'float')
         ) {
             return unknownValue();
         }
 
         const sum = (left.value as number) + (right.value as number);
-        if (leftType === 'int' && rightType === 'int' && Number.isInteger(sum)) {
+        if (left.valueType === 'int' && right.valueType === 'int' && Number.isInteger(sum)) {
             return literalValue(sum, 'int');
         }
 
