@@ -134,11 +134,14 @@ export class ObjectInferenceService {
         receiverNode: SyntaxNode,
         receiver: ClassifiedReceiver
     ): Promise<ObjectResolutionOutcome> {
-        if (receiverNode.kind === SyntaxKind.NewExpression) {
-            return this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
-        }
-
         const semanticOutcome = await this.resolveSemanticReceiverOutcome(document, receiverNode);
+
+        if (receiverNode.kind === SyntaxKind.NewExpression) {
+            return this.selectReceiverOutcome(
+                await this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode),
+                semanticOutcome
+            );
+        }
 
         if (
             receiverNode.kind === SyntaxKind.CallExpression
@@ -151,50 +154,49 @@ export class ObjectInferenceService {
                 || callOutcome.reason === 'non-static'
                 || callOutcome.diagnostics?.length
             ) {
-                return this.selectReceiverOutcome(callOutcome, semanticOutcome, receiver.kind);
+                return this.selectReceiverOutcome(callOutcome, semanticOutcome);
             }
 
             const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
             if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
-                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome, receiver.kind);
+                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome);
             }
 
             if (callOutcome.reason) {
-                return this.selectReceiverOutcome(callOutcome, semanticOutcome, receiver.kind);
+                return this.selectReceiverOutcome(callOutcome, semanticOutcome);
             }
 
-            return this.selectReceiverOutcome(callOutcome, semanticOutcome, receiver.kind);
+            return this.selectReceiverOutcome(callOutcome, semanticOutcome);
         }
 
         if (receiver.kind === 'literal') {
             return this.selectReceiverOutcome({
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'literal')
-            }, semanticOutcome, receiver.kind);
+            }, semanticOutcome);
         }
 
         if (receiver.kind === 'macro') {
             return this.selectReceiverOutcome({
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'macro')
-            }, semanticOutcome, receiver.kind);
+            }, semanticOutcome);
         }
 
         if (receiver.kind === 'call') {
             const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
             if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
-                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome, receiver.kind);
+                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome);
             }
 
             return this.selectReceiverOutcome(
                 await this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode),
-                semanticOutcome,
-                receiver.kind
+                semanticOutcome
             );
         }
 
         if (receiver.kind === 'identifier') {
             const tracedResult = await this.traceService.traceIdentifier(document, syntax, receiverNode);
             if (tracedResult && (tracedResult.candidates.length > 0 || tracedResult.hasVisibleBinding)) {
-                return this.selectReceiverOutcome(tracedResult, semanticOutcome, receiver.kind);
+                return this.selectReceiverOutcome(tracedResult, semanticOutcome);
             }
 
             const globalBindingResult = await this.globalBindingResolver.resolveVisibleBinding(
@@ -212,7 +214,7 @@ export class ObjectInferenceService {
                 }
             );
             if (globalBindingResult && (globalBindingResult.candidates.length > 0 || globalBindingResult.hasVisibleBinding)) {
-                return this.selectReceiverOutcome(globalBindingResult, semanticOutcome, receiver.kind);
+                return this.selectReceiverOutcome(globalBindingResult, semanticOutcome);
             }
 
             const inheritedBindingResult = await this.inheritedGlobalBindingResolver.resolveInheritedBinding(
@@ -220,15 +222,15 @@ export class ObjectInferenceService {
                 receiver.expression
             );
             if (inheritedBindingResult && (inheritedBindingResult.candidates.length > 0 || inheritedBindingResult.hasVisibleBinding)) {
-                return this.selectReceiverOutcome(inheritedBindingResult, semanticOutcome, receiver.kind);
+                return this.selectReceiverOutcome(inheritedBindingResult, semanticOutcome);
             }
 
             return this.selectReceiverOutcome({
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'macro')
-            }, semanticOutcome, receiver.kind);
+            }, semanticOutcome);
         }
 
-        return this.selectReceiverOutcome({ candidates: [] }, semanticOutcome, receiver.kind);
+        return this.selectReceiverOutcome({ candidates: [] }, semanticOutcome);
     }
 
     private async resolveSemanticReceiverOutcome(
@@ -298,8 +300,7 @@ export class ObjectInferenceService {
 
     private selectReceiverOutcome(
         legacyOutcome: ObjectResolutionOutcome,
-        semanticOutcome?: ObjectResolutionOutcome,
-        receiverKind?: ClassifiedReceiver['kind']
+        semanticOutcome?: ObjectResolutionOutcome
     ): ObjectResolutionOutcome {
         if (semanticOutcome) {
             return semanticOutcome;

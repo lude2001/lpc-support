@@ -690,6 +690,27 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('new("/std/" + "classify_pop") resolves through semantic receiver values', async () => {
+        const source = [
+            'void demo() {',
+            '    new("/std/" + "classify_pop")->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'new-concatenated-path.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'add_data_button'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
     test('macro object path resolves when macro manager returns a path', async () => {
         macroManager.getMacro.mockReturnValue({
             name: 'COMBAT_D',
