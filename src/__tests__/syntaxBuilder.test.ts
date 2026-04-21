@@ -159,6 +159,36 @@ describe('SyntaxBuilder', () => {
         expect(macroInvokeStatements).toHaveLength(1);
     });
 
+    test('represents bare empty statements explicitly inside functions', () => {
+        const source = [
+            'void demo() {',
+            '    ;',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/empty-statement.c');
+        const syntaxDocument = new SyntaxBuilder(getGlobalParsedDocumentService().get(document)).build();
+        const missingNodes = syntaxDocument.nodes.filter((node) => node.kind === SyntaxKind.Missing);
+        const emptyStatements = syntaxDocument.nodes.filter((node) => node.kind === SyntaxKind.EmptyStatement);
+
+        expect(missingNodes).toHaveLength(0);
+        expect(emptyStatements).toHaveLength(1);
+    });
+
+    test('represents empty if branches explicitly', () => {
+        const source = [
+            'void demo(int flag) {',
+            '    if (flag);',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/if-empty-statement.c');
+        const syntaxDocument = new SyntaxBuilder(getGlobalParsedDocumentService().get(document)).build();
+        const missingNodes = syntaxDocument.nodes.filter((node) => node.kind === SyntaxKind.Missing);
+        const emptyStatements = syntaxDocument.nodes.filter((node) => node.kind === SyntaxKind.EmptyStatement);
+
+        expect(missingNodes).toHaveLength(0);
+        expect(emptyStatements).toHaveLength(1);
+    });
+
     test('attaches Javadoc blocks directly above modifiers', () => {
         const source = [
             '/**',

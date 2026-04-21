@@ -35,6 +35,7 @@ export enum SyntaxKind {
     FieldDeclaration = 'FieldDeclaration',
     Block = 'Block',
     ExpressionStatement = 'ExpressionStatement',
+    EmptyStatement = 'EmptyStatement',
     IfStatement = 'IfStatement',
     WhileStatement = 'WhileStatement',
     DoWhileStatement = 'DoWhileStatement',
@@ -129,6 +130,7 @@ export function inferSyntaxNodeCategory(kind: SyntaxKind): SyntaxNodeCategory {
             return 'declaration';
         case SyntaxKind.Block:
         case SyntaxKind.ExpressionStatement:
+        case SyntaxKind.EmptyStatement:
         case SyntaxKind.IfStatement:
         case SyntaxKind.WhileStatement:
         case SyntaxKind.DoWhileStatement:

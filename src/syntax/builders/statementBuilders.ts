@@ -83,6 +83,12 @@ export function buildStatement(b: SyntaxBuilder, ctx: StatementContext): SyntaxN
         return b.buildBlock(ctx.block()!);
     }
 
+    if (ctx.SEMI() && b.getChildren(ctx).length === 1) {
+        return b.createNode(SyntaxKind.EmptyStatement, ctx, [], {
+            metadata: { source: 'empty-statement' }
+        });
+    }
+
     if (ctx.exprStatement()) {
         return b.buildExpressionStatement(ctx.exprStatement()!);
     }
