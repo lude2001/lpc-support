@@ -139,7 +139,8 @@ export class ObjectInferenceService {
         if (receiverNode.kind === SyntaxKind.NewExpression) {
             return this.selectReceiverOutcome(
                 await this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode),
-                semanticOutcome
+                semanticOutcome,
+                receiver.kind
             );
         }
 
@@ -154,49 +155,50 @@ export class ObjectInferenceService {
                 || callOutcome.reason === 'non-static'
                 || callOutcome.diagnostics?.length
             ) {
-                return this.selectReceiverOutcome(callOutcome, semanticOutcome);
+                return this.selectReceiverOutcome(callOutcome, semanticOutcome, receiver.kind);
             }
 
             const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
             if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
-                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome);
+                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome, receiver.kind);
             }
 
             if (callOutcome.reason) {
-                return this.selectReceiverOutcome(callOutcome, semanticOutcome);
+                return this.selectReceiverOutcome(callOutcome, semanticOutcome, receiver.kind);
             }
 
-            return this.selectReceiverOutcome(callOutcome, semanticOutcome);
+            return this.selectReceiverOutcome(callOutcome, semanticOutcome, receiver.kind);
         }
 
         if (receiver.kind === 'literal') {
             return this.selectReceiverOutcome({
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'literal')
-            }, semanticOutcome);
+            }, semanticOutcome, receiver.kind);
         }
 
         if (receiver.kind === 'macro') {
             return this.selectReceiverOutcome({
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'macro')
-            }, semanticOutcome);
+            }, semanticOutcome, receiver.kind);
         }
 
         if (receiver.kind === 'call') {
             const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
             if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
-                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome);
+                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome, receiver.kind);
             }
 
             return this.selectReceiverOutcome(
                 await this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode),
-                semanticOutcome
+                semanticOutcome,
+                receiver.kind
             );
         }
 
         if (receiver.kind === 'identifier') {
             const tracedResult = await this.traceService.traceIdentifier(document, syntax, receiverNode);
             if (tracedResult && (tracedResult.candidates.length > 0 || tracedResult.hasVisibleBinding)) {
-                return this.selectReceiverOutcome(tracedResult, semanticOutcome);
+                return this.selectReceiverOutcome(tracedResult, semanticOutcome, receiver.kind);
             }
 
             const globalBindingResult = await this.globalBindingResolver.resolveVisibleBinding(
@@ -214,7 +216,7 @@ export class ObjectInferenceService {
                 }
             );
             if (globalBindingResult && (globalBindingResult.candidates.length > 0 || globalBindingResult.hasVisibleBinding)) {
-                return this.selectReceiverOutcome(globalBindingResult, semanticOutcome);
+                return this.selectReceiverOutcome(globalBindingResult, semanticOutcome, receiver.kind);
             }
 
             const inheritedBindingResult = await this.inheritedGlobalBindingResolver.resolveInheritedBinding(
@@ -222,15 +224,15 @@ export class ObjectInferenceService {
                 receiver.expression
             );
             if (inheritedBindingResult && (inheritedBindingResult.candidates.length > 0 || inheritedBindingResult.hasVisibleBinding)) {
-                return this.selectReceiverOutcome(inheritedBindingResult, semanticOutcome);
+                return this.selectReceiverOutcome(inheritedBindingResult, semanticOutcome, receiver.kind);
             }
 
             return this.selectReceiverOutcome({
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'macro')
-            }, semanticOutcome);
+            }, semanticOutcome, receiver.kind);
         }
 
-        return this.selectReceiverOutcome({ candidates: [] }, semanticOutcome);
+        return this.selectReceiverOutcome({ candidates: [] }, semanticOutcome, receiver.kind);
     }
 
     private async resolveSemanticReceiverOutcome(
@@ -300,22 +302,35 @@ export class ObjectInferenceService {
 
     private selectReceiverOutcome(
         legacyOutcome: ObjectResolutionOutcome,
-        semanticOutcome?: ObjectResolutionOutcome
+        semanticOutcome?: ObjectResolutionOutcome,
+        receiverKind?: ClassifiedReceiver['kind']
     ): ObjectResolutionOutcome {
+        if (receiverKind === 'identifier') {
+            if (this.isTerminalLegacyOutcome(legacyOutcome)) {
+                return legacyOutcome;
+            }
+
+            if (semanticOutcome) {
+                return semanticOutcome;
+            }
+
+            return legacyOutcome;
+        }
+
         if (semanticOutcome) {
             return semanticOutcome;
         }
 
-        if (this.isMeaningfulOutcome(legacyOutcome)) {
+        if (this.isTerminalLegacyOutcome(legacyOutcome)) {
             return legacyOutcome;
         }
 
         return legacyOutcome;
     }
 
-    private isMeaningfulOutcome(outcome: ObjectResolutionOutcome): boolean {
+    private isTerminalLegacyOutcome(outcome: ObjectResolutionOutcome): boolean {
         return outcome.candidates.length > 0
-            || outcome.reason !== undefined
+            || outcome.reason === 'non-static'
             || (outcome.diagnostics?.length ?? 0) > 0;
     }
 

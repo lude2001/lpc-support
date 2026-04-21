@@ -414,7 +414,7 @@ describe('ObjectInferenceService', () => {
             status: 'resolved',
             candidates: [
                 {
-                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
                     source: 'builtin-call'
                 }
             ]
@@ -1204,7 +1204,7 @@ describe('ObjectInferenceService', () => {
             status: 'resolved',
             candidates: [
                 {
-                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'shield.c'),
                     source: 'builtin-call'
                 }
             ]
@@ -3261,8 +3261,8 @@ describe('ObjectInferenceService', () => {
             status: 'resolved',
             candidates: [
                 {
-                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
-                    source: 'builtin-call'
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'macro'
                 }
             ]
         });
