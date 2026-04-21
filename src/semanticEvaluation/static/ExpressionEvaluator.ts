@@ -2,7 +2,6 @@ import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import type { SemanticValue } from '../types';
 import {
     literalValue,
-    objectValue,
     unknownValue
 } from '../valueFactories';
 import { joinSemanticValues } from '../valueJoin';
@@ -20,7 +19,8 @@ import {
 } from './LpcTypePredicateEvaluator';
 import { evaluateLpcTruthiness } from './LpcConditionEvaluator';
 import { evaluateLpcLiteralNode } from './LpcLiteralEvaluator';
-import { collectStaticStringSet, LpcContainerShapeEvaluator } from './LpcContainerShapeEvaluator';
+import { LpcContainerShapeEvaluator } from './LpcContainerShapeEvaluator';
+import { evaluateLpcObjectSourceValue, isLpcObjectSourceCallName } from './LpcObjectSourceEvaluator';
 
 export interface ExpressionEvaluatorOptions {
     evaluateDirectCall?: (callExpression: SyntaxNode, state: StaticEvaluationState) => SemanticValue;
@@ -121,7 +121,7 @@ export class ExpressionEvaluator {
 
     private evaluateNewExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
         const targetValue = this.evaluate(node.children[0], state);
-        return this.asObjectSourceValue(targetValue);
+        return evaluateLpcObjectSourceValue(targetValue);
     }
 
     private evaluateCallExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
@@ -132,11 +132,11 @@ export class ExpressionEvaluator {
                 return typePredicateValue;
             }
 
-            if (callee.name === 'load_object' || callee.name === 'find_object') {
+            if (isLpcObjectSourceCallName(callee.name)) {
                 const argumentList = node.children[1];
                 const firstArgument = argumentList?.children[0];
                 const targetValue = this.evaluate(firstArgument, state);
-                return this.asObjectSourceValue(targetValue);
+                return evaluateLpcObjectSourceValue(targetValue);
             }
 
             const naturalValue = this.options.evaluateDirectCall
@@ -189,14 +189,5 @@ export class ExpressionEvaluator {
         return predicateResult === undefined
             ? unknownValue()
             : literalValue(predicateResult, 'boolean');
-    }
-
-    private asObjectSourceValue(targetValue: SemanticValue): SemanticValue {
-        const targetPaths = collectStaticStringSet(targetValue);
-        if (targetPaths?.length) {
-            return joinSemanticValues(targetPaths.map((targetPath) => objectValue(targetPath)));
-        }
-
-        return unknownValue();
     }
 }
