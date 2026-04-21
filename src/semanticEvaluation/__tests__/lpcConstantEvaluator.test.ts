@@ -120,6 +120,90 @@ describe('LpcConstantEvaluator', () => {
         expect(evaluator.evaluate(createBinaryNode('===', left, right), createStaticEvaluationState()))
             .toEqual(unknownValue());
     });
+
+    test('folds string concatenation into a literal string', () => {
+        const left = createLiteralNode('"/adm/"');
+        const right = createLiteralNode('"model"');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return literalValue('/adm/');
+                }
+
+                if (node === right) {
+                    return literalValue('model');
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('+', left, right), createStaticEvaluationState()))
+            .toEqual(literalValue('/adm/model'));
+    });
+
+    test('folds mixed string and numeric literals into a literal string', () => {
+        const left = createLiteralNode('"/adm/"');
+        const right = createLiteralNode('1');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return literalValue('/adm/');
+                }
+
+                if (node === right) {
+                    return literalValue(1);
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('+', left, right), createStaticEvaluationState()))
+            .toEqual(literalValue('/adm/1'));
+    });
+
+    test('returns unknown when a plus operand is not literal', () => {
+        const left = createLiteralNode('alias');
+        const right = createLiteralNode('"model"');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return unknownValue();
+                }
+
+                if (node === right) {
+                    return literalValue('model');
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('+', left, right), createStaticEvaluationState()))
+            .toEqual(unknownValue());
+    });
+
+    test('folds numeric literals into a numeric literal sum', () => {
+        const left = createLiteralNode('1');
+        const right = createLiteralNode('2');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return literalValue(1);
+                }
+
+                if (node === right) {
+                    return literalValue(2);
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('+', left, right), createStaticEvaluationState()))
+            .toEqual(literalValue(3, 'int'));
+    });
 });
 
 describe('ExpressionEvaluator constant delegation', () => {
@@ -164,7 +248,7 @@ describe('ExpressionEvaluator constant delegation', () => {
 
     test('returns unknown for unsupported binary operators through the public facade', () => {
         expect(
-            evaluateBinary('+', createLiteralNode('1'), createLiteralNode('2'))
+            evaluateBinary('&&', createLiteralNode('1'), createLiteralNode('2'))
         ).toEqual(unknownValue());
     });
 });

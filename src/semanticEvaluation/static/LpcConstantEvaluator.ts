@@ -28,7 +28,8 @@ export class LpcConstantEvaluator {
     private evaluateBinaryExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
         const operator = node.metadata?.operator;
         if (
-            operator !== '=='
+            operator !== '+'
+            && operator !== '=='
             && operator !== '==='
             && operator !== '!='
             && operator !== '!=='
@@ -47,6 +48,37 @@ export class LpcConstantEvaluator {
             return literalValue(left.value === right.value, 'boolean');
         }
 
+        if (operator === '+') {
+            return this.evaluateBinaryAddition(left, right);
+        }
+
         return literalValue(left.value !== right.value, 'boolean');
+    }
+
+    private evaluateBinaryAddition(left: SemanticValue, right: SemanticValue): SemanticValue {
+        if (left.kind !== 'literal' || right.kind !== 'literal') {
+            return unknownValue();
+        }
+
+        const leftType = left.valueType;
+        const rightType = right.valueType;
+
+        if (leftType === 'string' || rightType === 'string') {
+            return literalValue(String(left.value) + String(right.value), 'string');
+        }
+
+        if (
+            (leftType !== 'int' && leftType !== 'float')
+            || (rightType !== 'int' && rightType !== 'float')
+        ) {
+            return unknownValue();
+        }
+
+        const sum = (left.value as number) + (right.value as number);
+        if (leftType === 'int' && rightType === 'int' && Number.isInteger(sum)) {
+            return literalValue(sum, 'int');
+        }
+
+        return literalValue(sum, 'float');
     }
 }

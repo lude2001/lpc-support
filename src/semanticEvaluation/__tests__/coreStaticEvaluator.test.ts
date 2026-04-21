@@ -212,6 +212,14 @@ describe('ExpressionEvaluator', () => {
         expect(result).toEqual(objectValue('/adm/model/login'));
     });
 
+    test('evaluates load_object with a folded plus expression to an exact object value', () => {
+        const result = evaluateReturnedExpression(
+            'mixed demo() { return load_object("/adm/" + "model/login"); }'
+        );
+
+        expect(result).toEqual(objectValue('/adm/model/login'));
+    });
+
     test('evaluates find_object("/x/y") to an exact object value', () => {
         const result = evaluateReturnedExpression('mixed demo() { return find_object("/adm/model/login"); }');
 
