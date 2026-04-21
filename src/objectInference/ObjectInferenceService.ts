@@ -22,7 +22,10 @@ import { ObjectCandidateResolver } from './ObjectCandidateResolver';
 import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
 import { InheritedGlobalObjectBindingResolver } from './InheritedGlobalObjectBindingResolver';
 import { ObjectMethodReturnResolver } from './ObjectMethodReturnResolver';
+import { ReceiverBindingResolver } from './ReceiverBindingResolver';
 import { ReceiverClassifier } from './ReceiverClassifier';
+import { ReceiverFlowCollector } from './ReceiverFlowCollector';
+import { ReceiverFunctionLocator } from './ReceiverFunctionLocator';
 import { ReceiverTraceService } from './ReceiverTraceService';
 import { ObjectResolutionOutcome, ReturnObjectResolver } from './ReturnObjectResolver';
 import { ScopedMethodResolver } from './ScopedMethodResolver';
@@ -52,6 +55,9 @@ export class ObjectInferenceService {
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     private readonly classifier = new ReceiverClassifier();
     private readonly candidateResolver = new ObjectCandidateResolver();
+    private readonly functionLocator = new ReceiverFunctionLocator();
+    private readonly bindingResolver = new ReceiverBindingResolver();
+    private readonly flowCollector = new ReceiverFlowCollector(this.bindingResolver);
     private readonly pathSupport: WorkspaceDocumentPathSupport;
     private readonly returnObjectResolver: ReturnObjectResolver;
     private readonly semanticEvaluationService?: Pick<SemanticEvaluationService, 'evaluateExpressionAtPosition'>;
@@ -198,7 +204,14 @@ export class ObjectInferenceService {
         if (receiver.kind === 'identifier') {
             const tracedResult = await this.traceService.traceIdentifier(document, syntax, receiverNode);
             if (tracedResult && (tracedResult.candidates.length > 0 || tracedResult.hasVisibleBinding)) {
-                return this.selectReceiverOutcome(tracedResult, semanticOutcome, receiver.kind);
+                const refinedResult = await this.resolveUnsupportedVisibleIdentifierSourceOutcome(
+                    document,
+                    syntax,
+                    receiverNode,
+                    receiver.expression,
+                    tracedResult
+                );
+                return this.selectReceiverOutcome(refinedResult ?? tracedResult, semanticOutcome, receiver.kind);
             }
 
             const globalBindingResult = await this.globalBindingResolver.resolveVisibleBinding(
@@ -330,10 +343,7 @@ export class ObjectInferenceService {
 
     private isTerminalIdentifierLegacyOutcome(outcome: ObjectResolutionOutcome): boolean {
         return this.isTerminalLegacyOutcome(outcome)
-            || (
-                (outcome as { hasVisibleBinding?: boolean }).hasVisibleBinding === true
-                && outcome.reason === undefined
-            );
+            || (outcome as { hasVisibleBinding?: boolean }).hasVisibleBinding === true;
     }
 
     private isTerminalLegacyOutcome(outcome: ObjectResolutionOutcome): boolean {
@@ -373,6 +383,69 @@ export class ObjectInferenceService {
         }
 
         return candidates.length > 0 ? { candidates } : undefined;
+    }
+
+    private async resolveUnsupportedVisibleIdentifierSourceOutcome(
+        document: vscode.TextDocument,
+        syntax: SyntaxDocument,
+        receiverNode: SyntaxNode,
+        identifierName: string,
+        tracedResult: ObjectResolutionOutcome & { hasVisibleBinding?: boolean }
+    ): Promise<(ObjectResolutionOutcome & { hasVisibleBinding: true }) | undefined> {
+        if (
+            !this.semanticEvaluationService
+            || tracedResult.hasVisibleBinding !== true
+            || tracedResult.reason !== 'unsupported-expression'
+            || tracedResult.candidates.length > 0
+        ) {
+            return undefined;
+        }
+
+        const containingFunction = this.functionLocator.findContainingFunction(syntax, receiverNode.range.start);
+        if (!containingFunction) {
+            return undefined;
+        }
+
+        const binding = this.bindingResolver.resolveVisibleBinding(
+            containingFunction,
+            identifierName,
+            receiverNode.range.start
+        );
+        if (!binding) {
+            return undefined;
+        }
+
+        const sourceState = this.flowCollector.collectSourceExpressions(
+            containingFunction,
+            identifierName,
+            receiverNode.range.start,
+            binding
+        );
+        if (sourceState.isConservativeUnknown || sourceState.expressions.length === 0) {
+            return undefined;
+        }
+
+        const candidates: ObjectCandidate[] = [];
+        for (const expression of sourceState.expressions) {
+            const outcome = await this.resolveSemanticReceiverOutcome(document, expression);
+            if (!outcome) {
+                return undefined;
+            }
+
+            if (outcome.reason === 'non-static' || outcome.diagnostics?.length) {
+                return { ...outcome, hasVisibleBinding: true };
+            }
+
+            if (outcome.candidates.length === 0) {
+                return undefined;
+            }
+
+            candidates.push(...outcome.candidates);
+        }
+
+        return candidates.length > 0
+            ? { candidates, hasVisibleBinding: true }
+            : undefined;
     }
 
     private resolveSemanticObjectCandidate(

@@ -454,6 +454,44 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('identifier receiver tracing keeps unsupported visible bindings before semantic receiver values', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'unknown' as const,
+                value: unknownValue()
+            })),
+            evaluateExpressionAtPosition: jest.fn(async (
+                targetDocument: vscode.TextDocument,
+                expression: { range: vscode.Range }
+            ) => ({
+                source: 'natural' as const,
+                value: targetDocument.getText(expression.range) === 'model'
+                    ? objectValue('/std/classify_pop')
+                    : unknownValue()
+            }))
+        };
+        const semanticReceiverService = createService(undefined, semanticEvaluationService);
+        const source = [
+            'void demo() {',
+            '    object model = load_object(1);',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-visible-unsupported-binding.c'), source);
+
+        const result = await semanticReceiverService.inferObjectAccess(
+            document,
+            positionAfter(source, 'model->add_data_button')
+        );
+
+        expect(semanticEvaluationService.evaluateExpressionAtPosition).toHaveBeenCalled();
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
     test('semantic receiver evaluation resolves public load_object receiver values', async () => {
         const source = [
             'void demo() {',
