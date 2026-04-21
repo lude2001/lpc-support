@@ -385,7 +385,7 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('semantic receiver evaluation resolves local receiver values before legacy tracing', async () => {
+    test('identifier receiver tracing preserves visible binding before conflicting semantic receiver values', async () => {
         const semanticEvaluationService = {
             evaluateCallExpression: jest.fn(async () => ({
                 source: 'unknown' as const,
@@ -410,6 +410,7 @@ describe('ObjectInferenceService', () => {
             positionAfter(source, 'model->add_data_button')
         );
 
+        expect(semanticEvaluationService.evaluateExpressionAtPosition).toHaveBeenCalled();
         expect(result?.inference).toEqual({
             status: 'resolved',
             candidates: [
