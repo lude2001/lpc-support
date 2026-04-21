@@ -28,8 +28,11 @@
          │
     ┌────┴─────────┐
     │ 候选路径解析   │  ReturnObjectResolver / ObjectCandidateResolver
+    │ SemanticEvaluationService │
+    │ natural return inference  │
+    │ environment providers     │
+    │ @lpc-return-objects       │  ← fallback-only
     │ this_object() │
-    │ this_player() │  ← playerObjectPath from lpc-support.json
     │ load_object() │
     │ find_object() │
     │ clone_object()│
@@ -95,20 +98,40 @@
 | `find_object` | 1 |
 | `clone_object` | 1 |
 
-### 3.3 返回对象解析 — `src/objectInference/ReturnObjectResolver.ts`
+### 3.3 语义求值接入 — `src/semanticEvaluation/*`
 
-职责：解析调用表达式、标识符（宏）为对象候选路径。
+职责：在对象推导器消费 `@lpc-return-objects` 之前，先尝试用统一的受限语义求值层解析调用表达式返回值。
+
+核心层次：
+
+- **Value Domain**：统一表示 `literal`、`object`、`mapping-shape`、`array-shape`、`candidate-set`、`configured-candidate-set`、`unknown` 和 `non-static`。
+- **Core Static Evaluator**：在单个函数体内处理局部变量、赋值、简单 `if / else`、return、静态 mapping / array 和 `new` / `load_object` / `find_object` 等白区表达式。
+- **Callee Return Evaluator**：把调用点实参绑定到 callee 形参，再在 callee 内自然求出 `return`。
+- **Environment Semantic Providers**：处理源码外但可配置建模的语义，如 `this_player()`；同时把 `previous_object(...)` 这类运行时调用栈来源明确标成 `non-static`。
+
+优先级固定为：
+
+1. 自然语义推导结果
+2. 环境语义 provider 结果
+3. `@lpc-return-objects`
+4. `unknown`
+
+`@lpc-return-objects` 仍然保留，但只作为 fallback-only 提示。只要语义求值层产出非 `unknown` 结果，包括 `non-static`，对象推导器都不会再继续落到注解候选。
+
+### 3.4 返回对象解析 — `src/objectInference/ReturnObjectResolver.ts`
+
+职责：解析调用表达式、标识符（宏）为对象候选路径，并作为 `SemanticEvaluationService` 之后的兼容 fallback。
 
 核心方法：
 
 - **`resolveExpressionOutcome(document, expression)`**：统一入口，分类表达式后分派到具体解析路径
 - **`resolveCall(document, receiver)`**：处理内建函数调用
   - `this_object()` → 当前文档路径
-  - `this_player()` → 配置的 `playerObjectPath`
+  - `this_player()` → 已迁移到环境语义 provider，旧路径仅作为兼容入口
   - `load_object(path)` / `find_object(path)` / `clone_object(path)` → 通过 `PathResolver.resolveObjectPath` 解析参数路径
 - **`resolveDocumentedReturnObjects(document, functionName)`**：从当前文件的 `@lpc-return-objects` 注释中提取返回对象路径
 
-### 3.4 变量追踪 — `src/objectInference/ReceiverTraceService.ts`
+### 3.5 变量追踪 — `src/objectInference/ReceiverTraceService.ts`
 
 职责：在当前函数作用域内追踪变量赋值，推导标识符接收者的来源。
 
@@ -130,7 +153,7 @@
 - 然后按位置顺序扫描 `VariableDeclarator`，找到最近的同名声明
 - 赋值追踪时校验绑定一致性（同一声明节点的赋值才视为对同一变量的写入）
 
-### 3.5 候选去重与结果生成 — `src/objectInference/ObjectCandidateResolver.ts`
+### 3.6 候选去重与结果生成 — `src/objectInference/ObjectCandidateResolver.ts`
 
 职责：接收候选列表和可选的失败原因，生成最终的 `ObjectInferenceResult`。
 
@@ -143,7 +166,7 @@
 | 去重后恰好一个候选 | `resolved` |
 | 去重后多个候选 | `multiple` |
 
-### 3.6 推导服务入口 — `src/objectInference/ObjectInferenceService.ts`
+### 3.7 推导服务入口 — `src/objectInference/ObjectInferenceService.ts`
 
 职责：统一编排推导流程，是所有 Provider 调用的唯一入口。
 
@@ -197,7 +220,24 @@ this_object()->query()
 this_player()->query_name()
 ```
 
-返回 `lpc-support.json` 中配置的 `playerObjectPath`。若未配置则无候选。
+通过环境语义 provider 返回 `lpc-support.json` 中配置的 `playerObjectPath`。若未配置则无候选。
+
+**受限自然返回推导**
+
+```c
+PROTOCOL_D->model_get("login")->error_result("ban_msg");
+```
+
+当 `model_get` 的返回对象可以通过形参绑定、局部变量、静态 mapping registry、简单分支和 `new` / `load_object` 等白区语义证明时，系统会直接使用自然推导结果。若自然推导成功，`@lpc-return-objects` 不会覆盖该结果。
+
+**previous_object(...)**
+
+```c
+previous_object()->query_name();
+previous_object(1)->query_name();
+```
+
+这类调用依赖运行时调用栈，语义求值层会明确返回 `non-static`。因此即使存在 `@lpc-return-objects` 注解，也不会继续 fallback 到静态候选对象，避免错误跳转。
 
 **load_object / find_object / clone_object**
 

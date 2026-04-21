@@ -81,6 +81,19 @@ function getLiteralDirectiveValue(node: SyntaxNode | undefined): string | undefi
     return undefined;
 }
 
+function getStaticObjectPathExpression(node: SyntaxNode): string | undefined {
+    if (node.kind === SyntaxKind.Identifier && node.name) {
+        return node.name;
+    }
+
+    if (node.kind !== SyntaxKind.Literal) {
+        return undefined;
+    }
+
+    const text = node.metadata?.text;
+    return typeof text === 'string' ? text : undefined;
+}
+
 function collectIncludeSpecs(
     document: vscode.TextDocument,
     syntax: SyntaxDocument,
@@ -164,7 +177,12 @@ export class CallTargetResolver {
 
             const receiverValue = new ExpressionEvaluator(callerContext).evaluate(memberCall.receiver, callerState);
             if (receiverValue.kind !== 'object') {
-                return undefined;
+                return this.resolveStaticReceiverFunctionTarget(
+                    document,
+                    memberCall.receiver,
+                    memberCall.name,
+                    new Set<string>()
+                );
             }
 
             return this.resolveObjectFunctionTarget(
@@ -176,6 +194,30 @@ export class CallTargetResolver {
         }
 
         return this.resolveFunctionTarget(document, functionName, new Set<string>());
+    }
+
+    private async resolveStaticReceiverFunctionTarget(
+        document: vscode.TextDocument,
+        receiver: SyntaxNode,
+        functionName: string,
+        visitedDocuments: Set<string>
+    ): Promise<ResolvedCallTarget | undefined> {
+        const pathExpression = getStaticObjectPathExpression(receiver);
+        if (!pathExpression) {
+            return undefined;
+        }
+
+        const objectFile = this.pathSupport.resolveObjectFilePath(document, pathExpression);
+        if (!objectFile || !this.pathSupport.fileExists(objectFile)) {
+            return undefined;
+        }
+
+        const objectDocument = await this.pathSupport.tryOpenTextDocument(objectFile);
+        if (!objectDocument) {
+            return undefined;
+        }
+
+        return this.resolveFunctionTarget(objectDocument, functionName, visitedDocuments);
     }
 
     private async resolveObjectFunctionTarget(

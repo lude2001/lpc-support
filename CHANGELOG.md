@@ -2,6 +2,18 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.45.3] - 2026-04-21
+
+### Semantic Evaluation Foundation
+
+- 新增 LPC 受限语义求值基础层，面向对象方法推导提供统一的 Value Domain、函数内静态求值、callee return 推导和环境语义 provider，不再继续把复杂返回对象规则堆在对象推导器内部。
+- 对象方法链现在会优先消费自然语义推导结果；`model_get("login")` 这类静态 registry / mapping / `new` / `load_object` 返回链可以精确落到实际模型对象，`@lpc-return-objects` 保留为 fallback，而不再覆盖可证明结果。
+- `PROTOCOL_D->model_get("navigation_popup")->create_action(...)` 这类宏 receiver 调用现在也会先展开宏并进入自然 return 推导，避免回退到 `@lpc-return-objects` 的全量候选集合。
+- 修正宏式函数调用语句的分号归属，`call_other(...);` 等调用不再额外生成 `Missing` 分号残片并打断函数内语义求值。
+- `this_player()` 已接入配置驱动的环境语义 provider，helper 包装返回 `this_player()` 的场景也能继续传播到对象方法跳转、悬停和补全链路。
+- `previous_object(...)` 现在被明确归类为 non-static 运行时调用栈来源，不会因为 `@lpc-return-objects` 注解而错误跳到静态候选对象。
+- 补强嵌套 `if / else if` 调用点、partial-return 分支合并、helper 包装 runtime provider、spawned runtime 和 provider integration 回归，确保自然语义推导不会在关键链路上退回旧 fallback。
+
 ## [0.45.2] - 2026-04-20
 
 ### Architecture Cleanup

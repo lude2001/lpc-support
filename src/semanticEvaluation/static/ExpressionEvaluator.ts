@@ -152,6 +152,8 @@ export class ExpressionEvaluator {
                 return getEnvironmentValue(state.environment, node.name ?? '') ?? unknownValue();
             case SyntaxKind.ParenthesizedExpression:
                 return this.evaluate(node.children[0], state);
+            case SyntaxKind.UnaryExpression:
+                return this.evaluateUnaryExpression(node, state);
             case SyntaxKind.MappingLiteralExpression:
                 return this.evaluateMappingLiteral(node, state);
             case SyntaxKind.ArrayLiteralExpression:
@@ -288,6 +290,20 @@ export class ExpressionEvaluator {
         ]);
     }
 
+    private evaluateUnaryExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
+        const operator = node.metadata?.operator;
+        const operandValue = this.evaluate(node.children[node.children.length - 1], state);
+
+        if (operator === '!') {
+            const truthiness = isDefinitelyTruthy(operandValue);
+            return truthiness === undefined
+                ? unknownValue()
+                : literalValue(!truthiness, 'boolean');
+        }
+
+        return unknownValue();
+    }
+
     private evaluateNewExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
         const targetValue = this.evaluate(node.children[0], state);
         return this.asObjectSourceValue(targetValue);
@@ -296,6 +312,11 @@ export class ExpressionEvaluator {
     private evaluateCallExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
         const callee = node.children[0];
         if (callee?.kind === SyntaxKind.Identifier) {
+            const typePredicateValue = this.evaluateTypePredicateCall(callee.name, node, state);
+            if (typePredicateValue) {
+                return typePredicateValue;
+            }
+
             if (callee.name === 'load_object' || callee.name === 'find_object') {
                 const argumentList = node.children[1];
                 const firstArgument = argumentList?.children[0];
@@ -332,6 +353,60 @@ export class ExpressionEvaluator {
         return this.options.evaluateDirectCall
             ? this.options.evaluateDirectCall(node, state)
             : unknownValue();
+    }
+
+    private evaluateTypePredicateCall(
+        calleeName: string | undefined,
+        node: SyntaxNode,
+        state: StaticEvaluationState
+    ): SemanticValue | undefined {
+        if (!calleeName || !['mapp', 'pointerp', 'stringp', 'objectp', 'undefinedp'].includes(calleeName)) {
+            return undefined;
+        }
+
+        const argumentList = node.children.find((child) => child.kind === SyntaxKind.ArgumentList);
+        if (argumentList?.children.length !== 1) {
+            return unknownValue();
+        }
+
+        const argumentValue = this.evaluate(argumentList.children[0], state);
+        const predicateResult = this.evaluateKnownTypePredicate(calleeName, argumentValue);
+        return predicateResult === undefined
+            ? unknownValue()
+            : literalValue(predicateResult, 'boolean');
+    }
+
+    private evaluateKnownTypePredicate(calleeName: string, value: SemanticValue): boolean | undefined {
+        switch (calleeName) {
+            case 'mapp':
+                return this.isKnownKind(value, 'mapping-shape');
+            case 'pointerp':
+                return this.isKnownKind(value, 'array-shape');
+            case 'stringp':
+                return value.kind === 'literal' ? typeof value.value === 'string' : this.isKnownNegative(value);
+            case 'objectp':
+                return ['object', 'candidate-set', 'configured-candidate-set'].includes(value.kind)
+                    ? true
+                    : this.isKnownNegative(value);
+            case 'undefinedp':
+                return value.kind === 'unknown' ? undefined : false;
+            default:
+                return undefined;
+        }
+    }
+
+    private isKnownKind(value: SemanticValue, expectedKind: SemanticValue['kind']): boolean | undefined {
+        if (value.kind === expectedKind) {
+            return true;
+        }
+
+        return this.isKnownNegative(value);
+    }
+
+    private isKnownNegative(value: SemanticValue): false | undefined {
+        return value.kind === 'unknown' || value.kind === 'union'
+            ? undefined
+            : false;
     }
 
     private asObjectSourceValue(targetValue: SemanticValue): SemanticValue {

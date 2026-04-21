@@ -139,6 +139,26 @@ describe('SyntaxBuilder', () => {
         expect(opaqueNodes.some((node) => node.metadata?.reason === 'scope-identifier-fallback')).toBe(true);
     });
 
+    test('does not expose macro-style call semicolons as missing statements', () => {
+        const source = [
+            'void demo(int flag, object model) {',
+            '    if (flag)',
+            '        call_other(model, "init");',
+            '    return;',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/macro-call-semicolon.c');
+        const syntaxDocument = new SyntaxBuilder(getGlobalParsedDocumentService().get(document)).build();
+        const missingNodes = syntaxDocument.nodes.filter((node) => node.kind === SyntaxKind.Missing);
+        const macroInvokeStatements = syntaxDocument.nodes.filter((node) =>
+            node.kind === SyntaxKind.ExpressionStatement
+            && node.metadata?.source === 'macro-invoke'
+        );
+
+        expect(missingNodes).toHaveLength(0);
+        expect(macroInvokeStatements).toHaveLength(1);
+    });
+
     test('attaches Javadoc blocks directly above modifiers', () => {
         const source = [
             '/**',

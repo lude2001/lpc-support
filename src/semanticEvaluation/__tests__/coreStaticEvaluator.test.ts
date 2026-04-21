@@ -349,6 +349,72 @@ describe('ExpressionEvaluator', () => {
         ]));
     });
 
+    test('skips mapp guard returns when the checked value is a static mapping shape', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    mapping info = ([ "path": "/adm/model/navigation_popup" ]);',
+            '    if (!mapp(info))',
+            '        return 0;',
+            '    return load_object(info["path"]);',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(objectValue('/adm/model/navigation_popup'));
+    });
+
+    test('keeps model object through real protocol mode and initialization guards', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    mapping info = ([ "path": "/adm/model/navigation_popup", "mode": "load" ]);',
+            '    object model;',
+            '    if (!mapp(info))',
+            '        return 0;',
+            '    if (info["mode"] == "new")',
+            '        model = new(info["path"]);',
+            '    else',
+            '        model = load_object(info["path"]);',
+            '    if (objectp(model) && stringp(info["init_method"]) && !undefinedp(init_arg))',
+            '        call_other(model, info["init_method"], init_arg);',
+            '    return model;',
+            '}'
+        ].join('\n'), {
+            bindings: { init_arg: unknownValue() }
+        });
+
+        expect(result).toEqual(objectValue('/adm/model/navigation_popup'));
+    });
+
+    test('keeps model object through protocol mode branch before initialization guards', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    mapping info = ([ "path": "/adm/model/navigation_popup", "mode": "load" ]);',
+            '    object model;',
+            '    if (info["mode"] == "new")',
+            '        model = new(info["path"]);',
+            '    else',
+            '        model = load_object(info["path"]);',
+            '    return model;',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(objectValue('/adm/model/navigation_popup'));
+    });
+
+    test('preserves known bindings when an unknown guard only calls a function', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    object model = load_object("/adm/model/navigation_popup");',
+            '    if (flag)',
+            '        call_other(model, "init");',
+            '    return model;',
+            '}'
+        ].join('\n'), {
+            bindings: { flag: unknownValue() }
+        });
+
+        expect(result).toEqual(objectValue('/adm/model/navigation_popup'));
+    });
+
     test('returns through a local variable', () => {
         const result = evaluateFunction([
             'mixed demo() {',

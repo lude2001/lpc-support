@@ -1207,6 +1207,96 @@ describe('language-service integration regression', () => {
         expect(findMethod).toHaveBeenCalledWith(document, loginModelFile, 'error_result');
     });
 
+    test('semantic evaluation model_get resolves macro receivers before return-objects fallback', async () => {
+        const protocolFile = path.join(fixtureRoot, 'adm', 'protocol', 'protocol_server.c');
+        const navigationModelFile = path.join(fixtureRoot, 'adm', 'protocol', 'model', 'navigation_popup_model.c');
+        const equipModelFile = path.join(fixtureRoot, 'adm', 'protocol', 'model', 'equip_ui_model.c');
+        fs.mkdirSync(path.dirname(navigationModelFile), { recursive: true });
+        fs.writeFileSync(
+            protocolFile,
+            [
+                '/**',
+                ' * @lpc-return-objects {"/adm/protocol/model/navigation_popup_model", "/adm/protocol/model/equip_ui_model"}',
+                ' */',
+                'varargs object model_get(string model_name, mixed init_arg) {',
+                '    mapping registry;',
+                '    mapping info;',
+                '    object model;',
+                '',
+                '    registry = query_model_registry();',
+                '    info = registry[model_name];',
+                '    if (!mapp(info))',
+                '        return 0;',
+                '',
+                '    if (info["mode"] == "new")',
+                '        model = new(info["path"]);',
+                '    else',
+                '        model = load_object(info["path"]);',
+                '',
+                '    if (objectp(model) && stringp(info["init_method"]) && !undefinedp(init_arg))',
+                '        call_other(model, info["init_method"], init_arg);',
+                '',
+                '    return model;',
+                '}',
+                '',
+                'mapping query_model_registry() {',
+                '    return ([',
+                '        "navigation_popup": ([',
+                '            "path": "/adm/protocol/model/navigation_popup_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '        "equip_ui": ([',
+                '            "path": "/adm/protocol/model/equip_ui_model",',
+                '            "mode": "load",',
+                '        ]),',
+                '    ]);',
+                '}'
+            ].join('\n')
+        );
+        fs.writeFileSync(
+            navigationModelFile,
+            'mapping create_action(string text, string cmd) { return ([]); }\n'
+        );
+        fs.writeFileSync(
+            equipModelFile,
+            'mapping create_action(string cmd, string text) { return ([]); }\n'
+        );
+        macroManager.getMacro.mockImplementation((name: string) =>
+            name === 'PROTOCOL_D'
+                ? {
+                    name,
+                    value: '"/adm/protocol/protocol_server"',
+                    file: path.join(fixtureRoot, 'include', 'globals.h'),
+                    line: 1
+                }
+                : undefined
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'void demo() {',
+            '    PROTOCOL_D->model_get("navigation_popup")->create_action("上一页", "new_banghui mb 1");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'cmds', 'usr', 'new_banghui.c'), source);
+        const objectInferenceService = createObjectInference();
+        const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
+        const findMethod = jest.spyOn(targetMethodLookup, 'findMethod');
+        const service = createDefinitionService(objectInferenceService, targetMethodLookup);
+
+        const definition = await provideDefinition(
+            service,
+            document,
+            positionAtSubstring(document, source, 'create_action("上一页"'),
+            fixtureRoot
+        );
+
+        expect(definition).toHaveLength(1);
+        expect(normalizeLocationUri(definition[0].uri)).toBe(navigationModelFile);
+        expect(findMethod).toHaveBeenCalledWith(document, navigationModelFile, 'create_action');
+        expect(findMethod).not.toHaveBeenCalledWith(document, equipModelFile, 'create_action');
+    });
+
     test('merged candidates from if/else return two locations when each file implements query_name', async () => {
         const swordFile = path.join(fixtureRoot, 'adm', 'objects', 'sword.c');
         const shieldFile = path.join(fixtureRoot, 'adm', 'objects', 'shield.c');
