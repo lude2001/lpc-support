@@ -212,6 +212,14 @@ describe('ExpressionEvaluator', () => {
         expect(result).toEqual(objectValue('/adm/model/login'));
     });
 
+    test('evaluates load_object with a folded plus expression to an exact object value', () => {
+        const result = evaluateReturnedExpression(
+            'mixed demo() { return load_object("/adm/" + "model/login"); }'
+        );
+
+        expect(result).toEqual(objectValue('/adm/model/login'));
+    });
+
     test('evaluates find_object("/x/y") to an exact object value', () => {
         const result = evaluateReturnedExpression('mixed demo() { return find_object("/adm/model/login"); }');
 
@@ -257,6 +265,18 @@ describe('ExpressionEvaluator', () => {
         );
 
         expect(result).toEqual(literalValue('login'));
+    });
+
+    test('treats falsy literals as false in conditional expressions', () => {
+        const result = evaluateReturnedExpression('mixed demo() { return 0 ? "login" : "logout"; }');
+
+        expect(result).toEqual(literalValue('logout'));
+    });
+
+    test('treats exact objects as false in unary negation consumers', () => {
+        const result = evaluateReturnedExpression('mixed demo() { return !new("/adm/model/login"); }');
+
+        expect(result).toEqual(literalValue(false, 'boolean'));
     });
 
     test('treats exact object-valued conditional expressions as truthy', () => {
@@ -309,6 +329,21 @@ describe('ExpressionEvaluator', () => {
             literalValue('login'),
             literalValue('logout')
         ]));
+    });
+
+    test('takes the truthy object branch in if statements', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    string model;',
+            '    if (new("/adm/model/login"))',
+            '        model = "login";',
+            '    else',
+            '        model = "logout";',
+            '    return model;',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(literalValue('login'));
     });
 
     test('uses real conditional expressions inside statement transfer joins', () => {
@@ -382,6 +417,37 @@ describe('ExpressionEvaluator', () => {
         });
 
         expect(result).toEqual(objectValue('/adm/model/navigation_popup'));
+    });
+
+    test('takes the then branch when a logical guard is fully known', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    object model = load_object("/adm/model/navigation_popup");',
+            '    string name = "init";',
+            '    if (objectp(model) && stringp(name))',
+            '        return "then";',
+            '    return "else";',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(literalValue('then'));
+    });
+
+    test('keeps a logical guard conservative when a required operand is unknown', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    object model = load_object("/adm/model/navigation_popup");',
+            '    string name;',
+            '    if (objectp(model) && stringp(name))',
+            '        return "then";',
+            '    return "else";',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(unionValue([
+            literalValue('then'),
+            literalValue('else')
+        ]));
     });
 
     test('keeps model object through protocol mode branch before initialization guards', () => {

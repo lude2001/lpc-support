@@ -113,6 +113,16 @@ describe('ObjectInferenceService', () => {
                 ? { playerObjectPath: _playerObjectPathOrProjectConfig }
                 : { projectConfigService })
         });
+        const semanticEvaluationServiceWithDefaults =
+            typeof (semanticEvaluationService as { evaluateExpressionAtPosition?: unknown }).evaluateExpressionAtPosition === 'function'
+                ? semanticEvaluationService
+                : {
+                    ...(semanticEvaluationService as object),
+                    evaluateExpressionAtPosition: jest.fn(async () => ({
+                        source: 'unknown' as const,
+                        value: unknownValue()
+                    }))
+                };
 
         return createDefaultObjectInferenceService({
             macroManager: macroManager as any,
@@ -120,7 +130,7 @@ describe('ObjectInferenceService', () => {
             documentationService,
             host: documentHost,
             pathSupport,
-            semanticEvaluationService: semanticEvaluationService as any
+            semanticEvaluationService: semanticEvaluationServiceWithDefaults as any
         });
     };
 
@@ -375,6 +385,157 @@ describe('ObjectInferenceService', () => {
         });
     });
 
+    test('identifier receiver tracing preserves visible binding before conflicting semantic receiver values', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'unknown' as const,
+                value: unknownValue()
+            })),
+            evaluateExpressionAtPosition: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: objectValue('/std/classify_pop')
+            }))
+        };
+        const semanticReceiverService = createService(undefined, semanticEvaluationService);
+        const source = [
+            'void demo() {',
+            '    object model = load_object("/adm/objects/sword");',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-receiver-priority.c'), source);
+
+        const result = await semanticReceiverService.inferObjectAccess(
+            document,
+            positionAfter(source, 'model->add_data_button')
+        );
+
+        expect(semanticEvaluationService.evaluateExpressionAtPosition).toHaveBeenCalled();
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('identifier receiver tracing keeps visible unresolved bindings before semantic receiver values', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'unknown' as const,
+                value: unknownValue()
+            })),
+            evaluateExpressionAtPosition: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: objectValue('/std/classify_pop')
+            }))
+        };
+        const semanticReceiverService = createService(undefined, semanticEvaluationService);
+        const source = [
+            'void demo() {',
+            '    object model;',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-visible-unresolved-binding.c'), source);
+
+        const result = await semanticReceiverService.inferObjectAccess(
+            document,
+            positionAfter(source, 'model->add_data_button')
+        );
+
+        expect(semanticEvaluationService.evaluateExpressionAtPosition).toHaveBeenCalled();
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            candidates: []
+        });
+    });
+
+    test('identifier receiver tracing keeps unsupported visible bindings before semantic receiver values', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'unknown' as const,
+                value: unknownValue()
+            })),
+            evaluateExpressionAtPosition: jest.fn(async (
+                targetDocument: vscode.TextDocument,
+                expression: { range: vscode.Range }
+            ) => ({
+                source: 'natural' as const,
+                value: targetDocument.getText(expression.range) === 'model'
+                    ? objectValue('/std/classify_pop')
+                    : unknownValue()
+            }))
+        };
+        const semanticReceiverService = createService(undefined, semanticEvaluationService);
+        const source = [
+            'void demo() {',
+            '    object model = load_object(1);',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-visible-unsupported-binding.c'), source);
+
+        const result = await semanticReceiverService.inferObjectAccess(
+            document,
+            positionAfter(source, 'model->add_data_button')
+        );
+
+        expect(semanticEvaluationService.evaluateExpressionAtPosition).toHaveBeenCalled();
+        expect(result?.inference).toEqual({
+            status: 'unsupported',
+            reason: 'unsupported-expression',
+            candidates: []
+        });
+    });
+
+    test('semantic receiver evaluation resolves public load_object receiver values', async () => {
+        const source = [
+            'void demo() {',
+            '    object model = load_object("/std/classify_pop");',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-receiver-load-object.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'model->add_data_button'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('semantic receiver evaluation resolves concatenated public object paths', async () => {
+        const source = [
+            'void demo() {',
+            '    object model = load_object("/std/" + "classify_pop");',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-receiver-concatenated-path.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'model->add_data_button'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
     test('load_object("/adm/daemons/combat_d") resolves to fixture file', async () => {
         const source = [
             'void demo() {',
@@ -513,7 +674,7 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('load_object with extra arguments does not resolve', async () => {
+    test('load_object with extra arguments resolves through semantic receiver values', async () => {
         const source = [
             'void demo() {',
             '    load_object("/adm/daemons/combat_d", foo)->start();',
@@ -524,9 +685,13 @@ describe('ObjectInferenceService', () => {
         const result = await service.inferObjectAccess(document, positionAfter(source, 'start'));
 
         expect(result?.inference).toEqual({
-            status: 'unsupported',
-            reason: 'unsupported-expression',
-            candidates: []
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
         });
     });
 
@@ -591,6 +756,27 @@ describe('ObjectInferenceService', () => {
                 {
                     path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
                     source: 'macro'
+                }
+            ]
+        });
+    });
+
+    test('new("/std/" + "classify_pop") resolves through semantic receiver values', async () => {
+        const source = [
+            'void demo() {',
+            '    new("/std/" + "classify_pop")->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'new-concatenated-path.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'add_data_button'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'builtin-call'
                 }
             ]
         });

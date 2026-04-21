@@ -6,7 +6,7 @@
 
 核心设计原则是：统一的 `ObjectInferenceService` 作为唯一入口，被多个语言服务共享调用，避免各 Provider 各自实现推导逻辑。
 
-自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾尝试引入工作区级 `references / rename`；自 `0.45.1` 起，导航主路径重新收窄为“当前文件级 + 可证明继承链级”的保守边界，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。自 `0.45.2` 起，completion / hover / signature help / navigation / object inference / runtime document source 的 owner 进一步统一回到显式 composition root 与默认 factory，历史 fallback / self-assembly 路径已基本清空。自语义求值基础接入后，`ObjectInferenceService` 在 direct/member call receiver 上不再只依赖 ad-hoc builtin/doc 规则，而会先消费 `SemanticEvaluationService` 的自然 return 推导与环境 provider 结果；`@lpc-return-objects` 仍保留，但已经降级为 fallback-only 提示。
+自 `0.43.0` 起，`::method()` 与 `room::method()` 这类显式父对象 / inherit 分支调用也已经进入主语言服务链，但它们不走 `ObjectInferenceService` 的 `obj->method()` 接收者推导机械，而是由相邻的 `ScopedMethodResolver` / `ScopedMethodReturnResolver` 负责解析。自 `0.44.0` 起，这条 scoped 链又继续接入了 `ScopedMethodDiscoveryService` / `ScopedMethodCompletionSupport`，从而把 scoped 调用补全也统一收敛到同一套 callable-documentation、definition、hover、signature help 与返回对象传播主路径。`0.45.0` 曾尝试引入工作区级 `references / rename`；自 `0.45.1` 起，导航主路径重新收窄为“当前文件级 + 可证明继承链级”的保守边界，旧的 `Workspace*` relation 栈也已退场，不再属于当前生产导航架构。自 `0.45.2` 起，completion / hover / signature help / navigation / object inference / runtime document source 的 owner 进一步统一回到显式 composition root 与默认 factory，历史 fallback / self-assembly 路径已基本清空。自语义求值基础接入后，`ObjectInferenceService` 在 direct/member call receiver 上不再只依赖 ad-hoc builtin/doc 规则，而会先消费 `SemanticEvaluationService` 的自然 return 推导与环境 provider 结果；`@lpc-return-objects` 仍保留，但已经降级为 fallback-only 提示。自 `0.45.4` 起，receiver 表达式本身也可以消费受限语义求值结果，静态路径拼接、可证明逻辑 guard 和 folded `new(...)` 会进入对象推导主链，同时 identifier 可见绑定与代码块作用域仍由 legacy tracing 保护，避免内层局部变量泄漏到外层或污染宏 fallback。
 
 ## 2. 架构总览
 
@@ -59,8 +59,8 @@
 1. 用户在编辑器中触发操作（跳转定义、补全、悬停）
 2. Provider 调用 `ObjectInferenceService.inferObjectAccess(document, position)`
 3. 服务从 `SyntaxDocument` 中定位最近的 `MemberAccessExpression` 节点（限定 `->` 运算符）
-4. 将接收者表达式交给 `ReceiverClassifier` 分类
-5. 根据分类结果，分别走字面量解析、宏展开、内建调用解析、当前文件全局绑定、继承链全局绑定、变量追踪等路径
+4. 将接收者表达式交给 `ReceiverClassifier` 分类，并在安全边界内请求 `SemanticEvaluationService.evaluateExpressionAtPosition(...)`
+5. 根据分类结果，分别走语义 receiver 值、字面量解析、宏展开、内建调用解析、当前文件全局绑定、继承链全局绑定、变量追踪等路径
 6. 收集到的候选经 `ObjectCandidateResolver` 去重后生成最终结果
 7. 各 Provider 根据结果状态（`resolved` / `multiple` / `unknown` / `unsupported`）决定后续行为
 
@@ -117,6 +117,16 @@
 4. `unknown`
 
 `@lpc-return-objects` 仍然保留，但只作为 fallback-only 提示。只要语义求值层产出非 `unknown` 结果，包括 `non-static`，对象推导器都不会再继续落到注解候选。
+
+自 `0.45.4` 起，静态求值器内部拆成更明确的子模块：
+
+- **Literal Evaluator**：字面量 token 到 `literal` 值。
+- **Constant Evaluator**：安全常量折叠，目前覆盖括号、相等/不等比较、保守 `+`、`&&`、`||`。
+- **Container Shape Evaluator**：mapping / array shape 和固定 key / index 读取。
+- **Object Source Evaluator**：`new`、`load_object`、`find_object` 的静态对象来源转换。
+- **Condition / Type Predicate Evaluator**：truthiness 与 `mapp`、`objectp`、`stringp` 等类型谓词。
+
+receiver 表达式语义求值只在可证明时转成对象候选；`unknown` 或无法解析文件路径时继续交给 legacy 对象推导路径。对 identifier receiver，旧的可见绑定和作用域判断仍然是安全护栏：已有候选、`non-static`、诊断或可见但无法证明的绑定不会被冲突的 receiver 语义值覆盖。
 
 ### 3.4 返回对象解析 — `src/objectInference/ReturnObjectResolver.ts`
 

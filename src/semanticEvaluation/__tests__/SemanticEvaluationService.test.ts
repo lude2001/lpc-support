@@ -113,6 +113,28 @@ function getIdentifierCallExpression(source: string, fileName: string, calleeNam
     return callExpression;
 }
 
+function getMemberAccessReceiverIdentifierAtMemberCall(
+    source: string,
+    fileName: string,
+    memberName: string
+): SyntaxNode {
+    const document = createTextDocument(fileName, source);
+    const syntaxDocument = new SyntaxBuilder(getGlobalParsedDocumentService().get(document)).build();
+    const receiverIdentifier = findFirstNode(
+        syntaxDocument.root,
+        (node) =>
+            node.kind === SyntaxKind.MemberAccessExpression
+            && node.children[1]?.kind === SyntaxKind.Identifier
+            && node.children[1].name === memberName
+    )?.children[0];
+
+    if (!receiverIdentifier) {
+        throw new Error(`Expected member access receiver identifier for ${memberName}.`);
+    }
+
+    return receiverIdentifier;
+}
+
 function createDocumentHost(documents: readonly vscode.TextDocument[]) {
     const byFsPath = new Map<string, vscode.TextDocument>();
     let workspaceRoot = path.dirname(documents[0]?.uri.fsPath ?? 'D:\\workspace');
@@ -388,6 +410,71 @@ describe('SemanticEvaluationService', () => {
                 objectValue(expectedPlayerPath)
             ]),
             source: 'natural'
+        });
+    });
+
+    test('evaluates a member-access receiver identifier from the built static state', async () => {
+        const callerSource = [
+            'void demo() {',
+            '    object model = load_object("/adm/model/navigation_popup");',
+            '    model->create_action("上一页", cmd);',
+            '}'
+        ].join('\n');
+
+        const callerDocument = createTextDocument('file:///D:/workspace/demo.c', callerSource);
+        const host = createDocumentHost([callerDocument]);
+        const pathSupport = new WorkspaceDocumentPathSupport({ host });
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        const semanticEvaluationService = createDefaultSemanticEvaluationService({
+            analysisService,
+            pathSupport
+        });
+        const receiverIdentifier = getMemberAccessReceiverIdentifierAtMemberCall(
+            callerSource,
+            'file:///D:/workspace/demo.c',
+            'create_action'
+        );
+
+        const result = await semanticEvaluationService.evaluateExpressionAtPosition(
+            callerDocument,
+            receiverIdentifier
+        );
+
+        expect(result).toEqual({
+            value: objectValue('/adm/model/navigation_popup'),
+            source: 'natural'
+        });
+    });
+
+    test('returns unknown when an expression cannot be resolved from the built state', async () => {
+        const callerSource = [
+            'void demo() {',
+            '    model->create_action("上一页", cmd);',
+            '}'
+        ].join('\n');
+
+        const callerDocument = createTextDocument('file:///D:/workspace/demo.c', callerSource);
+        const host = createDocumentHost([callerDocument]);
+        const pathSupport = new WorkspaceDocumentPathSupport({ host });
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        const semanticEvaluationService = createDefaultSemanticEvaluationService({
+            analysisService,
+            pathSupport
+        });
+        const receiverIdentifier = getMemberAccessReceiverIdentifierAtMemberCall(
+            callerSource,
+            'file:///D:/workspace/demo.c',
+            'create_action'
+        );
+
+        const result = await semanticEvaluationService.evaluateExpressionAtPosition(
+            callerDocument,
+            receiverIdentifier
+        );
+
+        expect(result).toEqual({
+            value: unknownValue(),
+            source: 'unknown'
         });
     });
 });

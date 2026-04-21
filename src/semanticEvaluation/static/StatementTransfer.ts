@@ -12,34 +12,7 @@ import {
     joinStaticEvaluationStates,
     type StaticEvaluationState
 } from './StaticEvaluationState';
-
-function isDefinitelyTruthy(nodeValue: ReturnType<ExpressionEvaluator['evaluate']>): boolean | undefined {
-    if (nodeValue.kind === 'object') {
-        return true;
-    }
-
-    if (nodeValue.kind !== 'literal') {
-        return undefined;
-    }
-
-    if (typeof nodeValue.value === 'boolean') {
-        return nodeValue.value;
-    }
-
-    if (typeof nodeValue.value === 'number') {
-        return nodeValue.value !== 0;
-    }
-
-    if (nodeValue.value === null) {
-        return false;
-    }
-
-    if (typeof nodeValue.value === 'string') {
-        return nodeValue.value.length > 0;
-    }
-
-    return undefined;
-}
+import { evaluateLpcTruthiness } from './LpcConditionEvaluator';
 
 export class StatementTransfer {
     public constructor(
@@ -178,7 +151,7 @@ export class StatementTransfer {
         const thenStatement = node.children[1];
         const elseStatement = node.children[2];
         const conditionValue = this.expressionEvaluator.evaluate(condition, state);
-        const truthiness = isDefinitelyTruthy(conditionValue);
+        const truthiness = evaluateLpcTruthiness(conditionValue);
 
         if (truthiness === true) {
             return thenStatement ? this.transfer(thenStatement, state) : state;
