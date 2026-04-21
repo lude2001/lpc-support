@@ -2,6 +2,17 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.45.4] - 2026-04-21
+
+### Syntax and Semantic Object Inference Hardening
+
+- 新增显式 `EmptyStatement` 语法节点，合法空语句和 `if (flag);` 不再被表示为 `Missing`，formatter 也会保留可见分号而不是静默丢失空语句。
+- 将静态表达式求值拆分为更清晰的 literal、constant、container shape、object source、condition 和 type predicate 子模块，降低 `ExpressionEvaluator` 继续膨胀成临时规则集合的风险。
+- 新增保守的静态 `+`、`&&`、`||` 折叠：仅在可证明的 literal / truthiness 白区内产出结果，未知或混合风险表达式继续保持 `unknown`。
+- 对象推导现在可以消费 receiver 表达式的语义求值结果，支持局部 receiver 中的静态路径拼接和 `new("/std/" + "classify_pop")` 这类直接 receiver 场景。
+- 保留 identifier 可见绑定与作用域优先级：内层 block 局部变量不会泄漏到外层，同名宏 fallback 不会被已离开作用域的局部绑定污染。
+- 补强 `PROTOCOL_D->model_get("navigation_popup")->create_action(...)`、concatenated `load_object`、folded `new(...)`、visible binding、non-static 和 provider integration 回归，确保 `@lpc-return-objects` 继续只是 fallback-only。
+
 ## [0.45.3] - 2026-04-21
 
 ### Semantic Evaluation Foundation
