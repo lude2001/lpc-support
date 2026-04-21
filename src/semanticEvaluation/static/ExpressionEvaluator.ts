@@ -16,6 +16,10 @@ import {
     getEnvironmentValue,
     type StaticEvaluationState
 } from './StaticEvaluationState';
+import {
+    evaluateLpcTypePredicate,
+    isLpcTypePredicateName
+} from './LpcTypePredicateEvaluator';
 
 export interface ExpressionEvaluatorOptions {
     evaluateDirectCall?: (callExpression: SyntaxNode, state: StaticEvaluationState) => SemanticValue;
@@ -360,7 +364,7 @@ export class ExpressionEvaluator {
         node: SyntaxNode,
         state: StaticEvaluationState
     ): SemanticValue | undefined {
-        if (!calleeName || !['mapp', 'pointerp', 'stringp', 'objectp', 'undefinedp'].includes(calleeName)) {
+        if (!isLpcTypePredicateName(calleeName)) {
             return undefined;
         }
 
@@ -370,43 +374,10 @@ export class ExpressionEvaluator {
         }
 
         const argumentValue = this.evaluate(argumentList.children[0], state);
-        const predicateResult = this.evaluateKnownTypePredicate(calleeName, argumentValue);
+        const predicateResult = evaluateLpcTypePredicate(calleeName, argumentValue);
         return predicateResult === undefined
             ? unknownValue()
             : literalValue(predicateResult, 'boolean');
-    }
-
-    private evaluateKnownTypePredicate(calleeName: string, value: SemanticValue): boolean | undefined {
-        switch (calleeName) {
-            case 'mapp':
-                return this.isKnownKind(value, 'mapping-shape');
-            case 'pointerp':
-                return this.isKnownKind(value, 'array-shape');
-            case 'stringp':
-                return value.kind === 'literal' ? typeof value.value === 'string' : this.isKnownNegative(value);
-            case 'objectp':
-                return ['object', 'candidate-set', 'configured-candidate-set'].includes(value.kind)
-                    ? true
-                    : this.isKnownNegative(value);
-            case 'undefinedp':
-                return value.kind === 'unknown' ? undefined : false;
-            default:
-                return undefined;
-        }
-    }
-
-    private isKnownKind(value: SemanticValue, expectedKind: SemanticValue['kind']): boolean | undefined {
-        if (value.kind === expectedKind) {
-            return true;
-        }
-
-        return this.isKnownNegative(value);
-    }
-
-    private isKnownNegative(value: SemanticValue): false | undefined {
-        return value.kind === 'unknown' || value.kind === 'union'
-            ? undefined
-            : false;
     }
 
     private asObjectSourceValue(targetValue: SemanticValue): SemanticValue {
