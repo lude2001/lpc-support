@@ -19,6 +19,7 @@ import {
 } from './LpcTypePredicateEvaluator';
 import { evaluateLpcTruthiness } from './LpcConditionEvaluator';
 import { evaluateLpcLiteralNode } from './LpcLiteralEvaluator';
+import { LpcConstantEvaluator } from './LpcConstantEvaluator';
 import { LpcContainerShapeEvaluator } from './LpcContainerShapeEvaluator';
 import { evaluateLpcObjectSourceValue, isLpcObjectSourceCallName } from './LpcObjectSourceEvaluator';
 
@@ -28,12 +29,16 @@ export interface ExpressionEvaluatorOptions {
 
 export class ExpressionEvaluator {
     private readonly containerShapeEvaluator: LpcContainerShapeEvaluator;
+    private readonly constantEvaluator: LpcConstantEvaluator;
 
     public constructor(
         private readonly context: StaticEvaluationContext,
         private readonly options: ExpressionEvaluatorOptions = {}
     ) {
         this.containerShapeEvaluator = new LpcContainerShapeEvaluator({
+            evaluateExpression: (node, state) => this.evaluate(node, state)
+        });
+        this.constantEvaluator = new LpcConstantEvaluator({
             evaluateExpression: (node, state) => this.evaluate(node, state)
         });
     }
@@ -49,7 +54,7 @@ export class ExpressionEvaluator {
             case SyntaxKind.Identifier:
                 return getEnvironmentValue(state.environment, node.name ?? '') ?? unknownValue();
             case SyntaxKind.ParenthesizedExpression:
-                return this.evaluate(node.children[0], state);
+                return this.constantEvaluator.evaluate(node, state) ?? unknownValue();
             case SyntaxKind.UnaryExpression:
                 return this.evaluateUnaryExpression(node, state);
             case SyntaxKind.MappingLiteralExpression:
@@ -59,7 +64,7 @@ export class ExpressionEvaluator {
             case SyntaxKind.IndexExpression:
                 return this.containerShapeEvaluator.evaluateIndexExpression(node, state);
             case SyntaxKind.BinaryExpression:
-                return this.evaluateBinaryExpression(node, state);
+                return this.constantEvaluator.evaluate(node, state) ?? unknownValue();
             case SyntaxKind.ConditionalExpression:
                 return this.evaluateConditionalExpression(node, state);
             case SyntaxKind.NewExpression:
@@ -69,22 +74,6 @@ export class ExpressionEvaluator {
             default:
                 return unknownValue();
         }
-    }
-
-    private evaluateBinaryExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
-        const operator = node.metadata?.operator;
-        const left = this.evaluate(node.children[0], state);
-        const right = this.evaluate(node.children[1], state);
-
-        if ((operator === '==' || operator === '===') && left.kind === 'literal' && right.kind === 'literal') {
-            return literalValue(left.value === right.value, 'boolean');
-        }
-
-        if ((operator === '!=' || operator === '!==') && left.kind === 'literal' && right.kind === 'literal') {
-            return literalValue(left.value !== right.value, 'boolean');
-        }
-
-        return unknownValue();
     }
 
     private evaluateConditionalExpression(node: SyntaxNode, state: StaticEvaluationState): SemanticValue {
