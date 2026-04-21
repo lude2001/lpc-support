@@ -301,21 +301,12 @@ export class ObjectInferenceService {
         semanticOutcome?: ObjectResolutionOutcome,
         receiverKind?: ClassifiedReceiver['kind']
     ): ObjectResolutionOutcome {
-        if (
-            receiverKind === 'identifier'
-            && legacyOutcome.reason === 'unsupported-expression'
-            && semanticOutcome
-            && this.isMeaningfulOutcome(semanticOutcome)
-        ) {
+        if (semanticOutcome) {
             return semanticOutcome;
         }
 
         if (this.isMeaningfulOutcome(legacyOutcome)) {
             return legacyOutcome;
-        }
-
-        if (semanticOutcome) {
-            return semanticOutcome;
         }
 
         return legacyOutcome;

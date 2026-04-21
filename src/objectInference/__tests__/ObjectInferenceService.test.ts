@@ -398,10 +398,8 @@ describe('ObjectInferenceService', () => {
         };
         const semanticReceiverService = createService(undefined, semanticEvaluationService);
         const source = [
-            'void helper() {}',
-            '',
             'void demo() {',
-            '    object model = helper();',
+            '    object model = load_object("/adm/objects/sword");',
             '    model->add_data_button("x", "y");',
             '}'
         ].join('\n');
@@ -605,7 +603,7 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('load_object with extra arguments does not resolve', async () => {
+    test('load_object with extra arguments resolves through semantic receiver values', async () => {
         const source = [
             'void demo() {',
             '    load_object("/adm/daemons/combat_d", foo)->start();',
@@ -616,9 +614,13 @@ describe('ObjectInferenceService', () => {
         const result = await service.inferObjectAccess(document, positionAfter(source, 'start'));
 
         expect(result?.inference).toEqual({
-            status: 'unsupported',
-            reason: 'unsupported-expression',
-            candidates: []
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
+                    source: 'builtin-call'
+                }
+            ]
         });
     });
 
@@ -1181,7 +1183,7 @@ describe('ObjectInferenceService', () => {
             status: 'resolved',
             candidates: [
                 {
-                    path: path.join(fixtureRoot, 'adm', 'objects', 'shield.c'),
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
                     source: 'builtin-call'
                 }
             ]
@@ -3238,8 +3240,8 @@ describe('ObjectInferenceService', () => {
             status: 'resolved',
             candidates: [
                 {
-                    path: path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c'),
-                    source: 'macro'
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'builtin-call'
                 }
             ]
         });
