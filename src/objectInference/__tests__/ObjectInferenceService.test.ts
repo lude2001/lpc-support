@@ -113,6 +113,16 @@ describe('ObjectInferenceService', () => {
                 ? { playerObjectPath: _playerObjectPathOrProjectConfig }
                 : { projectConfigService })
         });
+        const semanticEvaluationServiceWithDefaults =
+            typeof (semanticEvaluationService as { evaluateExpressionAtPosition?: unknown }).evaluateExpressionAtPosition === 'function'
+                ? semanticEvaluationService
+                : {
+                    ...(semanticEvaluationService as object),
+                    evaluateExpressionAtPosition: jest.fn(async () => ({
+                        source: 'unknown' as const,
+                        value: unknownValue()
+                    }))
+                };
 
         return createDefaultObjectInferenceService({
             macroManager: macroManager as any,
@@ -120,7 +130,7 @@ describe('ObjectInferenceService', () => {
             documentationService,
             host: documentHost,
             pathSupport,
-            semanticEvaluationService: semanticEvaluationService as any
+            semanticEvaluationService: semanticEvaluationServiceWithDefaults as any
         });
     };
 
@@ -372,6 +382,88 @@ describe('ObjectInferenceService', () => {
             status: 'unknown',
             reason: 'non-static',
             candidates: []
+        });
+    });
+
+    test('semantic receiver evaluation resolves local receiver values before legacy tracing', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'unknown' as const,
+                value: unknownValue()
+            })),
+            evaluateExpressionAtPosition: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: objectValue('/std/classify_pop')
+            }))
+        };
+        const semanticReceiverService = createService(undefined, semanticEvaluationService);
+        const source = [
+            'void helper() {}',
+            '',
+            'void demo() {',
+            '    object model = helper();',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-receiver-priority.c'), source);
+
+        const result = await semanticReceiverService.inferObjectAccess(
+            document,
+            positionAfter(source, 'model->add_data_button')
+        );
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('semantic receiver evaluation resolves public load_object receiver values', async () => {
+        const source = [
+            'void demo() {',
+            '    object model = load_object("/std/classify_pop");',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-receiver-load-object.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'model->add_data_button'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('semantic receiver evaluation resolves concatenated public object paths', async () => {
+        const source = [
+            'void demo() {',
+            '    object model = load_object("/std/" + "classify_pop");',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-receiver-concatenated-path.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'model->add_data_button'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'builtin-call'
+                }
+            ]
         });
     });
 

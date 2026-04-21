@@ -16,6 +16,7 @@ import {
     SemanticEvaluationService,
     createDefaultSemanticEvaluationService
 } from '../semanticEvaluation/SemanticEvaluationService';
+import type { SemanticValue } from '../semanticEvaluation/types';
 import { TargetMethodLookup } from '../targetMethodLookup';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
 import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
@@ -32,6 +33,7 @@ export interface ObjectInferenceServiceDependencies {
     analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     pathSupport?: WorkspaceDocumentPathSupport;
     returnObjectResolver: ReturnObjectResolver;
+    semanticEvaluationService?: Pick<SemanticEvaluationService, 'evaluateExpressionAtPosition'>;
     traceService: ReceiverTraceService;
     globalBindingResolver: GlobalObjectBindingResolver;
     inheritedGlobalBindingResolver: InheritedGlobalObjectBindingResolver;
@@ -52,6 +54,7 @@ export class ObjectInferenceService {
     private readonly candidateResolver = new ObjectCandidateResolver();
     private readonly pathSupport: WorkspaceDocumentPathSupport;
     private readonly returnObjectResolver: ReturnObjectResolver;
+    private readonly semanticEvaluationService?: Pick<SemanticEvaluationService, 'evaluateExpressionAtPosition'>;
     private readonly traceService: ReceiverTraceService;
     private readonly globalBindingResolver: GlobalObjectBindingResolver;
     private readonly inheritedGlobalBindingResolver: InheritedGlobalObjectBindingResolver;
@@ -60,6 +63,7 @@ export class ObjectInferenceService {
         this.analysisService = assertAnalysisService('ObjectInferenceService', dependencies.analysisService);
         this.pathSupport = assertDocumentPathSupport('ObjectInferenceService', dependencies.pathSupport);
         this.returnObjectResolver = dependencies.returnObjectResolver;
+        this.semanticEvaluationService = dependencies.semanticEvaluationService;
         this.traceService = dependencies.traceService;
         this.globalBindingResolver = dependencies.globalBindingResolver;
         this.inheritedGlobalBindingResolver = dependencies.inheritedGlobalBindingResolver;
@@ -134,55 +138,63 @@ export class ObjectInferenceService {
             return this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
         }
 
+        const semanticOutcome = await this.resolveSemanticReceiverOutcome(document, receiverNode);
+
         if (
             receiverNode.kind === SyntaxKind.CallExpression
             && receiverNode.children[0]?.kind === SyntaxKind.MemberAccessExpression
             && receiverNode.children[0].metadata?.operator === '->'
         ) {
-            const semanticOutcome = await this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
+            const callOutcome = await this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
             if (
-                semanticOutcome.candidates.length > 0
-                || semanticOutcome.reason === 'non-static'
-                || semanticOutcome.diagnostics?.length
+                callOutcome.candidates.length > 0
+                || callOutcome.reason === 'non-static'
+                || callOutcome.diagnostics?.length
             ) {
-                return semanticOutcome;
+                return this.selectReceiverOutcome(callOutcome, semanticOutcome, receiver.kind);
             }
 
             const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
             if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
-                return tracedOutcome;
+                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome, receiver.kind);
             }
 
-            if (semanticOutcome.reason) {
-                return semanticOutcome;
+            if (callOutcome.reason) {
+                return this.selectReceiverOutcome(callOutcome, semanticOutcome, receiver.kind);
             }
+
+            return this.selectReceiverOutcome(callOutcome, semanticOutcome, receiver.kind);
         }
 
         if (receiver.kind === 'literal') {
-            return {
+            return this.selectReceiverOutcome({
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'literal')
-            };
+            }, semanticOutcome, receiver.kind);
         }
 
         if (receiver.kind === 'macro') {
-            return {
+            return this.selectReceiverOutcome({
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'macro')
-            };
+            }, semanticOutcome, receiver.kind);
         }
 
         if (receiver.kind === 'call') {
             const tracedOutcome = await this.traceService.traceExpressionOutcome(document, syntax, receiverNode);
             if (tracedOutcome.candidates.length > 0 || tracedOutcome.reason || tracedOutcome.diagnostics?.length) {
-                return tracedOutcome;
+                return this.selectReceiverOutcome(tracedOutcome, semanticOutcome, receiver.kind);
             }
 
-            return this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode);
+            return this.selectReceiverOutcome(
+                await this.returnObjectResolver.resolveExpressionOutcome(document, receiverNode),
+                semanticOutcome,
+                receiver.kind
+            );
         }
 
         if (receiver.kind === 'identifier') {
             const tracedResult = await this.traceService.traceIdentifier(document, syntax, receiverNode);
             if (tracedResult && (tracedResult.candidates.length > 0 || tracedResult.hasVisibleBinding)) {
-                return tracedResult;
+                return this.selectReceiverOutcome(tracedResult, semanticOutcome, receiver.kind);
             }
 
             const globalBindingResult = await this.globalBindingResolver.resolveVisibleBinding(
@@ -200,7 +212,7 @@ export class ObjectInferenceService {
                 }
             );
             if (globalBindingResult && (globalBindingResult.candidates.length > 0 || globalBindingResult.hasVisibleBinding)) {
-                return globalBindingResult;
+                return this.selectReceiverOutcome(globalBindingResult, semanticOutcome, receiver.kind);
             }
 
             const inheritedBindingResult = await this.inheritedGlobalBindingResolver.resolveInheritedBinding(
@@ -208,15 +220,158 @@ export class ObjectInferenceService {
                 receiver.expression
             );
             if (inheritedBindingResult && (inheritedBindingResult.candidates.length > 0 || inheritedBindingResult.hasVisibleBinding)) {
-                return inheritedBindingResult;
+                return this.selectReceiverOutcome(inheritedBindingResult, semanticOutcome, receiver.kind);
             }
 
-            return {
+            return this.selectReceiverOutcome({
                 candidates: await this.resolvePathCandidate(document, receiver.expression, 'macro')
-            };
+            }, semanticOutcome, receiver.kind);
         }
 
-        return { candidates: [] };
+        return this.selectReceiverOutcome({ candidates: [] }, semanticOutcome, receiver.kind);
+    }
+
+    private async resolveSemanticReceiverOutcome(
+        document: vscode.TextDocument,
+        receiverNode: SyntaxNode
+    ): Promise<ObjectResolutionOutcome | undefined> {
+        if (!this.semanticEvaluationService) {
+            return undefined;
+        }
+
+        const semanticOutcome = await this.semanticEvaluationService.evaluateExpressionAtPosition(document, receiverNode);
+        const converted = this.convertSemanticReceiverValue(document, semanticOutcome.value);
+        if (!converted) {
+            return undefined;
+        }
+
+        if (converted.candidates.length > 0 || converted.reason === 'non-static' || converted.diagnostics?.length) {
+            return converted;
+        }
+
+        return undefined;
+    }
+
+    private convertSemanticReceiverValue(
+        document: vscode.TextDocument,
+        value: SemanticValue
+    ): ObjectResolutionOutcome | undefined {
+        switch (value.kind) {
+            case 'object':
+                return this.resolveSemanticObjectCandidate(document, value.path);
+            case 'union':
+                return this.convertSemanticUnionValue(document, value.values);
+            case 'candidate-set':
+            case 'configured-candidate-set':
+                return this.convertSemanticCandidateSetValue(document, value.values);
+            case 'non-static':
+                return {
+                    candidates: [],
+                    reason: 'non-static'
+                };
+            default:
+                return undefined;
+        }
+    }
+
+    private convertSemanticUnionValue(
+        document: vscode.TextDocument,
+        values: readonly SemanticValue[]
+    ): ObjectResolutionOutcome | undefined {
+        const candidates: ObjectCandidate[] = [];
+
+        for (const value of values) {
+            const outcome = this.convertSemanticReceiverValue(document, value);
+            if (!outcome) {
+                return undefined;
+            }
+
+            if (outcome.reason === 'non-static') {
+                return outcome;
+            }
+
+            candidates.push(...outcome.candidates);
+        }
+
+        return candidates.length > 0 ? { candidates } : undefined;
+    }
+
+    private selectReceiverOutcome(
+        legacyOutcome: ObjectResolutionOutcome,
+        semanticOutcome?: ObjectResolutionOutcome,
+        receiverKind?: ClassifiedReceiver['kind']
+    ): ObjectResolutionOutcome {
+        if (
+            receiverKind === 'identifier'
+            && legacyOutcome.reason === 'unsupported-expression'
+            && semanticOutcome
+            && this.isMeaningfulOutcome(semanticOutcome)
+        ) {
+            return semanticOutcome;
+        }
+
+        if (this.isMeaningfulOutcome(legacyOutcome)) {
+            return legacyOutcome;
+        }
+
+        if (semanticOutcome) {
+            return semanticOutcome;
+        }
+
+        return legacyOutcome;
+    }
+
+    private isMeaningfulOutcome(outcome: ObjectResolutionOutcome): boolean {
+        return outcome.candidates.length > 0
+            || outcome.reason !== undefined
+            || (outcome.diagnostics?.length ?? 0) > 0;
+    }
+
+    private convertSemanticCandidateSetValue(
+        document: vscode.TextDocument,
+        values: readonly SemanticValue[]
+    ): ObjectResolutionOutcome | undefined {
+        const candidates: ObjectCandidate[] = [];
+
+        for (const value of values) {
+            if (value.kind === 'non-static') {
+                return {
+                    candidates: [],
+                    reason: 'non-static'
+                };
+            }
+
+            if (value.kind !== 'object') {
+                return undefined;
+            }
+
+            const outcome = this.resolveSemanticObjectCandidate(document, value.path);
+            if (!outcome) {
+                return undefined;
+            }
+
+            if (outcome.reason === 'non-static') {
+                return outcome;
+            }
+
+            candidates.push(...outcome.candidates);
+        }
+
+        return candidates.length > 0 ? { candidates } : undefined;
+    }
+
+    private resolveSemanticObjectCandidate(
+        document: vscode.TextDocument,
+        path: string
+    ): ObjectResolutionOutcome | undefined {
+        const resolvedPath = this.pathSupport.resolveObjectFilePath(document, this.toObjectPathExpression(path));
+        if (!resolvedPath) {
+            return undefined;
+        }
+
+        return {
+            candidates: [{ path: resolvedPath, source: 'builtin-call' }]
+        };
     }
 
     private getInferenceReason(receiver: ClassifiedReceiver) {
@@ -242,6 +397,12 @@ export class ObjectInferenceService {
         }
 
         return [{ path: resolvedPath, source }];
+    }
+
+    private toObjectPathExpression(objectPath: string): string {
+        return objectPath.startsWith('"') && objectPath.endsWith('"')
+            ? objectPath
+            : `"${objectPath}"`;
     }
 
     private getNodeText(document: vscode.TextDocument, node: SyntaxNode): string {
@@ -315,6 +476,7 @@ export function createDefaultObjectInferenceService(
         analysisService,
         pathSupport,
         returnObjectResolver,
+        semanticEvaluationService,
         traceService,
         globalBindingResolver,
         inheritedGlobalBindingResolver
