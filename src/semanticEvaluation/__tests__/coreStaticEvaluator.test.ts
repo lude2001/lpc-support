@@ -419,6 +419,37 @@ describe('ExpressionEvaluator', () => {
         expect(result).toEqual(objectValue('/adm/model/navigation_popup'));
     });
 
+    test('takes the then branch when a logical guard is fully known', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    object model = load_object("/adm/model/navigation_popup");',
+            '    string name = "init";',
+            '    if (objectp(model) && stringp(name))',
+            '        return "then";',
+            '    return "else";',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(literalValue('then'));
+    });
+
+    test('keeps a logical guard conservative when a required operand is unknown', () => {
+        const result = evaluateFunction([
+            'mixed demo() {',
+            '    object model = load_object("/adm/model/navigation_popup");',
+            '    string name;',
+            '    if (objectp(model) && stringp(name))',
+            '        return "then";',
+            '    return "else";',
+            '}'
+        ].join('\n'));
+
+        expect(result).toEqual(unionValue([
+            literalValue('then'),
+            literalValue('else')
+        ]));
+    });
+
     test('keeps model object through protocol mode branch before initialization guards', () => {
         const result = evaluateFunction([
             'mixed demo() {',

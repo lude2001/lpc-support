@@ -184,6 +184,111 @@ describe('LpcConstantEvaluator', () => {
             .toEqual(unknownValue());
     });
 
+    test('folds logical and into a boolean literal when both sides are known truthy', () => {
+        const left = createLiteralNode('1');
+        const right = createLiteralNode('"ok"');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return literalValue(1);
+                }
+
+                if (node === right) {
+                    return literalValue('ok');
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('&&', left, right), createStaticEvaluationState()))
+            .toEqual(literalValue(true, 'boolean'));
+    });
+
+    test('folds logical and to false when the left side is known falsey', () => {
+        const left = createLiteralNode('0');
+        const right = createLiteralNode('unknown');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return literalValue(0);
+                }
+
+                if (node === right) {
+                    throw new Error('right operand should not need precision');
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('&&', left, right), createStaticEvaluationState()))
+            .toEqual(literalValue(false, 'boolean'));
+    });
+
+    test('folds logical or to true when the left side is known truthy', () => {
+        const left = createLiteralNode('1');
+        const right = createLiteralNode('unknown');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return literalValue(1);
+                }
+
+                if (node === right) {
+                    throw new Error('right operand should not need precision');
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('||', left, right), createStaticEvaluationState()))
+            .toEqual(literalValue(true, 'boolean'));
+    });
+
+    test('returns unknown for logical and when the left side is unknown', () => {
+        const left = createLiteralNode('alias');
+        const right = createLiteralNode('1');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return unknownValue();
+                }
+
+                if (node === right) {
+                    return literalValue(1);
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('&&', left, right), createStaticEvaluationState()))
+            .toEqual(unknownValue());
+    });
+
+    test('returns unknown for logical or when the left side is unknown', () => {
+        const left = createLiteralNode('alias');
+        const right = createLiteralNode('1');
+        const evaluator = new LpcConstantEvaluator({
+            evaluateExpression: (node) => {
+                if (node === left) {
+                    return unknownValue();
+                }
+
+                if (node === right) {
+                    return literalValue(1);
+                }
+
+                return unknownValue();
+            }
+        });
+
+        expect(evaluator.evaluate(createBinaryNode('||', left, right), createStaticEvaluationState()))
+            .toEqual(unknownValue());
+    });
+
     test('folds numeric literals into a numeric literal sum', () => {
         const left = createLiteralNode('1');
         const right = createLiteralNode('2');
@@ -267,9 +372,9 @@ describe('ExpressionEvaluator constant delegation', () => {
         ).toEqual(literalValue(true, 'boolean'));
     });
 
-    test('returns unknown for unsupported binary operators through the public facade', () => {
+    test('folds logical and through the public facade', () => {
         expect(
             evaluateBinary('&&', createLiteralNode('1'), createLiteralNode('2'))
-        ).toEqual(unknownValue());
+        ).toEqual(literalValue(true, 'boolean'));
     });
 });
