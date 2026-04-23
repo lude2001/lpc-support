@@ -2,6 +2,14 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.45.6] - 2026-04-22
+
+### Simulated Efun Parse Cache Fixes
+
+- 修复模拟函数库预扫描阶段的 legacy prototype normalize 误把单行 `if (...)` 识别成函数声明的问题，避免对 `adm/simul_efun/*.c` 的源码做错误分号补全。
+- 修复 `adm/simul_efun/util.c` 这类被 `simul_efun.c` include 的 helper 文件在首次 `didOpen` 时出现假的 ANTLR `extraneous input 'else'` 诊断的问题。
+- 补充 scanner 级与 spawned runtime 级回归，锁定“模拟函数库文档预加载不会污染真实文件 parse cache”。
+
 ## [0.45.5] - 2026-04-22
 
 ### Scoped Hover and Callable Documentation Fixes

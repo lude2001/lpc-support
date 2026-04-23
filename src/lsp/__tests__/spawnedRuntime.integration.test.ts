@@ -474,6 +474,67 @@ describe('spawned LSP runtime integration', () => {
         ]);
     }, 30000);
 
+    test('didOpen diagnostics do not inherit poisoned simulated-efun parse state for included helper files', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-simulefun-diagnostics-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const includeDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+        const helperFile = path.join(includeDir, 'util.c');
+        const helperSource = [
+            '/**',
+            ' * @brief add helper',
+            ' */',
+            'string add_sub(string s_str, string m_str)',
+            '{',
+            '    string *slist;',
+            '    int i;',
+            '',
+            '    if (! s_str || is_sub(s_str, m_str))',
+            '        return m_str;',
+            '',
+            '    slist = explode(s_str, ",");',
+            '    slist -= ({ "" });',
+            '    for (i = 0; i < sizeof(slist); i++)',
+            '        if (! is_sub(slist[i], m_str))',
+            '            if (m_str == 0 || m_str == "")',
+            '                m_str = slist[i];',
+            '            else',
+            '                m_str += "," + slist[i];',
+            '',
+            '    return m_str;',
+            '}'
+        ].join('\n');
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'lpc-support.json'),
+            JSON.stringify({
+                version: 1,
+                configHellPath: 'config.hell'
+            }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'config.hell'),
+            [
+                'mudlib directory : ./',
+                'simulated efun file : /adm/single/simul_efun'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(entryFile, '#include "/adm/simul_efun/util.c"\n', 'utf8');
+        fs.writeFileSync(helperFile, helperSource, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+
+        const diagnosticsPromise = harness.waitForDiagnostics(uriFromPath(helperFile));
+        await harness.openDocument(helperFile, helperSource);
+        const diagnostics = await diagnosticsPromise;
+
+        expect(diagnostics).toEqual([]);
+    }, 30000);
+
     test('model_get mismatch still resolves to the natural runtime-backed definition', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-model-get-mismatch-'));
         const protocolPath = path.join(workspaceRoot, 'adm', 'protocol', 'protocol_server.c');

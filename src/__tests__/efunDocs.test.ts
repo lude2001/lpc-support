@@ -848,6 +848,72 @@ describe('SimulatedEfunScanner', () => {
         });
     });
 
+    test('loading simulated efun docs does not poison parse cache for included sources with single-line if else chains', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-cache-poison-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const includeDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+        const helperFile = path.join(includeDir, 'util.c');
+        const helperSource = [
+            '/**',
+            ' * @brief add helper',
+            ' */',
+            'string add_sub(string s_str, string m_str)',
+            '{',
+            '    string *slist;',
+            '    int i;',
+            '',
+            '    if (! s_str || is_sub(s_str, m_str))',
+            '        return m_str;',
+            '',
+            '    slist = explode(s_str, ",");',
+            '    slist -= ({ "" });',
+            '    for (i = 0; i < sizeof(slist); i++)',
+            '        if (! is_sub(slist[i], m_str))',
+            '            if (m_str == 0 || m_str == "")',
+            '                m_str = slist[i];',
+            '            else',
+            '                m_str += "," + slist[i];',
+            '',
+            '    return m_str;',
+            '}'
+        ].join('\n');
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(entryFile, '#include "/adm/simul_efun/util.c"\n');
+        fs.writeFileSync(helperFile, helperSource);
+
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(entryFile),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' }),
+            getMudlibRootForWorkspace: jest.fn().mockResolvedValue(workspaceRoot)
+        };
+        const scanner = createSimulatedScanner(projectConfigService as any);
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn(() => undefined),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
+
+        await scanner.loadSimulatedEfuns();
+
+        expect(scanner.get('add_sub')).toMatchObject({
+            name: 'add_sub',
+            description: 'add helper'
+        });
+
+        const actualDocument = TestHelper.createMockDocument(
+            helperSource,
+            'lpc',
+            helperFile.replace(/\\/g, '/')
+        );
+        const analysis = DocumentSemanticSnapshotService.getInstance().parseDocument(actualDocument);
+
+        expect(analysis.parseErrors).toEqual([]);
+    });
+
     test('parser trivia exposes include directives for simulated efun entry files', () => {
         const document = TestHelper.createMockDocument('#include "/adm/simul_efun/helper.c"\n', 'lpc', 'simul_efun.c');
         const parsed = getAstManagerForTests().parseDocument(document, false).parsed;

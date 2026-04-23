@@ -365,7 +365,7 @@ function normalizeLegacySimulatedDeclarations(content: string): string {
 }
 
 function looksLikeCallablePrototype(line: string): boolean {
-    return /^(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+)*(?:varargs\s+)?(?:mixed|void|int|string|object|mapping|array|float|function|buffer|class|[A-Za-z_][A-Za-z0-9_]*)\s*\**\s*[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*$/.test(line);
+    return /^(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+)*(?:varargs\s+)?(?:mixed|void|int|string|object|mapping|array|float|function|buffer|class|[A-Za-z_][A-Za-z0-9_]*)(?:\s+\**\s*|\*+\s*)[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*$/.test(line);
 }
 
 function findNextSignificantLine(lines: string[], startIndex: number): string | undefined {
