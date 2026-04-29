@@ -111,6 +111,8 @@ const TOKEN_TYPE_MAP: Record<number, string> = {
     [LPCLexer.STAR_ASSIGN]: TOKEN_TYPES.operator,
     [LPCLexer.DIV_ASSIGN]: TOKEN_TYPES.operator,
     [LPCLexer.PERCENT_ASSIGN]: TOKEN_TYPES.operator,
+    [LPCLexer.ARROW]: TOKEN_TYPES.operator,
+    [LPCLexer.DOT]: TOKEN_TYPES.operator,
     [LPCLexer.PLUS]: TOKEN_TYPES.operator,
     [LPCLexer.MINUS]: TOKEN_TYPES.operator,
     [LPCLexer.STAR]: TOKEN_TYPES.operator,
@@ -136,7 +138,9 @@ const TOKEN_TYPE_MAP: Record<number, string> = {
     [LPCLexer.BIT_OR_ASSIGN]: TOKEN_TYPES.operator,
     [LPCLexer.BIT_AND_ASSIGN]: TOKEN_TYPES.operator,
     [LPCLexer.SHIFT_LEFT]: TOKEN_TYPES.operator,
-    [LPCLexer.SHIFT_RIGHT]: TOKEN_TYPES.operator
+    [LPCLexer.SHIFT_RIGHT]: TOKEN_TYPES.operator,
+    [LPCLexer.QUESTION]: TOKEN_TYPES.operator,
+    [LPCLexer.COLON]: TOKEN_TYPES.operator
 };
 
 export function resolveSemanticTokensConfigPath(
@@ -224,17 +228,7 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
                 continue;
             }
 
-            const length = (token.text ?? '').length;
-            if (length === 0) {
-                continue;
-            }
-
-            semanticTokens.push({
-                line: token.line - 1,
-                startCharacter: token.charPositionInLine,
-                length,
-                tokenType
-            });
+            semanticTokens.push(...this.createSemanticTokens(token, tokenType));
         }
 
         return {
@@ -269,6 +263,42 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
         }
 
         return TOKEN_TYPE_MAP[token.type];
+    }
+
+    private createSemanticTokens(token: Token, tokenType: string): LanguageSemanticToken[] {
+        const text = token.text ?? '';
+        if (text.length === 0) {
+            return [];
+        }
+
+        const lines = text.split(/\r\n|\r|\n/);
+        if (lines.length === 1) {
+            return [
+                {
+                    line: token.line - 1,
+                    startCharacter: token.charPositionInLine,
+                    length: text.length,
+                    tokenType
+                }
+            ];
+        }
+
+        const tokens: LanguageSemanticToken[] = [];
+        for (let index = 0; index < lines.length; index++) {
+            const length = lines[index].length;
+            if (length === 0) {
+                continue;
+            }
+
+            tokens.push({
+                line: token.line - 1 + index,
+                startCharacter: index === 0 ? token.charPositionInLine : 0,
+                length,
+                tokenType
+            });
+        }
+
+        return tokens;
     }
 
     private classifyIdentifier(

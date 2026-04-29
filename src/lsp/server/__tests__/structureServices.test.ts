@@ -215,6 +215,12 @@ describe('shared structure services', () => {
             },
             {
                 line: 0,
+                startCharacter: 18,
+                length: 2,
+                tokenType: 'operator'
+            },
+            {
+                line: 0,
                 startCharacter: 20,
                 length: 2,
                 tokenType: 'property'
@@ -422,6 +428,146 @@ describe('shared structure services', () => {
                 startCharacter: 51,
                 length: 2,
                 tokenType: 'operator'
+            }
+        ]);
+    });
+
+    test('DefaultLanguageSemanticTokensService emits standalone operator tokens for member and punctuation operators', async () => {
+        const document = createDocument('payload->hp; value ? left : right; ob.field;');
+        const fill = jest.fn();
+        const analysisService = {
+            parseDocument: jest.fn().mockReturnValue({
+                parsed: {
+                    tokens: {
+                        fill,
+                        getTokens: () => [
+                            createToken(LPCLexer.Identifier, 'payload', 1, 0),
+                            createToken(LPCLexer.ARROW, '->', 1, 7),
+                            createToken(LPCLexer.Identifier, 'hp', 1, 9),
+                            createToken(LPCLexer.QUESTION, '?', 1, 19),
+                            createToken(LPCLexer.COLON, ':', 1, 26),
+                            createToken(LPCLexer.Identifier, 'ob', 1, 35),
+                            createToken(LPCLexer.DOT, '.', 1, 37),
+                            createToken(LPCLexer.Identifier, 'field', 1, 38)
+                        ]
+                    }
+                },
+                snapshot: {
+                    symbolTable: {
+                        findSymbol: jest.fn(() => undefined)
+                    }
+                }
+            })
+        };
+
+        const service = new DefaultLanguageSemanticTokensService(analysisService as any);
+        const result = await service.provideSemanticTokens({
+            context: createCapabilityContext(document)
+        });
+
+        expect(result.tokens).toEqual([
+            {
+                line: 0,
+                startCharacter: 0,
+                length: 7,
+                tokenType: 'variable'
+            },
+            {
+                line: 0,
+                startCharacter: 7,
+                length: 2,
+                tokenType: 'operator'
+            },
+            {
+                line: 0,
+                startCharacter: 9,
+                length: 2,
+                tokenType: 'property'
+            },
+            {
+                line: 0,
+                startCharacter: 19,
+                length: 1,
+                tokenType: 'operator'
+            },
+            {
+                line: 0,
+                startCharacter: 26,
+                length: 1,
+                tokenType: 'operator'
+            },
+            {
+                line: 0,
+                startCharacter: 35,
+                length: 2,
+                tokenType: 'variable'
+            },
+            {
+                line: 0,
+                startCharacter: 37,
+                length: 1,
+                tokenType: 'operator'
+            },
+            {
+                line: 0,
+                startCharacter: 38,
+                length: 5,
+                tokenType: 'property'
+            }
+        ]);
+    });
+
+    test('DefaultLanguageSemanticTokensService splits multiline lexer tokens into line-local tokens', async () => {
+        const document = createDocument('/* first\n * second\n */\nvalue;\n');
+        const fill = jest.fn();
+        const analysisService = {
+            parseDocument: jest.fn().mockReturnValue({
+                parsed: {
+                    tokens: {
+                        fill,
+                        getTokens: () => [
+                            createToken(LPCLexer.BLOCK_COMMENT, '/* first\n * second\n */', 1, 0, 1),
+                            createToken(LPCLexer.Identifier, 'value', 4, 0)
+                        ]
+                    }
+                },
+                snapshot: {
+                    symbolTable: {
+                        findSymbol: jest.fn(() => undefined)
+                    }
+                }
+            })
+        };
+
+        const service = new DefaultLanguageSemanticTokensService(analysisService as any);
+        const result = await service.provideSemanticTokens({
+            context: createCapabilityContext(document)
+        });
+
+        expect(result.tokens).toEqual([
+            {
+                line: 0,
+                startCharacter: 0,
+                length: 8,
+                tokenType: 'comment'
+            },
+            {
+                line: 1,
+                startCharacter: 0,
+                length: 9,
+                tokenType: 'comment'
+            },
+            {
+                line: 2,
+                startCharacter: 0,
+                length: 3,
+                tokenType: 'comment'
+            },
+            {
+                line: 3,
+                startCharacter: 0,
+                length: 5,
+                tokenType: 'variable'
             }
         ]);
     });

@@ -535,6 +535,74 @@ describe('spawned LSP runtime integration', () => {
         expect(diagnostics).toEqual([]);
     }, 30000);
 
+    test('didOpen diagnostics keep else-if chains clean after simulated-efun documentation preload', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-simulefun-message-diagnostics-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const includeDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+        const messageFile = path.join(includeDir, 'message.c');
+        const callerFile = path.join(workspaceRoot, 'caller.c');
+        const messageSource = [
+            '/**',
+            ' * @brief combat message helper',
+            ' */',
+            'varargs void message_combatd(object me, int damage) {',
+            '    string damage_msg;',
+            '',
+            '    if(!damage || damage == 0)',
+            '        damage_msg = HIG"MISS"NOR;',
+            '    else if(damage == -1)',
+            '        damage_msg = HIY"躲闪"NOR;',
+            '    else if(damage == -2)',
+            '        damage_msg = YEL"招架"NOR;',
+            '    else',
+            '        damage_msg = HIR"HP - " + damage + NOR;',
+            '}'
+        ].join('\n');
+        const callerSource = [
+            'void demo(object me) {',
+            '    message_combatd(me, 1);',
+            '}'
+        ].join('\n');
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'lpc-support.json'),
+            JSON.stringify({
+                version: 1,
+                configHellPath: 'config.hell'
+            }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'config.hell'),
+            [
+                'mudlib directory : ./',
+                'simulated efun file : /adm/single/simul_efun'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(entryFile, '#include "/adm/simul_efun/message.c"\n', 'utf8');
+        fs.writeFileSync(messageFile, messageSource, 'utf8');
+        fs.writeFileSync(callerFile, callerSource, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(callerFile, callerSource);
+        await harness.connection.sendRequest(HoverRequest.type, {
+            textDocument: {
+                uri: uriFromPath(callerFile)
+            },
+            position: positionOfSubstring(callerSource, 'message_combatd')
+        });
+
+        const diagnosticsPromise = harness.waitForDiagnostics(uriFromPath(messageFile));
+        await harness.openDocument(messageFile, messageSource);
+        const diagnostics = await diagnosticsPromise;
+
+        expect(diagnostics).toEqual([]);
+    }, 30000);
+
     test('model_get mismatch still resolves to the natural runtime-backed definition', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-model-get-mismatch-'));
         const protocolPath = path.join(workspaceRoot, 'adm', 'protocol', 'protocol_server.c');

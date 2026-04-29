@@ -63,5 +63,24 @@ describe('ParsedDocumentService', () => {
         const second = getGlobalParsedDocumentService();
         expect(second).not.toBe(first);
     });
+
+    test('accepts top-level macro invocation lines whose expansion owns the semicolon', () => {
+        const service = new ParsedDocumentService({ cleanupInterval: 0, enableMonitoring: true });
+        const document = createDocument([
+            '#define RequestType(f_name,http_type) string f_name = http_type;',
+            '',
+            'inherit "/external_system_package/http/base.c";',
+            '',
+            'RequestType(pay_add,"POST")',
+            'public mapping pay_add(string userid,mixed rmb)',
+            '{',
+            '    return ([]);',
+            '}'
+        ].join('\n'), '/virtual/http-controller.c');
+
+        const parsed = service.get(document);
+
+        expect(parsed.diagnostics).toHaveLength(0);
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

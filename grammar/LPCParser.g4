@@ -12,7 +12,7 @@ statement
     |   variableDecl ';'
     |   structDef
     |   classDef
-    |   macroInvoke SEMI
+    |   macroInvoke SEMI?
     |   ifStatement
     |   whileStatement
     |   forStatement

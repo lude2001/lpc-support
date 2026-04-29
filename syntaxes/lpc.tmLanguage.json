@@ -10,19 +10,16 @@
 			"include": "#strings"
 		},
 		{
+			"include": "#arrayDelimiter"
+		},
+		{
 			"include": "#heredoc"
 		},
 		{
 			"include": "#keywords"
 		},
 		{
-			"include": "#functions"
-		},
-		{
 			"include": "#types"
-		},
-		{
-			"include": "#variables"
 		},
 		{
 			"include": "#numbers"
@@ -45,10 +42,8 @@
 				{ "include": "#strings" },
 				{ "include": "#keywords" },
 				{ "include": "#types" },
-				{ "include": "#variables" },
 				{ "include": "#numbers" },
-				{ "include": "#operators" },
-				{ "include": "#functions" }
+				{ "include": "#operators" }
 			]
 		},
 		{
@@ -228,11 +223,11 @@
 			"patterns": [
 				{
 					"name": "keyword.control.lpc",
-					"match": "\\b(if|else|while|for|do|switch|case|default|break|continue|return|foreach)\\b"
+					"match": "\\b(if|else|while|for|do|switch|case|default|break|continue|return|foreach|catch|include|in|new|ref)\\b"
 				},
 				{
 					"name": "keyword.other.lpc",
-					"match": "\\b(inherit|private|protected|public|static|nomask|varargs)\\b"
+					"match": "\\b(inherit|private|protected|public|static|nomask|varargs|nosave)\\b"
 				}
 			]
 		},
@@ -244,40 +239,19 @@
 				}
 			]
 		},
-		"functions": {
-			"patterns": [
-				{
-					"name": "support.function.efun.lpc",
-					"match": "\\b(allocate_buffer|allocate_mapping|call_out_walltime|disassemble_class|fetch_class_member|function_exists|query_heart_beat|query_load_average|query_shadowing|remove_call_out|replace_string|reset_eval_cost|restore_variable|set_living_name|set_malloc_mask|store_class_member|telnet_msp_oob|this_interactive|async_db_exec|async_getdir|element_of|filter_array|member_array|previous_object|query_ip_name|query_ip_number|read_buffer|remove_interactive|set_this_player|socket_create|socket_listen|socket_write|sort_array|unique_array|valid_write|write_buffer|add_action|arrayp|assemble_class|async_read|async_write|base_name|bufferp|call_other|call_out|call_stack|capitalize|classp|clear_bit|clone_object|commands|ctime|db_close|db_commit|db_connect|db_exec|db_fetch|db_rollback|db_status|debug_message|destruct|disable_commands|disable_wizard|dotprod|dump_prog|dump_trace|ed_cmd|ed_start|enable_commands|enable_wizard|environment|eval_cost|evaluate|explode|export_uid|file_size|find_living|find_player|floatp|floor|functionp|get_char|get_dir|geteuid|getuid|heart_beats|implode|inherits|input_to|in_edit|in_input|interactive|keys|living|log10|log2|map_array|map_delete|memory_info|memory_summary|message|mkdir|move_object|network_stats|notify_fail|nullp|origin|pcre_extract|pcre_match|pcre_replace|pluralize|pointerp|present|printf|program_info|query_charmode|query_encoding|query_host_name|query_idle|query_invis|query_ip_port|query_snoop|query_snooping|read_file|real_time|reclaim_objects|receive|reg_assoc|regexp|reload_object|remove_action|rename|restore_object|rusage|save_object|save_variable|set_bit|set_encoding|set_eval_limit|set_heart_beat|set_hide|set_light|set_reset|seteuid|shutdown|shout|shuffle|sizeof|snoop|socket_accept|socket_bind|socket_close|sprintf|sscanf|strlen|strsrch|telnet_ga|telnet_nop|test_bit|this_object|this_player|this_user|throw|time|to_int|trace|traceprefix|trim|typeof|uptime|userp|users|valid_read|values|virtualp|wizardp|write_file|abs|acos|angle|asin|atan|bind|break_string|cache_stats|catch|ceil|classes|command|copy|cos|cp|crypt|defer|distance|ed|exec|exp|fetch_variable|filter|link|log|ltrim|map|master|max|min|norm|pow|resolve|rm|rmdir|rtrim|sin|sqrt|stat|swap|tan)(?=\\s*\\()"
-				},
-				{
-					"name": "entity.name.function.special.lpc",
-					"match": "\\b(create|init|reset|main)\\b(?=\\s*\\()",
-					"comment": "Special LPC functions like create, init, reset, main"
-				},
-				{
-					"name": "entity.name.function.lpc",
-					"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\("
-				}
-			]
-		},
-		"variables": {
-			"patterns": [
-				{
-					"name": "variable.other.lpc",
-					"match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
-				}
-			]
-		},
 		"numbers": {
 			"patterns": [
 				{
 					"name": "constant.numeric.hex.lpc",
-					"match": "\\b0[xX][0-9a-fA-F]+\\b"
+					"match": "\\b0[xX][0-9a-fA-F_]+\\b"
+				},
+				{
+					"name": "constant.numeric.binary.lpc",
+					"match": "\\b0[bB][01_]+\\b"
 				},
 				{
 					"name": "constant.numeric.octal.lpc",
-					"match": "\\b0[0-7]+\\b"
+					"match": "\\b0[0-7_]+\\b"
 				},
 				{
 					"name": "constant.numeric.float.lpc",
@@ -292,42 +266,22 @@
 		"operators": {
 			"patterns": [
 				{
-					"name": "meta.member.access.lpc",
-					"match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(->)",
-					"captures": {
-						"1": { "name": "variable.other.object.access.lpc" },
-						"2": { "name": "keyword.operator.arrow.lpc" }
-					}
-				},
-				{
-					"name": "keyword.operator.assignment.lpc",
-					"match": "(?:\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|<<=|>>=|=)"
-				},
-				{
-					"name": "keyword.operator.arithmetic.lpc",
-					"match": "(?:\\+\\+|--|\\+|-|\\*|/|%)"
-				},
-				{
-					"name": "keyword.operator.comparison.lpc",
-					"match": "(?:==|!=|<=|>=|<|>)"
-				},
-				{
-					"name": "keyword.operator.logical.lpc",
-					"match": "(?:&&|\\|\\||!)"
-				},
-				{
-					"name": "keyword.operator.bitwise.lpc",
-					"match": "(?:&|\\||\\^|~|<<|>>)"
-				},
-				{
-					"name": "keyword.operator.ternary.lpc",
-					"match": "(?:\\?|:)"
-				},
-				{
-					"name": "keyword.operator.scope-resolution.lpc",
-					"match": "::"
+					"name": "keyword.operator.lpc",
+					"match": "(?:<<=|>>=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|->|::|\\.\\.\\.|\\.\\.|<<|>>|=|\\+|-|\\*|/|%|<|>|!|&|\\||\\^|~|\\?|:)"
 				}
 			]
+		},
+		"arrayDelimiter": {
+			"name": "string.heredoc.lpc",
+			"begin": "@@([A-Z_][A-Z0-9_]*)\\s*$",
+			"beginCaptures": {
+				"1": { "name": "entity.name.tag.heredoc.begin.lpc" }
+			},
+			"end": "^(\\1;)\\s*",
+			"endCaptures": {
+				"1": { "name": "entity.name.tag.heredoc.end.lpc" }
+			},
+			"patterns": []
 		},
 		"heredoc": {
 			"name": "string.heredoc.lpc",
@@ -339,15 +293,7 @@
 			"endCaptures": {
 				"1": { "name": "entity.name.tag.heredoc.end.lpc" }
 			},
-			"patterns": [
-				{ "include": "#comments" },
-				{ "include": "#strings" },
-				{ "include": "#keywords" },
-				{ "include": "#types" },
-				{ "include": "#variables" },
-				{ "include": "#numbers" },
-				{ "include": "#operators" }
-			]
+			"patterns": []
 		}
 	}
 }

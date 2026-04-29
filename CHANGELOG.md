@@ -2,6 +2,31 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.45.9] - 2026-04-29
+
+### Macro-Backed HTTP Controller Diagnostic Fix
+
+- 修复顶层宏调用行必须显式写分号的 parser 限制，支持 `RequestType(pay_add,"POST")` 这类宏展开体自带分号的 LPC/C 预处理写法。
+- 修复 `external_system_package/http/controller/pay_game.c` 首次打开时在 `RequestType(...)` 后接 `public mapping ...` 函数声明处出现假的 ANTLR `no viable alternative` / `missing ';'` 诊断。
+- 补充 parser 统一入口回归，锁定宏声明行后接函数声明不会再产生语法诊断。
+
+## [0.45.8] - 2026-04-29
+
+### Simulated Efun Else-If Diagnostic Fix
+
+- 修复 simulated efun 文档预加载阶段的 legacy prototype normalize 误把 `else if(...)` 识别成旧式函数声明并补分号的问题。
+- 修复 `adm/simul_efun/message.c` 首次打开时在正常 `if / else if / else` 链上出现两条假的 ANTLR `extraneous input 'else'` 诊断。
+- 补充 spawned LSP runtime 回归，锁定 simulated efun 文档预加载后真实文件 version 1 的诊断结果不会继承归一化文本的错误状态。
+
+## [0.45.7] - 2026-04-29
+
+### Syntax Highlighting Ownership Cleanup
+
+- 将 TextMate grammar 收敛为轻量词法兜底，只保留注释、字符串、预处理、基础关键字/类型、数字、操作符、heredoc 与 array delimiter 高亮，不再重复维护 efun、函数名、变量名和成员访问语义。
+- 语义高亮继续由 LSP semantic tokens 作为主路径提供，并补齐 `->`、`.`、`?`、`:` 等独立 operator token，避免成员访问和三元表达式只靠 TextMate 兜底。
+- 多行注释、heredoc 等多行 lexer token 现在会拆成逐行 semantic token，避免 VS Code 客户端收到跨行 token 后出现高亮异常。
+- 新增 TextMate / semantic token 分工回归，锁定“TextMate 不再成为第二套语言事实来源”的架构边界。
+
 ## [0.45.6] - 2026-04-22
 
 ### Simulated Efun Parse Cache Fixes
