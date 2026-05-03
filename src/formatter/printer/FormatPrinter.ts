@@ -50,6 +50,13 @@ export class FormatPrinter implements PrinterContext {
             case SyntaxKind.Block:
                 rendered = this.printBlock(node, context);
                 break;
+            case SyntaxKind.PreprocessorIncludeDirective:
+            case SyntaxKind.MacroDefinitionDirective:
+            case SyntaxKind.MacroUndefDirective:
+            case SyntaxKind.ConditionalDirective:
+            case SyntaxKind.PreprocessorDirective:
+                rendered = this.printPreprocessorDirective(node, context);
+                break;
             case SyntaxKind.Missing:
                 rendered = '';
                 break;
@@ -166,6 +173,15 @@ export class FormatPrinter implements PrinterContext {
         return `${context.indent()}${normalized}`;
     }
 
+    private printPreprocessorDirective(node: FormatNode, context: PrintContext): string {
+        const rawText = typeof node.metadata?.rawText === 'string'
+            ? node.metadata.rawText
+            : node.text;
+        const normalized = rawText.trim();
+
+        return normalized ? `${context.indent()}${normalized}` : '';
+    }
+
     public wrapCollection(opener: string, lines: string[], closer: string, context: PrintContext): string {
         return renderWrappedCollection(opener, lines, closer, context);
     }
@@ -186,7 +202,19 @@ export class FormatPrinter implements PrinterContext {
             return false;
         }
 
+        if (this.isPreprocessorDirective(previous) && this.isPreprocessorDirective(current)) {
+            return false;
+        }
+
         return !(this.isPrototypeDeclaration(previous) || this.isPrototypeDeclaration(current));
+    }
+
+    private isPreprocessorDirective(node: FormatNode): boolean {
+        return node.syntaxKind === SyntaxKind.PreprocessorIncludeDirective
+            || node.syntaxKind === SyntaxKind.MacroDefinitionDirective
+            || node.syntaxKind === SyntaxKind.MacroUndefDirective
+            || node.syntaxKind === SyntaxKind.ConditionalDirective
+            || node.syntaxKind === SyntaxKind.PreprocessorDirective;
     }
 
     private isPrototypeDeclaration(node: FormatNode): boolean {

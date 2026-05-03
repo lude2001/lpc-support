@@ -11,7 +11,7 @@ export class TokenTriviaIndex implements TokenTriviaAccessor {
     private readonly lineStartOffsets: number[];
 
     constructor(private readonly parsed: ParsedDocument) {
-        this.lineStartOffsets = buildLineStartOffsets(parsed.text);
+        this.lineStartOffsets = buildLineStartOffsets(parsed.parseText);
         this.visibleTokenIndexes = parsed.visibleTokens.map((token) => token.tokenIndex).filter(isDefined);
         this.allTrivia = this.buildTriviaEntries(parsed.hiddenTokens);
     }

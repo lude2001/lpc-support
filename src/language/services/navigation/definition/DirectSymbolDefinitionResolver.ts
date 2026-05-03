@@ -31,6 +31,11 @@ export class DirectSymbolDefinitionResolver {
             return includeResult;
         }
 
+        const localMacroDefinition = this.findLocalMacroDefinition(document, word);
+        if (localMacroDefinition) {
+            return localMacroDefinition;
+        }
+
         const macroDefinition = await this.findMacroDefinition(word);
         if (macroDefinition) {
             return macroDefinition;
@@ -42,6 +47,16 @@ export class DirectSymbolDefinitionResolver {
         }
 
         return this.findVariableDefinition(word, document, position, requestState ?? this.dependencies.support.createRequestState());
+    }
+
+    private findLocalMacroDefinition(document: vscode.TextDocument, word: string): vscode.Location | undefined {
+        const snapshot = this.dependencies.support.getSemanticSnapshot(document);
+        const macro = snapshot.macroDefinitions?.find((definition) => definition.name === word);
+        if (!macro) {
+            return undefined;
+        }
+
+        return new vscode.Location(document.uri, macro.range);
     }
 
     private async handleIncludeDefinition(

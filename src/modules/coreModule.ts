@@ -8,6 +8,7 @@ import { LPCCompiler } from '../compiler';
 import { EfunDocsManager } from '../efunDocs';
 import { FunctionDocCompatMaterializer } from '../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
+import { LpcFrontendService } from '../frontend/LpcFrontendService';
 import { createDefaultFunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { createVsCodeTextDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { MacroManager } from '../macroManager';
@@ -25,6 +26,9 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     registeredProjectConfigService = projectConfigService;
     registry.register(Services.ProjectConfig, projectConfigService);
 
+    const frontendService = new LpcFrontendService();
+    registry.register(Services.Frontend, frontendService);
+
     const documentationService = createDefaultFunctionDocumentationService();
     registry.register(Services.FunctionDocumentation, documentationService);
 
@@ -38,6 +42,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     const documentPathSupport = new WorkspaceDocumentPathSupport({
         host: textDocumentHost,
         macroManager,
+        analysisService,
         projectConfigService
     });
     registry.register(Services.DocumentPathSupport, documentPathSupport);
@@ -79,6 +84,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     registry.register(Services.Lifecycle, lifecycle);
     context.subscriptions.push(lifecycle);
     lifecycle.onInvalidate(uri => {
+        frontendService.invalidate(uri);
         getGlobalParsedDocumentService().invalidate(uri);
         analysisService.clearCache(uri.toString());
     });

@@ -56,14 +56,28 @@ function createOrchestrator(
     overrides: {
         diagnosticsService?: ReturnType<typeof createSharedDiagnosticsService>;
         context?: vscode.ExtensionContext;
+        analysisService?: any;
+        textDocumentHost?: any;
     } = {}
 ): DiagnosticsOrchestrator {
     const collectors: IDiagnosticCollector[] = [];
     const diagnosticsService = overrides.diagnosticsService ?? createSharedDiagnosticsService({} as ASTManager, collectors);
     const context = overrides.context ?? ({ subscriptions: [], extensionPath: process.cwd() } as any);
+    const symbolTable = {
+        getGlobalScope: jest.fn(() => ({ name: 'global' })),
+        getAllSymbols: jest.fn(() => [])
+    };
+    const analysisService = overrides.analysisService ?? {
+        getBestAvailableSnapshot: jest.fn(() => ({
+            fileGlobals: [],
+            symbolTable
+        }))
+    };
 
     return new DiagnosticsOrchestrator(context, {
-        diagnosticsService
+        diagnosticsService,
+        textDocumentHost: overrides.textDocumentHost ?? {},
+        analysisService
     });
 }
 

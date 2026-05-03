@@ -133,11 +133,11 @@ export class CompletionQueryEngine {
             case 'member':
                 return this.queryMemberCandidates(snapshot, position, context, inheritedTypes);
             case 'preprocessor':
-                return this.queryPreprocessorCandidates();
+                return this.queryPreprocessorCandidates(snapshot);
             case 'inherit-path':
-                return this.queryPathCandidates('inherit-path');
+                return this.queryPathCandidates(snapshot, 'inherit-path');
             case 'include-path':
-                return this.queryPathCandidates('include-path');
+                return this.queryPathCandidates(snapshot, 'include-path');
             case 'type-position':
                 return this.queryTypeCandidates(snapshot, inheritedTypes);
             case 'identifier':
@@ -287,7 +287,7 @@ export class CompletionQueryEngine {
         return candidates;
     }
 
-    private queryPreprocessorCandidates(): CompletionCandidate[] {
+    private queryPreprocessorCandidates(snapshot: DocumentSemanticSnapshot): CompletionCandidate[] {
         const candidates: CompletionCandidate[] = PREPROCESSOR_KEYWORDS.map(keyword => ({
             key: `preprocessor:${keyword}`,
             label: keyword,
@@ -298,6 +298,8 @@ export class CompletionQueryEngine {
                 sourceType: 'keyword'
             }
         }));
+
+        candidates.push(...this.createSnapshotMacroCandidates(snapshot, 'macro'));
 
         for (const macro of this.macroManager?.getAllMacros() || []) {
             candidates.push({
@@ -316,8 +318,10 @@ export class CompletionQueryEngine {
         return candidates;
     }
 
-    private queryPathCandidates(kind: CompletionContextKind): CompletionCandidate[] {
-        const candidates: CompletionCandidate[] = [];
+    private queryPathCandidates(snapshot: DocumentSemanticSnapshot, kind: CompletionContextKind): CompletionCandidate[] {
+        const candidates: CompletionCandidate[] = [
+            ...this.createSnapshotMacroCandidates(snapshot, `${kind}:macro`)
+        ];
 
         for (const macro of this.macroManager?.getAllMacros() || []) {
             candidates.push({
@@ -355,6 +359,24 @@ export class CompletionQueryEngine {
         }
 
         return candidates;
+    }
+
+    private createSnapshotMacroCandidates(
+        snapshot: DocumentSemanticSnapshot,
+        keyPrefix: string
+    ): CompletionCandidate[] {
+        return (snapshot.macroDefinitions || []).map((macro) => ({
+            key: `${keyPrefix}:${macro.name}`,
+            label: macro.name,
+            kind: vscode.CompletionItemKind.Constant,
+            detail: macro.value,
+            sortGroup: 'keyword',
+            metadata: {
+                sourceUri: macro.sourceUri,
+                sourceType: 'macro',
+                documentationRef: macro.name
+            }
+        }));
     }
 
     private queryTypeCandidates(

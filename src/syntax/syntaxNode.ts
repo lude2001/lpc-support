@@ -21,6 +21,11 @@ export enum SyntaxKind {
     SourceFile = 'SourceFile',
     InheritDirective = 'InheritDirective',
     IncludeDirective = 'IncludeDirective',
+    PreprocessorIncludeDirective = 'PreprocessorIncludeDirective',
+    MacroDefinitionDirective = 'MacroDefinitionDirective',
+    MacroUndefDirective = 'MacroUndefDirective',
+    ConditionalDirective = 'ConditionalDirective',
+    PreprocessorDirective = 'PreprocessorDirective',
     ModifierList = 'ModifierList',
     ArgumentList = 'ArgumentList',
     ExpressionList = 'ExpressionList',
@@ -121,6 +126,11 @@ export function inferSyntaxNodeCategory(kind: SyntaxKind): SyntaxNodeCategory {
             return 'document';
         case SyntaxKind.InheritDirective:
         case SyntaxKind.IncludeDirective:
+        case SyntaxKind.PreprocessorIncludeDirective:
+        case SyntaxKind.MacroDefinitionDirective:
+        case SyntaxKind.MacroUndefDirective:
+        case SyntaxKind.ConditionalDirective:
+        case SyntaxKind.PreprocessorDirective:
         case SyntaxKind.FunctionDeclaration:
         case SyntaxKind.VariableDeclaration:
         case SyntaxKind.VariableDeclarator:

@@ -327,6 +327,17 @@ describe('document analysis ownership guards', () => {
         expect(codeActionServiceSource).not.toContain('private findBlockStart(');
         expect(codeActionServiceSource).not.toContain('private findFunctionStart(');
     });
+
+    test('default diagnostics do not instantiate the legacy regex variable analyzer', () => {
+        const productionFiles = listProductionTypeScriptFiles(srcRoot);
+        const regexAnalyzerImports = productionFiles
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('diagnostics/analyzers/VariableAnalyzer'))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(regexAnalyzerImports).toEqual([]);
+        expect(fs.existsSync(path.join(srcRoot, 'diagnostics', 'analyzers', 'VariableAnalyzer.ts'))).toBe(false);
+    });
 });
 
 function listProductionTypeScriptFiles(rootDir: string): string[] {

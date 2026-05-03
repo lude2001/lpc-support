@@ -88,13 +88,12 @@ export class ReturnObjectResolver {
         }
 
         if (expression.kind === SyntaxKind.Identifier && expression.name) {
-            if (!this.macroManager?.getMacro(expression.name)) {
-                return { candidates: [] };
+            const candidates = await this.resolvePathCandidate(document, expression.name, 'macro');
+            if (candidates.length > 0) {
+                return { candidates };
             }
 
-            return {
-                candidates: await this.resolvePathCandidate(document, expression.name, 'macro')
-            };
+            return { candidates: [] };
         }
 
         if (expression.kind !== SyntaxKind.CallExpression) {

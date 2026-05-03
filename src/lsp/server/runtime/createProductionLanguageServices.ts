@@ -70,6 +70,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const documentPathSupport = new WorkspaceDocumentPathSupport({
         host: workspaceDocumentHost,
         macroManager,
+        analysisService,
         projectConfigService
     });
     const functionDocCompatMaterializer = new FunctionDocCompatMaterializer();
@@ -169,6 +170,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         objectHoverService,
         macroManager,
         {
+            analysisService,
             efunHoverService: new EfunLanguageHoverService(efunDocsManager, analysisService, callableDocRenderer)
         }
     );

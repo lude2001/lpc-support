@@ -93,7 +93,7 @@ import {
     SyntaxKind,
     SyntaxNode
 } from './types';
-import { SyntaxTrivia, syntaxTriviaFromParsedTrivia } from './trivia';
+import { createSyntaxTrivia, SyntaxTrivia, syntaxTriviaFromParsedTrivia } from './trivia';
 import {
     buildArgumentList,
     buildArrayDelimiterElement,
@@ -130,9 +130,11 @@ type TypeLikeContext = TypeSpecContext | CastTypeContext;
 
 export class SyntaxBuilder {
     private readonly lineStartOffsets: number[];
+    private readonly originalLineStartOffsets: number[];
 
     constructor(private readonly parsed: ParsedDocument) {
-        this.lineStartOffsets = buildLineStartOffsets(parsed.text);
+        this.lineStartOffsets = buildLineStartOffsets(parsed.parseText);
+        this.originalLineStartOffsets = buildLineStartOffsets(parsed.text);
     }
 
     public build(): SyntaxDocument {
@@ -144,8 +146,17 @@ export class SyntaxBuilder {
     }
 
     private buildSourceFile(ctx: SourceFileContext): SourceFileSyntaxNode {
-        const children = this.collectNodes(this.asArray(ctx.statement()).map((statement) => this.buildStatement(statement)));
-        const range = new vscode.Range(this.positionAt(0), this.positionAt(this.parsed.text.length));
+        const children = [
+            ...this.buildPreprocessorDirectiveNodes(),
+            ...this.collectNodes(this.asArray(ctx.statement()).map((statement) => this.buildStatement(statement)))
+        ].sort((left, right) => {
+            if (left.range.start.line !== right.range.start.line) {
+                return left.range.start.line - right.range.start.line;
+            }
+
+            return left.range.start.character - right.range.start.character;
+        });
+        const range = new vscode.Range(this.positionAt(0), this.positionAt(this.parsed.parseText.length));
         const tokenRange = this.createSourceFileTokenRange();
 
         return createSyntaxNode({
@@ -156,6 +167,42 @@ export class SyntaxBuilder {
             trailingTrivia: this.collectPlacementTrivia(this.parsed.tokenTriviaIndex.getTrailingTrivia(tokenRange.end), 'trailing'),
             children
         }) as SourceFileSyntaxNode;
+    }
+
+    private buildPreprocessorDirectiveNodes(): SyntaxNode[] {
+        return this.parsed.frontend?.preprocessor.directives.map((directive) => createSyntaxNode({
+            kind: this.getPreprocessorSyntaxKind(directive.kind),
+            range: directive.range,
+            tokenRange: createTokenRange(0, 0),
+            leadingTrivia: this.collectOriginalLeadingCommentsForDirective(directive.startOffset, directive.range.start.line),
+            children: [],
+            name: directive.kind,
+            metadata: {
+                directiveKind: directive.kind,
+                rawText: directive.rawText,
+                body: directive.body
+            }
+        })) ?? [];
+    }
+
+    private getPreprocessorSyntaxKind(kind: string): SyntaxKind {
+        switch (kind) {
+            case 'include':
+                return SyntaxKind.PreprocessorIncludeDirective;
+            case 'define':
+                return SyntaxKind.MacroDefinitionDirective;
+            case 'undef':
+                return SyntaxKind.MacroUndefDirective;
+            case 'if':
+            case 'ifdef':
+            case 'ifndef':
+            case 'elif':
+            case 'else':
+            case 'endif':
+                return SyntaxKind.ConditionalDirective;
+            default:
+                return SyntaxKind.PreprocessorDirective;
+        }
     }
 
     public buildStatement(ctx: StatementContext): SyntaxNode {
@@ -477,7 +524,10 @@ export class SyntaxBuilder {
             kind,
             range: this.createRange(normalizedStart, normalizedStop),
             tokenRange,
-            leadingTrivia: this.collectPlacementTrivia(this.parsed.tokenTriviaIndex.getLeadingTrivia(tokenRange.start), 'leading'),
+            leadingTrivia: this.filterLeadingTriviaAcrossPreprocessor(
+                this.collectPlacementTrivia(this.parsed.tokenTriviaIndex.getLeadingTrivia(tokenRange.start), 'leading'),
+                normalizedStart
+            ),
             trailingTrivia: this.collectPlacementTrivia(this.parsed.tokenTriviaIndex.getTrailingTrivia(tokenRange.end), 'trailing'),
             children,
             name: options.name,
@@ -599,7 +649,7 @@ export class SyntaxBuilder {
             return node.text ?? '';
         }
 
-        return this.parsed.text.slice(
+        return this.parsed.parseText.slice(
             this.getTokenStartOffset(startToken),
             this.getTokenEndOffset(stopToken)
         );
@@ -674,7 +724,10 @@ export class SyntaxBuilder {
 
         const candidate = leadingTrivia[candidateIndex];
         const interveningTrivia = leadingTrivia.slice(candidateIndex + 1);
-        if (interveningTrivia.some((trivia) => trivia.kind === 'line-comment' || trivia.kind === 'block-comment' || trivia.kind === 'directive')) {
+        if (
+            interveningTrivia.some((trivia) => trivia.kind === 'line-comment' || trivia.kind === 'block-comment' || trivia.kind === 'directive')
+            || this.hasPreprocessorDirectiveBetween(candidate.range.end, this.createRange(startToken, startToken).start)
+        ) {
             return undefined;
         }
 
@@ -708,7 +761,7 @@ export class SyntaxBuilder {
     }
 
     private positionAt(offset: number): vscode.Position {
-        const normalizedOffset = Math.max(0, Math.min(offset, this.parsed.text.length));
+        const normalizedOffset = Math.max(0, Math.min(offset, this.parsed.parseText.length));
         let low = 0;
         let high = this.lineStartOffsets.length - 1;
 
@@ -729,6 +782,83 @@ export class SyntaxBuilder {
         const normalizedLine = Math.max(0, (line || 1) - 1);
         const lineStart = this.lineStartOffsets[normalizedLine] ?? 0;
         return lineStart + Math.max(0, character || 0);
+    }
+
+    private offsetAt(position: vscode.Position): number {
+        const lineStart = this.lineStartOffsets[position.line] ?? this.parsed.parseText.length;
+        return Math.max(0, Math.min(lineStart + position.character, this.parsed.parseText.length));
+    }
+
+    private originalPositionAt(offset: number): vscode.Position {
+        const normalizedOffset = Math.max(0, Math.min(offset, this.parsed.text.length));
+        let low = 0;
+        let high = this.originalLineStartOffsets.length - 1;
+
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            if (this.originalLineStartOffsets[mid] > normalizedOffset) {
+                high = mid - 1;
+            } else {
+                low = mid + 1;
+            }
+        }
+
+        const line = Math.max(0, high);
+        return new vscode.Position(line, normalizedOffset - this.originalLineStartOffsets[line]);
+    }
+
+    private hasPreprocessorDirectiveBetween(start: vscode.Position, end: vscode.Position): boolean {
+        const startOffset = this.offsetAt(start);
+        const endOffset = this.offsetAt(end);
+
+        return this.parsed.frontend?.preprocessor.directives.some((directive) => (
+            directive.startOffset >= startOffset && directive.startOffset < endOffset
+        )) ?? false;
+    }
+
+    private collectOriginalLeadingCommentsForDirective(startOffset: number, startLine: number): SyntaxTrivia[] {
+        if (startLine <= 0) {
+            return [];
+        }
+
+        const previousLineStart = this.originalLineStartOffsets[startLine - 1] ?? 0;
+        const currentLineStart = this.originalLineStartOffsets[startLine] ?? startOffset;
+        const previousLineEnd = Math.max(previousLineStart, currentLineStart - 1);
+        const previousLine = this.parsed.text.slice(previousLineStart, previousLineEnd);
+        const trimmed = previousLine.trim();
+
+        if (!trimmed.startsWith('//')) {
+            return [];
+        }
+
+        const commentStart = previousLineStart + previousLine.indexOf('//');
+        const commentEnd = previousLineEnd;
+        return [createSyntaxTrivia({
+            kind: 'line-comment',
+            text: this.parsed.text.slice(commentStart, commentEnd),
+            range: new vscode.Range(this.originalPositionAt(commentStart), this.originalPositionAt(commentEnd)),
+            tokenIndex: 0,
+            startOffset: commentStart,
+            endOffset: commentEnd,
+            placement: 'leading'
+        })];
+    }
+
+    private filterLeadingTriviaAcrossPreprocessor(leadingTrivia: SyntaxTrivia[], startToken: Token | undefined): SyntaxTrivia[] {
+        if (!startToken) {
+            return leadingTrivia;
+        }
+
+        const nodeStartOffset = this.getTokenStartOffset(startToken);
+        const lastDirectiveBeforeNode = this.parsed.frontend?.preprocessor.directives
+            .filter((directive) => directive.endOffset <= nodeStartOffset)
+            .sort((left, right) => right.endOffset - left.endOffset)[0];
+
+        if (!lastDirectiveBeforeNode) {
+            return leadingTrivia;
+        }
+
+        return leadingTrivia.filter((trivia) => trivia.startOffset >= lastDirectiveBeforeNode.endOffset);
     }
 }
 

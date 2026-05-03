@@ -9,6 +9,7 @@ import { createDefaultFunctionDocumentationService } from '../../language/docume
 import { CompletionInstrumentation } from '../../completion/completionInstrumentation';
 import { LPCConfigManager } from '../../config';
 import { LPCCompiler } from '../../compiler';
+import { LpcFrontendService } from '../../frontend/LpcFrontendService';
 import { DocumentLifecycleService } from '../DocumentLifecycleService';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
@@ -28,6 +29,10 @@ jest.mock('../../language/documentation/FunctionDocumentationService', () => ({
 
 jest.mock('../../completion/completionInstrumentation', () => ({
     CompletionInstrumentation: jest.fn()
+}));
+
+jest.mock('../../frontend/LpcFrontendService', () => ({
+    LpcFrontendService: jest.fn()
 }));
 
 jest.mock('../../config', () => ({
@@ -65,6 +70,7 @@ describe('registerCoreServices', () => {
     let completionInstrumentation: vscode.Disposable & { id: string };
     let configManager: { id: string };
     let compiler: { id: string };
+    let frontendService: { id: string; invalidate: jest.Mock; clear: jest.Mock };
     let projectConfigService: { id: string };
     let lifecycle: vscode.Disposable & { id: string; onInvalidate: jest.Mock };
     let parsedDocumentService: { invalidate: jest.Mock };
@@ -84,6 +90,7 @@ describe('registerCoreServices', () => {
         completionInstrumentation = { id: 'completionInstrumentation', dispose: jest.fn() };
         configManager = { id: 'configManager' };
         compiler = { id: 'compiler' };
+        frontendService = { id: 'frontendService', invalidate: jest.fn(), clear: jest.fn() };
         projectConfigService = { id: 'projectConfigService' };
         lifecycle = { id: 'lifecycle', dispose: jest.fn(), onInvalidate: jest.fn() };
         parsedDocumentService = { invalidate: jest.fn() };
@@ -95,6 +102,7 @@ describe('registerCoreServices', () => {
         (CompletionInstrumentation as unknown as jest.Mock).mockReset().mockImplementation(() => completionInstrumentation);
         (LPCConfigManager as unknown as jest.Mock).mockReset().mockImplementation(() => configManager);
         (LPCCompiler as unknown as jest.Mock).mockReset().mockImplementation(() => compiler);
+        (LpcFrontendService as unknown as jest.Mock).mockReset().mockImplementation(() => frontendService);
         (LpcProjectConfigService as unknown as jest.Mock).mockReset().mockImplementation(() => projectConfigService);
         (DocumentLifecycleService as unknown as jest.Mock).mockReset().mockImplementation(() => lifecycle);
         (getGlobalParsedDocumentService as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
@@ -128,6 +136,7 @@ describe('registerCoreServices', () => {
         expect(LPCConfigManager).toHaveBeenCalledWith(context);
         expect(LPCCompiler).toHaveBeenCalledTimes(1);
         expect(LPCCompiler).toHaveBeenCalledWith(configManager);
+        expect(LpcFrontendService).toHaveBeenCalledTimes(1);
         expect(LpcProjectConfigService).toHaveBeenCalledTimes(1);
         expect(DocumentLifecycleService).toHaveBeenCalledTimes(1);
 
@@ -135,6 +144,7 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.EfunDocs)).toBe(efunDocsManager);
         expect(registry.get(Services.ConfigManager)).toBe(configManager);
         expect(registry.get(Services.Compiler)).toBe(compiler);
+        expect(registry.get(Services.Frontend)).toBe(frontendService);
         expect(registry.get(Services.ProjectConfig)).toBe(projectConfigService);
         expect(registry.get(Services.FunctionDocumentation)).toBe(documentationService);
         expect(registry.get(Services.TextDocumentHost)).toEqual(expect.objectContaining({

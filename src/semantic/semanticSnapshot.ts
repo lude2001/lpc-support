@@ -6,6 +6,7 @@ import {
     FunctionSummary,
     IncludeDirective,
     InheritDirective,
+    MacroDefinitionSummary,
     MacroReference,
     ScopeSummary,
     TypeDefinitionSummary
@@ -23,6 +24,7 @@ export interface SemanticSnapshot {
     fileGlobals?: FileGlobalSummary[];
     inheritStatements: InheritDirective[];
     includeStatements: IncludeDirective[];
+    macroDefinitions?: MacroDefinitionSummary[];
     macroReferences: MacroReference[];
     symbolTable: SymbolTable;
     createdAt: number;
@@ -39,6 +41,7 @@ export function toDocumentSemanticSnapshot(snapshot: SemanticSnapshot): Document
         fileGlobals: snapshot.fileGlobals ? snapshot.fileGlobals.map((summary) => ({ ...summary })) : [],
         inheritStatements: snapshot.inheritStatements,
         includeStatements: snapshot.includeStatements,
+        macroDefinitions: snapshot.macroDefinitions,
         macroReferences: snapshot.macroReferences,
         symbolTable: snapshot.symbolTable,
         createdAt: snapshot.createdAt
