@@ -132,6 +132,8 @@ export interface DocumentSemanticSnapshot {
     macroDefinitions?: MacroDefinitionSummary[];
     macroReferences: MacroReference[];
     symbolTable: SymbolTable;
+    degraded?: boolean;
+    failureReason?: string;
     createdAt: number;
 }
 

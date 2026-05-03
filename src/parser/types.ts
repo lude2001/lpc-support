@@ -37,6 +37,8 @@ export interface ParsedDocument {
     tokenTriviaIndex: TokenTriviaAccessor;
     tree: ReturnType<LPCParser['sourceFile']>;
     diagnostics: vscode.Diagnostic[];
+    degraded?: boolean;
+    failureReason?: string;
     createdAt: number;
     lastAccessed: number;
     parseTimeMs: number;

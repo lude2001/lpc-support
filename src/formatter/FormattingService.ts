@@ -146,16 +146,10 @@ export class FormattingService {
 
     private getParsedForFormatting(
         document: vscode.TextDocument,
-        source: string,
-        cacheKey: string
+        _source: string,
+        _cacheKey: string
     ): ReturnType<ReturnType<typeof getGlobalParsedDocumentService>['get']> {
-        const parsed = getGlobalParsedDocumentService().get(document);
-        if (!hasBlockingDiagnostics(parsed)) {
-            return parsed;
-        }
-
-        const recoveredParsed = this.tryRecoverForeachRefParsed(document, source, getBlockingDiagnostics(parsed), cacheKey);
-        return recoveredParsed ?? parsed;
+        return getGlobalParsedDocumentService().get(document);
     }
 
     private prepareSnippetRange(
@@ -313,39 +307,6 @@ export class FormattingService {
         return true;
     }
 
-    private tryRecoverForeachRefParsed(
-        document: vscode.TextDocument,
-        source: string,
-        diagnostics: ReadonlyArray<{ message: string }>,
-        cacheKey: string
-    ): ReturnType<ReturnType<typeof getGlobalParsedDocumentService>['get']> | null {
-        if (!this.hasOnlyKnownForeachRefDiagnostics(source, diagnostics)) {
-            return null;
-        }
-
-        const recoveredSource = rewriteForeachRefBindingsForParsing(source);
-        if (recoveredSource === source) {
-            return null;
-        }
-
-        const recoveredDocument = this.createSyntheticDocument(document, recoveredSource, `foreach-ref-${cacheKey}`);
-        const recoveredParsed = getGlobalParsedDocumentService().get(recoveredDocument);
-        return recoveredParsed.diagnostics.length === 0
-            ? recoveredParsed
-            : null;
-    }
-
-    private hasOnlyKnownForeachRefDiagnostics(
-        source: string,
-        diagnostics: ReadonlyArray<{ message: string }>
-    ): boolean {
-        return diagnostics.length > 0
-            && /\bforeach\s*\(\s*ref\b/.test(source)
-            && diagnostics.every((diagnostic) => (
-                diagnostic.message.includes("extraneous input 'ref' expecting")
-            ));
-    }
-
     private reindentRangeReplacement(document: vscode.TextDocument, range: vscode.Range, text: string): string {
         if (!text.includes('\n')) {
             return text;
@@ -420,80 +381,6 @@ export class FormattingService {
     }
 }
 
-function rewriteForeachRefBindingsForParsing(source: string): string {
-    let rewritten = source;
-    let cursor = 0;
-
-    while (cursor < rewritten.length) {
-        const foreachIndex = rewritten.indexOf('foreach', cursor);
-        if (foreachIndex === -1) {
-            break;
-        }
-
-        const openParenIndex = rewritten.indexOf('(', foreachIndex);
-        if (openParenIndex === -1) {
-            break;
-        }
-
-        const closeParenIndex = findClosingParenIndex(rewritten, openParenIndex);
-        if (closeParenIndex === -1) {
-            break;
-        }
-
-        const header = rewritten.slice(openParenIndex + 1, closeParenIndex);
-        const keywordMatch = header.match(/\bin\b/);
-        if (!keywordMatch || keywordMatch.index === undefined) {
-            cursor = closeParenIndex + 1;
-            continue;
-        }
-
-        const bindings = header.slice(0, keywordMatch.index);
-        const rewrittenBindings = bindings
-            .split(',')
-            .map((binding) => rewriteForeachBindingForParsing(binding))
-            .join(',');
-
-        if (rewrittenBindings !== bindings) {
-            rewritten = `${rewritten.slice(0, openParenIndex + 1)}${rewrittenBindings}${rewritten.slice(openParenIndex + 1 + bindings.length)}`;
-        }
-
-        cursor = closeParenIndex + 1;
-    }
-
-    return rewritten;
-}
-
-function rewriteForeachBindingForParsing(binding: string): string {
-    const match = binding.match(/^(\s*)ref(\s+)([A-Za-z_][A-Za-z0-9_]*)(\s*(?:\*+\s*)*)(\s+[A-Za-z_][A-Za-z0-9_]*\s*)$/);
-    if (!match) {
-        return binding;
-    }
-
-    const [, leadingWhitespace, whitespaceAfterRef, typeName, pointerSegment, identifierSegment] = match;
-    return `${leadingWhitespace}${typeName}${whitespaceAfterRef}ref${pointerSegment}${identifierSegment}`;
-}
-
-function findClosingParenIndex(text: string, openParenIndex: number): number {
-    let depth = 0;
-
-    for (let index = openParenIndex; index < text.length; index += 1) {
-        if (text[index] === '(') {
-            depth += 1;
-        } else if (text[index] === ')') {
-            depth -= 1;
-            if (depth === 0) {
-                return index;
-            }
-        }
-    }
-
-    return -1;
-}
-
-function getBlockingDiagnostics(parsed: Pick<ParsedDocument, 'diagnostics'>): vscode.Diagnostic[] {
-    return parsed.diagnostics.filter((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Error);
-}
-
 function hasBlockingDiagnostics(parsed: Pick<ParsedDocument, 'diagnostics'>): boolean {
-    return getBlockingDiagnostics(parsed).length > 0;
+    return parsed.diagnostics.some((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Error);
 }

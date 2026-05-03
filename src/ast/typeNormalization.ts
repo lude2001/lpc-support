@@ -1,3 +1,5 @@
+import { stripLeadingLpcDeclarationModifiers } from '../frontend/languageFacts';
+
 export interface ParsedLpcType {
     normalized: string;
     qualifiedName: string;
@@ -36,9 +38,7 @@ export function parseLpcType(typeName: string): ParsedLpcType {
         };
     }
 
-    const withoutModifiers = trimmed
-        .replace(/^(?:(?:private|protected|public|static|const|nosave|varargs)\s+)+/i, '')
-        .trim();
+    const withoutModifiers = stripLeadingLpcDeclarationModifiers(trimmed).trim();
 
     const arrayMatches = withoutModifiers.match(/\[\s*\]/g);
     const arrayDepth = arrayMatches ? arrayMatches.length : 0;

@@ -116,5 +116,51 @@ describe('LocalVariableDeclarationCollector', () => {
         expect(diagnostics[0].code).toBe('localVariableDeclarationPosition');
         expect(diagnostics[0].severity).toBe(vscode.DiagnosticSeverity.Error);
     });
+
+    test('预处理分支边界来自 frontend directive facts 而不是重新扫描文本', () => {
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((key: string, defaultValue?: any) => {
+                if (key === 'enforceLocalVariableDeclarationAtBlockStart') {
+                    return true;
+                }
+                return defaultValue;
+            })
+        });
+
+        const content = `void test() {
+    write("x");
+    #ifdef HAS_LATER
+    int later = 1;
+    #endif
+}`;
+        const doc = TestHelper.createMockDocument(content, 'lpc', 'branch.c');
+
+        const execIdx = content.indexOf('write("x");');
+        const declIdx = content.indexOf('int later = 1;');
+        const varDecl = {
+            start: { startIndex: declIdx },
+            stop: { stopIndex: declIdx + 'int later = 1;'.length - 1 }
+        };
+
+        const parsed = {
+            ...createParsedDoc([
+                createLeafStatement(execIdx),
+                createLeafStatement(declIdx, varDecl)
+            ]),
+            frontend: {
+                preprocessor: {
+                    directives: [{
+                        kind: 'ifdef',
+                        range: new vscode.Range(2, 4, 2, 20)
+                    }]
+                }
+            }
+        };
+
+        const collector = new LocalVariableDeclarationCollector();
+        const diagnostics = collector.collect(doc as any, parsed);
+
+        expect(diagnostics).toHaveLength(0);
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

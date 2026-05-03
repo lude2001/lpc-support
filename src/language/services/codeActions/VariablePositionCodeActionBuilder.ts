@@ -5,19 +5,24 @@ import {
     type RangeReadableDocument
 } from './types';
 import { CodeActionDocumentSupport } from './CodeActionDocumentSupport';
+import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../../../syntax/types';
 
 export class VariablePositionCodeActionBuilder {
     public constructor(private readonly support: CodeActionDocumentSupport) {}
 
-    public build(document: RangeReadableDocument, diagnostic: LanguageDiagnostic): LanguageCodeAction[] {
+    public build(
+        document: RangeReadableDocument,
+        diagnostic: LanguageDiagnostic,
+        syntax?: SyntaxDocument
+    ): LanguageCodeAction[] {
         const actions: LanguageCodeAction[] = [];
 
-        const moveToBlockStartAction = this.createMoveVariableToBlockStartAction(document, diagnostic);
+        const moveToBlockStartAction = this.createMoveVariableToBlockStartAction(document, diagnostic, syntax);
         if (moveToBlockStartAction) {
             actions.push(moveToBlockStartAction);
         }
 
-        const moveToFunctionStartAction = this.createMoveVariableToFunctionStartAction(document, diagnostic);
+        const moveToFunctionStartAction = this.createMoveVariableToFunctionStartAction(document, diagnostic, syntax);
         if (moveToFunctionStartAction) {
             actions.push(moveToFunctionStartAction);
         }
@@ -25,10 +30,15 @@ export class VariablePositionCodeActionBuilder {
         return actions;
     }
 
-    private createMoveVariableToBlockStartAction(document: RangeReadableDocument, diagnostic: LanguageDiagnostic): LanguageCodeAction | undefined {
+    private createMoveVariableToBlockStartAction(
+        document: RangeReadableDocument,
+        diagnostic: LanguageDiagnostic,
+        syntax?: SyntaxDocument
+    ): LanguageCodeAction | undefined {
         const variableLine = document.lineAt(diagnostic.range.start.line);
         const variableText = variableLine.text.trim();
-        const blockStartLine = this.support.findBlockStart(document, diagnostic.range.start.line);
+        const blockStartLine = this.findContainingBlockStartLine(syntax, diagnostic)
+            ?? this.support.findBlockStart(document, diagnostic.range.start.line);
         if (blockStartLine === -1) {
             return undefined;
         }
@@ -70,10 +80,15 @@ export class VariablePositionCodeActionBuilder {
         };
     }
 
-    private createMoveVariableToFunctionStartAction(document: RangeReadableDocument, diagnostic: LanguageDiagnostic): LanguageCodeAction | undefined {
+    private createMoveVariableToFunctionStartAction(
+        document: RangeReadableDocument,
+        diagnostic: LanguageDiagnostic,
+        syntax?: SyntaxDocument
+    ): LanguageCodeAction | undefined {
         const variableLine = document.lineAt(diagnostic.range.start.line);
         const variableText = variableLine.text.trim();
-        const functionStartLine = this.support.findFunctionStart(document, diagnostic.range.start.line);
+        const functionStartLine = this.findContainingFunctionStartLine(syntax, diagnostic)
+            ?? this.support.findFunctionStart(document, diagnostic.range.start.line);
         if (functionStartLine === -1) {
             return undefined;
         }
@@ -121,4 +136,58 @@ export class VariablePositionCodeActionBuilder {
             ])
         };
     }
+
+    private findContainingBlockStartLine(
+        syntax: SyntaxDocument | undefined,
+        diagnostic: LanguageDiagnostic
+    ): number | undefined {
+        return this.findSmallestContainingNode(syntax, diagnostic, SyntaxKind.Block)?.range.start.line;
+    }
+
+    private findContainingFunctionStartLine(
+        syntax: SyntaxDocument | undefined,
+        diagnostic: LanguageDiagnostic
+    ): number | undefined {
+        return this.findSmallestContainingNode(syntax, diagnostic, SyntaxKind.FunctionDeclaration)?.range.start.line;
+    }
+
+    private findSmallestContainingNode(
+        syntax: SyntaxDocument | undefined,
+        diagnostic: LanguageDiagnostic,
+        kind: SyntaxKind
+    ): SyntaxNode | undefined {
+        if (!syntax) {
+            return undefined;
+        }
+
+        const candidates = syntax.nodes
+            .filter((node) => node.kind === kind && containsRange(node.range, diagnostic.range))
+            .sort((left, right) => getRangeSize(left.range) - getRangeSize(right.range));
+
+        return candidates[0];
+    }
+}
+
+function containsRange(
+    outer: { start: { line: number; character: number }; end: { line: number; character: number } },
+    inner: LanguageDiagnostic['range']
+): boolean {
+    return comparePositions(outer.start, inner.start) <= 0
+        && comparePositions(outer.end, inner.end) >= 0;
+}
+
+function comparePositions(
+    left: { line: number; character: number },
+    right: { line: number; character: number }
+): number {
+    if (left.line !== right.line) {
+        return left.line - right.line;
+    }
+
+    return left.character - right.character;
+}
+
+function getRangeSize(range: { start: { line: number; character: number }; end: { line: number; character: number } }): number {
+    return (range.end.line - range.start.line) * 10_000
+        + (range.end.character - range.start.character);
 }

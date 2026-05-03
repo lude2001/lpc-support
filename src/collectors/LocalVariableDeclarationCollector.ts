@@ -9,12 +9,14 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
 
     private diagnostics: vscode.Diagnostic[] = [];
     private document!: vscode.TextDocument;
+    private branchDirectiveLines = new Set<number>();
 
     constructor() {}
 
     collect(doc: vscode.TextDocument, parsed: ParsedDocument): vscode.Diagnostic[] {
         this.diagnostics = [];
         this.document = doc;
+        this.branchDirectiveLines = this.collectBranchDirectiveLines(parsed);
 
         // FluffOS 新版本允许在代码块任意位置声明局部变量；该规则改为可配置。
         if (!this.isRuleEnabled()) {
@@ -150,14 +152,23 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
         }
 
         for (let line = startLine; line <= endLine; line++) {
-            const text = this.document.lineAt(line).text.trim();
-            if (text.startsWith('#')) {
-                // 常见的 LPC/C 预处理关键字
-                if (/^#\s*(if|ifdef|ifndef|elif|else|endif)/.test(text)) {
-                    return true;
-                }
+            if (this.branchDirectiveLines.has(line)) {
+                return true;
             }
         }
         return false;
+    }
+
+    private collectBranchDirectiveLines(parsed: ParsedDocument): Set<number> {
+        const lines = new Set<number>();
+        const branchKinds = new Set(['if', 'ifdef', 'ifndef', 'elif', 'else', 'endif']);
+
+        for (const directive of parsed.frontend?.preprocessor.directives ?? []) {
+            if (branchKinds.has(directive.kind)) {
+                lines.add(directive.range.start.line);
+            }
+        }
+
+        return lines;
     }
 }

@@ -151,7 +151,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         scopedMethodDiscoveryService,
         scopedCompletionSupport
     });
-    const codeActionsService = createLanguageCodeActionService();
+    const codeActionsService = createLanguageCodeActionService(analysisService);
     const { diagnosticsService } = createDiagnosticsStack(macroManager, analysisService);
     const formattingService = createLanguageFormattingService(new FormattingService());
     const objectHoverService = createDefaultObjectInferenceLanguageHoverService(

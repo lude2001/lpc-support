@@ -14,6 +14,7 @@ import {
     ResolvedScopedInheritTarget,
     resolveScopedDirectInheritSeeds
 } from './scopedInheritanceTraversal';
+import { isBareScopedPrefixSupportedByTokens } from './scopedSyntaxSupport';
 
 export interface ScopedDiscoveredMethod {
     name: string;
@@ -166,7 +167,7 @@ export class ScopedMethodDiscoveryService {
                     continue;
                 }
 
-                if (!this.isBareScopedPrefixSupported(document, node)) {
+                if (!isBareScopedPrefixSupportedByTokens(document, syntax, node)) {
                     return {
                         kind: 'unsupported',
                         prefix: node.name
@@ -324,20 +325,6 @@ export class ScopedMethodDiscoveryService {
             qualifier,
             methods
         };
-    }
-
-    private isBareScopedPrefixSupported(document: vscode.TextDocument, node: SyntaxNode): boolean {
-        const startOffset = document.offsetAt(node.range.start);
-        if (startOffset <= 0) {
-            return true;
-        }
-
-        const previousCharacter = document.getText(new vscode.Range(
-            document.positionAt(startOffset - 1),
-            document.positionAt(startOffset)
-        ));
-
-        return /[\s([{\[;,:=]/.test(previousCharacter);
     }
 
     private toDiscoveredMethod(document: vscode.TextDocument, func: FunctionSummary): ScopedDiscoveredMethod {

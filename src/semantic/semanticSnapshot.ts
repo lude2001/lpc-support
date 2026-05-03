@@ -29,6 +29,8 @@ export interface SemanticSnapshot {
     macroDefinitions?: MacroDefinitionSummary[];
     macroReferences: MacroReference[];
     symbolTable: SymbolTable;
+    degraded?: boolean;
+    failureReason?: string;
     createdAt: number;
 }
 
@@ -47,6 +49,8 @@ export function toDocumentSemanticSnapshot(snapshot: SemanticSnapshot): Document
         macroDefinitions: snapshot.macroDefinitions,
         macroReferences: snapshot.macroReferences,
         symbolTable: snapshot.symbolTable,
+        degraded: snapshot.degraded,
+        failureReason: snapshot.failureReason,
         createdAt: snapshot.createdAt
     };
 }

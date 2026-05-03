@@ -4,6 +4,10 @@ import { Token } from 'antlr4ts';
 import * as vscode from 'vscode';
 import { LPCLexer } from '../../../antlr/LPCLexer';
 import { SymbolType } from '../../../ast/symbolTable';
+import {
+    isLpcBuiltinType,
+    isLpcKeyword
+} from '../../../frontend/languageFacts';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { DocumentSemanticSnapshot } from '../../../semantic/documentSemanticTypes';
@@ -72,17 +76,6 @@ const TOKEN_TYPES = {
     operator: 'operator'
 } as const;
 
-const KEYWORDS = new Set([
-    'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break',
-    'continue', 'return', 'foreach', 'inherit', 'in', 'new',
-    'private', 'public', 'protected', 'varargs', 'nosave', 'static', 'nomask'
-]);
-
-const TYPE_KEYWORDS = new Set([
-    'int', 'float', 'string', 'object', 'mixed', 'mapping', 'function',
-    'buffer', 'void', 'struct'
-]);
-
 const TYPE_TOKENS = new Set<number>([
     LPCLexer.KW_INT,
     LPCLexer.KW_FLOAT,
@@ -111,6 +104,9 @@ const TOKEN_TYPE_MAP: Record<number, string> = {
     [LPCLexer.STAR_ASSIGN]: TOKEN_TYPES.operator,
     [LPCLexer.DIV_ASSIGN]: TOKEN_TYPES.operator,
     [LPCLexer.PERCENT_ASSIGN]: TOKEN_TYPES.operator,
+    [LPCLexer.BIT_XOR_ASSIGN]: TOKEN_TYPES.operator,
+    [LPCLexer.SHIFT_LEFT_ASSIGN]: TOKEN_TYPES.operator,
+    [LPCLexer.SHIFT_RIGHT_ASSIGN]: TOKEN_TYPES.operator,
     [LPCLexer.ARROW]: TOKEN_TYPES.operator,
     [LPCLexer.DOT]: TOKEN_TYPES.operator,
     [LPCLexer.PLUS]: TOKEN_TYPES.operator,
@@ -318,11 +314,11 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
             return TOKEN_TYPES.builtin;
         }
 
-        if (KEYWORDS.has(lowerText)) {
+        if (isLpcKeyword(lowerText)) {
             return TOKEN_TYPES.keyword;
         }
 
-        if (TYPE_KEYWORDS.has(lowerText)) {
+        if (isLpcBuiltinType(lowerText)) {
             return TOKEN_TYPES.type;
         }
 

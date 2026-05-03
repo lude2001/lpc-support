@@ -6,12 +6,13 @@ import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathS
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import type { SemanticSnapshot } from '../semantic/semanticSnapshot';
-import { SyntaxKind, SyntaxNode } from '../syntax/types';
+import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 import {
     collectScopedBranchItems,
     matchesScopedQualifier,
     resolveScopedDirectInheritSeeds
 } from './scopedInheritanceTraversal';
+import { isBareScopedPrefixSupportedByTokens } from './scopedSyntaxSupport';
 
 export interface ScopedMethodTarget {
     path: string;
@@ -87,7 +88,7 @@ export class ScopedMethodResolver {
                 continue;
             }
 
-            if (this.isMalformedScopedCall(document, callExpression) || scope.kind === 'unsupported') {
+            if (this.isMalformedScopedCall(document, syntax, callExpression) || scope.kind === 'unsupported') {
                 const qualifier = scope.kind === 'named'
                     ? scope.qualifier
                     : scope.kind === 'unsupported'
@@ -165,21 +166,12 @@ export class ScopedMethodResolver {
 
     private isMalformedScopedCall(
         document: vscode.TextDocument,
+        syntax: SyntaxDocument,
         callExpression: SyntaxNode
     ): boolean {
         const callee = callExpression.children[0];
         if (callee?.kind === SyntaxKind.Identifier && callee.metadata?.scopeQualifier === '::') {
-            const startOffset = document.offsetAt(callExpression.range.start);
-            if (startOffset <= 0) {
-                return false;
-            }
-
-            const previousCharacter = document.getText(new vscode.Range(
-                document.positionAt(startOffset - 1),
-                document.positionAt(startOffset)
-            ));
-
-            return !/[\s([{\[;,:=]/.test(previousCharacter);
+            return !isBareScopedPrefixSupportedByTokens(document, syntax, callee);
         }
 
         if (callee?.kind !== SyntaxKind.MemberAccessExpression || callee.metadata?.operator !== '::') {

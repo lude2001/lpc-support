@@ -858,7 +858,7 @@ describe('FormattingService range formatting', () => {
         ].join('\n'));
     });
 
-    test('仅有 foreach(ref) 误报时选区格式化仍可工作', async () => {
+    test('foreach(ref) 由语法主路径解析时选区格式化仍可工作', async () => {
         const service = new FormattingService();
         const source = [
             'void test()',

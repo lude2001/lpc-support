@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { isLpcPreprocessorDirective } from './languageFacts';
 import {
     IncludeReferenceFact,
     MacroDefinitionFact,
@@ -248,21 +249,7 @@ function endsWithContinuation(line: string): boolean {
 }
 
 function toDirectiveKind(command: string): PreprocessorDirectiveKind {
-    switch (command) {
-        case 'include':
-        case 'define':
-        case 'undef':
-        case 'if':
-        case 'ifdef':
-        case 'ifndef':
-        case 'elif':
-        case 'else':
-        case 'endif':
-        case 'pragma':
-            return command;
-        default:
-            return 'unknown';
-    }
+    return isLpcPreprocessorDirective(command) ? command : 'unknown';
 }
 
 function buildLineStartOffsets(text: string): number[] {

@@ -11,6 +11,9 @@ export type PreprocessorDirectiveKind =
     | 'else'
     | 'endif'
     | 'pragma'
+    | 'error'
+    | 'warning'
+    | 'line'
     | 'unknown';
 
 export interface SourceOffsetRange {
@@ -110,6 +113,12 @@ export interface LpcDialectProfile {
     name: string;
     supportedKeywords: readonly string[];
     supportedOperators: readonly string[];
+    builtinTypes: readonly string[];
+    declarationModifiers: readonly string[];
+    controlKeywords: readonly string[];
+    declarationKeywords: readonly string[];
+    expressionKeywords: readonly string[];
+    preprocessorDirectives: readonly string[];
     recognizedPartialKeywords: readonly string[];
     recognizedPartialOperators: readonly string[];
 }

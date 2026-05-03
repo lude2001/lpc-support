@@ -370,17 +370,21 @@ export class WorkspaceDocumentPathSupport {
     }
 
     private resolveMacroValue(document: vscode.TextDocument | undefined, name: string): string | undefined {
-        if (document) {
+        if (document && this.options.analysisService) {
             try {
-                const frontendMacro = this.options.analysisService
-                    ?.getSemanticSnapshot(document, false)
-                    .macroDefinitions
+                const snapshot = this.options.analysisService.getSemanticSnapshot(document, false);
+                if (snapshot.degraded) {
+                    return undefined;
+                }
+
+                const frontendMacro = snapshot.macroDefinitions
                     ?.find((macro) => macro.name === name);
+
                 if (frontendMacro?.value) {
                     return frontendMacro.value;
                 }
             } catch {
-                // Path support can be used while semantic analysis is unavailable; fall back to legacy macro lookup.
+                return undefined;
             }
         }
 

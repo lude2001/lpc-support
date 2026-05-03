@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { LPCParser } from '../antlr/LPCParser';
 import {
     ParsedDocumentService,
     clearGlobalParsedDocumentService,
@@ -133,6 +134,27 @@ describe('ParsedDocumentService', () => {
             expect.objectContaining({
                 source: 'ANTLR',
                 message: expect.stringContaining('token recognition error')
+            })
+        ]));
+    });
+
+    test('marks unexpected parser failures as degraded without fabricating empty source text', () => {
+        const service = new ParsedDocumentService({ cleanupInterval: 0, enableMonitoring: true });
+        const document = createDocument('void create() { return; }', '/virtual/parser-failure.c');
+        jest.spyOn(LPCParser.prototype, 'sourceFile').mockImplementationOnce(() => {
+            throw new Error('synthetic parser failure');
+        });
+
+        const parsed = service.get(document);
+
+        expect(parsed.degraded).toBe(true);
+        expect(parsed.parseText).toBe(document.getText());
+        expect(parsed.frontend).toBeDefined();
+        expect(parsed.failureReason).toContain('synthetic parser failure');
+        expect(parsed.diagnostics).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                severity: vscode.DiagnosticSeverity.Error,
+                message: expect.stringContaining('synthetic parser failure')
             })
         ]));
     });

@@ -3,13 +3,14 @@ import { Token } from 'antlr4ts';
 import { LPCParser } from '../antlr/LPCParser';
 import { CompletionQueryContext } from './types';
 import { FrontendCursorContextService } from '../frontend/FrontendCursorContextService';
+import {
+    isLpcBuiltinType,
+    isLpcDeclarationModifier,
+    isLpcNonCallParenKeyword
+} from '../frontend/languageFacts';
 import { getGlobalLpcFrontendService } from '../frontend/LpcFrontendService';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import type { ParsedDocument } from '../parser/types';
-
-const TYPE_KEYWORDS = new Set(['void', 'int', 'string', 'object', 'mapping', 'mixed', 'float', 'buffer', 'struct', 'class']);
-const MODIFIERS = new Set(['private', 'protected', 'public', 'static', 'nomask', 'varargs']);
-const NON_CALL_PAREN_KEYWORDS = new Set(['return', 'if', 'while', 'for', 'switch', 'catch']);
 
 interface ReceiverContext {
     receiverChain: string[];
@@ -82,7 +83,7 @@ export class CompletionContextAnalyzer {
             };
         }
 
-        const receiverContext = this.extractReceiverContext(document, position, linePrefix);
+        const receiverContext = this.extractReceiverContext(document, position);
         if (receiverContext.receiverChain.length > 0 || receiverContext.receiverExpression) {
             return {
                 kind: 'member',
@@ -140,38 +141,7 @@ export class CompletionContextAnalyzer {
         linePrefix: string,
         documentPrefix: string
     ): ScopedContextResult {
-        const tokenBackedContext = this.extractTokenBackedScopedContext(document, position, linePrefix, documentPrefix);
-        if (tokenBackedContext !== undefined) {
-            return tokenBackedContext;
-        }
-
-        const bareMatch = linePrefix.match(/(?:^|[\s([{\],;:=])::([A-Za-z_][A-Za-z0-9_]*)$/);
-        if (bareMatch) {
-            const scopedStart = bareMatch.index! + bareMatch[0].lastIndexOf('::');
-            if (this.isInsideCallArguments(this.extractPrefixBeforeScoped(documentPrefix, linePrefix, scopedStart))) {
-                return undefined;
-            }
-
-            return {
-                currentWord: bareMatch[1],
-                receiverExpression: '::'
-            };
-        }
-
-        const namedMatch = linePrefix.match(/([A-Za-z_][A-Za-z0-9_]*)::([A-Za-z_][A-Za-z0-9_]*)$/);
-        if (namedMatch) {
-            const scopedStart = namedMatch.index!;
-            if (this.isInsideCallArguments(this.extractPrefixBeforeScoped(documentPrefix, linePrefix, scopedStart))) {
-                return undefined;
-            }
-
-            return {
-                currentWord: namedMatch[2],
-                receiverExpression: `${namedMatch[1]}::`
-            };
-        }
-
-        return undefined;
+        return this.extractTokenBackedScopedContext(document, position, linePrefix, documentPrefix);
     }
 
     private extractTokenBackedScopedContext(
@@ -236,11 +206,6 @@ export class CompletionContextAnalyzer {
         };
     }
 
-    private extractPrefixBeforeScoped(documentPrefix: string, linePrefix: string, scopedStart: number): string {
-        const scopedSuffixLength = linePrefix.length - scopedStart;
-        return documentPrefix.slice(0, documentPrefix.length - scopedSuffixLength);
-    }
-
     private isInsideCallArguments(prefixBeforeScoped: string): boolean {
         for (const unmatchedParenIndex of this.findUnmatchedParenIndices(prefixBeforeScoped)) {
             if (this.isCallArgumentParen(prefixBeforeScoped, unmatchedParenIndex)) {
@@ -267,7 +232,7 @@ export class CompletionContextAnalyzer {
             return true;
         }
 
-        return !NON_CALL_PAREN_KEYWORDS.has(tokenMatch[1]);
+        return !isLpcNonCallParenKeyword(tokenMatch[1]);
     }
 
     private findUnmatchedParenIndices(text: string): number[] {
@@ -317,34 +282,14 @@ export class CompletionContextAnalyzer {
 
     private extractReceiverContext(
         document: vscode.TextDocument,
-        position: vscode.Position,
-        linePrefix: string
+        position: vscode.Position
     ): ReceiverContext {
         const tokenBackedContext = this.extractTokenBackedReceiverContext(document, position);
         if (tokenBackedContext) {
             return tokenBackedContext;
         }
 
-        const match = linePrefix.match(/(.+)\s*(?:->|\.)\s*[A-Za-z0-9_]*$/);
-        if (!match) {
-            return { receiverChain: [] };
-        }
-
-        const receiverExpression = match[1].trim();
-        if (!receiverExpression) {
-            return { receiverChain: [] };
-        }
-
-        if (/^[A-Za-z_][A-Za-z0-9_]*(?:\s*->\s*[A-Za-z_][A-Za-z0-9_]*)*$/.test(receiverExpression)) {
-            return {
-                receiverChain: receiverExpression.split('->').map(part => part.trim()).filter(Boolean)
-            };
-        }
-
-        return {
-            receiverChain: [],
-            receiverExpression
-        };
+        return { receiverChain: [] };
     }
 
     private extractTokenBackedReceiverContext(
@@ -390,11 +335,12 @@ export class CompletionContextAnalyzer {
     }
 
     private safeGetParsedDocument(document: vscode.TextDocument): ParsedDocument | undefined {
-        try {
-            return this.parsedDocumentService.get(document);
-        } catch {
-            return undefined;
+        const parsed = this.parsedDocumentService.get(document);
+        if (parsed.degraded) {
+            throw new Error(`Parsed document is degraded: ${parsed.failureReason ?? document.uri.toString()}`);
         }
+
+        return parsed;
     }
 
     private isPreprocessorContext(trimmedPrefix: string): boolean {
@@ -421,7 +367,7 @@ export class CompletionContextAnalyzer {
         }
 
         let index = 0;
-        while (index < tokens.length && MODIFIERS.has(tokens[index])) {
+        while (index < tokens.length && isLpcDeclarationModifier(tokens[index])) {
             index += 1;
         }
 
@@ -430,7 +376,7 @@ export class CompletionContextAnalyzer {
         }
 
         const token = tokens[index];
-        if (TYPE_KEYWORDS.has(token)) {
+        if (isLpcBuiltinType(token)) {
             return true;
         }
 

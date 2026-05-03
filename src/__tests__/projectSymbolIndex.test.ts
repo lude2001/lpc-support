@@ -143,6 +143,32 @@ describe('ProjectSymbolIndex', () => {
         ]);
     });
 
+    test('does not let degraded snapshots replace a valid index record', () => {
+        const snapshot = createSnapshot('/virtual/room.c');
+        snapshot.exportedFunctions = [{
+            name: 'query_name',
+            returnType: 'string',
+            parameters: [],
+            modifiers: [],
+            sourceUri: snapshot.uri,
+            range: new vscode.Range(0, 0, 0, 20),
+            origin: 'local'
+        }];
+
+        const degradedSnapshot = {
+            ...createSnapshot('/virtual/room.c'),
+            version: 2,
+            degraded: true,
+            exportedFunctions: []
+        };
+
+        const index = new ProjectSymbolIndex(new InheritanceResolver(undefined, ['/']));
+        index.updateFromSnapshot(snapshot);
+        index.updateFromSnapshot(degradedSnapshot);
+
+        expect(index.getRecord(snapshot.uri)?.exportedFunctions.map(func => func.name)).toEqual(['query_name']);
+    });
+
     test('builds include-backed visible symbol sets from resolved include facts', () => {
         const headerSnapshot = createSnapshot('/virtual/include/helper.h');
         headerSnapshot.exportedFunctions = [{

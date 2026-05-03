@@ -117,7 +117,7 @@ describe('formatter integration', () => {
         await expect(format('void test(){foreach(ref mixed item in arr){foo(item);}}')).resolves.toContain('foreach (ref mixed item in arr)');
     });
 
-    test('仅有 foreach(ref) 误报时仍会继续格式化整文', async () => {
+    test('foreach(ref) 由语法主路径解析并继续格式化整文', async () => {
         const source = 'void test(){foreach(ref mixed item in arr){if(x){foo(item);}}}';
 
         await expect(format(source)).resolves.toBe([
@@ -143,7 +143,7 @@ describe('formatter integration', () => {
         expect(output).toContain('if (x)');
     });
 
-    test('带 foreach(ref) 且存在其他语法错误的文件不会触发 fallback 改写', async () => {
+    test('带 foreach(ref) 且存在其他语法错误的文件仍会拒绝整文格式化', async () => {
         clearGlobalParsedDocumentService();
         const service = new FormattingService();
         const invalidDocument = TestHelper.createMockDocument([

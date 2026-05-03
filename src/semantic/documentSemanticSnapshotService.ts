@@ -280,6 +280,15 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
 
         try {
             parsed = getGlobalParsedDocumentService().get(document);
+            if (parsed.degraded) {
+                return this.createFallbackAnalysis(
+                    document,
+                    new Error(parsed.failureReason ?? 'Parsed document is degraded.'),
+                    parsed,
+                    syntax
+                );
+            }
+
             const ast = parsed.tree as SourceFileContext;
             const parseErrors = parsed.diagnostics.slice();
             syntax = new SyntaxBuilder(parsed).build();
@@ -309,13 +318,16 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
     ): DocumentSemanticAnalysis {
         const ast = {} as SourceFileContext;
         const symbolTable = new SymbolTable(document.uri.toString());
-        const parseErrors = [
-            new vscode.Diagnostic(
-                new vscode.Range(0, 0, 0, 1),
-                `Semantic snapshot error: ${error instanceof Error ? error.message : String(error)}`,
-                vscode.DiagnosticSeverity.Error
-            )
-        ];
+        const failureReason = error instanceof Error ? error.message : String(error);
+        const parseErrors = parsed?.diagnostics.length
+            ? parsed.diagnostics.slice()
+            : [
+                new vscode.Diagnostic(
+                    new vscode.Range(0, 0, 0, 1),
+                    `Semantic snapshot error: ${failureReason}`,
+                    vscode.DiagnosticSeverity.Error
+                )
+            ];
         const semantic = syntax
             ? {
                 uri: document.uri.toString(),
@@ -331,6 +343,8 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
                 includeStatements: [],
                 macroReferences: [],
                 symbolTable,
+                degraded: true,
+                failureReason,
                 createdAt: Date.now()
             }
             : undefined;
@@ -347,6 +361,8 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
             includeStatements: [],
             macroReferences: [],
             symbolTable,
+            degraded: true,
+            failureReason,
             createdAt: Date.now()
         };
 

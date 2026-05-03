@@ -108,13 +108,13 @@ export class ParsedDocumentService {
                 parser.addErrorListener(errorListener);
             }
 
-            const tree = this.safeParseTree(parser);
+            const tree = parser.sourceFile();
 
             const parseTimeMs = performance.now() - startTime;
             this.parseCount++;
             this.totalParseTime += parseTimeMs;
 
-            const allTokens = this.safeReadTokens(tokenStream);
+            const allTokens = this.readTokens(tokenStream);
             const visibleTokens = allTokens.filter((token) => token.channel === LPCLexer.DEFAULT_TOKEN_CHANNEL);
             const hiddenTokens = allTokens.filter((token) => token.channel !== LPCLexer.DEFAULT_TOKEN_CHANNEL);
             const parsed: ParsedDocument = {
@@ -146,48 +146,50 @@ export class ParsedDocumentService {
             this.documentCache.set(document, parsed, text.length * 2);
             return parsed;
         } catch (error) {
-            return this.createFallbackParsedDocument(document, text, startedAt, startTime, error, errorListener);
+            return this.createFallbackParsedDocument(document, text, parseText, frontend, startedAt, startTime, error, errorListener);
         }
     }
 
     private createFallbackParsedDocument(
         document: vscode.TextDocument,
         text: string,
+        parseText: string,
+        frontend: ReturnType<LpcFrontendService['get']>,
         startedAt: number,
         startTime: number,
         error: unknown,
         errorListener: CollectingErrorListener
     ): ParsedDocument {
-        const input = CharStreams.fromString('');
+        const input = CharStreams.fromString(parseText);
         const lexer = new LPCLexer(input);
         const tokenStream = new CommonTokenStream(lexer);
-        const parser = new LPCParser(tokenStream);
-        const tree = this.safeParseTree(parser);
+        const tree = this.createEmptyParseTree();
 
         const parseTimeMs = performance.now() - startTime;
         this.parseCount++;
         this.totalParseTime += parseTimeMs;
 
         const diagnostics = this.safeDiagnostics(errorListener);
+        const failureReason = error instanceof Error ? error.message : String(error);
         if (diagnostics.length === 0) {
             diagnostics.push(
                 new vscode.Diagnostic(
                     new vscode.Range(0, 0, 0, 1),
-                    `Parse error: ${error instanceof Error ? error.message : String(error)}`,
+                    `Parse error: ${failureReason}`,
                     vscode.DiagnosticSeverity.Error
                 )
             );
         }
 
-        const allTokens = this.safeReadTokens(tokenStream);
+        const allTokens = this.readTokensIfAvailable(tokenStream);
         const visibleTokens = allTokens.filter((token) => token.channel === LPCLexer.DEFAULT_TOKEN_CHANNEL);
         const hiddenTokens = allTokens.filter((token) => token.channel !== LPCLexer.DEFAULT_TOKEN_CHANNEL);
         const parsed: ParsedDocument = {
             uri: document.uri.toString(),
             version: document.version,
             text,
-            parseText: '',
-            frontend: undefined,
+            parseText,
+            frontend,
             tokenStream,
             tokens: tokenStream,
             allTokens,
@@ -196,6 +198,8 @@ export class ParsedDocumentService {
             tokenTriviaIndex: {} as TokenTriviaIndex,
             tree,
             diagnostics,
+            degraded: true,
+            failureReason,
             createdAt: startedAt,
             lastAccessed: startedAt,
             parseTimeMs,
@@ -209,18 +213,18 @@ export class ParsedDocumentService {
         return parsed;
     }
 
-    private safeParseTree(parser: LPCParser): ReturnType<LPCParser['sourceFile']> {
-        try {
-            return parser.sourceFile();
-        } catch {
-            return {} as ReturnType<LPCParser['sourceFile']>;
-        }
+    private createEmptyParseTree(): ReturnType<LPCParser['sourceFile']> {
+        return new LPCParser(new CommonTokenStream(new LPCLexer(CharStreams.fromString('')))).sourceFile();
     }
 
-    private safeReadTokens(tokenStream: CommonTokenStream) {
+    private readTokens(tokenStream: CommonTokenStream) {
+        tokenStream.fill();
+        return tokenStream.getTokens();
+    }
+
+    private readTokensIfAvailable(tokenStream: CommonTokenStream) {
         try {
-            tokenStream.fill();
-            return tokenStream.getTokens();
+            return this.readTokens(tokenStream);
         } catch {
             return [];
         }

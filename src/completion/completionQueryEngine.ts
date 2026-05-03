@@ -2,6 +2,11 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Symbol, SymbolType } from '../ast/symbolTable';
 import { getTypeLookupName, normalizeLpcType } from '../ast/typeNormalization';
+import {
+    LPC_BUILTIN_TYPES,
+    LPC_COMPLETION_KEYWORDS,
+    LPC_PREPROCESSOR_DIRECTIVES
+} from '../frontend/languageFacts';
 import { MacroManager } from '../macroManager';
 import { ProjectSymbolIndex } from './projectSymbolIndex';
 import {
@@ -38,9 +43,6 @@ export interface CompletionQueryEngineOptions {
     keywords?: string[];
 }
 
-const DEFAULT_BUILTIN_TYPES = ['void', 'int', 'string', 'object', 'mapping', 'mixed', 'float', 'buffer', 'struct', 'class'];
-const DEFAULT_KEYWORDS = ['inherit', 'include', 'if', 'else', 'for', 'while', 'foreach', 'switch', 'return', 'new', 'catch'];
-const PREPROCESSOR_KEYWORDS = ['include', 'define', 'ifdef', 'ifndef', 'endif'];
 const COMMON_OBJECT_METHODS = [
     { name: 'query', snippet: 'query(${1:prop})', detail: '?????' },
     { name: 'set', snippet: 'set(${1:prop}, ${2:value})', detail: '?????' },
@@ -63,8 +65,8 @@ export class CompletionQueryEngine {
         this.contextAnalyzer = options.contextAnalyzer || new CompletionContextAnalyzer();
         this.macroManager = options.macroManager;
         this.efunProvider = options.efunProvider;
-        this.builtinTypes = options.builtinTypes || DEFAULT_BUILTIN_TYPES;
-        this.keywords = options.keywords || DEFAULT_KEYWORDS;
+        this.builtinTypes = options.builtinTypes || [...LPC_BUILTIN_TYPES];
+        this.keywords = options.keywords || [...LPC_COMPLETION_KEYWORDS];
     }
 
     public query(
@@ -329,7 +331,7 @@ export class CompletionQueryEngine {
     }
 
     private queryPreprocessorCandidates(snapshot: DocumentSemanticSnapshot): CompletionCandidate[] {
-        const candidates: CompletionCandidate[] = PREPROCESSOR_KEYWORDS.map(keyword => ({
+        const candidates: CompletionCandidate[] = LPC_PREPROCESSOR_DIRECTIVES.map(keyword => ({
             key: `preprocessor:${keyword}`,
             label: keyword,
             kind: vscode.CompletionItemKind.Keyword,

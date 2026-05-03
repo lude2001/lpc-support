@@ -24,7 +24,7 @@ type ProjectSemanticSnapshot = Pick<
     | 'includeStatements'
     | 'macroReferences'
     | 'createdAt'
->;
+> & Pick<Partial<SemanticSnapshot>, 'degraded'>;
 
 export class ProjectSymbolIndex implements InheritanceIndexView {
     private readonly inheritanceResolver: InheritanceResolver;
@@ -38,6 +38,10 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
     }
 
     public updateFromSemanticSnapshot(snapshot: ProjectSemanticSnapshot): void {
+        if (snapshot.degraded) {
+            return;
+        }
+
         const existingRecord = this.records.get(snapshot.uri);
         if (existingRecord && existingRecord.version >= snapshot.version) {
             return;

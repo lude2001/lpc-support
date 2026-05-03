@@ -1,14 +1,10 @@
+import { isLpcDocumentationType } from '../frontend/languageFacts';
+
 /**
  * JavaDoc注释处理工具类
  * 统一处理JavaDoc格式的注释，避免重复实现
  */
 export class JavaDocProcessor {
-    // 常见的LPC类型关键字
-    private static readonly LPC_TYPES = new Set([
-        'void', 'int', 'string', 'object', 'mixed', 'mapping', 'function',
-        'float', 'status', 'varargs', 'closure'
-    ]);
-
     /**
      * 处理JavaDoc注释，返回HTML格式
      */
@@ -58,7 +54,7 @@ export class JavaDocProcessor {
                 const paramText = line.replace('@param', '').trim();
                 const parts = paramText.split(/\s+/);
 
-                if (parts.length >= 3 && this.LPC_TYPES.has(parts[0])) {
+                if (parts.length >= 3 && isLpcDocumentationType(parts[0])) {
                     // 格式: @param type name description
                     const type = parts[0];
                     const name = parts[1];
@@ -83,7 +79,7 @@ export class JavaDocProcessor {
                 const returnText = line.replace('@return', '').trim();
                 const parts = returnText.split(/\s+/);
 
-                if (parts.length >= 2 && this.LPC_TYPES.has(parts[0])) {
+                if (parts.length >= 2 && isLpcDocumentationType(parts[0])) {
                     // 格式: @return type description
                     const type = parts[0];
                     const desc = parts.slice(1).join(' ');

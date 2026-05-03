@@ -108,6 +108,31 @@ describe('WorkspaceDocumentPathSupport', () => {
         expect(legacyMacroLookup).not.toHaveBeenCalled();
     });
 
+    test('does not use legacy macro lookup when semantic macro facts are unavailable', () => {
+        const workspaceRoot = 'D:/workspace';
+        const document = createDocument('D:/workspace/obj/room.c');
+        const legacyMacroLookup = jest.fn(() => ({ value: '"/std/legacy_room"' }));
+        const support = new WorkspaceDocumentPathSupport({
+            host: {
+                openTextDocument: jest.fn(),
+                fileExists: jest.fn(() => true),
+                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
+            },
+            analysisService: {
+                getSemanticSnapshot: jest.fn(() => {
+                    throw new Error('semantic unavailable');
+                })
+            } as any,
+            macroManager: {
+                getMacro: legacyMacroLookup
+            } as any
+        });
+
+        expect(support.resolveInheritedFilePath(document, 'ROOM_BASE', workspaceRoot)).toBeUndefined();
+        expect(support.resolveObjectFilePath(document, 'ROOM_BASE')).toBeUndefined();
+        expect(legacyMacroLookup).not.toHaveBeenCalled();
+    });
+
     test('resolves system include paths from project configuration first', async () => {
         const workspaceRoot = 'D:/workspace';
         const document = createDocument('D:/workspace/obj/room.c');
