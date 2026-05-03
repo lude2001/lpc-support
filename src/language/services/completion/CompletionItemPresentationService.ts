@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { SymbolType } from '../../../ast/symbolTable';
 import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
 import { CompletionCandidate, CompletionQueryResult, TypeDefinitionSummary } from '../../../completion/types';
-import type { MacroManager } from '../../../macroManager';
 import type { EfunDocsManager } from '../../../efun/EfunDocsManager';
 import type { CallableDoc } from '../../documentation/types';
 import { ScopedMethodCompletionSupport } from './ScopedMethodCompletionSupport';
@@ -10,13 +9,11 @@ import type { LanguageCompletionItem } from './LanguageCompletionService';
 import { buildFunctionSnippet } from './completionSnippetUtils';
 
 type PresentationEfunDocs = Pick<EfunDocsManager, 'getStandardCallableDoc' | 'getSimulatedDoc'>;
-type PresentationMacroManager = Pick<MacroManager, 'getMacro' | 'getMacroHoverContent'>;
 type ScopedDocumentationSupport = Pick<ScopedMethodCompletionSupport, 'applyScopedDocumentation'>;
 
 export class CompletionItemPresentationService {
     constructor(
         private readonly efunDocsManager: PresentationEfunDocs,
-        private readonly macroManager: PresentationMacroManager,
         private readonly projectSymbolIndex: ProjectSymbolIndex,
         private readonly scopedCompletionSupport: ScopedDocumentationSupport
     ) {}
@@ -61,7 +58,7 @@ export class CompletionItemPresentationService {
                 this.applyEfunDocumentation(resolvedItem, this.efunDocsManager.getSimulatedDoc(candidate.label));
                 break;
             case 'macro':
-                this.applyMacroDocumentation(resolvedItem, candidate.label);
+                this.applyKeywordDocumentation(resolvedItem, candidate);
                 break;
             case 'scoped-method':
                 return this.scopedCompletionSupport.applyScopedDocumentation(resolvedItem, candidate);
@@ -150,21 +147,6 @@ export class CompletionItemPresentationService {
         };
         item.detail = returnType ? `${returnType} ${item.label}` : item.detail;
         item.insertText = `${item.label}($1)`;
-    }
-
-    private applyMacroDocumentation(item: LanguageCompletionItem, macroName: string): void {
-        const macro = this.macroManager.getMacro(macroName);
-        if (!macro) {
-            return;
-        }
-
-        const documentation = this.macroManager.getMacroHoverContent(macro);
-        if (documentation) {
-            item.documentation = {
-                kind: 'markdown',
-                value: documentation.value
-            };
-        }
     }
 
     private applyStructuredDocumentation(item: LanguageCompletionItem, candidate: CompletionCandidate): void {

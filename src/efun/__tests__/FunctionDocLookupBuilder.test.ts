@@ -219,12 +219,10 @@ describe('FunctionDocLookupBuilder', () => {
             analysisService: DocumentSemanticSnapshotService.getInstance(),
             pathSupport: new WorkspaceDocumentPathSupport({
                 host: createVsCodeTextDocumentHost(),
-                macroManager: {
-                    getMacro: jest.fn().mockReturnValue({ value: '"/inherit/base"' })
-                } as any
+                analysisService: DocumentSemanticSnapshotService.getInstance()
             }),
         });
-        const document = createTextDocument(mainFile, 'inherit BASE_INHERIT;\n');
+        const document = createTextDocument(mainFile, '#define BASE_INHERIT "/inherit/base"\ninherit BASE_INHERIT;\n');
 
         const lookup = await builder.buildLookup(document);
         const doc = getDocByName(lookup.inheritedGroups[0].docs, 'helper_inherited');

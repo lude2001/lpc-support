@@ -190,14 +190,6 @@ describe('language-service integration regression', () => {
         getAllSimulatedFunctions: jest.fn(() => []),
         getSimulatedDoc: jest.fn(() => undefined)
     };
-    const macroManager = {
-        getMacro: jest.fn(),
-        getAllMacros: jest.fn(() => []),
-        getMacroHoverContent: jest.fn(),
-        scanMacros: jest.fn(),
-        getIncludePath: jest.fn(() => undefined),
-        canResolveMacro: jest.fn(() => false)
-    };
 
     let fixtureRoot: string;
     let analysisService: DocumentSemanticSnapshotService;
@@ -213,7 +205,6 @@ describe('language-service integration regression', () => {
         });
 
         return createDefaultObjectInferenceService({
-            macroManager: macroManager as any,
             analysisService,
             documentationService,
             host: documentHost,
@@ -227,7 +218,6 @@ describe('language-service integration regression', () => {
         dependencies: Record<string, unknown> = {}
     ) => createDefaultQueryBackedLanguageCompletionService({
         efunDocsManager: efunDocsManager as any,
-        macroManager: macroManager as any,
         analysisService,
         documentationService,
         objectInferenceService: objectInferenceService ?? createObjectInference(),
@@ -237,10 +227,9 @@ describe('language-service integration regression', () => {
             show: jest.fn(),
             appendLine: jest.fn()
         } as any,
-        projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any, [fixtureRoot])),
+        projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver([fixtureRoot])),
         contextAnalyzer: new CompletionContextAnalyzer(),
         scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
-            macroManager: macroManager as any,
             workspaceRoots: [fixtureRoot],
             analysisService,
             host: documentHost
@@ -254,7 +243,6 @@ describe('language-service integration regression', () => {
     } as any);
     const createScopedMethodResolver = () =>
         createDefaultScopedMethodResolver({
-            macroManager: macroManager as any,
             workspaceRoots: [fixtureRoot],
             analysisService,
             host: documentHost
@@ -286,7 +274,6 @@ describe('language-service integration regression', () => {
             };
         const resolvedPathSupport = new WorkspaceDocumentPathSupport({
             host: resolvedDependencies.host as any,
-            macroManager: macroManager as any,
             projectConfigService: projectConfigService as any
         });
         const resolvedObjectInferenceService = objectInferenceService
@@ -295,7 +282,6 @@ describe('language-service integration regression', () => {
             ?? new TargetMethodLookup(analysisService, resolvedPathSupport);
 
         return new AstBackedLanguageDefinitionService(
-            macroManager as any,
             efunDocsManager as any,
             resolvedObjectInferenceService as any,
             resolvedTargetMethodLookup as any,
@@ -309,16 +295,6 @@ describe('language-service integration regression', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        macroManager.getMacro.mockReset();
-        macroManager.getMacro.mockReturnValue(undefined);
-        macroManager.getAllMacros.mockReset();
-        macroManager.getAllMacros.mockReturnValue([]);
-        macroManager.getMacroHoverContent.mockReset();
-        macroManager.scanMacros.mockReset();
-        macroManager.getIncludePath.mockReset();
-        macroManager.getIncludePath.mockReturnValue(undefined);
-        macroManager.canResolveMacro.mockReset();
-        macroManager.canResolveMacro.mockResolvedValue(false);
         efunDocsManager.getAllFunctions.mockReset();
         efunDocsManager.getAllFunctions.mockReturnValue(['write']);
         efunDocsManager.getStandardCallableDoc.mockReset();
@@ -332,7 +308,7 @@ describe('language-service integration regression', () => {
         documentHost = createVsCodeTextDocumentHost();
         pathSupport = new WorkspaceDocumentPathSupport({
             host: documentHost,
-            macroManager: macroManager as any
+            analysisService
         });
         configureAstManagerSingletonForTests(analysisService);
         fixtureRoot = path.join(process.cwd(), '.tmp-provider-integration');
@@ -1114,7 +1090,7 @@ describe('language-service integration regression', () => {
         expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name');
     });
 
-    test('definition resolves local receivers initialized from new(CLASSIFY_POP) through macro-backed object inference', async () => {
+    test('definition resolves local receivers initialized from new(CLASSIFY_POP) through frontend macro object inference', async () => {
         const targetFile = path.join(fixtureRoot, 'std', 'classify_pop.c');
         fs.mkdirSync(path.dirname(targetFile), { recursive: true });
         fs.writeFileSync(
@@ -1124,15 +1100,10 @@ describe('language-service integration regression', () => {
                 '}'
             ].join('\n')
         );
-        macroManager.getMacro.mockReturnValue({
-            name: 'CLASSIFY_POP',
-            value: '/std/classify_pop',
-            file: path.join(fixtureRoot, 'include', 'globals.h'),
-            line: 1
-        });
         installWorkspaceOpenTextDocumentFixture();
 
         const source = [
+            '#define CLASSIFY_POP "/std/classify_pop"',
             'int main(object me, string arg) {',
             '    object classify_pop;',
             '    classify_pop = new(CLASSIFY_POP);',
@@ -1286,19 +1257,10 @@ describe('language-service integration regression', () => {
             equipModelFile,
             'mapping create_action(string cmd, string text) { return ([]); }\n'
         );
-        macroManager.getMacro.mockImplementation((name: string) =>
-            name === 'PROTOCOL_D'
-                ? {
-                    name,
-                    value: '"/adm/protocol/protocol_server"',
-                    file: path.join(fixtureRoot, 'include', 'globals.h'),
-                    line: 1
-                }
-                : undefined
-        );
         installWorkspaceOpenTextDocumentFixture();
 
         const source = [
+            '#define PROTOCOL_D "/adm/protocol/protocol_server"',
             'void demo() {',
             '    PROTOCOL_D->model_get("navigation_popup")->create_action("上一页", "new_banghui mb 1");',
             '}'

@@ -71,14 +71,15 @@ describe('InheritanceResolver', () => {
     });
 
     test('resolves string and macro inherit directives to workspace files', () => {
-        const resolver = new InheritanceResolver(
-            {
-                getMacro: jest.fn((name: string) => name === 'BASE_D' ? ({ value: '"/lib/macro_base"' } as any) : undefined),
-                getIncludePath: jest.fn(() => undefined)
-            } as any,
-            [root]
-        );
+        const resolver = new InheritanceResolver([root]);
         const snapshot = createSnapshot(path.join(root, 'room.c'));
+        snapshot.macroDefinitions = [{
+            name: 'BASE_D',
+            value: '"/lib/macro_base"',
+            range: new vscode.Range(0, 0, 0, 0),
+            isFunctionLike: false,
+            sourceUri: snapshot.uri
+        }];
 
         snapshot.inheritStatements = [
             {
@@ -104,15 +105,9 @@ describe('InheritanceResolver', () => {
         expect(targets.map(target => path.basename(vscode.Uri.parse(target.resolvedUri!).fsPath))).toEqual(['base.c', 'macro_base.c']);
     });
 
-    test('prefers semantic macro definitions before manager macro lookup', () => {
+    test('resolves macro inherit directives from semantic macro definitions', () => {
         fs.writeFileSync(path.join(root, 'lib', 'frontend_base.c'), 'int frontend_call() { return 1; }', 'utf8');
-        const managerMacroLookup = jest.fn(() => ({ value: '"/lib/macro_base"' } as any));
-        const resolver = new InheritanceResolver(
-            {
-                getMacro: managerMacroLookup
-            } as any,
-            [root]
-        );
+        const resolver = new InheritanceResolver([root]);
         const snapshot = createSnapshot(path.join(root, 'room.c'));
         snapshot.macroDefinitions = [{
             name: 'BASE_D',
@@ -134,7 +129,6 @@ describe('InheritanceResolver', () => {
         expect(targets).toHaveLength(1);
         expect(targets[0].isResolved).toBe(true);
         expect(path.basename(vscode.Uri.parse(targets[0].resolvedUri!).fsPath)).toBe('frontend_base.c');
-        expect(managerMacroLookup).not.toHaveBeenCalled();
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

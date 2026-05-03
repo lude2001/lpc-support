@@ -63,15 +63,6 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         getAllSimulatedFunctions: jest.fn(() => []),
         getSimulatedDoc: jest.fn(() => undefined)
     };
-    const macroManager = {
-        getMacro: jest.fn(),
-        getAllMacros: jest.fn(() => []),
-        getMacroHoverContent: jest.fn(),
-        scanMacros: jest.fn(),
-        getIncludePath: jest.fn(() => undefined),
-        canResolveMacro: jest.fn(() => false)
-    };
-
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     beforeEach(() => {
@@ -105,7 +96,6 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         const documentHost = createVsCodeTextDocumentHost();
         const service = createDefaultQueryBackedLanguageCompletionService({
             efunDocsManager: efunDocsManager as any,
-            macroManager: macroManager as any,
             analysisService,
             documentationService: documentationService as any,
             objectInferenceService: {} as any,
@@ -115,10 +105,9 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 show: jest.fn(),
                 appendLine: jest.fn()
             } as any,
-            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any)),
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver()),
             contextAnalyzer: new CompletionContextAnalyzer(),
             scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
-                macroManager: macroManager as any,
                 analysisService,
                 host: documentHost
             }),
@@ -183,7 +172,6 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         const documentHost = createVsCodeTextDocumentHost();
         const service = createDefaultQueryBackedLanguageCompletionService({
             efunDocsManager: efunDocsManager as any,
-            macroManager: macroManager as any,
             analysisService,
             documentationService: documentationService as any,
             objectInferenceService: {} as any,
@@ -193,10 +181,9 @@ describe('LanguageCompletionService scoped completion resolve', () => {
                 show: jest.fn(),
                 appendLine: jest.fn()
             } as any,
-            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any)),
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver()),
             contextAnalyzer: new CompletionContextAnalyzer(),
             scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
-                macroManager: macroManager as any,
                 analysisService,
                 host: documentHost
             }),

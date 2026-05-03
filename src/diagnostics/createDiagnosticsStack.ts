@@ -1,4 +1,3 @@
-import type { MacroManager } from '../macroManager';
 import { StringLiteralCollector } from '../collectors/StringLiteralCollector';
 import { FileNamingCollector } from '../collectors/FileNamingCollector';
 import { UnusedVariableCollector } from '../collectors/UnusedVariableCollector';
@@ -18,23 +17,22 @@ export interface DiagnosticsStack {
 
 type DiagnosticsAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
 
-export function createDefaultDiagnosticsCollectors(macroManager: MacroManager): IDiagnosticCollector[] {
+export function createDefaultDiagnosticsCollectors(): IDiagnosticCollector[] {
     return [
         new StringLiteralCollector(),
         new FileNamingCollector(),
         new UnusedVariableCollector(),
         new GlobalVariableCollector(),
         new LocalVariableDeclarationCollector(),
-        new ObjectAccessCollector(macroManager),
-        new MacroUsageCollector(macroManager),
+        new ObjectAccessCollector(),
+        new MacroUsageCollector(),
     ];
 }
 
 export function createDiagnosticsStack(
-    macroManager: MacroManager,
     analysisService: DiagnosticsAnalysisService
 ): DiagnosticsStack {
-    const collectors = createDefaultDiagnosticsCollectors(macroManager);
+    const collectors = createDefaultDiagnosticsCollectors();
     const diagnosticsService = createSharedDiagnosticsService(analysisService, collectors);
 
     return {

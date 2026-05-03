@@ -48,7 +48,7 @@ export class PreprocessorScanner {
             directives.push(directive);
 
             if (directive.kind === 'define') {
-                const macro = this.tryCreateMacro(directive);
+                const macro = this.tryCreateMacro(directive, uri);
                 if (macro) {
                     macros.push(macro);
                 }
@@ -123,7 +123,7 @@ export class PreprocessorScanner {
         };
     }
 
-    private tryCreateMacro(directive: PreprocessorDirective): MacroDefinitionFact | undefined {
+    private tryCreateMacro(directive: PreprocessorDirective, sourceUri: string): MacroDefinitionFact | undefined {
         const match = directive.body.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\(([^)]*)\))?\s*([\s\S]*)$/);
         if (!match) {
             return undefined;
@@ -139,6 +139,7 @@ export class PreprocessorScanner {
             parameters,
             isFunctionLike: parameters !== undefined,
             source: 'document',
+            sourceUri,
             startOffset: directive.startOffset,
             endOffset: directive.endOffset,
             range: directive.range

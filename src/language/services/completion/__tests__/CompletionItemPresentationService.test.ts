@@ -60,10 +60,6 @@ describe('CompletionItemPresentationService', () => {
                 getStandardCallableDoc: jest.fn(),
                 getSimulatedDoc: jest.fn()
             },
-            {
-                getMacro: jest.fn(),
-                getMacroHoverContent: jest.fn()
-            },
             new ProjectSymbolIndex(new InheritanceResolver()),
             { applyScopedDocumentation: jest.fn() }
         );
@@ -120,10 +116,6 @@ describe('CompletionItemPresentationService', () => {
                 })),
                 getSimulatedDoc: jest.fn()
             },
-            {
-                getMacro: jest.fn(),
-                getMacroHoverContent: jest.fn()
-            },
             new ProjectSymbolIndex(new InheritanceResolver()),
             { applyScopedDocumentation: jest.fn() }
         );
@@ -150,13 +142,6 @@ describe('CompletionItemPresentationService', () => {
                 getStandardCallableDoc: jest.fn(),
                 getSimulatedDoc: jest.fn()
             },
-            {
-                getMacro: jest.fn(() => ({ name: 'ROOM_D' })),
-                getMacroHoverContent: jest.fn(() => ({
-                    kind: 'markdown',
-                    value: 'ROOM_D macro docs'
-                }))
-            },
             new ProjectSymbolIndex(new InheritanceResolver()),
             { applyScopedDocumentation: jest.fn() }
         );
@@ -170,7 +155,7 @@ describe('CompletionItemPresentationService', () => {
             metadata: { sourceType: 'macro' }
         } as any);
 
-        expect(resolved.documentation?.value).toBe('ROOM_D macro docs');
+        expect(resolved.documentation?.value ?? '').toContain('#define ROOM_D');
     });
 
     test('resolveCompletionItem delegates scoped docs through ScopedMethodCompletionSupport', async () => {
@@ -186,10 +171,6 @@ describe('CompletionItemPresentationService', () => {
             {
                 getStandardCallableDoc: jest.fn(),
                 getSimulatedDoc: jest.fn()
-            },
-            {
-                getMacro: jest.fn(),
-                getMacroHoverContent: jest.fn()
             },
             new ProjectSymbolIndex(new InheritanceResolver()),
             { applyScopedDocumentation }
@@ -244,10 +225,6 @@ describe('CompletionItemPresentationService', () => {
             {
                 getStandardCallableDoc: jest.fn(),
                 getSimulatedDoc: jest.fn()
-            },
-            {
-                getMacro: jest.fn(),
-                getMacroHoverContent: jest.fn()
             },
             projectSymbolIndex,
             { applyScopedDocumentation: jest.fn() }

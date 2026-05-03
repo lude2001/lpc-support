@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import { SymbolType } from '../../../../ast/symbolTable';
 import { getTypeLookupName } from '../../../../ast/typeNormalization';
 import { EfunDocsManager } from '../../../../efunDocs';
-import { MacroManager } from '../../../../macroManager';
 import { TypeDefinitionSummary } from '../../../../semantic/documentSemanticTypes';
 import { SyntaxKind, SyntaxNode } from '../../../../syntax/types';
 import { resolveVisibleSymbol } from '../../../../symbolReferenceResolver';
@@ -13,7 +12,6 @@ import type { DefinitionRequestState, DefinitionSemanticAdapter } from './types'
 
 interface DirectSymbolDefinitionResolverDependencies {
     support: DefinitionResolverSupport;
-    macroManager: MacroManager;
     efunDocsManager: Pick<EfunDocsManager, 'getSimulatedDoc'>;
     semanticAdapter?: DefinitionSemanticAdapter;
 }
@@ -37,11 +35,6 @@ export class DirectSymbolDefinitionResolver {
         const localMacroDefinition = this.findLocalMacroDefinition(document, word);
         if (localMacroDefinition) {
             return localMacroDefinition;
-        }
-
-        const macroDefinition = await this.findMacroDefinition(word);
-        if (macroDefinition) {
-            return macroDefinition;
         }
 
         const simulatedEfunDefinition = await this.findSimulatedEfunDefinition(word, workspaceRoot, projectConfig);
@@ -74,7 +67,12 @@ export class DirectSymbolDefinitionResolver {
             return undefined;
         }
 
-        return new vscode.Location(document.uri, macro.range);
+        if (!macro.sourceUri) {
+            return undefined;
+        }
+
+        const macroUri = vscode.Uri.parse(macro.sourceUri);
+        return new vscode.Location(macroUri, macro.range);
     }
 
     private async handleIncludeDefinition(
@@ -105,24 +103,6 @@ export class DirectSymbolDefinitionResolver {
             vscode.Uri.file(targetPath),
             new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0))
         );
-    }
-
-    private async findMacroDefinition(word: string): Promise<vscode.Location | undefined> {
-        const macro = this.dependencies.macroManager.getMacroAsync
-            ? await this.dependencies.macroManager.getMacroAsync(word)
-            : this.dependencies.macroManager.getMacro?.(word);
-        if (!macro) {
-            return undefined;
-        }
-
-        const macroDoc = await this.dependencies.support.tryOpenTextDocument(vscode.Uri.file(macro.file));
-        if (!macroDoc) {
-            return undefined;
-        }
-
-        const startPos = new vscode.Position(macro.line - 1, 0);
-        const endPos = new vscode.Position(macro.line - 1, macroDoc.lineAt(macro.line - 1).text.length);
-        return new vscode.Location(vscode.Uri.file(macro.file), new vscode.Range(startPos, endPos));
     }
 
     private async findSimulatedEfunDefinition(

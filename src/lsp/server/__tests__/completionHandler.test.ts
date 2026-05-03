@@ -400,18 +400,10 @@ describe('registerCompletionHandler', () => {
             getAllSimulatedFunctions: jest.fn(() => []),
             getSimulatedDoc: jest.fn(() => undefined)
         };
-        const macroManager = {
-            getMacro: jest.fn(),
-            getAllMacros: jest.fn(() => []),
-            getMacroHoverContent: jest.fn(),
-            scanMacros: jest.fn(),
-            getIncludePath: jest.fn(() => undefined)
-        };
         const documentHost = createVsCodeTextDocumentHost();
         const documentationService = createDefaultFunctionDocumentationService();
         const realService = createDefaultQueryBackedLanguageCompletionService({
             efunDocsManager: efunDocsManager as any,
-            macroManager: macroManager as any,
             analysisService: DocumentSemanticSnapshotService.getInstance(),
             documentationService,
             objectInferenceService: { inferObjectAccess: jest.fn() } as any,
@@ -421,10 +413,9 @@ describe('registerCompletionHandler', () => {
                 show: jest.fn(),
                 appendLine: jest.fn()
             } as any,
-            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(macroManager as any)),
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver()),
             contextAnalyzer: new CompletionContextAnalyzer(),
             scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
-                macroManager: macroManager as any,
                 analysisService: DocumentSemanticSnapshotService.getInstance(),
                 host: documentHost
             }),

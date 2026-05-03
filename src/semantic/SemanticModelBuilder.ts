@@ -533,7 +533,7 @@ export class SemanticModelBuilder {
             range: macro.range,
             parameters: macro.parameters,
             isFunctionLike: macro.isFunctionLike,
-            sourceUri: this.syntaxDocument.uri
+            sourceUri: macro.sourceUri ?? this.syntaxDocument.uri
         })) ?? [];
     }
 

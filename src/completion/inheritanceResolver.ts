@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { MacroManager } from '../macroManager';
 import type { MacroDefinitionSummary } from '../semantic/documentSemanticTypes';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { ResolvedInheritTarget } from './types';
@@ -10,18 +9,15 @@ export interface InheritanceIndexView {
     getResolvedInheritTargets(uri: string): ResolvedInheritTarget[];
 }
 
-type MacroLookup = Pick<MacroManager, 'getMacro'>;
 type InheritanceSnapshot = Pick<SemanticSnapshot, 'uri' | 'inheritStatements'> & {
     macroDefinitions?: MacroDefinitionSummary[];
 };
 
 export class InheritanceResolver {
-    private readonly macroManager?: MacroLookup;
     private readonly workspaceRoots?: string[];
     private indexView?: InheritanceIndexView;
 
-    constructor(macroManager?: MacroLookup, workspaceRoots?: string[]) {
-        this.macroManager = macroManager;
+    constructor(workspaceRoots?: string[]) {
         this.workspaceRoots = workspaceRoots;
     }
 
@@ -110,13 +106,7 @@ export class InheritanceResolver {
             if (frontendMacroValue) {
                 return this.stripQuotes(frontendMacroValue.trim());
             }
-
-            const macroValue = this.macroManager?.getMacro(directiveValue)?.value;
-            if (!macroValue) {
-                return undefined;
-            }
-
-            return this.stripQuotes(macroValue.trim());
+            return undefined;
         }
 
         return this.stripQuotes(directiveValue.trim());

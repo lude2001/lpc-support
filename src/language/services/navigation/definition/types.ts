@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import type { LanguageLocation } from '../../../contracts/LanguagePosition';
-import { MacroManager } from '../../../../macroManager';
 import { EfunDocsManager } from '../../../../efunDocs';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
@@ -46,7 +45,6 @@ export interface DefinitionSemanticAdapter {
 }
 
 export interface DefinitionResolverContext {
-    macroManager: MacroManager;
     efunDocsManager: EfunDocsManager;
     analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot' | 'getBestAvailableSnapshot'>;
     objectInferenceService: ObjectInferenceService;

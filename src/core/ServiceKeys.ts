@@ -10,14 +10,12 @@ import type { DocumentLifecycleService } from './DocumentLifecycleService';
 import type { EfunDocsManager } from '../efunDocs';
 import type { ErrorTreeDataProvider } from '../errorTreeDataProvider';
 import type { SemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
-import type { MacroManager } from '../macroManager';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import type { LpcFrontendService } from '../frontend/LpcFrontendService';
 import { ServiceKey } from './ServiceRegistry';
 
 export const Services = {
     Frontend: new ServiceKey<LpcFrontendService>('Frontend'),
-    MacroManager: new ServiceKey<MacroManager>('MacroManager'),
     EfunDocs: new ServiceKey<EfunDocsManager>('EfunDocs'),
     ConfigManager: new ServiceKey<LPCConfigManager>('ConfigManager'),
     Compiler: new ServiceKey<LPCCompiler>('Compiler'),

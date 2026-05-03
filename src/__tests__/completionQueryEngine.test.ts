@@ -97,7 +97,7 @@ describe('CompletionQueryEngine', () => {
         const baseDocument = createDocument(basePath, baseContent);
         const childDocument = createDocument(childPath, childContent);
         const astManager = getAstManagerForTests();
-        const resolver = new InheritanceResolver(undefined, [root]);
+        const resolver = new InheritanceResolver([root]);
         const projectSymbolIndex = new ProjectSymbolIndex(resolver);
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
@@ -154,7 +154,7 @@ describe('CompletionQueryEngine', () => {
         fs.writeFileSync(sourcePath, sourceContent, 'utf8');
 
         const astManager = getAstManagerForTests();
-        const resolver = new InheritanceResolver(undefined, [root]);
+        const resolver = new InheritanceResolver([root]);
         const projectSymbolIndex = new ProjectSymbolIndex(resolver);
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
@@ -213,7 +213,7 @@ describe('CompletionQueryEngine', () => {
         fs.writeFileSync(filePath, content, 'utf8');
 
         const astManager = getAstManagerForTests();
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
             projectSymbolIndex,
@@ -253,7 +253,7 @@ describe('CompletionQueryEngine', () => {
 
         const document = createDocument(filePath, content);
         const astManager = getAstManagerForTests();
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
             projectSymbolIndex,
@@ -285,14 +285,11 @@ describe('CompletionQueryEngine', () => {
 
         const childDocument = createDocument(childPath, childContent);
         const astManager = getAstManagerForTests();
-        const resolver = new InheritanceResolver(undefined, [root]);
+        const resolver = new InheritanceResolver([root]);
         const projectSymbolIndex = new ProjectSymbolIndex(resolver);
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
-            projectSymbolIndex,
-            macroManager: {
-                getAllMacros: () => [{ name: 'BASE_D', value: '"/lib/base"' } as any]
-            } as any
+            projectSymbolIndex
         });
 
         projectSymbolIndex.updateFromSemanticSnapshot({
@@ -310,7 +307,7 @@ describe('CompletionQueryEngine', () => {
             { isCancellationRequested: false } as vscode.CancellationToken
         );
         expect(result.context.kind).toBe('inherit-path');
-        expect(result.candidates.map(candidate => candidate.label)).toContain('BASE_D');
+        expect(result.candidates.map(candidate => candidate.label)).toContain('base');
 
         const cancelled = engine.query(
             childDocument,
@@ -321,7 +318,7 @@ describe('CompletionQueryEngine', () => {
         expect(cancelled.candidates).toEqual([]);
     });
 
-    test('returns local frontend macro definitions for path completion without MacroManager', () => {
+    test('returns local frontend macro definitions for path completion from frontend macro facts', () => {
         const childPath = path.join(root, 'macro-room.c');
         const childContent = [
             '#define BASE_D "/lib/base"',
@@ -331,7 +328,7 @@ describe('CompletionQueryEngine', () => {
 
         const childDocument = createDocument(childPath, childContent);
         const astManager = getAstManagerForTests();
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
             projectSymbolIndex
@@ -353,7 +350,7 @@ describe('CompletionQueryEngine', () => {
         ]));
     });
 
-    test('deduplicates legacy macro candidates when frontend macro facts already define the name', () => {
+    test('uses frontend macro facts as the only macro completion source', () => {
         const childPath = path.join(root, 'dedupe-macro-room.c');
         const childContent = [
             '#define BASE_D "/lib/base"',
@@ -363,16 +360,10 @@ describe('CompletionQueryEngine', () => {
 
         const childDocument = createDocument(childPath, childContent);
         const astManager = getAstManagerForTests();
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
-            projectSymbolIndex,
-            macroManager: {
-                getAllMacros: () => [
-                    { name: 'BASE_D', value: '"/legacy/base"' },
-                    { name: 'ROOM_D', value: '"/lib/room"' }
-                ] as any[]
-            } as any
+            projectSymbolIndex
         });
 
         const result = engine.query(
@@ -385,7 +376,7 @@ describe('CompletionQueryEngine', () => {
 
         expect(baseCandidates).toHaveLength(1);
         expect(baseCandidates[0].detail).toBe('"/lib/base"');
-        expect(result.candidates.map(candidate => candidate.label)).toContain('ROOM_D');
+        expect(result.candidates.map(candidate => candidate.label)).not.toContain('ROOM_D');
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
-import { MacroManager } from '../macroManager';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
@@ -43,7 +42,6 @@ export interface ObjectInferenceServiceDependencies {
 }
 
 export interface DefaultObjectInferenceServiceDependencies {
-    macroManager?: MacroManager;
     analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     documentationService?: FunctionDocumentationService;
     host?: TextDocumentHost;
@@ -530,7 +528,7 @@ export function createDefaultObjectInferenceService(
             analysisService,
             pathSupport
         });
-    const inheritanceResolver = new InheritanceResolver(dependencies.macroManager);
+    const inheritanceResolver = new InheritanceResolver();
     const targetMethodLookup = new TargetMethodLookup(
         analysisService,
         pathSupport
@@ -541,7 +539,6 @@ export function createDefaultObjectInferenceService(
         host: textDocumentHost
     });
     const returnObjectResolver = new ReturnObjectResolver(
-        dependencies.macroManager,
         resolvedDocumentationService,
         scopedMethodResolver,
         pathSupport,

@@ -128,7 +128,7 @@ describe('CompletionInheritedIndexService', () => {
             getSnapshot: jest.fn(() => rootSnapshot)
         };
         const projectSymbolIndex = new ProjectSymbolIndex(
-            new InheritanceResolver(undefined as any, [workspaceRoot])
+            new InheritanceResolver([workspaceRoot])
         );
         const service = new CompletionInheritedIndexService(
             analysisService as any,
@@ -206,7 +206,7 @@ describe('CompletionInheritedIndexService', () => {
             getSnapshot: jest.fn()
         };
         const projectSymbolIndex = new ProjectSymbolIndex(
-            new InheritanceResolver(undefined as any, [workspaceRoot])
+            new InheritanceResolver([workspaceRoot])
         );
         const service = new CompletionInheritedIndexService(
             analysisService as any,
@@ -240,7 +240,7 @@ describe('CompletionInheritedIndexService', () => {
             getSnapshot: jest.fn(() => rootSnapshot)
         };
         const projectSymbolIndex = new ProjectSymbolIndex(
-            new InheritanceResolver(undefined as any, [workspaceRoot])
+            new InheritanceResolver([workspaceRoot])
         );
         const reporter = { appendLine: jest.fn(), clear: jest.fn(), show: jest.fn() };
         const service = new CompletionInheritedIndexService(

@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import type { MacroManager } from '../../../macroManager';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import type { MacroDefinitionSummary } from '../../../semantic/documentSemanticTypes';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
@@ -14,7 +13,6 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
 
     public constructor(
         private readonly objectHoverService: LanguageHoverService,
-        private readonly macroManager: MacroManager,
         private readonly dependencies: UnifiedLanguageHoverServiceDependencies
     ) {
         if (!dependencies.efunHoverService) {
@@ -58,30 +56,7 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
             };
         }
 
-        const macro = this.macroManager.getMacroAsync
-            ? await this.macroManager.getMacroAsync(word)
-            : this.macroManager.getMacro(word);
-        if (macro) {
-            return {
-                contents: [toLanguageMarkdownContent(this.macroManager.getMacroHoverContent(macro))],
-                range: toLanguageHoverRange(range)
-            };
-        }
-
-        const canResolve = await this.macroManager.canResolveMacro(word);
-        if (!canResolve) {
-            return undefined;
-        }
-
-        return {
-            contents: [
-                {
-                    kind: 'markdown',
-                    value: `宏 \`${word}\` 已定义但无法获取具体值`
-                }
-            ],
-            range: toLanguageHoverRange(range)
-        };
+        return undefined;
     }
 
     private findFrontendMacro(document: vscode.TextDocument, word: string): MacroDefinitionSummary | undefined {
@@ -110,17 +85,6 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
             value
         };
     }
-}
-
-function toLanguageMarkdownContent(
-    content: vscode.MarkdownString | string | { language: string; value: string }
-): { kind: 'markdown'; value: string } {
-    return {
-        kind: 'markdown',
-        value: typeof content === 'string'
-            ? content
-            : content.value
-    };
 }
 
 function toLanguageHoverRange(range: vscode.Range) {

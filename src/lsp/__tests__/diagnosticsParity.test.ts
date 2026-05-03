@@ -189,14 +189,6 @@ async function collectHostDiagnostics(
     collectors?: IDiagnosticCollector[],
     astManager?: ASTManager
 ): Promise<vscode.Diagnostic[]> {
-    const macroManager = {
-        getMacro: jest.fn(),
-        getAllMacros: jest.fn(() => []),
-        getMacroHoverContent: jest.fn(),
-        canResolveMacro: jest.fn(),
-        scanMacros: jest.fn(),
-        getIncludePath: jest.fn(() => undefined)
-    };
     const resolvedCollectors = collectors ?? [];
     const diagnosticsService = createSharedDiagnosticsService(astManager ?? getAstManagerForTests(), resolvedCollectors);
     const orchestrator = new DiagnosticsOrchestrator(

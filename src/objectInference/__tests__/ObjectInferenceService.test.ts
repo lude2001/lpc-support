@@ -93,7 +93,7 @@ function positionAfter(source: string, marker: string): vscode.Position {
 describe('ObjectInferenceService', () => {
     let fixtureRoot: string;
     let service: ObjectInferenceService;
-    let macroManager: { getMacro: jest.Mock };
+    let frontendMacros: Map<string, string>;
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     let documentationService: FunctionDocumentationService;
     const documentHost = createVsCodeTextDocumentHost();
@@ -103,7 +103,6 @@ describe('ObjectInferenceService', () => {
             : _playerObjectPathOrProjectConfig as any;
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: documentHost,
-            macroManager: macroManager as any,
             analysisService,
             projectConfigService
         });
@@ -126,7 +125,6 @@ describe('ObjectInferenceService', () => {
                 };
 
         return createDefaultObjectInferenceService({
-            macroManager: macroManager as any,
             analysisService,
             documentationService,
             host: documentHost,
@@ -134,6 +132,10 @@ describe('ObjectInferenceService', () => {
             semanticEvaluationService: semanticEvaluationServiceWithDefaults as any
         });
     };
+
+    function defineFrontendMacro(name: string, value: string): void {
+        frontendMacros.set(name, value);
+    }
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -170,9 +172,28 @@ describe('ObjectInferenceService', () => {
         });
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: fixtureRoot } }];
 
-        macroManager = {
-            getMacro: jest.fn()
-        };
+        frontendMacros = new Map();
+        const originalGetSemanticSnapshot = analysisService.getSemanticSnapshot.bind(analysisService);
+        jest.spyOn(analysisService, 'getSemanticSnapshot').mockImplementation((document: vscode.TextDocument, includeComments?: boolean) => {
+            const snapshot = originalGetSemanticSnapshot(document, includeComments);
+            if (frontendMacros.size === 0) {
+                return snapshot;
+            }
+
+            const injectedNames = new Set(frontendMacros.keys());
+            return {
+                ...snapshot,
+                macroDefinitions: [
+                    ...(snapshot.macroDefinitions ?? []).filter((macro) => !injectedNames.has(macro.name)),
+                    ...Array.from(frontendMacros, ([name, value]) => ({
+                        name,
+                        value,
+                        range: new vscode.Range(0, 0, 0, 0),
+                        sourceUri: document.uri.toString()
+                    }))
+                ]
+            };
+        });
         documentationService = createDefaultFunctionDocumentationService();
 
         service = createService();
@@ -564,7 +585,6 @@ describe('ObjectInferenceService', () => {
         );
 
         expect(semanticEvaluationService.evaluateExpressionAtPosition).toHaveBeenCalled();
-        expect(macroManager.getMacro).not.toHaveBeenCalledWith('MODEL_D');
         expect(result?.inference).toEqual({
             status: 'resolved',
             candidates: [
@@ -598,12 +618,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('load_object(COMBAT_D) resolves when builtin argument is a macro', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/combat_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/combat_d');
 
         const source = [
             'void demo() {',
@@ -626,12 +641,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('load_object preserves parenthesized literal and macro arguments', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/combat_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/combat_d');
 
         const source = [
             'void demo() {',
@@ -774,12 +784,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('new(CLASSIFY_POP) resolves macro-backed object candidates for direct member access', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'CLASSIFY_POP',
-            value: '/std/classify_pop',
-            file: path.join(fixtureRoot, 'include', 'globals.h'),
-            line: 1
-        });
+        defineFrontendMacro('CLASSIFY_POP', '/std/classify_pop');
 
         const source = [
             'void demo() {',
@@ -822,13 +827,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('macro object path resolves when macro manager returns a path', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/combat_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('frontend macro object path resolves from semantic macro facts', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/combat_d');
 
         const source = [
             'void demo() {',
@@ -864,7 +864,6 @@ describe('ObjectInferenceService', () => {
             status: 'unknown',
             candidates: []
         });
-        expect(macroManager.getMacro).not.toHaveBeenCalled();
     });
 
     test('dot member access does not produce object inference', async () => {
@@ -917,12 +916,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('unresolved path-like receivers remain unknown', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'MISSING_D',
-            value: '/adm/daemons/missing_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('MISSING_D', '/adm/daemons/missing_d');
 
         const source = [
             'void demo() {',
@@ -1050,12 +1044,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('local variable assigned from new(CLASSIFY_POP) resolves through identifier tracing', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'CLASSIFY_POP',
-            value: '/std/classify_pop',
-            file: path.join(fixtureRoot, 'include', 'globals.h'),
-            line: 1
-        });
+        defineFrontendMacro('CLASSIFY_POP', '/std/classify_pop');
 
         const source = [
             'void demo() {',
@@ -2191,13 +2180,12 @@ describe('ObjectInferenceService', () => {
             })
         };
         const projectConfiguredService = createDefaultObjectInferenceService({
-            macroManager: macroManager as any,
             analysisService: analysisService as any,
             documentationService,
             host: documentHost,
             pathSupport: new WorkspaceDocumentPathSupport({
                 host: documentHost,
-                macroManager: macroManager as any,
+                analysisService: analysisService as any,
                 projectConfigService: projectConfigService as any
             })
         });
@@ -2240,13 +2228,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('uppercase local identifiers resolve through identifier tracing before macro fallback', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/objects/shield',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('uppercase local identifiers resolve through identifier tracing before frontend macro candidates', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/objects/shield');
 
         const source = [
             'void demo() {',
@@ -2316,13 +2299,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('visible file-scope global object wins over same-name macro fallback', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/objects/shield',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('visible file-scope global object wins over same-name frontend macro candidate', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/objects/shield');
 
         const source = [
             'object COMBAT_D = load_object("/adm/daemons/combat_d");',
@@ -2371,12 +2349,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('macro-backed file-scope global object aliases still resolve through the macro initializer', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_PATH',
-            value: '/adm/daemons/combat_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('COMBAT_PATH', '/adm/daemons/combat_d');
 
         const source = [
             'object COMBAT_D = COMBAT_PATH;',
@@ -2401,12 +2374,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('global aliases degrade to unknown when file-scope aliases recurse in a cycle', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/objects/shield',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('COMBAT_D', '/adm/objects/shield');
 
         const source = [
             'object COMBAT_D = OTHER_D;',
@@ -2426,13 +2394,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('visible file-scope global with no initializer stays unknown instead of falling back to macros', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/combat_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('visible file-scope global with no initializer stays unknown instead of using frontend macro candidates', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/combat_d');
 
         const source = [
             'object COMBAT_D;',
@@ -2451,13 +2414,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('visible non-object file-scope globals block same-name macro fallback', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/combat_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('visible non-object file-scope globals block same-name frontend macro candidates', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/combat_d');
 
         const source = [
             'int COMBAT_D = 1;',
@@ -2476,13 +2434,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('visible file-scope global with unsupported initializer stays unsupported instead of falling back to macros', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/combat_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('visible file-scope global with unsupported initializer stays unsupported instead of using frontend macro candidates', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/combat_d');
 
         const source = [
             'object COMBAT_D = load_object(1);',
@@ -2502,13 +2455,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('same-file non-object globals inside global initializers block macro fallback', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_PATH',
-            value: '/adm/daemons/combat_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('same-file non-object globals inside global initializers block frontend macro candidates', async () => {
+        defineFrontendMacro('COMBAT_PATH', '/adm/daemons/combat_d');
 
         const source = [
             'int COMBAT_PATH = 1;',
@@ -2597,15 +2545,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('global object method initializer stays unknown when receiver is a visible non-object global despite same-name macro', async () => {
-        macroManager.getMacro.mockImplementation((name: string) => name === 'FACTORY'
-            ? {
-                name: 'FACTORY',
-                value: '/adm/objects/documented-factory-macro-receiver',
-                file: path.join(fixtureRoot, 'include', 'factory.h'),
-                line: 1
-            }
-            : undefined);
+    test('global object method initializer stays unknown when receiver is a visible non-object global despite same-name frontend macro', async () => {
+        defineFrontendMacro('FACTORY', '/adm/objects/documented-factory-macro-receiver');
 
         fs.writeFileSync(
             path.join(fixtureRoot, 'adm', 'objects', 'documented-factory-macro-receiver.c'),
@@ -2842,12 +2783,7 @@ describe('ObjectInferenceService', () => {
             'object COMBAT_D = load_object("/adm/daemons/parent_d");\n',
             'utf8'
         );
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/macro_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/macro_d');
 
         const source = [
             'inherit "/std/room";',
@@ -2870,18 +2806,13 @@ describe('ObjectInferenceService', () => {
         ]);
     });
 
-    test('current-file non-object global blocks inherited same-name object and macro fallback', async () => {
+    test('current-file non-object global blocks inherited same-name object and frontend macro candidates', async () => {
         fs.writeFileSync(
             path.join(fixtureRoot, 'std', 'room.c'),
             'object COMBAT_D = load_object("/adm/daemons/parent_d");\n',
             'utf8'
         );
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/macro_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/macro_d');
 
         const source = [
             'inherit "/std/room";',
@@ -2908,12 +2839,7 @@ describe('ObjectInferenceService', () => {
             'object COMBAT_D = load_object("/adm/daemons/parent_d");\n',
             'utf8'
         );
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/macro_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/macro_d');
 
         const source = [
             'inherit "/std/room";',
@@ -2945,12 +2871,7 @@ describe('ObjectInferenceService', () => {
             'inherit "/std/base_room";\nint COMBAT_D = 1;\n',
             'utf8'
         );
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/macro_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/macro_d');
 
         const source = [
             'inherit "/std/room";',
@@ -3100,12 +3021,7 @@ describe('ObjectInferenceService', () => {
     });
 
     test('cross-file inherited global alias cycles degrade to unknown', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/macro_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/macro_d');
         fs.writeFileSync(
             path.join(fixtureRoot, 'std', 'cycle_a.c'),
             'inherit "/std/cycle_b";\nobject COMBAT_D = OTHER_D;\n',
@@ -3134,13 +3050,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('inherited globals with unsupported initializers block macro fallback', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/macro_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('inherited globals with unsupported initializers block frontend macro candidates', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/macro_d');
         fs.writeFileSync(
             path.join(fixtureRoot, 'std', 'room.c'),
             'object COMBAT_D = load_object(1);\n',
@@ -3165,13 +3076,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('inherited globals without initializers block macro fallback', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/macro_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('inherited globals without initializers block frontend macro candidates', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/macro_d');
         fs.writeFileSync(
             path.join(fixtureRoot, 'std', 'room.c'),
             'object COMBAT_D;\n',
@@ -3259,13 +3165,12 @@ describe('ObjectInferenceService', () => {
             })
         };
         const projectConfiguredService = createDefaultObjectInferenceService({
-            macroManager: macroManager as any,
             analysisService: analysisService as any,
             documentationService,
             host: documentHost,
             pathSupport: new WorkspaceDocumentPathSupport({
                 host: documentHost,
-                macroManager: macroManager as any,
+                analysisService: analysisService as any,
                 projectConfigService: projectConfigService as any
             })
         });
@@ -3317,13 +3222,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('nested identifier rhs tracing prefers visible uppercase local bindings over macro fallback', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/objects/shield',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('nested identifier rhs tracing prefers visible uppercase local bindings over frontend macro candidates', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/objects/shield');
 
         const source = [
             'void demo() {',
@@ -3347,13 +3247,8 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('out-of-scope inner block locals do not block later macro fallback', async () => {
-        macroManager.getMacro.mockReturnValue({
-            name: 'COMBAT_D',
-            value: '/adm/daemons/combat_d',
-            file: path.join(fixtureRoot, 'include', 'daemons.h'),
-            line: 1
-        });
+    test('out-of-scope inner block locals do not block later frontend macro candidates', async () => {
+        defineFrontendMacro('COMBAT_D', '/adm/daemons/combat_d');
 
         const source = [
             'void demo() {',

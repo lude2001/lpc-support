@@ -7,7 +7,6 @@ import {
     LPC_COMPLETION_KEYWORDS,
     LPC_PREPROCESSOR_DIRECTIVES
 } from '../frontend/languageFacts';
-import { MacroManager } from '../macroManager';
 import { ProjectSymbolIndex } from './projectSymbolIndex';
 import {
     CompletionCandidate,
@@ -37,7 +36,6 @@ export interface CompletionQueryEngineOptions {
     snapshotProvider: SnapshotProvider;
     projectSymbolIndex: ProjectSymbolIndex;
     contextAnalyzer?: CompletionContextAnalyzer;
-    macroManager?: Pick<MacroManager, 'getAllMacros'>;
     efunProvider?: EfunProvider;
     builtinTypes?: string[];
     keywords?: string[];
@@ -54,7 +52,6 @@ export class CompletionQueryEngine {
     private readonly snapshotProvider: SnapshotProvider;
     private readonly projectSymbolIndex: ProjectSymbolIndex;
     private readonly contextAnalyzer: CompletionContextAnalyzer;
-    private readonly macroManager?: Pick<MacroManager, 'getAllMacros'>;
     private readonly efunProvider?: EfunProvider;
     private readonly builtinTypes: string[];
     private readonly keywords: string[];
@@ -63,7 +60,6 @@ export class CompletionQueryEngine {
         this.snapshotProvider = options.snapshotProvider;
         this.projectSymbolIndex = options.projectSymbolIndex;
         this.contextAnalyzer = options.contextAnalyzer || new CompletionContextAnalyzer();
-        this.macroManager = options.macroManager;
         this.efunProvider = options.efunProvider;
         this.builtinTypes = options.builtinTypes || [...LPC_BUILTIN_TYPES];
         this.keywords = options.keywords || [...LPC_COMPLETION_KEYWORDS];
@@ -344,20 +340,6 @@ export class CompletionQueryEngine {
 
         candidates.push(...this.createSnapshotMacroCandidates(snapshot, 'macro'));
 
-        for (const macro of this.macroManager?.getAllMacros() || []) {
-            candidates.push({
-                key: `macro:${macro.name}`,
-                label: macro.name,
-                kind: vscode.CompletionItemKind.Constant,
-                detail: macro.value,
-                sortGroup: 'keyword',
-                metadata: {
-                    sourceType: 'macro',
-                    documentationRef: macro.name
-                }
-            });
-        }
-
         return candidates;
     }
 
@@ -365,20 +347,6 @@ export class CompletionQueryEngine {
         const candidates: CompletionCandidate[] = [
             ...this.createSnapshotMacroCandidates(snapshot, `${kind}:macro`)
         ];
-
-        for (const macro of this.macroManager?.getAllMacros() || []) {
-            candidates.push({
-                key: `${kind}:macro:${macro.name}`,
-                label: macro.name,
-                kind: vscode.CompletionItemKind.Constant,
-                detail: macro.value,
-                sortGroup: 'keyword',
-                metadata: {
-                    sourceType: 'macro',
-                    documentationRef: macro.name
-                }
-            });
-        }
 
         const recordPaths = new Set<string>();
         for (const record of this.projectSymbolIndex.getAllRecords()) {

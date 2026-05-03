@@ -92,7 +92,7 @@ describe('ProjectSymbolIndex', () => {
             isResolved: true
         }];
 
-        const resolver = new InheritanceResolver(undefined, ['/']);
+        const resolver = new InheritanceResolver(['/']);
         jest.spyOn(resolver, 'resolveInheritTargets')
             .mockImplementation((snapshot: Pick<SemanticSnapshot, 'uri' | 'inheritStatements'>) => snapshot.inheritStatements.map(statement => ({
                 rawValue: statement.value,
@@ -122,7 +122,7 @@ describe('ProjectSymbolIndex', () => {
             range: new vscode.Range(0, 0, 0, 8)
         }];
 
-        const index = new ProjectSymbolIndex(new InheritanceResolver(undefined, ['/']));
+        const index = new ProjectSymbolIndex(new InheritanceResolver(['/']));
         index.updateFromSnapshot(snapshot as any);
 
         expect((index.getRecord(snapshot.uri) as any)?.fileGlobals).toEqual([
@@ -162,7 +162,7 @@ describe('ProjectSymbolIndex', () => {
             exportedFunctions: []
         };
 
-        const index = new ProjectSymbolIndex(new InheritanceResolver(undefined, ['/']));
+        const index = new ProjectSymbolIndex(new InheritanceResolver(['/']));
         index.updateFromSnapshot(snapshot);
         index.updateFromSnapshot(degradedSnapshot);
 
@@ -215,7 +215,7 @@ describe('ProjectSymbolIndex', () => {
             }
         ];
 
-        const index = new ProjectSymbolIndex(new InheritanceResolver(undefined, ['/']));
+        const index = new ProjectSymbolIndex(new InheritanceResolver(['/']));
         index.updateFromSnapshot(headerSnapshot);
         index.updateFromSnapshot(roomSnapshot);
 

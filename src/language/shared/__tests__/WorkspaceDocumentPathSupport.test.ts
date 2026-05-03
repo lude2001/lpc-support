@@ -25,7 +25,7 @@ describe('WorkspaceDocumentPathSupport', () => {
         await expect(support.tryOpenTextDocument('D:/workspace/missing.c')).resolves.toBeUndefined();
     });
 
-    test('resolves workspace and inherited file paths with macro expansion', () => {
+    test('resolves workspace and inherited file paths with frontend macro facts', () => {
         const workspaceRoot = 'D:/workspace';
         const document = createDocument('D:/workspace/obj/room.c');
         const support = new WorkspaceDocumentPathSupport({
@@ -34,8 +34,16 @@ describe('WorkspaceDocumentPathSupport', () => {
                 fileExists: jest.fn(() => false),
                 getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
             },
-            macroManager: {
-                getMacro: jest.fn(() => ({ value: '"/std/base_room"' }))
+            analysisService: {
+                getSemanticSnapshot: jest.fn(() => ({
+                    macroDefinitions: [{
+                        name: 'ROOM_BASE',
+                        value: '"/std/base_room"',
+                        range: new vscode.Range(0, 0, 0, 0),
+                        isFunctionLike: false,
+                        sourceUri: document.uri.toString()
+                    }]
+                }))
             } as any
         });
 
@@ -48,7 +56,7 @@ describe('WorkspaceDocumentPathSupport', () => {
         );
     });
 
-    test('resolves object file paths from string literals and macros through the shared owner', () => {
+    test('resolves object file paths from string literals and frontend macro facts through the shared owner', () => {
         const workspaceRoot = 'D:/workspace';
         const document = createDocument('D:/workspace/obj/room.c');
         const support = new WorkspaceDocumentPathSupport({
@@ -57,10 +65,16 @@ describe('WorkspaceDocumentPathSupport', () => {
                 fileExists: jest.fn((candidate: string) => candidate.replace(/\\/g, '/') === 'D:/workspace/std/base_room.c'),
                 getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
             },
-            macroManager: {
-                getMacro: jest.fn((name: string) => name === 'ROOM_BASE'
-                    ? { value: '"/std/base_room"' }
-                    : undefined)
+            analysisService: {
+                getSemanticSnapshot: jest.fn(() => ({
+                    macroDefinitions: [{
+                        name: 'ROOM_BASE',
+                        value: '"/std/base_room"',
+                        range: new vscode.Range(0, 0, 0, 0),
+                        isFunctionLike: false,
+                        sourceUri: document.uri.toString()
+                    }]
+                }))
             } as any
         });
 
@@ -73,10 +87,9 @@ describe('WorkspaceDocumentPathSupport', () => {
         expect(support.resolveObjectFilePath(document, 'relative_room')).toBeUndefined();
     });
 
-    test('prefers frontend macro facts before legacy macro manager lookup', () => {
+    test('uses frontend macro facts for inherited and object paths', () => {
         const workspaceRoot = 'D:/workspace';
         const document = createDocument('D:/workspace/obj/room.c');
-        const legacyMacroLookup = jest.fn();
         const support = new WorkspaceDocumentPathSupport({
             host: {
                 openTextDocument: jest.fn(),
@@ -93,9 +106,6 @@ describe('WorkspaceDocumentPathSupport', () => {
                         sourceUri: document.uri.toString()
                     }]
                 }))
-            } as any,
-            macroManager: {
-                getMacro: legacyMacroLookup
             } as any
         });
 
@@ -105,13 +115,11 @@ describe('WorkspaceDocumentPathSupport', () => {
         expect(support.resolveObjectFilePath(document, 'ROOM_BASE')?.replace(/\\/g, '/')).toBe(
             'D:/workspace/std/frontend_room.c'
         );
-        expect(legacyMacroLookup).not.toHaveBeenCalled();
     });
 
-    test('does not use legacy macro lookup when semantic macro facts are unavailable', () => {
+    test('returns unresolved macro paths when semantic macro facts are unavailable', () => {
         const workspaceRoot = 'D:/workspace';
         const document = createDocument('D:/workspace/obj/room.c');
-        const legacyMacroLookup = jest.fn(() => ({ value: '"/std/legacy_room"' }));
         const support = new WorkspaceDocumentPathSupport({
             host: {
                 openTextDocument: jest.fn(),
@@ -122,15 +130,11 @@ describe('WorkspaceDocumentPathSupport', () => {
                 getSemanticSnapshot: jest.fn(() => {
                     throw new Error('semantic unavailable');
                 })
-            } as any,
-            macroManager: {
-                getMacro: legacyMacroLookup
             } as any
         });
 
         expect(support.resolveInheritedFilePath(document, 'ROOM_BASE', workspaceRoot)).toBeUndefined();
         expect(support.resolveObjectFilePath(document, 'ROOM_BASE')).toBeUndefined();
-        expect(legacyMacroLookup).not.toHaveBeenCalled();
     });
 
     test('resolves system include paths from project configuration first', async () => {

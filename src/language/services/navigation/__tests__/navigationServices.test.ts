@@ -620,19 +620,18 @@ describe('navigation services', () => {
         expect(documentationService.getDocForDeclaration).not.toHaveBeenCalled();
     });
 
-    test('unified hover service resolves macro hovers before other hover sources', async () => {
-        const document = createDocument('USER_D');
-        const macroHoverContent = { value: 'macro docs' };
+    test('unified hover service resolves frontend macro hovers before other hover sources', async () => {
+        const source = [
+            '#define USER_D "/adm/user"',
+            'inherit USER_D;'
+        ].join('\n');
+        const document = createVsCodeTextDocument('D:/workspace/test.c', source);
         const service: LanguageHoverService = new UnifiedLanguageHoverService(
             {
                 provideHover: jest.fn(async () => undefined)
             },
             {
-                getMacro: jest.fn(() => ({ name: 'USER_D', value: '/adm/user' })),
-                getMacroHoverContent: jest.fn(() => macroHoverContent),
-                canResolveMacro: jest.fn(async () => false)
-            } as any,
-            {
+                analysisService,
                 efunHoverService: {
                     provideHover: jest.fn(async () => undefined)
                 }
@@ -640,40 +639,34 @@ describe('navigation services', () => {
         );
 
         const hover = await service.provideHover({
-            context: createContext(document),
-            position: { line: 0, character: 2 }
+            context: createContext(document as any),
+            position: { line: 1, character: 10 }
         });
 
         expect(hover).toEqual({
             contents: [
                 {
                     kind: 'markdown',
-                    value: 'macro docs'
+                    value: '```lpc\n#define USER_D "/adm/user"\n```'
                 }
             ],
             range: {
-                start: { line: 0, character: 0 },
-                end: { line: 0, character: 6 }
+                start: { line: 1, character: 8 },
+                end: { line: 1, character: 14 }
             }
         });
     });
 
-    test('unified hover service resolves local frontend macro hovers without MacroManager', async () => {
+    test('unified hover service resolves local frontend macro hovers from frontend macro facts', async () => {
         const source = [
             '#define LOCAL_PATH "/std/room.c"',
             'inherit LOCAL_PATH;'
         ].join('\n');
         const document = createVsCodeTextDocument('D:/workspace/local_macro.c', source);
-        const macroManager = {
-            getMacro: jest.fn(() => undefined),
-            getMacroHoverContent: jest.fn(),
-            canResolveMacro: jest.fn(async () => false)
-        };
         const service: LanguageHoverService = new UnifiedLanguageHoverService(
             {
                 provideHover: jest.fn(async () => undefined)
             },
-            macroManager as any,
             {
                 analysisService,
                 efunHoverService: {
@@ -688,7 +681,6 @@ describe('navigation services', () => {
         });
 
         expect(hover?.contents[0].value).toContain('#define LOCAL_PATH "/std/room.c"');
-        expect(macroManager.getMacro).not.toHaveBeenCalled();
     });
 
     test('unified hover service falls back to efun docs when macro and object hovers do not resolve', async () => {
@@ -697,11 +689,6 @@ describe('navigation services', () => {
             {
                 provideHover: jest.fn(async () => undefined)
             },
-            {
-                getMacro: jest.fn(() => undefined),
-                getMacroHoverContent: jest.fn(),
-                canResolveMacro: jest.fn(async () => false)
-            } as any,
             {
                 efunHoverService: {
                     provideHover: jest.fn(async () => ({
@@ -782,7 +769,6 @@ describe('navigation services', () => {
         const pathSupport = new WorkspaceDocumentPathSupport({ host });
         const targetMethodLookup = new TargetMethodLookup(analysisService, pathSupport);
         const service: LanguageDefinitionService = new AstBackedLanguageDefinitionService(
-            {} as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             {
                 inferObjectAccess: jest.fn().mockResolvedValue(undefined)

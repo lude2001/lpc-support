@@ -55,13 +55,11 @@ describe('registerCommands', () => {
         'lpc.manageCompilation',
         'lpc.manageServers',
         'lpc.compileFile',
-        'lpc.configureMacroPath',
         'lpc.startDriver'
     ];
 
     let registry: ServiceRegistry;
     let context: vscode.ExtensionContext;
-    let macroManager: { showMacrosList: jest.Mock; configurePath: jest.Mock };
     let efunDocsManager: { id: string };
     let diagnostics: { analyzeDocument: jest.Mock; scanFolder: jest.Mock };
     let completionInstrumentation: {
@@ -108,10 +106,6 @@ describe('registerCommands', () => {
             globalStoragePath: '/mock/storage'
         } as vscode.ExtensionContext;
 
-        macroManager = {
-            showMacrosList: jest.fn(),
-            configurePath: jest.fn()
-        };
         efunDocsManager = { id: 'efun-docs-manager' };
         diagnostics = {
             analyzeDocument: jest.fn(),
@@ -187,7 +181,6 @@ describe('registerCommands', () => {
         lpcprj.hasLpcprjCommand.mockReset().mockReturnValue(true);
         lpcprj.getLpcprjStartCommand.mockReset().mockImplementation((configPath: string) => `lpcprj "${configPath}"`);
 
-        registry.register(Services.MacroManager, macroManager as any);
         registry.register(Services.EfunDocs, efunDocsManager as any);
         registry.register(Services.Diagnostics, diagnostics as any);
         registry.register(Services.CompletionInstrumentation, completionInstrumentation as any);
@@ -277,7 +270,6 @@ describe('registerCommands', () => {
         handlers.get('lpc.showFunctionDoc')?.();
         await handlers.get('lpc.compileFile')?.();
         await handlers.get('lpc.compileFolder')?.({ fsPath: 'D:/workspace/project' } as vscode.Uri);
-        handlers.get('lpc.configureMacroPath')?.();
         handlers.get('lpc.errorTree.refresh')?.();
 
         expect(diagnostics.scanFolder).toHaveBeenCalledTimes(1);
@@ -290,7 +282,6 @@ describe('registerCommands', () => {
         );
         expect(compiler.compileFile).toHaveBeenCalledWith(activeDocument.fileName);
         expect((compiler as any).compileFolder).toHaveBeenCalledWith('D:/workspace/project');
-        expect(macroManager.configurePath).toHaveBeenCalledTimes(1);
         expect(projectConfigService.ensureConfigForWorkspace).toHaveBeenCalledWith('D:/workspace', 'config.hell');
         expect(projectConfigService.getCompileConfigForWorkspace).toHaveBeenCalledWith('D:/workspace');
         expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);

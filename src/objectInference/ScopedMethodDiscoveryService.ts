@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import { LPCParser } from '../antlr/LPCParser';
 import { FunctionSummary } from '../completion/types';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
-import { MacroManager } from '../macroManager';
 import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
@@ -51,7 +50,6 @@ export interface ScopedMethodDiscoveryServiceDependencies {
 }
 
 export interface DefaultScopedMethodDiscoveryServiceDependencies {
-    macroManager?: MacroManager;
     workspaceRoots?: string[];
     inheritanceResolver?: InheritanceResolver;
     analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
@@ -364,7 +362,7 @@ export function createDefaultScopedMethodDiscoveryService(
     return new ScopedMethodDiscoveryService({
         analysisService: dependencies.analysisService,
         inheritanceResolver: dependencies.inheritanceResolver
-            ?? new InheritanceResolver(dependencies.macroManager, dependencies.workspaceRoots),
+            ?? new InheritanceResolver(dependencies.workspaceRoots),
         host: dependencies.host
     });
 }

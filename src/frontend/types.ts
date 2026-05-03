@@ -34,6 +34,7 @@ export interface MacroDefinitionFact extends SourceOffsetRange {
     parameters?: string[];
     isFunctionLike: boolean;
     source: 'document' | 'config' | 'include' | 'global-include';
+    sourceUri?: string;
 }
 
 export interface MacroUndefFact extends SourceOffsetRange {

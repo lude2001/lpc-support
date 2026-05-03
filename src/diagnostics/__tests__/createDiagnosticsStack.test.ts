@@ -23,9 +23,7 @@ describe('createDiagnosticsStack', () => {
     });
 
     test('creates the default collector set in the expected order', () => {
-        const macroManager = { kind: 'macro-manager' } as any;
-
-        const collectors = createDefaultDiagnosticsCollectors(macroManager);
+        const collectors = createDefaultDiagnosticsCollectors();
 
         expect(collectors).toHaveLength(7);
         expect(collectors[0]).toBeInstanceOf(StringLiteralCollector);
@@ -42,11 +40,9 @@ describe('createDiagnosticsStack', () => {
             parseDocument: jest.fn()
         } as any;
         const diagnosticsService = { collectDiagnostics: jest.fn() } as any;
-        const macroManager = { kind: 'macro-manager' } as any;
-
         (createSharedDiagnosticsService as jest.Mock).mockReturnValue(diagnosticsService);
 
-        const stack = createDiagnosticsStack(macroManager, analysisService);
+        const stack = createDiagnosticsStack(analysisService);
 
         expect(createSharedDiagnosticsService).toHaveBeenCalledTimes(1);
         expect(createSharedDiagnosticsService).toHaveBeenCalledWith(

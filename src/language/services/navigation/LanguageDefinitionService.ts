@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 import type { LanguageLocation, LanguagePosition } from '../../contracts/LanguagePosition';
-import { MacroManager } from '../../../macroManager';
 import { EfunDocsManager } from '../../../efunDocs';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
@@ -40,7 +39,6 @@ interface LanguageDefinitionDependencies {
 }
 
 export class AstBackedLanguageDefinitionService implements LanguageDefinitionService {
-    private readonly macroManager: MacroManager;
     private readonly efunDocsManager: EfunDocsManager;
     private readonly objectInferenceService: ObjectInferenceService;
     private readonly projectConfigService?: LpcProjectConfigService;
@@ -55,14 +53,12 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     private readonly functionFamilyDefinitionResolver: FunctionFamilyDefinitionResolver;
 
     public constructor(
-        macroManager: MacroManager,
         efunDocsManager: EfunDocsManager,
         objectInferenceService: ObjectInferenceService,
         targetMethodLookup: TargetMethodLookup,
         projectConfigService?: LpcProjectConfigService,
         dependencies: LanguageDefinitionDependencies = {}
     ) {
-        this.macroManager = macroManager;
         this.efunDocsManager = efunDocsManager;
         this.projectConfigService = projectConfigService;
         const resolvedDependencies = this.resolveDependencies(dependencies);
@@ -78,7 +74,6 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         this.support = new DefinitionResolverSupport({
             analysisService,
             host: this.host,
-            macroManager: this.macroManager,
             projectConfigService: this.projectConfigService,
             pathSupport: resolvedDependencies.pathSupport,
             semanticAdapter: this.semanticAdapter
@@ -94,7 +89,6 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         });
         this.directSymbolDefinitionResolver = new DirectSymbolDefinitionResolver({
             support: this.support,
-            macroManager: this.macroManager,
             efunDocsManager: this.efunDocsManager,
             semanticAdapter: this.semanticAdapter
         });

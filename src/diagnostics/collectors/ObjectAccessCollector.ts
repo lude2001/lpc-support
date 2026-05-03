@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { DiagnosticContext, IDiagnosticCollector } from '../types';
-import { MacroManager } from '../../macroManager';
 import { ParsedDocument } from '../../parser/types';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 
@@ -14,8 +13,6 @@ const MACRO_CANDIDATE_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
  */
 export class ObjectAccessCollector implements IDiagnosticCollector {
     public readonly name = 'ObjectAccessCollector';
-
-    constructor(private macroManager?: MacroManager) {}
 
     async collect(
         _document: vscode.TextDocument,
@@ -43,7 +40,7 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
 
             // 检查宏定义
             if (receiver.isMacroObject) {
-                await this.checkMacroUsage(receiver.objectExpression, context);
+                this.checkMacroUsage(receiver.objectExpression, context);
                 continue;
             }
 
@@ -73,18 +70,11 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
     /**
      * 检查宏使用
      */
-    private async checkMacroUsage(objectName: string, context?: DiagnosticContext): Promise<void> {
+    private checkMacroUsage(objectName: string, context?: DiagnosticContext): void {
         const semanticReference = context?.semantic?.macroReferences.find((reference) => reference.name === objectName);
         if (semanticReference?.resolvedValue) {
             return;
         }
-
-        if (!this.macroManager) {
-            return;
-        }
-
-        this.macroManager.getMacro(objectName);
-        await this.macroManager.canResolveMacro(objectName);
 
         // 只对真正未定义的宏显示警告
         // 对于已定义的宏，不添加任何诊断信息，保持问题面板清洁

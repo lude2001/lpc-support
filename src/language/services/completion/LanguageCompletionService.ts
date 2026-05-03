@@ -8,7 +8,6 @@ import {
     CompletionQueryResult
 } from '../../../completion/types';
 import { EfunDocsManager } from '../../../efunDocs';
-import { MacroManager } from '../../../macroManager';
 import { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import { ScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
@@ -89,7 +88,6 @@ type CompletionAnalysisService = Pick<
 
 interface QueryBackedLanguageCompletionDependencies {
     efunDocsManager: EfunDocsManager;
-    macroManager: MacroManager;
     analysisService: CompletionAnalysisService;
     objectInferenceService: ObjectInferenceService;
     instrumentation: CompletionInstrumentation;
@@ -254,7 +252,6 @@ export function createDefaultQueryBackedLanguageCompletionService(
     );
     const presentationService = new CompletionItemPresentationService(
         dependencies.efunDocsManager,
-        dependencies.macroManager,
         dependencies.projectSymbolIndex,
         dependencies.scopedCompletionSupport
     );
@@ -262,7 +259,6 @@ export function createDefaultQueryBackedLanguageCompletionService(
         snapshotProvider: analysisService,
         projectSymbolIndex: dependencies.projectSymbolIndex,
         contextAnalyzer: dependencies.contextAnalyzer,
-        macroManager: dependencies.macroManager,
         efunProvider: {
             getAllFunctions: () => dependencies.efunDocsManager.getAllFunctions(),
             getAllSimulatedFunctions: () => dependencies.efunDocsManager.getAllSimulatedFunctions()

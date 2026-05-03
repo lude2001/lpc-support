@@ -13,7 +13,6 @@ describe('language facts ownership guards', () => {
             .sort();
 
         expect(parserConstructors).toEqual([
-            'src/parser/LPCParserUtil.ts',
             'src/parser/ParsedDocumentService.ts'
         ]);
     });

@@ -291,13 +291,6 @@ describe('EfunDocsManager', () => {
         const objectInferenceService = { inferObjectAccess: jest.fn() } as any;
         const service = createDefaultQueryBackedLanguageCompletionService({
             efunDocsManager: manager,
-            macroManager: {
-                getMacro: jest.fn(),
-                getAllMacros: jest.fn(() => []),
-                getMacroHoverContent: jest.fn(),
-                scanMacros: jest.fn().mockResolvedValue(undefined),
-                getIncludePath: jest.fn()
-            } as any,
             analysisService: DocumentSemanticSnapshotService.getInstance(),
             documentationService,
             objectInferenceService,
@@ -307,7 +300,7 @@ describe('EfunDocsManager', () => {
                 show: jest.fn(),
                 appendLine: jest.fn()
             } as any,
-            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver(undefined)),
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver()),
             contextAnalyzer: new CompletionContextAnalyzer(),
             scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
                 analysisService: DocumentSemanticSnapshotService.getInstance(),

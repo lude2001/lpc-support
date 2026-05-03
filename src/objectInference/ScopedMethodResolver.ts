@@ -1,7 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
-import { MacroManager } from '../macroManager';
 import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
@@ -50,7 +49,6 @@ export interface ScopedMethodResolverDependencies {
 }
 
 export interface DefaultScopedMethodResolverDependencies {
-    macroManager?: MacroManager;
     workspaceRoots?: string[];
     analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     host?: Pick<TextDocumentHost, 'openTextDocument'>;
@@ -384,7 +382,7 @@ export function createDefaultScopedMethodResolver(
 ): ScopedMethodResolver {
     return new ScopedMethodResolver({
         analysisService: dependencies.analysisService,
-        inheritanceResolver: new InheritanceResolver(dependencies.macroManager, dependencies.workspaceRoots),
+        inheritanceResolver: new InheritanceResolver(dependencies.workspaceRoots),
         host: dependencies.host
     });
 }

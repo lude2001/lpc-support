@@ -28,7 +28,6 @@ function createSupport(): DefinitionResolverSupport {
         astManager: {} as any,
         host,
         pathSupport: new WorkspaceDocumentPathSupport({ host }),
-        macroManager: { getMacro: jest.fn() } as any
     } as any);
 }
 

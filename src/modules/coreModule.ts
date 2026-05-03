@@ -10,7 +10,6 @@ import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
 import { LpcFrontendService } from '../frontend/LpcFrontendService';
 import { createDefaultFunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { createVsCodeTextDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
-import { MacroManager } from '../macroManager';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
@@ -34,13 +33,8 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     const textDocumentHost = createVsCodeTextDocumentHost();
     registry.register(Services.TextDocumentHost, textDocumentHost);
 
-    const macroManager = new MacroManager(projectConfigService, textDocumentHost);
-    registry.register(Services.MacroManager, macroManager);
-    context.subscriptions.push(macroManager);
-
     const documentPathSupport = new WorkspaceDocumentPathSupport({
         host: textDocumentHost,
-        macroManager,
         analysisService,
         projectConfigService
     });

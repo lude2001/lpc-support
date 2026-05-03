@@ -46,7 +46,6 @@ import {
     LanguageStructureService
 } from '../../../language/services/structure/LanguageFoldingService';
 import { DefaultLanguageSemanticTokensService } from '../../../language/services/structure/LanguageSemanticTokensService';
-import { MacroManager } from '../../../macroManager';
 import { createDefaultObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import { createDefaultScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
@@ -63,12 +62,10 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
 
     const workspaceDocumentHost = createVsCodeWorkspaceDocumentHost();
     const projectConfigService = new LpcProjectConfigService();
-    const macroManager = new MacroManager(projectConfigService, workspaceDocumentHost);
     const documentationService = createDefaultFunctionDocumentationService();
     const completionInstrumentation = new CompletionInstrumentation();
     const documentPathSupport = new WorkspaceDocumentPathSupport({
         host: workspaceDocumentHost,
-        macroManager,
         analysisService,
         projectConfigService
     });
@@ -83,14 +80,13 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         projectConfigService
     });
     const objectInferenceService = createDefaultObjectInferenceService({
-        macroManager,
         analysisService,
         documentationService,
         host: workspaceDocumentHost,
         pathSupport: documentPathSupport,
         semanticEvaluationService
     });
-    const inheritanceResolver = new InheritanceResolver(macroManager, undefined);
+    const inheritanceResolver = new InheritanceResolver();
     const scopedMethodResolver = new ScopedMethodResolver({
         analysisService,
         inheritanceResolver,
@@ -136,7 +132,6 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
 
     const completionService = createDefaultQueryBackedLanguageCompletionService({
         efunDocsManager,
-        macroManager,
         analysisService,
         documentationService,
         objectInferenceService,
@@ -148,7 +143,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         scopedCompletionSupport
     });
     const codeActionsService = createLanguageCodeActionService(analysisService);
-    const { diagnosticsService } = createDiagnosticsStack(macroManager, analysisService);
+    const { diagnosticsService } = createDiagnosticsStack(analysisService);
     const formattingService = createLanguageFormattingService(new FormattingService());
     const objectHoverService = createDefaultObjectInferenceLanguageHoverService(
         objectInferenceService,
@@ -165,14 +160,12 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     );
     const hoverService = new UnifiedLanguageHoverService(
         objectHoverService,
-        macroManager,
         {
             analysisService,
             efunHoverService: new EfunLanguageHoverService(efunDocsManager, analysisService, callableDocRenderer)
         }
     );
     const definitionService = new AstBackedLanguageDefinitionService(
-        macroManager,
         efunDocsManager,
         objectInferenceService,
         targetMethodLookup,
@@ -235,10 +228,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         formattingService,
         navigationService,
         onWorkspaceConfigSync: async () => {
-            await Promise.all([
-                macroManager.refreshWorkspaceState(true),
-                efunDocsManager.refreshWorkspaceState()
-            ]);
+            await efunDocsManager.refreshWorkspaceState();
         },
         signatureHelpService,
         structureService

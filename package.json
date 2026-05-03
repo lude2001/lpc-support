@@ -144,11 +144,6 @@
         "category": "LPC"
       },
       {
-        "command": "lpc.configureMacroPath",
-        "title": "查看宏目录配置来源",
-        "category": "LPC"
-      },
-      {
         "command": "lpc.configureSimulatedEfuns",
         "title": "查看模拟函数入口配置来源",
         "category": "LPC"

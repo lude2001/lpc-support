@@ -136,7 +136,7 @@ describe('CompletionCandidateResolver', () => {
             functionNames: ['inherited_only', 'duplicated_name']
         });
 
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined as any, [workspaceRoot]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([workspaceRoot]));
         projectSymbolIndex.updateFromSnapshot(rootSnapshot);
         projectSymbolIndex.updateFromSnapshot(parentSnapshot);
 
@@ -180,7 +180,7 @@ describe('CompletionCandidateResolver', () => {
         fs.writeFileSync(swordPath, 'void query_name() {}\nvoid sword_only() {}\n');
         fs.writeFileSync(shieldPath, 'void query_name() {}\nvoid shield_only() {}\n');
 
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined as any, [workspaceRoot]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([workspaceRoot]));
         projectSymbolIndex.updateFromSnapshot(createSnapshot(createDocument(swordPath, '', 1), {
             functionNames: ['query_name', 'sword_only']
         }));
@@ -276,7 +276,7 @@ describe('CompletionCandidateResolver', () => {
         fs.writeFileSync(swordPath, 'void query_name() {}\n');
         const ownerDocument = createDocument(path.join(workspaceRoot, 'room.c'), 'object ob;\nob->\n', 1);
 
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined as any, [workspaceRoot]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([workspaceRoot]));
         projectSymbolIndex.updateFromSnapshot(createSnapshot(createDocument(swordPath, '', 1), {
             functionNames: ['query_name']
         }));

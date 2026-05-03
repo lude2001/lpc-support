@@ -119,7 +119,6 @@ describe('ReturnObjectResolver', () => {
         }) as any);
 
         const resolver = new ReturnObjectResolver(
-            undefined,
             createDefaultFunctionDocumentationService(),
             undefined,
             pathSupport
@@ -146,7 +145,7 @@ describe('ReturnObjectResolver', () => {
         ]);
     });
 
-    test('resolveDocumentedReturnOutcome lets path support resolve documented macro objects without MacroManager', async () => {
+    test('resolveDocumentedReturnOutcome lets path support resolve documented macro objects from frontend macro facts', async () => {
         (pathSupport.resolveObjectFilePath as jest.Mock).mockImplementation(((_document, expression) => {
             if (expression === 'ROOM_BASE') {
                 return 'D:/code/lpc/std/frontend_room.c';
@@ -156,7 +155,6 @@ describe('ReturnObjectResolver', () => {
         }) as any);
 
         const resolver = new ReturnObjectResolver(
-            undefined,
             createDefaultFunctionDocumentationService(),
             undefined,
             pathSupport
@@ -201,7 +199,6 @@ describe('ReturnObjectResolver', () => {
             })
         };
         const resolver = new ReturnObjectResolver(
-            undefined,
             documentationService,
             scopedMethodResolver as any,
             pathSupport
@@ -241,7 +238,6 @@ describe('ReturnObjectResolver', () => {
             })
         };
         const resolver = new ReturnObjectResolver(
-            undefined,
             documentationService,
             scopedMethodResolver as any,
             pathSupport

@@ -119,12 +119,8 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(diagnostics[0].range.end.character).toBe(receiver.range.end.character);
     });
 
-    test('ObjectAccessCollector prefers semantic macro references before legacy macro lookup', async () => {
-        const macroManager = {
-            getMacro: jest.fn(),
-            canResolveMacro: jest.fn().mockResolvedValue(false)
-        };
-        const collector = new ObjectAccessCollector(macroManager as any);
+    test('ObjectAccessCollector uses semantic macro references without a secondary macro lookup', async () => {
+        const collector = new ObjectAccessCollector();
         const document = createDocument('#define USER_D "/adm/user"\nUSER_D->query_name();');
         const receiver = createSyntaxNode(
             SyntaxKind.Identifier,
@@ -167,16 +163,10 @@ describe('syntax-backed diagnostic collectors', () => {
         const diagnostics = await collector.collect(document, {} as any, context);
 
         expect(diagnostics).toEqual([]);
-        expect(macroManager.getMacro).not.toHaveBeenCalled();
-        expect(macroManager.canResolveMacro).not.toHaveBeenCalled();
     });
 
-    test('MacroUsageCollector inspects syntax identifiers instead of scanning document text', async () => {
-        const macroManager = {
-            getMacro: jest.fn(),
-            canResolveMacro: jest.fn().mockResolvedValue(false)
-        };
-        const collector = new MacroUsageCollector(macroManager as any);
+    test('MacroUsageCollector ignores syntax identifiers without semantic macro facts', async () => {
+        const collector = new MacroUsageCollector();
         const document = createDocument('USER_D->query_name();');
         const identifier = createSyntaxNode(
             SyntaxKind.Identifier,
@@ -200,16 +190,10 @@ describe('syntax-backed diagnostic collectors', () => {
         const diagnostics = await collector.collect(document, {} as any, context);
 
         expect(diagnostics).toEqual([]);
-        expect(macroManager.getMacro).toHaveBeenCalledWith('USER_D');
-        expect(macroManager.canResolveMacro).toHaveBeenCalledWith('USER_D');
     });
 
-    test('MacroUsageCollector prefers semantic macro references over legacy macro lookup', async () => {
-        const macroManager = {
-            getMacro: jest.fn(),
-            canResolveMacro: jest.fn().mockResolvedValue(false)
-        };
-        const collector = new MacroUsageCollector(macroManager as any);
+    test('MacroUsageCollector consumes semantic macro references without legacy lookup', async () => {
+        const collector = new MacroUsageCollector();
         const document = createDocument('#define USER_D "/adm/user"\nUSER_D->query_name();');
         const identifier = createSyntaxNode(
             SyntaxKind.Identifier,
@@ -240,8 +224,6 @@ describe('syntax-backed diagnostic collectors', () => {
         const diagnostics = await collector.collect(document, {} as any, context);
 
         expect(diagnostics).toEqual([]);
-        expect(macroManager.getMacro).not.toHaveBeenCalled();
-        expect(macroManager.canResolveMacro).not.toHaveBeenCalled();
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

@@ -19,7 +19,8 @@ export class MacroFactResolver {
         text: string,
         directives: PreprocessorDirective[],
         inactiveRanges: InactiveRange[],
-        initialMacros: MacroDefinitionFact[] = []
+        initialMacros: MacroDefinitionFact[] = [],
+        sourceUri?: string
     ): MacroFactResolutionResult {
         const lineStartOffsets = buildLineStartOffsets(text);
         const activeMacros = new Map<string, MacroDefinitionFact>();
@@ -35,7 +36,7 @@ export class MacroFactResolver {
 
             if (!isInsideInactiveRange(directive.startOffset, inactiveRanges)) {
                 if (directive.kind === 'define') {
-                    const macro = createMacroFact(directive);
+                    const macro = createMacroFact(directive, sourceUri);
                     if (macro) {
                         activeMacros.set(macro.name, macro);
                     }
@@ -101,7 +102,7 @@ export class MacroFactResolver {
     }
 }
 
-function createMacroFact(directive: PreprocessorDirective): MacroDefinitionFact | undefined {
+function createMacroFact(directive: PreprocessorDirective, sourceUri?: string): MacroDefinitionFact | undefined {
     const match = directive.body.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\(([^)]*)\))?\s*([\s\S]*)$/);
     if (!match) {
         return undefined;
@@ -117,6 +118,7 @@ function createMacroFact(directive: PreprocessorDirective): MacroDefinitionFact 
         parameters,
         isFunctionLike: parameters !== undefined,
         source: 'document',
+        sourceUri,
         startOffset: directive.startOffset,
         endOffset: directive.endOffset,
         range: directive.range

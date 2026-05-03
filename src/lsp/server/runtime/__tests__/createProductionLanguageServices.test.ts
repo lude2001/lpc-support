@@ -35,7 +35,6 @@ describe('createProductionLanguageServices', () => {
 
     test('assembles production completion, navigation, and structure services from the runtime factory', () => {
         const projectConfigService = { kind: 'project-config' };
-        const macroManager = { kind: 'macro-manager' };
         const efunDocsManager = { kind: 'efun-docs-manager' };
         const documentationService = { kind: 'function-documentation-service' };
         const completionInstrumentation = { kind: 'completion-instrumentation' };
@@ -65,9 +64,6 @@ describe('createProductionLanguageServices', () => {
         jest.isolateModules(() => {
             jest.doMock('../../../../projectConfig/LpcProjectConfigService', () => ({
                 LpcProjectConfigService: jest.fn(() => projectConfigService)
-            }));
-            jest.doMock('../../../../macroManager', () => ({
-                MacroManager: jest.fn(() => macroManager)
             }));
             jest.doMock('../../../../efun/EfunDocsManager', () => ({
                 EfunDocsManager: jest.fn(() => efunDocsManager)
@@ -159,7 +155,6 @@ describe('createProductionLanguageServices', () => {
             expect(createDefaultFunctionDocumentationService).toHaveBeenCalledTimes(1);
             expect(createDefaultObjectInferenceService).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    macroManager,
                     analysisService,
                     documentationService,
                     host: expect.objectContaining({
@@ -178,7 +173,6 @@ describe('createProductionLanguageServices', () => {
             expect(createDefaultQueryBackedLanguageCompletionService).toHaveBeenCalledWith(
                 expect.objectContaining({
                     efunDocsManager,
-                    macroManager,
                     analysisService,
                     documentationService,
                     objectInferenceService,
@@ -194,7 +188,6 @@ describe('createProductionLanguageServices', () => {
                 })
             );
             expect(AstBackedLanguageDefinitionService).toHaveBeenCalledWith(
-                macroManager,
                 efunDocsManager,
                 objectInferenceService,
                 targetMethodLookup,
@@ -241,7 +234,6 @@ describe('createProductionLanguageServices', () => {
     });
 
     test('createProductionLanguageServices passes scopedMethodResolver into shipped hover, definition, and signature-help services', () => {
-        const macroManager = { kind: 'macro-manager' };
         const scopedMethodResolver = { kind: 'scoped-method-resolver' };
         const scopedMethodResolverCtor = jest.fn(() => scopedMethodResolver);
         const callableTargetDiscoveryCtor = jest.fn(() => ({ kind: 'callable-target-discovery-service' }));
@@ -252,9 +244,6 @@ describe('createProductionLanguageServices', () => {
         jest.isolateModules(() => {
             jest.doMock('../../../../projectConfig/LpcProjectConfigService', () => ({
                 LpcProjectConfigService: jest.fn(() => ({ kind: 'project-config' }))
-            }));
-            jest.doMock('../../../../macroManager', () => ({
-                MacroManager: jest.fn(() => macroManager)
             }));
             jest.doMock('../../../../efun/EfunDocsManager', () => ({
                 EfunDocsManager: jest.fn(() => ({ kind: 'efun-docs-manager' }))
@@ -354,7 +343,6 @@ describe('createProductionLanguageServices', () => {
                 expect.anything(),
                 expect.anything(),
                 expect.anything(),
-                expect.anything(),
                 expect.objectContaining({ scopedMethodResolver })
             );
             expect(callableTargetDiscoveryCtor).toHaveBeenCalledWith(
@@ -388,9 +376,6 @@ describe('createProductionLanguageServices', () => {
         jest.isolateModules(() => {
             jest.doMock('../../../../projectConfig/LpcProjectConfigService', () => ({
                 LpcProjectConfigService: jest.fn(() => ({ kind: 'project-config' }))
-            }));
-            jest.doMock('../../../../macroManager', () => ({
-                MacroManager: jest.fn(() => ({ kind: 'macro-manager' }))
             }));
             jest.doMock('../../../../efun/EfunDocsManager', () => ({
                 EfunDocsManager: jest.fn(() => ({ kind: 'efun-docs-manager' }))
@@ -483,7 +468,6 @@ describe('createProductionLanguageServices', () => {
     });
 
     test('creates diagnostics services through the shared diagnostics stack factory', () => {
-        const macroManager = { kind: 'macro-manager' };
         const diagnosticsStack = {
             collectors: ['diagnostics-collector'],
             diagnosticsService: { collectDiagnostics: jest.fn() }
@@ -493,9 +477,6 @@ describe('createProductionLanguageServices', () => {
         jest.isolateModules(() => {
             jest.doMock('../../../../projectConfig/LpcProjectConfigService', () => ({
                 LpcProjectConfigService: jest.fn(() => ({ kind: 'project-config' }))
-            }));
-            jest.doMock('../../../../macroManager', () => ({
-                MacroManager: jest.fn(() => macroManager)
             }));
             jest.doMock('../../../../efun/EfunDocsManager', () => ({
                 EfunDocsManager: jest.fn(() => ({ kind: 'efun-docs-manager' }))
@@ -568,7 +549,7 @@ describe('createProductionLanguageServices', () => {
             const services = createProductionLanguageServices();
 
             expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
-            expect(createDiagnosticsStack).toHaveBeenCalledWith(macroManager, analysisService);
+            expect(createDiagnosticsStack).toHaveBeenCalledWith(analysisService);
             expect(services.diagnosticsService).toBe(diagnosticsStack.diagnosticsService);
         });
     });

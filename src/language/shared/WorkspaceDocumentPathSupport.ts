@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { MacroManager } from '../../macroManager';
 import type { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import type { DocumentAnalysisService } from '../../semantic/documentAnalysisService';
 import type { LanguageWorkspaceProjectConfig } from '../contracts/LanguageWorkspaceContext';
@@ -24,7 +23,6 @@ export interface WorkspaceDocumentHost extends TextDocumentHost {
 
 export interface WorkspaceDocumentPathSupportOptions {
     host?: TextDocumentHost;
-    macroManager?: Pick<MacroManager, 'getMacro'>;
     analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     projectConfigService?: Pick<
         LpcProjectConfigService,
@@ -388,7 +386,7 @@ export class WorkspaceDocumentPathSupport {
             }
         }
 
-        return this.options.macroManager?.getMacro(name)?.value;
+        return undefined;
     }
 
     private isWorkspaceAbsolutePath(targetPath: string): boolean {

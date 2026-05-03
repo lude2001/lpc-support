@@ -65,7 +65,6 @@ interface ActionQuickPickItem extends vscode.QuickPickItem {
 }
 
 export function registerCommands(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
-    const macroManager = registry.get(Services.MacroManager);
     const efunDocsManager = registry.get(Services.EfunDocs);
     const diagnostics = registry.get(Services.Diagnostics);
     const compiler = registry.get(Services.Compiler);
@@ -198,8 +197,6 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
             await compiler.compileFile(editor.document.fileName);
         }
     });
-
-    register(context, 'lpc.configureMacroPath', () => macroManager.configurePath());
 
     register(context, 'lpc.startDriver', async () => {
         const workspaceRoot = requireWorkspaceRoot();

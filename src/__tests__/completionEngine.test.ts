@@ -1,4 +1,4 @@
-﻿import * as fs from 'fs';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ASTManager } from '../ast/astManager';
@@ -85,16 +85,13 @@ describe('Completion engine regression coverage', () => {
         const basePath = path.join(root, 'lib', 'base.c');
         const childPath = path.join(root, 'room.c');
         const baseContent = 'int inherited_call() { return 1; }';
-        const childContent = ['inherit BASE_D;', '', 'inherited_call();'].join('\n');
+        const childContent = ['#define BASE_D "/lib/base"', 'inherit BASE_D;', '', 'inherited_call();'].join('\n');
 
         fs.writeFileSync(basePath, baseContent, 'utf8');
         fs.writeFileSync(childPath, childContent, 'utf8');
 
         const astManager = getAstManagerForTests();
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver({
-            getMacro: (name: string) => name === 'BASE_D' ? { value: '"/lib/base"' } as any : undefined,
-            getIncludePath: () => undefined
-        } as any, [root]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
             projectSymbolIndex,
@@ -107,7 +104,7 @@ describe('Completion engine regression coverage', () => {
 
         const result = engine.query(
             childDocument,
-            new vscode.Position(2, 'inhe'.length),
+            new vscode.Position(3, 'inhe'.length),
             {} as vscode.CompletionContext,
             { isCancellationRequested: false } as vscode.CancellationToken
         );
@@ -132,7 +129,7 @@ describe('Completion engine regression coverage', () => {
         fs.writeFileSync(filePath, content, 'utf8');
 
         const astManager = getAstManagerForTests();
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
             projectSymbolIndex,
@@ -156,7 +153,7 @@ describe('Completion engine regression coverage', () => {
         const content = 'write';
         const document = createDocument(filePath, content);
         const astManager = getAstManagerForTests();
-        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
         const engine = new CompletionQueryEngine({
             snapshotProvider: astManager,
             projectSymbolIndex,

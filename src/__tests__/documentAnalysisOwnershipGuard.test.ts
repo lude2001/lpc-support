@@ -177,6 +177,27 @@ describe('document analysis ownership guards', () => {
         expect(productionCallSites).toEqual([]);
     });
 
+    test('old macro manager service is removed from production ownership', () => {
+        expect(fs.existsSync(path.join(srcRoot, 'macroManager.ts'))).toBe(false);
+
+        const macroManagerCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => {
+                const source = fs.readFileSync(filePath, 'utf8');
+                return source.includes('macroManager')
+                    || source.includes('MacroManager')
+                    || source.includes('configureMacroPath');
+            })
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(macroManagerCallSites).toEqual([]);
+    });
+
+    test('debug parser facade does not bypass ParsedDocumentService', () => {
+        expect(fs.existsSync(path.join(srcRoot, 'parser', 'LPCParserUtil.ts'))).toBe(false);
+        expect(fs.existsSync(path.join(srcRoot, 'parser', 'ParseTreePrinter.ts'))).toBe(false);
+    });
+
     test('LanguageCompletionService stays a coordinator without inherited-index, candidate, or presentation helpers', () => {
         const completionServiceSource = fs.readFileSync(
             path.join(srcRoot, 'language', 'services', 'completion', 'LanguageCompletionService.ts'),

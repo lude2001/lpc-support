@@ -19,7 +19,7 @@ export class DefinitionResolverSupport {
 
     public constructor(private readonly context: Pick<
         DefinitionResolverContext,
-        'analysisService' | 'host' | 'macroManager' | 'projectConfigService' | 'semanticAdapter' | 'pathSupport'
+        'analysisService' | 'host' | 'projectConfigService' | 'semanticAdapter' | 'pathSupport'
     >) {
         this.pathSupport = assertDocumentPathSupport('DefinitionResolverSupport', context.pathSupport);
         this.context.host.onDidChangeTextDocument((event) => {

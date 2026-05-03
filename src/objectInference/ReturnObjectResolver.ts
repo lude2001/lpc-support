@@ -29,7 +29,6 @@ export class ReturnObjectResolver {
     private readonly semanticEvaluationService?: SemanticEvaluationService;
 
     constructor(
-        _macroManager?: unknown,
         documentationService?: FunctionDocumentationService,
         private readonly scopedMethodResolver?: ScopedMethodResolver,
         pathSupport?: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>,

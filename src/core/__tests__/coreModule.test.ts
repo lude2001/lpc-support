@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import { ServiceRegistry } from '../ServiceRegistry';
 import { Services } from '../ServiceKeys';
 import { registerCoreServices } from '../../modules/coreModule';
-import { MacroManager } from '../../macroManager';
 import { EfunDocsManager } from '../../efunDocs';
 import { createDefaultFunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import { CompletionInstrumentation } from '../../completion/completionInstrumentation';
@@ -14,10 +13,6 @@ import { DocumentLifecycleService } from '../DocumentLifecycleService';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
-
-jest.mock('../../macroManager', () => ({
-    MacroManager: jest.fn()
-}));
 
 jest.mock('../../efunDocs', () => ({
     EfunDocsManager: jest.fn()
@@ -64,7 +59,6 @@ jest.mock('../../parser/ParsedDocumentService', () => ({
 describe('registerCoreServices', () => {
     let registry: ServiceRegistry;
     let context: vscode.ExtensionContext;
-    let macroManager: vscode.Disposable & { id: string };
     let efunDocsManager: { id: string };
     let documentationService: { id: string };
     let completionInstrumentation: vscode.Disposable & { id: string };
@@ -84,7 +78,6 @@ describe('registerCoreServices', () => {
             globalStoragePath: '/mock/storage'
         } as vscode.ExtensionContext;
 
-        macroManager = { id: 'macroManager', dispose: jest.fn() };
         efunDocsManager = { id: 'efunDocsManager' };
         documentationService = { id: 'documentationService' };
         completionInstrumentation = { id: 'completionInstrumentation', dispose: jest.fn() };
@@ -96,7 +89,6 @@ describe('registerCoreServices', () => {
         parsedDocumentService = { invalidate: jest.fn() };
         analysisService = { clearCache: jest.fn() };
 
-        (MacroManager as unknown as jest.Mock).mockReset().mockImplementation(() => macroManager);
         (EfunDocsManager as unknown as jest.Mock).mockReset().mockImplementation(() => efunDocsManager);
         (createDefaultFunctionDocumentationService as unknown as jest.Mock).mockReset().mockImplementation(() => documentationService);
         (CompletionInstrumentation as unknown as jest.Mock).mockReset().mockImplementation(() => completionInstrumentation);
@@ -112,13 +104,6 @@ describe('registerCoreServices', () => {
     test('registers core services, tracks disposables, and wires lifecycle invalidation', () => {
         registerCoreServices(registry, context);
 
-        expect(MacroManager).toHaveBeenCalledTimes(1);
-        expect(MacroManager).toHaveBeenCalledWith(
-            projectConfigService,
-            expect.objectContaining({
-                openTextDocument: expect.any(Function)
-            })
-        );
         expect(createDefaultFunctionDocumentationService).toHaveBeenCalledTimes(1);
         expect(EfunDocsManager).toHaveBeenCalledTimes(1);
         expect(EfunDocsManager).toHaveBeenCalledWith(
@@ -138,7 +123,6 @@ describe('registerCoreServices', () => {
         expect(LpcProjectConfigService).toHaveBeenCalledTimes(1);
         expect(DocumentLifecycleService).toHaveBeenCalledTimes(1);
 
-        expect(registry.get(Services.MacroManager)).toBe(macroManager);
         expect(registry.get(Services.EfunDocs)).toBe(efunDocsManager);
         expect(registry.get(Services.ConfigManager)).toBe(configManager);
         expect(registry.get(Services.Compiler)).toBe(compiler);
@@ -154,10 +138,9 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.Analysis)).toBe(analysisService);
         expect(DocumentSemanticSnapshotService.getInstance).toHaveBeenCalledTimes(1);
 
-        expect(context.subscriptions).toEqual([macroManager, completionInstrumentation, lifecycle]);
+        expect(context.subscriptions).toEqual([completionInstrumentation, lifecycle]);
         expect(typeof context.subscriptions[0].dispose).toBe('function');
         expect(typeof context.subscriptions[1].dispose).toBe('function');
-        expect(typeof context.subscriptions[2].dispose).toBe('function');
 
         expect(lifecycle.onInvalidate).toHaveBeenCalledTimes(1);
 

@@ -125,7 +125,6 @@ describe('AstBackedLanguageDefinitionService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     function createDefinitionService(
-        macroManager: unknown,
         efunDocsManager: unknown,
         objectInferenceService?: unknown,
         targetMethodLookup?: unknown,
@@ -149,7 +148,6 @@ describe('AstBackedLanguageDefinitionService', () => {
                 analysisService,
                 pathSupport: new WorkspaceDocumentPathSupport({
                     host: resolvedHost as any,
-                    macroManager: macroManager as any,
                     projectConfigService: projectConfigService as any
                 })
             }
@@ -158,7 +156,6 @@ describe('AstBackedLanguageDefinitionService', () => {
                 host: resolvedHost,
                 pathSupport: new WorkspaceDocumentPathSupport({
                     host: resolvedHost as any,
-                    macroManager: macroManager as any,
                     projectConfigService: projectConfigService as any
                 }),
                 ...hostOrDependencies
@@ -170,7 +167,6 @@ describe('AstBackedLanguageDefinitionService', () => {
             ?? new TargetMethodLookup(analysisService, resolvedDependencies.pathSupport);
 
         return new AstBackedLanguageDefinitionService(
-            macroManager as any,
             efunDocsManager as any,
             resolvedObjectInferenceService as any,
             resolvedTargetMethodLookup as any,
@@ -200,7 +196,6 @@ describe('AstBackedLanguageDefinitionService', () => {
             fileExists: jest.fn().mockReturnValue(true)
         };
         const service = createDefinitionService(
-            { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             {
                 getSimulatedDoc: jest.fn().mockReturnValue({
                     name: 'message_vision',
@@ -306,7 +301,6 @@ describe('AstBackedLanguageDefinitionService', () => {
             })
         };
         const service = createDefinitionService(
-            { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             { getSimulatedDoc: jest.fn().mockReturnValue({ name: 'message_vision' }) } as any,
             {
                 inferObjectAccess: jest.fn().mockResolvedValue(undefined)
@@ -374,7 +368,6 @@ describe('AstBackedLanguageDefinitionService', () => {
             fileExists: jest.fn((filePath: string) => filePath === simulatedEfunFile)
         };
         const service = createDefinitionService(
-            { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             { getSimulatedDoc: jest.fn().mockReturnValue({ name: 'write' }) } as any,
             {
                 inferObjectAccess: jest.fn().mockResolvedValue(undefined)
@@ -444,7 +437,6 @@ describe('AstBackedLanguageDefinitionService', () => {
             inferObjectAccess: jest.fn().mockResolvedValue(undefined)
         };
         const service = createDefinitionService(
-            { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             objectInferenceService as any,
             undefined,
@@ -543,7 +535,6 @@ describe('AstBackedLanguageDefinitionService', () => {
         ].join('\n');
         const document = createTextDocument('D:\\workspace\\prototype-definition.c', source);
         const service = createDefinitionService(
-            { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
             undefined,
@@ -583,7 +574,6 @@ describe('AstBackedLanguageDefinitionService', () => {
     test('definition service short-circuits object-method hits before direct symbol and function-family lookup', async () => {
         const document = createTextDocument('D:\\workspace\\obj\\demo.c', 'void demo() {\n    target->query_hp();\n}\n');
         const service = createDefinitionService(
-            { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             {
                 inferObjectAccess: jest.fn().mockResolvedValue({
@@ -641,26 +631,23 @@ describe('AstBackedLanguageDefinitionService', () => {
     });
 
     test('definition service short-circuits direct-symbol hits before function-family lookup', async () => {
-        const macroDocument = createTextDocument('D:\\workspace\\include\\defs.h', '#define USER_OB "/obj/user"\n');
+        const document = createTextDocument('D:\\workspace\\cmds\\test.c', [
+            '#define USER_OB "/obj/user"',
+            'USER_OB->query_name();'
+        ].join('\n'));
         const service = createDefinitionService(
-            {
-                getMacro: jest.fn().mockReturnValue({
-                    file: 'D:\\workspace\\include\\defs.h',
-                    line: 1
-                })
-            } as any,
-            { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
             undefined,
             undefined,
             {
                 host: {
                     onDidChangeTextDocument: jest.fn().mockReturnValue({ dispose: jest.fn() }),
-                    openTextDocument: jest.fn(async () => macroDocument),
+                    openTextDocument: jest.fn(),
                     findFiles: jest.fn(),
                     getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:\\workspace' } })),
                     getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:\\workspace' } }]),
-                    fileExists: jest.fn().mockReturnValue(true)
+                    fileExists: jest.fn().mockReturnValue(false)
                 },
                 semanticAdapter: {
                     getIncludeStatements: jest.fn().mockReturnValue([]),
@@ -673,16 +660,16 @@ describe('AstBackedLanguageDefinitionService', () => {
 
         const definition = await service.provideDefinition({
             context: {
-                document: createTextDocument('D:\\workspace\\cmds\\test.c', 'USER_OB->query_name();\n') as any,
+                document: document as any,
                 workspace: { workspaceRoot: 'D:\\workspace' },
                 mode: 'lsp'
             },
-            position: { line: 0, character: 2 }
+            position: { line: 1, character: 2 }
         });
 
         expect(definition).toEqual([
             {
-                uri: vscode.Uri.file('D:\\workspace\\include\\defs.h').toString(),
+                uri: vscode.Uri.parse(document.uri.toString()).toString(),
                 range: {
                     start: { line: 0, character: 0 },
                     end: { line: 0, character: '#define USER_OB "/obj/user"'.length }
@@ -695,7 +682,6 @@ describe('AstBackedLanguageDefinitionService', () => {
     test('definition service resolves bare ::create() before ordinary function fallback', async () => {
         const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    ::create();\n}\n');
         const service = createDefinitionService(
-            {} as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
             undefined,
@@ -763,7 +749,6 @@ describe('AstBackedLanguageDefinitionService', () => {
     test('definition service resolves room::init() to the uniquely matched direct inherit branch', async () => {
         const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    room::init();\n}\n');
         const service = createDefinitionService(
-            {} as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
             undefined,
@@ -826,7 +811,6 @@ describe('AstBackedLanguageDefinitionService', () => {
     test('definition service resolves multiline room::init() when the position is on the method identifier', async () => {
         const document = createTextDocument('D:\\workspace\\room.c', 'void demo() {\n    room::\n    init();\n}\n');
         const service = createDefinitionService(
-            {} as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
             undefined,
@@ -896,7 +880,6 @@ describe('AstBackedLanguageDefinitionService', () => {
             }
         });
         const service = createDefinitionService(
-            {} as any,
             { getSimulatedDoc: jest.fn().mockReturnValue({ name: 'init' }) } as any,
             { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
             undefined,
@@ -952,7 +935,6 @@ describe('AstBackedLanguageDefinitionService', () => {
             variableName === 'room' ? qualifierLocation : undefined
         ));
         const service = createDefinitionService(
-            {} as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
             undefined,
@@ -1018,7 +1000,6 @@ describe('AstBackedLanguageDefinitionService', () => {
             variableName === 'init' ? argumentLocation : undefined
         ));
         const service = createDefinitionService(
-            {} as any,
             { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             { inferObjectAccess: jest.fn().mockResolvedValue(undefined) } as any,
             undefined,

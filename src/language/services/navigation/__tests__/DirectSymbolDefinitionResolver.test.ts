@@ -83,7 +83,6 @@ function createSupport(overrides: Partial<ConstructorParameters<typeof Definitio
         } as any,
         host: resolvedHost,
         pathSupport: new WorkspaceDocumentPathSupport({ host: resolvedHost }),
-        macroManager: { getMacro: jest.fn() } as any,
         ...overrides
     } as any);
 }
@@ -149,7 +148,6 @@ describe('DirectSymbolDefinitionResolver', () => {
         });
         const resolver = new DirectSymbolDefinitionResolver({
             support,
-            macroManager: { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             efunDocsManager: { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             semanticAdapter: {
                 resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
@@ -171,25 +169,13 @@ describe('DirectSymbolDefinitionResolver', () => {
     });
 
     test('returns macro definitions before other direct fallbacks', async () => {
-        const macroDoc = createDocument('D:/workspace/include/defs.h', '#define USER_OB "/obj/user"\n');
-        const support = createSupport({
-            host: {
-                onDidChangeTextDocument: () => ({ dispose() {} }),
-                openTextDocument: jest.fn(async () => macroDoc),
-                findFiles: jest.fn(),
-                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: 'D:/workspace' } })),
-                getWorkspaceFolders: jest.fn(() => [{ uri: { fsPath: 'D:/workspace' } }]),
-                fileExists: jest.fn().mockReturnValue(true)
-            } as any
-        });
+        const document = createDocument('D:/workspace/cmds/test.c', [
+            '#define USER_OB "/obj/user"',
+            'USER_OB->query_name();'
+        ].join('\n'));
+        const support = createAnalysisBackedSupport([document]);
         const resolver = new DirectSymbolDefinitionResolver({
             support,
-            macroManager: {
-                getMacro: jest.fn().mockReturnValue({
-                    file: 'D:/workspace/include/defs.h',
-                    line: 1
-                })
-            } as any,
             efunDocsManager: { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             semanticAdapter: {
                 resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
@@ -197,14 +183,14 @@ describe('DirectSymbolDefinitionResolver', () => {
         } as any);
 
         const result = await resolver.resolve(
-            createDocument('D:/workspace/cmds/test.c', 'USER_OB->query_name();\n'),
-            new vscode.Position(0, 2),
+            document,
+            new vscode.Position(1, 2),
             'USER_OB',
             'D:/workspace'
         );
 
         expect(result).toEqual(new vscode.Location(
-            vscode.Uri.file('D:/workspace/include/defs.h'),
+            vscode.Uri.parse(document.uri.toString()),
             new vscode.Range(0, 0, 0, '#define USER_OB "/obj/user"'.length)
         ));
     });
@@ -213,7 +199,6 @@ describe('DirectSymbolDefinitionResolver', () => {
         const support = createSupport();
         const resolver = new DirectSymbolDefinitionResolver({
             support,
-            macroManager: { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             efunDocsManager: { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             semanticAdapter: {
                 resolveVisibleVariableLocation: jest.fn().mockReturnValue({
@@ -242,7 +227,6 @@ describe('DirectSymbolDefinitionResolver', () => {
     test('returns simul_efun source-doc locations before graph traversal', async () => {
         const resolver = new DirectSymbolDefinitionResolver({
             support: createSupport(),
-            macroManager: { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             efunDocsManager: {
                 getSimulatedDoc: jest.fn().mockReturnValue({
                     name: 'message_vision',
@@ -296,7 +280,6 @@ describe('DirectSymbolDefinitionResolver', () => {
         });
         const resolver = new DirectSymbolDefinitionResolver({
             support,
-            macroManager: { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             efunDocsManager: { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             semanticAdapter: {
                 resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
@@ -337,7 +320,6 @@ describe('DirectSymbolDefinitionResolver', () => {
         });
         const resolver = new DirectSymbolDefinitionResolver({
             support,
-            macroManager: { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             efunDocsManager: { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             semanticAdapter: {
                 resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
@@ -374,7 +356,6 @@ describe('DirectSymbolDefinitionResolver', () => {
         const support = createAnalysisBackedSupport([sourceDocument, baseDocument]);
         const resolver = new DirectSymbolDefinitionResolver({
             support,
-            macroManager: { getMacro: jest.fn().mockReturnValue(undefined) } as any,
             efunDocsManager: { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
             semanticAdapter: {
                 resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
