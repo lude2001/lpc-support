@@ -87,11 +87,13 @@ describe('FunctionDocPanel', () => {
                         'query_name',
                         {
                             name: 'query_name',
-                            syntax: 'string query_name(string style)',
-                            description: '来自共享文档。',
+                            declarationKey: 'file:///D:/code/lpc/obj/npc.c#query_name',
+                            sourceKind: 'local',
+                            summary: '来自共享文档。',
                             details: '面板应该直接读取共享文档数据。',
                             signatures: [{
                                 label: 'string query_name(string style)',
+                                returnType: 'string',
                                 parameters: [{
                                     name: 'style',
                                     type: 'string',

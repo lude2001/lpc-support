@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import type { EfunDoc } from '../../../efun/types';
 import type { EfunDocsManager } from '../../../efun/EfunDocsManager';
+import type { CallableDoc } from '../../documentation/types';
 import type { InferredObjectAccess } from '../../../objectInference/types';
 import type { ObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
@@ -191,17 +191,17 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
 }
 
 function toSourceBackedTarget(
-    doc: EfunDoc | undefined,
+    doc: CallableDoc | undefined,
     name: string,
     kind: ResolvedCallableTarget['kind'],
     sourceLabel: string,
     priority: number
 ): ResolvedCallableTarget | undefined {
-    if (!doc?.sourceFile || !doc.sourceRange) {
+    if (!doc?.sourcePath || !doc.sourceRange) {
         return undefined;
     }
 
-    const documentUri = vscode.Uri.file(doc.sourceFile).toString();
+    const documentUri = vscode.Uri.file(doc.sourcePath).toString();
     const declarationKey = buildDeclarationKey(documentUri, doc.sourceRange);
 
     return {

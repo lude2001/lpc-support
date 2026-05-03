@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../../documentation/FunctionDocumentationService';
 import type { CallableDoc } from '../../documentation/types';
-import type { EfunDoc } from '../../../efun/types';
 import type { EfunDocsManager } from '../../../efun/EfunDocsManager';
 import type {
     CallableDocResolver,
@@ -27,7 +26,7 @@ export class DefaultCallableDocResolver implements CallableDocResolver {
                     ? await this.efunDocsManager.getSimulatedDocAsync(target.name)
                     : this.efunDocsManager.getSimulatedDoc(target.name)
                 : undefined;
-            return simulatedDoc ? materializeCompatCallableDoc(simulatedDoc, 'simulEfun') : undefined;
+            return simulatedDoc ? { ...simulatedDoc, sourceKind: 'simulEfun' } : undefined;
         }
 
         if (!target.documentUri || !target.declarationKey) {
@@ -44,47 +43,4 @@ export class DefaultCallableDocResolver implements CallableDocResolver {
             }
             : undefined;
     }
-}
-
-function materializeCompatCallableDoc(doc: EfunDoc, sourceKind: CallableDoc['sourceKind']): CallableDoc {
-    const signatures = doc.signatures?.length
-        ? doc.signatures.map((signature) => ({
-            label: signature.label,
-            returnType: signature.returnType,
-            parameters: signature.parameters.map((parameter) => ({
-                name: parameter.name,
-                type: parameter.type,
-                description: parameter.description,
-                optional: parameter.optional,
-                variadic: parameter.variadic
-            })),
-            isVariadic: signature.isVariadic,
-            rawSyntax: signature.label
-        }))
-        : [{
-            label: doc.syntax || `${doc.name}()`,
-            returnType: doc.returnType,
-            parameters: [],
-            isVariadic: false,
-            rawSyntax: doc.syntax || `${doc.name}()`
-        }];
-
-    return {
-        name: doc.name,
-        declarationKey: `${sourceKind}:${doc.name}`,
-        signatures,
-        summary: doc.description || undefined,
-        details: doc.details,
-        note: doc.note,
-        returns: doc.returnValue
-            ? {
-                type: doc.returnType,
-                description: doc.returnValue
-            }
-            : undefined,
-        returnObjects: doc.returnObjects ? [...doc.returnObjects] : undefined,
-        sourceKind,
-        sourcePath: doc.sourceFile,
-        sourceRange: doc.sourceRange
-    };
 }

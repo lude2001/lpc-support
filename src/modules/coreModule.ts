@@ -6,7 +6,6 @@ import { CompletionInstrumentation } from '../completion/completionInstrumentati
 import { LPCConfigManager } from '../config';
 import { LPCCompiler } from '../compiler';
 import { EfunDocsManager } from '../efunDocs';
-import { FunctionDocCompatMaterializer } from '../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
 import { LpcFrontendService } from '../frontend/LpcFrontendService';
 import { createDefaultFunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
@@ -52,7 +51,6 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
         projectConfigService
     });
     registry.register(Services.SemanticEvaluation, semanticEvaluationService);
-    const functionDocCompatMaterializer = new FunctionDocCompatMaterializer();
     const functionDocLookupBuilder = new FunctionDocLookupBuilder({
         documentationService,
         analysisService,
@@ -63,10 +61,8 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
         context,
         projectConfigService,
         analysisService,
-        macroManager,
         documentationService,
         documentPathSupport,
-        functionDocCompatMaterializer,
         functionDocLookupBuilder
     );
     registry.register(Services.EfunDocs, efunDocsManager);

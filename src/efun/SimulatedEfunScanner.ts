@@ -6,17 +6,15 @@ import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
+import type { CallableDoc, DocumentCallableDocs } from '../language/documentation/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
-import { FunctionDocCompatMaterializer } from './FunctionDocCompatMaterializer';
-import type { EfunDoc } from './types';
 
 type SimulatedEfunAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
 
 export class SimulatedEfunScanner {
-    private docs: Map<string, EfunDoc> = new Map();
+    private docs: Map<string, CallableDoc> = new Map();
     private readonly analysisService: SimulatedEfunAnalysisService;
     private readonly documentationService: FunctionDocumentationService;
-    private readonly compatMaterializer: FunctionDocCompatMaterializer;
     private hasLoadedWorkspaceState = false;
     private loadedWorkspaceRoot: string | undefined;
     private loadVersion = 0;
@@ -24,22 +22,17 @@ export class SimulatedEfunScanner {
     constructor(
         private readonly projectConfigService: LpcProjectConfigService | undefined,
         analysisService: SimulatedEfunAnalysisService,
-        documentationService?: FunctionDocumentationService,
-        compatMaterializer?: FunctionDocCompatMaterializer
+        documentationService?: FunctionDocumentationService
     ) {
         this.analysisService = assertAnalysisService('SimulatedEfunScanner', analysisService);
         this.documentationService = assertDocumentationService('SimulatedEfunScanner', documentationService);
-        this.compatMaterializer = compatMaterializer
-            ?? (() => {
-                throw new Error('SimulatedEfunScanner requires an injected FunctionDocCompatMaterializer');
-            })();
     }
 
-    public get(name: string): EfunDoc | undefined {
+    public get(name: string): CallableDoc | undefined {
         return this.docs.get(name);
     }
 
-    public async getAsync(name: string): Promise<EfunDoc | undefined> {
+    public async getAsync(name: string): Promise<CallableDoc | undefined> {
         await this.ensureWorkspaceStateCurrent();
         if (!this.hasLoadedWorkspaceState) {
             await this.refreshWorkspaceState(true);
@@ -111,8 +104,8 @@ export class SimulatedEfunScanner {
         }
     }
 
-    private async collectSimulatedEfuns(): Promise<Map<string, EfunDoc>> {
-        const docs = new Map<string, EfunDoc>();
+    private async collectSimulatedEfuns(): Promise<Map<string, CallableDoc>> {
+        const docs = new Map<string, CallableDoc>();
 
         const workspaceRoot = this.getWorkspaceRoot();
         if (!workspaceRoot) {
@@ -145,7 +138,7 @@ export class SimulatedEfunScanner {
     private async loadFromProjectConfigEntry(
         workspaceRoot: string,
         entryFilePath: string,
-        docs: Map<string, EfunDoc>
+        docs: Map<string, CallableDoc>
     ): Promise<void> {
         const mudlibRoot = await this.resolveMudlibRoot(workspaceRoot);
         const queue = [entryFilePath];
@@ -207,19 +200,15 @@ export class SimulatedEfunScanner {
         return relatedFiles.filter((filePath): filePath is string => Boolean(filePath));
     }
 
-    private storeParsedDocs(filePath: string, text: string, docs: Map<string, EfunDoc>): void {
-        const document = this.createSyntheticDocument(
-            filePath,
-            normalizeLegacySimulatedDeclarations(text)
-        );
+    private storeParsedDocs(filePath: string, text: string, docs: Map<string, CallableDoc>): void {
+        const document = this.createSyntheticDocument(filePath, text);
         this.documentationService.invalidate(document.uri.toString());
         const documentDocs = this.documentationService.getDocumentDocs(document);
-        const compatDocs = this.compatMaterializer.materializeDocMap(documentDocs, '模拟函数库');
 
-        for (const [funcName, doc] of compatDocs) {
+        for (const [funcName, doc] of materializeDocMap(documentDocs)) {
             docs.set(funcName, {
                 ...doc,
-                isSimulated: true
+                sourceKind: 'simulEfun'
             });
         }
     }
@@ -343,43 +332,20 @@ export class SimulatedEfunScanner {
     }
 }
 
-function normalizeLegacySimulatedDeclarations(content: string): string {
-    const lines = content.split(/\r?\n/);
-    const normalizedLines = [...lines];
+function materializeDocMap(documentDocs: DocumentCallableDocs): Map<string, CallableDoc> {
+    const docs = new Map<string, CallableDoc>();
 
-    for (let index = 0; index < lines.length; index += 1) {
-        const line = lines[index];
-        const trimmed = line.trim();
-        if (!looksLikeCallablePrototype(trimmed) || trimmed.endsWith(';')) {
+    for (const [name, declarationKeys] of documentDocs.byName.entries()) {
+        const preferredDeclarationKey = declarationKeys[0];
+        if (!preferredDeclarationKey || docs.has(name)) {
             continue;
         }
 
-        const nextSignificantLine = findNextSignificantLine(lines, index + 1);
-        if (nextSignificantLine?.trim().startsWith('{')) {
-            continue;
-        }
-
-        normalizedLines[index] = `${line};`;
-    }
-
-    return normalizedLines.join('\n');
-}
-
-function looksLikeCallablePrototype(line: string): boolean {
-    if (/^(?:if|else|for|foreach|while|do|switch|catch)\b/.test(line)) {
-        return false;
-    }
-
-    return /^(?:private\s+|public\s+|protected\s+|static\s+|nomask\s+)*(?:varargs\s+)?(?:mixed|void|int|string|object|mapping|array|float|function|buffer|class|[A-Za-z_][A-Za-z0-9_]*)(?:\s+\**\s*|\*+\s*)[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*$/.test(line);
-}
-
-function findNextSignificantLine(lines: string[], startIndex: number): string | undefined {
-    for (let index = startIndex; index < lines.length; index += 1) {
-        const trimmed = lines[index].trim();
-        if (trimmed.length > 0) {
-            return trimmed;
+        const callableDoc = documentDocs.byDeclaration.get(preferredDeclarationKey);
+        if (callableDoc) {
+            docs.set(name, callableDoc);
         }
     }
 
-    return undefined;
+    return docs;
 }

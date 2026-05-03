@@ -1,12 +1,7 @@
 import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
-import {
-    WorkspaceDocumentPathSupport,
-    assertDocumentPathSupport
-} from '../language/shared/WorkspaceDocumentPathSupport';
-import type { MacroManager } from '../macroManager';
-import { FunctionDocCompatMaterializer } from './FunctionDocCompatMaterializer';
+import type { CallableDoc, DocumentCallableDocs } from '../language/documentation/types';
 import { FunctionDocLookupBuilder } from './FunctionDocLookupBuilder';
 import type {
     FunctionDocLookup,
@@ -14,13 +9,11 @@ import type {
     MaterializedFunctionDocLookup,
     RawFunctionDocLookup
 } from './FunctionDocLookupTypes';
-import type { EfunDoc } from './types';
 
 export type { FunctionDocLookup, FunctionDocSourceGroup } from './FunctionDocLookupTypes';
 
 interface FileFunctionDocTrackerOptions {
     documentationService?: FunctionDocumentationService;
-    compatMaterializer?: FunctionDocCompatMaterializer;
     lookupBuilder?: Pick<FunctionDocLookupBuilder, 'buildLookup'>;
 }
 
@@ -30,16 +23,11 @@ interface CachedDocumentDocsEntry extends MaterializedFunctionDocLookup {
 }
 
 export class FileFunctionDocTracker {
-    private readonly compatMaterializer: FunctionDocCompatMaterializer;
     private readonly lookupBuilder: Pick<FunctionDocLookupBuilder, 'buildLookup'>;
     private readonly documentLookupCache = new Map<string, CachedDocumentDocsEntry>();
 
     public constructor(options: FileFunctionDocTrackerOptions) {
         assertDocumentationService('FileFunctionDocTracker', options.documentationService);
-        this.compatMaterializer = options.compatMaterializer
-            ?? (() => {
-                throw new Error('FileFunctionDocTracker requires an injected FunctionDocCompatMaterializer');
-            })();
         this.lookupBuilder = options.lookupBuilder
             ?? (() => {
                 throw new Error('FileFunctionDocTracker requires an injected FunctionDocLookupBuilder');
@@ -50,7 +38,7 @@ export class FileFunctionDocTracker {
         document: vscode.TextDocument,
         name: string,
         options?: { forceFresh?: boolean }
-    ): Promise<EfunDoc | undefined> {
+    ): Promise<CallableDoc | undefined> {
         const lookup = await this.getOrBuildDocumentLookup(document, options);
         for (const funcDocs of lookup.includeFileDocs.values()) {
             const doc = funcDocs.get(name);
@@ -65,7 +53,7 @@ export class FileFunctionDocTracker {
     public async getDocForDocument(
         document: vscode.TextDocument,
         name: string
-    ): Promise<EfunDoc | undefined> {
+    ): Promise<CallableDoc | undefined> {
         return (await this.getOrBuildDocumentLookup(document)).currentFileDocs.get(name);
     }
 
@@ -73,7 +61,7 @@ export class FileFunctionDocTracker {
         document: vscode.TextDocument,
         name: string,
         options?: { forceFresh?: boolean }
-    ): Promise<EfunDoc | undefined> {
+    ): Promise<CallableDoc | undefined> {
         const lookup = await this.getOrBuildDocumentLookup(document, options);
         for (const funcDocs of lookup.inheritedFileDocs.values()) {
             const inheritedDoc = funcDocs.get(name);
@@ -122,6 +110,58 @@ export class FileFunctionDocTracker {
     }
 
     private materializeLookup(rawLookup: RawFunctionDocLookup): MaterializedFunctionDocLookup {
-        return this.compatMaterializer.materializeLookup(rawLookup);
+        const currentFile = materializeSourceGroup(rawLookup.currentFile);
+        const inheritedGroups = rawLookup.inheritedGroups.map(materializeSourceGroup);
+        const includeGroups = rawLookup.includeGroups.map(materializeSourceGroup);
+
+        return {
+            inheritedFiles: [...rawLookup.inheritedFiles],
+            currentFileDocs: currentFile.docs,
+            inheritedFileDocs: materializeGroupedMaps(inheritedGroups),
+            includeFileDocs: materializeGroupedMaps(includeGroups),
+            lookup: {
+                currentFile,
+                inheritedGroups,
+                includeGroups
+            }
+        };
     }
+}
+
+function materializeSourceGroup(source: RawFunctionDocLookup['currentFile']): FunctionDocSourceGroup {
+    return {
+        source: source.source,
+        filePath: source.filePath,
+        docs: materializeDocMap(source.docs, source.sourceKind)
+    };
+}
+
+function materializeDocMap(
+    documentDocs: DocumentCallableDocs,
+    sourceKind: RawFunctionDocLookup['currentFile']['sourceKind']
+): Map<string, CallableDoc> {
+    const docs = new Map<string, CallableDoc>();
+
+    for (const [name, declarationKeys] of documentDocs.byName.entries()) {
+        const preferredDeclarationKey = declarationKeys[0];
+        if (!preferredDeclarationKey || docs.has(name)) {
+            continue;
+        }
+
+        const callableDoc = documentDocs.byDeclaration.get(preferredDeclarationKey);
+        if (callableDoc) {
+            docs.set(name, {
+                ...callableDoc,
+                sourceKind
+            });
+        }
+    }
+
+    return docs;
+}
+
+function materializeGroupedMaps(
+    groups: FunctionDocSourceGroup[]
+): Map<string, Map<string, CallableDoc>> {
+    return new Map(groups.map((group) => [group.filePath, group.docs]));
 }

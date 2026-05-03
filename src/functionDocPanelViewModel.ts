@@ -1,10 +1,10 @@
-import type { EfunDoc } from './efun/types';
+import type { CallableDoc } from './language/documentation/types';
 import { FunctionInfo } from './types/functionInfo';
 
 type FunctionDocSourceGroup = {
     source: string;
     filePath: string;
-    docs: Map<string, EfunDoc>;
+    docs: Map<string, CallableDoc>;
 };
 
 export interface FunctionDocPanelFunctionData {
@@ -29,10 +29,10 @@ export function buildFunctionInfosFromDocGroup(group: FunctionDocSourceGroup): F
     return Array.from(group.docs.values())
         .map((doc) => ({
             name: doc.name,
-            definition: doc.syntax,
-            returnType: doc.returnType,
+            definition: doc.signatures.map((signature) => signature.label).join('\n'),
+            returnType: deriveCallableReturnType(doc),
             comment: renderFunctionDocComment(doc),
-            briefDescription: doc.description ?? '',
+            briefDescription: doc.summary ?? '',
             source: group.source,
             filePath: group.filePath,
             line: doc.sourceRange?.start.line ?? 0
@@ -65,13 +65,13 @@ function toPanelFunctionData(functionInfo: FunctionInfo): FunctionDocPanelFuncti
     };
 }
 
-export function renderFunctionDocComment(doc: EfunDoc): string {
+export function renderFunctionDocComment(doc: CallableDoc): string {
     const hasDocumentation = Boolean(
-        doc.description
+        doc.summary
         || doc.details
         || doc.note
-        || doc.returnValue
-        || doc.signatures?.some((signature) => signature.parameters.some((parameter) => parameter.description))
+        || doc.returns?.description
+        || doc.signatures.some((signature) => signature.parameters.some((parameter) => parameter.description))
     );
     if (!hasDocumentation) {
         return '';
@@ -79,11 +79,11 @@ export function renderFunctionDocComment(doc: EfunDoc): string {
 
     const lines: string[] = ['/**'];
 
-    if (doc.description) {
-        lines.push(` * @brief ${doc.description}`);
+    if (doc.summary) {
+        lines.push(` * @brief ${doc.summary}`);
     }
 
-    for (const signature of doc.signatures ?? []) {
+    for (const signature of doc.signatures) {
         for (const parameter of signature.parameters) {
             const parts = [' * @param'];
             if (parameter.type) {
@@ -97,8 +97,8 @@ export function renderFunctionDocComment(doc: EfunDoc): string {
         }
     }
 
-    if (doc.returnValue) {
-        lines.push(` * @return ${doc.returnValue}`);
+    if (doc.returns?.description) {
+        lines.push(` * @return ${doc.returns.description}`);
     }
 
     if (doc.details) {
@@ -115,4 +115,24 @@ export function renderFunctionDocComment(doc: EfunDoc): string {
 
     lines.push(' */');
     return lines.join('\n');
+}
+
+function deriveCallableReturnType(doc: CallableDoc): string | undefined {
+    if (doc.signatures.length === 0) {
+        return undefined;
+    }
+
+    if (doc.signatures.length === 1) {
+        return doc.signatures[0].returnType;
+    }
+
+    const returnTypes = doc.signatures.map((signature) => signature.returnType?.trim()).filter(Boolean);
+    if (returnTypes.length !== doc.signatures.length) {
+        return undefined;
+    }
+
+    const [firstReturnType, ...restReturnTypes] = returnTypes;
+    return restReturnTypes.every((returnType) => returnType === firstReturnType)
+        ? firstReturnType
+        : undefined;
 }

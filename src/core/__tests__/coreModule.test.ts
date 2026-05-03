@@ -125,9 +125,7 @@ describe('registerCoreServices', () => {
             context,
             projectConfigService,
             analysisService,
-            macroManager,
             documentationService,
-            expect.anything(),
             expect.anything(),
             expect.anything()
         );

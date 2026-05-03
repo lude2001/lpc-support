@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type {
-    EfunDoc,
     StructuredEfunDoc,
     StructuredEfunDocBundle,
     StructuredEfunParameter,
@@ -14,7 +13,6 @@ const BUNDLED_DOCS_FILE = 'efun-docs.json';
 export const DEFAULT_EFUN_CATEGORY = '标准 Efun';
 
 export class BundledEfunLoader {
-    private docs: Map<string, EfunDoc> = new Map();
     private structuredDocs: Map<string, StructuredEfunDoc> = new Map();
     private categories: Map<string, string[]> = new Map();
 
@@ -22,16 +20,12 @@ export class BundledEfunLoader {
         this.loadBundledDocs(context);
     }
 
-    public get(name: string): EfunDoc | undefined {
-        return this.docs.get(name);
-    }
-
     public getStructuredDoc(name: string): StructuredEfunDoc | undefined {
         return this.structuredDocs.get(name);
     }
 
     public getAllNames(): string[] {
-        return Array.from(this.docs.keys());
+        return Array.from(this.structuredDocs.keys());
     }
 
     public getCategories(): Map<string, string[]> {
@@ -43,7 +37,6 @@ export class BundledEfunLoader {
 
         if (!fs.existsSync(bundledDocsPath)) {
             console.error(`未找到内置 Efun 文档文件: ${bundledDocsPath}`);
-            this.docs = new Map();
             this.structuredDocs = new Map();
             this.categories = new Map();
             return;
@@ -54,7 +47,6 @@ export class BundledEfunLoader {
             parsedBundle = JSON.parse(fs.readFileSync(bundledDocsPath, 'utf8'));
         } catch (error) {
             console.error('加载内置 Efun 文档失败: JSON 解析错误', error);
-            this.docs = new Map();
             this.structuredDocs = new Map();
             this.categories = new Map();
             return;
@@ -62,14 +54,12 @@ export class BundledEfunLoader {
 
         if (!isRecord(parsedBundle) || !isRecord(parsedBundle.docs)) {
             console.error('加载内置 Efun 文档失败: 缺少合法的 docs 对象');
-            this.docs = new Map();
             this.structuredDocs = new Map();
             this.categories = new Map();
             return;
         }
 
         const bundle = parsedBundle as StructuredEfunDocBundle;
-        const docs = new Map<string, EfunDoc>();
         const structuredDocs = new Map<string, StructuredEfunDoc>();
 
         for (const [docKey, docValue] of Object.entries(bundle.docs)) {
@@ -78,18 +68,16 @@ export class BundledEfunLoader {
                 continue;
             }
 
-            docs.set(docKey, createCompatEfunDoc(normalized));
             structuredDocs.set(docKey, cloneStructuredDoc(normalized));
         }
 
-        this.docs = docs;
         this.structuredDocs = structuredDocs;
-        this.categories = this.loadCategories(bundle.categories, docs);
+        this.categories = this.loadCategories(bundle.categories, structuredDocs);
     }
 
     private loadCategories(
         rawCategories: unknown,
-        docs: Map<string, EfunDoc>
+        docs: Map<string, StructuredEfunDoc>
     ): Map<string, string[]> {
         if (!isRecord(rawCategories)) {
             console.error('加载内置 Efun 文档失败: 缺少合法的 categories 对象');
@@ -233,42 +221,6 @@ function normalizeParameter(docKey: string, value: unknown): StructuredEfunParam
         optional: value.optional === true ? true : undefined,
         variadic: value.variadic === true ? true : undefined
     };
-}
-
-function createCompatEfunDoc(structuredDoc: StructuredEfunDoc): EfunDoc {
-    const syntax = structuredDoc.signatures.map(signature => signature.label).join('\n');
-
-    return {
-        name: structuredDoc.name,
-        syntax,
-        description: structuredDoc.summary ?? '',
-        returnType: deriveCompatReturnType(structuredDoc.signatures),
-        details: structuredDoc.details,
-        note: structuredDoc.note,
-        reference: structuredDoc.reference,
-        category: structuredDoc.category,
-        signatures: structuredDoc.signatures.map(cloneStructuredSignature)
-    };
-}
-
-function deriveCompatReturnType(signatures: StructuredEfunSignature[]): string | undefined {
-    if (signatures.length === 0) {
-        return undefined;
-    }
-
-    if (signatures.length === 1) {
-        return signatures[0].returnType;
-    }
-
-    const returnTypes = signatures.map((signature) => signature.returnType?.trim()).filter(Boolean);
-    if (returnTypes.length !== signatures.length) {
-        return undefined;
-    }
-
-    const [firstReturnType, ...restReturnTypes] = returnTypes;
-    return restReturnTypes.every((returnType) => returnType === firstReturnType)
-        ? firstReturnType
-        : undefined;
 }
 
 function cloneStructuredDoc(structuredDoc: StructuredEfunDoc): StructuredEfunDoc {

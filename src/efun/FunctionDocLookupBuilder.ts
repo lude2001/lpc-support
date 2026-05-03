@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
-import type { DocumentCallableDocs } from '../language/documentation/types';
+import type { CallableSourceKind, DocumentCallableDocs } from '../language/documentation/types';
 import {
     WorkspaceDocumentPathSupport,
     assertDocumentPathSupport
@@ -38,7 +38,7 @@ export class FunctionDocLookupBuilder {
 
         return {
             inheritedFiles,
-            currentFile: this.buildRawSource(document, '当前文件', options),
+            currentFile: this.buildRawSource(document, '当前文件', 'local', options),
             inheritedGroups: await this.loadInheritedFileDocs(document, inheritedFiles, options),
             includeGroups: await this.loadIncludeFileDocs(document, snapshot.includeStatements, options)
         };
@@ -47,6 +47,7 @@ export class FunctionDocLookupBuilder {
     private buildRawSource(
         document: vscode.TextDocument,
         source: string,
+        sourceKind: CallableSourceKind,
         options?: { forceFresh?: boolean }
     ): RawFunctionDocSource {
         if (options?.forceFresh) {
@@ -56,6 +57,7 @@ export class FunctionDocLookupBuilder {
         return {
             source,
             filePath: document.fileName,
+            sourceKind,
             docs: this.documentationService.getDocumentDocs(document)
         };
     }
@@ -97,6 +99,7 @@ export class FunctionDocLookupBuilder {
                         this.buildRawSource(
                             inheritedDocument,
                             `继承自 ${path.basename(candidatePath)}`,
+                            'inherit',
                             options
                         )
                     );
@@ -132,6 +135,7 @@ export class FunctionDocLookupBuilder {
                 this.buildRawSource(
                     includeDocument,
                     `包含自 ${path.basename(includeFile)}`,
+                    'include',
                     options
                 )
             );

@@ -5,7 +5,6 @@ import * as path from 'path';
 import { ASTManager } from '../../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../../semantic/documentSemanticSnapshotService';
 import { EfunDocsManager } from '../../../../efunDocs';
-import { FunctionDocCompatMaterializer } from '../../../../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../../../../efun/FunctionDocLookupBuilder';
 import {
     FunctionDocumentationService,
@@ -394,7 +393,7 @@ describe('LanguageSignatureHelpService', () => {
         const efunDocsManager = new EfunDocsManager({
             subscriptions: [],
             extensionPath: process.cwd()
-        } as unknown as vscode.ExtensionContext, undefined, analysisService, undefined, documentationService, pathSupport, new FunctionDocCompatMaterializer(), new FunctionDocLookupBuilder({
+        } as unknown as vscode.ExtensionContext, undefined, analysisService, documentationService, pathSupport, new FunctionDocLookupBuilder({
             documentationService,
             analysisService,
             pathSupport
@@ -509,9 +508,15 @@ describe('LanguageSignatureHelpService', () => {
         const document = createDocument(source);
         const currentFileDoc = {
             name: 'local_call',
-            syntax: 'void local_call(int value)',
-            description: 'Local callable',
-            sourceFile: document.fileName,
+            declarationKey: 'local:local_call',
+            signatures: [{
+                label: 'void local_call(int value)',
+                isVariadic: false,
+                parameters: [{ name: 'value', type: 'int' }]
+            }],
+            summary: 'Local callable',
+            sourceKind: 'local',
+            sourcePath: document.fileName,
             sourceRange: {
                 start: { line: 1, character: 4 },
                 end: { line: 1, character: 17 }

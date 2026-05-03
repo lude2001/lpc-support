@@ -1,10 +1,8 @@
 import * as vscode from 'vscode';
 import type { EfunDocsManager } from '../../../efunDocs';
-import type { EfunDoc } from '../../../efun/types';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
-import type { CallableDoc, CallableSignature } from '../../documentation/types';
 import { SyntaxKind, type SyntaxDocument, type SyntaxNode } from '../../../syntax/types';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
 
@@ -49,7 +47,7 @@ export class EfunLanguageHoverService implements LanguageHoverService {
 
         const currentDoc = await this.efunDocsManager.getCurrentFileDocForDocument(document, word);
         if (currentDoc) {
-            return this.renderer.renderHover(materializeCallableDoc(currentDoc, 'local'));
+            return this.renderer.renderHover({ ...currentDoc, sourceKind: 'local' });
         }
 
         const inheritedDoc = await this.efunDocsManager.getInheritedFileDocForDocument(
@@ -58,17 +56,17 @@ export class EfunLanguageHoverService implements LanguageHoverService {
             { forceFresh: true }
         );
         if (inheritedDoc) {
-            return this.renderer.renderHover(materializeCallableDoc(inheritedDoc, 'inherit'));
+            return this.renderer.renderHover({ ...inheritedDoc, sourceKind: 'inherit' });
         }
 
         const includeDoc = await this.efunDocsManager.getIncludedFileDoc(document, word);
         if (includeDoc) {
-            return this.renderer.renderHover(materializeCallableDoc(includeDoc, 'include'));
+            return this.renderer.renderHover({ ...includeDoc, sourceKind: 'include' });
         }
 
         const simulatedDoc = await this.efunDocsManager.getSimulatedDocAsync(word);
         if (simulatedDoc) {
-            return this.renderer.renderHover(materializeCallableDoc(simulatedDoc, 'simulEfun'));
+            return this.renderer.renderHover({ ...simulatedDoc, sourceKind: 'simulEfun' });
         }
 
         const standardCallableDoc = this.efunDocsManager.getStandardCallableDoc(word);
@@ -76,8 +74,7 @@ export class EfunLanguageHoverService implements LanguageHoverService {
             return this.renderer.renderHover(standardCallableDoc, { sourceLabel: '标准 Efun' });
         }
 
-        const standardDoc = this.efunDocsManager.getStandardDoc(word);
-        return standardDoc ? this.renderer.renderHover(materializeCallableDoc(standardDoc, 'efun')) : undefined;
+        return undefined;
     }
 
     private isScopedMethodAccess(document: vscode.TextDocument, position: vscode.Position, word: string): boolean {
@@ -159,49 +156,6 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         const memberNode = node.children[1];
         return memberNode.kind === SyntaxKind.Identifier && memberNode.name === word;
     }
-}
-
-function materializeCallableDoc(doc: EfunDoc, sourceKind: CallableDoc['sourceKind']): CallableDoc {
-    const signatures = doc.signatures?.length
-        ? doc.signatures.map((signature): CallableSignature => ({
-            label: signature.label,
-            returnType: signature.returnType,
-            parameters: signature.parameters.map((parameter) => ({
-                name: parameter.name,
-                type: parameter.type,
-                description: parameter.description,
-                optional: parameter.optional,
-                variadic: parameter.variadic
-            })),
-            isVariadic: signature.isVariadic,
-            rawSyntax: signature.label
-        }))
-        : [{
-            label: doc.syntax || `${doc.name}()`,
-            returnType: doc.returnType,
-            parameters: [],
-            isVariadic: false,
-            rawSyntax: doc.syntax || `${doc.name}()`
-        }];
-
-    return {
-        name: doc.name,
-        declarationKey: `${sourceKind}:${doc.name}`,
-        signatures,
-        summary: doc.description || undefined,
-        details: doc.details,
-        note: doc.note,
-        returns: doc.returnValue
-            ? {
-                type: doc.returnType,
-                description: doc.returnValue
-            }
-            : undefined,
-        returnObjects: doc.returnObjects ? [...doc.returnObjects] : undefined,
-        sourceKind,
-        sourcePath: doc.sourceFile,
-        sourceRange: doc.sourceRange
-    };
 }
 
 function createHoverResult(range: vscode.Range, value: string): LanguageHoverResult {

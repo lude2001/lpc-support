@@ -8,39 +8,31 @@ import {
 } from '../language/shared/WorkspaceDocumentPathSupport';
 import { BundledEfunLoader } from './BundledEfunLoader';
 import { FileFunctionDocTracker, type FunctionDocLookup } from './FileFunctionDocTracker';
-import { FunctionDocCompatMaterializer } from './FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from './FunctionDocLookupBuilder';
 import { SimulatedEfunScanner } from './SimulatedEfunScanner';
-import type { EfunDoc, StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
+import type { StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
 import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
-import type { MacroManager } from '../macroManager';
 
 export class EfunDocsManager {
     private bundledLoader: BundledEfunLoader;
     private fileFunctionDocTracker: FileFunctionDocTracker;
     private simulatedEfunScanner: SimulatedEfunScanner;
-    private efunDocs: Map<string, EfunDoc> = new Map();
+    private efunDocs: Map<string, CallableDoc> = new Map();
     private efunCategories: Map<string, string[]> = new Map();
 
     constructor(
         context: vscode.ExtensionContext,
         projectConfigService?: LpcProjectConfigService,
         analysisService?: Pick<DocumentAnalysisService, 'parseDocument'>,
-        macroManager?: Pick<MacroManager, 'getMacro'>,
         documentationService?: FunctionDocumentationService,
         pathSupport?: WorkspaceDocumentPathSupport,
-        compatMaterializer?: FunctionDocCompatMaterializer,
         lookupBuilder?: FunctionDocLookupBuilder
     ) {
         const resolvedAnalysisService = assertAnalysisService('EfunDocsManager', analysisService);
         const resolvedDocumentationService = assertDocumentationService('EfunDocsManager', documentationService);
         const resolvedPathSupport = assertDocumentPathSupport('EfunDocsManager', pathSupport);
-        const resolvedCompatMaterializer = compatMaterializer
-            ?? (() => {
-                throw new Error('EfunDocsManager requires an injected FunctionDocCompatMaterializer');
-            })();
         const resolvedLookupBuilder = lookupBuilder
             ?? (() => {
                 throw new Error('EfunDocsManager requires an injected FunctionDocLookupBuilder');
@@ -48,14 +40,12 @@ export class EfunDocsManager {
         this.bundledLoader = new BundledEfunLoader(context);
         this.fileFunctionDocTracker = new FileFunctionDocTracker({
             documentationService: resolvedDocumentationService,
-            compatMaterializer: resolvedCompatMaterializer,
             lookupBuilder: resolvedLookupBuilder
         });
         this.simulatedEfunScanner = new SimulatedEfunScanner(
             projectConfigService,
             resolvedAnalysisService,
-            resolvedDocumentationService,
-            resolvedCompatMaterializer
+            resolvedDocumentationService
         );
         this.efunDocs = this.createBundledDocsMap();
         this.efunCategories = this.createBundledCategoriesMap();
@@ -71,9 +61,14 @@ export class EfunDocsManager {
         );
     }
 
-    private createBundledDocsMap(): Map<string, EfunDoc> {
+    private createBundledDocsMap(): Map<string, CallableDoc> {
         return new Map(
-            this.bundledLoader.getAllNames().map((name) => [name, this.bundledLoader.get(name)!])
+            this.bundledLoader.getAllNames()
+                .map((name): [string, CallableDoc] | undefined => {
+                    const structuredDoc = this.bundledLoader.getStructuredDoc(name);
+                    return structuredDoc ? [name, materializeCallableDoc(structuredDoc)] : undefined;
+                })
+                .filter((entry): entry is [string, CallableDoc] => Boolean(entry))
         );
     }
 
@@ -92,7 +87,7 @@ export class EfunDocsManager {
     public async getCurrentFileDocForDocument(
         document: vscode.TextDocument,
         funcName: string
-    ): Promise<EfunDoc | undefined> {
+    ): Promise<CallableDoc | undefined> {
         return this.fileFunctionDocTracker.getDocForDocument(document, funcName);
     }
 
@@ -100,7 +95,7 @@ export class EfunDocsManager {
         document: vscode.TextDocument,
         funcName: string,
         options?: { forceFresh?: boolean }
-    ): Promise<EfunDoc | undefined> {
+    ): Promise<CallableDoc | undefined> {
         return this.fileFunctionDocTracker.getDocFromInheritedForDocument(document, funcName, options);
     }
 
@@ -108,7 +103,7 @@ export class EfunDocsManager {
         document: vscode.TextDocument,
         funcName: string,
         options?: { forceFresh?: boolean }
-    ): Promise<EfunDoc | undefined> {
+    ): Promise<CallableDoc | undefined> {
         return this.fileFunctionDocTracker.getDocFromIncludes(document, funcName, options);
     }
 
@@ -119,13 +114,8 @@ export class EfunDocsManager {
         return this.fileFunctionDocTracker.getFunctionDocLookup(document, options);
     }
 
-    public getStandardDoc(funcName: string): EfunDoc | undefined {
-        return this.efunDocs.get(funcName);
-    }
-
     public getStandardCallableDoc(funcName: string): CallableDoc | undefined {
-        const structuredDoc = this.bundledLoader.getStructuredDoc(funcName);
-        return structuredDoc ? materializeCallableDoc(structuredDoc) : undefined;
+        return this.efunDocs.get(funcName);
     }
 
     public getCategories(): Map<string, string[]> {
@@ -140,11 +130,11 @@ export class EfunDocsManager {
         return this.simulatedEfunScanner.getAllNames();
     }
 
-    public getSimulatedDoc(funcName: string): EfunDoc | undefined {
+    public getSimulatedDoc(funcName: string): CallableDoc | undefined {
         return this.simulatedEfunScanner.get(funcName);
     }
 
-    public async getSimulatedDocAsync(funcName: string): Promise<EfunDoc | undefined> {
+    public async getSimulatedDocAsync(funcName: string): Promise<CallableDoc | undefined> {
         return this.simulatedEfunScanner.getAsync(funcName);
     }
 

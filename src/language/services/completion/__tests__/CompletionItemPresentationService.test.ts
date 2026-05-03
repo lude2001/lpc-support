@@ -57,7 +57,7 @@ describe('CompletionItemPresentationService', () => {
         const CompletionItemPresentationService = loadService();
         const service = new CompletionItemPresentationService(
             {
-                getStandardDoc: jest.fn(),
+                getStandardCallableDoc: jest.fn(),
                 getSimulatedDoc: jest.fn()
             },
             {
@@ -106,11 +106,17 @@ describe('CompletionItemPresentationService', () => {
         const CompletionItemPresentationService = loadService();
         const service = new CompletionItemPresentationService(
             {
-                getStandardDoc: jest.fn(() => ({
+                getStandardCallableDoc: jest.fn(() => ({
                     name: 'write',
-                    syntax: 'void write(string msg);',
-                    description: 'Writes a message.',
-                    returnType: 'void'
+                    declarationKey: 'efun:write',
+                    sourceKind: 'efun',
+                    summary: 'Writes a message.',
+                    signatures: [{
+                        label: 'void write(string msg);',
+                        returnType: 'void',
+                        isVariadic: false,
+                        parameters: [{ name: 'msg', type: 'string' }]
+                    }]
                 })),
                 getSimulatedDoc: jest.fn()
             },
@@ -141,7 +147,7 @@ describe('CompletionItemPresentationService', () => {
         const CompletionItemPresentationService = loadService();
         const service = new CompletionItemPresentationService(
             {
-                getStandardDoc: jest.fn(),
+                getStandardCallableDoc: jest.fn(),
                 getSimulatedDoc: jest.fn()
             },
             {
@@ -178,7 +184,7 @@ describe('CompletionItemPresentationService', () => {
         }));
         const service = new CompletionItemPresentationService(
             {
-                getStandardDoc: jest.fn(),
+                getStandardCallableDoc: jest.fn(),
                 getSimulatedDoc: jest.fn()
             },
             {
@@ -236,7 +242,7 @@ describe('CompletionItemPresentationService', () => {
         } as any);
         const service = new CompletionItemPresentationService(
             {
-                getStandardDoc: jest.fn(),
+                getStandardCallableDoc: jest.fn(),
                 getSimulatedDoc: jest.fn()
             },
             {

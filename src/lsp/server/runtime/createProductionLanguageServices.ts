@@ -7,7 +7,6 @@ import { InheritanceResolver } from '../../../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
 import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
-import { FunctionDocCompatMaterializer } from '../../../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../../../efun/FunctionDocLookupBuilder';
 import { CallableDocRenderer } from '../../../language/documentation/CallableDocRenderer';
 import { createDefaultFunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
@@ -73,7 +72,6 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         analysisService,
         projectConfigService
     });
-    const functionDocCompatMaterializer = new FunctionDocCompatMaterializer();
     const functionDocLookupBuilder = new FunctionDocLookupBuilder({
         documentationService,
         analysisService,
@@ -104,10 +102,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         createServerExtensionContext(),
         projectConfigService,
         analysisService,
-        macroManager,
         documentationService,
         documentPathSupport,
-        functionDocCompatMaterializer,
         functionDocLookupBuilder
     );
     const inheritedFunctionRelationService = new InheritedFunctionRelationService({

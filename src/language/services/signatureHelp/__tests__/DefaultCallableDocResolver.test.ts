@@ -26,7 +26,7 @@ describe('DefaultCallableDocResolver', () => {
         })).resolves.toEqual(standardDoc);
     });
 
-    test('materializes simul_efun compatibility docs without opening a document', async () => {
+    test('returns simul_efun docs without opening a document', async () => {
         const resolver = new DefaultCallableDocResolver(
             {} as any,
             {

@@ -1,25 +1,3 @@
-export interface EfunDoc {
-    name: string;
-    syntax: string;
-    description: string;
-    sourceFile?: string;
-    sourceRange?: {
-        start: { line: number; character: number };
-        end: { line: number; character: number };
-    };
-    returnType?: string;
-    returnValue?: string;
-    returnObjects?: string[];
-    example?: string;
-    details?: string;
-    reference?: string[];
-    category?: string;
-    lastUpdated?: number;
-    isSimulated?: boolean;
-    note?: string;
-    signatures?: StructuredEfunSignature[];
-}
-
 export interface StructuredEfunDocBundle {
     generatedAt?: string;
     categories: Record<string, string[]>;

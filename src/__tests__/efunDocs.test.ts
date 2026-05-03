@@ -2,11 +2,10 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { ASTManager } from '../ast/astManager';
 import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManager';
-import { FunctionDocCompatMaterializer } from '../efun/FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
-import { buildEfunHoverMarkdown, createEfunHover } from '../efun/EfunHoverContent';
 import { SimulatedEfunScanner } from '../efun/SimulatedEfunScanner';
 import { EfunDocsManager } from '../efunDocs';
 import { createDefaultQueryBackedLanguageCompletionService } from '../language/services/completion/LanguageCompletionService';
@@ -37,13 +36,8 @@ function createSimulatedScanner(projectConfigService?: any): SimulatedEfunScanne
     return new SimulatedEfunScanner(
         projectConfigService,
         DocumentSemanticSnapshotService.getInstance(),
-        createDefaultFunctionDocumentationService(),
-        new FunctionDocCompatMaterializer()
+        createDefaultFunctionDocumentationService()
     );
-}
-
-function createCompatMaterializer(): FunctionDocCompatMaterializer {
-    return new FunctionDocCompatMaterializer();
 }
 
 function createLookupBuilder(
@@ -96,10 +90,8 @@ describe('EfunDocsManager', () => {
             createContext(extensionPath),
             undefined,
             DocumentSemanticSnapshotService.getInstance(),
-            undefined,
             documentationService,
             pathSupport,
-            createCompatMaterializer(),
             createLookupBuilder(documentationService, pathSupport)
         );
     }
@@ -242,10 +234,10 @@ describe('EfunDocsManager', () => {
         writeBundleFile(extensionPath, createStructuredBundle());
 
         const manager = createManager(extensionPath);
-        const allocateDoc = manager.getStandardDoc('allocate');
-        const callOtherDoc = manager.getStandardDoc('call_other');
-        const callOutDoc = manager.getStandardDoc('call_out');
-        const minimalDoc = manager.getStandardDoc('minimal_doc');
+        const allocateDoc = manager.getStandardCallableDoc('allocate');
+        const callOtherDoc = manager.getStandardCallableDoc('call_other');
+        const callOutDoc = manager.getStandardCallableDoc('call_out');
+        const minimalDoc = manager.getStandardCallableDoc('minimal_doc');
 
         expect(manager.getAllFunctions()).toEqual(expect.arrayContaining([
             'allocate',
@@ -257,25 +249,32 @@ describe('EfunDocsManager', () => {
         expect(manager.getCategories().get('数组相关函数（Arrays）')).toEqual(['allocate', 'minimal_doc']);
         expect(allocateDoc).toMatchObject({
             name: 'allocate',
-            returnType: 'mixed *',
-            category: '数组相关函数（Arrays）'
+            sourceKind: 'efun'
         });
-        expect(allocateDoc?.syntax).toContain('mixed *allocate(int size)');
-        expect(allocateDoc?.syntax).toContain('mixed *allocate(int size, mixed value)');
-        expect(callOtherDoc?.syntax).toContain('mixed call_other(object ob, string func, mixed arg)');
-        expect(callOtherDoc?.syntax).toContain('mixed call_other(object ob, string func, mixed ...args)');
-        expect(callOutDoc?.syntax).toBe('int call_out(string | function fun, int | float delay, mixed ...args)');
-        expect(callOutDoc?.description).toContain('设置延迟调用。');
+        expect(allocateDoc?.signatures.map(signature => signature.label)).toEqual([
+            'mixed *allocate(int size)',
+            'mixed *allocate(int size, mixed value)'
+        ]);
+        expect(allocateDoc?.signatures[0].returnType).toBe('mixed *');
+        expect(callOtherDoc?.signatures.map(signature => signature.label)).toEqual([
+            'mixed call_other(object ob, string func, mixed arg)',
+            'mixed call_other(object ob, string func, mixed ...args)'
+        ]);
+        expect(callOutDoc?.signatures[0].label).toBe('int call_out(string | function fun, int | float delay, mixed ...args)');
+        expect(callOutDoc?.summary).toContain('设置延迟调用。');
         expect(callOutDoc?.details).toContain('delay 支持 int 或 float。');
         expect(callOutDoc?.note).toContain('remove_call_out');
-        expect(callOutDoc?.reference).toEqual(['remove_call_out', 'find_call_out']);
         expect(minimalDoc).toMatchObject({
             name: 'minimal_doc',
-            syntax: 'void minimal_doc()',
-            returnType: 'void',
-            category: '数组相关函数（Arrays）'
+            signatures: [
+                expect.objectContaining({
+                    label: 'void minimal_doc()',
+                    returnType: 'void'
+                })
+            ],
+            sourceKind: 'efun'
         });
-        expect(minimalDoc?.description).toBe('');
+        expect(minimalDoc?.summary).toBeUndefined();
         expect(errorSpy).not.toHaveBeenCalled();
     });
 
@@ -370,7 +369,7 @@ describe('EfunDocsManager', () => {
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().size).toBe(0);
-        expect(manager.getStandardDoc('allocate')).toBeUndefined();
+        expect(manager.getStandardCallableDoc('allocate')).toBeUndefined();
         expect(errorSpy).toHaveBeenCalled();
     });
 
@@ -418,9 +417,13 @@ describe('EfunDocsManager', () => {
         const manager = createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual(['call_out']);
-        expect(manager.getStandardDoc('call_out')).toMatchObject({
+        expect(manager.getStandardCallableDoc('call_out')).toMatchObject({
             name: 'call_out',
-            returnType: 'int'
+            signatures: [
+                expect.objectContaining({
+                    returnType: 'int'
+                })
+            ]
         });
         expect(manager.getCategories().size).toBe(0);
         expect(errorSpy).toHaveBeenCalled();
@@ -438,7 +441,7 @@ describe('EfunDocsManager', () => {
 
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual(['call_out']);
         expect(manager.getAllFunctions()).toEqual(expect.arrayContaining(['call_out', 'allocate', 'orphan_doc']));
-        expect(manager.getStandardDoc('missing_doc')).toBeUndefined();
+        expect(manager.getStandardCallableDoc('missing_doc')).toBeUndefined();
         expect(warnSpy).toHaveBeenCalled();
     });
 
@@ -468,18 +471,18 @@ describe('EfunDocsManager', () => {
         const manager = createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
-        expect(manager.getStandardDoc('wrong_key')).toBeUndefined();
+        expect(manager.getStandardCallableDoc('wrong_key')).toBeUndefined();
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
         expect(warnSpy).toHaveBeenCalled();
     });
 
-    test('compatibility returnType is omitted when overloaded signatures disagree or are incomplete', async () => {
-        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-return-type-compat-'));
+    test('structured signatures preserve overloaded return types without a legacy flattened returnType', async () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-return-type-structured-'));
         writeBundleFile(extensionPath, createStructuredBundle({
             docs: {
                 mixed_returns: {
                     name: 'mixed_returns',
-                    summary: '重载返回类型不一致时不暴露兼容 returnType。',
+                    summary: '重载返回类型不一致时保留在各自签名上。',
                     category: '调用相关函数（Calls）',
                     signatures: [
                         {
@@ -521,13 +524,19 @@ describe('EfunDocsManager', () => {
         }));
 
         const manager = createManager(extensionPath);
-        const mixedReturnsDoc = manager.getStandardDoc('mixed_returns');
-        const lateOnlyDoc = manager.getStandardDoc('late_only_return_type');
+        const mixedReturnsDoc = manager.getStandardCallableDoc('mixed_returns');
+        const lateOnlyDoc = manager.getStandardCallableDoc('late_only_return_type');
 
-        expect(mixedReturnsDoc?.returnType).toBeUndefined();
-        expect(lateOnlyDoc?.returnType).toBeUndefined();
-        expect(mixedReturnsDoc?.syntax).toContain('int mixed_returns(int arg)');
-        expect(mixedReturnsDoc?.syntax).toContain('string mixed_returns(string arg)');
+        expect((mixedReturnsDoc as any)?.returnType).toBeUndefined();
+        expect((lateOnlyDoc as any)?.returnType).toBeUndefined();
+        expect(mixedReturnsDoc?.signatures.map(signature => signature.label)).toEqual([
+            'int mixed_returns(int arg)',
+            'string mixed_returns(string arg)'
+        ]);
+        expect(lateOnlyDoc?.signatures.map(signature => signature.returnType)).toEqual([
+            undefined,
+            'int'
+        ]);
     });
 
     test('drops invalid docs when a signature is missing label', () => {
@@ -590,28 +599,42 @@ describe('EfunDocsManager', () => {
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
     });
 
-    test('hover markdown is not trusted and preserves pointer-like parameter types in the table', () => {
-        const hover = createEfunHover(buildEfunHoverMarkdown({
+    test('callable renderer preserves pointer-like parameter types in the table', () => {
+        const markdown = new CallableDocRenderer().renderHover({
             name: 'demo',
-            syntax: 'mixed demo(mixed * items, string* label)',
-            description: 'demo description\n\n参数:\nmixed * items: item list\nstring* label: label text'
-        }));
+            declarationKey: 'test:demo',
+            sourceKind: 'efun',
+            summary: 'demo description',
+            signatures: [{
+                label: 'mixed demo(mixed * items, string* label)',
+                isVariadic: false,
+                parameters: [
+                    { name: 'items', type: 'mixed *', description: 'item list' },
+                    { name: 'label', type: 'string*', description: 'label text' }
+                ]
+            }]
+        });
 
-        const content = hover.contents as vscode.MarkdownString;
-        expect(content.isTrusted).toBe(false);
-        expect(content.value).toContain('| `items` | `mixed *` | item list |');
-        expect(content.value).toContain('| `label` | `string*` | label text |');
+        expect(markdown).toContain('| `items` | `mixed *` | item list |');
+        expect(markdown).toContain('| `label` | `string*` | label text |');
     });
 
-    test('hover parameter table escapes markdown-breaking pipe characters', () => {
-        const hover = createEfunHover(buildEfunHoverMarkdown({
+    test('callable renderer escapes markdown-breaking pipe characters', () => {
+        const markdown = new CallableDocRenderer().renderHover({
             name: 'demo',
-            syntax: 'void demo(string value)',
-            description: 'demo description\n\n参数:\nstring value: foo | bar'
-        }));
+            declarationKey: 'test:demo',
+            sourceKind: 'efun',
+            summary: 'demo description',
+            signatures: [{
+                label: 'void demo(string value)',
+                isVariadic: false,
+                parameters: [
+                    { name: 'value', type: 'string', description: 'foo | bar' }
+                ]
+            }]
+        });
 
-        const content = hover.contents as vscode.MarkdownString;
-        expect(content.value).toContain('| `value` | `string` | foo \\| bar |');
+        expect(markdown).toContain('| `value` | `string` | foo \\| bar |');
     });
 });
 
@@ -647,7 +670,7 @@ describe('SimulatedEfunScanner', () => {
             '/**',
             ' * @brief simulated helper',
             ' */',
-            'int sim_helper()'
+            'int sim_helper() { return 1; }'
         ].join('\n'));
         const scannerWithProjectConfig = createSimulatedScanner({
             getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(simulFile),
@@ -679,7 +702,7 @@ describe('SimulatedEfunScanner', () => {
             '/**',
             ' * @brief simulated helper',
             ' */',
-            'int sim_helper()'
+            'int sim_helper() { return 1; }'
         ].join('\n'));
 
         (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
@@ -773,7 +796,7 @@ describe('SimulatedEfunScanner', () => {
             '/**',
             ' * @brief helper from include',
             ' */',
-            'int sim_helper()'
+            'int sim_helper() { return 1; }'
         ].join('\n'));
 
         const projectConfigService = {
@@ -792,7 +815,7 @@ describe('SimulatedEfunScanner', () => {
 
         expect(scanner.get('sim_helper')).toMatchObject({
             name: 'sim_helper',
-            description: 'helper from include'
+            summary: 'helper from include'
         });
     });
 
@@ -845,7 +868,7 @@ describe('SimulatedEfunScanner', () => {
 
         expect(scanner.get('message_vision')).toMatchObject({
             name: 'message_vision',
-            description: '发送动作消息'
+            summary: '发送动作消息'
         });
     });
 
@@ -902,7 +925,7 @@ describe('SimulatedEfunScanner', () => {
 
         expect(scanner.get('add_sub')).toMatchObject({
             name: 'add_sub',
-            description: 'add helper'
+            summary: 'add helper'
         });
 
         const actualDocument = TestHelper.createMockDocument(
@@ -936,7 +959,7 @@ describe('SimulatedEfunScanner', () => {
             '/**',
             ' * @brief helper from inherit',
             ' */',
-            'int inherited_helper()'
+            'int inherited_helper() { return 1; }'
         ].join('\n'));
 
         const projectConfigService = {
@@ -955,8 +978,7 @@ describe('SimulatedEfunScanner', () => {
 
         expect(scanner.get('inherited_helper')).toMatchObject({
             name: 'inherited_helper',
-            description: 'helper from inherit'
+            summary: 'helper from inherit'
         });
     });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

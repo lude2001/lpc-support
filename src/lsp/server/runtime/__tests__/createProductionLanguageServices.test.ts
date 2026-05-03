@@ -171,9 +171,7 @@ describe('createProductionLanguageServices', () => {
                 expect.anything(),
                 projectConfigService,
                 analysisService,
-                macroManager,
                 documentationService,
-                expect.anything(),
                 expect.anything(),
                 expect.anything()
             );

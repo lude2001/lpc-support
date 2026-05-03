@@ -2,14 +2,14 @@ import * as vscode from 'vscode';
 import { SymbolType } from '../../../ast/symbolTable';
 import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
 import { CompletionCandidate, CompletionQueryResult, TypeDefinitionSummary } from '../../../completion/types';
-import type { EfunDoc } from '../../../efunDocs';
 import type { MacroManager } from '../../../macroManager';
 import type { EfunDocsManager } from '../../../efun/EfunDocsManager';
+import type { CallableDoc } from '../../documentation/types';
 import { ScopedMethodCompletionSupport } from './ScopedMethodCompletionSupport';
 import type { LanguageCompletionItem } from './LanguageCompletionService';
 import { buildFunctionSnippet } from './completionSnippetUtils';
 
-type PresentationEfunDocs = Pick<EfunDocsManager, 'getStandardDoc' | 'getSimulatedDoc'>;
+type PresentationEfunDocs = Pick<EfunDocsManager, 'getStandardCallableDoc' | 'getSimulatedDoc'>;
 type PresentationMacroManager = Pick<MacroManager, 'getMacro' | 'getMacroHoverContent'>;
 type ScopedDocumentationSupport = Pick<ScopedMethodCompletionSupport, 'applyScopedDocumentation'>;
 
@@ -55,7 +55,7 @@ export class CompletionItemPresentationService {
 
         switch (candidate.metadata.sourceType) {
             case 'efun':
-                this.applyEfunDocumentation(resolvedItem, this.efunDocsManager.getStandardDoc(candidate.label));
+                this.applyEfunDocumentation(resolvedItem, this.efunDocsManager.getStandardCallableDoc(candidate.label));
                 break;
             case 'simul-efun':
                 this.applyEfunDocumentation(resolvedItem, this.efunDocsManager.getSimulatedDoc(candidate.label));
@@ -123,30 +123,32 @@ export class CompletionItemPresentationService {
         return '9';
     }
 
-    private applyEfunDocumentation(item: LanguageCompletionItem, doc?: EfunDoc): void {
+    private applyEfunDocumentation(item: LanguageCompletionItem, doc?: CallableDoc): void {
         if (!doc) {
             return;
         }
 
         const sections: string[] = [];
-        if (doc.syntax) {
-            sections.push(`\`\`\`lpc\n${doc.syntax}\n\`\`\``);
+        const syntax = doc.signatures.map((signature) => signature.label).join('\n');
+        if (syntax) {
+            sections.push(`\`\`\`lpc\n${syntax}\n\`\`\``);
         }
-        if (doc.returnType) {
-            sections.push(`**Return Type:** \`${doc.returnType}\``);
+        const returnType = deriveCallableReturnType(doc);
+        if (returnType) {
+            sections.push(`**Return Type:** \`${returnType}\``);
         }
-        if (doc.description) {
-            sections.push(doc.description);
+        if (doc.summary) {
+            sections.push(doc.summary);
         }
-        if (doc.example) {
-            sections.push(`**Example**\n\`\`\`lpc\n${doc.example}\n\`\`\``);
+        if (doc.details) {
+            sections.push(doc.details);
         }
 
         item.documentation = {
             kind: 'markdown',
             value: sections.join('\n\n')
         };
-        item.detail = doc.returnType ? `${doc.returnType} ${item.label}` : item.detail;
+        item.detail = returnType ? `${returnType} ${item.label}` : item.detail;
         item.insertText = `${item.label}($1)`;
     }
 
@@ -238,4 +240,24 @@ export class CompletionItemPresentationService {
 
         return undefined;
     }
+}
+
+function deriveCallableReturnType(doc: CallableDoc): string | undefined {
+    if (doc.signatures.length === 0) {
+        return undefined;
+    }
+
+    if (doc.signatures.length === 1) {
+        return doc.signatures[0].returnType;
+    }
+
+    const returnTypes = doc.signatures.map((signature) => signature.returnType?.trim()).filter(Boolean);
+    if (returnTypes.length !== doc.signatures.length) {
+        return undefined;
+    }
+
+    const [firstReturnType, ...restReturnTypes] = returnTypes;
+    return restReturnTypes.every((returnType) => returnType === firstReturnType)
+        ? firstReturnType
+        : undefined;
 }

@@ -204,7 +204,7 @@ describe('AstBackedLanguageDefinitionService', () => {
             {
                 getSimulatedDoc: jest.fn().mockReturnValue({
                     name: 'message_vision',
-                    sourceFile,
+                    sourcePath: sourceFile,
                     sourceRange: {
                         start: { line: 252, character: 0 },
                         end: { line: 252, character: 48 }

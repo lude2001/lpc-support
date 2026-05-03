@@ -755,8 +755,7 @@ describe('navigation services', () => {
             getInheritedFileDocForDocument: jest.fn(async () => undefined),
             getIncludedFileDoc: jest.fn(async () => undefined),
             getSimulatedDocAsync: jest.fn(async () => undefined),
-            getStandardCallableDoc: jest.fn(() => undefined),
-            getStandardDoc: jest.fn(() => undefined)
+            getStandardCallableDoc: jest.fn(() => undefined)
         };
         const service = new EfunLanguageHoverService(
             efunDocsManager as any,

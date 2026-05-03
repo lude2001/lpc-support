@@ -3,7 +3,6 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { FunctionDocCompatMaterializer } from '../FunctionDocCompatMaterializer';
 import { FunctionDocLookupBuilder } from '../FunctionDocLookupBuilder';
 import { createDefaultFunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
 import {
@@ -11,6 +10,7 @@ import {
     createVsCodeTextDocumentHost
 } from '../../language/shared/WorkspaceDocumentPathSupport';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
+import type { DocumentCallableDocs, CallableDoc } from '../../language/documentation/types';
 
 function createTextDocument(filePath: string, content: string): vscode.TextDocument {
     const normalized = content.replace(/\r\n/g, '\n');
@@ -73,6 +73,11 @@ function normalizeMockFsPath(filePath: string): string {
     return path.resolve(filePath.replace(/^\/+([A-Za-z]:\/)/, '$1'));
 }
 
+function getDocByName(documentDocs: DocumentCallableDocs, name: string): CallableDoc | undefined {
+    const declarationKey = documentDocs.byName.get(name)?.[0];
+    return declarationKey ? documentDocs.byDeclaration.get(declarationKey) : undefined;
+}
+
 describe('FunctionDocLookupBuilder', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -110,17 +115,21 @@ describe('FunctionDocLookupBuilder', () => {
                 host: createVsCodeTextDocumentHost()
             })
         });
-        const materializer = new FunctionDocCompatMaterializer();
         const document = createTextDocument(mainFile, '#include "/include/helper.h"\n');
 
         const lookup = await builder.buildLookup(document);
-        const doc = materializer.materializeLookup(lookup).lookup.includeGroups[0]?.docs.get('helper_live');
+        const doc = getDocByName(lookup.includeGroups[0].docs, 'helper_live');
 
+        expect(lookup.includeGroups[0].sourceKind).toBe('include');
         expect(doc).toMatchObject({
             name: 'helper_live',
-            category: '包含自 helper.h',
-            description: 'live include helper',
-            syntax: 'int helper_live();'
+            summary: 'live include helper',
+            signatures: [
+                expect.objectContaining({
+                    label: 'int helper_live();',
+                    returnType: 'int'
+                })
+            ]
         });
 
         fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -165,17 +174,21 @@ describe('FunctionDocLookupBuilder', () => {
                 host: createVsCodeTextDocumentHost()
             })
         });
-        const materializer = new FunctionDocCompatMaterializer();
         const document = createTextDocument(mainFile, '#include "/include/helper.h"\n');
 
         const lookup = await builder.buildLookup(document);
-        const doc = materializer.materializeLookup(lookup).lookup.includeGroups[0]?.docs.get('helper_multi_root');
+        const doc = getDocByName(lookup.includeGroups[0].docs, 'helper_multi_root');
 
+        expect(lookup.includeGroups[0].sourceKind).toBe('include');
         expect(doc).toMatchObject({
             name: 'helper_multi_root',
-            category: '包含自 helper.h',
-            description: 'multi root helper',
-            syntax: 'int helper_multi_root();'
+            summary: 'multi root helper',
+            signatures: [
+                expect.objectContaining({
+                    label: 'int helper_multi_root();',
+                    returnType: 'int'
+                })
+            ]
         });
 
         fs.rmSync(rootA, { recursive: true, force: true });
@@ -211,17 +224,21 @@ describe('FunctionDocLookupBuilder', () => {
                 } as any
             }),
         });
-        const materializer = new FunctionDocCompatMaterializer();
         const document = createTextDocument(mainFile, 'inherit BASE_INHERIT;\n');
 
         const lookup = await builder.buildLookup(document);
-        const doc = materializer.materializeLookup(lookup).lookup.inheritedGroups[0]?.docs.get('helper_inherited');
+        const doc = getDocByName(lookup.inheritedGroups[0].docs, 'helper_inherited');
 
+        expect(lookup.inheritedGroups[0].sourceKind).toBe('inherit');
         expect(doc).toMatchObject({
             name: 'helper_inherited',
-            category: '继承自 base.c',
-            description: 'inherited helper',
-            syntax: 'int helper_inherited();'
+            summary: 'inherited helper',
+            signatures: [
+                expect.objectContaining({
+                    label: 'int helper_inherited();',
+                    returnType: 'int'
+                })
+            ]
         });
 
         fs.rmSync(tempRoot, { recursive: true, force: true });

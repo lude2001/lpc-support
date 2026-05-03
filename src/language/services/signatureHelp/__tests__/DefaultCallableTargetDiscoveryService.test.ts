@@ -9,7 +9,7 @@ describe('DefaultCallableTargetDiscoveryService', () => {
         const service = new DefaultCallableTargetDiscoveryService({
             getCurrentFileDocForDocument: jest.fn(async () => ({
                 name: 'demo',
-                sourceFile: document.fileName,
+                sourcePath: document.fileName,
                 sourceRange: {
                     start: { line: 0, character: 0 },
                     end: { line: 0, character: 4 }
@@ -17,7 +17,7 @@ describe('DefaultCallableTargetDiscoveryService', () => {
             })),
             getInheritedFileDocForDocument: jest.fn(async () => ({
                 name: 'demo',
-                sourceFile: 'D:/workspace/std/base.c',
+                sourcePath: 'D:/workspace/std/base.c',
                 sourceRange: {
                     start: { line: 10, character: 0 },
                     end: { line: 10, character: 4 }

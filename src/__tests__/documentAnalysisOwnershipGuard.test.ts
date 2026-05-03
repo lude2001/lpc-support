@@ -270,10 +270,7 @@ describe('document analysis ownership guards', () => {
             path.join(srcRoot, 'efun', 'FunctionDocLookupBuilder.ts'),
             'utf8'
         );
-        const compatMaterializerSource = fs.readFileSync(
-            path.join(srcRoot, 'efun', 'FunctionDocCompatMaterializer.ts'),
-            'utf8'
-        );
+        const compatMaterializerPath = path.join(srcRoot, 'efun', 'FunctionDocCompatMaterializer.ts');
 
         expect(functionDocPanelSource).not.toContain('parseInheritedFunctions(');
         expect(functionDocPanelSource).not.toContain('parseIncludedFunctions(');
@@ -287,6 +284,7 @@ describe('document analysis ownership guards', () => {
         expect(trackerSource).not.toContain('getIncludeFiles(');
         expect(trackerSource).not.toContain('buildCompatDocsForDocument(');
         expect(trackerSource).not.toContain('materializeCompatDoc(');
+        expect(fs.existsSync(compatMaterializerPath)).toBe(false);
 
         expect(lookupBuilderSource).toContain('loadInheritedFileDocs(');
         expect(lookupBuilderSource).toContain('loadIncludeFileDocs(');
@@ -294,8 +292,6 @@ describe('document analysis ownership guards', () => {
         expect(lookupBuilderSource).not.toContain('parseInheritStatements(');
         expect(lookupBuilderSource).not.toContain('document.getText()');
         expect(lookupBuilderSource).not.toContain('includeRegex');
-        expect(compatMaterializerSource).toContain('materializeLookup(');
-        expect(compatMaterializerSource).toContain('materializeCompatDoc(');
     });
 
     test('direct workspace document opens remain only on the shared owner and example file', () => {

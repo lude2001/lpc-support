@@ -239,7 +239,7 @@ describe('DirectSymbolDefinitionResolver', () => {
             efunDocsManager: {
                 getSimulatedDoc: jest.fn().mockReturnValue({
                     name: 'message_vision',
-                    sourceFile: 'D:/workspace/adm/simul_efun/message.c',
+                    sourcePath: 'D:/workspace/adm/simul_efun/message.c',
                     sourceRange: {
                         start: { line: 252, character: 0 },
                         end: { line: 252, character: 48 }

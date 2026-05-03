@@ -186,7 +186,7 @@ function installWorkspaceOpenTextDocumentFixture(): void {
 describe('language-service integration regression', () => {
     const efunDocsManager = {
         getAllFunctions: jest.fn(() => ['write']),
-        getStandardDoc: jest.fn(() => undefined),
+        getStandardCallableDoc: jest.fn(() => undefined),
         getAllSimulatedFunctions: jest.fn(() => []),
         getSimulatedDoc: jest.fn(() => undefined)
     };
@@ -321,8 +321,8 @@ describe('language-service integration regression', () => {
         macroManager.canResolveMacro.mockResolvedValue(false);
         efunDocsManager.getAllFunctions.mockReset();
         efunDocsManager.getAllFunctions.mockReturnValue(['write']);
-        efunDocsManager.getStandardDoc.mockReset();
-        efunDocsManager.getStandardDoc.mockReturnValue(undefined);
+        efunDocsManager.getStandardCallableDoc.mockReset();
+        efunDocsManager.getStandardCallableDoc.mockReturnValue(undefined);
         efunDocsManager.getAllSimulatedFunctions.mockReset();
         efunDocsManager.getAllSimulatedFunctions.mockReturnValue([]);
         efunDocsManager.getSimulatedDoc.mockReset();

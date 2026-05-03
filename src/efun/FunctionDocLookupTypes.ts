@@ -1,10 +1,9 @@
-import type { DocumentCallableDocs } from '../language/documentation/types';
-import type { EfunDoc } from './types';
+import type { CallableDoc, CallableSourceKind, DocumentCallableDocs } from '../language/documentation/types';
 
 export interface FunctionDocSourceGroup {
     source: string;
     filePath: string;
-    docs: Map<string, EfunDoc>;
+    docs: Map<string, CallableDoc>;
 }
 
 export interface FunctionDocLookup {
@@ -16,6 +15,7 @@ export interface FunctionDocLookup {
 export interface RawFunctionDocSource {
     source: string;
     filePath: string;
+    sourceKind: CallableSourceKind;
     docs: DocumentCallableDocs;
 }
 
@@ -28,8 +28,8 @@ export interface RawFunctionDocLookup {
 
 export interface MaterializedFunctionDocLookup {
     inheritedFiles: string[];
-    currentFileDocs: Map<string, EfunDoc>;
-    inheritedFileDocs: Map<string, Map<string, EfunDoc>>;
-    includeFileDocs: Map<string, Map<string, EfunDoc>>;
+    currentFileDocs: Map<string, CallableDoc>;
+    inheritedFileDocs: Map<string, Map<string, CallableDoc>>;
+    includeFileDocs: Map<string, Map<string, CallableDoc>>;
     lookup: FunctionDocLookup;
 }

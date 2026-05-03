@@ -59,7 +59,7 @@ function createDocument(fileName: string, content: string, version = 1): vscode.
 describe('LanguageCompletionService scoped completion resolve', () => {
     const efunDocsManager = {
         getAllFunctions: jest.fn(() => []),
-        getStandardDoc: jest.fn(() => undefined),
+        getStandardCallableDoc: jest.fn(() => undefined),
         getAllSimulatedFunctions: jest.fn(() => []),
         getSimulatedDoc: jest.fn(() => undefined)
     };

@@ -150,13 +150,13 @@ export class DirectSymbolDefinitionResolver {
             : undefined;
     }
 
-    private toSimulatedDocLocation(simulatedDoc: { sourceFile?: string; sourceRange?: { start: { line: number; character: number }; end: { line: number; character: number } } }): vscode.Location | undefined {
-        if (!simulatedDoc.sourceFile || !simulatedDoc.sourceRange) {
+    private toSimulatedDocLocation(simulatedDoc: { sourcePath?: string; sourceRange?: { start: { line: number; character: number }; end: { line: number; character: number } } }): vscode.Location | undefined {
+        if (!simulatedDoc.sourcePath || !simulatedDoc.sourceRange) {
             return undefined;
         }
 
         return new vscode.Location(
-            vscode.Uri.file(simulatedDoc.sourceFile),
+            vscode.Uri.file(simulatedDoc.sourcePath),
             new vscode.Range(
                 simulatedDoc.sourceRange.start.line,
                 simulatedDoc.sourceRange.start.character,
