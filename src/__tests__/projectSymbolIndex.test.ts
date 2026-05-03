@@ -1,3 +1,4 @@
+import { describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { SymbolTable } from '../ast/symbolTable';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
@@ -46,6 +47,7 @@ function createSnapshot(uriPath: string): SemanticSnapshot {
         }),
         parseDiagnostics: [],
         exportedFunctions: [],
+        symbols: [],
         localScopes: [],
         typeDefinitions: [],
         inheritStatements: [],
@@ -140,5 +142,68 @@ describe('ProjectSymbolIndex', () => {
             })
         ]);
     });
+
+    test('builds include-backed visible symbol sets from resolved include facts', () => {
+        const headerSnapshot = createSnapshot('/virtual/include/helper.h');
+        headerSnapshot.exportedFunctions = [{
+            name: 'helper_call',
+            returnType: 'string',
+            parameters: [],
+            modifiers: [],
+            sourceUri: headerSnapshot.uri,
+            range: new vscode.Range(0, 0, 0, 20),
+            origin: 'local'
+        }];
+        headerSnapshot.typeDefinitions = [{
+            name: 'HelperPayload',
+            kind: 'struct',
+            members: [{
+                name: 'title',
+                dataType: 'string',
+                range: new vscode.Range(1, 0, 1, 13)
+            }],
+            sourceUri: headerSnapshot.uri,
+            range: new vscode.Range(0, 0, 2, 1)
+        }];
+        headerSnapshot.fileGlobals = [{
+            name: 'HELPER_D',
+            dataType: 'object',
+            sourceUri: headerSnapshot.uri,
+            range: new vscode.Range(3, 0, 3, 15)
+        }];
+
+        const roomSnapshot = createSnapshot('/virtual/room.c');
+        roomSnapshot.includeStatements = [
+            {
+                rawText: '#include "/include/helper.h"',
+                value: '/include/helper.h',
+                range: new vscode.Range(0, 0, 0, 28),
+                isSystemInclude: false,
+                resolvedUri: headerSnapshot.uri
+            },
+            {
+                rawText: '#include "/missing.h"',
+                value: '/missing.h',
+                range: new vscode.Range(1, 0, 1, 21),
+                isSystemInclude: false
+            }
+        ];
+
+        const index = new ProjectSymbolIndex(new InheritanceResolver(undefined, ['/']));
+        index.updateFromSnapshot(headerSnapshot);
+        index.updateFromSnapshot(roomSnapshot);
+
+        const included = index.getIncludedSymbols(roomSnapshot.uri);
+
+        expect(included.functions).toEqual([
+            expect.objectContaining({
+                name: 'helper_call',
+                origin: 'include',
+                sourceUri: headerSnapshot.uri
+            })
+        ]);
+        expect(included.types.map((type) => type.name)).toEqual(['HelperPayload']);
+        expect(included.fileGlobals.map((global) => global.name)).toEqual(['HELPER_D']);
+        expect(included.unresolvedIncludes.map((include) => include.value)).toEqual(['/missing.h']);
+    });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

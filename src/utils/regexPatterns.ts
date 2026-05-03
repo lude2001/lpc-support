@@ -62,16 +62,6 @@ export class RegexPatterns {
     public readonly inheritStatement = /^\s*inherit\s+([A-Z_][A-Z0-9_]*(?:\s*,\s*[A-Z_][A-Z0-9_]*)*);/gm;
 
     /**
-     * 包含语句模式：匹配 #include <file.h> 或 #include "file.h"
-     *
-     * 匹配组：
-     * - [1]: 包含的文件路径
-     *
-     * @example '#include <ansi.h>' => ['#include <ansi.h>', 'ansi.h']
-     */
-    public readonly includeStatement = /^\s*#include\s+[<"]([^>"]+)[>"]/gm;
-
-    /**
      * 多行字符串模式：匹配 @text...text@ 格式
      *
      * 匹配组：
@@ -426,8 +416,7 @@ export class RegexPatterns {
      * const patterns = RegexPatterns.getInstance();
      * patterns.resetAllRegexes([
      *     patterns.objectAccess,
-     *     patterns.inheritStatement,
-     *     patterns.includeStatement
+     *     patterns.inheritStatement
      * ]);
      * ```
      */

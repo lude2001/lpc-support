@@ -396,6 +396,7 @@ describe('LanguageSignatureHelpService', () => {
             extensionPath: process.cwd()
         } as unknown as vscode.ExtensionContext, undefined, analysisService, undefined, documentationService, pathSupport, new FunctionDocCompatMaterializer(), new FunctionDocLookupBuilder({
             documentationService,
+            analysisService,
             pathSupport
         }));
         const service = createSignatureHelpService({

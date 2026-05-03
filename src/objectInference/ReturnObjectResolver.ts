@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import type { WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
-import { MacroManager } from '../macroManager';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { SemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
 import type { SemanticValue } from '../semanticEvaluation/types';
@@ -30,7 +29,7 @@ export class ReturnObjectResolver {
     private readonly semanticEvaluationService?: SemanticEvaluationService;
 
     constructor(
-        private readonly macroManager?: MacroManager,
+        _macroManager?: unknown,
         documentationService?: FunctionDocumentationService,
         private readonly scopedMethodResolver?: ScopedMethodResolver,
         pathSupport?: Pick<WorkspaceDocumentPathSupport, 'resolveObjectFilePath'>,
@@ -310,10 +309,7 @@ export class ReturnObjectResolver {
     ): Promise<ObjectCandidate[]> {
         const candidates: ObjectCandidate[] = [];
         for (const objectPath of returnObjects) {
-            const resolvedPath = this.pathSupport.resolveObjectFilePath(
-                document,
-                this.toObjectPathExpression(objectPath)
-            );
+            const resolvedPath = this.resolveDocumentedObjectPath(document, objectPath);
             if (resolvedPath) {
                 candidates.push({ path: resolvedPath, source: 'doc' });
             }
@@ -356,14 +352,26 @@ export class ReturnObjectResolver {
         return value.length >= 2 && value.startsWith('"') && value.endsWith('"');
     }
 
-    private toObjectPathExpression(objectPath: string): string {
-        if (this.macroManager?.getMacro(objectPath)) {
-            return objectPath;
+    private resolveDocumentedObjectPath(document: vscode.TextDocument, objectPath: string): string | undefined {
+        for (const expression of this.createObjectPathExpressions(objectPath)) {
+            const resolvedPath = this.pathSupport.resolveObjectFilePath(document, expression);
+            if (resolvedPath) {
+                return resolvedPath;
+            }
         }
 
-        return this.isStringLiteral(objectPath)
-            ? objectPath
-            : `"${objectPath}"`;
+        return undefined;
+    }
+
+    private createObjectPathExpressions(objectPath: string): string[] {
+        if (this.isStringLiteral(objectPath)) {
+            return [objectPath];
+        }
+
+        const literalExpression = `"${objectPath}"`;
+        return objectPath === literalExpression
+            ? [objectPath]
+            : [objectPath, literalExpression];
     }
 
     private collectSemanticCandidates(
@@ -413,10 +421,7 @@ export class ReturnObjectResolver {
         document: vscode.TextDocument,
         path: string
     ): SemanticCandidateCollectionOutcome {
-        const resolvedPath = this.pathSupport.resolveObjectFilePath(
-            document,
-            this.toObjectPathExpression(path)
-        );
+        const resolvedPath = this.resolveDocumentedObjectPath(document, path);
         if (!resolvedPath) {
             return { kind: 'unknown' };
         }

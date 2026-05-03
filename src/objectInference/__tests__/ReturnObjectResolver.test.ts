@@ -146,6 +146,43 @@ describe('ReturnObjectResolver', () => {
         ]);
     });
 
+    test('resolveDocumentedReturnOutcome lets path support resolve documented macro objects without MacroManager', async () => {
+        (pathSupport.resolveObjectFilePath as jest.Mock).mockImplementation(((_document, expression) => {
+            if (expression === 'ROOM_BASE') {
+                return 'D:/code/lpc/std/frontend_room.c';
+            }
+
+            return undefined;
+        }) as any);
+
+        const resolver = new ReturnObjectResolver(
+            undefined,
+            createDefaultFunctionDocumentationService(),
+            undefined,
+            pathSupport
+        );
+        const document = createTextDocument(
+            'D:/code/lpc/obj/test.c',
+            [
+                '/**',
+                ' * @brief 返回对象。',
+                ' * @lpc-return-objects {"ROOM_BASE"}',
+                ' */',
+                'object helper() {',
+                '    return 0;',
+                '}'
+            ].join('\n')
+        );
+
+        const outcome = await resolver.resolveDocumentedReturnOutcome(document, 'helper');
+
+        expect(pathSupport.resolveObjectFilePath).toHaveBeenCalledWith(document, 'ROOM_BASE');
+        expect(pathSupport.resolveObjectFilePath).not.toHaveBeenCalledWith(document, '"ROOM_BASE"');
+        expect(outcome.candidates).toEqual([
+            { path: 'D:/code/lpc/std/frontend_room.c', source: 'doc' }
+        ]);
+    });
+
     test('ReturnObjectResolver delegates ::factory() to scoped return resolution before ordinary function docs', async () => {
         const documentationService = createDefaultFunctionDocumentationService();
         const getDocsByNameSpy = jest.spyOn(documentationService, 'getDocsByName');

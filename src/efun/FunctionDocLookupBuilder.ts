@@ -3,25 +3,29 @@ import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import type { DocumentCallableDocs } from '../language/documentation/types';
-import type { MacroManager } from '../macroManager';
 import {
     WorkspaceDocumentPathSupport,
     assertDocumentPathSupport
 } from '../language/shared/WorkspaceDocumentPathSupport';
+import { assertAnalysisService } from '../semantic/assertAnalysisService';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
+import type { IncludeDirective } from '../semantic/documentSemanticTypes';
 import type { RawFunctionDocLookup, RawFunctionDocSource } from './FunctionDocLookupTypes';
 
 export interface FunctionDocLookupBuilderOptions {
     documentationService?: FunctionDocumentationService;
-    macroManager?: Pick<MacroManager, 'getMacro'>;
+    analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     pathSupport?: WorkspaceDocumentPathSupport;
 }
 
 export class FunctionDocLookupBuilder {
     private readonly documentationService: FunctionDocumentationService;
+    private readonly analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     private readonly pathSupport: WorkspaceDocumentPathSupport;
 
     public constructor(options: FunctionDocLookupBuilderOptions) {
         this.documentationService = assertDocumentationService('FunctionDocLookupBuilder', options.documentationService);
+        this.analysisService = assertAnalysisService('FunctionDocLookupBuilder', options.analysisService);
         this.pathSupport = assertDocumentPathSupport('FunctionDocLookupBuilder', options.pathSupport);
     }
 
@@ -29,13 +33,14 @@ export class FunctionDocLookupBuilder {
         document: vscode.TextDocument,
         options?: { forceFresh?: boolean }
     ): Promise<RawFunctionDocLookup> {
-        const inheritedFiles = this.parseInheritStatements(document.getText());
+        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const inheritedFiles = snapshot.inheritStatements.map((statement) => statement.value);
 
         return {
             inheritedFiles,
             currentFile: this.buildRawSource(document, '当前文件', options),
             inheritedGroups: await this.loadInheritedFileDocs(document, inheritedFiles, options),
-            includeGroups: await this.loadIncludeFileDocs(document, options)
+            includeGroups: await this.loadIncludeFileDocs(document, snapshot.includeStatements, options)
         };
     }
 
@@ -53,21 +58,6 @@ export class FunctionDocLookupBuilder {
             filePath: document.fileName,
             docs: this.documentationService.getDocumentDocs(document)
         };
-    }
-
-    private parseInheritStatements(content: string): string[] {
-        const inheritFiles: string[] = [];
-        const inheritPattern = /inherit\s+(?:"([^"]+)"|([A-Z_][A-Z0-9_]*))\s*;/g;
-
-        let match: RegExpExecArray | null;
-        while ((match = inheritPattern.exec(content)) !== null) {
-            const inheritPath = (match[1] || match[2])?.trim();
-            if (inheritPath) {
-                inheritFiles.push(inheritPath);
-            }
-        }
-
-        return inheritFiles;
     }
 
     private async loadInheritedFileDocs(
@@ -122,10 +112,11 @@ export class FunctionDocLookupBuilder {
 
     private async loadIncludeFileDocs(
         document: vscode.TextDocument,
+        includeStatements: readonly IncludeDirective[],
         options?: { forceFresh?: boolean }
     ): Promise<RawFunctionDocSource[]> {
         const includeSources: RawFunctionDocSource[] = [];
-        const includeFiles = await this.getIncludeFiles(document);
+        const includeFiles = await this.getIncludeFiles(document, includeStatements);
 
         for (const includeFile of includeFiles) {
             if (!includeFile.endsWith('.h') && !includeFile.endsWith('.c')) {
@@ -149,20 +140,19 @@ export class FunctionDocLookupBuilder {
         return includeSources;
     }
 
-    private async getIncludeFiles(document: vscode.TextDocument): Promise<string[]> {
+    private async getIncludeFiles(
+        document: vscode.TextDocument,
+        includeStatements: readonly IncludeDirective[]
+    ): Promise<string[]> {
         const includeFiles: string[] = [];
-        const content = document.getText();
         const workspaceRoot = this.pathSupport.getWorkspaceRoot(document);
-        const includeRegex = /^\s*#?include\s+([<"])([^\s">]+)[>"](?:\s*\/\/.*)?$/gm;
 
-        let match: RegExpExecArray | null;
-        while ((match = includeRegex.exec(content)) !== null) {
-            const isSystemInclude = match[1] === '<';
-            const includePath = match[2];
+        for (const includeStatement of includeStatements) {
+            const includePath = includeStatement.value;
             const candidatePaths = await this.pathSupport.resolveIncludeFilePaths(
                 document,
                 includePath,
-                isSystemInclude,
+                includeStatement.isSystemInclude,
                 workspaceRoot
             );
 

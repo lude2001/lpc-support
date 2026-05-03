@@ -1,3 +1,4 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -53,6 +54,50 @@ describe('IncludeResolver', () => {
                 fromUri: documentUri,
                 includeValue: 'globals.h',
                 toUri: vscode.Uri.file(path.join(includeDir, 'globals.h')).toString()
+            })
+        ]);
+        expect(resolved.diagnostics).toEqual([]);
+    });
+
+    test('resolves LPC mudlib-absolute quoted includes from an ancestor root', () => {
+        const roomDir = path.join(tempRoot, 'd', 'city');
+        const helperDir = path.join(tempRoot, 'adm', 'simul_efun');
+        fs.mkdirSync(roomDir, { recursive: true });
+        fs.mkdirSync(helperDir, { recursive: true });
+        fs.writeFileSync(path.join(helperDir, 'text_literal.h'), '#define TEXT_LITERAL 1');
+
+        const text = '#include "/adm/simul_efun/text_literal.h"';
+        const documentUri = vscode.Uri.file(path.join(roomDir, 'message.c')).toString();
+        const snapshot = new PreprocessorScanner().scan(documentUri, 1, text);
+
+        const resolved = new IncludeResolver().resolve(documentUri, snapshot.includeReferences);
+
+        expect(resolved.includeReferences).toEqual([
+            expect.objectContaining({
+                value: '/adm/simul_efun/text_literal.h',
+                resolvedUri: vscode.Uri.file(path.join(helperDir, 'text_literal.h')).toString()
+            })
+        ]);
+        expect(resolved.diagnostics).toEqual([]);
+    });
+
+    test('resolves LPC system includes from an ancestor mudlib include directory', () => {
+        const itemDir = path.join(tempRoot, 'inherit', 'item');
+        const includeDir = path.join(tempRoot, 'include');
+        fs.mkdirSync(itemDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(path.join(includeDir, 'dbase.h'), '#define F_DBASE "/inherit/dbase"');
+
+        const text = '#include <dbase.h>';
+        const documentUri = vscode.Uri.file(path.join(itemDir, 'combined.c')).toString();
+        const snapshot = new PreprocessorScanner().scan(documentUri, 1, text);
+
+        const resolved = new IncludeResolver().resolve(documentUri, snapshot.includeReferences);
+
+        expect(resolved.includeReferences).toEqual([
+            expect.objectContaining({
+                value: 'dbase.h',
+                resolvedUri: vscode.Uri.file(path.join(includeDir, 'dbase.h')).toString()
             })
         ]);
         expect(resolved.diagnostics).toEqual([]);

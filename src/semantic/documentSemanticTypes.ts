@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Scope, Symbol, SymbolTable } from '../ast/symbolTable';
+import { Scope, Symbol, SymbolTable, SymbolType } from '../ast/symbolTable';
 
 export type InheritExpressionKind = 'string' | 'macro' | 'unknown';
 
@@ -20,6 +20,7 @@ export interface MemberSummary {
     name: string;
     dataType: string;
     range: vscode.Range;
+    selectionRange?: vscode.Range;
     documentation?: string;
     definition?: string;
     parameters?: ParameterSummary[];
@@ -30,12 +31,17 @@ export interface FunctionSummary {
     name: string;
     returnType: string;
     parameters: ParameterSummary[];
+    requiredParameterCount?: number;
+    maxParameterCount?: number;
+    isVariadic?: boolean;
     modifiers: string[];
     sourceUri: string;
     range: vscode.Range;
-    origin: 'local' | 'inherited' | 'efun' | 'simul-efun';
+    origin: 'local' | 'include' | 'inherited' | 'efun' | 'simul-efun';
     documentation?: string;
     definition?: string;
+    hasBody?: boolean;
+    isPrototype?: boolean;
 }
 
 export interface TypeDefinitionSummary {
@@ -61,6 +67,23 @@ export interface ScopeSummary {
     symbolNames: string[];
     childScopes: string[];
     parentScopeName?: string;
+}
+
+export interface SemanticSymbolSummary {
+    name: string;
+    kind: SymbolType;
+    dataType: string;
+    sourceUri: string;
+    range: vscode.Range;
+    selectionRange?: vscode.Range;
+    scopeName: string;
+    definition?: string;
+    documentation?: string;
+    modifiers?: string[];
+    isReference?: boolean;
+    isVariadic?: boolean;
+    hasDefaultValue?: boolean;
+    defaultValueText?: string;
 }
 
 export interface MacroReference {
@@ -100,6 +123,7 @@ export interface DocumentSemanticSnapshot {
     version: number;
     parseDiagnostics: vscode.Diagnostic[];
     exportedFunctions: FunctionSummary[];
+    symbols: SemanticSymbolSummary[];
     localScopes: ScopeSummary[];
     typeDefinitions: TypeDefinitionSummary[];
     fileGlobals: FileGlobalSummary[];
@@ -115,6 +139,7 @@ export interface FileSymbolRecord {
     uri: string;
     version: number;
     exportedFunctions: FunctionSummary[];
+    symbols?: SemanticSymbolSummary[];
     typeDefinitions: TypeDefinitionSummary[];
     fileGlobals: FileGlobalSummary[];
     inheritStatements: InheritDirective[];
@@ -137,6 +162,14 @@ export interface InheritedSymbolSet {
     functions: FunctionSummary[];
     types: TypeDefinitionSummary[];
     unresolvedTargets: ResolvedInheritTarget[];
+}
+
+export interface IncludedSymbolSet {
+    files: string[];
+    functions: FunctionSummary[];
+    types: TypeDefinitionSummary[];
+    fileGlobals: FileGlobalSummary[];
+    unresolvedIncludes: IncludeDirective[];
 }
 
 export interface TypeDefinitionLookup {

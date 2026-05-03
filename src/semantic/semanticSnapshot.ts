@@ -8,6 +8,7 @@ import {
     InheritDirective,
     MacroDefinitionSummary,
     MacroReference,
+    SemanticSymbolSummary,
     ScopeSummary,
     TypeDefinitionSummary
 } from './documentSemanticTypes';
@@ -19,6 +20,7 @@ export interface SemanticSnapshot {
     syntax: SyntaxDocument;
     parseDiagnostics: vscode.Diagnostic[];
     exportedFunctions: FunctionSummary[];
+    symbols: SemanticSymbolSummary[];
     localScopes: ScopeSummary[];
     typeDefinitions: TypeDefinitionSummary[];
     fileGlobals?: FileGlobalSummary[];
@@ -36,6 +38,7 @@ export function toDocumentSemanticSnapshot(snapshot: SemanticSnapshot): Document
         version: snapshot.version,
         parseDiagnostics: snapshot.parseDiagnostics,
         exportedFunctions: snapshot.exportedFunctions,
+        symbols: snapshot.symbols.map((symbol) => ({ ...symbol })),
         localScopes: snapshot.localScopes,
         typeDefinitions: snapshot.typeDefinitions,
         fileGlobals: snapshot.fileGlobals ? snapshot.fileGlobals.map((summary) => ({ ...summary })) : [],

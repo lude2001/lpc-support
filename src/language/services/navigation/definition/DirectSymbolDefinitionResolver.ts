@@ -1,8 +1,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { SymbolType } from '../../../../ast/symbolTable';
+import { getTypeLookupName } from '../../../../ast/typeNormalization';
 import { EfunDocsManager } from '../../../../efunDocs';
 import { MacroManager } from '../../../../macroManager';
+import { TypeDefinitionSummary } from '../../../../semantic/documentSemanticTypes';
+import { SyntaxKind, SyntaxNode } from '../../../../syntax/types';
 import { resolveVisibleSymbol } from '../../../../symbolReferenceResolver';
 import type { LanguageWorkspaceProjectConfig } from '../../../contracts/LanguageWorkspaceContext';
 import { DefinitionResolverSupport } from './DefinitionResolverSupport';
@@ -46,7 +49,22 @@ export class DirectSymbolDefinitionResolver {
             return simulatedEfunDefinition;
         }
 
-        return this.findVariableDefinition(word, document, position, requestState ?? this.dependencies.support.createRequestState());
+        const explicitMemberDefinition = await this.findExplicitTypeMemberDefinition(
+            document,
+            position,
+            word,
+            projectConfig
+        );
+        if (explicitMemberDefinition) {
+            return explicitMemberDefinition;
+        }
+
+        return this.findVariableDefinition(
+            word,
+            document,
+            position,
+            this.dependencies.support.createRequestState()
+        );
     }
 
     private findLocalMacroDefinition(document: vscode.TextDocument, word: string): vscode.Location | undefined {
@@ -216,6 +234,173 @@ export class DirectSymbolDefinitionResolver {
         }
 
         return this.findInheritedVariableDefinition(document, variableName, requestState);
+    }
+
+    private async findExplicitTypeMemberDefinition(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        memberName: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<vscode.Location | undefined> {
+        const snapshot = this.dependencies.support.getSemanticSnapshot(document);
+        if (!snapshot.syntax?.nodes) {
+            return undefined;
+        }
+
+        const memberAccess = snapshot.syntax.nodes.find((node) =>
+            node.kind === SyntaxKind.MemberAccessExpression &&
+            node.range.contains(position) &&
+            this.isMemberIdentifierAtPosition(node, memberName, position)
+        );
+        if (!memberAccess) {
+            return undefined;
+        }
+
+        const receiver = memberAccess.children[0];
+        const receiverChain = receiver ? this.collectMemberReceiverChain(receiver) : [];
+        if (receiverChain.length === 0) {
+            return undefined;
+        }
+
+        const rootSymbol = resolveVisibleSymbol(snapshot.symbolTable, receiverChain[0], position);
+        if (!rootSymbol) {
+            return undefined;
+        }
+
+        const visibleTypes = await this.collectVisibleTypeDefinitions(document, projectConfig);
+        let currentType = getTypeLookupName(rootSymbol.dataType);
+        for (const segment of receiverChain.slice(1)) {
+            const intermediateDefinition = this.findTypeDefinition(visibleTypes, currentType);
+            const intermediateMember = intermediateDefinition?.members.find((candidate) => candidate.name === segment);
+            if (!intermediateMember) {
+                return undefined;
+            }
+
+            currentType = getTypeLookupName(intermediateMember.dataType);
+        }
+
+        const definition = this.findTypeDefinition(visibleTypes, currentType);
+        const member = definition?.members.find((candidate) => candidate.name === memberName);
+        if (!definition || !member) {
+            return undefined;
+        }
+
+        return new vscode.Location(this.toSourceUri(definition.sourceUri), member.selectionRange ?? member.range);
+    }
+
+    private isMemberIdentifierAtPosition(
+        memberAccess: SyntaxNode,
+        memberName: string,
+        position: vscode.Position
+    ): boolean {
+        const member = memberAccess.children[1];
+        return member?.kind === SyntaxKind.Identifier &&
+            member.name === memberName &&
+            member.range.contains(position);
+    }
+
+    private collectMemberReceiverChain(node: SyntaxNode): string[] {
+        if (node.kind === SyntaxKind.Identifier && node.name) {
+            return [node.name];
+        }
+
+        if (node.kind !== SyntaxKind.MemberAccessExpression) {
+            return [];
+        }
+
+        const receiver = node.children[0];
+        const member = node.children[1];
+        if (!receiver || member?.kind !== SyntaxKind.Identifier || !member.name) {
+            return [];
+        }
+
+        const receiverChain = this.collectMemberReceiverChain(receiver);
+        return receiverChain.length > 0 ? [...receiverChain, member.name] : [];
+    }
+
+    private findTypeDefinition(
+        typeDefinitions: readonly TypeDefinitionSummary[],
+        typeName: string
+    ): TypeDefinitionSummary | undefined {
+        const lookupName = getTypeLookupName(typeName);
+        return typeDefinitions.find((definition) =>
+            definition.name === lookupName ||
+            getTypeLookupName(definition.name) === lookupName
+        );
+    }
+
+    private async collectVisibleTypeDefinitions(
+        document: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig,
+        visited: Set<string> = new Set()
+    ): Promise<TypeDefinitionSummary[]> {
+        const documentKey = this.normalizeDocumentKey(document);
+        if (visited.has(documentKey)) {
+            return [];
+        }
+
+        visited.add(documentKey);
+        const snapshot = this.dependencies.support.getSemanticSnapshot(document);
+        const definitions: TypeDefinitionSummary[] = [...snapshot.typeDefinitions];
+
+        for (const includeDocument of await this.openIncludedDocuments(document, projectConfig)) {
+            definitions.push(...await this.collectVisibleTypeDefinitions(includeDocument, projectConfig, visited));
+        }
+
+        for (const inheritStatement of snapshot.inheritStatements) {
+            const inheritedDocument = await this.dependencies.support.openInheritedDocument(
+                document,
+                inheritStatement.value,
+                this.dependencies.support.createRequestState()
+            );
+            if (inheritedDocument) {
+                definitions.push(...await this.collectVisibleTypeDefinitions(inheritedDocument, projectConfig, visited));
+            }
+        }
+
+        return definitions;
+    }
+
+    private async openIncludedDocuments(
+        document: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<vscode.TextDocument[]> {
+        const documents: vscode.TextDocument[] = [];
+        const snapshot = this.dependencies.support.getSemanticSnapshot(document);
+
+        for (const includeStatement of snapshot.includeStatements) {
+            if (!includeStatement.resolvedUri) {
+                continue;
+            }
+
+            const includeDocument = await this.dependencies.support.tryOpenTextDocument(
+                this.toSourceUri(includeStatement.resolvedUri)
+            );
+            if (includeDocument) {
+                documents.push(includeDocument);
+            }
+        }
+
+        for (const includePath of await this.dependencies.support.resolveExistingIncludeFiles(document, projectConfig)) {
+            const includeDocument = await this.dependencies.support.tryOpenTextDocument(includePath);
+            if (includeDocument) {
+                documents.push(includeDocument);
+            }
+        }
+
+        return documents;
+    }
+
+    private toSourceUri(sourceUri: string): vscode.Uri {
+        if (sourceUri.startsWith('file:////')) {
+            return vscode.Uri.file(sourceUri.replace(/^file:\/\/\/+/, ''));
+        }
+
+        return sourceUri.includes('://') ? vscode.Uri.parse(sourceUri) : vscode.Uri.file(sourceUri);
+    }
+
+    private normalizeDocumentKey(document: vscode.TextDocument): string {
+        return document.uri.fsPath.replace(/\\/g, '/').toLowerCase();
     }
 
     private async findInheritedVariableDefinition(

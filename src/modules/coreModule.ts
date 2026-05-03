@@ -55,6 +55,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     const functionDocCompatMaterializer = new FunctionDocCompatMaterializer();
     const functionDocLookupBuilder = new FunctionDocLookupBuilder({
         documentationService,
+        analysisService,
         pathSupport: documentPathSupport
     });
 

@@ -4,7 +4,6 @@ import * as vscode from 'vscode';
 import type { InheritDirective, IncludeDirective } from '../semantic/documentSemanticTypes';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
-import { Trivia } from '../parser/types';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
@@ -20,6 +19,7 @@ export class SimulatedEfunScanner {
     private readonly compatMaterializer: FunctionDocCompatMaterializer;
     private hasLoadedWorkspaceState = false;
     private loadedWorkspaceRoot: string | undefined;
+    private loadVersion = 0;
 
     constructor(
         private readonly projectConfigService: LpcProjectConfigService | undefined,
@@ -41,6 +41,10 @@ export class SimulatedEfunScanner {
 
     public async getAsync(name: string): Promise<EfunDoc | undefined> {
         await this.ensureWorkspaceStateCurrent();
+        if (!this.hasLoadedWorkspaceState) {
+            await this.refreshWorkspaceState(true);
+        }
+
         return this.get(name);
     }
 
@@ -62,7 +66,17 @@ export class SimulatedEfunScanner {
             return;
         }
 
-        await this.loadSimulatedEfuns();
+        if (force) {
+            this.hasLoadedWorkspaceState = false;
+        }
+
+        const loadVersion = ++this.loadVersion;
+        const nextDocs = await this.collectSimulatedEfuns();
+        if (loadVersion !== this.loadVersion) {
+            return;
+        }
+
+        this.docs = nextDocs;
         this.hasLoadedWorkspaceState = true;
         this.loadedWorkspaceRoot = workspaceRoot;
     }
@@ -90,25 +104,35 @@ export class SimulatedEfunScanner {
     }
 
     public async loadSimulatedEfuns(): Promise<void> {
-        this.docs.clear();
+        const loadVersion = ++this.loadVersion;
+        const nextDocs = await this.collectSimulatedEfuns();
+        if (loadVersion === this.loadVersion) {
+            this.docs = nextDocs;
+        }
+    }
+
+    private async collectSimulatedEfuns(): Promise<Map<string, EfunDoc>> {
+        const docs = new Map<string, EfunDoc>();
 
         const workspaceRoot = this.getWorkspaceRoot();
         if (!workspaceRoot) {
-            return;
+            return docs;
         }
 
         const simulatedEfunEntryFile = this.projectConfigService
             ? await this.projectConfigService.getSimulatedEfunFileForWorkspace(workspaceRoot)
             : undefined;
         if (!simulatedEfunEntryFile) {
-            return;
+            return docs;
         }
 
         try {
-            await this.loadFromProjectConfigEntry(workspaceRoot, simulatedEfunEntryFile);
+            await this.loadFromProjectConfigEntry(workspaceRoot, simulatedEfunEntryFile, docs);
         } catch (error) {
             console.error('加载模拟函数库文档失败:', error);
         }
+
+        return docs;
     }
 
     private async ensureWorkspaceStateCurrent(): Promise<void> {
@@ -118,7 +142,11 @@ export class SimulatedEfunScanner {
         }
     }
 
-    private async loadFromProjectConfigEntry(workspaceRoot: string, entryFilePath: string): Promise<void> {
+    private async loadFromProjectConfigEntry(
+        workspaceRoot: string,
+        entryFilePath: string,
+        docs: Map<string, EfunDoc>
+    ): Promise<void> {
         const mudlibRoot = await this.resolveMudlibRoot(workspaceRoot);
         const queue = [entryFilePath];
         const visited = new Set<string>();
@@ -133,7 +161,7 @@ export class SimulatedEfunScanner {
             visited.add(normalized);
 
             const text = await fs.promises.readFile(currentFile, 'utf8');
-            this.storeParsedDocs(currentFile, text);
+            this.storeParsedDocs(currentFile, text, docs);
 
             const relatedFiles = this.extractRelatedSourceFiles(currentFile, text, mudlibRoot);
             for (const relationFile of relatedFiles) {
@@ -171,11 +199,6 @@ export class SimulatedEfunScanner {
             ...analysis.snapshot.includeStatements.map((statement) =>
                 this.resolveIncludeDirective(statement, currentFilePath, mudlibRoot)
             ),
-            ...this.extractDirectiveIncludeFiles(
-                analysis.parsed?.tokenTriviaIndex.getAllTrivia() ?? [],
-                currentFilePath,
-                mudlibRoot
-            ),
             ...analysis.snapshot.inheritStatements.map((statement) =>
                 this.resolveInheritDirective(statement, currentFilePath, mudlibRoot)
             )
@@ -184,7 +207,7 @@ export class SimulatedEfunScanner {
         return relatedFiles.filter((filePath): filePath is string => Boolean(filePath));
     }
 
-    private storeParsedDocs(filePath: string, text: string): void {
+    private storeParsedDocs(filePath: string, text: string, docs: Map<string, EfunDoc>): void {
         const document = this.createSyntheticDocument(
             filePath,
             normalizeLegacySimulatedDeclarations(text)
@@ -194,7 +217,7 @@ export class SimulatedEfunScanner {
         const compatDocs = this.compatMaterializer.materializeDocMap(documentDocs, '模拟函数库');
 
         for (const [funcName, doc] of compatDocs) {
-            this.docs.set(funcName, {
+            docs.set(funcName, {
                 ...doc,
                 isSimulated: true
             });
@@ -288,28 +311,6 @@ export class SimulatedEfunScanner {
         }
 
         return undefined;
-    }
-
-    private extractDirectiveIncludeFiles(
-        triviaEntries: Trivia[],
-        currentFilePath: string,
-        mudlibRoot: string
-    ): Array<string | undefined> {
-        return triviaEntries
-            .filter((entry) => entry.kind === 'directive')
-            .map((entry) => this.extractDirectiveIncludePath(entry.text))
-            .filter((value): value is string => Boolean(value))
-            .map((includePath) => this.resolveRelatedSourcePath(includePath, currentFilePath, mudlibRoot, ['.c', '.h']));
-    }
-
-    private extractDirectiveIncludePath(text: string): string | undefined {
-        const trimmed = text.trim();
-        if (!trimmed.startsWith('#include') && !trimmed.startsWith('include')) {
-            return undefined;
-        }
-
-        const match = trimmed.match(/^#?include\s+[<"]([^>"]+)[>"]/);
-        return match?.[1];
     }
 
     private getWorkspaceRoot(): string | undefined {

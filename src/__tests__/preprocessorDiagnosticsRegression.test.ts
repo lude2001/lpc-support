@@ -1,3 +1,7 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { ParsedDocumentService } from '../parser/ParsedDocumentService';
 
@@ -13,6 +17,15 @@ function createDocument(content: string, fileName: string): vscode.TextDocument 
 }
 
 describe('preprocessor diagnostics regressions', () => {
+    let tempRoot: string | undefined;
+
+    afterEach(() => {
+        if (tempRoot) {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+            tempRoot = undefined;
+        }
+    });
+
     test('parses controller macros before following public function declarations', () => {
         const document = createDocument([
             '#define RequestType(f_name,http_type) string f_name##_request_type = http_type;',
@@ -51,5 +64,43 @@ describe('preprocessor diagnostics regressions', () => {
 
         expect(parsed.diagnostics).toHaveLength(0);
         expect(parsed.frontend?.preprocessor.inactiveRanges).toHaveLength(1);
+    });
+
+    test('resolves bare system includes from the mudlib include directory', () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-preprocessor-regression-'));
+        const itemDir = path.join(tempRoot, 'inherit', 'item');
+        const includeDir = path.join(tempRoot, 'include');
+        fs.mkdirSync(itemDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(path.join(includeDir, 'dbase.h'), '#define F_DBASE "/inherit/dbase"');
+        fs.writeFileSync(path.join(includeDir, 'name.h'), '#define F_NAME "/inherit/name"');
+
+        const fileName = path.join(itemDir, 'combined.c');
+        const document = createDocument([
+            '#include <dbase.h>',
+            '#include <name.h>',
+            '',
+            'inherit F_DBASE;',
+            'inherit F_NAME;',
+            '',
+            'void create()',
+            '{',
+            '    return;',
+            '}'
+        ].join('\n'), fileName);
+
+        const parsed = new ParsedDocumentService({ cleanupInterval: 0, enableMonitoring: true }).get(document);
+
+        expect(parsed.diagnostics).toHaveLength(0);
+        expect(parsed.frontend?.preprocessor.includeReferences).toEqual([
+            expect.objectContaining({
+                value: 'dbase.h',
+                resolvedUri: vscode.Uri.file(path.join(includeDir, 'dbase.h')).toString()
+            }),
+            expect.objectContaining({
+                value: 'name.h',
+                resolvedUri: vscode.Uri.file(path.join(includeDir, 'name.h')).toString()
+            })
+        ]);
     });
 });

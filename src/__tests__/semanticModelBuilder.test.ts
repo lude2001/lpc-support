@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { clearGlobalParsedDocumentService, getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { SemanticModelBuilder } from '../semantic/SemanticModelBuilder';
@@ -298,5 +299,132 @@ describe('SemanticModelBuilder', () => {
             })
         ]);
     });
+
+    test('preserves prototype signatures as static function facts', () => {
+        const snapshot = buildSemanticSnapshot(
+            'varargs int query_score(ref object who, mixed *args...);',
+            '/virtual/prototype-signature-facts.c'
+        );
+
+        expect(snapshot.parseDiagnostics).toHaveLength(0);
+        expect(snapshot.exportedFunctions).toEqual([
+            expect.objectContaining({
+                name: 'query_score',
+                returnType: 'int',
+                hasBody: false,
+                isPrototype: true,
+                requiredParameterCount: 1,
+                maxParameterCount: undefined,
+                isVariadic: true,
+                parameters: [
+                    expect.objectContaining({
+                        name: 'who',
+                        dataType: 'object',
+                        isReference: true
+                    }),
+                    expect.objectContaining({
+                        name: 'args',
+                        dataType: 'mixed *',
+                        isVariadic: true
+                    })
+                ]
+            })
+        ]);
+    });
+
+    test('surfaces all statically declared symbols as semantic binding summaries', () => {
+        const snapshot = buildSemanticSnapshot(
+            [
+                'struct Stats {',
+                '    int hp;',
+                '}',
+                '',
+                'class Payload {',
+                '    string title;',
+                '}',
+                '',
+                'private object COMBAT_D;',
+                '',
+                'int demo(string name, mixed *args...) {',
+                '    int local_hp;',
+                '    foreach (string item in args) {',
+                '        int nested;',
+                '    }',
+                '    return local_hp;',
+                '}'
+            ].join('\n'),
+            '/virtual/bindings.c'
+        );
+
+        expect(snapshot.symbols).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                name: 'Stats',
+                kind: 'struct',
+                dataType: 'Stats',
+                scopeName: 'global'
+            }),
+            expect.objectContaining({
+                name: 'hp',
+                kind: 'member',
+                dataType: 'int',
+                scopeName: 'struct:Stats'
+            }),
+            expect.objectContaining({
+                name: 'Payload',
+                kind: 'class',
+                dataType: 'Payload',
+                scopeName: 'global'
+            }),
+            expect.objectContaining({
+                name: 'title',
+                kind: 'member',
+                dataType: 'string',
+                scopeName: 'class:Payload'
+            }),
+            expect.objectContaining({
+                name: 'COMBAT_D',
+                kind: 'variable',
+                dataType: 'object',
+                scopeName: 'global',
+                modifiers: ['private']
+            }),
+            expect.objectContaining({
+                name: 'demo',
+                kind: 'function',
+                dataType: 'int',
+                scopeName: 'global'
+            }),
+            expect.objectContaining({
+                name: 'name',
+                kind: 'parameter',
+                dataType: 'string',
+                scopeName: 'function:demo'
+            }),
+            expect.objectContaining({
+                name: 'args',
+                kind: 'parameter',
+                dataType: 'mixed *',
+                scopeName: 'function:demo',
+                isVariadic: true
+            }),
+            expect.objectContaining({
+                name: 'local_hp',
+                kind: 'variable',
+                dataType: 'int',
+                scopeName: 'block'
+            }),
+            expect.objectContaining({
+                name: 'item',
+                kind: 'variable',
+                dataType: 'string',
+                scopeName: 'foreach'
+            }),
+            expect.objectContaining({
+                name: 'nested',
+                kind: 'variable',
+                dataType: 'int',
+                scopeName: 'block'
+            })
+        ]));
+    });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

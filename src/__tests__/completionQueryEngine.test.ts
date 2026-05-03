@@ -130,6 +130,108 @@ describe('CompletionQueryEngine', () => {
         expect(identifierResult.candidates.map(candidate => candidate.label)).toContain('inherited_call');
     });
 
+    test('queries include-backed functions, globals, and types from project index facts', () => {
+        const headerPath = path.join(root, 'include', 'helper.h');
+        const sourcePath = path.join(root, 'room.c');
+        const headerContent = [
+            'struct HeaderPayload {',
+            '    string title;',
+            '}',
+            '',
+            'object HEADER_D;',
+            'int header_call() { return 1; }'
+        ].join('\n');
+        const sourceContent = [
+            '#include "/include/helper.h"',
+            '',
+            'void demo() {',
+            '    head',
+            '}'
+        ].join('\n');
+
+        fs.mkdirSync(path.dirname(headerPath), { recursive: true });
+        fs.writeFileSync(headerPath, headerContent, 'utf8');
+        fs.writeFileSync(sourcePath, sourceContent, 'utf8');
+
+        const astManager = getAstManagerForTests();
+        const resolver = new InheritanceResolver(undefined, [root]);
+        const projectSymbolIndex = new ProjectSymbolIndex(resolver);
+        const engine = new CompletionQueryEngine({
+            snapshotProvider: astManager,
+            projectSymbolIndex,
+            contextAnalyzer: new CompletionContextAnalyzer()
+        });
+        const headerDocument = createDocument(headerPath, headerContent);
+        const sourceDocument = createDocument(sourcePath, sourceContent);
+
+        const headerSnapshot = astManager.getSemanticSnapshot(headerDocument, false);
+        const sourceSnapshot = astManager.getSemanticSnapshot(sourceDocument, false);
+        sourceSnapshot.includeStatements[0].resolvedUri = headerSnapshot.uri;
+        projectSymbolIndex.updateFromSemanticSnapshot(headerSnapshot);
+        projectSymbolIndex.updateFromSemanticSnapshot(sourceSnapshot);
+
+        const result = engine.query(
+            sourceDocument,
+            new vscode.Position(3, '    head'.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        expect(result.context.kind).toBe('identifier');
+        expect(result.candidates).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                label: 'header_call',
+                metadata: expect.objectContaining({
+                    sourceType: 'include',
+                    sourceUri: headerSnapshot.uri
+                })
+            }),
+            expect.objectContaining({
+                label: 'HEADER_D',
+                metadata: expect.objectContaining({
+                    sourceType: 'include',
+                    sourceUri: headerSnapshot.uri
+                })
+            })
+        ]));
+    });
+
+    test('returns explicit class member candidates for dot member access', () => {
+        const filePath = path.join(root, 'dot-member.c');
+        const content = [
+            'class Payload {',
+            '    string title;',
+            '    int hp;',
+            '}',
+            '',
+            'void demo() {',
+            '    class Payload payload;',
+            '    payload.t',
+            '}'
+        ].join('\n');
+
+        fs.writeFileSync(filePath, content, 'utf8');
+
+        const astManager = getAstManagerForTests();
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
+        const engine = new CompletionQueryEngine({
+            snapshotProvider: astManager,
+            projectSymbolIndex,
+            contextAnalyzer: new CompletionContextAnalyzer()
+        });
+        const document = createDocument(filePath, content);
+
+        const result = engine.query(
+            document,
+            new vscode.Position(7, '    payload.t'.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        expect(result.context.kind).toBe('member');
+        expect(result.candidates.map((candidate) => candidate.label)).toEqual(['title']);
+    });
+
     test('returns generic object methods for object-style member receivers', () => {
         const filePath = path.join(root, 'object-member.c');
         const content = [

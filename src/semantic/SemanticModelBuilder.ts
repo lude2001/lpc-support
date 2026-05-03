@@ -8,6 +8,7 @@ import {
     InheritDirective,
     MacroDefinitionSummary,
     MacroReference,
+    SemanticSymbolSummary,
     ScopeSummary,
     TypeDefinitionSummary
 } from './documentSemanticTypes';
@@ -45,6 +46,7 @@ export class SemanticModelBuilder {
             exportedFunctions: this.symbolTable
                 .getSymbolsByType(SymbolType.FUNCTION)
                 .map((symbol) => this.toFunctionSummary(symbol)),
+            symbols: this.collectSymbolSummaries(),
             localScopes: this.collectScopeSummaries(this.symbolTable.getGlobalScope()),
             typeDefinitions: this.collectTypeDefinitions(),
             fileGlobals,
@@ -150,12 +152,14 @@ export class SemanticModelBuilder {
             scope: this.symbolTable.getCurrentScope(),
             modifiers: this.readModifiers(modifierList),
             parameters: [],
-            definition: definition || undefined
+            definition: definition || undefined,
+            hasBody
         };
 
         this.symbolTable.addSymbol(functionSymbol);
 
         if (!hasBody) {
+            this.readPrototypeParameters(node, functionSymbol);
             return;
         }
 
@@ -189,35 +193,61 @@ export class SemanticModelBuilder {
                 continue;
             }
 
-            const parameterName = this.getNodeName(child);
-            if (!parameterName) {
+            const parameterSymbol = this.createParameterSymbol(child);
+            if (!parameterSymbol) {
                 continue;
             }
-
-            const identifier = this.findFirstChild(child, SyntaxKind.Identifier);
-            const typeReference = this.findFirstChild(child, SyntaxKind.TypeReference);
-            const defaultValue = this.findFirstChild(child, SyntaxKind.ClosureExpression);
-            const hasDefaultValue = child.metadata?.hasDefaultValue === true;
-            const parameterSymbol: Symbol = {
-                name: parameterName,
-                type: SymbolType.PARAMETER,
-                dataType: this.resolveDeclaredType(typeReference, this.getPointerCount(child), 'mixed'),
-                range: child.range,
-                selectionRange: identifier?.range,
-                scope: this.symbolTable.getCurrentScope(),
-                definition: this.getTrimmedNodeText(child) || undefined,
-                isReference: child.metadata?.isReference === true || undefined,
-                isVariadic: child.metadata?.isVariadic === true || undefined,
-                hasDefaultValue: hasDefaultValue || undefined,
-                defaultValueText: hasDefaultValue && defaultValue
-                    ? this.getTrimmedNodeText(defaultValue) || undefined
-                    : undefined
-            };
 
             this.symbolTable.addSymbol(parameterSymbol);
             currentFunction.parameters = currentFunction.parameters || [];
             currentFunction.parameters.push(parameterSymbol);
         }
+    }
+
+    private readPrototypeParameters(node: SyntaxNode, currentFunction: Symbol): void {
+        const parameterList = this.findFirstChild(node, SyntaxKind.ParameterList);
+        if (!parameterList) {
+            return;
+        }
+
+        currentFunction.parameters = [];
+        for (const child of parameterList.children) {
+            if (child.kind !== SyntaxKind.ParameterDeclaration) {
+                continue;
+            }
+
+            const parameterSymbol = this.createParameterSymbol(child);
+            if (parameterSymbol) {
+                currentFunction.parameters.push(parameterSymbol);
+            }
+        }
+    }
+
+    private createParameterSymbol(node: SyntaxNode): Symbol | undefined {
+        const parameterName = this.getNodeName(node);
+        if (!parameterName) {
+            return undefined;
+        }
+
+        const identifier = this.findFirstChild(node, SyntaxKind.Identifier);
+        const typeReference = this.findFirstChild(node, SyntaxKind.TypeReference);
+        const defaultValue = this.findFirstChild(node, SyntaxKind.ClosureExpression);
+        const hasDefaultValue = node.metadata?.hasDefaultValue === true;
+        return {
+            name: parameterName,
+            type: SymbolType.PARAMETER,
+            dataType: this.resolveDeclaredType(typeReference, this.getPointerCount(node), 'mixed'),
+            range: node.range,
+            selectionRange: identifier?.range,
+            scope: this.symbolTable.getCurrentScope(),
+            definition: this.getTrimmedNodeText(node) || undefined,
+            isReference: node.metadata?.isReference === true || undefined,
+            isVariadic: node.metadata?.isVariadic === true || undefined,
+            hasDefaultValue: hasDefaultValue || undefined,
+            defaultValueText: hasDefaultValue && defaultValue
+                ? this.getTrimmedNodeText(defaultValue) || undefined
+                : undefined
+        };
     }
 
     private visitVariableDeclaration(node: SyntaxNode): void {
@@ -434,6 +464,25 @@ export class SemanticModelBuilder {
         return summaries;
     }
 
+    private collectSymbolSummaries(): SemanticSymbolSummary[] {
+        return this.symbolTable.getAllSymbols().map((symbol) => ({
+            name: symbol.name,
+            kind: symbol.type,
+            dataType: symbol.dataType,
+            sourceUri: this.syntaxDocument.uri,
+            range: symbol.range,
+            selectionRange: symbol.selectionRange,
+            scopeName: symbol.scope.name,
+            definition: symbol.definition,
+            documentation: symbol.documentation,
+            modifiers: symbol.modifiers,
+            isReference: symbol.isReference,
+            isVariadic: symbol.isVariadic,
+            hasDefaultValue: symbol.hasDefaultValue,
+            defaultValueText: symbol.defaultValueText
+        }));
+    }
+
     private collectTypeDefinitions(): TypeDefinitionSummary[] {
         const structDefinitions = this.symbolTable
             .getSymbolsByType(SymbolType.STRUCT)
@@ -489,25 +538,35 @@ export class SemanticModelBuilder {
     }
 
     private toFunctionSummary(symbol: Symbol): FunctionSummary {
+        const parameters = (symbol.parameters || []).map((parameter) => ({
+            name: parameter.name,
+            dataType: parameter.dataType,
+            range: parameter.range,
+            documentation: parameter.documentation,
+            isReference: parameter.isReference,
+            isVariadic: parameter.isVariadic,
+            hasDefaultValue: parameter.hasDefaultValue,
+            defaultValueText: parameter.defaultValueText
+        }));
+        const isVariadic = parameters.some((parameter) => parameter.isVariadic === true);
+
         return {
             name: symbol.name,
             returnType: symbol.dataType,
-            parameters: (symbol.parameters || []).map((parameter) => ({
-                name: parameter.name,
-                dataType: parameter.dataType,
-                range: parameter.range,
-                documentation: parameter.documentation,
-                isReference: parameter.isReference,
-                isVariadic: parameter.isVariadic,
-                hasDefaultValue: parameter.hasDefaultValue,
-                defaultValueText: parameter.defaultValueText
-            })),
+            parameters,
+            requiredParameterCount: parameters.filter((parameter) =>
+                parameter.hasDefaultValue !== true && parameter.isVariadic !== true
+            ).length,
+            maxParameterCount: isVariadic ? undefined : parameters.length,
+            isVariadic: isVariadic || undefined,
             modifiers: symbol.modifiers || [],
             sourceUri: this.syntaxDocument.uri,
             range: symbol.range,
             origin: 'local',
             documentation: symbol.documentation,
-            definition: symbol.definition
+            definition: symbol.definition,
+            hasBody: symbol.hasBody,
+            isPrototype: symbol.hasBody === false || undefined
         };
     }
 
@@ -522,6 +581,7 @@ export class SemanticModelBuilder {
                 name: member.name,
                 dataType: member.dataType,
                 range: member.range,
+                selectionRange: member.selectionRange,
                 documentation: member.documentation,
                 definition: member.definition,
                 parameters: member.parameters?.map((parameter) => ({

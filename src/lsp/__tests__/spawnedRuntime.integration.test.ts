@@ -141,6 +141,78 @@ describe('spawned LSP runtime integration', () => {
         ]);
     }, 30000);
 
+    test('resolves inherited functions and include-backed class members through the spawned server', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-static-frontend-'));
+        const basePath = path.join(workspaceRoot, 'base.c');
+        const midPath = path.join(workspaceRoot, 'mid.c');
+        const headerPath = path.join(workspaceRoot, 'include', 'payload.h');
+        const roomPath = path.join(workspaceRoot, 'room.c');
+        const roomSource = [
+            'inherit "/mid";',
+            '#include "/include/payload.h"',
+            '',
+            'void demo() {',
+            '    class Payload payload;',
+            '    payload.title;',
+            '    root_call(1);',
+            '}'
+        ].join('\n');
+
+        fs.mkdirSync(path.dirname(headerPath), { recursive: true });
+        fs.writeFileSync(basePath, 'int root_call(int value) { return value; }\n', 'utf8');
+        fs.writeFileSync(midPath, 'inherit "/base";\n', 'utf8');
+        fs.writeFileSync(headerPath, [
+            'class Payload {',
+            '    string title;',
+            '}'
+        ].join('\n'), 'utf8');
+        fs.writeFileSync(roomPath, roomSource, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(roomPath, roomSource);
+        await harness.openDocument(basePath, fs.readFileSync(basePath, 'utf8'));
+        await harness.openDocument(midPath, fs.readFileSync(midPath, 'utf8'));
+        await harness.openDocument(headerPath, fs.readFileSync(headerPath, 'utf8'));
+
+        const inheritedDefinition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(roomPath)
+            },
+            position: {
+                line: 6,
+                character: '    root_ca'.length
+            }
+        });
+        const memberDefinition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(roomPath)
+            },
+            position: {
+                line: 5,
+                character: '    payload.tit'.length
+            }
+        });
+
+        expect(normalizeDefinitionLocations(inheritedDefinition)).toEqual([
+            {
+                uri: uriFromPath(basePath),
+                range: {
+                    start: { line: 0, character: 4 },
+                    end: { line: 0, character: 13 }
+                }
+            }
+        ]);
+        expect(normalizeDefinitionLocations(memberDefinition)).toEqual([
+            {
+                uri: uriFromPath(headerPath),
+                range: {
+                    start: { line: 1, character: 11 },
+                    end: { line: 1, character: 16 }
+                }
+            }
+        ]);
+    }, 30000);
+
     test('rejects same-file function rename from the latest in-memory text', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-rename-unsaved-'));
         const documentPath = path.join(workspaceRoot, 'rename-me.c');

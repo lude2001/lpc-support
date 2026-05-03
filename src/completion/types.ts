@@ -8,6 +8,7 @@ import type {
     IncludeDirective,
     InheritDirective,
     InheritExpressionKind,
+    IncludedSymbolSet,
     InheritedSymbolSet,
     MacroReference,
     MemberSummary,
@@ -31,6 +32,7 @@ export type CompletionContextKind =
 
 export type CompletionCandidateSourceType =
     | 'local'
+    | 'include'
     | 'inherited'
     | 'scoped-method'
     | 'struct-member'
@@ -114,6 +116,7 @@ export type {
     IncludeDirective,
     InheritDirective,
     InheritExpressionKind,
+    IncludedSymbolSet,
     InheritedSymbolSet,
     MacroReference,
     MemberSummary,

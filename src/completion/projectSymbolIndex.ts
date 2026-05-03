@@ -4,6 +4,8 @@ import {
     FileSymbolRecord,
     FileGlobalSummary,
     FunctionSummary,
+    IncludeDirective,
+    IncludedSymbolSet,
     InheritedSymbolSet,
     ResolvedInheritTarget,
     TypeDefinitionSummary
@@ -15,6 +17,7 @@ type ProjectSemanticSnapshot = Pick<
     | 'uri'
     | 'version'
     | 'exportedFunctions'
+    | 'symbols'
     | 'typeDefinitions'
     | 'fileGlobals'
     | 'inheritStatements'
@@ -50,7 +53,8 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
         this.records.set(snapshot.uri, {
             uri: snapshot.uri,
             version: snapshot.version,
-            exportedFunctions: snapshot.exportedFunctions.map(func => ({ ...func })),
+            exportedFunctions: snapshot.exportedFunctions.map(func => cloneFunctionSummary(func)),
+            symbols: snapshot.symbols?.map(symbol => ({ ...symbol })),
             typeDefinitions: snapshot.typeDefinitions.map(type => ({
                 ...type,
                 members: type.members.map(member => ({
@@ -139,7 +143,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
                     }
 
                     seenFunctionKeys.add(key);
-                    functions.push({ ...func, origin: 'inherited' });
+                    functions.push({ ...cloneFunctionSummary(func), origin: 'inherited' });
                 }
 
                 for (const type of record.typeDefinitions) {
@@ -170,6 +174,50 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
             types,
             unresolvedTargets
         };
+    }
+
+    public getIncludedSymbols(uri: string): IncludedSymbolSet {
+        const record = this.records.get(uri);
+        const files: string[] = [];
+        const functions: FunctionSummary[] = [];
+        const types: TypeDefinitionSummary[] = [];
+        const fileGlobals: FileGlobalSummary[] = [];
+        const unresolvedIncludes: IncludeDirective[] = [];
+        const visited = new Set<string>();
+
+        if (!record) {
+            return { files, functions, types, fileGlobals, unresolvedIncludes };
+        }
+
+        for (const includeStatement of record.includeStatements) {
+            if (!includeStatement.resolvedUri || visited.has(includeStatement.resolvedUri)) {
+                unresolvedIncludes.push({ ...includeStatement });
+                continue;
+            }
+
+            visited.add(includeStatement.resolvedUri);
+            const includeRecord = this.records.get(includeStatement.resolvedUri);
+            if (!includeRecord) {
+                unresolvedIncludes.push({ ...includeStatement });
+                continue;
+            }
+
+            files.push(includeStatement.resolvedUri);
+            functions.push(...includeRecord.exportedFunctions.map((func) => ({
+                ...cloneFunctionSummary(func),
+                origin: 'include' as const
+            })));
+            types.push(...includeRecord.typeDefinitions.map((type) => ({
+                ...type,
+                members: type.members.map(member => ({
+                    ...member,
+                    parameters: member.parameters?.map(parameter => ({ ...parameter }))
+                }))
+            })));
+            fileGlobals.push(...includeRecord.fileGlobals.map((summary) => cloneFileGlobalSummary(summary)));
+        }
+
+        return { files, functions, types, fileGlobals, unresolvedIncludes };
     }
 
     public findType(typeName: string): TypeDefinitionSummary | undefined {
@@ -206,10 +254,18 @@ function cloneFileGlobalSummary(summary: FileGlobalSummary): FileGlobalSummary {
     };
 }
 
+function cloneFunctionSummary(summary: FunctionSummary): FunctionSummary {
+    return {
+        ...summary,
+        parameters: summary.parameters.map(parameter => ({ ...parameter }))
+    };
+}
+
 function cloneFileSymbolRecord(record: FileSymbolRecord): FileSymbolRecord {
     return {
         ...record,
-        exportedFunctions: record.exportedFunctions.map(func => ({ ...func })),
+        exportedFunctions: record.exportedFunctions.map(func => cloneFunctionSummary(func)),
+        symbols: record.symbols?.map(symbol => ({ ...symbol })),
         typeDefinitions: record.typeDefinitions.map(type => ({
             ...type,
             members: type.members.map(member => ({

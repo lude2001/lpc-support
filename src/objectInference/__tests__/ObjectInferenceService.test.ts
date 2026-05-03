@@ -104,6 +104,7 @@ describe('ObjectInferenceService', () => {
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: documentHost,
             macroManager: macroManager as any,
+            analysisService,
             projectConfigService
         });
         const semanticEvaluationService = overrideSemanticEvaluationService ?? createDefaultSemanticEvaluationService({
@@ -525,6 +526,45 @@ describe('ObjectInferenceService', () => {
 
         const result = await service.inferObjectAccess(document, positionAfter(source, 'model->add_data_button'));
 
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'std', 'classify_pop.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('semantic receiver evaluation lets path support resolve frontend macro object values', async () => {
+        const semanticEvaluationService = {
+            evaluateCallExpression: jest.fn(async () => ({
+                source: 'unknown' as const,
+                value: unknownValue()
+            })),
+            evaluateExpressionAtPosition: jest.fn(async () => ({
+                source: 'natural' as const,
+                value: objectValue('MODEL_D')
+            }))
+        };
+        const semanticReceiverService = createService(undefined, semanticEvaluationService);
+        const source = [
+            '#define MODEL_D "/std/classify_pop"',
+            '',
+            'void demo() {',
+            '    model->add_data_button("x", "y");',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'semantic-receiver-macro-object.c'), source);
+
+        const result = await semanticReceiverService.inferObjectAccess(
+            document,
+            positionAfter(source, 'model->add_data_button')
+        );
+
+        expect(semanticEvaluationService.evaluateExpressionAtPosition).toHaveBeenCalled();
+        expect(macroManager.getMacro).not.toHaveBeenCalledWith('MODEL_D');
         expect(result?.inference).toEqual({
             status: 'resolved',
             candidates: [

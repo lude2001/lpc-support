@@ -10,6 +10,7 @@ import {
     CompletionQueryContext,
     CompletionQueryResult,
     DocumentSemanticSnapshot,
+    FileGlobalSummary,
     FunctionSummary,
     TypeDefinitionSummary
 } from './types';
@@ -129,9 +130,10 @@ export class CompletionQueryEngine {
         inheritedFunctions: FunctionSummary[],
         inheritedTypes: TypeDefinitionSummary[]
     ): CompletionCandidate[] {
+        const includedSymbols = this.projectSymbolIndex.getIncludedSymbols(snapshot.uri);
         switch (context.kind) {
             case 'member':
-                return this.queryMemberCandidates(snapshot, position, context, inheritedTypes);
+                return this.queryMemberCandidates(snapshot, position, context, [...includedSymbols.types, ...inheritedTypes]);
             case 'preprocessor':
                 return this.queryPreprocessorCandidates(snapshot);
             case 'inherit-path':
@@ -139,15 +141,24 @@ export class CompletionQueryEngine {
             case 'include-path':
                 return this.queryPathCandidates(snapshot, 'include-path');
             case 'type-position':
-                return this.queryTypeCandidates(snapshot, inheritedTypes);
+                return this.queryTypeCandidates(snapshot, [...includedSymbols.types, ...inheritedTypes]);
             case 'identifier':
             default:
-                return this.queryIdentifierCandidates(snapshot, position, inheritedFunctions, inheritedTypes);
+                return this.queryIdentifierCandidates(
+                    snapshot,
+                    position,
+                    includedSymbols.functions,
+                    includedSymbols.fileGlobals,
+                    inheritedFunctions,
+                    [...includedSymbols.types, ...inheritedTypes]
+                );
         }
     }
     private queryIdentifierCandidates(
         snapshot: DocumentSemanticSnapshot,
         position: vscode.Position,
+        includedFunctions: FunctionSummary[],
+        includedGlobals: FileGlobalSummary[],
         inheritedFunctions: FunctionSummary[],
         inheritedTypes: TypeDefinitionSummary[]
     ): CompletionCandidate[] {
@@ -156,6 +167,36 @@ export class CompletionQueryEngine {
 
         for (const symbol of symbols) {
             candidates.push(this.createSymbolCandidate(symbol));
+        }
+
+        for (const func of includedFunctions) {
+            candidates.push({
+                key: `include-function:${func.sourceUri}:${func.name}`,
+                label: func.name,
+                kind: vscode.CompletionItemKind.Function,
+                detail: `${normalizeLpcType(func.returnType)} ${func.name}`,
+                sortGroup: 'inherited',
+                metadata: {
+                    sourceUri: func.sourceUri,
+                    sourceType: 'include',
+                    documentationRef: func.name
+                }
+            });
+        }
+
+        for (const global of includedGlobals) {
+            candidates.push({
+                key: `include-global:${global.sourceUri}:${global.name}`,
+                label: global.name,
+                kind: vscode.CompletionItemKind.Variable,
+                detail: `${normalizeLpcType(global.dataType)} ${global.name}`,
+                sortGroup: 'inherited',
+                metadata: {
+                    sourceUri: global.sourceUri,
+                    sourceType: 'include',
+                    documentationRef: global.name
+                }
+            });
         }
 
         for (const func of inheritedFunctions) {

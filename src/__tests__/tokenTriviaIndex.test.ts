@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ParsedDocumentService } from '../parser/ParsedDocumentService';
 import { Trivia } from '../parser/types';
@@ -44,7 +45,7 @@ describe('TokenTriviaIndex', () => {
         expect(leadingTrivia[2].text).toBe('\n');
     });
 
-    test('exposes directives as trivia before the next visible token', () => {
+    test('keeps directives in preprocessor facts instead of token trivia', () => {
         const source = `#include "/sys/test.h"\nint value;\n`;
         const document = TestHelper.createMockDocument(source, 'lpc', 'trivia-directive.c');
         const parsed = parsedDocumentService.get(document);
@@ -52,8 +53,12 @@ describe('TokenTriviaIndex', () => {
 
         const leadingTrivia = parsed.tokenTriviaIndex.getLeadingTrivia(intToken.tokenIndex);
 
-        expect(triviaKinds(leadingTrivia)).toEqual(['directive']);
-        expect(leadingTrivia[0].text).toContain('#include');
+        expect(triviaKinds(leadingTrivia)).toEqual(['whitespace', 'newline']);
+        expect(parsed.frontend?.preprocessor.includeReferences[0]).toMatchObject({
+            rawText: '#include "/sys/test.h"',
+            value: '/sys/test.h',
+            isSystemInclude: false
+        });
     });
 
     test('splits whitespace and newline trivia between visible tokens', () => {
@@ -82,4 +87,3 @@ describe('TokenTriviaIndex', () => {
         expect(trailingTrivia[1].text).toBe('// trailing comment');
     });
 });
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

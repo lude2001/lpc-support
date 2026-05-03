@@ -10,6 +10,7 @@ import {
     WorkspaceDocumentPathSupport,
     createVsCodeTextDocumentHost
 } from '../../language/shared/WorkspaceDocumentPathSupport';
+import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 
 function createTextDocument(filePath: string, content: string): vscode.TextDocument {
     const normalized = content.replace(/\r\n/g, '\n');
@@ -68,6 +69,10 @@ function createTextDocument(filePath: string, content: string): vscode.TextDocum
     } as unknown as vscode.TextDocument;
 }
 
+function normalizeMockFsPath(filePath: string): string {
+    return path.resolve(filePath.replace(/^\/+([A-Za-z]:\/)/, '$1'));
+}
+
 describe('FunctionDocLookupBuilder', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -100,18 +105,13 @@ describe('FunctionDocLookupBuilder', () => {
 
         const builder = new FunctionDocLookupBuilder({
             documentationService: createDefaultFunctionDocumentationService(),
+            analysisService: DocumentSemanticSnapshotService.getInstance(),
             pathSupport: new WorkspaceDocumentPathSupport({
                 host: createVsCodeTextDocumentHost()
             })
         });
         const materializer = new FunctionDocCompatMaterializer();
-        const document = {
-            uri: { fsPath: mainFile },
-            fileName: mainFile,
-            languageId: 'lpc',
-            version: 1,
-            getText: () => '#include "/include/helper.h"\n'
-        } as unknown as vscode.TextDocument;
+        const document = createTextDocument(mainFile, '#include "/include/helper.h"\n');
 
         const lookup = await builder.buildLookup(document);
         const doc = materializer.materializeLookup(lookup).lookup.includeGroups[0]?.docs.get('helper_live');
@@ -146,11 +146,12 @@ describe('FunctionDocLookupBuilder', () => {
         );
 
         (vscode.workspace.getWorkspaceFolder as jest.Mock).mockImplementation((uri: vscode.Uri) => {
-            if (uri.fsPath.startsWith(rootB)) {
+            const fsPath = normalizeMockFsPath(uri.fsPath);
+            if (fsPath.startsWith(rootB)) {
                 return { uri: { fsPath: rootB } };
             }
 
-            if (uri.fsPath.startsWith(rootA)) {
+            if (fsPath.startsWith(rootA)) {
                 return { uri: { fsPath: rootA } };
             }
 
@@ -159,18 +160,13 @@ describe('FunctionDocLookupBuilder', () => {
 
         const builder = new FunctionDocLookupBuilder({
             documentationService: createDefaultFunctionDocumentationService(),
+            analysisService: DocumentSemanticSnapshotService.getInstance(),
             pathSupport: new WorkspaceDocumentPathSupport({
                 host: createVsCodeTextDocumentHost()
             })
         });
         const materializer = new FunctionDocCompatMaterializer();
-        const document = {
-            uri: { fsPath: mainFile },
-            fileName: mainFile,
-            languageId: 'lpc',
-            version: 1,
-            getText: () => '#include "/include/helper.h"\n'
-        } as unknown as vscode.TextDocument;
+        const document = createTextDocument(mainFile, '#include "/include/helper.h"\n');
 
         const lookup = await builder.buildLookup(document);
         const doc = materializer.materializeLookup(lookup).lookup.includeGroups[0]?.docs.get('helper_multi_root');
@@ -207,6 +203,7 @@ describe('FunctionDocLookupBuilder', () => {
 
         const builder = new FunctionDocLookupBuilder({
             documentationService: createDefaultFunctionDocumentationService(),
+            analysisService: DocumentSemanticSnapshotService.getInstance(),
             pathSupport: new WorkspaceDocumentPathSupport({
                 host: createVsCodeTextDocumentHost(),
                 macroManager: {
@@ -215,13 +212,7 @@ describe('FunctionDocLookupBuilder', () => {
             }),
         });
         const materializer = new FunctionDocCompatMaterializer();
-        const document = {
-            uri: { fsPath: mainFile },
-            fileName: mainFile,
-            languageId: 'lpc',
-            version: 1,
-            getText: () => 'inherit BASE_INHERIT;\n'
-        } as unknown as vscode.TextDocument;
+        const document = createTextDocument(mainFile, 'inherit BASE_INHERIT;\n');
 
         const lookup = await builder.buildLookup(document);
         const doc = materializer.materializeLookup(lookup).lookup.inheritedGroups[0]?.docs.get('helper_inherited');

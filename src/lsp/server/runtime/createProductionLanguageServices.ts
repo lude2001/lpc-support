@@ -76,6 +76,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const functionDocCompatMaterializer = new FunctionDocCompatMaterializer();
     const functionDocLookupBuilder = new FunctionDocLookupBuilder({
         documentationService,
+        analysisService,
         pathSupport: documentPathSupport
     });
     const semanticEvaluationService = createDefaultSemanticEvaluationService({

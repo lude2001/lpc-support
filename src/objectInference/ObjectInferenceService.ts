@@ -452,7 +452,7 @@ export class ObjectInferenceService {
         document: vscode.TextDocument,
         path: string
     ): ObjectResolutionOutcome | undefined {
-        const resolvedPath = this.pathSupport.resolveObjectFilePath(document, this.toObjectPathExpression(path));
+        const resolvedPath = this.resolveObjectPath(document, path);
         if (!resolvedPath) {
             return undefined;
         }
@@ -487,10 +487,23 @@ export class ObjectInferenceService {
         return [{ path: resolvedPath, source }];
     }
 
-    private toObjectPathExpression(objectPath: string): string {
-        return objectPath.startsWith('"') && objectPath.endsWith('"')
-            ? objectPath
-            : `"${objectPath}"`;
+    private resolveObjectPath(document: vscode.TextDocument, objectPath: string): string | undefined {
+        for (const expression of this.createObjectPathExpressions(objectPath)) {
+            const resolvedPath = this.pathSupport.resolveObjectFilePath(document, expression);
+            if (resolvedPath) {
+                return resolvedPath;
+            }
+        }
+
+        return undefined;
+    }
+
+    private createObjectPathExpressions(objectPath: string): string[] {
+        if (objectPath.startsWith('"') && objectPath.endsWith('"')) {
+            return [objectPath];
+        }
+
+        return [objectPath, `"${objectPath}"`];
     }
 
     private getNodeText(document: vscode.TextDocument, node: SyntaxNode): string {

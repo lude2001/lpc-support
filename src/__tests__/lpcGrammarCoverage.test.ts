@@ -1,3 +1,4 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ANTLRErrorListener, RecognitionException, Recognizer } from 'antlr4ts';
 import { CharStreams, CommonTokenStream } from 'antlr4ts';

@@ -85,26 +85,6 @@ describe('RegexPatterns', () => {
         });
     });
 
-    describe('包含语句模式', () => {
-        it('应该匹配尖括号包含', () => {
-            const text = '#include <ansi.h>';
-            patterns.resetRegex(patterns.includeStatement);
-            const match = patterns.includeStatement.exec(text);
-
-            expect(match).not.toBeNull();
-            expect(match![1]).toBe('ansi.h');
-        });
-
-        it('应该匹配引号包含', () => {
-            const text = '#include "user.h"';
-            patterns.resetRegex(patterns.includeStatement);
-            const match = patterns.includeStatement.exec(text);
-
-            expect(match).not.toBeNull();
-            expect(match![1]).toBe('user.h');
-        });
-    });
-
     describe('命名规范模式', () => {
         describe('对象命名', () => {
             it('应该接受有效的对象名', () => {
@@ -328,8 +308,7 @@ describe('RegexPatterns', () => {
         it('resetAllRegexes 应该重置所有正则', () => {
             const regexes = [
                 patterns.objectAccess,
-                patterns.inheritStatement,
-                patterns.includeStatement
+                patterns.inheritStatement
             ];
 
             regexes.forEach(r => r.lastIndex = 100);

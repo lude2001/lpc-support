@@ -325,7 +325,7 @@ export class CompletionContextAnalyzer {
             return tokenBackedContext;
         }
 
-        const match = linePrefix.match(/(.+)\s*->\s*[A-Za-z0-9_]*$/);
+        const match = linePrefix.match(/(.+)\s*(?:->|\.)\s*[A-Za-z0-9_]*$/);
         if (!match) {
             return { receiverChain: [] };
         }
@@ -357,9 +357,8 @@ export class CompletionContextAnalyzer {
         }
 
         const cursorOffset = document.offsetAt(position);
-        const arrowTokenIndex = findLastTokenIndexBeforeOffset(
+        const arrowTokenIndex = findLastMemberOperatorIndexBeforeOffset(
             parsed.visibleTokens,
-            '->',
             cursorOffset,
             position.line + 1
         );
@@ -459,6 +458,25 @@ function findLastTokenIndexBeforeOffset(
     return -1;
 }
 
+function findLastMemberOperatorIndexBeforeOffset(
+    tokens: readonly Token[],
+    offset: number,
+    line: number
+): number {
+    for (let index = tokens.length - 1; index >= 0; index -= 1) {
+        const token = tokens[index];
+        if (token.startIndex >= offset) {
+            continue;
+        }
+
+        if (token.line === line && (token.text === '->' || token.text === '.')) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
 function findReceiverStartTokenIndex(tokens: readonly Token[], arrowTokenIndex: number): number {
     let depth = 0;
     const arrowLine = tokens[arrowTokenIndex].line;
@@ -507,7 +525,7 @@ function buildSimpleReceiverChain(tokens: readonly Token[]): string[] {
             continue;
         }
 
-        if (token.text !== '->') {
+        if (token.text !== '->' && token.text !== '.') {
             return [];
         }
         expectIdentifier = true;

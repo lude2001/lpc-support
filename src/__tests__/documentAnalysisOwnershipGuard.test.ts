@@ -288,10 +288,12 @@ describe('document analysis ownership guards', () => {
         expect(trackerSource).not.toContain('buildCompatDocsForDocument(');
         expect(trackerSource).not.toContain('materializeCompatDoc(');
 
-        expect(lookupBuilderSource).toContain('parseInheritStatements(');
         expect(lookupBuilderSource).toContain('loadInheritedFileDocs(');
         expect(lookupBuilderSource).toContain('loadIncludeFileDocs(');
         expect(lookupBuilderSource).toContain('getIncludeFiles(');
+        expect(lookupBuilderSource).not.toContain('parseInheritStatements(');
+        expect(lookupBuilderSource).not.toContain('document.getText()');
+        expect(lookupBuilderSource).not.toContain('includeRegex');
         expect(compatMaterializerSource).toContain('materializeLookup(');
         expect(compatMaterializerSource).toContain('materializeCompatDoc(');
     });
@@ -305,6 +307,51 @@ describe('document analysis ownership guards', () => {
         expect(directOpenCallSites).toEqual([
             'src/language/shared/WorkspaceDocumentPathSupport.ts'
         ]);
+    });
+
+    test('call target resolution consumes include facts instead of reparsing document text', () => {
+        const callTargetResolverSource = fs.readFileSync(
+            path.join(srcRoot, 'semanticEvaluation', 'calls', 'CallTargetResolver.ts'),
+            'utf8'
+        );
+
+        expect(callTargetResolverSource).not.toContain('document.getText()');
+        expect(callTargetResolverSource).not.toContain('#include');
+        expect(callTargetResolverSource).not.toContain('line.match(');
+    });
+
+    test('function parser consumes syntax documents instead of ANTLR contexts or line scans', () => {
+        const functionParserSource = fs.readFileSync(
+            path.join(srcRoot, 'functionParser.ts'),
+            'utf8'
+        );
+
+        expect(functionParserSource).not.toContain("from './antlr/LPCParser'");
+        expect(functionParserSource).not.toContain('FunctionDefContext');
+        expect(functionParserSource).not.toContain('tree.statement()');
+        expect(functionParserSource).not.toContain('document.getText().split');
+    });
+
+    test('simulated efun scanner consumes semantic include facts instead of directive regex fallback', () => {
+        const scannerSource = fs.readFileSync(
+            path.join(srcRoot, 'efun', 'SimulatedEfunScanner.ts'),
+            'utf8'
+        );
+
+        expect(scannerSource).not.toContain('extractDirectiveIncludeFiles');
+        expect(scannerSource).not.toContain('extractDirectiveIncludePath');
+        expect(scannerSource).not.toContain('#?include');
+    });
+
+    test('function doc lookup consumes semantic inherit and include facts', () => {
+        const lookupBuilderSource = fs.readFileSync(
+            path.join(srcRoot, 'efun', 'FunctionDocLookupBuilder.ts'),
+            'utf8'
+        );
+
+        expect(lookupBuilderSource).not.toContain('parseInheritStatements');
+        expect(lookupBuilderSource).not.toContain('document.getText()');
+        expect(lookupBuilderSource).not.toContain('includeRegex');
     });
 
     test('LanguageCodeActionService stays a coordinator without inline quick-fix builders or text helpers', () => {

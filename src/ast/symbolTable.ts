@@ -27,6 +27,7 @@ export interface Symbol {
     isVariadic?: boolean;
     hasDefaultValue?: boolean;
     defaultValueText?: string;
+    hasBody?: boolean;
 }
 
 export interface Scope {

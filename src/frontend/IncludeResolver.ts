@@ -57,13 +57,60 @@ export class IncludeResolver {
 
     private resolveIncludePath(include: IncludeReferenceFact, documentDirectory: string): string | undefined {
         const candidates = include.isSystemInclude
-            ? this.includeDirectories.map((directory) => path.join(directory, include.value))
+            ? [
+                ...this.includeDirectories.map((directory) => path.join(directory, include.value)),
+                ...this.createAncestorIncludeDirectoryCandidates(include.value, documentDirectory)
+            ]
             : [
+                ...this.createMudlibAbsoluteCandidates(include.value, documentDirectory),
                 path.resolve(documentDirectory, include.value),
                 ...this.includeDirectories.map((directory) => path.join(directory, include.value))
             ];
 
         return candidates.find((candidate) => fs.existsSync(candidate));
+    }
+
+    private createAncestorIncludeDirectoryCandidates(includeValue: string, documentDirectory: string): string[] {
+        if (path.isAbsolute(includeValue)) {
+            return [];
+        }
+
+        const candidates: string[] = [];
+        let currentDirectory = documentDirectory;
+
+        while (true) {
+            candidates.push(path.join(currentDirectory, 'include', includeValue));
+            const parentDirectory = path.dirname(currentDirectory);
+            if (parentDirectory === currentDirectory) {
+                break;
+            }
+
+            currentDirectory = parentDirectory;
+        }
+
+        return candidates;
+    }
+
+    private createMudlibAbsoluteCandidates(includeValue: string, documentDirectory: string): string[] {
+        if (!includeValue.startsWith('/')) {
+            return [];
+        }
+
+        const relativeIncludePath = includeValue.slice(1);
+        const candidates: string[] = [];
+        let currentDirectory = documentDirectory;
+
+        while (true) {
+            candidates.push(path.join(currentDirectory, relativeIncludePath));
+            const parentDirectory = path.dirname(currentDirectory);
+            if (parentDirectory === currentDirectory) {
+                break;
+            }
+
+            currentDirectory = parentDirectory;
+        }
+
+        return candidates;
     }
 }
 

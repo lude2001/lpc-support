@@ -1,3 +1,4 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { ActiveSourceBuilder } from '../ActiveSourceBuilder';
 import { PreprocessorConditionEvaluator } from '../PreprocessorConditionEvaluator';
 import { PreprocessorScanner } from '../PreprocessorScanner';

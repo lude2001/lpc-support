@@ -22,13 +22,24 @@ function createDocument(fileName: string, content: string, version = 1): vscode.
         }
     }
 
+    const offsetAt = (position: vscode.Position): number => {
+        const lineStart = lineStarts[position.line] ?? content.length;
+        return Math.min(lineStart + position.character, content.length);
+    };
+
     return {
         uri: vscode.Uri.file(fileName),
         fileName,
         languageId: 'lpc',
         version,
         lineCount: lines.length,
-        getText: jest.fn(() => content),
+        getText: jest.fn((range?: vscode.Range) => {
+            if (!range) {
+                return content;
+            }
+
+            return content.slice(offsetAt(range.start), offsetAt(range.end));
+        }),
         lineAt: jest.fn((lineOrPosition: number | vscode.Position) => {
             const line = typeof lineOrPosition === 'number' ? lineOrPosition : lineOrPosition.line;
             return { text: lines[line] ?? '' };
@@ -44,7 +55,8 @@ function createDocument(fileName: string, content: string, version = 1): vscode.
             }
 
             return new vscode.Position(line, offset - lineStarts[line]);
-        })
+        }),
+        offsetAt: jest.fn((position: vscode.Position) => offsetAt(position))
     } as unknown as vscode.TextDocument;
 }
 

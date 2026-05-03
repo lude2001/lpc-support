@@ -52,6 +52,7 @@ function createLookupBuilder(
 ): FunctionDocLookupBuilder {
     return new FunctionDocLookupBuilder({
         documentationService,
+        analysisService: DocumentSemanticSnapshotService.getInstance(),
         pathSupport
     });
 }
@@ -914,12 +915,12 @@ describe('SimulatedEfunScanner', () => {
         expect(analysis.parseErrors).toEqual([]);
     });
 
-    test('parser trivia exposes include directives for simulated efun entry files', () => {
+    test('semantic snapshot exposes include directives for simulated efun entry files', () => {
         const document = TestHelper.createMockDocument('#include "/adm/simul_efun/helper.c"\n', 'lpc', 'simul_efun.c');
-        const parsed = getAstManagerForTests().parseDocument(document, false).parsed;
+        const analysis = getAstManagerForTests().parseDocument(document, false);
 
-        expect(parsed?.tokenTriviaIndex.getAllTrivia().filter(trivia => trivia.kind === 'directive').map(trivia => trivia.text.trim()))
-            .toEqual(['#include "/adm/simul_efun/helper.c"']);
+        expect(analysis.snapshot.includeStatements.map(statement => statement.value))
+            .toEqual(['/adm/simul_efun/helper.c']);
     });
 
     test('entry simul_efun file also follows inherited simul efun sources', async () => {
