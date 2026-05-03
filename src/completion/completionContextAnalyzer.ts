@@ -21,6 +21,8 @@ interface ScopedContext {
     receiverExpression: string;
 }
 
+type ScopedContextResult = ScopedContext | null | undefined;
+
 export class CompletionContextAnalyzer {
     private readonly frontendCursorContext: FrontendCursorContextService;
     private readonly parsedDocumentService: { get(document: vscode.TextDocument): ParsedDocument };
@@ -69,7 +71,7 @@ export class CompletionContextAnalyzer {
             };
         }
 
-        const scopedContext = this.extractScopedContext(linePrefix, documentPrefix);
+        const scopedContext = this.extractScopedContext(document, position, linePrefix, documentPrefix);
         if (scopedContext) {
             return {
                 kind: 'scoped-member',
@@ -132,7 +134,17 @@ export class CompletionContextAnalyzer {
         return lines.join('\n');
     }
 
-    private extractScopedContext(linePrefix: string, documentPrefix: string): ScopedContext | undefined {
+    private extractScopedContext(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        linePrefix: string,
+        documentPrefix: string
+    ): ScopedContextResult {
+        const tokenBackedContext = this.extractTokenBackedScopedContext(document, position, linePrefix, documentPrefix);
+        if (tokenBackedContext !== undefined) {
+            return tokenBackedContext;
+        }
+
         const bareMatch = linePrefix.match(/(?:^|[\s([{\],;:=])::([A-Za-z_][A-Za-z0-9_]*)$/);
         if (bareMatch) {
             const scopedStart = bareMatch.index! + bareMatch[0].lastIndexOf('::');
@@ -160,6 +172,68 @@ export class CompletionContextAnalyzer {
         }
 
         return undefined;
+    }
+
+    private extractTokenBackedScopedContext(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        linePrefix: string,
+        documentPrefix: string
+    ): ScopedContextResult {
+        if (isInsideLineStringOrComment(linePrefix)) {
+            return null;
+        }
+
+        const parsed = this.safeGetParsedDocument(document);
+        if (!parsed) {
+            return undefined;
+        }
+
+        const cursorOffset = document.offsetAt(position);
+        const scopeTokenIndex = findLastTokenIndexBeforeOffset(
+            parsed.visibleTokens,
+            '::',
+            cursorOffset,
+            position.line + 1
+        );
+        if (scopeTokenIndex < 0) {
+            return undefined;
+        }
+
+        const currentWord = this.extractCurrentWord(linePrefix);
+        const scopeToken = parsed.visibleTokens[scopeTokenIndex];
+        const tokensAfterScope = parsed.visibleTokens.filter((token) =>
+            token.line === scopeToken.line
+            && token.tokenIndex > scopeToken.tokenIndex
+            && token.type !== Token.EOF
+            && token.startIndex >= 0
+            && token.startIndex < cursorOffset
+        );
+        if (!isScopedMemberNameSuffix(tokensAfterScope)) {
+            return null;
+        }
+
+        const prefixBeforeScope = documentPrefix.slice(0, scopeToken.startIndex);
+        if (this.isInsideCallArguments(prefixBeforeScope)) {
+            return null;
+        }
+
+        const qualifierToken = parsed.visibleTokens[scopeTokenIndex - 1];
+        if (
+            qualifierToken?.type === LPCParser.Identifier
+            && qualifierToken.line === scopeToken.line
+            && qualifierToken.stopIndex + 1 === scopeToken.startIndex
+        ) {
+            return {
+                currentWord,
+                receiverExpression: `${qualifierToken.text}::`
+            };
+        }
+
+        return {
+            currentWord,
+            receiverExpression: '::'
+        };
     }
 
     private extractPrefixBeforeScoped(documentPrefix: string, linePrefix: string, scopedStart: number): string {
@@ -465,4 +539,49 @@ function isOpeningDelimiter(tokenText: string): boolean {
 
 function isClosingDelimiter(tokenText: string): boolean {
     return tokenText === ')' || tokenText === ']';
+}
+
+function isScopedMemberNameSuffix(tokensAfterScope: readonly Token[]): boolean {
+    return tokensAfterScope.length <= 1
+        && tokensAfterScope.every((token) => isIdentifierLikeToken(token));
+}
+
+function isIdentifierLikeToken(token: Token): boolean {
+    return typeof token.text === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(token.text);
+}
+
+function isInsideLineStringOrComment(linePrefix: string): boolean {
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    let escaped = false;
+
+    for (let index = 0; index < linePrefix.length; index += 1) {
+        const character = linePrefix[index];
+        const nextCharacter = linePrefix[index + 1];
+
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+
+        if (character === '\\') {
+            escaped = true;
+            continue;
+        }
+
+        if (!inSingleQuote && !inDoubleQuote && character === '/' && nextCharacter === '/') {
+            return true;
+        }
+
+        if (character === '\'' && !inDoubleQuote) {
+            inSingleQuote = !inSingleQuote;
+            continue;
+        }
+
+        if (character === '"' && !inSingleQuote) {
+            inDoubleQuote = !inDoubleQuote;
+        }
+    }
+
+    return inSingleQuote || inDoubleQuote;
 }

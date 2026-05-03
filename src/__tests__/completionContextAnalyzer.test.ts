@@ -154,5 +154,17 @@ describe('CompletionContextAnalyzer', () => {
         expect(context.receiverChain).toEqual(['payload']);
         expect(context.receiverExpression).toBeUndefined();
     });
+
+    test('does not classify scoped-looking text inside strings or comments', () => {
+        const document = createDocument([
+            'string text = "room::in',
+            '// room::in'
+        ].join('\n'));
+
+        expect(analyzer.analyze(document, new vscode.Position(0, 'string text = "room::in'.length)).kind)
+            .toBe('identifier');
+        expect(analyzer.analyze(document, new vscode.Position(1, '// room::in'.length)).kind)
+            .toBe('identifier');
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
