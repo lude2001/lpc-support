@@ -86,4 +86,29 @@ describe('CallableDocDocumentBuilder', () => {
         expect(docs.byDeclaration.get(declarationKeys![1])?.signatures[0].label)
             .toBe('private mapping execute_command(object actor, string arg);');
     });
+
+    test('marks LPC default parameters as optional from syntax metadata', () => {
+        const document = createDocument(
+            'varargs void notify(string channel : (: "sys" :), mixed *args...) {}',
+            '/virtual/default-parameters.c'
+        );
+        const builder = createDefaultCallableDocDocumentBuilder();
+
+        const docs = builder.build(document);
+        const declarationKey = docs.byName.get('notify')![0];
+        const parameters = docs.byDeclaration.get(declarationKey)!.signatures[0].parameters;
+
+        expect(parameters).toEqual([
+            expect.objectContaining({
+                name: 'channel',
+                type: 'string',
+                optional: true
+            }),
+            expect.objectContaining({
+                name: 'args',
+                type: 'mixed *',
+                variadic: true
+            })
+        ]);
+    });
 });

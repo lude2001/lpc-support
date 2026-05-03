@@ -31,6 +31,7 @@ export interface CallableParameter {
     description?: string;
     optional?: boolean;
     variadic?: boolean;
+    defaultValueText?: string;
 }
 
 export interface CallableSignature {

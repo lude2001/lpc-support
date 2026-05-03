@@ -20,8 +20,25 @@ export class MacroUsageCollector implements IDiagnosticCollector {
         _parsed: ParsedDocument,
         context?: DiagnosticContext
     ): Promise<vscode.Diagnostic[]> {
+        if (!this.macroManager) {
+            return [];
+        }
+
+        if (context?.semantic) {
+            for (const reference of context.semantic.macroReferences) {
+                if (!OBJECT_MACRO_NAME_PATTERN.test(reference.name) || reference.resolvedValue) {
+                    continue;
+                }
+
+                this.macroManager.getMacro(reference.name);
+                await this.macroManager.canResolveMacro(reference.name);
+            }
+
+            return [];
+        }
+
         const syntax = context?.syntax;
-        if (!this.macroManager || !syntax) {
+        if (!syntax) {
             return [];
         }
 

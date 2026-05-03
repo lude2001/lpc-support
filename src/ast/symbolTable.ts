@@ -23,6 +23,10 @@ export interface Symbol {
     members?: Symbol[];
     parameters?: Symbol[];
     modifiers?: string[];
+    isReference?: boolean;
+    isVariadic?: boolean;
+    hasDefaultValue?: boolean;
+    defaultValueText?: string;
 }
 
 export interface Scope {

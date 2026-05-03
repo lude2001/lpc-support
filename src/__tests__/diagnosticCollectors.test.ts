@@ -151,5 +151,45 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(macroManager.getMacro).toHaveBeenCalledWith('USER_D');
         expect(macroManager.canResolveMacro).toHaveBeenCalledWith('USER_D');
     });
+
+    test('MacroUsageCollector prefers semantic macro references over legacy macro lookup', async () => {
+        const macroManager = {
+            getMacro: jest.fn(),
+            canResolveMacro: jest.fn().mockResolvedValue(false)
+        };
+        const collector = new MacroUsageCollector(macroManager as any);
+        const document = createDocument('#define USER_D "/adm/user"\nUSER_D->query_name();');
+        const identifier = createSyntaxNode(
+            SyntaxKind.Identifier,
+            new vscode.Range(1, 0, 1, 6),
+            [],
+            { name: 'USER_D', category: 'expression' }
+        );
+        const context: DiagnosticContext = {
+            parsed: {} as any,
+            syntax: {
+                uri: document.uri.toString(),
+                version: 1,
+                parsed: {} as any,
+                root: createSyntaxNode(SyntaxKind.SourceFile, new vscode.Range(0, 0, 1, 21)) as any,
+                nodes: [identifier],
+                nodesByTokenRange: new Map(),
+                metadata: { createdAt: Date.now(), nodeCount: 1, opaqueNodeCount: 0, missingNodeCount: 0 }
+            },
+            semantic: {
+                macroReferences: [{
+                    name: 'USER_D',
+                    range: identifier.range,
+                    resolvedValue: '"/adm/user"'
+                }]
+            } as any
+        };
+
+        const diagnostics = await collector.collect(document, {} as any, context);
+
+        expect(diagnostics).toEqual([]);
+        expect(macroManager.getMacro).not.toHaveBeenCalled();
+        expect(macroManager.canResolveMacro).not.toHaveBeenCalled();
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

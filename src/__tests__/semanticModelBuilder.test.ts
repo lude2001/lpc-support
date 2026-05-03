@@ -271,5 +271,32 @@ describe('SemanticModelBuilder', () => {
         ]);
         expect(snapshot.exportedFunctions.map((item) => item.name)).toEqual(['pay_add']);
     });
+
+    test('preserves LPC parameter modifiers and default closure values in semantic summaries', () => {
+        const snapshot = buildSemanticSnapshot(
+            'varargs void notify(ref mapping state, string channel : (: "sys" :), mixed *args...) {}',
+            '/virtual/parameter-facts.c'
+        );
+
+        expect(snapshot.parseDiagnostics).toHaveLength(0);
+        expect(snapshot.exportedFunctions[0].parameters as any[]).toEqual([
+            expect.objectContaining({
+                name: 'state',
+                dataType: 'mapping',
+                isReference: true
+            }),
+            expect.objectContaining({
+                name: 'channel',
+                dataType: 'string',
+                hasDefaultValue: true,
+                defaultValueText: '(: "sys" :)'
+            }),
+            expect.objectContaining({
+                name: 'args',
+                dataType: 'mixed *',
+                isVariadic: true
+            })
+        ]);
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

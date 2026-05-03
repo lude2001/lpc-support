@@ -10,6 +10,10 @@ export interface ParameterSummary {
     dataType: string;
     range: vscode.Range;
     documentation?: string;
+    isReference?: boolean;
+    isVariadic?: boolean;
+    hasDefaultValue?: boolean;
+    defaultValueText?: string;
 }
 
 export interface MemberSummary {

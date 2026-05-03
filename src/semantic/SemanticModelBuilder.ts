@@ -196,6 +196,8 @@ export class SemanticModelBuilder {
 
             const identifier = this.findFirstChild(child, SyntaxKind.Identifier);
             const typeReference = this.findFirstChild(child, SyntaxKind.TypeReference);
+            const defaultValue = this.findFirstChild(child, SyntaxKind.ClosureExpression);
+            const hasDefaultValue = child.metadata?.hasDefaultValue === true;
             const parameterSymbol: Symbol = {
                 name: parameterName,
                 type: SymbolType.PARAMETER,
@@ -203,7 +205,13 @@ export class SemanticModelBuilder {
                 range: child.range,
                 selectionRange: identifier?.range,
                 scope: this.symbolTable.getCurrentScope(),
-                definition: this.getTrimmedNodeText(child) || undefined
+                definition: this.getTrimmedNodeText(child) || undefined,
+                isReference: child.metadata?.isReference === true || undefined,
+                isVariadic: child.metadata?.isVariadic === true || undefined,
+                hasDefaultValue: hasDefaultValue || undefined,
+                defaultValueText: hasDefaultValue && defaultValue
+                    ? this.getTrimmedNodeText(defaultValue) || undefined
+                    : undefined
             };
 
             this.symbolTable.addSymbol(parameterSymbol);
@@ -488,7 +496,11 @@ export class SemanticModelBuilder {
                 name: parameter.name,
                 dataType: parameter.dataType,
                 range: parameter.range,
-                documentation: parameter.documentation
+                documentation: parameter.documentation,
+                isReference: parameter.isReference,
+                isVariadic: parameter.isVariadic,
+                hasDefaultValue: parameter.hasDefaultValue,
+                defaultValueText: parameter.defaultValueText
             })),
             modifiers: symbol.modifiers || [],
             sourceUri: this.syntaxDocument.uri,
@@ -516,7 +528,11 @@ export class SemanticModelBuilder {
                     name: parameter.name,
                     dataType: parameter.dataType,
                     range: parameter.range,
-                    documentation: parameter.documentation
+                    documentation: parameter.documentation,
+                    isReference: parameter.isReference,
+                    isVariadic: parameter.isVariadic,
+                    hasDefaultValue: parameter.hasDefaultValue,
+                    defaultValueText: parameter.defaultValueText
                 })),
                 sourceScopeName: member.scope?.name
             })),

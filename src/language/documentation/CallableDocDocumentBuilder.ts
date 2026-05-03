@@ -150,13 +150,29 @@ function buildCallableParameters(parametersNode: SyntaxNode | undefined): Callab
                 ? composeLpcType(readTypeText(typeReferenceNode), readNumericMetadata(parameterNode, 'pointerCount'))
                 : undefined;
             const name = parameterNode.name?.trim() || `arg${index + 1}`;
+            const defaultValueNode = parameterNode.children.find((child) => child.kind === SyntaxKind.ClosureExpression);
+            const defaultValueText = defaultValueNode
+                ? readNodeText(defaultValueNode).trim() || undefined
+                : undefined;
 
             return {
                 name,
                 type,
-                variadic: readBooleanMetadata(parameterNode, 'isVariadic') || undefined
+                optional: readBooleanMetadata(parameterNode, 'hasDefaultValue') || undefined,
+                variadic: readBooleanMetadata(parameterNode, 'isVariadic') || undefined,
+                defaultValueText
             };
         });
+}
+
+function readNodeText(node: SyntaxNode): string {
+    const metadataText = node.metadata?.rawBody;
+    if (typeof metadataText === 'string' && metadataText.trim()) {
+        return `(: ${metadataText.trim()} :)`;
+    }
+
+    const fallbackText = node.metadata?.text;
+    return typeof fallbackText === 'string' ? fallbackText : '';
 }
 
 function extractSignatureSyntax(document: vscode.TextDocument, functionNode: SyntaxNode): string {
