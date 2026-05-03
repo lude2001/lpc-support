@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { ActiveSourceBuilder } from './ActiveSourceBuilder';
 import { createDefaultFluffOSDialectProfile } from './dialect';
 import { IncludeResolver } from './IncludeResolver';
@@ -6,7 +7,7 @@ import { MacroExpansionBuilder } from './MacroExpansionBuilder';
 import { MacroFactResolver } from './MacroFactResolver';
 import { PreprocessorConditionEvaluator } from './PreprocessorConditionEvaluator';
 import { PreprocessorScanner } from './PreprocessorScanner';
-import { LpcDialectProfile, LpcFrontendSnapshot } from './types';
+import { IncludeReferenceFact, LpcDialectProfile, LpcFrontendSnapshot, MacroDefinitionFact } from './types';
 
 export interface LpcFrontendServiceOptions {
     dialect?: LpcDialectProfile;
@@ -37,9 +38,10 @@ export class LpcFrontendService {
 
         const text = document.getText();
         const scanned = this.scanner.scan(document.uri.toString(), document.version, text);
-        const conditional = this.conditionEvaluator.evaluate(text, scanned.directives, []);
-        const macroFacts = this.macroFactResolver.resolve(text, scanned.directives, conditional.inactiveRanges);
         const includes = this.includeResolver.resolve(document.uri.toString(), scanned.includeReferences);
+        const includeMacros = this.collectIncludeMacros(includes.includeReferences);
+        const conditional = this.conditionEvaluator.evaluate(text, scanned.directives, includeMacros);
+        const macroFacts = this.macroFactResolver.resolve(text, scanned.directives, conditional.inactiveRanges, includeMacros);
         const activeView = this.macroExpansionBuilder.expand(
             this.activeSourceBuilder.build(text, scanned.directives, conditional.inactiveRanges),
             macroFacts.macroReferences
@@ -80,6 +82,44 @@ export class LpcFrontendService {
     public clear(): void {
         this.snapshots.clear();
     }
+
+    private collectIncludeMacros(
+        includeReferences: IncludeReferenceFact[],
+        visited: Set<string> = new Set()
+    ): MacroDefinitionFact[] {
+        const macros: MacroDefinitionFact[] = [];
+
+        for (const include of includeReferences) {
+            if (!include.resolvedUri || visited.has(include.resolvedUri)) {
+                continue;
+            }
+
+            visited.add(include.resolvedUri);
+            const includeUri = vscode.Uri.parse(include.resolvedUri);
+            const includePath = normalizeFsPath(includeUri.fsPath);
+            if (!fs.existsSync(includePath)) {
+                continue;
+            }
+
+            const text = fs.readFileSync(includePath, 'utf8');
+            const scanned = this.scanner.scan(include.resolvedUri, 1, text);
+            const nestedIncludes = this.includeResolver.resolve(include.resolvedUri, scanned.includeReferences);
+            const nestedMacros = this.collectIncludeMacros(nestedIncludes.includeReferences, visited);
+            const conditional = this.conditionEvaluator.evaluate(text, scanned.directives, nestedMacros);
+            const facts = this.macroFactResolver.resolve(text, scanned.directives, conditional.inactiveRanges, nestedMacros);
+
+            macros.push(...facts.activeMacros.map((macro) => ({
+                ...macro,
+                source: macro.source === 'document' ? 'include' as const : macro.source
+            })));
+        }
+
+        return macros;
+    }
+}
+
+function normalizeFsPath(fsPath: string): string {
+    return fsPath.replace(/^\/+([A-Za-z]:[\\/])/, '$1');
 }
 
 let globalLpcFrontendService: LpcFrontendService | undefined;

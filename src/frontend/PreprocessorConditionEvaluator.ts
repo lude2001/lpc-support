@@ -17,6 +17,11 @@ interface ConditionalFrame {
     openingDirective: PreprocessorDirective;
 }
 
+interface MacroConditionValue {
+    name: string;
+    replacement?: string;
+}
+
 export class PreprocessorConditionEvaluator {
     public evaluate(
         text: string,
@@ -24,7 +29,14 @@ export class PreprocessorConditionEvaluator {
         definedMacros: Array<string | MacroDefinitionFact> = []
     ): ConditionalEvaluationResult {
         const lineStartOffsets = buildLineStartOffsets(text);
-        const macroNames = new Set(definedMacros.map((macro) => typeof macro === 'string' ? macro : macro.name));
+        const macroValues = new Map<string, MacroConditionValue>();
+        for (const macro of definedMacros) {
+            if (typeof macro === 'string') {
+                macroValues.set(macro, { name: macro, replacement: '1' });
+            } else {
+                macroValues.set(macro.name, { name: macro.name, replacement: macro.replacement });
+            }
+        }
         const inactiveRanges: InactiveRange[] = [];
         const diagnostics: PreprocessorDiagnostic[] = [];
         const stack: ConditionalFrame[] = [];
@@ -34,10 +46,10 @@ export class PreprocessorConditionEvaluator {
                 case 'if':
                 case 'ifdef':
                 case 'ifndef':
-                    this.enterConditional(text, lineStartOffsets, directive, stack, inactiveRanges, macroNames);
+                    this.enterConditional(text, lineStartOffsets, directive, stack, inactiveRanges, macroValues);
                     break;
                 case 'elif':
-                    this.switchConditionalBranch(text, lineStartOffsets, directive, stack, inactiveRanges, macroNames);
+                    this.switchConditionalBranch(text, lineStartOffsets, directive, stack, inactiveRanges, macroValues);
                     break;
                 case 'else':
                     this.switchElseBranch(text, lineStartOffsets, directive, stack, inactiveRanges, diagnostics);
@@ -46,16 +58,17 @@ export class PreprocessorConditionEvaluator {
                     this.closeConditional(text, lineStartOffsets, directive, stack, inactiveRanges, diagnostics);
                     break;
                 case 'define': {
-                    const name = (directive.body.match(/^([A-Za-z_][A-Za-z0-9_]*)/) || [])[1];
+                    const macro = parseConditionMacro(directive.body);
+                    const name = macro?.name;
                     if (name && this.isCurrentActive(stack)) {
-                        macroNames.add(name);
+                        macroValues.set(name, macro);
                     }
                     break;
                 }
                 case 'undef': {
                     const name = (directive.body.match(/^([A-Za-z_][A-Za-z0-9_]*)/) || [])[1];
                     if (name && this.isCurrentActive(stack)) {
-                        macroNames.delete(name);
+                        macroValues.delete(name);
                     }
                     break;
                 }
@@ -91,10 +104,10 @@ export class PreprocessorConditionEvaluator {
         directive: PreprocessorDirective,
         stack: ConditionalFrame[],
         inactiveRanges: InactiveRange[],
-        macroNames: Set<string>
+        macroValues: Map<string, MacroConditionValue>
     ): void {
         const parentActive = this.isCurrentActive(stack);
-        const conditionActive = parentActive && this.evaluateDirectiveCondition(directive, macroNames);
+        const conditionActive = parentActive && this.evaluateDirectiveCondition(directive, macroValues);
         const frame: ConditionalFrame = {
             parentActive,
             branchActive: conditionActive,
@@ -118,7 +131,7 @@ export class PreprocessorConditionEvaluator {
         directive: PreprocessorDirective,
         stack: ConditionalFrame[],
         inactiveRanges: InactiveRange[],
-        macroNames: Set<string>
+        macroValues: Map<string, MacroConditionValue>
     ): void {
         const frame = stack[stack.length - 1];
         if (!frame) {
@@ -128,7 +141,7 @@ export class PreprocessorConditionEvaluator {
         this.closeInactiveRangeIfNeeded(text, lineStartOffsets, directive, frame, inactiveRanges);
         const branchActive = frame.parentActive
             && !frame.anyBranchTaken
-            && this.evaluateDirectiveCondition(directive, macroNames);
+            && this.evaluateDirectiveCondition(directive, macroValues);
 
         frame.branchActive = branchActive;
         frame.anyBranchTaken = frame.anyBranchTaken || branchActive;
@@ -235,37 +248,345 @@ export class PreprocessorConditionEvaluator {
         return stack.every((frame) => frame.branchActive);
     }
 
-    private evaluateDirectiveCondition(directive: PreprocessorDirective, macroNames: Set<string>): boolean {
+    private evaluateDirectiveCondition(directive: PreprocessorDirective, macroValues: Map<string, MacroConditionValue>): boolean {
         const body = directive.body.trim();
         switch (directive.kind) {
             case 'ifdef':
-                return macroNames.has(body);
+                return macroValues.has(body);
             case 'ifndef':
-                return !macroNames.has(body);
+                return !macroValues.has(body);
             case 'if':
             case 'elif':
-                return evaluateConstantCondition(body, macroNames);
+                return evaluateConstantCondition(body, macroValues);
             default:
                 return true;
         }
     }
 }
 
-function evaluateConstantCondition(body: string, macroNames: Set<string>): boolean {
+function evaluateConstantCondition(body: string, macroValues: Map<string, MacroConditionValue>): boolean {
     const trimmed = body.trim();
-    if (trimmed === '0' || trimmed === '') {
+    if (trimmed === '') {
         return false;
     }
-    if (trimmed === '1') {
-        return true;
+
+    return new ConditionExpressionParser(trimmed, macroValues).parse() !== 0;
+}
+
+function parseConditionMacro(body: string): MacroConditionValue | undefined {
+    const match = body.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\([^)]*\))?\s*([\s\S]*)$/);
+    if (!match) {
+        return undefined;
     }
 
-    const definedMatch = trimmed.match(/^defined\s*\(?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)?$/);
-    if (definedMatch) {
-        return macroNames.has(definedMatch[1]);
+    return {
+        name: match[1],
+        replacement: (match[2] || '1').trim()
+    };
+}
+
+type ConditionTokenKind = 'number' | 'identifier' | 'operator' | 'lparen' | 'rparen' | 'eof';
+
+interface ConditionToken {
+    kind: ConditionTokenKind;
+    text: string;
+}
+
+class ConditionExpressionParser {
+    private readonly tokens: ConditionToken[];
+    private index = 0;
+
+    constructor(
+        expression: string,
+        private readonly macroValues: Map<string, MacroConditionValue>
+    ) {
+        this.tokens = tokenizeConditionExpression(expression);
     }
 
-    return macroNames.has(trimmed);
+    public parse(): number {
+        return this.parseLogicalOr();
+    }
+
+    private parseLogicalOr(): number {
+        let left = this.parseLogicalAnd();
+        while (this.matchOperator('||')) {
+            const right = this.parseLogicalAnd();
+            left = truthy(left) || truthy(right) ? 1 : 0;
+        }
+        return left;
+    }
+
+    private parseLogicalAnd(): number {
+        let left = this.parseBitwiseOr();
+        while (this.matchOperator('&&')) {
+            const right = this.parseBitwiseOr();
+            left = truthy(left) && truthy(right) ? 1 : 0;
+        }
+        return left;
+    }
+
+    private parseBitwiseOr(): number {
+        let left = this.parseBitwiseXor();
+        while (this.matchOperator('|')) {
+            left = left | this.parseBitwiseXor();
+        }
+        return left;
+    }
+
+    private parseBitwiseXor(): number {
+        let left = this.parseBitwiseAnd();
+        while (this.matchOperator('^')) {
+            left = left ^ this.parseBitwiseAnd();
+        }
+        return left;
+    }
+
+    private parseBitwiseAnd(): number {
+        let left = this.parseEquality();
+        while (this.matchOperator('&')) {
+            left = left & this.parseEquality();
+        }
+        return left;
+    }
+
+    private parseEquality(): number {
+        let left = this.parseRelational();
+        while (true) {
+            if (this.matchOperator('==')) {
+                left = left === this.parseRelational() ? 1 : 0;
+                continue;
+            }
+            if (this.matchOperator('!=')) {
+                left = left !== this.parseRelational() ? 1 : 0;
+                continue;
+            }
+            return left;
+        }
+    }
+
+    private parseRelational(): number {
+        let left = this.parseShift();
+        while (true) {
+            if (this.matchOperator('<=')) {
+                left = left <= this.parseShift() ? 1 : 0;
+                continue;
+            }
+            if (this.matchOperator('>=')) {
+                left = left >= this.parseShift() ? 1 : 0;
+                continue;
+            }
+            if (this.matchOperator('<')) {
+                left = left < this.parseShift() ? 1 : 0;
+                continue;
+            }
+            if (this.matchOperator('>')) {
+                left = left > this.parseShift() ? 1 : 0;
+                continue;
+            }
+            return left;
+        }
+    }
+
+    private parseShift(): number {
+        let left = this.parseAdditive();
+        while (true) {
+            if (this.matchOperator('<<')) {
+                left = left << this.parseAdditive();
+                continue;
+            }
+            if (this.matchOperator('>>')) {
+                left = left >> this.parseAdditive();
+                continue;
+            }
+            return left;
+        }
+    }
+
+    private parseAdditive(): number {
+        let left = this.parseMultiplicative();
+        while (true) {
+            if (this.matchOperator('+')) {
+                left += this.parseMultiplicative();
+                continue;
+            }
+            if (this.matchOperator('-')) {
+                left -= this.parseMultiplicative();
+                continue;
+            }
+            return left;
+        }
+    }
+
+    private parseMultiplicative(): number {
+        let left = this.parseUnary();
+        while (true) {
+            if (this.matchOperator('*')) {
+                left *= this.parseUnary();
+                continue;
+            }
+            if (this.matchOperator('/')) {
+                const right = this.parseUnary();
+                left = right === 0 ? 0 : Math.trunc(left / right);
+                continue;
+            }
+            if (this.matchOperator('%')) {
+                const right = this.parseUnary();
+                left = right === 0 ? 0 : left % right;
+                continue;
+            }
+            return left;
+        }
+    }
+
+    private parseUnary(): number {
+        if (this.matchOperator('!')) {
+            return truthy(this.parseUnary()) ? 0 : 1;
+        }
+        if (this.matchOperator('~')) {
+            return ~this.parseUnary();
+        }
+        if (this.matchOperator('+')) {
+            return this.parseUnary();
+        }
+        if (this.matchOperator('-')) {
+            return -this.parseUnary();
+        }
+        return this.parsePrimary();
+    }
+
+    private parsePrimary(): number {
+        const token = this.peek();
+        if (this.matchKind('number')) {
+            return parseIntegerToken(token.text);
+        }
+        if (this.matchIdentifier('defined')) {
+            return this.parseDefined();
+        }
+        if (this.matchKind('identifier')) {
+            return this.resolveIdentifier(token.text);
+        }
+        if (this.matchKind('lparen')) {
+            const value = this.parseLogicalOr();
+            this.matchKind('rparen');
+            return value;
+        }
+
+        this.index += token.kind === 'eof' ? 0 : 1;
+        return 0;
+    }
+
+    private parseDefined(): number {
+        if (this.matchKind('lparen')) {
+            const identifier = this.peek();
+            const defined = identifier.kind === 'identifier' && this.macroValues.has(identifier.text);
+            if (identifier.kind === 'identifier') {
+                this.index += 1;
+            }
+            this.matchKind('rparen');
+            return defined ? 1 : 0;
+        }
+
+        const identifier = this.peek();
+        if (identifier.kind === 'identifier') {
+            this.index += 1;
+            return this.macroValues.has(identifier.text) ? 1 : 0;
+        }
+        return 0;
+    }
+
+    private resolveIdentifier(name: string): number {
+        const macro = this.macroValues.get(name);
+        if (!macro) {
+            return 0;
+        }
+
+        const replacement = macro.replacement?.trim() || '1';
+        if (/^(0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[0-7_]+|[0-9][0-9_]*)$/.test(replacement)) {
+            return parseIntegerToken(replacement);
+        }
+        return 1;
+    }
+
+    private matchOperator(text: string): boolean {
+        const token = this.peek();
+        if (token.kind === 'operator' && token.text === text) {
+            this.index += 1;
+            return true;
+        }
+        return false;
+    }
+
+    private matchIdentifier(text: string): boolean {
+        const token = this.peek();
+        if (token.kind === 'identifier' && token.text === text) {
+            this.index += 1;
+            return true;
+        }
+        return false;
+    }
+
+    private matchKind(kind: ConditionTokenKind): boolean {
+        if (this.peek().kind === kind) {
+            this.index += 1;
+            return true;
+        }
+        return false;
+    }
+
+    private peek(): ConditionToken {
+        return this.tokens[this.index] ?? { kind: 'eof', text: '' };
+    }
+}
+
+function tokenizeConditionExpression(expression: string): ConditionToken[] {
+    const tokens: ConditionToken[] = [];
+    const tokenPattern = /\s+|0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[0-7_]+|[0-9][0-9_]*|[A-Za-z_][A-Za-z0-9_]*|&&|\|\||==|!=|<=|>=|<<|>>|[!~+\-*/%<>&^|()]|./g;
+    let match: RegExpExecArray | null;
+
+    while ((match = tokenPattern.exec(expression)) !== null) {
+        const text = match[0];
+        if (/^\s+$/.test(text)) {
+            continue;
+        }
+        if (/^(0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[0-7_]+|[0-9][0-9_]*)$/.test(text)) {
+            tokens.push({ kind: 'number', text });
+            continue;
+        }
+        if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(text)) {
+            tokens.push({ kind: 'identifier', text });
+            continue;
+        }
+        if (text === '(') {
+            tokens.push({ kind: 'lparen', text });
+            continue;
+        }
+        if (text === ')') {
+            tokens.push({ kind: 'rparen', text });
+            continue;
+        }
+        tokens.push({ kind: 'operator', text });
+    }
+
+    tokens.push({ kind: 'eof', text: '' });
+    return tokens;
+}
+
+function parseIntegerToken(text: string): number {
+    const normalized = text.replace(/_/g, '');
+    if (/^0[bB]/.test(normalized)) {
+        return parseInt(normalized.slice(2), 2);
+    }
+    if (/^0[xX]/.test(normalized)) {
+        return parseInt(normalized.slice(2), 16);
+    }
+    if (/^0[0-7]/.test(normalized)) {
+        return parseInt(normalized, 8);
+    }
+    return parseInt(normalized, 10);
+}
+
+function truthy(value: number): boolean {
+    return value !== 0;
 }
 
 function nextLineStart(text: string, offset: number): number {

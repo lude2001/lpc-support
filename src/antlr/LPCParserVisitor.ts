@@ -4,6 +4,7 @@
 import { ParseTreeVisitor } from "antlr4ts/tree/ParseTreeVisitor";
 
 import { ScopeIdentifierContext } from "./LPCParser";
+import { EfunScopeIdentifierContext } from "./LPCParser";
 import { StringConcatenationContext } from "./LPCParser";
 import { ClosurePrimaryContext } from "./LPCParser";
 import { MappingLiteralExprContext } from "./LPCParser";
@@ -32,6 +33,7 @@ import { VariableDeclContext } from "./LPCParser";
 import { VariableDeclaratorContext } from "./LPCParser";
 import { ParameterListContext } from "./LPCParser";
 import { ParameterContext } from "./LPCParser";
+import { ParameterDefaultContext } from "./LPCParser";
 import { StructDefContext } from "./LPCParser";
 import { ClassDefContext } from "./LPCParser";
 import { StructMemberListContext } from "./LPCParser";
@@ -53,6 +55,7 @@ import { ShiftExpressionContext } from "./LPCParser";
 import { AdditiveExpressionContext } from "./LPCParser";
 import { MultiplicativeExpressionContext } from "./LPCParser";
 import { UnaryExpressionContext } from "./LPCParser";
+import { SizeofExpressionContext } from "./LPCParser";
 import { CastExpressionContext } from "./LPCParser";
 import { CastTypeContext } from "./LPCParser";
 import { PostfixExpressionContext } from "./LPCParser";
@@ -78,6 +81,8 @@ import { BreakStatementContext } from "./LPCParser";
 import { ContinueStatementContext } from "./LPCParser";
 import { ReturnStatementContext } from "./LPCParser";
 import { ClosureExprContext } from "./LPCParser";
+import { ClosureArgumentListContext } from "./LPCParser";
+import { ClosureArgumentContext } from "./LPCParser";
 import { InheritStatementContext } from "./LPCParser";
 import { IncludeStatementContext } from "./LPCParser";
 import { MacroInvokeContext } from "./LPCParser";
@@ -109,6 +114,14 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitScopeIdentifier?: (ctx: ScopeIdentifierContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by the `efunScopeIdentifier`
+	 * labeled alternative in `LPCParser.primary`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitEfunScopeIdentifier?: (ctx: EfunScopeIdentifierContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `stringConcatenation`
@@ -328,6 +341,13 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	visitParameter?: (ctx: ParameterContext) => Result;
 
 	/**
+	 * Visit a parse tree produced by `LPCParser.parameterDefault`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitParameterDefault?: (ctx: ParameterDefaultContext) => Result;
+
+	/**
 	 * Visit a parse tree produced by `LPCParser.structDef`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -473,6 +493,13 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitUnaryExpression?: (ctx: UnaryExpressionContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.sizeofExpression`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitSizeofExpression?: (ctx: SizeofExpressionContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.castExpression`.
@@ -648,6 +675,20 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitClosureExpr?: (ctx: ClosureExprContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.closureArgumentList`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitClosureArgumentList?: (ctx: ClosureArgumentListContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.closureArgument`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitClosureArgument?: (ctx: ClosureArgumentContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.inheritStatement`.

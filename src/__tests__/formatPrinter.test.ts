@@ -57,6 +57,23 @@ describe('formatter printer', () => {
         await expect(format(source)).resolves.toContain('function(int x)\n{');
     });
 
+    test('LPC 默认参数闭包语法格式化后不丢失默认值', async () => {
+        const source = 'varargs void demo(int amount:(:1:), string name:(:"none":)){return;}';
+
+        await expect(format(source)).resolves.toBe([
+            'varargs void demo(int amount : (: 1 :), string name : (: "none" :))',
+            '{',
+            '    return;',
+            '}'
+        ].join('\n'));
+    });
+
+    test('sizeof 表达式格式化后保留括号形式', async () => {
+        const source = 'int demo(mixed value){return sizeof(value)+sizeof(int);}';
+
+        await expect(format(source)).resolves.toContain('return sizeof(value) + sizeof(int);');
+    });
+
     test('mapping 与嵌套数组按原始设计强制块状展开', async () => {
         const source = 'mapping data = ([ "name":"sword", "actions":({ "slash", "parry" }) ]);';
         const output = await format(source);

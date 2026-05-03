@@ -65,4 +65,59 @@ describe('PreprocessorConditionEvaluator', () => {
             })
         ]);
     });
+
+    test('evaluates numeric macro expressions in if and elif branches', () => {
+        const text = [
+            '#define VALUE 2',
+            '#define MASK 4',
+            '#if defined(VALUE) && VALUE == 1',
+            'int disabled_first = ;',
+            '#elif VALUE == 2 && (MASK & 4)',
+            'int enabled = 1;',
+            '#else',
+            'int disabled_else = ;',
+            '#endif'
+        ].join('\n');
+        const scanned = new PreprocessorScanner().scan('file:///numeric-condition.c', 1, text);
+
+        const result = new PreprocessorConditionEvaluator().evaluate(text, scanned.directives, []);
+
+        expect(result.inactiveRanges).toEqual([
+            expect.objectContaining({
+                range: expect.objectContaining({
+                    start: expect.objectContaining({ line: 3, character: 0 }),
+                    end: expect.objectContaining({ line: 4, character: 0 })
+                })
+            }),
+            expect.objectContaining({
+                range: expect.objectContaining({
+                    start: expect.objectContaining({ line: 7, character: 0 }),
+                    end: expect.objectContaining({ line: 8, character: 0 })
+                })
+            })
+        ]);
+    });
+
+    test('evaluates unary, relational, equality, and logical operators in if expressions', () => {
+        const text = [
+            '#define FLAGS 3',
+            '#if !defined(MISSING) && FLAGS >= 3 && FLAGS != 0',
+            'int enabled = 1;',
+            '#else',
+            'int disabled = ;',
+            '#endif'
+        ].join('\n');
+        const scanned = new PreprocessorScanner().scan('file:///operator-condition.c', 1, text);
+
+        const result = new PreprocessorConditionEvaluator().evaluate(text, scanned.directives, []);
+
+        expect(result.inactiveRanges).toEqual([
+            expect.objectContaining({
+                range: expect.objectContaining({
+                    start: expect.objectContaining({ line: 4, character: 0 }),
+                    end: expect.objectContaining({ line: 5, character: 0 })
+                })
+            })
+        ]);
+    });
 });

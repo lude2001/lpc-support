@@ -100,6 +100,10 @@ export function renderUnaryExpression(
         return `(${normalizeInlineText(typeReference.text)})${ctx.renderExpression(operand, context)}`;
     }
 
+    if (operator === 'sizeof') {
+        return `sizeof(${ctx.renderExpression(operand, context)})`;
+    }
+
     return `${operator}${ctx.renderExpression(operand, context)}`;
 }
 
@@ -233,6 +237,14 @@ export function renderClosureExpression(
     context: PrintContext,
     ctx: PrinterContext
 ): string {
+    const rawBody = typeof node.metadata?.rawBody === 'string'
+        ? normalizeClosureBody(normalizeInlineText(node.metadata.rawBody)).replace(/\s+\.\.\./g, '...')
+        : '';
+
+    if (rawBody) {
+        return `(: ${rawBody} :)`;
+    }
+
     if (node.children[0]) {
         return `(: ${normalizeClosureBody(ctx.renderInlineExpression(node.children[0], context))} :)`;
     }

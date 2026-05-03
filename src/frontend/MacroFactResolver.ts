@@ -18,10 +18,14 @@ export class MacroFactResolver {
     public resolve(
         text: string,
         directives: PreprocessorDirective[],
-        inactiveRanges: InactiveRange[]
+        inactiveRanges: InactiveRange[],
+        initialMacros: MacroDefinitionFact[] = []
     ): MacroFactResolutionResult {
         const lineStartOffsets = buildLineStartOffsets(text);
         const activeMacros = new Map<string, MacroDefinitionFact>();
+        for (const macro of initialMacros) {
+            activeMacros.set(macro.name, macro);
+        }
         const macroReferences: MacroReferenceFact[] = [];
         const undefs: MacroUndefFact[] = [];
         let cursor = 0;

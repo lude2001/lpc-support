@@ -118,18 +118,24 @@ export function renderParameterDeclaration(
 
     const typeReference = node.children.find((child) => child.syntaxKind === SyntaxKind.TypeReference);
     const identifier = node.children.find((child) => child.syntaxKind === SyntaxKind.Identifier);
+    const defaultValue = node.children.find((child) => child.syntaxKind === SyntaxKind.ClosureExpression);
     const isReference = Boolean(node.metadata?.isReference);
     const isVariadic = Boolean(node.metadata?.isVariadic);
     const pointerPrefix = repeatPointer(Number(node.metadata?.pointerCount ?? 0));
     const typeText = typeReference ? normalizeInlineText(typeReference.text) : '';
     const name = identifier ? `${pointerPrefix}${ctx.renderExpression(identifier, context)}` : '';
     const prefix = isReference ? 'ref ' : '';
-
-    return [
+    const declaration = [
         `${prefix}${typeText}`.trim(),
         name,
         isVariadic ? '...' : ''
     ].filter(Boolean).join(' ');
+
+    if (!defaultValue) {
+        return declaration;
+    }
+
+    return `${declaration} : ${ctx.renderExpression(defaultValue, context)}`;
 }
 
 export function registerDeclarationPrinters(

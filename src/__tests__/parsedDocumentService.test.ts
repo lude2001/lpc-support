@@ -118,5 +118,23 @@ describe('ParsedDocumentService', () => {
             })
         ]);
     });
+
+    test('reports lexer diagnostics through parsed document diagnostics', () => {
+        const service = new ParsedDocumentService({ cleanupInterval: 0, enableMonitoring: true });
+        const document = createDocument([
+            'void create() {',
+            '    。',
+            '}'
+        ].join('\n'), '/virtual/lexer-error.c');
+
+        const parsed = service.get(document);
+
+        expect(parsed.diagnostics).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                source: 'ANTLR',
+                message: expect.stringContaining('token recognition error')
+            })
+        ]));
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

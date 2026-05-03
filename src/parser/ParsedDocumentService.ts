@@ -95,6 +95,12 @@ export class ParsedDocumentService {
             const tokenStream = new CommonTokenStream(lexer);
             const parser = new LPCParser(tokenStream);
 
+            if (typeof lexer.removeErrorListeners === 'function') {
+                lexer.removeErrorListeners();
+            }
+            if (typeof lexer.addErrorListener === 'function') {
+                lexer.addErrorListener(errorListener);
+            }
             if (typeof parser.removeErrorListeners === 'function') {
                 parser.removeErrorListeners();
             }

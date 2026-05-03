@@ -47,9 +47,13 @@ parameterList
     ;
 
 parameter
-    :   typeSpec REF? STAR* Identifier ELLIPSIS?      // int ref a | int a
+    :   typeSpec REF? STAR* Identifier ELLIPSIS? parameterDefault?      // int ref a | int a
     |   typeSpec REF? STAR*                 // 仅类型，无参数名，用于函数原型
-    |   STAR* Identifier ELLIPSIS?                    // a
+    |   STAR* Identifier ELLIPSIS? parameterDefault?                    // a
+    ;
+
+parameterDefault
+    :   COLON closureExpr
     ;
 
 structDef
@@ -98,7 +102,7 @@ expression
     ;
 
 assignmentExpression
-    :   conditionalExpression ( (ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | DIV_ASSIGN | PERCENT_ASSIGN | BIT_OR_ASSIGN | BIT_AND_ASSIGN) expression )?
+    :   conditionalExpression ( (ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | DIV_ASSIGN | PERCENT_ASSIGN | BIT_OR_ASSIGN | BIT_AND_ASSIGN | BIT_XOR_ASSIGN | SHIFT_LEFT_ASSIGN | SHIFT_RIGHT_ASSIGN) expression )?
     ;
 
 conditionalExpression
@@ -148,9 +152,14 @@ multiplicativeExpression
 unaryExpression
     :   (INC | DEC)? postfixExpression
     |   (PLUS | MINUS | NOT | BIT_NOT | STAR) unaryExpression
+    |   sizeofExpression
     |   CATCH LPAREN expression RPAREN
     |   CATCH block
     |   castExpression
+    ;
+
+sizeofExpression
+    :   KW_SIZEOF LPAREN (expression | typeSpec) RPAREN
     ;
 
 castExpression
@@ -187,6 +196,7 @@ argumentList
 
 primary
     :   SCOPE Identifier                              # scopeIdentifier
+    |   KW_EFUN SCOPE Identifier                      # efunScopeIdentifier
     |   stringConcat                                  # stringConcatenation
     |   closureExpr                                   # closurePrimary
     |   mappingLiteral                                # mappingLiteralExpr
@@ -255,6 +265,8 @@ foreachInit
 
 foreachVar
     :   typeSpec REF? STAR* Identifier
+    |   REF typeSpec STAR* Identifier
+    |   REF STAR* Identifier
     |   STAR* Identifier
     ;
 
@@ -281,9 +293,17 @@ continueStatement : CONTINUE ';' ;
 returnStatement : RETURN expression? SEMI ;
 
 closureExpr
-    : LPAREN COLON expression? COLON RPAREN                    // (: expr :)
-    | LPAREN COLON DOLLAR Identifier COLON RPAREN             // (: $var :)
-    | LPAREN COLON DOLLAR LPAREN expression RPAREN COLON RPAREN  // (: $(expr) :)
+    : LPAREN COLON closureArgumentList? COLON RPAREN
+    ;
+
+closureArgumentList
+    : closureArgument (COMMA closureArgument)* (COMMA)?
+    ;
+
+closureArgument
+    : DOLLAR Identifier
+    | DOLLAR LPAREN expression RPAREN
+    | assignmentExpression ELLIPSIS?
     ;
 
 inheritStatement : INHERIT expression SEMI ;

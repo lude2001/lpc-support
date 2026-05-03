@@ -167,12 +167,16 @@ export function buildParameter(b: SyntaxBuilder, ctx: ParameterContext): SyntaxN
     if (ctx.Identifier()) {
         children.push(b.buildIdentifierNode(ctx.Identifier()!));
     }
+    if (ctx.parameterDefault()) {
+        children.push(b.buildClosureExpression(ctx.parameterDefault()!.closureExpr()));
+    }
 
     return b.createNode(SyntaxKind.ParameterDeclaration, ctx, children, {
         name: ctx.Identifier()?.text,
         metadata: {
             isReference: Boolean(ctx.REF?.()),
             isVariadic: Boolean(ctx.ELLIPSIS?.()),
+            hasDefaultValue: Boolean(ctx.parameterDefault()),
             pointerCount: b.asArray(ctx.STAR?.()).length
         }
     });

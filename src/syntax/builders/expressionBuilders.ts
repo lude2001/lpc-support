@@ -17,6 +17,7 @@ import {
     ConditionalExpressionContext,
     DollarCallExprContext,
     EqualityExpressionContext,
+    EfunScopeIdentifierContext,
     ExpressionContext,
     FloatPrimaryContext,
     IdentifierPrimaryContext,
@@ -35,6 +36,7 @@ import {
     RelationalExpressionContext,
     ScopeIdentifierContext,
     ShiftExpressionContext,
+    SizeofExpressionContext,
     StringConcatenationContext,
     StringPrimaryContext,
     UnaryExpressionContext,
@@ -67,7 +69,10 @@ export function buildAssignmentExpression(b: SyntaxBuilder, ctx: AssignmentExpre
         ctx.DIV_ASSIGN?.(),
         ctx.PERCENT_ASSIGN?.(),
         ctx.BIT_OR_ASSIGN?.(),
-        ctx.BIT_AND_ASSIGN?.()
+        ctx.BIT_AND_ASSIGN?.(),
+        ctx.BIT_XOR_ASSIGN?.(),
+        ctx.SHIFT_LEFT_ASSIGN?.(),
+        ctx.SHIFT_RIGHT_ASSIGN?.()
     );
 
     if (!operator || !ctx.expression()) {
@@ -198,6 +203,10 @@ export function buildUnaryExpression(b: SyntaxBuilder, ctx: UnaryExpressionConte
         }
     }
 
+    if (ctx.sizeofExpression()) {
+        return buildSizeofExpression(b, ctx.sizeofExpression()!);
+    }
+
     if (ctx.CATCH()) {
         const child = ctx.expression()
             ? b.buildExpression(ctx.expression()!)
@@ -215,6 +224,16 @@ export function buildUnaryExpression(b: SyntaxBuilder, ctx: UnaryExpressionConte
     }
 
     return b.createOpaqueNode(ctx, [], { reason: 'unary-fallback' });
+}
+
+export function buildSizeofExpression(b: SyntaxBuilder, ctx: SizeofExpressionContext): SyntaxNode {
+    const operand = ctx.expression()
+        ? b.buildExpression(ctx.expression()!)
+        : b.buildTypeReference(ctx.typeSpec()) ?? b.createMissingNode(ctx);
+
+    return b.createNode(SyntaxKind.UnaryExpression, ctx, [operand], {
+        metadata: { operator: 'sizeof', position: 'prefix' }
+    });
 }
 
 export function buildCastExpression(b: SyntaxBuilder, ctx: CastExpressionContext): SyntaxNode {
@@ -331,6 +350,13 @@ export function buildPrimary(b: SyntaxBuilder, ctx: PrimaryContext): SyntaxNode 
         });
     }
 
+    if (ctx instanceof EfunScopeIdentifierContext) {
+        return b.createNode(SyntaxKind.Identifier, ctx, [], {
+            name: ctx.Identifier().text,
+            metadata: { scopeQualifier: `${ctx.KW_EFUN().text}${ctx.SCOPE().text}` }
+        });
+    }
+
     if (ctx instanceof RefVariableContext) {
         return b.createNode(SyntaxKind.Identifier, ctx, [], {
             name: ctx.Identifier().text,
@@ -427,15 +453,22 @@ export function buildMacroInvokeExpression(b: SyntaxBuilder, ctx: MacroInvokeCon
 }
 
 export function buildClosureExpression(b: SyntaxBuilder, ctx: ClosureExprContext): SyntaxNode {
-    const children = ctx.expression() ? [b.buildExpression(ctx.expression()!)] : [];
-    return b.createNode(SyntaxKind.ClosureExpression, ctx, children, {
+    return b.createNode(SyntaxKind.ClosureExpression, ctx, [], {
         metadata: {
-            hasDollarIdentifier: Boolean(ctx.DOLLAR()),
-            identifier: ctx.Identifier()?.text
+            rawBody: extractClosureBody(b.getNodeText(ctx))
         }
     });
 }
 
 function firstDefined<T>(...values: Array<T | undefined>): T | undefined {
     return values.find((value) => value !== undefined);
+}
+
+function extractClosureBody(rawText: string): string {
+    const trimmed = rawText.trim();
+    if (trimmed.startsWith('(:') && trimmed.endsWith(':)')) {
+        return trimmed.slice(2, -2).trim();
+    }
+
+    return trimmed;
 }

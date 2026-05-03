@@ -78,6 +78,10 @@ export class MacroExpansionBuilder {
 function expandFunctionMacroBody(body: string, parameters: string[], args: string[]): string {
     let expanded = body;
     parameters.forEach((parameter, index) => {
+        const pattern = new RegExp(`(^|[^#])#\\s*${escapeRegExp(parameter)}\\b`, 'g');
+        expanded = expanded.replace(pattern, (_match, prefix: string) => `${prefix}"${escapeStringLiteral(args[index].trim())}"`);
+    });
+    parameters.forEach((parameter, index) => {
         const pattern = new RegExp(`\\b${escapeRegExp(parameter)}\\b`, 'g');
         expanded = expanded.replace(pattern, args[index].trim());
     });
@@ -151,4 +155,8 @@ function findLineEnd(text: string, offset: number): number {
 
 function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function escapeStringLiteral(value: string): string {
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }

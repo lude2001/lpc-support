@@ -13,7 +13,7 @@ INTEGER : HexLiteral | OctLiteral | BinLiteral | DecimalLiteral ;
 FLOAT   : FloatLiteral ;
 
 fragment DecimalLiteral : '0' | [1-9] [0-9_]* ;
-fragment FloatLiteral   : [0-9]+ '.' [0-9]+ | '.' [0-9]+ ;
+fragment FloatLiteral   : [0-9] [0-9_]* '.' [0-9] [0-9_]* | '.' [0-9] [0-9_]* ;
 fragment HexLiteral     : '0' [xX] [0-9a-fA-F_]+ ;
 fragment OctLiteral     : '0' [0-7_]+ ;
 fragment BinLiteral     : '0' [bB] [01_]+ ;
@@ -23,10 +23,10 @@ CHAR_LITERAL    : '\'' ( '\\' . | ~['\\] ) '\'' ;
 STRING_LITERAL  : '"' ( '\\' . | ~["\\] )* '"' ;
 
 // ---------- Heredoc ----------
-fragment HEREDOC_TAG : [A-Z_][A-Z_0-9]* ;
+fragment HEREDOC_TAG : [a-zA-Z_][a-zA-Z_0-9]* ;
 
 HEREDOC_START
-    :   '@' HEREDOC_TAG NL
+    :   '@' HEREDOC_TAG [ \t]* NL
         {
             this.heredocTag = this.text.substring(1).trim();
             this.type = LPCLexer.STRING_LITERAL;
@@ -36,7 +36,7 @@ HEREDOC_START
 
 // ---------- Array Delimiter ----------
 ARRAY_DELIMITER_START
-    :   '@@' HEREDOC_TAG NL
+    :   '@@' HEREDOC_TAG [ \t]* NL
         {
             this.heredocTag = this.text.substring(2).trim();
             this.pushMode(LPCLexer.LPC_ARRAY_DELIMITER);
@@ -64,9 +64,9 @@ HEREDOC_CHARS
 mode LPC_ARRAY_DELIMITER;
 
 ARRAY_DELIMITER_END
-    :   HEREDOC_TAG ';' [ \t]*
+    :   HEREDOC_TAG [ \t]*
         {
-            if (this.text.replace(';', '').trim() === this.heredocTag) {
+            if (this.text.trim() === this.heredocTag) {
                 this.popMode();
             } else {
                 this.more();
@@ -92,11 +92,11 @@ DIRECTIVE : '#' ~[\r\n]* ( '\\' '\r'? '\n' ~[\r\n]* )* '\r'? '\n'? -> channel(HI
 IF:'if'; ELSE:'else'; FOR:'for'; WHILE:'while'; DO:'do'; SWITCH:'switch'; CASE:'case';
 DEFAULT:'default'; BREAK:'break'; CONTINUE:'continue'; RETURN:'return'; FOREACH:'foreach';
 INHERIT:'inherit'; INCLUDE:'include'; CATCH:'catch'; REF:'ref'; IN:'in';
-KW_INT:'int'; KW_FLOAT:'float'; KW_STRING:'string'; KW_OBJECT:'object'; KW_MIXED:'mixed'; KW_MAPPING:'mapping'; KW_FUNCTION:'function'; KW_BUFFER:'buffer'; KW_VOID:'void'; KW_STRUCT:'struct'; KW_CLASS:'class'; KW_NEW:'new';
+KW_INT:'int'; KW_FLOAT:'float'; KW_STRING:'string'; KW_OBJECT:'object'; KW_MIXED:'mixed'; KW_MAPPING:'mapping'; KW_FUNCTION:'function'; KW_BUFFER:'buffer'; KW_VOID:'void'; KW_STRUCT:'struct'; KW_CLASS:'class'; KW_NEW:'new'; KW_SIZEOF:'sizeof'; KW_EFUN:'efun';
 
 // ---------- 操作符 / 标点 ----------
 ELLIPSIS:'...'; RANGE_OP:'..'; ARROW:'->'; DOT:'.'; INC:'++'; DEC:'--';
-PLUS_ASSIGN:'+='; MINUS_ASSIGN:'-='; STAR_ASSIGN:'*='; DIV_ASSIGN:'/='; PERCENT_ASSIGN:'%=';
+SHIFT_LEFT_ASSIGN:'<<='; SHIFT_RIGHT_ASSIGN:'>>='; PLUS_ASSIGN:'+='; MINUS_ASSIGN:'-='; STAR_ASSIGN:'*='; DIV_ASSIGN:'/='; PERCENT_ASSIGN:'%='; BIT_XOR_ASSIGN:'^=';
 PLUS:'+'; MINUS:'-'; STAR:'*'; DIV:'/'; PERCENT:'%'; SCOPE:'::';
 SEMI:';'; COMMA:','; LPAREN:'(' ; RPAREN:')'; LBRACE:'{' ; RBRACE:'}'; LBRACK:'[' ; RBRACK:']'; QUESTION:'?'; COLON:':'; DOLLAR:'$';
 

@@ -27,4 +27,20 @@ describe('MacroExpansionBuilder', () => {
             })
         ]);
     });
+
+    test('expands function-like macro stringize parameters', () => {
+        const text = [
+            '#define NamedValue(name) string name##_label = #name;',
+            'NamedValue(pay_add)'
+        ].join('\n');
+        const scanner = new PreprocessorScanner();
+        const scanned = scanner.scan('file:///stringize.c', 1, text);
+        const conditional = new PreprocessorConditionEvaluator().evaluate(text, scanned.directives, []);
+        const macroFacts = new MacroFactResolver().resolve(text, scanned.directives, conditional.inactiveRanges);
+        const activeView = new ActiveSourceBuilder().build(text, scanned.directives, conditional.inactiveRanges);
+
+        const expanded = new MacroExpansionBuilder().expand(activeView, macroFacts.macroReferences);
+
+        expect(expanded.text).toContain('string pay_add_label = "pay_add";');
+    });
 });
