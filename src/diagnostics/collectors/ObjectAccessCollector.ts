@@ -43,7 +43,7 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
 
             // 检查宏定义
             if (receiver.isMacroObject) {
-                await this.checkMacroUsage(receiver.objectExpression);
+                await this.checkMacroUsage(receiver.objectExpression, context);
                 continue;
             }
 
@@ -73,7 +73,12 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
     /**
      * 检查宏使用
      */
-    private async checkMacroUsage(objectName: string): Promise<void> {
+    private async checkMacroUsage(objectName: string, context?: DiagnosticContext): Promise<void> {
+        const semanticReference = context?.semantic?.macroReferences.find((reference) => reference.name === objectName);
+        if (semanticReference?.resolvedValue) {
+            return;
+        }
+
         if (!this.macroManager) {
             return;
         }

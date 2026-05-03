@@ -103,5 +103,39 @@ describe('InheritanceResolver', () => {
         expect(targets.every(target => target.isResolved)).toBe(true);
         expect(targets.map(target => path.basename(vscode.Uri.parse(target.resolvedUri!).fsPath))).toEqual(['base.c', 'macro_base.c']);
     });
+
+    test('prefers semantic macro definitions before legacy macro lookup', () => {
+        fs.writeFileSync(path.join(root, 'lib', 'frontend_base.c'), 'int frontend_call() { return 1; }', 'utf8');
+        const legacyMacroLookup = jest.fn(() => ({ value: '"/lib/macro_base"' } as any));
+        const resolver = new InheritanceResolver(
+            {
+                getMacro: legacyMacroLookup,
+                getIncludePath: jest.fn(() => undefined)
+            } as any,
+            [root]
+        );
+        const snapshot = createSnapshot(path.join(root, 'room.c'));
+        snapshot.macroDefinitions = [{
+            name: 'BASE_D',
+            value: '"/lib/frontend_base"',
+            range: new vscode.Range(0, 0, 0, 0),
+            isFunctionLike: false,
+            sourceUri: snapshot.uri
+        }];
+        snapshot.inheritStatements = [{
+            rawText: 'inherit BASE_D;',
+            expressionKind: 'macro',
+            value: 'BASE_D',
+            range: new vscode.Range(1, 0, 1, 15),
+            isResolved: false
+        }];
+
+        const targets = resolver.resolveInheritTargets(snapshot);
+
+        expect(targets).toHaveLength(1);
+        expect(targets[0].isResolved).toBe(true);
+        expect(path.basename(vscode.Uri.parse(targets[0].resolvedUri!).fsPath)).toBe('frontend_base.c');
+        expect(legacyMacroLookup).not.toHaveBeenCalled();
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

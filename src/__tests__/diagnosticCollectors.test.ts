@@ -119,6 +119,58 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(diagnostics[0].range.end.character).toBe(receiver.range.end.character);
     });
 
+    test('ObjectAccessCollector prefers semantic macro references before legacy macro lookup', async () => {
+        const macroManager = {
+            getMacro: jest.fn(),
+            canResolveMacro: jest.fn().mockResolvedValue(false)
+        };
+        const collector = new ObjectAccessCollector(macroManager as any);
+        const document = createDocument('#define USER_D "/adm/user"\nUSER_D->query_name();');
+        const receiver = createSyntaxNode(
+            SyntaxKind.Identifier,
+            new vscode.Range(1, 0, 1, 6),
+            [],
+            { name: 'USER_D', category: 'expression' }
+        );
+        const member = createSyntaxNode(
+            SyntaxKind.Identifier,
+            new vscode.Range(1, 8, 1, 18),
+            [],
+            { name: 'query_name', category: 'expression' }
+        );
+        const memberAccess = createSyntaxNode(
+            SyntaxKind.MemberAccessExpression,
+            new vscode.Range(1, 0, 1, 18),
+            [receiver, member],
+            { metadata: { operator: '->' } }
+        );
+        const context: DiagnosticContext = {
+            parsed: {} as any,
+            syntax: {
+                uri: document.uri.toString(),
+                version: 1,
+                parsed: {} as any,
+                root: createSyntaxNode(SyntaxKind.SourceFile, new vscode.Range(0, 0, 1, 21)) as any,
+                nodes: [memberAccess, receiver, member],
+                nodesByTokenRange: new Map(),
+                metadata: { createdAt: Date.now(), nodeCount: 3, opaqueNodeCount: 0, missingNodeCount: 0 }
+            },
+            semantic: {
+                macroReferences: [{
+                    name: 'USER_D',
+                    range: receiver.range,
+                    resolvedValue: '"/adm/user"'
+                }]
+            } as any
+        };
+
+        const diagnostics = await collector.collect(document, {} as any, context);
+
+        expect(diagnostics).toEqual([]);
+        expect(macroManager.getMacro).not.toHaveBeenCalled();
+        expect(macroManager.canResolveMacro).not.toHaveBeenCalled();
+    });
+
     test('MacroUsageCollector inspects syntax identifiers instead of scanning document text', async () => {
         const macroManager = {
             getMacro: jest.fn(),

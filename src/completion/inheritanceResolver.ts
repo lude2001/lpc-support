@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { MacroManager } from '../macroManager';
+import type { MacroDefinitionSummary } from '../semantic/documentSemanticTypes';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { ResolvedInheritTarget } from './types';
 
@@ -10,7 +11,9 @@ export interface InheritanceIndexView {
 }
 
 type MacroLookup = Pick<MacroManager, 'getMacro' | 'getIncludePath'>;
-type InheritanceSnapshot = Pick<SemanticSnapshot, 'uri' | 'inheritStatements'>;
+type InheritanceSnapshot = Pick<SemanticSnapshot, 'uri' | 'inheritStatements'> & {
+    macroDefinitions?: MacroDefinitionSummary[];
+};
 
 export class InheritanceResolver {
     private readonly macroManager?: MacroLookup;
@@ -28,7 +31,7 @@ export class InheritanceResolver {
 
     public resolveInheritTargets(snapshot: InheritanceSnapshot): ResolvedInheritTarget[] {
         return snapshot.inheritStatements.map(statement => {
-            const resolvedPath = this.resolveDirectivePath(snapshot.uri, statement.value, statement.expressionKind);
+            const resolvedPath = this.resolveDirectivePath(snapshot, statement.value, statement.expressionKind);
 
             return {
                 rawValue: statement.value,
@@ -64,17 +67,17 @@ export class InheritanceResolver {
     }
 
     private resolveDirectivePath(
-        sourceUri: string,
+        snapshot: InheritanceSnapshot,
         directiveValue: string,
         expressionKind: ResolvedInheritTarget['expressionKind']
     ): string | undefined {
-        const resolvedValue = this.resolveDirectiveValue(directiveValue, expressionKind);
+        const resolvedValue = this.resolveDirectiveValue(snapshot, directiveValue, expressionKind);
         if (!resolvedValue) {
             return undefined;
         }
 
         const normalizedFile = this.ensureFileExtension(resolvedValue);
-        const sourcePath = vscode.Uri.parse(sourceUri).fsPath;
+        const sourcePath = vscode.Uri.parse(snapshot.uri).fsPath;
         const workspaceRoots = this.getWorkspaceRoots(sourcePath);
         const candidates = new Set<string>();
 
@@ -102,10 +105,16 @@ export class InheritanceResolver {
     }
 
     private resolveDirectiveValue(
+        snapshot: InheritanceSnapshot,
         directiveValue: string,
         expressionKind: ResolvedInheritTarget['expressionKind']
     ): string | undefined {
         if (expressionKind === 'macro') {
+            const frontendMacroValue = snapshot.macroDefinitions?.find((macro) => macro.name === directiveValue)?.value;
+            if (frontendMacroValue) {
+                return this.stripQuotes(frontendMacroValue.trim());
+            }
+
             const macroValue = this.macroManager?.getMacro(directiveValue)?.value;
             if (!macroValue) {
                 return undefined;
