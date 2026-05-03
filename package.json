@@ -145,12 +145,12 @@
       },
       {
         "command": "lpc.configureMacroPath",
-        "title": "配置宏定义目录到 lpc-support.json",
+        "title": "查看宏目录配置来源",
         "category": "LPC"
       },
       {
         "command": "lpc.configureSimulatedEfuns",
-        "title": "配置模拟函数入口文件到 lpc-support.json",
+        "title": "查看模拟函数入口配置来源",
         "category": "LPC"
       },
       {

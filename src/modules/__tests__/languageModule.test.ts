@@ -10,6 +10,7 @@ describe('registerHostLanguageAffordances', () => {
 
     beforeEach(() => {
         registry = new ServiceRegistry();
+        registry.register(Services.Analysis, { getSyntaxDocument: jest.fn() } as any);
         context = { subscriptions: [] } as vscode.ExtensionContext;
         (vscode.languages.registerCodeActionsProvider as jest.Mock).mockClear();
         (vscode.languages.registerHoverProvider as jest.Mock).mockClear();

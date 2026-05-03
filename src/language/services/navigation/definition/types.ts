@@ -2,11 +2,11 @@ import * as vscode from 'vscode';
 import type { LanguageLocation } from '../../../contracts/LanguagePosition';
 import { MacroManager } from '../../../../macroManager';
 import { EfunDocsManager } from '../../../../efunDocs';
-import { ASTManager } from '../../../../ast/astManager';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
 import type { ScopedMethodResolver } from '../../../../objectInference/ScopedMethodResolver';
 import { TargetMethodLookup } from '../../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../../projectConfig/LpcProjectConfigService';
+import type { DocumentAnalysisService } from '../../../../semantic/documentAnalysisService';
 import type { WorkspaceDocumentPathSupport } from '../../../shared/WorkspaceDocumentPathSupport';
 
 export interface DefinitionRequestState {
@@ -48,7 +48,7 @@ export interface DefinitionSemanticAdapter {
 export interface DefinitionResolverContext {
     macroManager: MacroManager;
     efunDocsManager: EfunDocsManager;
-    astManager: ASTManager;
+    analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot' | 'getBestAvailableSnapshot'>;
     objectInferenceService: ObjectInferenceService;
     targetMethodLookup: TargetMethodLookup;
     projectConfigService?: LpcProjectConfigService;

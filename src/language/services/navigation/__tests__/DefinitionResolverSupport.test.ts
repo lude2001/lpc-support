@@ -110,8 +110,9 @@ function createSupportHarness() {
         })
     };
     const support = new DefinitionResolverSupport({
-        astManager: {
-            getSemanticSnapshot
+        analysisService: {
+            getSemanticSnapshot,
+            getBestAvailableSnapshot: getSemanticSnapshot
         } as any,
         host,
         pathSupport: new WorkspaceDocumentPathSupport({ host }),
@@ -148,7 +149,7 @@ describe('DefinitionResolverSupport', () => {
             getWorkspaceFolder: jest.fn(() => undefined)
         } as any;
         const support = new DefinitionResolverSupport({
-            astManager: {} as any,
+            analysisService: {} as any,
             host,
             pathSupport: new WorkspaceDocumentPathSupport({ host })
         } as any);
@@ -172,7 +173,7 @@ describe('DefinitionResolverSupport', () => {
             getWorkspaceFolder: jest.fn(() => undefined)
         } as any;
         const support = new DefinitionResolverSupport({
-            astManager: {} as any,
+            analysisService: {} as any,
             host,
             pathSupport: new WorkspaceDocumentPathSupport({ host })
         } as any);
@@ -198,7 +199,7 @@ describe('DefinitionResolverSupport', () => {
             getWorkspaceFolder: () => undefined
         } as any;
         const support = new DefinitionResolverSupport({
-            astManager: {} as any,
+            analysisService: {} as any,
             host,
             pathSupport: new WorkspaceDocumentPathSupport({ host })
         } as any);

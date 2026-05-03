@@ -5,10 +5,11 @@ import { LpcProjectConfig } from '../LpcProjectConfig';
 import { LpcProjectConfigService } from '../LpcProjectConfigService';
 
 describe('LpcProjectConfigService', () => {
-    test('project config shape stores configHellPath and resolved fields', () => {
+    test('project config shape stores only project-authored fields', () => {
         const config: LpcProjectConfig = {
             version: 1,
             configHellPath: 'config.hell',
+            playerObjectPath: '/clone/user/user',
             compile: {
                 mode: 'local',
                 local: {
@@ -21,21 +22,18 @@ describe('LpcProjectConfigService', () => {
                         { name: 'Alpha', url: 'http://127.0.0.1:8080' }
                     ]
                 }
-            },
-            resolved: {
-                includeDirectories: ['/include']
             }
         };
 
         expect(config.version).toBe(1);
         expect(config.configHellPath).toBe('config.hell');
+        expect(config.playerObjectPath).toBe('/clone/user/user');
         expect(config.compile?.mode).toBe('local');
         expect(config.compile?.local?.driverConfigPath).toBe('etc/config.test');
         expect(config.compile?.remote?.activeServer).toBe('Alpha');
-        expect(config.resolved?.includeDirectories).toEqual(['/include']);
     });
 
-    test('loads lpc-support.json, parses config.hell, and rewrites resolved fields', async () => {
+    test('loads lpc-support.json, parses config.hell, and keeps synced resolved fields in memory only', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-'));
         const configPath = path.join(workspaceRoot, 'lpc-support.json');
         const hellPath = path.join(workspaceRoot, 'config.hell');
@@ -72,7 +70,8 @@ describe('LpcProjectConfigService', () => {
         expect(result?.resolved?.includeDirectories).toEqual(['/include']);
         expect(result?.resolved?.simulatedEfunFile).toBe('/adm/single/simul_efun');
         expect(result?.lastSyncedAt).toBeDefined();
-        expect(written.resolved.includeDirectories).toEqual(['/include']);
+        expect(written.resolved).toBeUndefined();
+        expect(written.lastSyncedAt).toBeUndefined();
         expect(written.compile.mode).toBe('local');
     });
 
@@ -134,7 +133,7 @@ describe('LpcProjectConfigService', () => {
             .resolves.toBe(path.join(workspaceRoot, 'adm', 'single', 'simul_efun.c'));
     });
 
-    test('keeps previous resolved fields when config.hell is missing', async () => {
+    test('does not trust stale persisted resolved fields when config.hell is missing', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-missing-'));
         const configPath = path.join(workspaceRoot, 'lpc-support.json');
         const service = new LpcProjectConfigService();
@@ -150,11 +149,11 @@ describe('LpcProjectConfigService', () => {
 
         const result = await service.loadForWorkspace(workspaceRoot);
 
-        expect(result?.resolved?.includeDirectories).toEqual(['/include']);
-        expect(result?.lastSyncedAt).toBe('2026-03-22T00:00:00.000Z');
+        expect(result?.resolved).toBeUndefined();
+        expect(result?.lastSyncedAt).toBeUndefined();
     });
 
-    test('does not rewrite lpc-support.json when resolved fields are unchanged', async () => {
+    test('normalizes stale generated fields once while syncing config.hell facts into memory', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-stable-'));
         const configPath = path.join(workspaceRoot, 'lpc-support.json');
         const hellPath = path.join(workspaceRoot, 'config.hell');
@@ -178,10 +177,14 @@ describe('LpcProjectConfigService', () => {
 
         const result = await service.loadForWorkspace(workspaceRoot);
 
-        expect(writeSpy).not.toHaveBeenCalled();
+        expect(writeSpy).toHaveBeenCalledTimes(1);
         expect(result?.resolved?.includeDirectories).toEqual(['/include']);
         expect(result?.resolved?.simulatedEfunFile).toBe('/adm/single/simul_efun');
-        expect(result?.lastSyncedAt).toBe('2026-03-23T00:00:00.000Z');
+        expect(result?.lastSyncedAt).toBeDefined();
+
+        const written = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        expect(written.resolved).toBeUndefined();
+        expect(written.lastSyncedAt).toBeUndefined();
     });
 
     test('returns undefined when project config file does not exist', async () => {
@@ -191,7 +194,7 @@ describe('LpcProjectConfigService', () => {
         await expect(service.loadForWorkspace(workspaceRoot)).resolves.toBeUndefined();
     });
 
-    test('ensures compile config helpers create defaults and preserve resolved data', async () => {
+    test('ensures compile config helpers create defaults without persisting generated resolved data', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-compile-defaults-'));
         const configPath = path.join(workspaceRoot, 'lpc-support.json');
         const service = new LpcProjectConfigService();
@@ -208,7 +211,7 @@ describe('LpcProjectConfigService', () => {
         const written = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
         expect(compileConfig?.remote?.servers).toEqual([]);
-        expect(written.resolved.includeDirectories).toEqual(['/include']);
+        expect(written.resolved).toBeUndefined();
         expect(written.compile.remote.servers).toEqual([]);
     });
 
@@ -222,7 +225,7 @@ describe('LpcProjectConfigService', () => {
             .toBe(path.join('etc', 'config.test'));
     });
 
-    test('updates resolved project config fields without touching compile settings', async () => {
+    test('rejects direct resolved-field updates because config.hell is the project fact source', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-project-config-resolved-update-'));
         const configPath = path.join(workspaceRoot, 'lpc-support.json');
         const service = new LpcProjectConfigService();
@@ -239,15 +242,15 @@ describe('LpcProjectConfigService', () => {
             }
         }, null, 2));
 
-        const result = await service.updateResolvedConfigForWorkspace(workspaceRoot, (resolved) => ({
+        await expect(service.updateResolvedConfigForWorkspace(workspaceRoot, (resolved) => ({
             ...resolved,
             includeDirectories: ['/include'],
             simulatedEfunFile: '/adm/single/simul_efun.c'
-        }));
+        }))).rejects.toThrow('config.hell');
 
-        expect(result?.compile?.remote?.activeServer).toBe('Alpha');
-        expect(result?.resolved?.includeDirectories).toEqual(['/include']);
-        expect(result?.resolved?.simulatedEfunFile).toBe('/adm/single/simul_efun.c');
+        const written = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        expect(written.compile.remote.activeServer).toBe('Alpha');
+        expect(written.resolved).toBeUndefined();
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

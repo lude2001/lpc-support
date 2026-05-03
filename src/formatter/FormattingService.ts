@@ -8,20 +8,29 @@ import { FormatModelBuilder } from './model/FormatModelBuilder';
 import { classifyMacro, formatMacro } from './macro/macroFormatter';
 import { FormatPrinter } from './printer/FormatPrinter';
 import { findFormatTarget } from './range/findFormatTarget';
+import {
+    createSyntheticFormattingDocument,
+    detectLineEnding,
+    extractAndReindentWrappedBody,
+    normalizeLineEndings,
+    prepareSnippetRange,
+    reindentRangeReplacement,
+    wrapSnippetInSyntheticBlock
+} from './text/formatTextSupport';
 import { FormatTarget } from './types';
 
 export class FormattingService {
     public async formatDocument(document: vscode.TextDocument): Promise<vscode.TextEdit[]> {
         const source = document.getText();
-        const lineEnding = this.detectLineEnding(source);
+        const lineEnding = detectLineEnding(source);
         if (this.isStandaloneDefineMacro(source)) {
             const macroText = classifyMacro(source) === 'safe' ? formatMacro(source) : source;
-            return this.replaceWholeDocument(document, this.normalizeLineEndings(macroText, lineEnding));
+            return this.replaceWholeDocument(document, normalizeLineEndings(macroText, lineEnding));
         }
 
         const maskedSource = maskDelimitedTextBlocks(source);
         const formattingDocument = maskedSource.blocks.length > 0
-            ? this.createSyntheticDocument(document, maskedSource.maskedText)
+            ? createSyntheticFormattingDocument(document, maskedSource.maskedText)
             : document;
 
         const parsed = this.getParsedForFormatting(
@@ -36,7 +45,7 @@ export class FormattingService {
             return this.replaceWholeDocument(document, document.getText());
         }
 
-        const formattedText = this.normalizeLineEndings(
+        const formattedText = normalizeLineEndings(
             restoreDelimitedTextBlocks(
                 this.renderFormattedSource(source, parsed),
                 maskedSource.blocks
@@ -48,7 +57,7 @@ export class FormattingService {
     }
 
     public async formatRange(document: vscode.TextDocument, range: vscode.Range): Promise<vscode.TextEdit[]> {
-        const lineEnding = this.detectLineEnding(document.getText());
+        const lineEnding = detectLineEnding(document.getText());
         const parsed = this.getParsedForFormatting(
             document,
             document.getText(),
@@ -75,14 +84,14 @@ export class FormattingService {
         if (containsDelimitedTextBlock(targetSource)) {
             const formattedTarget = this.tryFormatDelimitedTarget(document, target, targetSource);
             if (formattedTarget) {
-                return [vscode.TextEdit.replace(target.range, this.normalizeLineEndings(formattedTarget, lineEnding))];
+                return [vscode.TextEdit.replace(target.range, normalizeLineEndings(formattedTarget, lineEnding))];
             }
 
             return [this.createPassthroughEdit(document, target)];
         }
 
-        const formattedText = this.normalizeLineEndings(
-            this.reindentRangeReplacement(
+        const formattedText = normalizeLineEndings(
+            reindentRangeReplacement(
                 document,
                 target.range,
                 this.renderSyntaxNode(
@@ -121,12 +130,12 @@ export class FormattingService {
     }
 
     private async trySnippetRangeFallback(document: vscode.TextDocument, range: vscode.Range): Promise<vscode.TextEdit[]> {
-        const snippet = this.prepareSnippetRange(document, range);
+        const snippet = prepareSnippetRange(document, range);
         if (!snippet) {
             return [];
         }
 
-        const wrappedSnippet = this.wrapSnippetInSyntheticBlock(snippet.dedentedText);
+        const wrappedSnippet = wrapSnippetInSyntheticBlock(snippet.dedentedText);
         const formattedWrapper = this.formatSyntheticSource(
             document,
             wrappedSnippet,
@@ -136,12 +145,12 @@ export class FormattingService {
             return [];
         }
 
-        const formattedText = this.extractAndReindentWrappedBody(formattedWrapper, snippet.baseIndent);
+        const formattedText = extractAndReindentWrappedBody(formattedWrapper, snippet.baseIndent);
         if (formattedText === null) {
             return [];
         }
 
-        return [vscode.TextEdit.replace(range, this.normalizeLineEndings(formattedText, this.detectLineEnding(document.getText())))];
+        return [vscode.TextEdit.replace(range, normalizeLineEndings(formattedText, detectLineEnding(document.getText())))];
     }
 
     private getParsedForFormatting(
@@ -150,34 +159,6 @@ export class FormattingService {
         _cacheKey: string
     ): ReturnType<ReturnType<typeof getGlobalParsedDocumentService>['get']> {
         return getGlobalParsedDocumentService().get(document);
-    }
-
-    private prepareSnippetRange(
-        document: vscode.TextDocument,
-        range: vscode.Range
-    ): { dedentedText: string; baseIndent: string } | null {
-        const text = document.getText(range);
-        if (!text.trim()) {
-            return null;
-        }
-
-        const lines = text.split(/\r?\n/);
-        const firstNonEmptyLine = lines.find((line) => line.trim().length > 0);
-        if (!firstNonEmptyLine) {
-            return null;
-        }
-
-        const baseIndent = firstNonEmptyLine.match(/^[ \t]*/)?.[0] ?? '';
-        const dedentedText = lines
-            .map((line) => line.startsWith(baseIndent) ? line.slice(baseIndent.length) : line)
-            .join('\n')
-            .trim();
-
-        return dedentedText ? { dedentedText, baseIndent } : null;
-    }
-
-    private wrapSnippetInSyntheticBlock(text: string): string {
-        return `void __lpc_range_wrapper__()\n{\n${text}\n}`;
     }
 
     private tryFormatDelimitedTarget(document: vscode.TextDocument, target: FormatTarget, source: string): string | null {
@@ -189,19 +170,19 @@ export class FormattingService {
 
         const wrappedFormat = this.formatSyntheticSource(
             document,
-            this.wrapSnippetInSyntheticBlock(source),
+            wrapSnippetInSyntheticBlock(source),
             `${baseCacheKey}-wrapped`
         );
         if (!wrappedFormat) {
             return null;
         }
 
-        return this.extractAndReindentWrappedBody(wrappedFormat, '');
+        return extractAndReindentWrappedBody(wrappedFormat, '');
     }
 
     private formatSyntheticSource(document: vscode.TextDocument, source: string, cacheKey: string): string | null {
         const maskedSource = maskDelimitedTextBlocks(source);
-        const formattingDocument = this.createSyntheticDocument(document, maskedSource.maskedText, cacheKey);
+        const formattingDocument = createSyntheticFormattingDocument(document, maskedSource.maskedText, cacheKey);
         const parsed = getGlobalParsedDocumentService().get(formattingDocument);
         if (hasBlockingDiagnostics(parsed) || !this.canBuildFormatModel(parsed)) {
             return null;
@@ -261,31 +242,6 @@ export class FormattingService {
         return new FormatPrinter(getFormatterConfig());
     }
 
-    private extractAndReindentWrappedBody(formattedWrapper: string, baseIndent: string): string | null {
-        const syntheticIndent = ' '.repeat(getFormatterConfig().indentSize);
-        const bodyStart = formattedWrapper.indexOf('{\n');
-        const bodyEnd = formattedWrapper.lastIndexOf('\n}');
-        if (bodyStart < 0 || bodyEnd < 0 || bodyEnd <= bodyStart + 2) {
-            return null;
-        }
-
-        return formattedWrapper
-            .slice(bodyStart + 2, bodyEnd)
-            .split('\n')
-            .map((line) => {
-                if (!line.length) {
-                    return line;
-                }
-
-                if (syntheticIndent.length > 0 && line.startsWith(syntheticIndent)) {
-                    return `${baseIndent}${line.slice(syntheticIndent.length)}`;
-                }
-
-                return line;
-            })
-            .join('\n');
-    }
-
     private isStandaloneDefineMacro(source: string): boolean {
         const trimmedSource = source.trim();
         if (!trimmedSource.startsWith('#define')) {
@@ -307,78 +263,6 @@ export class FormattingService {
         return true;
     }
 
-    private reindentRangeReplacement(document: vscode.TextDocument, range: vscode.Range, text: string): string {
-        if (!text.includes('\n')) {
-            return text;
-        }
-
-        const lineIndent = document.lineAt(range.start.line).text
-            .slice(0, range.start.character)
-            .match(/^[ \t]*/)?.[0] ?? '';
-        if (!lineIndent) {
-            return text;
-        }
-
-        const [firstLine, ...restLines] = text.split('\n');
-        return [
-            firstLine,
-            ...restLines.map((line) => line.length > 0 ? `${lineIndent}${line}` : line)
-        ].join('\n');
-    }
-
-    private detectLineEnding(text: string): string {
-        return text.includes('\r\n') ? '\r\n' : '\n';
-    }
-
-    private normalizeLineEndings(text: string, lineEnding: string): string {
-        return text.replace(/\r\n|\r|\n/g, lineEnding);
-    }
-
-    private createSyntheticDocument(document: vscode.TextDocument, text: string, cacheKey = 'masked-document'): vscode.TextDocument {
-        const lines = text.split(/\r?\n/);
-        const lineStarts = [0];
-        const syntheticUri = vscode.Uri.parse(`${document.uri.toString()}?lpc-format=${cacheKey}-${document.version}`);
-
-        for (let index = 0; index < text.length; index += 1) {
-            if (text[index] === '\n') {
-                lineStarts.push(index + 1);
-            }
-        }
-
-        const offsetAt = (position: vscode.Position): number => {
-            const lineStart = lineStarts[position.line] ?? text.length;
-            return Math.min(lineStart + position.character, text.length);
-        };
-
-        const positionAt = (offset: number): vscode.Position => {
-            let line = 0;
-            for (let index = 0; index < lineStarts.length; index += 1) {
-                if (lineStarts[index] <= offset) {
-                    line = index;
-                } else {
-                    break;
-                }
-            }
-
-            return new vscode.Position(line, offset - lineStarts[line]);
-        };
-
-        return {
-            ...document,
-            uri: syntheticUri,
-            version: document.version,
-            lineCount: lines.length,
-            getText: (range?: vscode.Range) => {
-                if (!range) {
-                    return text;
-                }
-
-                return text.slice(offsetAt(range.start), offsetAt(range.end));
-            },
-            positionAt,
-            offsetAt
-        };
-    }
 }
 
 function hasBlockingDiagnostics(parsed: Pick<ParsedDocument, 'diagnostics'>): boolean {

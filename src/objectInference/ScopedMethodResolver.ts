@@ -213,7 +213,7 @@ export class ScopedMethodResolver {
 
         for (const seed of directSeeds.resolvedTargets) {
             const branchResult = await collectScopedBranchItems({
-                astManager: createScopedTraversalAnalysisFacade(this.analysisService),
+                analysisService: this.analysisService,
                 inheritanceResolver: this.inheritanceResolver,
                 host: this.host,
                 seed,
@@ -262,7 +262,7 @@ export class ScopedMethodResolver {
         }
 
         const matchedCollection = await collectScopedBranchItems({
-            astManager: createScopedTraversalAnalysisFacade(this.analysisService),
+            analysisService: this.analysisService,
             inheritanceResolver: this.inheritanceResolver,
             host: this.host,
             seed: matchedSeeds[0],
@@ -387,13 +387,4 @@ export function createDefaultScopedMethodResolver(
         inheritanceResolver: new InheritanceResolver(dependencies.macroManager, dependencies.workspaceRoots),
         host: dependencies.host
     });
-}
-
-function createScopedTraversalAnalysisFacade(
-    analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>
-) {
-    return {
-        getSemanticSnapshot: (document: vscode.TextDocument, useCache: boolean = true) =>
-            analysisService.getSemanticSnapshot(document, useCache)
-    } as any;
 }

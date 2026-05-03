@@ -1,11 +1,17 @@
 import * as vscode from 'vscode';
 import { GLM4Client } from './glm4Client';
-import { LPCFunctionParser } from './functionParser';
+import { FunctionInfoExtractor } from './language/documentation/FunctionInfoExtractor';
+import type { DocumentAnalysisService } from './semantic/documentAnalysisService';
 
 let commandsRegistered = false;
 const RENAME_COMMAND_IDS = ['lpc.renameVarToSnakeCase', 'lpc.renameVarToCamelCase'] as const;
+let functionInfoExtractor: FunctionInfoExtractor | undefined;
 
-export function registerLpcCodeActionCommands(): void {
+export function registerLpcCodeActionCommands(
+    analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument'>
+): void {
+    functionInfoExtractor = new FunctionInfoExtractor(analysisService);
+
     if (commandsRegistered) {
         return;
     }
@@ -64,9 +70,9 @@ async function generateJavadocCommand(): Promise<void> {
 
             let functionInfo: any = null;
             if (!selection.isEmpty) {
-                functionInfo = LPCFunctionParser.parseFunctionFromSelection(editor.document, selection);
+                functionInfo = functionInfoExtractor?.parseFunctionFromSelection(editor.document, selection);
             } else {
-                functionInfo = LPCFunctionParser.parseFunctionFromCursor(editor.document, selection.active);
+                functionInfo = functionInfoExtractor?.parseFunctionFromCursor(editor.document, selection.active);
             }
 
             if (!functionInfo) {
@@ -92,7 +98,7 @@ async function generateJavadocCommand(): Promise<void> {
             const javadocComment = await glm4Client.generateJavadoc(functionInfo.fullText);
             progress.report({ increment: 80, message: '插入注释...' });
 
-            const functionStartLine = findFunctionStartLine(editor.document, selection, functionInfo);
+            const functionStartLine = functionInfo.line ?? selection.active.line;
             const insertPosition = new vscode.Position(functionStartLine, 0);
             const indent = getLineIndentation(editor.document, functionStartLine);
             const formattedComment = formatJavadocComment(javadocComment, indent);
@@ -124,28 +130,6 @@ async function selectModel(
     }
 
     return GLM4Client.selectModel();
-}
-
-function findFunctionStartLine(document: vscode.TextDocument, selection: vscode.Selection, functionInfo: any): number {
-    const functionName = functionInfo.name;
-    const text = document.getText();
-    const functionText = functionInfo.fullText;
-    const functionTextIndex = text.indexOf(functionText);
-
-    if (functionTextIndex !== -1) {
-        const functionNameInText = functionText.indexOf(functionName + '(');
-        if (functionNameInText !== -1) {
-            const absolutePosition = functionTextIndex + functionNameInText;
-            return document.positionAt(absolutePosition).line;
-        }
-    }
-
-    const functionNameIndex = text.indexOf(functionName + '(');
-    if (functionNameIndex !== -1) {
-        return document.positionAt(functionNameIndex).line;
-    }
-
-    return selection.active.line;
 }
 
 function getLineIndentation(document: vscode.TextDocument, lineNumber: number): string {

@@ -19,7 +19,7 @@ export class DefinitionResolverSupport {
 
     public constructor(private readonly context: Pick<
         DefinitionResolverContext,
-        'astManager' | 'host' | 'macroManager' | 'projectConfigService' | 'semanticAdapter' | 'pathSupport'
+        'analysisService' | 'host' | 'macroManager' | 'projectConfigService' | 'semanticAdapter' | 'pathSupport'
     >) {
         this.pathSupport = assertDocumentPathSupport('DefinitionResolverSupport', context.pathSupport);
         this.context.host.onDidChangeTextDocument((event) => {
@@ -102,7 +102,7 @@ export class DefinitionResolverSupport {
     }
 
     public getSemanticSnapshot(document: vscode.TextDocument, useCache: boolean = true): SemanticSnapshot {
-        return this.context.astManager.getSemanticSnapshot(document, useCache);
+        return this.context.analysisService.getSemanticSnapshot(document, useCache);
     }
 
     public getIncludeStatements(document: vscode.TextDocument): IncludeStatementLike[] {
@@ -122,7 +122,7 @@ export class DefinitionResolverSupport {
             return result;
         }
 
-        const snapshot = this.context.astManager.getBestAvailableSnapshot(document);
+        const snapshot = this.context.analysisService.getBestAvailableSnapshot(document);
         for (const statement of snapshot.inheritStatements) {
             if (statement.value) {
                 result.add(statement.value);

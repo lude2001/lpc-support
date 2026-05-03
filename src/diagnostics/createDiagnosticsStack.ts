@@ -35,21 +35,10 @@ export function createDiagnosticsStack(
     analysisService: DiagnosticsAnalysisService
 ): DiagnosticsStack {
     const collectors = createDefaultDiagnosticsCollectors(macroManager);
-    const diagnosticsService = createSharedDiagnosticsService(
-        createAnalysisBackedAstManager(analysisService),
-        collectors
-    );
+    const diagnosticsService = createSharedDiagnosticsService(analysisService, collectors);
 
     return {
         collectors,
         diagnosticsService
     };
-}
-
-function createAnalysisBackedAstManager(analysisService: DiagnosticsAnalysisService) {
-    return {
-        parseDocument(document: Parameters<DiagnosticsAnalysisService['parseDocument']>[0], useCache?: boolean) {
-            return analysisService.parseDocument(document, useCache);
-        }
-    } as Parameters<typeof createSharedDiagnosticsService>[0];
 }

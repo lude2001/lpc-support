@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { FunctionDocPanel } from '../functionDocPanel';
-import { LPCFunctionParser } from '../functionParser';
 
 function createTextDocument(filePath: string, content: string): vscode.TextDocument {
     const normalized = content.replace(/\r\n/g, '\n');
@@ -67,7 +66,6 @@ describe('FunctionDocPanel', () => {
     });
 
     test('update builds panel data from shared documentation service instead of panel-specific extraction', async () => {
-        const parseAllFunctionsSpy = jest.spyOn(LPCFunctionParser, 'parseAllFunctions');
         const panel = {
             title: '',
             webview: {
@@ -136,7 +134,6 @@ describe('FunctionDocPanel', () => {
         await panelInstance.update(document);
 
         expect(efunDocsManager.getFunctionDocLookupForDocument).toHaveBeenCalledWith(document, { forceFresh: true });
-        expect(parseAllFunctionsSpy).not.toHaveBeenCalled();
         expect(panel.title).toContain('npc.c');
         expect(panel.webview.html).toContain('query_name');
         expect(panel.webview.html).toContain('来自共享文档');

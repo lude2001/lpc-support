@@ -139,6 +139,44 @@ describe('document analysis ownership guards', () => {
         expect(astManagerSource).not.toContain('getDiagnostics(');
     });
 
+    test('production services depend on DocumentAnalysisService instead of the ASTManager facade', () => {
+        const astManagerImports = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => filePath !== path.join(srcRoot, 'ast', 'astManager.ts'))
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('ast/astManager'))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(astManagerImports).toEqual([]);
+    });
+
+    test('host commands do not use the standalone function parser facade', () => {
+        const productionCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => filePath !== path.join(srcRoot, 'functionParser.ts'))
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('LPCFunctionParser'))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(productionCallSites).toEqual([]);
+    });
+
+    test('host code-action commands delegate function extraction to documentation services', () => {
+        const codeActionsSource = fs.readFileSync(path.join(srcRoot, 'codeActions.ts'), 'utf8');
+
+        expect(codeActionsSource).not.toContain('SyntaxKind');
+        expect(codeActionsSource).not.toContain('FunctionDeclaration');
+        expect(codeActionsSource).toContain('FunctionInfoExtractor');
+    });
+
+    test('inheritance resolution does not read include paths back out of MacroManager', () => {
+        const productionCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => filePath !== path.join(srcRoot, 'macroManager.ts'))
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('getIncludePath'))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(productionCallSites).toEqual([]);
+    });
+
     test('LanguageCompletionService stays a coordinator without inherited-index, candidate, or presentation helpers', () => {
         const completionServiceSource = fs.readFileSync(
             path.join(srcRoot, 'language', 'services', 'completion', 'LanguageCompletionService.ts'),
@@ -316,16 +354,8 @@ describe('document analysis ownership guards', () => {
         expect(callTargetResolverSource).not.toContain('line.match(');
     });
 
-    test('function parser consumes syntax documents instead of ANTLR contexts or line scans', () => {
-        const functionParserSource = fs.readFileSync(
-            path.join(srcRoot, 'functionParser.ts'),
-            'utf8'
-        );
-
-        expect(functionParserSource).not.toContain("from './antlr/LPCParser'");
-        expect(functionParserSource).not.toContain('FunctionDefContext');
-        expect(functionParserSource).not.toContain('tree.statement()');
-        expect(functionParserSource).not.toContain('document.getText().split');
+    test('standalone function parser facade is not kept as a second structural parser', () => {
+        expect(fs.existsSync(path.join(srcRoot, 'functionParser.ts'))).toBe(false);
     });
 
     test('simulated efun scanner consumes semantic include facts instead of directive regex fallback', () => {
@@ -369,6 +399,19 @@ describe('document analysis ownership guards', () => {
         expect(codeActionServiceSource).not.toContain('private toCamelCase(');
         expect(codeActionServiceSource).not.toContain('private findBlockStart(');
         expect(codeActionServiceSource).not.toContain('private findFunctionStart(');
+    });
+
+    test('FormattingService keeps generic text mechanics in formatter text support', () => {
+        const formattingServiceSource = fs.readFileSync(
+            path.join(srcRoot, 'formatter', 'FormattingService.ts'),
+            'utf8'
+        );
+
+        expect(formattingServiceSource).not.toContain('private createSyntheticDocument(');
+        expect(formattingServiceSource).not.toContain('private prepareSnippetRange(');
+        expect(formattingServiceSource).not.toContain('private reindentRangeReplacement(');
+        expect(formattingServiceSource).not.toContain('private detectLineEnding(');
+        expect(formattingServiceSource).toContain("from './text/formatTextSupport'");
     });
 
     test('default diagnostics do not instantiate the legacy regex variable analyzer', () => {

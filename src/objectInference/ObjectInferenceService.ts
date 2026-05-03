@@ -314,39 +314,39 @@ export class ObjectInferenceService {
     }
 
     private selectReceiverOutcome(
-        legacyOutcome: ObjectResolutionOutcome,
+        structuralOutcome: ObjectResolutionOutcome,
         semanticOutcome?: ObjectResolutionOutcome,
         receiverKind?: ClassifiedReceiver['kind']
     ): ObjectResolutionOutcome {
         if (receiverKind === 'identifier') {
-            if (this.isTerminalIdentifierLegacyOutcome(legacyOutcome)) {
-                return legacyOutcome;
+            if (this.isTerminalIdentifierStructuralOutcome(structuralOutcome)) {
+                return structuralOutcome;
             }
 
             if (semanticOutcome) {
                 return semanticOutcome;
             }
 
-            return legacyOutcome;
+            return structuralOutcome;
         }
 
         if (semanticOutcome) {
             return semanticOutcome;
         }
 
-        if (this.isTerminalLegacyOutcome(legacyOutcome)) {
-            return legacyOutcome;
+        if (this.isTerminalStructuralOutcome(structuralOutcome)) {
+            return structuralOutcome;
         }
 
-        return legacyOutcome;
+        return structuralOutcome;
     }
 
-    private isTerminalIdentifierLegacyOutcome(outcome: ObjectResolutionOutcome): boolean {
-        return this.isTerminalLegacyOutcome(outcome)
+    private isTerminalIdentifierStructuralOutcome(outcome: ObjectResolutionOutcome): boolean {
+        return this.isTerminalStructuralOutcome(outcome)
             || (outcome as { hasVisibleBinding?: boolean }).hasVisibleBinding === true;
     }
 
-    private isTerminalLegacyOutcome(outcome: ObjectResolutionOutcome): boolean {
+    private isTerminalStructuralOutcome(outcome: ObjectResolutionOutcome): boolean {
         return outcome.candidates.length > 0
             || outcome.reason === 'non-static'
             || (outcome.diagnostics?.length ?? 0) > 0;

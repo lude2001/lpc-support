@@ -734,7 +734,7 @@ describe('SimulatedEfunScanner', () => {
         expect(scanner.getAllNames()).toEqual([]);
     });
 
-    test('configureSimulatedEfuns persists simulatedEfunFile into lpc-support.json', async () => {
+    test('configureSimulatedEfuns points users to config.hell instead of persisting generated project facts', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-configure-project-config-'));
         const entryDir = path.join(workspaceRoot, 'adm', 'single');
         const entryFile = path.join(entryDir, 'simul_efun.c');
@@ -750,14 +750,13 @@ describe('SimulatedEfunScanner', () => {
         }, null, 2));
 
         (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
-        (vscode.window.showOpenDialog as jest.Mock).mockResolvedValue([
-            { fsPath: entryFile }
-        ]);
 
         await scanner.configureSimulatedEfuns();
 
         const written = JSON.parse(fs.readFileSync(path.join(workspaceRoot, 'lpc-support.json'), 'utf8'));
-        expect(written.resolved?.simulatedEfunFile).toBe(path.join('adm', 'single', 'simul_efun.c'));
+        expect(written.resolved).toBeUndefined();
+        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('config.hell'));
+        expect(vscode.window.showOpenDialog).not.toHaveBeenCalled();
     });
 
     test('project config simulated efun path without extension should resolve to the real .c file', async () => {

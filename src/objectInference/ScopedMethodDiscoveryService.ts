@@ -275,7 +275,7 @@ export class ScopedMethodDiscoveryService {
         visitedUris: Set<string>
     ): Promise<ScopedMethodCollection> {
         const collection = await collectScopedBranchItems({
-            astManager: createScopedTraversalAnalysisFacade(this.analysisService),
+            analysisService: this.analysisService,
             inheritanceResolver: this.inheritanceResolver,
             host: this.host,
             seed,
@@ -367,13 +367,4 @@ export function createDefaultScopedMethodDiscoveryService(
             ?? new InheritanceResolver(dependencies.macroManager, dependencies.workspaceRoots),
         host: dependencies.host
     });
-}
-
-function createScopedTraversalAnalysisFacade(
-    analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>
-) {
-    return {
-        getSemanticSnapshot: (document: vscode.TextDocument, useCache: boolean = true) =>
-            analysisService.getSemanticSnapshot(document, useCache)
-    } as any;
 }

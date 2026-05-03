@@ -75,25 +75,7 @@ export class SimulatedEfunScanner {
     }
 
     public async configureSimulatedEfuns(): Promise<void> {
-        const workspaceRoot = this.getWorkspaceRoot();
-        if (!workspaceRoot || !this.projectConfigService) {
-            vscode.window.showErrorMessage('当前工作区缺少可写入的 lpc-support.json，无法配置模拟函数入口文件。');
-            return;
-        }
-
-        const selectedFile = await this.selectSimulatedEfunEntryFile();
-        if (!selectedFile) {
-            return;
-        }
-
-        const workspaceRelativePath = this.projectConfigService.toWorkspaceRelativePath(workspaceRoot, selectedFile.fsPath);
-        await this.projectConfigService.updateResolvedConfigForWorkspace(workspaceRoot, (resolvedConfig) => ({
-            ...resolvedConfig,
-            simulatedEfunFile: workspaceRelativePath
-        }));
-
-        await this.loadSimulatedEfuns();
-        vscode.window.showInformationMessage('模拟函数入口文件已更新');
+        vscode.window.showInformationMessage('模拟函数入口文件来自 config.hell 的 simulated efun file，请修改 lpc-support.json 的 configHellPath 或对应 driver 配置文件。');
     }
 
     public async loadSimulatedEfuns(): Promise<void> {
@@ -304,20 +286,6 @@ export class SimulatedEfunScanner {
 
     private getWorkspaceRoot(): string | undefined {
         return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    }
-
-    private async selectSimulatedEfunEntryFile(): Promise<vscode.Uri | undefined> {
-        const files = await vscode.window.showOpenDialog({
-            canSelectFiles: true,
-            canSelectFolders: false,
-            canSelectMany: false,
-            openLabel: '选择模拟函数入口文件',
-            filters: {
-                'LPC Files': ['c', 'h']
-            }
-        });
-
-        return files?.[0];
     }
 
     private buildLineStarts(content: string): number[] {

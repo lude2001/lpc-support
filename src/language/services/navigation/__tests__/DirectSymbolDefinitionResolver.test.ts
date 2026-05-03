@@ -65,8 +65,15 @@ function createSupport(overrides: Partial<ConstructorParameters<typeof Definitio
     };
     const resolvedHost = (overrides.host as any) ?? defaultHost;
     return new DefinitionResolverSupport({
-        astManager: {
+        analysisService: {
             getSemanticSnapshot: jest.fn(() => ({
+                includeStatements: [],
+                inheritStatements: [],
+                symbolTable: {
+                    getAllSymbols: () => []
+                }
+            })),
+            getBestAvailableSnapshot: jest.fn(() => ({
                 includeStatements: [],
                 inheritStatements: [],
                 symbolTable: {
@@ -110,7 +117,7 @@ function createAnalysisBackedSupport(
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     return createSupport({
         host,
-        astManager: {
+        analysisService: {
             getSemanticSnapshot: jest.fn((targetDocument: vscode.TextDocument) => {
                 const snapshot = analysisService.getSemanticSnapshot(targetDocument, false);
                 mutateSnapshot?.(targetDocument, snapshot);
@@ -278,8 +285,11 @@ describe('DirectSymbolDefinitionResolver', () => {
         const document = createDocument('D:/workspace/room.c', source);
         const analysisService = DocumentSemanticSnapshotService.getInstance();
         const support = createSupport({
-            astManager: {
+            analysisService: {
                 getSemanticSnapshot: jest.fn((targetDocument: vscode.TextDocument) =>
+                    analysisService.getSemanticSnapshot(targetDocument, false)
+                ),
+                getBestAvailableSnapshot: jest.fn((targetDocument: vscode.TextDocument) =>
                     analysisService.getSemanticSnapshot(targetDocument, false)
                 )
             } as any

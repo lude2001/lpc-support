@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { ASTManager } from '../../../ast/astManager';
 import type { DiagnosticContext, IDiagnosticCollector } from '../../../diagnostics/types';
 import type { ParsedDocument } from '../../../parser/types';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import type {
     LanguageDiagnostic,
     LanguageDiagnosticsAnalysis,
@@ -124,12 +124,14 @@ function toDiagnosticContext(
     };
 }
 
+type DiagnosticsAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
+
 function toLanguageDiagnosticsAnalysis(
-    astManager: ASTManager,
+    analysisService: DiagnosticsAnalysisService,
     document: { uri: string; version: number; getText(): string }
 ): LanguageDiagnosticsAnalysis & { parsed?: ParsedDocument } {
     const hostDocument = toHostDocument(document);
-    const analysis = astManager.parseDocument(hostDocument);
+    const analysis = analysisService.parseDocument(hostDocument);
 
     return {
         syntax: analysis.syntax as unknown as LanguageDiagnosticsAnalysis['syntax'],
@@ -159,12 +161,12 @@ function toLanguageDiagnosticsCollector(collector: IDiagnosticCollector): Langua
 }
 
 export function createSharedDiagnosticsService(
-    astManager: ASTManager,
+    analysisService: DiagnosticsAnalysisService,
     collectors: IDiagnosticCollector[]
 ): LanguageDiagnosticsService {
     return createLanguageDiagnosticsService({
         analyzeDocument: {
-            analyze: (document) => toLanguageDiagnosticsAnalysis(astManager, document)
+            analyze: (document) => toLanguageDiagnosticsAnalysis(analysisService, document)
         },
         collectors: collectors.map((collector) => toLanguageDiagnosticsCollector(collector))
     });

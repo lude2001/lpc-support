@@ -69,19 +69,8 @@ export class MacroManager {
     }
 
     public async setIncludePath(newPath: string): Promise<void> {
-        const workspaceRoot = this.getWorkspaceRoot();
-        if (!workspaceRoot || !this.projectConfigService) {
-            throw new Error('当前工作区缺少可写入的 lpc-support.json，无法保存宏目录。');
-        }
-
-        const workspaceRelativePath = this.projectConfigService.toWorkspaceRelativePath(workspaceRoot, newPath);
-        await this.projectConfigService.updateResolvedConfigForWorkspace(workspaceRoot, (resolvedConfig) => ({
-            ...resolvedConfig,
-            includeDirectories: [workspaceRelativePath]
-        }));
-        this.includePath = newPath;
-        await this.scanMacros();
-        this.setupFileWatcher();
+        void newPath;
+        throw new Error('宏定义目录来自 config.hell 的 include directories，请修改 driver 配置文件。');
     }
 
     public async scanMacros(progress?: vscode.Progress<{ message?: string }>) {
@@ -233,24 +222,7 @@ export class MacroManager {
     }
 
     public async configurePath(): Promise<void> {
-        const workspaceRoot = this.getWorkspaceRoot();
-        if (!workspaceRoot || !this.projectConfigService) {
-            vscode.window.showErrorMessage('当前工作区缺少可写入的 lpc-support.json，无法配置宏目录。');
-            return;
-        }
-
-        const currentPath = this.includePath || '';
-
-        const newPath = await vscode.window.showInputBox({
-            prompt: '设置写入 lpc-support.json 的宏定义包含目录路径',
-            value: currentPath,
-            placeHolder: '例如: /path/to/your/include'
-        });
-
-        if (newPath) {
-            await this.setIncludePath(newPath);
-            vscode.window.showInformationMessage(`已更新宏定义目录: ${newPath}`);
-        }
+        vscode.window.showInformationMessage('宏定义目录来自 config.hell 的 include directories，请修改 lpc-support.json 的 configHellPath 或对应 driver 配置文件。');
     }
 
     public getIncludePath(): string | undefined {

@@ -1,9 +1,10 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ASTManager } from '../ast/astManager';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import { ResolvedInheritTarget } from '../completion/types';
 import { assertTextDocumentHost, type TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
+import type { SemanticSnapshot } from '../semantic/semanticSnapshot';
 
 export type ResolvedScopedInheritTarget = ResolvedInheritTarget & {
     resolvedUri: string;
@@ -21,14 +22,14 @@ export interface ScopedBranchCollection<TItem> {
 }
 
 interface CollectScopedBranchItemsOptions<TItem> {
-    astManager: ASTManager;
+    analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     inheritanceResolver: InheritanceResolver;
     host?: Pick<TextDocumentHost, 'openTextDocument'>;
     seed: ResolvedScopedInheritTarget;
     visitedUris: Set<string>;
     collectFromDocument: (
         document: vscode.TextDocument,
-        snapshot: ReturnType<ASTManager['getSemanticSnapshot']>
+        snapshot: SemanticSnapshot
     ) => TItem[];
 }
 
@@ -78,7 +79,7 @@ export async function collectScopedBranchItems<TItem>(
     try {
         const host = assertTextDocumentHost('collectScopedBranchItems', options.host as TextDocumentHost | undefined);
         const document = await host.openTextDocument(vscode.Uri.parse(normalizedUri));
-        const snapshot = options.astManager.getSemanticSnapshot(document, false);
+        const snapshot = options.analysisService.getSemanticSnapshot(document, false);
         const items = options.collectFromDocument(document, snapshot);
         const nestedSeeds = resolveScopedDirectInheritSeeds(options.inheritanceResolver, snapshot);
 

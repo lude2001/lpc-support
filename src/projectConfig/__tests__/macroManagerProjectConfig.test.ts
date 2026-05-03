@@ -73,7 +73,7 @@ describe('MacroManager project config integration', () => {
         expect(manager.getAllMacros()).toEqual([]);
     });
 
-    test('configurePath persists includeDirectories into lpc-support.json instead of workspace settings', async () => {
+    test('configurePath points users to config.hell instead of persisting generated include facts', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-macro-configure-project-config-'));
         const includeDir = path.join(workspaceRoot, 'include');
         const configPath = path.join(workspaceRoot, 'lpc-support.json');
@@ -99,7 +99,8 @@ describe('MacroManager project config integration', () => {
         await manager.configurePath();
 
         const written = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        expect(written.resolved?.includeDirectories).toEqual([path.join('.', 'include')]);
+        expect(written.resolved).toBeUndefined();
+        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('config.hell'));
         expect(configUpdate).not.toHaveBeenCalled();
     });
 });

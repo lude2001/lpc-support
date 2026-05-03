@@ -76,7 +76,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         this.semanticAdapter = resolvedDependencies.semanticAdapter;
         this.scopedMethodResolver = resolvedDependencies.scopedMethodResolver;
         this.support = new DefinitionResolverSupport({
-            astManager: createDefinitionAnalysisFacade(analysisService),
+            analysisService,
             host: this.host,
             macroManager: this.macroManager,
             projectConfigService: this.projectConfigService,
@@ -177,15 +177,4 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
     ): LanguageLocation[] {
         return this.support.toLanguageLocations(result);
     }
-}
-
-function createDefinitionAnalysisFacade(
-    analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot' | 'getBestAvailableSnapshot'>
-) {
-    return {
-        getSemanticSnapshot: (document: vscode.TextDocument, useCache: boolean = true) =>
-            analysisService.getSemanticSnapshot(document, useCache),
-        getBestAvailableSnapshot: (document: vscode.TextDocument) =>
-            analysisService.getBestAvailableSnapshot(document)
-    } as any;
 }

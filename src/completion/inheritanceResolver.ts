@@ -10,7 +10,7 @@ export interface InheritanceIndexView {
     getResolvedInheritTargets(uri: string): ResolvedInheritTarget[];
 }
 
-type MacroLookup = Pick<MacroManager, 'getMacro' | 'getIncludePath'>;
+type MacroLookup = Pick<MacroManager, 'getMacro'>;
 type InheritanceSnapshot = Pick<SemanticSnapshot, 'uri' | 'inheritStatements'> & {
     macroDefinitions?: MacroDefinitionSummary[];
 };
@@ -95,10 +95,6 @@ export class InheritanceResolver {
                 candidates.add(path.normalize(path.resolve(workspaceRoot, normalizedFile)));
             }
 
-            const includePath = this.macroManager?.getIncludePath?.();
-            if (includePath) {
-                candidates.add(path.normalize(path.join(includePath, normalizedFile)));
-            }
         }
 
         return Array.from(candidates).find(candidate => fs.existsSync(candidate));

@@ -27,8 +27,7 @@ export class LpcProjectConfigService {
         workspaceRoot: string,
         config?: LpcProjectConfig
     ): Promise<LpcProjectConfig | undefined> {
-        const configPath = this.getProjectConfigPath(workspaceRoot);
-        const loadedConfig = config ?? await this.readConfigFile(configPath);
+        const loadedConfig = config ?? await this.readConfigFile(this.getProjectConfigPath(workspaceRoot));
 
         if (!loadedConfig) {
             return undefined;
@@ -36,27 +35,22 @@ export class LpcProjectConfigService {
 
         const configHellPath = this.resolveWorkspacePath(workspaceRoot, loadedConfig.configHellPath);
         if (!fs.existsSync(configHellPath)) {
-            return loadedConfig;
+            return this.toAuthoredProjectConfig(loadedConfig);
         }
 
         try {
             const source = await fs.promises.readFile(configHellPath, 'utf8');
             const resolved = parseConfigHell(source);
-            const hasResolvedChanged = !this.areResolvedConfigsEqual(loadedConfig.resolved, resolved);
-            if (!hasResolvedChanged) {
-                return loadedConfig;
-            }
-
+            const authoredConfig = this.toAuthoredProjectConfig(loadedConfig);
             const nextConfig: LpcProjectConfig = {
-                ...loadedConfig,
+                ...authoredConfig,
                 resolved,
                 lastSyncedAt: new Date().toISOString()
             };
 
-            await this.writeConfigFile(configPath, nextConfig);
             return nextConfig;
         } catch {
-            return loadedConfig;
+            return this.toAuthoredProjectConfig(loadedConfig);
         }
     }
 
@@ -67,7 +61,13 @@ export class LpcProjectConfigService {
 
         try {
             const raw = await fs.promises.readFile(configPath, 'utf8');
-            return JSON.parse(raw) as LpcProjectConfig;
+            const parsed = JSON.parse(raw) as LpcProjectConfig;
+            const authored = this.toAuthoredProjectConfig(parsed);
+            if (this.hasGeneratedProjectConfigFields(parsed)) {
+                await this.writeConfigFile(configPath, authored);
+            }
+
+            return authored;
         } catch {
             return undefined;
         }
@@ -75,7 +75,7 @@ export class LpcProjectConfigService {
 
     public async writeConfigFile(configPath: string, config: LpcProjectConfig): Promise<void> {
         await fs.promises.mkdir(path.dirname(configPath), { recursive: true });
-        await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2));
+        await fs.promises.writeFile(configPath, JSON.stringify(this.toAuthoredProjectConfig(config), null, 2));
     }
 
     public async ensureConfigForWorkspace(
@@ -141,20 +141,9 @@ export class LpcProjectConfigService {
         workspaceRoot: string,
         updater: (resolvedConfig: LpcResolvedConfig) => LpcResolvedConfig
     ): Promise<LpcProjectConfig | undefined> {
-        const configPath = this.getProjectConfigPath(workspaceRoot);
-        const existing = await this.readConfigFile(configPath);
-
-        if (!existing) {
-            return undefined;
-        }
-
-        const nextConfig: LpcProjectConfig = {
-            ...existing,
-            resolved: updater(existing.resolved ?? {})
-        };
-
-        await this.writeConfigFile(configPath, nextConfig);
-        return nextConfig;
+        void workspaceRoot;
+        void updater;
+        throw new Error('resolved project facts come from config.hell; update configHellPath or the driver config file instead.');
     }
 
     public async getResolvedForWorkspace(workspaceRoot: string): Promise<LpcResolvedConfig | undefined> {
@@ -296,10 +285,25 @@ export class LpcProjectConfigService {
         return /^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\');
     }
 
-    private areResolvedConfigsEqual(
-        left: LpcResolvedConfig | undefined,
-        right: LpcResolvedConfig | undefined
-    ): boolean {
-        return JSON.stringify(left ?? {}) === JSON.stringify(right ?? {});
+    private toAuthoredProjectConfig(config: LpcProjectConfig): LpcProjectConfig {
+        const authored: LpcProjectConfig = {
+            version: config.version,
+            configHellPath: config.configHellPath
+        };
+
+        if (config.playerObjectPath) {
+            authored.playerObjectPath = config.playerObjectPath;
+        }
+
+        if (config.compile) {
+            authored.compile = config.compile;
+        }
+
+        return authored;
+    }
+
+    private hasGeneratedProjectConfigFields(config: LpcProjectConfig): boolean {
+        return config.resolved !== undefined
+            || config.lastSyncedAt !== undefined;
     }
 }

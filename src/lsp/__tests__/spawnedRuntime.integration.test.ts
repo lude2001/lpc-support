@@ -325,11 +325,13 @@ describe('spawned LSP runtime integration', () => {
             path.join(workspaceRoot, 'lpc-support.json'),
             JSON.stringify({
                 version: 1,
-                configHellPath: 'config.hell',
-                resolved: {
-                    includeDirectories: ['include']
-                }
+                configHellPath: 'config.hell'
             }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'config.hell'),
+            'include directories : /include\n',
             'utf8'
         );
         fs.writeFileSync(headerPath, '#define USER_D "/adm/obj/user"\n', 'utf8');
@@ -369,11 +371,13 @@ describe('spawned LSP runtime integration', () => {
             path.join(workspaceRoot, 'lpc-support.json'),
             JSON.stringify({
                 version: 1,
-                configHellPath: 'config.hell',
-                resolved: {
-                    simulatedEfunFile: 'adm/simul_efun'
-                }
+                configHellPath: 'config.hell'
             }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'config.hell'),
+            'simulated efun file : /adm/simul_efun\n',
             'utf8'
         );
         fs.writeFileSync(

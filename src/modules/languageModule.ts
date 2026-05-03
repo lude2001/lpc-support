@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import { registerLpcCodeActionCommands } from '../codeActions';
 import { ServiceRegistry } from '../core/ServiceRegistry';
+import { Services } from '../core/ServiceKeys';
 
 export async function registerHostLanguageAffordances(
-    _registry: ServiceRegistry,
+    registry: ServiceRegistry,
     _context: vscode.ExtensionContext
 ): Promise<void> {
-    registerLpcCodeActionCommands();
+    registerLpcCodeActionCommands(registry.get(Services.Analysis));
 }
