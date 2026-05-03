@@ -1,8 +1,15 @@
 import * as vscode from 'vscode';
 import { CompletionContextAnalyzer } from '../completion/completionContextAnalyzer';
+import { clearGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 
 function createDocument(content: string): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
+    const lineStarts = [0];
+    for (let index = 0; index < content.length; index += 1) {
+        if (content[index] === '\n') {
+            lineStarts.push(index + 1);
+        }
+    }
 
     return {
         uri: vscode.Uri.file('/virtual/context-test.c'),
@@ -11,6 +18,19 @@ function createDocument(content: string): vscode.TextDocument {
         version: 1,
         lineCount: lines.length,
         getText: jest.fn(() => content),
+        offsetAt: jest.fn((position: vscode.Position) => lineStarts[position.line] + position.character),
+        positionAt: jest.fn((offset: number) => {
+            let line = 0;
+            for (let index = 0; index < lineStarts.length; index += 1) {
+                if (lineStarts[index] <= offset) {
+                    line = index;
+                } else {
+                    break;
+                }
+            }
+
+            return new vscode.Position(line, offset - lineStarts[line]);
+        }),
         lineAt: jest.fn((lineOrPosition: number | vscode.Position) => {
             const line = typeof lineOrPosition === 'number' ? lineOrPosition : lineOrPosition.line;
             return { text: lines[line] ?? '' };
@@ -20,6 +40,10 @@ function createDocument(content: string): vscode.TextDocument {
 
 describe('CompletionContextAnalyzer', () => {
     const analyzer = new CompletionContextAnalyzer();
+
+    afterEach(() => {
+        clearGlobalParsedDocumentService();
+    });
 
     test('classifies identifier, member, preprocessor, inherit/include path and type positions', () => {
         const document = createDocument([
@@ -118,6 +142,17 @@ describe('CompletionContextAnalyzer', () => {
         expect(groupedNamed.kind).toBe('scoped-member');
         expect(groupedNamed.currentWord).toBe('in');
         expect(groupedNamed.receiverExpression).toBe('room::');
+    });
+
+    test('uses the nearest token-backed member access receiver on lines with earlier arrows', () => {
+        const document = createDocument('foo->bar(); payload->qu');
+
+        const context = analyzer.analyze(document, new vscode.Position(0, 'foo->bar(); payload->qu'.length));
+
+        expect(context.kind).toBe('member');
+        expect(context.currentWord).toBe('qu');
+        expect(context.receiverChain).toEqual(['payload']);
+        expect(context.receiverExpression).toBeUndefined();
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

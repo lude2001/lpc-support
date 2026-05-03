@@ -44,7 +44,8 @@ function createDocument(fileName: string, content: string, version = 1): vscode.
             }
 
             return new vscode.Position(line, offset - lineStarts[line]);
-        })
+        }),
+        offsetAt: jest.fn((position: vscode.Position) => lineStarts[position.line] + position.character)
     } as unknown as vscode.TextDocument;
 }
 
@@ -248,6 +249,41 @@ describe('CompletionQueryEngine', () => {
                 detail: '"/lib/base"'
             })
         ]));
+    });
+
+    test('deduplicates legacy macro candidates when frontend macro facts already define the name', () => {
+        const childPath = path.join(root, 'dedupe-macro-room.c');
+        const childContent = [
+            '#define BASE_D "/lib/base"',
+            'inherit '
+        ].join('\n');
+        fs.writeFileSync(childPath, childContent, 'utf8');
+
+        const childDocument = createDocument(childPath, childContent);
+        const astManager = getAstManagerForTests();
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
+        const engine = new CompletionQueryEngine({
+            snapshotProvider: astManager,
+            projectSymbolIndex,
+            macroManager: {
+                getAllMacros: () => [
+                    { name: 'BASE_D', value: '"/legacy/base"' },
+                    { name: 'ROOM_D', value: '"/lib/room"' }
+                ] as any[]
+            } as any
+        });
+
+        const result = engine.query(
+            childDocument,
+            new vscode.Position(1, 'inherit '.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+        const baseCandidates = result.candidates.filter(candidate => candidate.label === 'BASE_D');
+
+        expect(baseCandidates).toHaveLength(1);
+        expect(baseCandidates[0].detail).toBe('"/lib/base"');
+        expect(result.candidates.map(candidate => candidate.label)).toContain('ROOM_D');
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

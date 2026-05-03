@@ -1,7 +1,11 @@
 ﻿import * as vscode from 'vscode';
+import { Token } from 'antlr4ts';
+import { LPCParser } from '../antlr/LPCParser';
 import { CompletionQueryContext } from './types';
 import { FrontendCursorContextService } from '../frontend/FrontendCursorContextService';
 import { getGlobalLpcFrontendService } from '../frontend/LpcFrontendService';
+import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
+import type { ParsedDocument } from '../parser/types';
 
 const TYPE_KEYWORDS = new Set(['void', 'int', 'string', 'object', 'mapping', 'mixed', 'float', 'buffer', 'struct', 'class']);
 const MODIFIERS = new Set(['private', 'protected', 'public', 'static', 'nomask', 'varargs']);
@@ -19,10 +23,15 @@ interface ScopedContext {
 
 export class CompletionContextAnalyzer {
     private readonly frontendCursorContext: FrontendCursorContextService;
+    private readonly parsedDocumentService: { get(document: vscode.TextDocument): ParsedDocument };
 
-    public constructor(frontendCursorContext?: FrontendCursorContextService) {
+    public constructor(
+        frontendCursorContext?: FrontendCursorContextService,
+        parsedDocumentService?: { get(document: vscode.TextDocument): ParsedDocument }
+    ) {
         this.frontendCursorContext = frontendCursorContext
             ?? new FrontendCursorContextService(getGlobalLpcFrontendService());
+        this.parsedDocumentService = parsedDocumentService ?? getGlobalParsedDocumentService();
     }
 
     public analyze(document: vscode.TextDocument, position: vscode.Position): CompletionQueryContext {
@@ -71,7 +80,7 @@ export class CompletionContextAnalyzer {
             };
         }
 
-        const receiverContext = this.extractReceiverContext(linePrefix);
+        const receiverContext = this.extractReceiverContext(document, position, linePrefix);
         if (receiverContext.receiverChain.length > 0 || receiverContext.receiverExpression) {
             return {
                 kind: 'member',
@@ -232,7 +241,16 @@ export class CompletionContextAnalyzer {
         return stack;
     }
 
-    private extractReceiverContext(linePrefix: string): ReceiverContext {
+    private extractReceiverContext(
+        document: vscode.TextDocument,
+        position: vscode.Position,
+        linePrefix: string
+    ): ReceiverContext {
+        const tokenBackedContext = this.extractTokenBackedReceiverContext(document, position);
+        if (tokenBackedContext) {
+            return tokenBackedContext;
+        }
+
         const match = linePrefix.match(/(.+)\s*->\s*[A-Za-z0-9_]*$/);
         if (!match) {
             return { receiverChain: [] };
@@ -253,6 +271,57 @@ export class CompletionContextAnalyzer {
             receiverChain: [],
             receiverExpression
         };
+    }
+
+    private extractTokenBackedReceiverContext(
+        document: vscode.TextDocument,
+        position: vscode.Position
+    ): ReceiverContext | undefined {
+        const parsed = this.safeGetParsedDocument(document);
+        if (!parsed) {
+            return undefined;
+        }
+
+        const cursorOffset = document.offsetAt(position);
+        const arrowTokenIndex = findLastTokenIndexBeforeOffset(
+            parsed.visibleTokens,
+            '->',
+            cursorOffset,
+            position.line + 1
+        );
+        if (arrowTokenIndex < 0) {
+            return undefined;
+        }
+
+        const receiverStartTokenIndex = findReceiverStartTokenIndex(parsed.visibleTokens, arrowTokenIndex);
+        if (receiverStartTokenIndex < 0 || receiverStartTokenIndex >= arrowTokenIndex) {
+            return undefined;
+        }
+
+        const arrowToken = parsed.visibleTokens[arrowTokenIndex];
+        const receiverTokens = parsed.visibleTokens.slice(receiverStartTokenIndex, arrowTokenIndex);
+        const receiverExpression = parsed.text.slice(receiverTokens[0].startIndex, arrowToken.startIndex).trim();
+        if (!receiverExpression) {
+            return undefined;
+        }
+
+        const receiverChain = buildSimpleReceiverChain(receiverTokens);
+        if (receiverChain.length > 0) {
+            return { receiverChain };
+        }
+
+        return {
+            receiverChain: [],
+            receiverExpression
+        };
+    }
+
+    private safeGetParsedDocument(document: vscode.TextDocument): ParsedDocument | undefined {
+        try {
+            return this.parsedDocumentService.get(document);
+        } catch {
+            return undefined;
+        }
     }
 
     private isPreprocessorContext(trimmedPrefix: string): boolean {
@@ -294,4 +363,106 @@ export class CompletionContextAnalyzer {
 
         return token === 'class' || token === 'struct';
     }
+}
+
+function findLastTokenIndexBeforeOffset(
+    tokens: readonly Token[],
+    tokenText: string,
+    offset: number,
+    line: number
+): number {
+    for (let index = tokens.length - 1; index >= 0; index -= 1) {
+        const token = tokens[index];
+        if (token.startIndex >= offset) {
+            continue;
+        }
+
+        if (token.line === line && token.text === tokenText) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+function findReceiverStartTokenIndex(tokens: readonly Token[], arrowTokenIndex: number): number {
+    let depth = 0;
+    const arrowLine = tokens[arrowTokenIndex].line;
+
+    for (let index = arrowTokenIndex - 1; index >= 0; index -= 1) {
+        const tokenText = tokens[index].text ?? '';
+
+        if (depth === 0 && tokens[index].line < arrowLine) {
+            return index + 1;
+        }
+
+        if (isClosingDelimiter(tokenText)) {
+            depth += 1;
+            continue;
+        }
+
+        if (isOpeningDelimiter(tokenText)) {
+            if (depth > 0) {
+                depth -= 1;
+                continue;
+            }
+
+            return index + 1;
+        }
+
+        if (depth === 0 && isReceiverBoundary(tokens[index])) {
+            return index + 1;
+        }
+    }
+
+    return 0;
+}
+
+function buildSimpleReceiverChain(tokens: readonly Token[]): string[] {
+    const chain: string[] = [];
+    let expectIdentifier = true;
+
+    for (const token of tokens) {
+        if (expectIdentifier) {
+            if (token.type !== LPCParser.Identifier || !token.text) {
+                return [];
+            }
+
+            chain.push(token.text);
+            expectIdentifier = false;
+            continue;
+        }
+
+        if (token.text !== '->') {
+            return [];
+        }
+        expectIdentifier = true;
+    }
+
+    return expectIdentifier ? [] : chain;
+}
+
+function isReceiverBoundary(token: Token): boolean {
+    const tokenText = token.text ?? '';
+    return tokenText === ';'
+        || tokenText === ','
+        || tokenText === '{'
+        || tokenText === '}'
+        || tokenText === '='
+        || tokenText === '?'
+        || tokenText === ':'
+        || token.type === LPCParser.RETURN
+        || token.type === LPCParser.IF
+        || token.type === LPCParser.WHILE
+        || token.type === LPCParser.FOR
+        || token.type === LPCParser.FOREACH
+        || token.type === LPCParser.SWITCH;
+}
+
+function isOpeningDelimiter(tokenText: string): boolean {
+    return tokenText === '(' || tokenText === '[';
+}
+
+function isClosingDelimiter(tokenText: string): boolean {
+    return tokenText === ')' || tokenText === ']';
 }
