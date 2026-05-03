@@ -125,6 +125,26 @@ describe('SyntaxBuilder', () => {
         expect(alphaNodes[1].range.start.character).toBeLessThan(alphaNodes[2].range.start.character);
     });
 
+    test('represents preprocessor directives as syntax nodes from frontend facts', () => {
+        const source = [
+            '#include <globals.h>',
+            '#define FOO 1',
+            '#ifdef FOO',
+            'void create() {}',
+            '#endif'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/preprocessor-syntax.c');
+        const syntaxDocument = new SyntaxBuilder(getGlobalParsedDocumentService().get(document)).build();
+
+        expect(syntaxDocument.root.children.map((node) => node.kind)).toEqual([
+            SyntaxKind.PreprocessorIncludeDirective,
+            SyntaxKind.MacroDefinitionDirective,
+            SyntaxKind.ConditionalDirective,
+            SyntaxKind.FunctionDeclaration,
+            SyntaxKind.ConditionalDirective
+        ]);
+    });
+
     test('falls back to an opaque scope identifier node for malformed scoped syntax', () => {
         const source = [
             'void demo() {',

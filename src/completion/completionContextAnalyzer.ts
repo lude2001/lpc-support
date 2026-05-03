@@ -1,5 +1,7 @@
 ﻿import * as vscode from 'vscode';
 import { CompletionQueryContext } from './types';
+import { FrontendCursorContextService } from '../frontend/FrontendCursorContextService';
+import { getGlobalLpcFrontendService } from '../frontend/LpcFrontendService';
 
 const TYPE_KEYWORDS = new Set(['void', 'int', 'string', 'object', 'mapping', 'mixed', 'float', 'buffer', 'struct', 'class']);
 const MODIFIERS = new Set(['private', 'protected', 'public', 'static', 'nomask', 'varargs']);
@@ -16,16 +18,33 @@ interface ScopedContext {
 }
 
 export class CompletionContextAnalyzer {
+    private readonly frontendCursorContext: FrontendCursorContextService;
+
+    public constructor(frontendCursorContext?: FrontendCursorContextService) {
+        this.frontendCursorContext = frontendCursorContext
+            ?? new FrontendCursorContextService(getGlobalLpcFrontendService());
+    }
+
     public analyze(document: vscode.TextDocument, position: vscode.Position): CompletionQueryContext {
         const lineText = document.lineAt(position).text;
         const linePrefix = lineText.slice(0, position.character);
         const documentPrefix = this.extractDocumentPrefix(document, position);
         const trimmedPrefix = linePrefix.trimLeft();
         const currentWord = this.extractCurrentWord(linePrefix);
+        const frontendContext = this.frontendCursorContext.analyze(document, position);
 
-        if (this.isIncludePathContext(trimmedPrefix)) {
+        if (frontendContext.kind === 'include-path' || this.isIncludePathContext(trimmedPrefix)) {
             return {
                 kind: 'include-path',
+                receiverChain: [],
+                currentWord,
+                linePrefix
+            };
+        }
+
+        if (frontendContext.kind === 'preprocessor') {
+            return {
+                kind: 'preprocessor',
                 receiverChain: [],
                 currentWord,
                 linePrefix

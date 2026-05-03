@@ -2,6 +2,26 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.46.1] - 2026-05-03
+
+### 真实项目验证
+
+- 使用 `D:\code\shuiyuzhengfeng_lpc` 做真实 mudlib smoke 验证，覆盖 `adm/simul_efun/message.c`、HTTP controller、条件编译 header、simulated efun util 和 `cmds/std/look.c`。
+- 批量验证 `external_system_package/http/controller` 下 10 个包含 `RequestType(` 的真实 controller，确认不再出现宏调用导致的语法误报。
+- 验证 `include/runtime_config.h` 与 `adm/simul_efun/util.c` 等条件编译文件，确认关闭分支不会干扰正常诊断。
+- 更新 README，补充真实项目验证范围。
+
+## [0.46.0] - 2026-05-03
+
+### 预处理与宏支持
+
+- 改进 `#include`、`#define`、`#undef`、`#if`、`#ifdef`、`#ifndef`、`#elif`、`#else`、`#endif` 等预处理写法的识别。
+- `#if 0` 和未启用的条件编译分支不再产生语法诊断。
+- 修复 `RequestType(pay_add,"POST")` 后接 `public mapping ...` 这类合法 HTTP controller 写法的语法误报。
+- 宏补全、宏悬停、宏定义跳转和语义高亮更准确，不再仅按大写命名猜测宏。
+- 格式化会保留 `#include "..." // comment` 这类预处理行和行尾注释，缺失 include 的警告不会阻断格式化。
+- 变量查看面板更准确地展示当前文件变量。
+
 ## [0.45.9] - 2026-04-29
 
 ### Macro-Backed HTTP Controller Diagnostic Fix

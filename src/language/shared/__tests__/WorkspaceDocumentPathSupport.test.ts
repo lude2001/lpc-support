@@ -73,6 +73,41 @@ describe('WorkspaceDocumentPathSupport', () => {
         expect(support.resolveObjectFilePath(document, 'relative_room')).toBeUndefined();
     });
 
+    test('prefers frontend macro facts before legacy macro manager lookup', () => {
+        const workspaceRoot = 'D:/workspace';
+        const document = createDocument('D:/workspace/obj/room.c');
+        const legacyMacroLookup = jest.fn();
+        const support = new WorkspaceDocumentPathSupport({
+            host: {
+                openTextDocument: jest.fn(),
+                fileExists: jest.fn((candidate: string) => candidate.replace(/\\/g, '/') === 'D:/workspace/std/frontend_room.c'),
+                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
+            },
+            analysisService: {
+                getSemanticSnapshot: jest.fn(() => ({
+                    macroDefinitions: [{
+                        name: 'ROOM_BASE',
+                        value: '"/std/frontend_room"',
+                        range: new vscode.Range(0, 0, 0, 0),
+                        isFunctionLike: false,
+                        sourceUri: document.uri.toString()
+                    }]
+                }))
+            } as any,
+            macroManager: {
+                getMacro: legacyMacroLookup
+            } as any
+        });
+
+        expect(support.resolveInheritedFilePath(document, 'ROOM_BASE', workspaceRoot)?.replace(/\\/g, '/')).toBe(
+            'D:/workspace/std/frontend_room.c'
+        );
+        expect(support.resolveObjectFilePath(document, 'ROOM_BASE')?.replace(/\\/g, '/')).toBe(
+            'D:/workspace/std/frontend_room.c'
+        );
+        expect(legacyMacroLookup).not.toHaveBeenCalled();
+    });
+
     test('resolves system include paths from project configuration first', async () => {
         const workspaceRoot = 'D:/workspace';
         const document = createDocument('D:/workspace/obj/room.c');

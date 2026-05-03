@@ -227,5 +227,49 @@ describe('SemanticModelBuilder', () => {
         expect(snapshot.exportedFunctions.map((item) => item.name)).toEqual(['demo']);
         expect(snapshot.symbolTable.findSymbol('demo')?.range.start.line).toBe(0);
     });
+
+    test('surfaces preprocessor include directives and macro references from frontend facts', () => {
+        const source = [
+            '#include <globals.h>',
+            '#define OBJECT_PATH "/std/object"',
+            '',
+            'inherit OBJECT_PATH;',
+            'void create() {}'
+        ].join('\n');
+        const snapshot = buildSemanticSnapshot(source, '/virtual/preprocessor-facts.c');
+
+        expect(snapshot.includeStatements).toEqual([
+            expect.objectContaining({
+                rawText: '#include <globals.h>',
+                value: 'globals.h',
+                isSystemInclude: true
+            })
+        ]);
+        expect(snapshot.macroReferences).toEqual([
+            expect.objectContaining({
+                name: 'OBJECT_PATH',
+                resolvedValue: '"/std/object"',
+                range: expect.any(vscode.Range)
+            })
+        ]);
+    });
+
+    test('builds semantic facts from expanded whole-line function-like macros', () => {
+        const source = [
+            '#define RequestType(f_name,http_type) string f_name##_request_type = http_type;',
+            'RequestType(pay_add,"POST")',
+            'public mapping pay_add() { return ([]); }'
+        ].join('\n');
+        const snapshot = buildSemanticSnapshot(source, '/virtual/request-type-macro.c');
+
+        expect(snapshot.parseDiagnostics).toHaveLength(0);
+        expect(snapshot.fileGlobals).toEqual([
+            expect.objectContaining({
+                name: 'pay_add_request_type',
+                dataType: 'string'
+            })
+        ]);
+        expect(snapshot.exportedFunctions.map((item) => item.name)).toEqual(['pay_add']);
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

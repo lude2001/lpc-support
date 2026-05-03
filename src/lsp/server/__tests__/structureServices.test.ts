@@ -167,7 +167,13 @@ describe('shared structure services', () => {
                     }
                 },
                 snapshot: {
-                    symbolTable
+                    symbolTable,
+                    macroReferences: [
+                        {
+                            name: 'PAYLOAD_MAX',
+                            range: new vscode.Range(0, 28, 0, 39)
+                        }
+                    ]
                 }
             })
         };
@@ -251,6 +257,49 @@ describe('shared structure services', () => {
             new vscode.Position(0, 20)
         );
         expect(analysisService.parseDocument).toHaveBeenCalledWith(document as any);
+    });
+
+    test('DefaultLanguageSemanticTokensService does not classify uppercase identifiers as macros without macro facts', async () => {
+        const document = createDocument('int HP = 1;');
+        const symbolTable = {
+            findSymbol: jest.fn((name: string) => {
+                if (name === 'HP') {
+                    return { type: SymbolType.VARIABLE };
+                }
+                return undefined;
+            })
+        };
+        const analysisService = {
+            parseDocument: jest.fn().mockReturnValue({
+                parsed: {
+                    tokens: {
+                        fill: jest.fn(),
+                        getTokens: () => [
+                            createToken(LPCLexer.KW_INT, 'int', 1, 0),
+                            createToken(LPCLexer.Identifier, 'HP', 1, 4),
+                            createToken(LPCLexer.ASSIGN, '=', 1, 7),
+                            createToken(LPCLexer.INTEGER, '1', 1, 9)
+                        ]
+                    }
+                },
+                snapshot: {
+                    symbolTable,
+                    macroReferences: []
+                }
+            })
+        };
+
+        const service = new DefaultLanguageSemanticTokensService(analysisService as any);
+        const result = await service.provideSemanticTokens({
+            context: createCapabilityContext(document)
+        });
+
+        expect(result.tokens).toEqual([
+            { line: 0, startCharacter: 0, length: 3, tokenType: 'type' },
+            { line: 0, startCharacter: 4, length: 2, tokenType: 'variable' },
+            { line: 0, startCharacter: 7, length: 1, tokenType: 'operator' },
+            { line: 0, startCharacter: 9, length: 1, tokenType: 'number' }
+        ]);
     });
 
     test('DefaultLanguageSemanticTokensService emits comment tokens from hidden-channel lexer output', async () => {

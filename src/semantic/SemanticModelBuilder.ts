@@ -6,6 +6,8 @@ import {
     FunctionSummary,
     IncludeDirective,
     InheritDirective,
+    MacroDefinitionSummary,
+    MacroReference,
     ScopeSummary,
     TypeDefinitionSummary
 } from './documentSemanticTypes';
@@ -30,7 +32,7 @@ export class SemanticModelBuilder {
         this.symbolTable = new SymbolTable(syntaxDocument.uri);
         this.inheritStatements = [];
         this.includeStatements = [];
-        this.lineStartOffsets = buildLineStartOffsets(syntaxDocument.parsed.text);
+        this.lineStartOffsets = buildLineStartOffsets(syntaxDocument.parsed.parseText);
 
         this.visitChildren(syntaxDocument.root, {});
         const fileGlobals = this.collectFileGlobals();
@@ -47,8 +49,9 @@ export class SemanticModelBuilder {
             typeDefinitions: this.collectTypeDefinitions(),
             fileGlobals,
             inheritStatements: [...this.inheritStatements],
-            includeStatements: [...this.includeStatements],
-            macroReferences: [],
+            includeStatements: this.collectIncludeStatements(),
+            macroDefinitions: this.collectMacroDefinitions(),
+            macroReferences: this.collectMacroReferences(),
             symbolTable: this.symbolTable,
             createdAt: Date.now()
         };
@@ -446,6 +449,37 @@ export class SemanticModelBuilder {
             }));
     }
 
+    private collectIncludeStatements(): IncludeDirective[] {
+        const preprocessorIncludes = this.syntaxDocument.parsed.frontend?.preprocessor.includeReferences.map((include) => ({
+            rawText: include.rawText.trim(),
+            value: include.value,
+            range: include.range,
+            isSystemInclude: include.isSystemInclude,
+            resolvedUri: include.resolvedUri
+        })) ?? [];
+
+        return [...this.includeStatements, ...preprocessorIncludes];
+    }
+
+    private collectMacroReferences(): MacroReference[] {
+        return this.syntaxDocument.parsed.frontend?.preprocessor.macroReferences.map((reference) => ({
+            name: reference.name,
+            range: reference.range,
+            resolvedValue: reference.resolved?.replacement
+        })) ?? [];
+    }
+
+    private collectMacroDefinitions(): MacroDefinitionSummary[] {
+        return this.syntaxDocument.parsed.frontend?.preprocessor.macros.map((macro) => ({
+            name: macro.name,
+            value: macro.replacement,
+            range: macro.range,
+            parameters: macro.parameters,
+            isFunctionLike: macro.isFunctionLike,
+            sourceUri: this.syntaxDocument.uri
+        })) ?? [];
+    }
+
     private toFunctionSummary(symbol: Symbol): FunctionSummary {
         return {
             name: symbol.name,
@@ -679,7 +713,7 @@ export class SemanticModelBuilder {
     }
 
     private getNodeText(node: SyntaxNode): string {
-        const text = this.syntaxDocument.parsed.text;
+        const text = this.syntaxDocument.parsed.parseText;
         const startOffset = this.offsetAt(node.range.start);
         const endOffset = this.offsetAt(node.range.end);
 

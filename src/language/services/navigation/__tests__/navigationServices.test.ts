@@ -658,6 +658,39 @@ describe('navigation services', () => {
         });
     });
 
+    test('unified hover service resolves local frontend macro hovers without MacroManager', async () => {
+        const source = [
+            '#define LOCAL_PATH "/std/room.c"',
+            'inherit LOCAL_PATH;'
+        ].join('\n');
+        const document = createVsCodeTextDocument('D:/workspace/local_macro.c', source);
+        const macroManager = {
+            getMacro: jest.fn(() => undefined),
+            getMacroHoverContent: jest.fn(),
+            canResolveMacro: jest.fn(async () => false)
+        };
+        const service: LanguageHoverService = new UnifiedLanguageHoverService(
+            {
+                provideHover: jest.fn(async () => undefined)
+            },
+            macroManager as any,
+            {
+                analysisService,
+                efunHoverService: {
+                    provideHover: jest.fn(async () => undefined)
+                }
+            }
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document as any),
+            position: { line: 1, character: 10 }
+        });
+
+        expect(hover?.contents[0].value).toContain('#define LOCAL_PATH "/std/room.c"');
+        expect(macroManager.getMacro).not.toHaveBeenCalled();
+    });
+
     test('unified hover service falls back to efun docs when macro and object hovers do not resolve', async () => {
         const document = createDocument('allocate');
         const service: LanguageHoverService = new UnifiedLanguageHoverService(

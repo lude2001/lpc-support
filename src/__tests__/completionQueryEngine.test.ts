@@ -217,5 +217,37 @@ describe('CompletionQueryEngine', () => {
         );
         expect(cancelled.candidates).toEqual([]);
     });
+
+    test('returns local frontend macro definitions for path completion without MacroManager', () => {
+        const childPath = path.join(root, 'macro-room.c');
+        const childContent = [
+            '#define BASE_D "/lib/base"',
+            'inherit BA'
+        ].join('\n');
+        fs.writeFileSync(childPath, childContent, 'utf8');
+
+        const childDocument = createDocument(childPath, childContent);
+        const astManager = getAstManagerForTests();
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver(undefined, [root]));
+        const engine = new CompletionQueryEngine({
+            snapshotProvider: astManager,
+            projectSymbolIndex
+        });
+
+        const result = engine.query(
+            childDocument,
+            new vscode.Position(1, 'inherit BA'.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        expect(result.context.kind).toBe('inherit-path');
+        expect(result.candidates).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                label: 'BASE_D',
+                detail: '"/lib/base"'
+            })
+        ]));
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

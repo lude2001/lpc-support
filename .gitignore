@@ -56,6 +56,7 @@ test-output*
 *-formatted.c
 *-comparison*.txt
 .spec-workflow
+docs/superpowers/
 test/lpc_code/
 .worktrees/
 .agents/

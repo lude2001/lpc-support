@@ -1,9 +1,12 @@
 import * as vscode from 'vscode';
 import type { MacroManager } from '../../../macroManager';
+import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
+import type { MacroDefinitionSummary } from '../../../semantic/documentSemanticTypes';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
 
 interface UnifiedLanguageHoverServiceDependencies {
     efunHoverService: LanguageHoverService;
+    analysisService?: DocumentAnalysisService;
 }
 
 export class UnifiedLanguageHoverService implements LanguageHoverService {
@@ -12,7 +15,7 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
     public constructor(
         private readonly objectHoverService: LanguageHoverService,
         private readonly macroManager: MacroManager,
-        dependencies: UnifiedLanguageHoverServiceDependencies
+        private readonly dependencies: UnifiedLanguageHoverServiceDependencies
     ) {
         if (!dependencies.efunHoverService) {
             throw new Error('UnifiedLanguageHoverService requires an injected efun hover service');
@@ -47,8 +50,12 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
         }
 
         const word = document.getText(range);
-        if (!/^[A-Z][A-Z0-9_]*_D$/.test(word)) {
-            return undefined;
+        const localMacro = this.findFrontendMacro(document, word);
+        if (localMacro) {
+            return {
+                contents: [this.renderFrontendMacroHover(localMacro)],
+                range: toLanguageHoverRange(range)
+            };
         }
 
         const macro = this.macroManager.getMacroAsync
@@ -74,6 +81,33 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
                 }
             ],
             range: toLanguageHoverRange(range)
+        };
+    }
+
+    private findFrontendMacro(document: vscode.TextDocument, word: string): MacroDefinitionSummary | undefined {
+        const snapshot = this.getFrontendSnapshot(document);
+        return snapshot?.macroDefinitions?.find((macro) => macro.name === word);
+    }
+
+    private getFrontendSnapshot(document: vscode.TextDocument) {
+        try {
+            return this.dependencies.analysisService?.getBestAvailableSnapshot(document);
+        } catch {
+            return undefined;
+        }
+    }
+
+    private renderFrontendMacroHover(macro: MacroDefinitionSummary): { kind: 'markdown'; value: string } {
+        const parameters = macro.parameters ? `(${macro.parameters.join(', ')})` : '';
+        const value = [
+            '```lpc',
+            `#define ${macro.name}${parameters}${macro.value ? ` ${macro.value}` : ''}`,
+            '```'
+        ].join('\n');
+
+        return {
+            kind: 'markdown',
+            value
         };
     }
 }

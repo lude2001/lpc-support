@@ -310,7 +310,7 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
         const text = token.text ?? '';
         const lowerText = text.toLowerCase();
 
-        if (/^[A-Z_][A-Z0-9_]*$/.test(text)) {
+        if (this.isMacroReference(token, snapshot)) {
             return TOKEN_TYPES.macro;
         }
 
@@ -335,6 +335,19 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
         }
 
         return this.getContextualIdentifierType(tokenIndex, tokens);
+    }
+
+    private isMacroReference(token: Token, snapshot: DocumentSemanticSnapshot): boolean {
+        const text = token.text ?? '';
+        if (!Array.isArray(snapshot.macroReferences) || !text) {
+            return false;
+        }
+
+        return snapshot.macroReferences.some((reference) => (
+            reference.name === text
+            && reference.range.start.line === token.line - 1
+            && reference.range.start.character === token.charPositionInLine
+        ));
     }
 
     private getContextualIdentifierType(tokenIndex: number, tokens: Token[]): string {

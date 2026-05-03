@@ -10,7 +10,8 @@ export function registerDiagnostics(registry: ServiceRegistry, context: vscode.E
     const { diagnosticsService } = createDiagnosticsStack(macroManager, analysisService);
     const diagnostics = new DiagnosticsOrchestrator(context, {
         diagnosticsService,
-        textDocumentHost
+        textDocumentHost,
+        analysisService
     });
     registry.register(Services.Diagnostics, diagnostics);
     registry.track(diagnostics);

@@ -29,7 +29,7 @@ export class FormattingService {
             maskedSource.maskedText,
             'document'
         );
-        if (parsed.diagnostics.length > 0) {
+        if (hasBlockingDiagnostics(parsed)) {
             return [];
         }
         if (!this.canBuildFormatModel(parsed)) {
@@ -54,7 +54,7 @@ export class FormattingService {
             document.getText(),
             `range-${range.start.line}-${range.start.character}-${range.end.line}-${range.end.character}`
         );
-        if (parsed.diagnostics.length > 0) {
+        if (hasBlockingDiagnostics(parsed)) {
             return [];
         }
 
@@ -150,11 +150,11 @@ export class FormattingService {
         cacheKey: string
     ): ReturnType<ReturnType<typeof getGlobalParsedDocumentService>['get']> {
         const parsed = getGlobalParsedDocumentService().get(document);
-        if (parsed.diagnostics.length === 0) {
+        if (!hasBlockingDiagnostics(parsed)) {
             return parsed;
         }
 
-        const recoveredParsed = this.tryRecoverForeachRefParsed(document, source, parsed.diagnostics, cacheKey);
+        const recoveredParsed = this.tryRecoverForeachRefParsed(document, source, getBlockingDiagnostics(parsed), cacheKey);
         return recoveredParsed ?? parsed;
     }
 
@@ -209,7 +209,7 @@ export class FormattingService {
         const maskedSource = maskDelimitedTextBlocks(source);
         const formattingDocument = this.createSyntheticDocument(document, maskedSource.maskedText, cacheKey);
         const parsed = getGlobalParsedDocumentService().get(formattingDocument);
-        if (parsed.diagnostics.length > 0 || !this.canBuildFormatModel(parsed)) {
+        if (hasBlockingDiagnostics(parsed) || !this.canBuildFormatModel(parsed)) {
             return null;
         }
 
@@ -294,7 +294,23 @@ export class FormattingService {
 
     private isStandaloneDefineMacro(source: string): boolean {
         const trimmedSource = source.trim();
-        return trimmedSource.startsWith('#define') && !/[\r\n]/.test(trimmedSource);
+        if (!trimmedSource.startsWith('#define')) {
+            return false;
+        }
+
+        const lines = trimmedSource.split(/\r?\n/);
+        let index = 0;
+        while (index < lines.length) {
+            const line = lines[index];
+            if (index === 0 || lines[index - 1].trimEnd().endsWith('\\')) {
+                index += 1;
+                continue;
+            }
+
+            return lines.slice(index).every((remainingLine) => remainingLine.trim().length === 0);
+        }
+
+        return true;
     }
 
     private tryRecoverForeachRefParsed(
@@ -472,4 +488,12 @@ function findClosingParenIndex(text: string, openParenIndex: number): number {
     }
 
     return -1;
+}
+
+function getBlockingDiagnostics(parsed: Pick<ParsedDocument, 'diagnostics'>): vscode.Diagnostic[] {
+    return parsed.diagnostics.filter((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Error);
+}
+
+function hasBlockingDiagnostics(parsed: Pick<ParsedDocument, 'diagnostics'>): boolean {
+    return getBlockingDiagnostics(parsed).length > 0;
 }

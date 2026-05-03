@@ -82,5 +82,41 @@ describe('ParsedDocumentService', () => {
 
         expect(parsed.diagnostics).toHaveLength(0);
     });
+
+    test('does not report parser diagnostics from inactive preprocessor branches', () => {
+        const service = new ParsedDocumentService({ cleanupInterval: 0, enableMonitoring: true });
+        const document = createDocument([
+            '#if 0',
+            'void broken() {',
+            '    else',
+            '}',
+            '#endif',
+            'void create() {',
+            '    return;',
+            '}'
+        ].join('\n'), '/virtual/inactive-branch.c');
+
+        const parsed = service.get(document);
+
+        expect(parsed.diagnostics).toHaveLength(0);
+        expect(parsed.frontend?.preprocessor.inactiveRanges).toHaveLength(1);
+    });
+
+    test('reports preprocessor diagnostics through parsed document diagnostics', () => {
+        const service = new ParsedDocumentService({ cleanupInterval: 0, enableMonitoring: true });
+        const document = createDocument([
+            '#ifdef MISSING',
+            'void create() {}'
+        ].join('\n'), '/virtual/unclosed-preprocessor.c');
+
+        const parsed = service.get(document);
+
+        expect(parsed.diagnostics).toEqual([
+            expect.objectContaining({
+                source: 'LPC Preprocessor',
+                code: 'preprocessor.unclosedConditional'
+            })
+        ]);
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

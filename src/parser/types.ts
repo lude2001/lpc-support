@@ -1,6 +1,7 @@
 import { CommonTokenStream, Token } from 'antlr4ts';
 import * as vscode from 'vscode';
 import { LPCParser } from '../antlr/LPCParser';
+import { LpcFrontendSnapshot } from '../frontend/types';
 
 export type LayoutTriviaSource = 'lexer-hidden-channel';
 export type TriviaKind = 'whitespace' | 'newline' | 'line-comment' | 'block-comment' | 'directive';
@@ -26,6 +27,8 @@ export interface ParsedDocument {
     uri: string;
     version: number;
     text: string;
+    parseText: string;
+    frontend?: LpcFrontendSnapshot;
     tokenStream: CommonTokenStream;
     tokens: CommonTokenStream;
     allTokens: Token[];

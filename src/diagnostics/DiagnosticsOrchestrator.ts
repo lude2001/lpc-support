@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { DiagnosticCollectionOptions } from './types';
-import { VariableAnalyzer } from './analyzers/VariableAnalyzer';
 import { VariableInspectorPanel } from './VariableInspectorPanel';
 import { FolderScanner } from './FolderScanner';
 import { toVsCodeDiagnostics } from '../language/adapters/vscode/diagnosticsAdapter';
@@ -11,19 +10,12 @@ import type {
     LanguageDiagnosticsRequest,
     LanguageDiagnosticsService
 } from '../language/services/diagnostics/LanguageDiagnosticsService';
-
-/**
- * LPC配置接口
- */
-interface LPCConfig {
-    types: string[];
-    modifiers: string[];
-    efuns: { [key: string]: { snippet: string; detail: string } };
-}
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 
 interface DiagnosticsOrchestratorOptions {
     diagnosticsService: LanguageDiagnosticsService;
     textDocumentHost: TextDocumentHost;
+    analysisService: DocumentAnalysisService;
 }
 
 interface DiagnosticsPerformanceSettings {
@@ -39,13 +31,8 @@ interface DiagnosticsPerformanceSettings {
 export class DiagnosticsOrchestrator {
     private diagnosticCollection: vscode.DiagnosticCollection;
     private diagnosticsService: LanguageDiagnosticsService;
-    private variableAnalyzer: VariableAnalyzer;
     private variableInspector: VariableInspectorPanel;
     private folderScanner: FolderScanner;
-
-    // 配置相关
-    private config: LPCConfig;
-    private excludedIdentifiers: Set<string>;
 
     constructor(
         context: vscode.ExtensionContext,
@@ -54,20 +41,7 @@ export class DiagnosticsOrchestrator {
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
         context.subscriptions.push(this.diagnosticCollection);
 
-        // 加载配置
-        const configPath = path.join(context.extensionPath, 'config', 'lpc-config.json');
-        this.config = this.loadLPCConfig(configPath);
-
-        // 初始化排除标识符
-        this.excludedIdentifiers = new Set([
-            ...Object.keys(this.config.efuns)
-        ]);
-
-        // 初始化变量分析器
-        const lpcTypes = this.config.types.join('|');
-        const modifiers = this.config.modifiers.join('|');
-        this.variableAnalyzer = new VariableAnalyzer(lpcTypes, modifiers, this.excludedIdentifiers);
-        this.variableInspector = new VariableInspectorPanel(this.variableAnalyzer);
+        this.variableInspector = new VariableInspectorPanel(options.analysisService);
         this.folderScanner = new FolderScanner(
             this.analyzeDocumentForFolderScan.bind(this),
             this.diagnosticCollection,
@@ -201,23 +175,6 @@ export class DiagnosticsOrchestrator {
                 mode: 'lsp'
             }
         };
-    }
-
-    /**
-     * 加载 LPC 配置
-     */
-    private loadLPCConfig(configPath: string): LPCConfig {
-        try {
-            const configContent = fs.readFileSync(configPath, 'utf-8');
-            return JSON.parse(configContent) as LPCConfig;
-        } catch (error) {
-            vscode.window.showErrorMessage(`无法加载配置文件: ${error}`);
-            return {
-                types: [],
-                modifiers: [],
-                efuns: {}
-            };
-        }
     }
 
     /**

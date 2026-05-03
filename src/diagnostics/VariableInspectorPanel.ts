@@ -1,13 +1,35 @@
 import * as vscode from 'vscode';
-import { VariableAnalyzer, VariableInfo } from './analyzers/VariableAnalyzer';
+import { SymbolType } from '../ast/symbolTable';
+import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
+
+export interface VariableInfo {
+    type: string;
+    range: vscode.Range;
+}
 
 export class VariableInspectorPanel {
-    constructor(private readonly variableAnalyzer: VariableAnalyzer) {}
+    constructor(private readonly analysisService: DocumentAnalysisService) {}
 
     public async show(document: vscode.TextDocument): Promise<void> {
-        const globalVars = this.variableAnalyzer.findGlobalVariables(document);
-        const localVars = this.variableAnalyzer.findLocalVariables(document);
-        const unusedVars = this.variableAnalyzer.findUnusedVariables(document, localVars);
+        const snapshot = this.analysisService.getBestAvailableSnapshot(document);
+        const globalVars = new Set(snapshot.fileGlobals.map((global) => global.name));
+        const globalScope = snapshot.symbolTable.getGlobalScope();
+        const localVars = new Map<string, VariableInfo>();
+
+        for (const symbol of snapshot.symbolTable.getAllSymbols()) {
+            if (
+                symbol.scope === globalScope
+                || (symbol.type !== SymbolType.VARIABLE && symbol.type !== SymbolType.PARAMETER)
+            ) {
+                continue;
+            }
+
+            localVars.set(symbol.name, {
+                type: symbol.dataType,
+                range: symbol.selectionRange ?? symbol.range
+            });
+        }
+        const unusedVars = new Set<string>();
 
         const panel = vscode.window.createWebviewPanel(
             'lpcVariables',

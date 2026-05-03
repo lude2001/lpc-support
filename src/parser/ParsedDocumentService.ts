@@ -3,6 +3,8 @@ import * as vscode from 'vscode';
 import { LPCLexer } from '../antlr/LPCLexer';
 import { LPCParser } from '../antlr/LPCParser';
 import { DocumentCache } from '../core/DocumentCache';
+import { getGlobalLpcFrontendService, LpcFrontendService } from '../frontend/LpcFrontendService';
+import { PreprocessorDiagnostic } from '../frontend/types';
 import { CollectingErrorListener } from './CollectingErrorListener';
 import { TokenTriviaIndex } from './TokenTriviaIndex';
 import {
@@ -16,7 +18,10 @@ export class ParsedDocumentService {
     private parseCount = 0;
     private totalParseTime = 0;
 
-    constructor(config: ParsedDocumentServiceConfig) {
+    constructor(
+        config: ParsedDocumentServiceConfig,
+        private readonly frontendService: LpcFrontendService = getGlobalLpcFrontendService()
+    ) {
         const vscodeConfig = vscode.workspace.getConfiguration('lpc.performance');
 
         this.documentCache = new DocumentCache<ParsedDocument>({
@@ -42,6 +47,7 @@ export class ParsedDocumentService {
 
     public invalidate(uri: vscode.Uri): void {
         this.documentCache.invalidateDocument(uri);
+        this.frontendService.invalidate(uri);
     }
 
     public invalidatePattern(pattern: RegExp): number {
@@ -50,6 +56,7 @@ export class ParsedDocumentService {
 
     public clear(): void {
         this.documentCache.clear();
+        this.frontendService.clear();
         this.parseCount = 0;
         this.totalParseTime = 0;
     }
@@ -78,10 +85,12 @@ export class ParsedDocumentService {
         const startedAt = Date.now();
         const startTime = performance.now();
         const text = document.getText();
+        const frontend = this.frontendService.get(document);
+        const parseText = frontend.preprocessor.activeView.text;
         const errorListener = new CollectingErrorListener(document);
 
         try {
-            const input = CharStreams.fromString(text);
+            const input = CharStreams.fromString(parseText);
             const lexer = new LPCLexer(input);
             const tokenStream = new CommonTokenStream(lexer);
             const parser = new LPCParser(tokenStream);
@@ -106,6 +115,8 @@ export class ParsedDocumentService {
                 uri: document.uri.toString(),
                 version: document.version,
                 text,
+                parseText,
+                frontend,
                 tokenStream,
                 tokens: tokenStream,
                 allTokens,
@@ -113,7 +124,10 @@ export class ParsedDocumentService {
                 hiddenTokens,
                 tokenTriviaIndex: {} as TokenTriviaIndex,
                 tree,
-                diagnostics: this.safeDiagnostics(errorListener),
+                diagnostics: [
+                    ...this.safeDiagnostics(errorListener),
+                    ...this.toVsCodePreprocessorDiagnostics(frontend.preprocessor.diagnostics)
+                ],
                 createdAt: startedAt,
                 lastAccessed: startedAt,
                 parseTimeMs,
@@ -166,6 +180,8 @@ export class ParsedDocumentService {
             uri: document.uri.toString(),
             version: document.version,
             text,
+            parseText: '',
+            frontend: undefined,
             tokenStream,
             tokens: tokenStream,
             allTokens,
@@ -206,6 +222,19 @@ export class ParsedDocumentService {
 
     private safeDiagnostics(errorListener: CollectingErrorListener): vscode.Diagnostic[] {
         return Array.isArray(errorListener.diagnostics) ? errorListener.diagnostics.slice() : [];
+    }
+
+    private toVsCodePreprocessorDiagnostics(diagnostics: PreprocessorDiagnostic[]): vscode.Diagnostic[] {
+        return diagnostics.map((diagnostic) => {
+            const result = new vscode.Diagnostic(
+                diagnostic.range,
+                diagnostic.message,
+                diagnostic.severity
+            );
+            result.source = 'LPC Preprocessor';
+            result.code = diagnostic.code;
+            return result;
+        });
     }
 }
 

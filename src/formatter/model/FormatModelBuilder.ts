@@ -4,10 +4,12 @@ import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import { FormatNode } from './formatNodes';
 
 export class FormatModelBuilder {
-    private readonly lineStartOffsets: number[];
+    private readonly parseLineStartOffsets: number[];
+    private readonly originalLineStartOffsets: number[];
 
     constructor(private readonly parsed: ParsedDocument) {
-        this.lineStartOffsets = buildLineStartOffsets(parsed.text);
+        this.parseLineStartOffsets = buildLineStartOffsets(parsed.parseText);
+        this.originalLineStartOffsets = buildLineStartOffsets(parsed.text);
     }
 
     public build(): FormatNode {
@@ -33,14 +35,29 @@ export class FormatModelBuilder {
     }
 
     private readNodeText(node: SyntaxNode): string {
-        const startOffset = this.offsetAt(node.range.start.line, node.range.start.character);
-        const endOffset = this.offsetAt(node.range.end.line, node.range.end.character);
-        return this.parsed.text.slice(startOffset, endOffset);
+        const source = this.getTextSource(node);
+        const startOffset = this.offsetAt(node.range.start.line, node.range.start.character, source.lineStartOffsets, source.text.length);
+        const endOffset = this.offsetAt(node.range.end.line, node.range.end.character, source.lineStartOffsets, source.text.length);
+        return source.text.slice(startOffset, endOffset);
     }
 
-    private offsetAt(line: number, character: number): number {
-        const lineStart = this.lineStartOffsets[line] ?? this.parsed.text.length;
-        return Math.min(lineStart + character, this.parsed.text.length);
+    private getTextSource(node: SyntaxNode): { text: string; lineStartOffsets: number[] } {
+        if (isPreprocessorSyntaxKind(node.kind)) {
+            return {
+                text: this.parsed.text,
+                lineStartOffsets: this.originalLineStartOffsets
+            };
+        }
+
+        return {
+            text: this.parsed.parseText,
+            lineStartOffsets: this.parseLineStartOffsets
+        };
+    }
+
+    private offsetAt(line: number, character: number, lineStartOffsets: number[], textLength: number): number {
+        const lineStart = lineStartOffsets[line] ?? textLength;
+        return Math.min(lineStart + character, textLength);
     }
 }
 
@@ -75,4 +92,12 @@ function buildLineStartOffsets(text: string): number[] {
     }
 
     return offsets;
+}
+
+function isPreprocessorSyntaxKind(kind: SyntaxKind): boolean {
+    return kind === SyntaxKind.PreprocessorIncludeDirective
+        || kind === SyntaxKind.MacroDefinitionDirective
+        || kind === SyntaxKind.MacroUndefDirective
+        || kind === SyntaxKind.ConditionalDirective
+        || kind === SyntaxKind.PreprocessorDirective;
 }

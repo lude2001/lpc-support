@@ -65,6 +65,15 @@ export interface MacroReference {
     resolvedValue?: string;
 }
 
+export interface MacroDefinitionSummary {
+    name: string;
+    value: string;
+    range: vscode.Range;
+    parameters?: string[];
+    isFunctionLike: boolean;
+    sourceUri: string;
+}
+
 export interface IncludeDirective {
     rawText: string;
     value: string;
@@ -92,6 +101,7 @@ export interface DocumentSemanticSnapshot {
     fileGlobals: FileGlobalSummary[];
     inheritStatements: InheritDirective[];
     includeStatements: IncludeDirective[];
+    macroDefinitions?: MacroDefinitionSummary[];
     macroReferences: MacroReference[];
     symbolTable: SymbolTable;
     createdAt: number;
@@ -105,6 +115,7 @@ export interface FileSymbolRecord {
     fileGlobals: FileGlobalSummary[];
     inheritStatements: InheritDirective[];
     includeStatements: IncludeDirective[];
+    macroDefinitions?: MacroDefinitionSummary[];
     macroReferences: MacroReference[];
     updatedAt: number;
 }

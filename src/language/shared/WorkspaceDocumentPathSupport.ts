@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { MacroManager } from '../../macroManager';
 import type { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
+import type { DocumentAnalysisService } from '../../semantic/documentAnalysisService';
 import type { LanguageWorkspaceProjectConfig } from '../contracts/LanguageWorkspaceContext';
 
 export interface TextDocumentHost {
@@ -24,6 +25,7 @@ export interface WorkspaceDocumentHost extends TextDocumentHost {
 export interface WorkspaceDocumentPathSupportOptions {
     host?: TextDocumentHost;
     macroManager?: Pick<MacroManager, 'getMacro'>;
+    analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
     projectConfigService?: Pick<
         LpcProjectConfigService,
         'getIncludeDirectoriesForWorkspace' | 'getPrimaryIncludeDirectoryForWorkspace' | 'getSimulatedEfunFileForWorkspace'
@@ -142,12 +144,12 @@ export class WorkspaceDocumentPathSupport {
     ): string | undefined {
         let resolvedValue = inheritValue;
         if (/^[A-Z_][A-Z0-9_]*$/.test(resolvedValue)) {
-            const macro = this.options.macroManager?.getMacro(resolvedValue);
-            if (!macro?.value) {
+            const macroValue = this.resolveMacroValue(document, resolvedValue);
+            if (!macroValue) {
                 return undefined;
             }
 
-            resolvedValue = macro.value.replace(/^"(.*)"$/, '$1');
+            resolvedValue = macroValue.replace(/^"(.*)"$/, '$1');
         }
 
         resolvedValue = this.ensureExtension(resolvedValue, '.c');
@@ -167,7 +169,7 @@ export class WorkspaceDocumentPathSupport {
         document: vscode.TextDocument,
         pathExpression: string
     ): string | undefined {
-        const resolvedValue = this.resolveObjectPathExpression(pathExpression);
+        const resolvedValue = this.resolveObjectPathExpression(document, pathExpression);
         if (!resolvedValue) {
             return undefined;
         }
@@ -347,13 +349,16 @@ export class WorkspaceDocumentPathSupport {
         return filePath.endsWith(extension) ? filePath : `${filePath}${extension}`;
     }
 
-    private resolveObjectPathExpression(pathExpression: string): string | undefined {
+    private resolveObjectPathExpression(
+        document: vscode.TextDocument,
+        pathExpression: string
+    ): string | undefined {
         if (pathExpression.startsWith('"') && pathExpression.endsWith('"')) {
             return pathExpression.slice(1, -1);
         }
 
         if (/^[A-Z_][A-Z0-9_]*$/.test(pathExpression)) {
-            const macroValue = this.options.macroManager?.getMacro(pathExpression)?.value;
+            const macroValue = this.resolveMacroValue(document, pathExpression);
             if (!macroValue) {
                 return undefined;
             }
@@ -362,6 +367,24 @@ export class WorkspaceDocumentPathSupport {
         }
 
         return undefined;
+    }
+
+    private resolveMacroValue(document: vscode.TextDocument | undefined, name: string): string | undefined {
+        if (document) {
+            try {
+                const frontendMacro = this.options.analysisService
+                    ?.getSemanticSnapshot(document, false)
+                    .macroDefinitions
+                    ?.find((macro) => macro.name === name);
+                if (frontendMacro?.value) {
+                    return frontendMacro.value;
+                }
+            } catch {
+                // Path support can be used while semantic analysis is unavailable; fall back to legacy macro lookup.
+            }
+        }
+
+        return this.options.macroManager?.getMacro(name)?.value;
     }
 
     private isWorkspaceAbsolutePath(targetPath: string): boolean {
