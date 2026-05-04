@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { VariableDeclContext, BlockContext, StatementContext, SourceFileContext } from '../antlr/LPCParser';
-import { IDiagnosticCollector } from '../diagnostics/types';
+import { DiagnosticContext, IDiagnosticCollector } from '../diagnostics/types';
 import { ParsedDocument } from '../parser/types';
+import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
 
 export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
     public readonly name = 'LocalVariableDeclarationCollector';
@@ -13,7 +13,7 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
 
     constructor() {}
 
-    collect(doc: vscode.TextDocument, parsed: ParsedDocument): vscode.Diagnostic[] {
+    collect(doc: vscode.TextDocument, parsed: ParsedDocument, context?: DiagnosticContext): vscode.Diagnostic[] {
         this.diagnostics = [];
         this.document = doc;
         this.branchDirectiveLines = this.collectBranchDirectiveLines(parsed);
@@ -23,15 +23,12 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
             return this.diagnostics;
         }
 
-        const sourceFile = parsed.tree as SourceFileContext;
-        // Traverse the source file
-        sourceFile.statement().forEach(stmt => {
-            // Only process top-level function definitions; other global statements不用管
-            const funcDef = stmt.functionDef();
-            if (funcDef) {
-                this.processBlock(funcDef.block());
-            }
-        });
+        const syntax = context?.syntax;
+        if (!syntax) {
+            return this.diagnostics;
+        }
+
+        this.processFunctionBlocks(syntax);
 
         return this.diagnostics;
     }
@@ -41,28 +38,41 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
         return config.get<boolean>(LocalVariableDeclarationCollector.ruleConfigKey, false);
     }
 
-    private processBlock(block: BlockContext) {
+    private processFunctionBlocks(syntax: SyntaxDocument): void {
+        for (const node of syntax.nodes) {
+            if (node.kind !== SyntaxKind.FunctionDeclaration) {
+                continue;
+            }
+
+            const block = node.children.find((child) => child.kind === SyntaxKind.Block);
+            if (block) {
+                this.processBlock(block);
+            }
+        }
+    }
+
+    private processBlock(block: SyntaxNode): void {
         let hasExecutable = false;
         let lastExecutableLine = -1;
 
-        block.statement().forEach(stmt => {
-            const stmtStart = this.document.positionAt(stmt.start.startIndex);
+        for (const stmt of block.children) {
+            const stmtStart = stmt.range.start;
 
-            if (stmt.variableDecl()) {
+            if (stmt.kind === SyntaxKind.VariableDeclaration) {
                 if (hasExecutable) {
                     // 检查执行语句与变量声明之间是否存在预处理指令 (#ifdef/#else 等)，如果存在则视为新的代码分支，允许重新声明变量。
                     const varDeclStartLine = stmtStart.line;
                     const containsDirective = this.containsPreprocessorDirectiveBetween(lastExecutableLine + 1, varDeclStartLine);
 
                     if (!containsDirective) {
-                        this.reportVariableDeclViolation(stmt.variableDecl()!);
+                        this.reportVariableDeclViolation(stmt);
                     } else {
                         // 遇到新的分支，重置 executable 标记
                         hasExecutable = false;
                     }
                 }
                 // 变量声明自身不会设置 hasExecutable
-            } else {
+            } else if (this.isExecutableStatement(stmt)) {
                 // 其他语句均视为可执行语句
                 hasExecutable = true;
                 lastExecutableLine = stmtStart.line;
@@ -70,60 +80,25 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
 
             // 递归检查嵌套块及函数
             this.recurseIntoStatement(stmt);
-        });
-    }
-
-    private recurseIntoStatement(stmt: StatementContext) {
-        // Check nested block directly under this statement
-        if (stmt.block()) {
-            this.processBlock(stmt.block()!);
-        }
-
-        // Nested function definitions (unlikely but for completeness)
-        if (stmt.functionDef()) {
-            this.processBlock(stmt.functionDef()!.block());
-        }
-
-        // if / while / for / doWhile / foreach / switch etc. each contains nested statement(s) or blocks
-        const ifStmt = stmt.ifStatement();
-        if (ifStmt) {
-            ifStmt.statement().forEach(s => this.recurseIntoStatement(s));
-        }
-
-        const whileStmt = stmt.whileStatement();
-        if (whileStmt) {
-            this.recurseIntoStatement(whileStmt.statement());
-        }
-
-        const doWhileStmt = stmt.doWhileStatement();
-        if (doWhileStmt) {
-            this.recurseIntoStatement(doWhileStmt.statement());
-        }
-
-        const forStmt = stmt.forStatement();
-        if (forStmt) {
-            this.recurseIntoStatement(forStmt.statement());
-        }
-
-        const foreachStmt = stmt.foreachStatement();
-        if (foreachStmt) {
-            this.recurseIntoStatement(foreachStmt.statement());
-        }
-
-        const switchStmt = stmt.switchStatement();
-        if (switchStmt) {
-            switchStmt.switchSection().forEach(section => {
-                section.statement().forEach(secStmt => this.recurseIntoStatement(secStmt));
-            });
         }
     }
 
-    private reportVariableDeclViolation(varDecl: VariableDeclContext) {
-        const start = this.document.positionAt(varDecl.start.startIndex);
-        const end = this.document.positionAt(varDecl.stop!.stopIndex + 1);
-        const range = new vscode.Range(start, end);
+    private recurseIntoStatement(stmt: SyntaxNode): void {
+        for (const child of stmt.children) {
+            if (child.kind === SyntaxKind.Block) {
+                this.processBlock(child);
+                continue;
+            }
+
+            if (this.hasNestedStatementChildren(child)) {
+                this.recurseIntoStatement(child);
+            }
+        }
+    }
+
+    private reportVariableDeclViolation(varDecl: SyntaxNode): void {
         this.diagnostics.push(this.createDiagnostic(
-            range,
+            varDecl.range,
             "局部变量定义必须在可执行语句或代码块的开头。",
             vscode.DiagnosticSeverity.Error,
             "localVariableDeclarationPosition"
@@ -141,6 +116,28 @@ export class LocalVariableDeclarationCollector implements IDiagnosticCollector {
             diagnostic.code = code;
         }
         return diagnostic;
+    }
+
+    private isExecutableStatement(node: SyntaxNode): boolean {
+        return node.category === 'statement'
+            || node.category === 'expression'
+            || node.kind === SyntaxKind.FunctionDeclaration;
+    }
+
+    private hasNestedStatementChildren(node: SyntaxNode): boolean {
+        switch (node.kind) {
+            case SyntaxKind.IfStatement:
+            case SyntaxKind.WhileStatement:
+            case SyntaxKind.DoWhileStatement:
+            case SyntaxKind.ForStatement:
+            case SyntaxKind.ForeachStatement:
+            case SyntaxKind.SwitchStatement:
+            case SyntaxKind.CaseClause:
+            case SyntaxKind.DefaultClause:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /**

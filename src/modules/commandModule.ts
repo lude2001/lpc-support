@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { createLpcCodeActionCommandHandlers } from '../codeActions';
 import { Services } from '../core/ServiceKeys';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { FunctionDocPanel } from '../functionDocPanel';
@@ -76,9 +77,19 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         diagnostics.scanFolder();
     });
 
+    register(context, 'lpc.showVariables', () => diagnostics.showVariables());
+
     register(context, 'lpc.showFunctionDoc', () => {
         FunctionDocPanel.createOrShow(context, efunDocsManager, textDocumentHost);
     });
+
+    register(context, 'lpc.configureSimulatedEfuns', () => {
+        return efunDocsManager.configureSimulatedEfuns();
+    });
+
+    for (const command of createLpcCodeActionCommandHandlers(registry.get(Services.Analysis))) {
+        register(context, command.id, command.handler);
+    }
 
     register(context, 'lpc.errorTree.refresh', () => errorTreeProvider.refresh());
     register(context, 'lpc.errorTree.clear', () => errorTreeProvider.clearErrors());
@@ -138,39 +149,6 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         await compiler.compileFolder(target.targetFolder);
     });
 
-    register(context, 'lpc.addServer', async () => {
-        const workspaceRoot = requireWorkspaceRoot();
-        if (!workspaceRoot) {
-            return;
-        }
-
-        await ensureCompilationConfigForWorkspace(projectConfigService, workspaceRoot);
-        await addRemoteServer(projectConfigService, workspaceRoot);
-        errorTreeProvider.refresh();
-    });
-
-    register(context, 'lpc.selectServer', async () => {
-        const workspaceRoot = requireWorkspaceRoot();
-        if (!workspaceRoot) {
-            return;
-        }
-
-        await ensureCompilationConfigForWorkspace(projectConfigService, workspaceRoot);
-        await selectRemoteServer(projectConfigService, workspaceRoot);
-        errorTreeProvider.refresh();
-    });
-
-    register(context, 'lpc.removeServer', async () => {
-        const workspaceRoot = requireWorkspaceRoot();
-        if (!workspaceRoot) {
-            return;
-        }
-
-        await ensureCompilationConfigForWorkspace(projectConfigService, workspaceRoot);
-        await removeRemoteServer(projectConfigService, workspaceRoot);
-        errorTreeProvider.refresh();
-    });
-
     register(context, 'lpc.manageCompilation', async () => {
         const workspaceRoot = requireWorkspaceRoot();
         if (!workspaceRoot) {
@@ -180,10 +158,6 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         await ensureCompilationConfigForWorkspace(projectConfigService, workspaceRoot);
         await showCompilationManager(projectConfigService, workspaceRoot);
         errorTreeProvider.refresh();
-    });
-
-    register(context, 'lpc.manageServers', async () => {
-        await vscode.commands.executeCommand('lpc.manageCompilation');
     });
 
     register(context, 'lpc.compileFile', async () => {

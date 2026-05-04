@@ -10,6 +10,9 @@ export const LPC_BUILTIN_TYPES = [
     'mapping',
     'function',
     'buffer',
+    'array',
+    'closure',
+    '__TREE__',
     'struct',
     'class'
 ] as const;
@@ -139,9 +142,7 @@ export const LPC_OPERATORS = [
 
 export const LPC_PARTIAL_DIALECT_KEYWORDS = [
     'any',
-    'array',
     'bytes',
-    'closure',
     'const',
     'deprecated',
     'false',
@@ -212,6 +213,7 @@ const TYPE_PREFIX_MODIFIER_SET = toReadonlySet([
     ...LPC_DECLARATION_MODIFIERS,
     'const'
 ]);
+const LPC_IDENTIFIER_TEXT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function isLpcBuiltinType(value: string | undefined): boolean {
     return hasLowercase(BUILTIN_TYPE_SET, value);
@@ -240,6 +242,10 @@ export function isLpcNonCallParenKeyword(value: string | undefined): boolean {
 
 export function isLpcPreprocessorDirective(value: string | undefined): value is PreprocessorDirectiveKind {
     return hasLowercase(PREPROCESSOR_DIRECTIVE_SET, value);
+}
+
+export function isLpcIdentifierLikeText(value: string | undefined): boolean {
+    return Boolean(value && LPC_IDENTIFIER_TEXT.test(value));
 }
 
 export function isLpcDocumentationType(value: string | undefined): boolean {

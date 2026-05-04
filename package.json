@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.46.1",
+  "version": "0.46.2",
   "publisher": "ludexiang",
   "author": {
     "name": "ludexiang",
@@ -109,21 +109,6 @@
         "category": "LPC"
       },
       {
-        "command": "lpc.addServer",
-        "title": "LPC: 添加FluffOS服务器",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.selectServer",
-        "title": "LPC: 选择活动服务器",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.removeServer",
-        "title": "LPC: 删除服务器",
-        "category": "LPC"
-      },
-      {
         "command": "lpc.compileFile",
         "title": "编译LPC文件",
         "category": "LPC"
@@ -136,11 +121,6 @@
       {
         "command": "lpc.manageCompilation",
         "title": "编译管理",
-        "category": "LPC"
-      },
-      {
-        "command": "lpc.manageServers",
-        "title": "编译管理（兼容入口）",
         "category": "LPC"
       },
       {

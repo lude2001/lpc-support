@@ -49,23 +49,13 @@ export class DiagnosticsOrchestrator {
         );
 
         this.diagnosticsService = options.diagnosticsService;
-
-        this.registerCommands(context);
     }
 
-    /**
-     * 注册命令
-     */
-    private registerCommands(context: vscode.ExtensionContext): void {
-        // 注册显示变量命令
-        context.subscriptions.push(
-            vscode.commands.registerCommand('lpc.showVariables', () => {
-                const editor = vscode.window.activeTextEditor;
-                if (editor && editor.document.languageId === 'lpc') {
-                    return this.variableInspector.show(editor.document);
-                }
-            })
-        );
+    public async showVariables(): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (editor && editor.document.languageId === 'lpc') {
+            await this.variableInspector.show(editor.document);
+        }
     }
 
     /**

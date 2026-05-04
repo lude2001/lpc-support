@@ -1,8 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Token } from 'antlr4ts';
 import * as vscode from 'vscode';
-import { LPCLexer } from '../../../antlr/LPCLexer';
 import { SymbolType } from '../../../ast/symbolTable';
 import {
     isLpcBuiltinType,
@@ -11,6 +9,12 @@ import {
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { DocumentSemanticSnapshot } from '../../../semantic/documentSemanticTypes';
+import {
+    classifyLexicalSemanticToken,
+    isDefaultChannelToken,
+    isIdentifierToken,
+    type LpcTokenLike
+} from '../../../parser/LpcTokenFacts';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
 
 export interface LanguageSemanticToken {
@@ -75,69 +79,6 @@ const TOKEN_TYPES = {
     comment: 'comment',
     operator: 'operator'
 } as const;
-
-const TYPE_TOKENS = new Set<number>([
-    LPCLexer.KW_INT,
-    LPCLexer.KW_FLOAT,
-    LPCLexer.KW_STRING,
-    LPCLexer.KW_OBJECT,
-    LPCLexer.KW_MIXED,
-    LPCLexer.KW_MAPPING,
-    LPCLexer.KW_FUNCTION,
-    LPCLexer.KW_BUFFER,
-    LPCLexer.KW_VOID,
-    LPCLexer.KW_STRUCT,
-    LPCLexer.KW_CLASS
-]);
-
-const TOKEN_TYPE_MAP: Record<number, string> = {
-    [LPCLexer.STRING_LITERAL]: TOKEN_TYPES.string,
-    [LPCLexer.CHAR_LITERAL]: TOKEN_TYPES.string,
-    [LPCLexer.INTEGER]: TOKEN_TYPES.number,
-    [LPCLexer.FLOAT]: TOKEN_TYPES.number,
-    [LPCLexer.LINE_COMMENT]: TOKEN_TYPES.comment,
-    [LPCLexer.BLOCK_COMMENT]: TOKEN_TYPES.comment,
-    [LPCLexer.INC]: TOKEN_TYPES.operator,
-    [LPCLexer.DEC]: TOKEN_TYPES.operator,
-    [LPCLexer.PLUS_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.MINUS_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.STAR_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.DIV_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.PERCENT_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.BIT_XOR_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.SHIFT_LEFT_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.SHIFT_RIGHT_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.ARROW]: TOKEN_TYPES.operator,
-    [LPCLexer.DOT]: TOKEN_TYPES.operator,
-    [LPCLexer.PLUS]: TOKEN_TYPES.operator,
-    [LPCLexer.MINUS]: TOKEN_TYPES.operator,
-    [LPCLexer.STAR]: TOKEN_TYPES.operator,
-    [LPCLexer.DIV]: TOKEN_TYPES.operator,
-    [LPCLexer.PERCENT]: TOKEN_TYPES.operator,
-    [LPCLexer.SCOPE]: TOKEN_TYPES.operator,
-    [LPCLexer.ELLIPSIS]: TOKEN_TYPES.operator,
-    [LPCLexer.RANGE_OP]: TOKEN_TYPES.operator,
-    [LPCLexer.ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.GT]: TOKEN_TYPES.operator,
-    [LPCLexer.LT]: TOKEN_TYPES.operator,
-    [LPCLexer.GE]: TOKEN_TYPES.operator,
-    [LPCLexer.LE]: TOKEN_TYPES.operator,
-    [LPCLexer.EQ]: TOKEN_TYPES.operator,
-    [LPCLexer.NE]: TOKEN_TYPES.operator,
-    [LPCLexer.AND]: TOKEN_TYPES.operator,
-    [LPCLexer.OR]: TOKEN_TYPES.operator,
-    [LPCLexer.NOT]: TOKEN_TYPES.operator,
-    [LPCLexer.BIT_AND]: TOKEN_TYPES.operator,
-    [LPCLexer.BIT_OR]: TOKEN_TYPES.operator,
-    [LPCLexer.BIT_XOR]: TOKEN_TYPES.operator,
-    [LPCLexer.BIT_NOT]: TOKEN_TYPES.operator,
-    [LPCLexer.BIT_OR_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.BIT_AND_ASSIGN]: TOKEN_TYPES.operator,
-    [LPCLexer.SHIFT_LEFT]: TOKEN_TYPES.operator,
-    [LPCLexer.SHIFT_RIGHT]: TOKEN_TYPES.operator,
-    [LPCLexer.QUESTION]: TOKEN_TYPES.operator,
-    [LPCLexer.COLON]: TOKEN_TYPES.operator
-};
 
 export function resolveSemanticTokensConfigPath(
     runtimeDir: string = __dirname,
@@ -237,31 +178,19 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
     }
 
     private classifyToken(
-        token: Token,
+        token: LpcTokenLike,
         tokenIndex: number,
-        tokens: Token[],
+        tokens: LpcTokenLike[],
         snapshot: DocumentSemanticSnapshot
     ): string | undefined {
-        if (token.type === LPCLexer.Identifier) {
+        if (isIdentifierToken(token)) {
             return this.classifyIdentifier(token, tokenIndex, tokens, snapshot);
         }
 
-        if (TYPE_TOKENS.has(token.type)) {
-            return TOKEN_TYPES.type;
-        }
-
-        if (token.type === LPCLexer.KW_NEW || token.type === LPCLexer.MODIFIER) {
-            return TOKEN_TYPES.keyword;
-        }
-
-        if (token.type >= LPCLexer.IF && token.type <= LPCLexer.IN) {
-            return TOKEN_TYPES.keyword;
-        }
-
-        return TOKEN_TYPE_MAP[token.type];
+        return classifyLexicalSemanticToken(token);
     }
 
-    private createSemanticTokens(token: Token, tokenType: string): LanguageSemanticToken[] {
+    private createSemanticTokens(token: LpcTokenLike, tokenType: string): LanguageSemanticToken[] {
         const text = token.text ?? '';
         if (text.length === 0) {
             return [];
@@ -298,9 +227,9 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
     }
 
     private classifyIdentifier(
-        token: Token,
+        token: LpcTokenLike,
         tokenIndex: number,
-        tokens: Token[],
+        tokens: LpcTokenLike[],
         snapshot: DocumentSemanticSnapshot
     ): string {
         const text = token.text ?? '';
@@ -333,7 +262,7 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
         return this.getContextualIdentifierType(tokenIndex, tokens);
     }
 
-    private isMacroReference(token: Token, snapshot: DocumentSemanticSnapshot): boolean {
+    private isMacroReference(token: LpcTokenLike, snapshot: DocumentSemanticSnapshot): boolean {
         const text = token.text ?? '';
         if (!Array.isArray(snapshot.macroReferences) || !text) {
             return false;
@@ -346,28 +275,28 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
         ));
     }
 
-    private getContextualIdentifierType(tokenIndex: number, tokens: Token[]): string {
+    private getContextualIdentifierType(tokenIndex: number, tokens: LpcTokenLike[]): string {
         const previousToken = this.findAdjacentDefaultToken(tokens, tokenIndex, -1);
-        if (previousToken && (previousToken.type === LPCLexer.ARROW || previousToken.type === LPCLexer.DOT)) {
+        if (previousToken && (previousToken.text === '->' || previousToken.text === '.')) {
             return TOKEN_TYPES.property;
         }
 
         const nextToken = this.findAdjacentDefaultToken(tokens, tokenIndex, 1);
-        if (nextToken && nextToken.type === LPCLexer.LPAREN) {
+        if (nextToken && nextToken.text === '(') {
             return TOKEN_TYPES.function;
         }
 
         return TOKEN_TYPES.variable;
     }
 
-    private findAdjacentDefaultToken(tokens: Token[], tokenIndex: number, direction: -1 | 1): Token | undefined {
+    private findAdjacentDefaultToken(tokens: LpcTokenLike[], tokenIndex: number, direction: -1 | 1): LpcTokenLike | undefined {
         for (
             let currentIndex = tokenIndex + direction;
             currentIndex >= 0 && currentIndex < tokens.length;
             currentIndex += direction
         ) {
             const token = tokens[currentIndex];
-            if (token.channel === LPCLexer.DEFAULT_TOKEN_CHANNEL) {
+            if (isDefaultChannelToken(token)) {
                 return token;
             }
         }

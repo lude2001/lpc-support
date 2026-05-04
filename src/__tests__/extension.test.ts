@@ -6,7 +6,6 @@ import { activateLspClient } from '../lsp/client/activateLspClient';
 import { registerCommands } from '../modules/commandModule';
 import { registerCoreServices } from '../modules/coreModule';
 import { registerDiagnostics } from '../modules/diagnosticsModule';
-import { registerHostLanguageAffordances } from '../modules/languageModule';
 import { registerUI } from '../modules/uiModule';
 import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 
@@ -20,10 +19,6 @@ jest.mock('../modules/coreModule', () => ({
 
 jest.mock('../modules/diagnosticsModule', () => ({
     registerDiagnostics: jest.fn()
-}));
-
-jest.mock('../modules/languageModule', () => ({
-    registerHostLanguageAffordances: jest.fn()
 }));
 
 jest.mock('../modules/uiModule', () => ({
@@ -61,10 +56,6 @@ describe('extension entrypoint', () => {
         (registerDiagnostics as jest.Mock).mockReset().mockImplementation(() => {
             registrationOrder.push('diagnostics');
         });
-        (registerHostLanguageAffordances as jest.Mock).mockReset().mockImplementation(() => {
-            registrationOrder.push('language');
-            return Promise.resolve();
-        });
         (registerUI as jest.Mock).mockReset().mockImplementation(() => {
             registrationOrder.push('ui');
         });
@@ -82,11 +73,10 @@ describe('extension entrypoint', () => {
         expect(context.subscriptions).toContain(registry);
         expect(registerCoreServices).toHaveBeenCalledWith(registry, context);
         expect(registerDiagnostics).toHaveBeenCalledWith(registry, context);
-        expect(registerHostLanguageAffordances).toHaveBeenCalledWith(registry, context);
         expect(registerUI).toHaveBeenCalledWith(registry, context);
         expect(registerCommands).toHaveBeenCalledWith(registry, context);
         expect(activateLspClient).toHaveBeenCalledWith(context);
-        expect(registrationOrder).toEqual(['core', 'diagnostics', 'language', 'ui', 'commands']);
+        expect(registrationOrder).toEqual(['core', 'diagnostics', 'ui', 'commands']);
     });
 
     test('deactivate disposes the global parsed document service', () => {

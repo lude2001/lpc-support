@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { SourceFileContext } from '../antlr/LPCParser';
 import { SymbolTable } from '../ast/symbolTable';
 import { ParsedDocument as ParsedDoc } from '../parser/types';
 import { SyntaxDocument } from '../syntax/types';
@@ -7,7 +6,6 @@ import { SemanticSnapshot } from './semanticSnapshot';
 import { DocumentSemanticSnapshot, SnapshotStats } from './documentSemanticTypes';
 
 export interface DocumentSemanticAnalysis {
-    ast: SourceFileContext;
     symbolTable: SymbolTable;
     parseErrors: vscode.Diagnostic[];
     parsed?: ParsedDoc;

@@ -50,15 +50,7 @@ export class EfunDocsManager {
         this.efunDocs = this.createBundledDocsMap();
         this.efunCategories = this.createBundledCategoriesMap();
 
-        this.registerSimulatedEfunCommand(context);
-
         this.runBackgroundTask(this.simulatedEfunScanner.load(), '加载模拟函数库文档失败');
-    }
-
-    private registerSimulatedEfunCommand(context: vscode.ExtensionContext): void {
-        context.subscriptions.push(
-            vscode.commands.registerCommand('lpc.configureSimulatedEfuns', () => this.simulatedEfunScanner.configure())
-        );
     }
 
     private createBundledDocsMap(): Map<string, CallableDoc> {
@@ -140,6 +132,10 @@ export class EfunDocsManager {
 
     public async refreshWorkspaceState(): Promise<void> {
         await this.simulatedEfunScanner.refreshWorkspaceState(true);
+    }
+
+    public async configureSimulatedEfuns(): Promise<void> {
+        await this.simulatedEfunScanner.configure();
     }
 }
 

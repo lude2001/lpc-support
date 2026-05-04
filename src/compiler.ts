@@ -1,4 +1,3 @@
-import { LPCConfigManager } from './config';
 import { CompilationService } from './compilation/CompilationService';
 import { LocalLpccpCompilationBackend } from './compilation/LocalLpccpCompilationBackend';
 import { RemoteCompilationBackend } from './compilation/RemoteCompilationBackend';
@@ -8,8 +7,7 @@ export class LPCCompiler {
     private readonly compilationService: CompilationService;
 
     constructor(
-        _configManager: LPCConfigManager,
-        projectConfigService = new LpcProjectConfigService()
+        projectConfigService: LpcProjectConfigService = new LpcProjectConfigService()
     ) {
         this.compilationService = new CompilationService(
             projectConfigService,

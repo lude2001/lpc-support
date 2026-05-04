@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import { ParseTree } from 'antlr4ts/tree/ParseTree';
-
 export enum SymbolType {
     VARIABLE = 'variable',
     FUNCTION = 'function',
@@ -207,69 +205,5 @@ export class SymbolTable {
             inherited.endsWith('/' + filePath) ||
             filePath.endsWith('/' + inherited)
         );
-    }
-}
-
-export class TypeResolver {
-    private symbolTable: SymbolTable;
-    
-    constructor(symbolTable: SymbolTable) {
-        this.symbolTable = symbolTable;
-    }
-
-    // 解析变量类型
-    resolveVariableType(variableName: string, position: vscode.Position): string | undefined {
-        const symbol = this.symbolTable.findSymbol(variableName, position);
-        return symbol?.dataType;
-    }
-
-    // 获取结构体成员
-    getStructMembers(typeName: string): Symbol[] {
-        const structSymbol = this.symbolTable.findStructDefinition(typeName);
-        return structSymbol?.members || [];
-    }
-
-    // 检查类型兼容性
-    isCompatibleType(from: string, to: string): boolean {
-        // 基本类型兼容性检查
-        if (from === to) return true;
-        if (to === 'mixed') return true; // mixed可以接受任何类型
-        if (from === 'void') return false;
-        
-        // 数组类型检查
-        if (from.endsWith('*') && to.endsWith('*')) {
-            return this.isCompatibleType(
-                from.slice(0, -1).trim(), 
-                to.slice(0, -1).trim()
-            );
-        }
-
-        return false;
-    }
-
-    // 推断表达式类型
-    inferExpressionType(expression: string, position: vscode.Position): string {
-        // 简单的类型推断实现
-        // 实际应该基于AST进行更复杂的推断
-        
-        // 数字字面量
-        if (/^\d+$/.test(expression)) return 'int';
-        if (/^\d+\.\d+$/.test(expression)) return 'float';
-        
-        // 字符串字面量
-        if (/^".*"$/.test(expression)) return 'string';
-        if (/^'.*'$/.test(expression)) return 'int'; // 字符字面量在LPC中是int
-        
-        // 数组字面量
-        if (/^\(\s*\{.*\}\s*\)$/.test(expression)) return 'mixed*';
-        
-        // 映射字面量
-        if (/^\(\s*\[.*\]\s*\)$/.test(expression)) return 'mapping';
-        
-        // 变量引用
-        const variableType = this.resolveVariableType(expression, position);
-        if (variableType) return variableType;
-        
-        return 'mixed'; // 默认类型
     }
 }

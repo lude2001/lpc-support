@@ -1,31 +1,23 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
-import { registerLpcCodeActionCommands } from '../codeActions';
+import { createLpcCodeActionCommandHandlers } from '../codeActions';
 
-describe('registerLpcCodeActionCommands', () => {
+describe('createLpcCodeActionCommandHandlers', () => {
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
-    test('registers rename and Javadoc commands only once', () => {
-        registerLpcCodeActionCommands();
-        registerLpcCodeActionCommands();
+    test('returns rename and Javadoc handlers without registering commands directly', () => {
+        const handlers = createLpcCodeActionCommandHandlers({
+            getSyntaxDocument: jest.fn()
+        });
 
-        expect(vscode.commands.registerCommand).toHaveBeenCalledTimes(3);
-        expect(vscode.commands.registerCommand).toHaveBeenNthCalledWith(
-            1,
+        expect(handlers.map(handler => handler.id)).toEqual([
             'lpc.renameVarToSnakeCase',
-            expect.any(Function)
-        );
-        expect(vscode.commands.registerCommand).toHaveBeenNthCalledWith(
-            2,
             'lpc.renameVarToCamelCase',
-            expect.any(Function)
-        );
-        expect(vscode.commands.registerCommand).toHaveBeenNthCalledWith(
-            3,
-            'lpc.generateJavadoc',
-            expect.any(Function)
-        );
+            'lpc.generateJavadoc'
+        ]);
+        expect(handlers.every(handler => typeof handler.handler === 'function')).toBe(true);
+        expect(vscode.commands.registerCommand).not.toHaveBeenCalled();
     });
 });

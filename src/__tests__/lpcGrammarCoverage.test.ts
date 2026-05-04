@@ -289,6 +289,147 @@ describe('LPC grammar coverage baseline', () => {
         expect(diagnostics).toEqual([]);
     });
 
+    test('accepts pointer and named aggregate types in declarations and casts', () => {
+        const diagnostics = parseDiagnostics([
+            'class Payload {',
+            '    int hp;',
+            '}',
+            'struct Record {',
+            '    string name;',
+            '}',
+            'struct Record query_record();',
+            'void demo(mixed value) {',
+            '    object *obs = (object *)value;',
+            '    mixed *items = (mixed *)value;',
+            '    class Payload *payloads = (class Payload *)value;',
+            '    struct Record record = (struct Record)value;',
+            '}'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('accepts modifier-heavy declarations and old-style functions', () => {
+        const diagnostics = parseDiagnostics([
+            'static nosave mapping cache;',
+            'private nomask int locked;',
+            'protected varargs void setup(object me, mixed *args...) {',
+            '    return;',
+            '}',
+            'create() {',
+            '    setup(this_object());',
+            '}',
+            'query_name() {',
+            '    return "room";',
+            '}'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('accepts mixed ref pointer variadic and default parameter signatures', () => {
+        const diagnostics = parseDiagnostics([
+            'varargs mixed *query_values(string name, mixed *args...);',
+            'varargs int query_flag(string name, int flag : (: 1 :));',
+            'void update_items(ref mixed *items, object *targets, string name : (: "none" :)) {',
+            '    foreach (ref item in items) {',
+            '        item += 1;',
+            '    }',
+            '}'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('accepts cast expressions followed by calls members and indexes', () => {
+        const diagnostics = parseDiagnostics([
+            'void demo(mixed value) {',
+            '    object ob = (object)value;',
+            '    string name = ((object)value)->query_name();',
+            '    int amount = ((mapping)value)["amount"];',
+            '    mixed first = ((mixed *)value)[0];',
+            '}'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('accepts pointer type operands for sizeof', () => {
+        const diagnostics = parseDiagnostics([
+            'int demo() {',
+            '    return sizeof(mixed *) + sizeof(object *) + sizeof(class Payload *);',
+            '}'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('accepts captured closure expressions with member calls', () => {
+        const diagnostics = parseDiagnostics([
+            'void demo(object me, mixed *args) {',
+            '    function f1 = (: call_other, me, "query", args... :);',
+            '    function f2 = (: $1 ? $2 + 1 : sizeof(args) :);',
+            '    function f3 = (: $(me)->query_name() :);',
+            '}'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('accepts catch comma and nested conditional expressions', () => {
+        const diagnostics = parseDiagnostics([
+            'int calc(int a, int b, int c) {',
+            '    return a > 0 ? (b > 0 ? b : c) : 0;',
+            '}',
+            'void demo(object ob) {',
+            '    mixed err;',
+            '    err = catch(ob->create());',
+            '    err = catch {',
+            '        ob->reset();',
+            '        ob->setup();',
+            '    };',
+            '    err = (catch(ob->create()), catch(ob->reset()));',
+            '}'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('accepts function-like macros that generate declarations and definitions', () => {
+        const diagnostics = parseDiagnostics([
+            '#define MAKE_QUERY(name, value) \\',
+            'int query_##name() { \\',
+            '    return value; \\',
+            '}',
+            'MAKE_QUERY(score, 100)',
+            '#define RequestType(name, method) \\',
+            'public void name(object request) { \\',
+            '    handle_request(request, method); \\',
+            '}',
+            'RequestType(pay_add, "POST")'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('accepts statically decidable preprocessor condition branches', () => {
+        const diagnostics = parseDiagnostics([
+            '#define ENABLE_PAY 1',
+            '#define VERSION 20260504',
+            '#if ENABLE_PAY && VERSION >= 20250000',
+            'public void pay_add() {',
+            '    return;',
+            '}',
+            '#else',
+            'public void pay_stub() {',
+            '    return;',
+            '}',
+            '#endif'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
     test('accepts catch expression and catch block forms', () => {
         const diagnostics = parseDiagnostics([
             'void demo() {',

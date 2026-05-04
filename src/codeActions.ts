@@ -3,30 +3,31 @@ import { GLM4Client } from './glm4Client';
 import { FunctionInfoExtractor } from './language/documentation/FunctionInfoExtractor';
 import type { DocumentAnalysisService } from './semantic/documentAnalysisService';
 
-let commandsRegistered = false;
 const RENAME_COMMAND_IDS = ['lpc.renameVarToSnakeCase', 'lpc.renameVarToCamelCase'] as const;
-let functionInfoExtractor: FunctionInfoExtractor | undefined;
 
-export function registerLpcCodeActionCommands(
-    analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument'>
-): void {
-    functionInfoExtractor = new FunctionInfoExtractor(analysisService);
-
-    if (commandsRegistered) {
-        return;
-    }
-
-    for (const commandId of RENAME_COMMAND_IDS) {
-        registerRenameCommand(commandId);
-    }
-
-    vscode.commands.registerCommand('lpc.generateJavadoc', generateJavadocCommand);
-
-    commandsRegistered = true;
+export interface LpcCommandHandler {
+    id: string;
+    handler: (...args: any[]) => any;
 }
 
-function registerRenameCommand(id: string): void {
-    vscode.commands.registerCommand(id, async (
+export function createLpcCodeActionCommandHandlers(
+    analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument'>
+): LpcCommandHandler[] {
+    const functionInfoExtractor = new FunctionInfoExtractor(analysisService);
+    return [
+        ...RENAME_COMMAND_IDS.map((id) => ({
+            id,
+            handler: createRenameCommandHandler()
+        })),
+        {
+            id: 'lpc.generateJavadoc',
+            handler: () => generateJavadocCommand(functionInfoExtractor)
+        }
+    ];
+}
+
+function createRenameCommandHandler(): LpcCommandHandler['handler'] {
+    return async (
         uri: vscode.Uri,
         position: vscode.Position,
         newName: string
@@ -40,10 +41,10 @@ function registerRenameCommand(id: string): void {
         if (edit) {
             await vscode.workspace.applyEdit(edit);
         }
-    });
+    };
 }
 
-async function generateJavadocCommand(): Promise<void> {
+async function generateJavadocCommand(functionInfoExtractor: FunctionInfoExtractor): Promise<void> {
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.languageId !== 'lpc') {
         vscode.window.showErrorMessage('请在LPC文件中选择一个函数');
@@ -70,9 +71,9 @@ async function generateJavadocCommand(): Promise<void> {
 
             let functionInfo: any = null;
             if (!selection.isEmpty) {
-                functionInfo = functionInfoExtractor?.parseFunctionFromSelection(editor.document, selection);
+                functionInfo = functionInfoExtractor.parseFunctionFromSelection(editor.document, selection);
             } else {
-                functionInfo = functionInfoExtractor?.parseFunctionFromCursor(editor.document, selection.active);
+                functionInfo = functionInfoExtractor.parseFunctionFromCursor(editor.document, selection.active);
             }
 
             if (!functionInfo) {

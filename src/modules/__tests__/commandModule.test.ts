@@ -4,9 +4,8 @@ import { ServiceRegistry } from '../../core/ServiceRegistry';
 import { Services } from '../../core/ServiceKeys';
 import { registerCommands } from '../commandModule';
 import { FunctionDocPanel } from '../../functionDocPanel';
+import { createLpcCodeActionCommandHandlers } from '../../codeActions';
 import { ErrorTreeDataProvider } from '../../errorTreeDataProvider';
-import { LPCConfigManager } from '../../config';
-import { LPCCompiler } from '../../compiler';
 import {
     clearGlobalParsedDocumentService,
     getGlobalParsedDocumentService
@@ -23,16 +22,16 @@ jest.mock('../../functionDocPanel', () => ({
     }
 }));
 
+jest.mock('../../codeActions', () => ({
+    createLpcCodeActionCommandHandlers: jest.fn().mockReturnValue([
+        { id: 'lpc.renameVarToSnakeCase', handler: jest.fn() },
+        { id: 'lpc.renameVarToCamelCase', handler: jest.fn() },
+        { id: 'lpc.generateJavadoc', handler: jest.fn() }
+    ])
+}));
+
 jest.mock('../../errorTreeDataProvider', () => ({
     ErrorTreeDataProvider: jest.fn()
-}));
-
-jest.mock('../../config', () => ({
-    LPCConfigManager: jest.fn()
-}));
-
-jest.mock('../../compiler', () => ({
-    LPCCompiler: jest.fn()
 }));
 
 jest.mock('../../parser/ParsedDocumentService', () => ({
@@ -43,37 +42,31 @@ jest.mock('../../parser/ParsedDocumentService', () => ({
 describe('registerCommands', () => {
     const expectedCommandIds = [
         'lpc.scanFolder',
+        'lpc.showVariables',
         'lpc.showFunctionDoc',
         'lpc.errorTree.refresh',
         'lpc.errorTree.clear',
         'lpc.errorTree.openErrorLocation',
         'lpc.errorTree.copyError',
         'lpc.compileFolder',
-        'lpc.addServer',
-        'lpc.selectServer',
-        'lpc.removeServer',
         'lpc.manageCompilation',
-        'lpc.manageServers',
         'lpc.compileFile',
-        'lpc.startDriver'
+        'lpc.startDriver',
+        'lpc.configureSimulatedEfuns',
+        'lpc.renameVarToSnakeCase',
+        'lpc.renameVarToCamelCase',
+        'lpc.generateJavadoc'
     ];
 
     let registry: ServiceRegistry;
     let context: vscode.ExtensionContext;
-    let efunDocsManager: { id: string };
-    let diagnostics: { analyzeDocument: jest.Mock; scanFolder: jest.Mock };
+    let analysisService: { getSyntaxDocument: jest.Mock };
+    let efunDocsManager: { id: string; configureSimulatedEfuns: jest.Mock };
+    let diagnostics: { analyzeDocument: jest.Mock; scanFolder: jest.Mock; showVariables: jest.Mock };
     let completionInstrumentation: {
         showReport: jest.Mock;
         formatSummary: jest.Mock;
         clear: jest.Mock;
-    };
-    let configManager: {
-        addServer: jest.Mock;
-        selectServer: jest.Mock;
-        removeServer: jest.Mock;
-        showServerManager: jest.Mock;
-        getServers: jest.Mock;
-        getDefaultServerName: jest.Mock;
     };
     let compiler: { compileFile: jest.Mock; compileFolder: jest.Mock };
     let projectConfigService: {
@@ -91,8 +84,6 @@ describe('registerCommands', () => {
         clearErrors: jest.Mock;
     };
     let parsedDocumentService: { getStats: jest.Mock };
-    let freshConfigManager: { id: string };
-    let freshCompiler: { compileFolder: jest.Mock };
     let lpcprj: {
         hasLpcprjCommand: jest.Mock;
         getLpcprjStartCommand: jest.Mock;
@@ -106,23 +97,22 @@ describe('registerCommands', () => {
             globalStoragePath: '/mock/storage'
         } as vscode.ExtensionContext;
 
-        efunDocsManager = { id: 'efun-docs-manager' };
+        analysisService = {
+            getSyntaxDocument: jest.fn()
+        };
+        efunDocsManager = {
+            id: 'efun-docs-manager',
+            configureSimulatedEfuns: jest.fn()
+        };
         diagnostics = {
             analyzeDocument: jest.fn(),
-            scanFolder: jest.fn()
+            scanFolder: jest.fn(),
+            showVariables: jest.fn()
         };
         completionInstrumentation = {
             showReport: jest.fn(),
             formatSummary: jest.fn().mockReturnValue('performance summary'),
             clear: jest.fn()
-        };
-        configManager = {
-            addServer: jest.fn(),
-            selectServer: jest.fn(),
-            removeServer: jest.fn(),
-            showServerManager: jest.fn(),
-            getServers: jest.fn().mockReturnValue([]),
-            getDefaultServerName: jest.fn().mockReturnValue(undefined)
         };
         compiler = {
             compileFile: jest.fn(),
@@ -172,8 +162,6 @@ describe('registerCommands', () => {
         parsedDocumentService = {
             getStats: jest.fn().mockReturnValue({ size: 2, memory: 2048 })
         };
-        freshConfigManager = { id: 'fresh-config-manager' };
-        freshCompiler = { compileFolder: jest.fn() };
         lpcprj = jest.requireMock('../../utils/lpcprj') as {
             hasLpcprjCommand: jest.Mock;
             getLpcprjStartCommand: jest.Mock;
@@ -181,10 +169,10 @@ describe('registerCommands', () => {
         lpcprj.hasLpcprjCommand.mockReset().mockReturnValue(true);
         lpcprj.getLpcprjStartCommand.mockReset().mockImplementation((configPath: string) => `lpcprj "${configPath}"`);
 
+        registry.register(Services.Analysis, analysisService as any);
         registry.register(Services.EfunDocs, efunDocsManager as any);
         registry.register(Services.Diagnostics, diagnostics as any);
         registry.register(Services.CompletionInstrumentation, completionInstrumentation as any);
-        registry.register(Services.ConfigManager, configManager as any);
         registry.register(Services.Compiler, compiler as any);
         registry.register(Services.ProjectConfig, projectConfigService as any);
         registry.register(Services.ErrorTree, errorTreeProvider as any);
@@ -202,8 +190,7 @@ describe('registerCommands', () => {
         } as any);
 
         (ErrorTreeDataProvider as unknown as jest.Mock).mockReset().mockImplementation(() => errorTreeProvider);
-        (LPCConfigManager as unknown as jest.Mock).mockReset().mockImplementation(() => freshConfigManager);
-        (LPCCompiler as unknown as jest.Mock).mockReset().mockImplementation(() => freshCompiler);
+        (createLpcCodeActionCommandHandlers as jest.Mock).mockClear();
         (getGlobalParsedDocumentService as unknown as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
         (clearGlobalParsedDocumentService as unknown as jest.Mock).mockReset();
 
@@ -254,6 +241,10 @@ describe('registerCommands', () => {
         expect(vscode.window.createTreeView).not.toHaveBeenCalled();
         expect(vscode.workspace.onDidChangeConfiguration).not.toHaveBeenCalled();
         expect(vscode.window.createStatusBarItem).not.toHaveBeenCalled();
+        expect(createLpcCodeActionCommandHandlers).toHaveBeenCalledWith(registry.get(Services.Analysis));
+        expect(registeredCommandIds).not.toContain('lpc.addServer');
+        expect(registeredCommandIds).not.toContain('lpc.selectServer');
+        expect(registeredCommandIds).not.toContain('lpc.removeServer');
     });
 
     test('delegates representative commands to registry services and helpers', async () => {
@@ -267,12 +258,16 @@ describe('registerCommands', () => {
         (vscode.window as any).activeTextEditor = { document: activeDocument };
 
         handlers.get('lpc.scanFolder')?.();
+        handlers.get('lpc.showVariables')?.();
         handlers.get('lpc.showFunctionDoc')?.();
+        handlers.get('lpc.configureSimulatedEfuns')?.();
         await handlers.get('lpc.compileFile')?.();
         await handlers.get('lpc.compileFolder')?.({ fsPath: 'D:/workspace/project' } as vscode.Uri);
         handlers.get('lpc.errorTree.refresh')?.();
 
         expect(diagnostics.scanFolder).toHaveBeenCalledTimes(1);
+        expect(diagnostics.showVariables).toHaveBeenCalledTimes(1);
+        expect(efunDocsManager.configureSimulatedEfuns).toHaveBeenCalledTimes(1);
         expect(FunctionDocPanel.createOrShow).toHaveBeenCalledWith(
             context,
             efunDocsManager,
@@ -336,22 +331,25 @@ describe('registerCommands', () => {
         });
     });
 
-    test('addServer writes remote server into project config', async () => {
+    test('manageCompilation writes remote server into project config', async () => {
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
+        (vscode.window.showQuickPick as jest.Mock)
+            .mockResolvedValueOnce({ value: 'remote' })
+            .mockResolvedValueOnce({ action: 'addServer' });
         (vscode.window.showInputBox as jest.Mock)
             .mockResolvedValueOnce('Beta')
             .mockResolvedValueOnce('http://127.0.0.1:8081')
             .mockResolvedValueOnce('backup');
 
-        await handlers.get('lpc.addServer')?.();
+        await handlers.get('lpc.manageCompilation')?.();
 
         expect(projectConfigService.updateCompileConfigForWorkspace).toHaveBeenCalledWith(
             'D:/workspace',
             expect.any(Function)
         );
-        const updater = projectConfigService.updateCompileConfigForWorkspace.mock.calls[0][1];
+        const updater = projectConfigService.updateCompileConfigForWorkspace.mock.calls[1][1];
         expect(updater({
             mode: 'remote',
             local: {
@@ -379,17 +377,20 @@ describe('registerCommands', () => {
         expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
     });
 
-    test('selectServer updates active remote server in project config and refreshes error tree', async () => {
+    test('manageCompilation updates active remote server in project config and refreshes error tree', async () => {
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
-        (vscode.window.showQuickPick as jest.Mock).mockResolvedValueOnce({
-            label: 'Alpha',
-            description: 'local',
-            detail: 'http://127.0.0.1:8080'
-        });
+        (vscode.window.showQuickPick as jest.Mock)
+            .mockResolvedValueOnce({ value: 'remote' })
+            .mockResolvedValueOnce({ action: 'selectServer' })
+            .mockResolvedValueOnce({
+                label: 'Alpha',
+                description: 'local',
+                detail: 'http://127.0.0.1:8080'
+            });
 
-        await handlers.get('lpc.selectServer')?.();
+        await handlers.get('lpc.manageCompilation')?.();
 
         expect(projectConfigService.updateCompileConfigForWorkspace).toHaveBeenCalledWith(
             'D:/workspace',

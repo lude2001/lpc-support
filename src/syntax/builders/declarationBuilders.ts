@@ -206,7 +206,7 @@ export function buildTypeReference(b: SyntaxBuilder, ctx: TypeLikeContext | unde
         return undefined;
     }
 
-    const identifier = typeof ctx.Identifier === 'function' ? ctx.Identifier() : undefined;
+    const identifier = getTypeReferenceIdentifier(ctx);
     const children = identifier ? [b.buildIdentifierNode(identifier)] : [];
 
     return b.createNode(SyntaxKind.TypeReference, ctx, children, {
@@ -216,4 +216,12 @@ export function buildTypeReference(b: SyntaxBuilder, ctx: TypeLikeContext | unde
             pointerCount: b.countExplicitPointerTokens(ctx)
         }
     });
+}
+
+function getTypeReferenceIdentifier(ctx: TypeLikeContext): TerminalNode | undefined {
+    if (ctx instanceof CastTypeContext) {
+        return ctx.castBaseType().Identifier();
+    }
+
+    return ctx.Identifier();
 }

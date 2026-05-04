@@ -1,46 +1,8 @@
 import * as vscode from 'vscode';
 import { LocalVariableDeclarationCollector } from '../LocalVariableDeclarationCollector';
 import { TestHelper } from '../../__tests__/utils/TestHelper';
-
-type FakeStatement = {
-    start: { startIndex: number };
-    variableDecl: () => any;
-    block: () => any;
-    functionDef: () => any;
-    ifStatement: () => any;
-    whileStatement: () => any;
-    doWhileStatement: () => any;
-    forStatement: () => any;
-    foreachStatement: () => any;
-    switchStatement: () => any;
-};
-
-function createLeafStatement(startIndex: number, variableDecl?: any): FakeStatement {
-    return {
-        start: { startIndex },
-        variableDecl: () => variableDecl,
-        block: () => undefined,
-        functionDef: () => undefined,
-        ifStatement: () => undefined,
-        whileStatement: () => undefined,
-        doWhileStatement: () => undefined,
-        forStatement: () => undefined,
-        foreachStatement: () => undefined,
-        switchStatement: () => undefined
-    };
-}
-
-function createParsedDoc(blockStatements: FakeStatement): any;
-function createParsedDoc(blockStatements: FakeStatement[]): any;
-function createParsedDoc(blockStatements: FakeStatement | FakeStatement[]): any {
-    const statements = Array.isArray(blockStatements) ? blockStatements : [blockStatements];
-    const block = { statement: () => statements };
-    const funcDef = { block: () => block };
-    const topStmt = { functionDef: () => funcDef };
-    return {
-        tree: { statement: () => [topStmt] }
-    };
-}
+import { DiagnosticContext } from '../../diagnostics/types';
+import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 
 describe('LocalVariableDeclarationCollector', () => {
     beforeEach(() => {
@@ -62,21 +24,10 @@ describe('LocalVariableDeclarationCollector', () => {
     int later = 1;
 }`;
         const doc = TestHelper.createMockDocument(content, 'lpc', 'rule-off.c');
-
-        const execIdx = content.indexOf('write("x");');
-        const declIdx = content.indexOf('int later = 1;');
-        const varDecl = {
-            start: { startIndex: declIdx },
-            stop: { stopIndex: declIdx + 'int later = 1;'.length - 1 }
-        };
-
-        const parsed = createParsedDoc([
-            createLeafStatement(execIdx),
-            createLeafStatement(declIdx, varDecl)
-        ]);
+        const { parsed, context } = analyze(doc);
 
         const collector = new LocalVariableDeclarationCollector();
-        const diagnostics = collector.collect(doc as any, parsed);
+        const diagnostics = collector.collect(doc as any, parsed, context);
 
         expect(diagnostics).toHaveLength(0);
     });
@@ -96,21 +47,10 @@ describe('LocalVariableDeclarationCollector', () => {
     int later = 1;
 }`;
         const doc = TestHelper.createMockDocument(content, 'lpc', 'rule-on.c');
-
-        const execIdx = content.indexOf('write("x");');
-        const declIdx = content.indexOf('int later = 1;');
-        const varDecl = {
-            start: { startIndex: declIdx },
-            stop: { stopIndex: declIdx + 'int later = 1;'.length - 1 }
-        };
-
-        const parsed = createParsedDoc([
-            createLeafStatement(execIdx),
-            createLeafStatement(declIdx, varDecl)
-        ]);
+        const { parsed, context } = analyze(doc);
 
         const collector = new LocalVariableDeclarationCollector();
-        const diagnostics = collector.collect(doc as any, parsed);
+        const diagnostics = collector.collect(doc as any, parsed, context);
 
         expect(diagnostics).toHaveLength(1);
         expect(diagnostics[0].code).toBe('localVariableDeclarationPosition');
@@ -134,33 +74,24 @@ describe('LocalVariableDeclarationCollector', () => {
     #endif
 }`;
         const doc = TestHelper.createMockDocument(content, 'lpc', 'branch.c');
-
-        const execIdx = content.indexOf('write("x");');
-        const declIdx = content.indexOf('int later = 1;');
-        const varDecl = {
-            start: { startIndex: declIdx },
-            stop: { stopIndex: declIdx + 'int later = 1;'.length - 1 }
-        };
-
-        const parsed = {
-            ...createParsedDoc([
-                createLeafStatement(execIdx),
-                createLeafStatement(declIdx, varDecl)
-            ]),
-            frontend: {
-                preprocessor: {
-                    directives: [{
-                        kind: 'ifdef',
-                        range: new vscode.Range(2, 4, 2, 20)
-                    }]
-                }
-            }
-        };
+        const { parsed, context } = analyze(doc);
 
         const collector = new LocalVariableDeclarationCollector();
-        const diagnostics = collector.collect(doc as any, parsed);
+        const diagnostics = collector.collect(doc as any, parsed, context);
 
         expect(diagnostics).toHaveLength(0);
     });
 });
+
+function analyze(document: vscode.TextDocument): { parsed: any; context: DiagnosticContext } {
+    const analysis = DocumentSemanticSnapshotService.getInstance().parseDocument(document, false);
+    return {
+        parsed: analysis.parsed!,
+        context: {
+            parsed: analysis.parsed!,
+            syntax: analysis.syntax,
+            semantic: analysis.semantic
+        }
+    };
+}
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

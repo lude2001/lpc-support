@@ -58,6 +58,7 @@ import { UnaryExpressionContext } from "./LPCParser";
 import { SizeofExpressionContext } from "./LPCParser";
 import { CastExpressionContext } from "./LPCParser";
 import { CastTypeContext } from "./LPCParser";
+import { CastBaseTypeContext } from "./LPCParser";
 import { PostfixExpressionContext } from "./LPCParser";
 import { ArgumentListContext } from "./LPCParser";
 import { PrimaryContext } from "./LPCParser";
@@ -514,6 +515,13 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitCastType?: (ctx: CastTypeContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.castBaseType`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitCastBaseType?: (ctx: CastBaseTypeContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.postfixExpression`.

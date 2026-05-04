@@ -33,6 +33,9 @@ describe('LPC language facts', () => {
         ]));
 
         expect(isLpcBuiltinType('MIXED')).toBe(true);
+        expect(isLpcBuiltinType('array')).toBe(true);
+        expect(isLpcBuiltinType('closure')).toBe(true);
+        expect(isLpcBuiltinType('__TREE__')).toBe(true);
         expect(isLpcDeclarationModifier('VarArgs')).toBe(true);
         expect(isLpcKeyword('return')).toBe(true);
         expect(isLpcKeyword('nosave')).toBe(true);

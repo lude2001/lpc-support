@@ -1,15 +1,28 @@
 ﻿import * as vscode from 'vscode';
-import { Token } from 'antlr4ts';
-import { LPCParser } from '../antlr/LPCParser';
 import { CompletionQueryContext } from './types';
 import { FrontendCursorContextService } from '../frontend/FrontendCursorContextService';
 import {
     isLpcBuiltinType,
-    isLpcDeclarationModifier,
+    isLpcIdentifierLikeText,
     isLpcNonCallParenKeyword
 } from '../frontend/languageFacts';
 import { getGlobalLpcFrontendService } from '../frontend/LpcFrontendService';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
+import {
+    isCallableExpressionEndToken,
+    isEofToken,
+    isIdentifierToken,
+    isIncludeDirectiveToken,
+    isInheritDirectiveToken,
+    isLeftParenToken,
+    isModifierToken,
+    isReceiverBoundaryToken,
+    isRightParenToken,
+    isSemicolonToken,
+    isTypeKeywordToken,
+    isTypePositionBoundaryToken,
+    type LpcTokenLike
+} from '../parser/LpcTokenFacts';
 import type { ParsedDocument } from '../parser/types';
 
 interface ReceiverContext {
@@ -40,12 +53,10 @@ export class CompletionContextAnalyzer {
     public analyze(document: vscode.TextDocument, position: vscode.Position): CompletionQueryContext {
         const lineText = document.lineAt(position).text;
         const linePrefix = lineText.slice(0, position.character);
-        const documentPrefix = this.extractDocumentPrefix(document, position);
-        const trimmedPrefix = linePrefix.trimLeft();
         const currentWord = this.extractCurrentWord(linePrefix);
         const frontendContext = this.frontendCursorContext.analyze(document, position);
 
-        if (frontendContext.kind === 'include-path' || this.isIncludePathContext(trimmedPrefix)) {
+        if (frontendContext.kind === 'include-path' || this.isIncludePathContext(document, position)) {
             return {
                 kind: 'include-path',
                 receiverChain: [],
@@ -63,7 +74,7 @@ export class CompletionContextAnalyzer {
             };
         }
 
-        if (this.isInheritPathContext(trimmedPrefix)) {
+        if (this.isInheritPathContext(document, position)) {
             return {
                 kind: 'inherit-path',
                 receiverChain: [],
@@ -72,7 +83,7 @@ export class CompletionContextAnalyzer {
             };
         }
 
-        const scopedContext = this.extractScopedContext(document, position, linePrefix, documentPrefix);
+        const scopedContext = this.extractScopedContext(document, position, linePrefix);
         if (scopedContext) {
             return {
                 kind: 'scoped-member',
@@ -94,16 +105,7 @@ export class CompletionContextAnalyzer {
             };
         }
 
-        if (this.isPreprocessorContext(trimmedPrefix)) {
-            return {
-                kind: 'preprocessor',
-                receiverChain: [],
-                currentWord,
-                linePrefix
-            };
-        }
-
-        if (this.isTypePositionContext(linePrefix)) {
+        if (this.isTypePositionContext(document, position)) {
             return {
                 kind: 'type-position',
                 receiverChain: [],
@@ -125,30 +127,18 @@ export class CompletionContextAnalyzer {
         return match ? match[1] : '';
     }
 
-    private extractDocumentPrefix(document: vscode.TextDocument, position: vscode.Position): string {
-        const lines: string[] = [];
-        for (let line = 0; line < position.line; line += 1) {
-            lines.push(document.lineAt(line).text);
-        }
-
-        lines.push(document.lineAt(position).text.slice(0, position.character));
-        return lines.join('\n');
-    }
-
     private extractScopedContext(
         document: vscode.TextDocument,
         position: vscode.Position,
-        linePrefix: string,
-        documentPrefix: string
+        linePrefix: string
     ): ScopedContextResult {
-        return this.extractTokenBackedScopedContext(document, position, linePrefix, documentPrefix);
+        return this.extractTokenBackedScopedContext(document, position, linePrefix);
     }
 
     private extractTokenBackedScopedContext(
         document: vscode.TextDocument,
         position: vscode.Position,
-        linePrefix: string,
-        documentPrefix: string
+        linePrefix: string
     ): ScopedContextResult {
         if (isInsideLineStringOrComment(linePrefix)) {
             return null;
@@ -175,7 +165,7 @@ export class CompletionContextAnalyzer {
         const tokensAfterScope = parsed.visibleTokens.filter((token) =>
             token.line === scopeToken.line
             && token.tokenIndex > scopeToken.tokenIndex
-            && token.type !== Token.EOF
+            && !isEofToken(token)
             && token.startIndex >= 0
             && token.startIndex < cursorOffset
         );
@@ -183,14 +173,13 @@ export class CompletionContextAnalyzer {
             return null;
         }
 
-        const prefixBeforeScope = documentPrefix.slice(0, scopeToken.startIndex);
-        if (this.isInsideCallArguments(prefixBeforeScope)) {
+        if (this.isInsideCallArguments(parsed.visibleTokens, scopeTokenIndex)) {
             return null;
         }
 
         const qualifierToken = parsed.visibleTokens[scopeTokenIndex - 1];
         if (
-            qualifierToken?.type === LPCParser.Identifier
+            isIdentifierToken(qualifierToken)
             && qualifierToken.line === scopeToken.line
             && qualifierToken.stopIndex + 1 === scopeToken.startIndex
         ) {
@@ -206,9 +195,9 @@ export class CompletionContextAnalyzer {
         };
     }
 
-    private isInsideCallArguments(prefixBeforeScoped: string): boolean {
-        for (const unmatchedParenIndex of this.findUnmatchedParenIndices(prefixBeforeScoped)) {
-            if (this.isCallArgumentParen(prefixBeforeScoped, unmatchedParenIndex)) {
+    private isInsideCallArguments(tokens: readonly LpcTokenLike[], scopeTokenIndex: number): boolean {
+        for (const openParenTokenIndex of findUnmatchedOpenParenTokenIndices(tokens, scopeTokenIndex)) {
+            if (this.isCallArgumentParen(tokens, openParenTokenIndex)) {
                 return true;
             }
         }
@@ -216,68 +205,14 @@ export class CompletionContextAnalyzer {
         return false;
     }
 
-    private isCallArgumentParen(text: string, openParenIndex: number): boolean {
-        const beforeParen = text.slice(0, openParenIndex).trimEnd();
-        if (!beforeParen) {
+    private isCallArgumentParen(tokens: readonly LpcTokenLike[], openParenTokenIndex: number): boolean {
+        const previousToken = tokens[openParenTokenIndex - 1];
+        if (!previousToken) {
             return false;
         }
 
-        const previousCharacter = beforeParen[beforeParen.length - 1];
-        if (!/[A-Za-z0-9_\])}]/.test(previousCharacter)) {
-            return false;
-        }
-
-        const tokenMatch = beforeParen.match(/([A-Za-z_][A-Za-z0-9_]*)$/);
-        if (!tokenMatch) {
-            return true;
-        }
-
-        return !isLpcNonCallParenKeyword(tokenMatch[1]);
-    }
-
-    private findUnmatchedParenIndices(text: string): number[] {
-        const stack: number[] = [];
-        let inSingleQuote = false;
-        let inDoubleQuote = false;
-        let escaped = false;
-
-        for (let index = 0; index < text.length; index += 1) {
-            const character = text[index];
-            if (escaped) {
-                escaped = false;
-                continue;
-            }
-
-            if (character === '\\') {
-                escaped = true;
-                continue;
-            }
-
-            if (character === '\'' && !inDoubleQuote) {
-                inSingleQuote = !inSingleQuote;
-                continue;
-            }
-
-            if (character === '"' && !inSingleQuote) {
-                inDoubleQuote = !inDoubleQuote;
-                continue;
-            }
-
-            if (inSingleQuote || inDoubleQuote) {
-                continue;
-            }
-
-            if (character === '(') {
-                stack.push(index);
-                continue;
-            }
-
-            if (character === ')' && stack.length > 0) {
-                stack.pop();
-            }
-        }
-
-        return stack;
+        return isCallableExpressionEndToken(previousToken)
+            && !isLpcNonCallParenKeyword(previousToken.text ?? '');
     }
 
     private extractReceiverContext(
@@ -343,49 +278,67 @@ export class CompletionContextAnalyzer {
         return parsed;
     }
 
-    private isPreprocessorContext(trimmedPrefix: string): boolean {
-        return /^#/.test(trimmedPrefix);
+    private isInheritPathContext(document: vscode.TextDocument, position: vscode.Position): boolean {
+        const tokens = this.getVisibleLineTokensBeforeCursor(document, position);
+        return this.isDirectiveLikePathContext(tokens, isInheritDirectiveToken);
     }
 
-    private isInheritPathContext(trimmedPrefix: string): boolean {
-        return /^inherit\s+/.test(trimmedPrefix);
+    private isIncludePathContext(document: vscode.TextDocument, position: vscode.Position): boolean {
+        const tokens = this.getVisibleLineTokensBeforeCursor(document, position);
+        return this.isDirectiveLikePathContext(tokens, isIncludeDirectiveToken);
     }
 
-    private isIncludePathContext(trimmedPrefix: string): boolean {
-        return /^(#\s*)?include\s+/.test(trimmedPrefix);
+    private isDirectiveLikePathContext(
+        tokens: readonly LpcTokenLike[],
+        isDirectiveToken: (token: LpcTokenLike | undefined) => boolean
+    ): boolean {
+        const firstToken = tokens[0];
+        return isDirectiveToken(firstToken) && !tokens.some(isSemicolonToken);
     }
 
-    private isTypePositionContext(linePrefix: string): boolean {
-        const trimmed = linePrefix.trim();
-        if (!trimmed || /[;=(),>#]/.test(trimmed)) {
-            return false;
-        }
-
-        const tokens = trimmed.split(/\s+/).filter(Boolean);
-        if (tokens.length === 0) {
+    private isTypePositionContext(document: vscode.TextDocument, position: vscode.Position): boolean {
+        const tokens = this.getVisibleLineTokensBeforeCursor(document, position);
+        if (tokens.length === 0 || tokens.some((token) => isTypePositionBoundaryToken(token))) {
             return false;
         }
 
         let index = 0;
-        while (index < tokens.length && isLpcDeclarationModifier(tokens[index])) {
+        while (index < tokens.length && isModifierToken(tokens[index])) {
             index += 1;
         }
 
         if (index >= tokens.length) {
-            return false;
+            return index > 0;
         }
 
         const token = tokens[index];
-        if (isLpcBuiltinType(token)) {
+        if (isLpcTypeToken(token)) {
             return true;
         }
 
-        return token === 'class' || token === 'struct';
+        return isIdentifierToken(token) && isLpcBuiltinType(token.text ?? '');
+    }
+
+    private getVisibleLineTokensBeforeCursor(document: vscode.TextDocument, position: vscode.Position): LpcTokenLike[] {
+        const parsed = this.safeGetParsedDocument(document);
+        if (!parsed) {
+            return [];
+        }
+
+        const cursorOffset = document.offsetAt(position);
+        const antlrLine = position.line + 1;
+
+        return parsed.visibleTokens.filter((token) =>
+            !isEofToken(token)
+            && token.line === antlrLine
+            && token.startIndex >= 0
+            && token.startIndex < cursorOffset
+        );
     }
 }
 
 function findLastTokenIndexBeforeOffset(
-    tokens: readonly Token[],
+    tokens: readonly LpcTokenLike[],
     tokenText: string,
     offset: number,
     line: number
@@ -405,7 +358,7 @@ function findLastTokenIndexBeforeOffset(
 }
 
 function findLastMemberOperatorIndexBeforeOffset(
-    tokens: readonly Token[],
+    tokens: readonly LpcTokenLike[],
     offset: number,
     line: number
 ): number {
@@ -423,7 +376,7 @@ function findLastMemberOperatorIndexBeforeOffset(
     return -1;
 }
 
-function findReceiverStartTokenIndex(tokens: readonly Token[], arrowTokenIndex: number): number {
+function findReceiverStartTokenIndex(tokens: readonly LpcTokenLike[], arrowTokenIndex: number): number {
     let depth = 0;
     const arrowLine = tokens[arrowTokenIndex].line;
 
@@ -448,7 +401,7 @@ function findReceiverStartTokenIndex(tokens: readonly Token[], arrowTokenIndex: 
             return index + 1;
         }
 
-        if (depth === 0 && isReceiverBoundary(tokens[index])) {
+            if (depth === 0 && isReceiverBoundaryToken(tokens[index])) {
             return index + 1;
         }
     }
@@ -456,13 +409,31 @@ function findReceiverStartTokenIndex(tokens: readonly Token[], arrowTokenIndex: 
     return 0;
 }
 
-function buildSimpleReceiverChain(tokens: readonly Token[]): string[] {
+function findUnmatchedOpenParenTokenIndices(tokens: readonly LpcTokenLike[], endTokenIndex: number): number[] {
+    const stack: number[] = [];
+
+    for (let index = 0; index < endTokenIndex; index += 1) {
+        const token = tokens[index];
+        if (isLeftParenToken(token)) {
+            stack.push(index);
+            continue;
+        }
+
+        if (isRightParenToken(token) && stack.length > 0) {
+            stack.pop();
+        }
+    }
+
+    return stack;
+}
+
+function buildSimpleReceiverChain(tokens: readonly LpcTokenLike[]): string[] {
     const chain: string[] = [];
     let expectIdentifier = true;
 
     for (const token of tokens) {
         if (expectIdentifier) {
-            if (token.type !== LPCParser.Identifier || !token.text) {
+            if (!isIdentifierToken(token) || !token.text) {
                 return [];
             }
 
@@ -480,23 +451,6 @@ function buildSimpleReceiverChain(tokens: readonly Token[]): string[] {
     return expectIdentifier ? [] : chain;
 }
 
-function isReceiverBoundary(token: Token): boolean {
-    const tokenText = token.text ?? '';
-    return tokenText === ';'
-        || tokenText === ','
-        || tokenText === '{'
-        || tokenText === '}'
-        || tokenText === '='
-        || tokenText === '?'
-        || tokenText === ':'
-        || token.type === LPCParser.RETURN
-        || token.type === LPCParser.IF
-        || token.type === LPCParser.WHILE
-        || token.type === LPCParser.FOR
-        || token.type === LPCParser.FOREACH
-        || token.type === LPCParser.SWITCH;
-}
-
 function isOpeningDelimiter(tokenText: string): boolean {
     return tokenText === '(' || tokenText === '[';
 }
@@ -505,13 +459,17 @@ function isClosingDelimiter(tokenText: string): boolean {
     return tokenText === ')' || tokenText === ']';
 }
 
-function isScopedMemberNameSuffix(tokensAfterScope: readonly Token[]): boolean {
+function isScopedMemberNameSuffix(tokensAfterScope: readonly LpcTokenLike[]): boolean {
     return tokensAfterScope.length <= 1
         && tokensAfterScope.every((token) => isIdentifierLikeToken(token));
 }
 
-function isIdentifierLikeToken(token: Token): boolean {
-    return typeof token.text === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(token.text);
+function isIdentifierLikeToken(token: LpcTokenLike): boolean {
+    return isIdentifierToken(token) || isLpcIdentifierLikeText(token.text ?? undefined);
+}
+
+function isLpcTypeToken(token: LpcTokenLike): boolean {
+    return isTypeKeywordToken(token);
 }
 
 function isInsideLineStringOrComment(linePrefix: string): boolean {

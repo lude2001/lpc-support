@@ -232,6 +232,80 @@ describe('CompletionQueryEngine', () => {
         expect(result.candidates.map((candidate) => candidate.label)).toEqual(['title']);
     });
 
+    test('follows explicit struct and class member chains for completion', () => {
+        const filePath = path.join(root, 'struct-class-chain.c');
+        const content = [
+            'class Payload {',
+            '    string title;',
+            '    int amount;',
+            '}',
+            '',
+            'struct Record {',
+            '    class Payload payload;',
+            '}',
+            '',
+            'void demo() {',
+            '    struct Record record;',
+            '    record.payload->a',
+            '}'
+        ].join('\n');
+
+        fs.writeFileSync(filePath, content, 'utf8');
+
+        const astManager = getAstManagerForTests();
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
+        const engine = new CompletionQueryEngine({
+            snapshotProvider: astManager,
+            projectSymbolIndex,
+            contextAnalyzer: new CompletionContextAnalyzer()
+        });
+        const document = createDocument(filePath, content);
+
+        const result = engine.query(
+            document,
+            new vscode.Position(11, '    record.payload->a'.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        expect(result.context.kind).toBe('member');
+        expect(result.candidates.map((candidate) => candidate.label)).toEqual(['amount']);
+    });
+
+    test('returns LPC special types in type-position completion', () => {
+        const filePath = path.join(root, 'special-types.c');
+        const content = [
+            'void demo() {',
+            '    static ',
+            '}'
+        ].join('\n');
+
+        fs.writeFileSync(filePath, content, 'utf8');
+
+        const astManager = getAstManagerForTests();
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
+        const engine = new CompletionQueryEngine({
+            snapshotProvider: astManager,
+            projectSymbolIndex,
+            contextAnalyzer: new CompletionContextAnalyzer()
+        });
+        const document = createDocument(filePath, content);
+
+        const result = engine.query(
+            document,
+            new vscode.Position(1, '    static '.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        expect(result.context.kind).toBe('type-position');
+        expect(result.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining([
+            'array',
+            'closure',
+            '__TREE__'
+        ]));
+    });
+
     test('returns generic object methods for object-style member receivers', () => {
         const filePath = path.join(root, 'object-member.c');
         const content = [

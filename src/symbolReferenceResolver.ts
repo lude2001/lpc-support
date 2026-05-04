@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
-import { LPCLexer } from './antlr/LPCLexer';
 import { Scope, Symbol as LPCSymbol, SymbolTable, SymbolType } from './ast/symbolTable';
+import {
+    isDefaultChannelToken,
+    isIdentifierToken,
+    type LpcTokenLike
+} from './parser/LpcTokenFacts';
 import type { DocumentAnalysisService } from './semantic/documentAnalysisService';
 
 export interface SymbolReferenceMatch {
@@ -107,11 +111,11 @@ function toVsCodePosition(position: vscode.Position | { line: number; character:
 }
 
 function isMatchingIdentifierToken(
-    token: { channel: number; type: number; text?: string | null },
+    token: LpcTokenLike,
     symbolName: string
 ): boolean {
-    return token.channel === LPCLexer.DEFAULT_TOKEN_CHANNEL
-        && token.type === LPCLexer.Identifier
+    return isDefaultChannelToken(token)
+        && isIdentifierToken(token)
         && token.text === symbolName;
 }
 

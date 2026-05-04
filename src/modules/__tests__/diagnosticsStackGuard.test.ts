@@ -67,6 +67,17 @@ describe('diagnostics stack production guards', () => {
         expect(orchestratorSource).not.toContain('clearDocumentAnalysisState(');
         expect(orchestratorSource).not.toContain("from '../language/services/diagnostics/createSharedDiagnosticsService'");
     });
+
+    test('production diagnostic collectors consume syntax and semantic facts instead of ANTLR contexts', () => {
+        const collectorRoot = path.join(repoRoot, 'src', 'collectors');
+        const productionCollectorFiles = listProductionTypeScriptFiles(collectorRoot);
+
+        for (const filePath of productionCollectorFiles) {
+            const source = fs.readFileSync(filePath, 'utf8');
+            expect(source).not.toMatch(/from\s+['"][^'"]*antlr\//);
+            expect(source).not.toMatch(/from\s+['"][^'"]*antlr\\/);
+        }
+    });
 });
 
 function listProductionTypeScriptFiles(rootDir: string): string[] {

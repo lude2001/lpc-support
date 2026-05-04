@@ -3,7 +3,6 @@ import { ServiceRegistry } from '../core/ServiceRegistry';
 import { Services } from '../core/ServiceKeys';
 import { DocumentLifecycleService } from '../core/DocumentLifecycleService';
 import { CompletionInstrumentation } from '../completion/completionInstrumentation';
-import { LPCConfigManager } from '../config';
 import { LPCCompiler } from '../compiler';
 import { EfunDocsManager } from '../efunDocs';
 import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
@@ -65,10 +64,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     registry.register(Services.CompletionInstrumentation, completionInstrumentation);
     context.subscriptions.push(completionInstrumentation);
 
-    const configManager = new LPCConfigManager(context);
-    registry.register(Services.ConfigManager, configManager);
-
-    const compiler = new LPCCompiler(configManager);
+    const compiler = new LPCCompiler(projectConfigService);
     registry.register(Services.Compiler, compiler);
 
     const lifecycle = new DocumentLifecycleService();

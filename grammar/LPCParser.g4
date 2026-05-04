@@ -86,8 +86,12 @@ typeSpec
     |   KW_BUFFER
     |   KW_VOID
     |   KW_STRUCT
+    |   KW_STRUCT Identifier
     |   KW_CLASS
     |   KW_CLASS Identifier  // 支持 class item 这样的语法
+    |   KW_ARRAY
+    |   KW_CLOSURE
+    |   KW_TREE
     |   Identifier ('*')*
     ;
 
@@ -162,7 +166,7 @@ unaryExpression
     ;
 
 sizeofExpression
-    :   KW_SIZEOF LPAREN (expression | typeSpec) RPAREN
+    :   KW_SIZEOF LPAREN (expression | typeSpec STAR*) RPAREN
     ;
 
 castExpression
@@ -170,6 +174,10 @@ castExpression
     ;
 
 castType
+    :   castBaseType STAR*
+    ;
+
+castBaseType
     :   KW_INT
     |   KW_FLOAT
     |   KW_STRING
@@ -180,8 +188,12 @@ castType
     |   KW_BUFFER
     |   KW_VOID
     |   KW_STRUCT
+    |   KW_STRUCT Identifier
     |   KW_CLASS
     |   KW_CLASS Identifier  // 支持 class item 这样的类型转换
+    |   KW_ARRAY
+    |   KW_CLOSURE
+    |   KW_TREE
     ;
 
 postfixExpression

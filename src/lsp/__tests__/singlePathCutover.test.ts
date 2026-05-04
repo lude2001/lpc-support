@@ -1,16 +1,14 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as languageModule from '../../modules/languageModule';
 
 const packageJsonPath = path.resolve(__dirname, '../../../package.json');
 const readmePath = path.resolve(__dirname, '../../../README.md');
+const languageModulePath = path.resolve(__dirname, '../../modules/languageModule.ts');
 
 describe('single-path LSP cutover', () => {
-    test('language module does not expose public classic registration helpers', () => {
-        expect(languageModule).not.toHaveProperty('registerClassicLanguageProviders');
-        expect(languageModule).not.toHaveProperty('registerLanguageProviders');
-        expect(languageModule).toHaveProperty('registerHostLanguageAffordances', expect.any(Function));
+    test('classic host language module is no longer kept as an empty cutover shell', () => {
+        expect(fs.existsSync(languageModulePath)).toBe(false);
     });
 
     test('package.json does not expose public lspMode configuration', () => {

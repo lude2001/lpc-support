@@ -7,6 +7,11 @@ describe('document analysis ownership guards', () => {
     const srcRoot = path.join(repoRoot, 'src');
     const legacyServicePath = path.join(srcRoot, 'completion', 'documentSemanticSnapshotService.ts');
 
+    test('legacy analysis shim and unused core barrel are removed', () => {
+        expect(fs.existsSync(legacyServicePath)).toBe(false);
+        expect(fs.existsSync(path.join(srcRoot, 'core', 'index.ts'))).toBe(false);
+    });
+
     test('production sources no longer import the analysis owner from the legacy completion path', () => {
         const productionFiles = listProductionTypeScriptFiles(srcRoot);
 
@@ -37,11 +42,29 @@ describe('document analysis ownership guards', () => {
         }
     });
 
+    test('analysis contracts expose parsed syntax and semantic facts instead of public ANTLR ASTs', () => {
+        const analysisContractSource = fs.readFileSync(
+            path.join(srcRoot, 'semantic', 'documentAnalysisService.ts'),
+            'utf8'
+        );
+        const snapshotServiceSource = fs.readFileSync(
+            path.join(srcRoot, 'semantic', 'documentSemanticSnapshotService.ts'),
+            'utf8'
+        );
+        const astManagerSource = fs.readFileSync(
+            path.join(srcRoot, 'ast', 'astManager.ts'),
+            'utf8'
+        );
+
+        expect(analysisContractSource).not.toContain('SourceFileContext');
+        expect(analysisContractSource).not.toContain('ast:');
+        expect(snapshotServiceSource).not.toContain('const ast = {} as SourceFileContext');
+        expect(snapshotServiceSource).not.toContain('ast,');
+        expect(astManagerSource).not.toContain('ast: SourceFileContext');
+        expect(astManagerSource).not.toContain('ast: analysis.ast');
+    });
+
     test('legacy completion shim no longer exposes singleton access, and AST singleton wiring stays out of production', () => {
-        const legacySource = fs.readFileSync(legacyServicePath, 'utf8');
-
-        expect(legacySource).not.toContain('getInstance(');
-
         const snapshotSingletonCallSites = listProductionTypeScriptFiles(srcRoot)
             .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('DocumentSemanticSnapshotService.getInstance('))
             .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
@@ -71,6 +94,33 @@ describe('document analysis ownership guards', () => {
         expect(astManagerSource).not.toContain('public static configureSingleton(');
         expect(astManagerSource).not.toContain('public static getInstance(');
         expect(astManagerSource).not.toContain('public static resetSingletonForTests(');
+    });
+
+    test('host command registration stays in the command module', () => {
+        const commandRegistrationCallSites = listProductionTypeScriptFiles(srcRoot)
+            .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes('vscode.commands.registerCommand('))
+            .map((filePath) => path.relative(repoRoot, filePath).replace(/\\/g, '/'))
+            .sort();
+
+        expect(commandRegistrationCallSites).toEqual([
+            'src/modules/commandModule.ts'
+        ]);
+    });
+
+    test('business services consume parser token facts instead of generated lexer/parser constants', () => {
+        const guardedFiles = [
+            path.join(srcRoot, 'completion', 'completionContextAnalyzer.ts'),
+            path.join(srcRoot, 'symbolReferenceResolver.ts'),
+            path.join(srcRoot, 'language', 'services', 'navigation', 'InheritedFileGlobalRelationService.ts'),
+            path.join(srcRoot, 'language', 'services', 'structure', 'LanguageSemanticTokensService.ts'),
+            path.join(srcRoot, 'objectInference', 'ScopedMethodDiscoveryService.ts')
+        ];
+
+        for (const filePath of guardedFiles) {
+            const source = fs.readFileSync(filePath, 'utf8');
+            expect(source).not.toMatch(/from\s+['"][^'"]*antlr/);
+            expect(source).not.toMatch(/import\s+\{\s*Token\s*\}\s+from\s+['"]antlr4ts['"]/);
+        }
     });
 
     test('FunctionDocumentationService default assembly stays on the documented factory/composition roots', () => {

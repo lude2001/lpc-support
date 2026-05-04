@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { SourceFileContext } from '../antlr/LPCParser';
 import {
     clearGlobalParsedDocumentService,
     getGlobalParsedDocumentService
@@ -15,7 +14,6 @@ import { SyntaxDocument } from '../syntax/types';
 import { ParsedDocument as ParsedDoc } from '../parser/types';
 
 export interface ParseResult {
-    ast: SourceFileContext;
     symbolTable: SymbolTable;
     parseErrors: vscode.Diagnostic[];
     parsed?: ParsedDoc;
@@ -87,7 +85,6 @@ export class ASTManager {
 
     private toParseResult(analysis: DocumentSemanticAnalysis): ParseResult {
         return {
-            ast: analysis.ast,
             symbolTable: analysis.symbolTable,
             parseErrors: analysis.parseErrors,
             parsed: analysis.parsed,

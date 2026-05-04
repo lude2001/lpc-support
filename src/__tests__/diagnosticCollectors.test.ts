@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
+import { GlobalVariableCollector } from '../collectors/GlobalVariableCollector';
 import { StringLiteralCollector } from '../collectors/StringLiteralCollector';
+import { UnusedVariableCollector } from '../collectors/UnusedVariableCollector';
 import { ObjectAccessCollector } from '../diagnostics/collectors/ObjectAccessCollector';
 import { MacroUsageCollector } from '../diagnostics/collectors/MacroUsageCollector';
 import { DiagnosticContext } from '../diagnostics/types';
+import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
+import { TestHelper } from './utils/TestHelper';
 
 function createDocument(content: string): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
@@ -224,6 +228,56 @@ describe('syntax-backed diagnostic collectors', () => {
         const diagnostics = await collector.collect(document, {} as any, context);
 
         expect(diagnostics).toEqual([]);
+    });
+
+    test('UnusedVariableCollector does not count member names as local variable usages', () => {
+        const collector = new UnusedVariableCollector();
+        const document = TestHelper.createMockDocument([
+            'void demo(object ob) {',
+            '    int amount;',
+            '    ob->amount;',
+            '}'
+        ].join('\n'), 'lpc', 'unused-local-member.c');
+        const analysis = DocumentSemanticSnapshotService.getInstance().parseDocument(document, false);
+        const context: DiagnosticContext = {
+            parsed: analysis.parsed!,
+            syntax: analysis.syntax,
+            semantic: analysis.semantic
+        };
+
+        const diagnostics = collector.collect(document, analysis.parsed!, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('unusedVar');
+        expect(diagnostics[0].range).toEqual(new vscode.Range(1, 8, 1, 14));
+    });
+
+    test('GlobalVariableCollector does not count member names as global variable usages', () => {
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((key: string, defaultValue?: unknown) => {
+                if (key === 'enableUnusedGlobalVarCheck') {
+                    return true;
+                }
+                return defaultValue;
+            })
+        });
+        const collector = new GlobalVariableCollector();
+        const document = TestHelper.createMockDocument([
+            'int amount;',
+            'void demo(object ob) {',
+            '    ob->amount;',
+            '}'
+        ].join('\n'), 'lpc', 'unused-global-member.c');
+        const analysis = DocumentSemanticSnapshotService.getInstance().parseDocument(document, false);
+        const context: DiagnosticContext = {
+            parsed: analysis.parsed!,
+            syntax: analysis.syntax,
+            semantic: analysis.semantic
+        };
+
+        const diagnostics = collector.collect(document, analysis.parsed!, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('unusedGlobalVar');
+        expect(diagnostics[0].range).toEqual(new vscode.Range(0, 4, 0, 10));
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

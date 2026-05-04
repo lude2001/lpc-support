@@ -1,12 +1,12 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { LPCParser } from '../antlr/LPCParser';
 import { FunctionSummary } from '../completion/types';
 import { InheritanceResolver } from '../completion/inheritanceResolver';
 import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
-import { SyntaxDocument, SyntaxKind, SyntaxNode } from '../syntax/types';
+import { isGeneratedToken, isIdentifierToken, isScopeToken } from '../parser/LpcTokenFacts';
+import { SyntaxDocument, SyntaxKind } from '../syntax/types';
 import {
     collectScopedBranchItems,
     matchesScopedQualifier,
@@ -220,12 +220,12 @@ export class ScopedMethodDiscoveryService {
         position: vscode.Position
     ): ScopedDiscoveryShape | undefined {
         const offset = document.offsetAt(position);
-        const visibleTokens = syntax.parsed.allTokens.filter((token) => token.type > 0);
+        const visibleTokens = syntax.parsed.allTokens.filter(isGeneratedToken);
         let identifierIndex = -1;
 
         for (let index = visibleTokens.length - 1; index >= 0; index -= 1) {
             const token = visibleTokens[index];
-            if (token.type !== LPCParser.Identifier) {
+            if (!isIdentifierToken(token)) {
                 continue;
             }
 
@@ -241,7 +241,7 @@ export class ScopedMethodDiscoveryService {
 
         const identifierToken = visibleTokens[identifierIndex];
         const scopeToken = visibleTokens[identifierIndex - 1];
-        if (!scopeToken || scopeToken.type !== LPCParser.SCOPE) {
+        if (!isScopeToken(scopeToken)) {
             return undefined;
         }
 
@@ -253,7 +253,7 @@ export class ScopedMethodDiscoveryService {
             };
         }
 
-        if (qualifierToken.type === LPCParser.Identifier) {
+        if (isIdentifierToken(qualifierToken)) {
             return {
                 kind: 'named',
                 prefix: identifierToken.text ?? '',

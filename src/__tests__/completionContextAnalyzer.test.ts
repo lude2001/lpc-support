@@ -51,10 +51,13 @@ describe('CompletionContextAnalyzer', () => {
             'payload->hp',
             'this_object()->qu',
             'arr[0]->',
-            '#if',
-            'inherit "/lib/ba',
-            'include "game/co',
-            'class Pay'
+            '#if 1',
+            '#endif',
+            'inherit "/lib/base"',
+            'include "game/config"',
+            'class Pay',
+            'array val',
+            'static '
         ].join('\n'));
 
         expect(analyzer.analyze(document, new vscode.Position(0, 'localVal'.length)).kind).toBe('identifier');
@@ -76,10 +79,12 @@ describe('CompletionContextAnalyzer', () => {
         expect(indexedReceiver.receiverChain).toEqual([]);
         expect(indexedReceiver.receiverExpression).toBe('arr[0]');
 
-        expect(analyzer.analyze(document, new vscode.Position(4, '#if'.length)).kind).toBe('preprocessor');
-        expect(analyzer.analyze(document, new vscode.Position(5, 'inherit "/lib/ba'.length)).kind).toBe('inherit-path');
-        expect(analyzer.analyze(document, new vscode.Position(6, 'include "game/co'.length)).kind).toBe('include-path');
-        expect(analyzer.analyze(document, new vscode.Position(7, 'class Pay'.length)).kind).toBe('type-position');
+        expect(analyzer.analyze(document, new vscode.Position(4, '#if 1'.length)).kind).toBe('preprocessor');
+        expect(analyzer.analyze(document, new vscode.Position(6, 'inherit "/lib/base"'.length)).kind).toBe('inherit-path');
+        expect(analyzer.analyze(document, new vscode.Position(7, 'include "game/config"'.length)).kind).toBe('include-path');
+        expect(analyzer.analyze(document, new vscode.Position(8, 'class Pay'.length)).kind).toBe('type-position');
+        expect(analyzer.analyze(document, new vscode.Position(9, 'array val'.length)).kind).toBe('type-position');
+        expect(analyzer.analyze(document, new vscode.Position(10, 'static '.length)).kind).toBe('type-position');
     });
 
     test('classifies bare and named scoped prefixes as scoped-member contexts', () => {

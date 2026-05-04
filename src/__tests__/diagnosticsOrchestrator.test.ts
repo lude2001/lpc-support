@@ -91,7 +91,7 @@ describe('DiagnosticsOrchestrator', () => {
         jest.restoreAllMocks();
     });
 
-    test('does not register host document lifecycle listeners and only keeps diagnostics UX wiring', () => {
+    test('does not register host document lifecycle listeners or commands', () => {
         const onDidChangeTextDocument = jest.fn().mockReturnValue({ dispose: jest.fn() });
         const onDidOpenTextDocument = jest.fn().mockReturnValue({ dispose: jest.fn() });
         const onDidCloseTextDocument = jest.fn().mockReturnValue({ dispose: jest.fn() });
@@ -104,10 +104,7 @@ describe('DiagnosticsOrchestrator', () => {
         const orchestrator = createOrchestrator();
 
         expect(orchestrator).toBeDefined();
-        expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
-            'lpc.showVariables',
-            expect.any(Function)
-        );
+        expect(vscode.commands.registerCommand).not.toHaveBeenCalled();
         expect(onDidChangeTextDocument).not.toHaveBeenCalled();
         expect(onDidOpenTextDocument).not.toHaveBeenCalled();
         expect(onDidCloseTextDocument).not.toHaveBeenCalled();
@@ -386,7 +383,7 @@ describe('DiagnosticsOrchestrator', () => {
         );
     });
 
-    test('delegates show variables command to variable inspector for active lpc documents', async () => {
+    test('showVariables delegates to variable inspector for active lpc documents', async () => {
         (vscode.workspace as any).onDidDeleteFiles = jest.fn().mockReturnValue({ dispose: jest.fn() });
         (vscode.commands.registerCommand as jest.Mock).mockClear();
 
@@ -408,13 +405,7 @@ describe('DiagnosticsOrchestrator', () => {
         const orchestrator = createOrchestrator();
         (orchestrator as any).variableInspector = variableInspector;
 
-        const showVariablesRegistration = (vscode.commands.registerCommand as jest.Mock).mock.calls
-            .find(([commandId]) => commandId === 'lpc.showVariables');
-        expect(showVariablesRegistration).toBeDefined();
-
-        const [, handler] = showVariablesRegistration!;
-
-        await handler();
+        await orchestrator.showVariables();
 
         expect(variableInspector.show).toHaveBeenCalledTimes(1);
         expect(variableInspector.show).toHaveBeenCalledWith(lpcDocument);

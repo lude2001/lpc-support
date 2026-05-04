@@ -1,6 +1,5 @@
 import type { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import type { LPCCompiler } from '../compiler';
-import type { LPCConfigManager } from '../config';
 import type { DiagnosticsOrchestrator } from '../diagnostics';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import type { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
@@ -17,7 +16,6 @@ import { ServiceKey } from './ServiceRegistry';
 export const Services = {
     Frontend: new ServiceKey<LpcFrontendService>('Frontend'),
     EfunDocs: new ServiceKey<EfunDocsManager>('EfunDocs'),
-    ConfigManager: new ServiceKey<LPCConfigManager>('ConfigManager'),
     Compiler: new ServiceKey<LPCCompiler>('Compiler'),
     ProjectConfig: new ServiceKey<LpcProjectConfigService>('ProjectConfig'),
     Analysis: new ServiceKey<DocumentAnalysisService>('Analysis'),

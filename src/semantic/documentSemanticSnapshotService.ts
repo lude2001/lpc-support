@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { SourceFileContext } from '../antlr/LPCParser';
 import { SymbolTable } from '../ast/symbolTable';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { ParsedDocument as ParsedDoc } from '../parser/types';
@@ -289,14 +288,12 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
                 );
             }
 
-            const ast = parsed.tree as SourceFileContext;
             const parseErrors = parsed.diagnostics.slice();
             syntax = new SyntaxBuilder(parsed).build();
             const semantic = new SemanticModelBuilder().build(syntax);
             const snapshot = toDocumentSemanticSnapshot(semantic);
 
             return {
-                ast,
                 symbolTable: semantic.symbolTable,
                 parseErrors,
                 parsed,
@@ -316,7 +313,6 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
         parsed?: ParsedDoc,
         syntax?: SyntaxDocument
     ): DocumentSemanticAnalysis {
-        const ast = {} as SourceFileContext;
         const symbolTable = new SymbolTable(document.uri.toString());
         const failureReason = error instanceof Error ? error.message : String(error);
         const parseErrors = parsed?.diagnostics.length
@@ -367,7 +363,6 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
         };
 
         return {
-            ast,
             symbolTable,
             parseErrors,
             parsed,

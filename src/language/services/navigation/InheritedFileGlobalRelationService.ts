@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { LPCLexer } from '../../../antlr/LPCLexer';
 import { Symbol as LPCSymbol, SymbolType } from '../../../ast/symbolTable';
+import { isDefaultChannelToken, isIdentifierToken } from '../../../parser/LpcTokenFacts';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
@@ -69,8 +69,8 @@ export class InheritedFileGlobalRelationService {
 
             for (const token of tokenStream.getTokens()) {
                 if (
-                    token.channel !== 0
-                    || token.type !== LPCLexer.Identifier
+                    !isDefaultChannelToken(token)
+                    || !isIdentifierToken(token)
                     || token.text !== binding.name
                 ) {
                     continue;

@@ -4,7 +4,6 @@ import { ParsedDocument } from '../../parser/types';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 
 const VALID_OBJECT_NAME_PATTERN = /^[A-Z][A-Z0-9_]*(?:_D)?$/;
-const MACRO_OBJECT_NAME_PATTERN = /^[A-Z][A-Z0-9_]*_D$/;
 const MACRO_CANDIDATE_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
@@ -38,12 +37,6 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
                 continue;
             }
 
-            // 检查宏定义
-            if (receiver.isMacroObject) {
-                this.checkMacroUsage(receiver.objectExpression, context);
-                continue;
-            }
-
             // 检查对象命名规范
             if (!receiver.isMacroCandidate) {
                 continue;
@@ -65,19 +58,6 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
         }
 
         return diagnostics;
-    }
-
-    /**
-     * 检查宏使用
-     */
-    private checkMacroUsage(objectName: string, context?: DiagnosticContext): void {
-        const semanticReference = context?.semantic?.macroReferences.find((reference) => reference.name === objectName);
-        if (semanticReference?.resolvedValue) {
-            return;
-        }
-
-        // 只对真正未定义的宏显示警告
-        // 对于已定义的宏，不添加任何诊断信息，保持问题面板清洁
     }
 
     /**
@@ -105,7 +85,6 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
 
     private extractReceiver(node: SyntaxNode): {
         objectExpression: string;
-        isMacroObject: boolean;
         isMacroCandidate: boolean;
         range: vscode.Range;
     } | undefined {
@@ -127,7 +106,6 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
 
         return {
             objectExpression,
-            isMacroObject: MACRO_OBJECT_NAME_PATTERN.test(objectExpression),
             isMacroCandidate,
             range: receiver.range
         };

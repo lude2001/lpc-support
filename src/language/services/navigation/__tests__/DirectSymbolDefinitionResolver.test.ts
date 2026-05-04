@@ -374,4 +374,64 @@ describe('DirectSymbolDefinitionResolver', () => {
             new vscode.Range(1, 11, 1, 16)
         ));
     });
+
+    test('returns chained struct and class member definitions for statically typed receivers', async () => {
+        const source = [
+            'class Payload {',
+            '    string title;',
+            '    int amount;',
+            '}',
+            '',
+            'struct Record {',
+            '    class Payload payload;',
+            '}',
+            '',
+            'void demo() {',
+            '    struct Record record;',
+            '    record.payload.title;',
+            '    record.payload->amount;',
+            '}'
+        ].join('\n');
+        const document = createDocument('D:/workspace/chain_room.c', source);
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        const support = createSupport({
+            analysisService: {
+                getSemanticSnapshot: jest.fn((targetDocument: vscode.TextDocument) =>
+                    analysisService.getSemanticSnapshot(targetDocument, false)
+                ),
+                getBestAvailableSnapshot: jest.fn((targetDocument: vscode.TextDocument) =>
+                    analysisService.getSemanticSnapshot(targetDocument, false)
+                )
+            } as any
+        });
+        const resolver = new DirectSymbolDefinitionResolver({
+            support,
+            efunDocsManager: { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            semanticAdapter: {
+                resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
+            }
+        } as any);
+
+        const title = await resolver.resolve(
+            document,
+            new vscode.Position(11, '    record.payload.tit'.length),
+            'title',
+            'D:/workspace'
+        );
+        const amount = await resolver.resolve(
+            document,
+            new vscode.Position(12, '    record.payload->amo'.length),
+            'amount',
+            'D:/workspace'
+        );
+
+        expect(title).toEqual(new vscode.Location(
+            document.uri,
+            new vscode.Range(1, 11, 1, 16)
+        ));
+        expect(amount).toEqual(new vscode.Location(
+            document.uri,
+            new vscode.Range(2, 8, 2, 14)
+        ));
+    });
 });
