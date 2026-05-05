@@ -1,14 +1,15 @@
 import { spawn } from 'child_process';
-import { LocalCompilationRequest, LpccpCompilationResponse } from './types';
+import { LocalCompilationRequest, LpccpCompilationResponse, LpccpCompileMode } from './types';
 
 export class LocalLpccpCompilationBackend {
     public async compile(request: LocalCompilationRequest): Promise<LpccpCompilationResponse> {
         const command = this.resolveCommand(request);
+        const args = this.createArgs(request);
 
         return new Promise<LpccpCompilationResponse>((resolve, reject) => {
             const child = spawn(
                 command,
-                [request.localConfig.driverConfigPath!, request.targetPath],
+                args,
                 { cwd: request.workspaceRoot }
             );
 
@@ -28,17 +29,23 @@ export class LocalLpccpCompilationBackend {
             });
 
             child.on('close', (code) => {
+                if (stdout.trim()) {
+                    try {
+                        const parsed = JSON.parse(stdout) as LpccpCompilationResponse;
+                        resolve(parsed);
+                        return;
+                    } catch {
+                        reject(new Error('lpccp returned invalid JSON'));
+                        return;
+                    }
+                }
+
                 if (code === 2) {
                     reject(new Error(stderr.trim() || 'lpccp request failed'));
                     return;
                 }
 
-                try {
-                    const parsed = JSON.parse(stdout) as LpccpCompilationResponse;
-                    resolve(parsed);
-                } catch {
-                    reject(new Error('lpccp returned invalid JSON'));
-                }
+                reject(new Error('lpccp returned invalid JSON'));
             });
         });
     }
@@ -53,5 +60,21 @@ export class LocalLpccpCompilationBackend {
         }
 
         throw new Error('lpccp executable path is required');
+    }
+
+    private createArgs(request: LocalCompilationRequest): string[] {
+        const mode = request.localConfig.compileMode;
+        const args: string[] = [];
+
+        if (mode) {
+            args.push(this.toModeFlag(mode));
+        }
+
+        args.push(request.localConfig.driverConfigPath!, request.targetPath);
+        return args;
+    }
+
+    private toModeFlag(mode: LpccpCompileMode): string {
+        return `--${mode}`;
     }
 }

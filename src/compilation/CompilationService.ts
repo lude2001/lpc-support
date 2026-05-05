@@ -6,6 +6,8 @@ import {
     CompilationTargetKind,
     LocalCompilationRequest,
     LpccpCompilationResponse,
+    LpccpDirectoryFileResult,
+    LpccpRuntimeError,
     NormalizedCompilationResult,
     RemoteCompilationRequest
 } from './types';
@@ -129,15 +131,42 @@ export class CompilationService {
     }
 
     private applyLocalResult(workspaceRoot: string, result: LpccpCompilationResponse): void {
-        if (result.kind === 'file') {
-            const filePath = this.fromMudPath(workspaceRoot, result.target);
-            this.setDiagnosticsForFile(filePath, result.diagnostics);
+        if (!result.kind) {
+            if (result.reason === 'test_missing') {
+                vscode.window.showWarningMessage(result.message);
+            } else {
+                vscode.window.showErrorMessage(result.message);
+            }
+            this.outputChannel.appendLine(`[lpccp:${result.phase}/${result.reason}] ${result.message}`);
             return;
         }
 
-        for (const entry of result.results) {
+        if (result.kind === 'header') {
+            vscode.window.showWarningMessage(result.message);
+            this.outputChannel.appendLine(`[lpccp:${result.phase}/${result.reason}] ${result.message}`);
+            return;
+        }
+
+        if (result.kind === 'file') {
+            const filePath = this.fromMudPath(workspaceRoot, result.target);
+            this.setDiagnosticsForFile(filePath, this.createDiagnosticsForLocalResult(result.target, result));
+            return;
+        }
+
+        for (const entry of result.results ?? []) {
             const filePath = this.fromMudPath(workspaceRoot, entry.file);
-            this.setDiagnosticsForFile(filePath, entry.diagnostics);
+            this.setDiagnosticsForFile(filePath, this.createDiagnosticsForLocalResult(entry.file, entry));
+        }
+
+        if (result.summary) {
+            const summary = [
+                `syntax=${result.summary.syntax_error_count ?? 0}`,
+                `reload=${result.summary.reload_failed_count ?? 0}`,
+                `runtime=${result.summary.runtime_error_count ?? 0}`,
+                `unsupported=${result.summary.unsupported_count ?? 0}`,
+                `service=${result.summary.service_error_count ?? 0}`
+            ].join(', ');
+            this.outputChannel.appendLine(`lpccp summary: ${summary}`);
         }
     }
 
@@ -163,6 +192,37 @@ export class CompilationService {
 
         this.diagnosticCollection.set(uri, mapped);
         this.outputChannel.appendLine(`${filePath}: ${mapped.length} diagnostics`);
+    }
+
+    private createDiagnosticsForLocalResult(
+        fallbackMudPath: string,
+        result: Pick<LpccpDirectoryFileResult, 'ok' | 'diagnostics' | 'runtime_errors' | 'reason' | 'message'>
+    ): CompilationDiagnostic[] {
+        const diagnostics = [...(result.diagnostics ?? [])];
+
+        for (const runtimeError of result.runtime_errors ?? []) {
+            diagnostics.push(this.runtimeErrorToDiagnostic(fallbackMudPath, runtimeError));
+        }
+
+        if (!result.ok && diagnostics.length === 0 && result.message) {
+            diagnostics.push({
+                severity: result.reason === 'test_missing' ? 'warning' : 'error',
+                file: fallbackMudPath,
+                line: 1,
+                message: result.message
+            });
+        }
+
+        return diagnostics;
+    }
+
+    private runtimeErrorToDiagnostic(fallbackMudPath: string, runtimeError: LpccpRuntimeError): CompilationDiagnostic {
+        return {
+            severity: 'error',
+            file: runtimeError.program ?? runtimeError.object ?? fallbackMudPath,
+            line: runtimeError.line,
+            message: runtimeError.message
+        };
     }
 
     private toMudPath(workspaceRoot: string, targetFsPath: string, targetKind: CompilationTargetKind): string {

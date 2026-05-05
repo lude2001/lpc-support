@@ -441,6 +441,44 @@ describe('registerCommands', () => {
         expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
     });
 
+    test('manageCompilation sets local lpccp compile mode in project config', async () => {
+        registerCommands(registry, context);
+        const handlers = getRegisteredHandlers();
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
+        (vscode.window.showQuickPick as jest.Mock)
+            .mockResolvedValueOnce({ value: 'local' })
+            .mockResolvedValueOnce({ action: 'setCompileMode' })
+            .mockResolvedValueOnce({ value: 'fresh-required' });
+
+        await handlers.get('lpc.manageCompilation')?.();
+
+        const updater = projectConfigService.updateCompileConfigForWorkspace.mock.calls[1][1];
+        expect(updater({
+            mode: 'local',
+            local: {
+                useSystemCommand: true,
+                lpccpPath: '',
+                compileMode: 'reload-loaded'
+            },
+            remote: {
+                activeServer: 'Alpha',
+                servers: []
+            }
+        })).toEqual({
+            mode: 'local',
+            local: {
+                useSystemCommand: true,
+                lpccpPath: '',
+                compileMode: 'fresh-required'
+            },
+            remote: {
+                activeServer: 'Alpha',
+                servers: []
+            }
+        });
+        expect(errorTreeProvider.refresh).toHaveBeenCalledTimes(1);
+    });
+
     test('openErrorLocation shows an error when no workspace folders are open', async () => {
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();

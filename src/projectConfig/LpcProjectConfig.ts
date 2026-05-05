@@ -12,6 +12,7 @@ export interface LpcCompileLocalConfig {
     useSystemCommand?: boolean;
     lpccpPath?: string;
     driverConfigPath?: string;
+    compileMode?: 'reload-loaded' | 'compile-only' | 'fresh-required';
 }
 
 export interface LpcCompileRemoteServer {

@@ -97,6 +97,38 @@ describe('LocalLpccpCompilationBackend', () => {
         );
     });
 
+    test('passes configured lpccp compile mode before config path', async () => {
+        const backend = new LocalLpccpCompilationBackend();
+        (spawn as jest.Mock).mockReturnValue(createSpawnProcess(0, JSON.stringify({
+            version: 1,
+            ok: true,
+            kind: 'file',
+            target: '/single/master.c',
+            diagnostics: [],
+            files_total: 0,
+            files_ok: 0,
+            files_failed: 0,
+            results: []
+        })));
+
+        await backend.compile({
+            workspaceRoot: 'D:/mud',
+            targetKind: 'file',
+            targetPath: '/single/master.c',
+            localConfig: {
+                useSystemCommand: true,
+                compileMode: 'compile-only',
+                driverConfigPath: 'D:/mud/etc/config.test'
+            }
+        });
+
+        expect(spawn).toHaveBeenCalledWith(
+            'lpccp',
+            ['--compile-only', 'D:/mud/etc/config.test', '/single/master.c'],
+            expect.objectContaining({ cwd: 'D:/mud' })
+        );
+    });
+
     test('returns parsed JSON when compile exits with code 1', async () => {
         const backend = new LocalLpccpCompilationBackend();
         (spawn as jest.Mock).mockReturnValue(createSpawnProcess(1, JSON.stringify({
@@ -127,7 +159,38 @@ describe('LocalLpccpCompilationBackend', () => {
         expect(result.diagnostics).toHaveLength(1);
     });
 
-    test('throws request-level failure when lpccp exits with code 2', async () => {
+    test('returns structured JSON when lpccp exits with code 2', async () => {
+        const backend = new LocalLpccpCompilationBackend();
+        (spawn as jest.Mock).mockReturnValue(createSpawnProcess(
+            2,
+            JSON.stringify({
+                ok: false,
+                phase: 'connect',
+                reason: 'pipe_connect_failed',
+                message: 'cannot connect to compile service pipe',
+                error: { type: 'pipe_connect_failed', win32: 2 }
+            }),
+            ''
+        ));
+
+        const result = await backend.compile({
+            workspaceRoot: 'D:/mud',
+            targetKind: 'file',
+            targetPath: '/single/master.c',
+            localConfig: {
+                useSystemCommand: true,
+                driverConfigPath: 'D:/mud/etc/config.test'
+            }
+        });
+
+        expect(result).toEqual(expect.objectContaining({
+            ok: false,
+            phase: 'connect',
+            reason: 'pipe_connect_failed'
+        }));
+    });
+
+    test('falls back to stderr for legacy request-level failure without stdout JSON', async () => {
         const backend = new LocalLpccpCompilationBackend();
         (spawn as jest.Mock).mockReturnValue(createSpawnProcess(
             2,

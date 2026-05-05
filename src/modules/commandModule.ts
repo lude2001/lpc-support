@@ -8,6 +8,7 @@ import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathS
 import { getLpcprjStartCommand, hasLpcprjCommand } from '../utils/lpcprj';
 
 type CompilationMode = 'local' | 'remote';
+type LocalLpccpCompileMode = 'reload-loaded' | 'compile-only' | 'fresh-required';
 
 interface RemoteCompileServer {
     name: string;
@@ -20,6 +21,7 @@ interface CompileConfig {
     local?: {
         useSystemCommand?: boolean;
         lpccpPath?: string;
+        compileMode?: LocalLpccpCompileMode;
     };
     remote?: {
         activeServer?: string;
@@ -63,6 +65,10 @@ interface ModeQuickPickItem extends vscode.QuickPickItem {
 
 interface ActionQuickPickItem extends vscode.QuickPickItem {
     action: string;
+}
+
+interface LocalCompileModeQuickPickItem extends vscode.QuickPickItem {
+    value: LocalLpccpCompileMode;
 }
 
 export function registerCommands(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
@@ -321,6 +327,7 @@ async function showLocalCompilationManager(
         [
             { label: '切换为使用系统命令', action: 'toggleSystemCommand' },
             { label: '设置 lpccp 路径', action: 'setLpccpPath' },
+            { label: '设置 lpccp 编译模式', action: 'setCompileMode' },
             { label: '查看当前本地编译配置', action: 'showCurrentConfig' }
         ],
         { placeHolder: '管理本地编译配置' }
@@ -371,10 +378,58 @@ async function showLocalCompilationManager(
         return;
     }
 
+    if (selectedAction.action === 'setCompileMode') {
+        await setLocalCompileMode(projectConfigService, workspaceRoot, compileConfig?.local?.compileMode);
+        return;
+    }
+
     const projectConfig = await projectConfigService.readConfigFile(
         projectConfigService.getProjectConfigPath(workspaceRoot)
     );
     await vscode.window.showInformationMessage(formatLocalCompilationSummary(compileConfig, projectConfig));
+}
+
+async function setLocalCompileMode(
+    projectConfigService: ProjectConfigServiceLike,
+    workspaceRoot: string,
+    currentMode: LocalLpccpCompileMode | undefined
+): Promise<void> {
+    const selectedMode = await vscode.window.showQuickPick<LocalCompileModeQuickPickItem>(
+        [
+            {
+                label: '重载已加载对象',
+                description: currentMode === 'reload-loaded' || !currentMode ? '当前模式' : '',
+                detail: '--reload-loaded：目标已加载时尝试销毁并重载',
+                value: 'reload-loaded'
+            },
+            {
+                label: '仅编译',
+                description: currentMode === 'compile-only' ? '当前模式' : '',
+                detail: '--compile-only：不替换已加载对象，已加载时返回 reload_loaded_object_failed',
+                value: 'compile-only'
+            },
+            {
+                label: '要求未加载',
+                description: currentMode === 'fresh-required' ? '当前模式' : '',
+                detail: '--fresh-required：目标已加载时提示需要重启 runtime 后验证',
+                value: 'fresh-required'
+            }
+        ],
+        { placeHolder: '选择 lpccp 编译模式' }
+    );
+
+    if (!selectedMode) {
+        return;
+    }
+
+    await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig) => ({
+        ...currentConfig,
+        mode: 'local',
+        local: {
+            ...currentConfig.local,
+            compileMode: selectedMode.value
+        }
+    }));
 }
 
 async function showRemoteCompilationManager(
@@ -617,6 +672,7 @@ function formatLocalCompilationSummary(
         '当前模式: local',
         `useSystemCommand: ${compileConfig?.local?.useSystemCommand ? 'true' : 'false'}`,
         `lpccpPath: ${compileConfig?.local?.lpccpPath || '(系统命令)'}`,
+        `compileMode: ${compileConfig?.local?.compileMode || 'reload-loaded'}`,
         `configHellPath: ${projectConfig?.configHellPath || '(未设置)'}`
     ].join('\n');
 }

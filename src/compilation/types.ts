@@ -2,6 +2,20 @@ import type { LpcCompileLocalConfig, LpcCompileRemoteConfig } from '../projectCo
 
 export type CompilationMode = 'local' | 'remote';
 export type CompilationTargetKind = 'file' | 'directory';
+export type LpccpCompileMode = 'reload-loaded' | 'compile-only' | 'fresh-required';
+export type LpccpFailureReason =
+    | 'syntax_error'
+    | 'target_not_found'
+    | 'unsupported_target_kind'
+    | 'reload_loaded_object_failed'
+    | 'runtime_error'
+    | 'service_error'
+    | 'compile_timeout'
+    | 'service_busy'
+    | 'pipe_connect_failed'
+    | 'timeout'
+    | 'test_missing'
+    | string;
 
 export interface CompilationDiagnostic {
     severity: string;
@@ -10,37 +24,97 @@ export interface CompilationDiagnostic {
     message: string;
 }
 
+export interface LpccpRuntimeError {
+    object?: string;
+    program?: string;
+    line?: number;
+    error_type?: string;
+    message: string;
+    trace?: unknown[];
+}
+
+export interface LpccpSummary {
+    syntax_error_count?: number;
+    reload_failed_count?: number;
+    runtime_error_count?: number;
+    unsupported_count?: number;
+    service_error_count?: number;
+}
+
 export interface LpccpDirectoryFileResult {
     file: string;
     ok: boolean;
-    diagnostics: CompilationDiagnostic[];
+    phase?: string;
+    reason?: LpccpFailureReason;
+    message?: string;
+    diagnostics?: CompilationDiagnostic[];
+    runtime_errors?: LpccpRuntimeError[];
 }
 
 export interface LpccpFileResponse {
-    version: number;
+    version?: number;
     ok: boolean;
     kind: 'file';
     target: string;
-    diagnostics: CompilationDiagnostic[];
-    files_total: number;
-    files_ok: number;
-    files_failed: number;
-    results: LpccpDirectoryFileResult[];
+    phase?: string;
+    reason?: LpccpFailureReason;
+    message?: string;
+    compile_status?: string;
+    test_status?: string;
+    diagnostics?: CompilationDiagnostic[];
+    runtime_errors?: LpccpRuntimeError[];
+    files_total?: number;
+    files_ok?: number;
+    files_failed?: number;
+    results?: LpccpDirectoryFileResult[];
+    summary?: LpccpSummary;
 }
 
 export interface LpccpDirectoryResponse {
-    version: number;
+    version?: number;
     ok: boolean;
     kind: 'directory';
     target: string;
-    diagnostics: CompilationDiagnostic[];
-    files_total: number;
-    files_ok: number;
-    files_failed: number;
+    phase?: string;
+    reason?: LpccpFailureReason;
+    message?: string;
+    diagnostics?: CompilationDiagnostic[];
+    runtime_errors?: LpccpRuntimeError[];
+    files_total?: number;
+    files_ok?: number;
+    files_failed?: number;
     results: LpccpDirectoryFileResult[];
+    summary?: LpccpSummary;
 }
 
-export type LpccpCompilationResponse = LpccpFileResponse | LpccpDirectoryResponse;
+export interface LpccpHeaderResponse {
+    version?: number;
+    ok: false;
+    kind: 'header';
+    target?: string;
+    phase: string;
+    reason: LpccpFailureReason;
+    message: string;
+    diagnostics?: CompilationDiagnostic[];
+    runtime_errors?: LpccpRuntimeError[];
+}
+
+export interface LpccpRequestFailureResponse {
+    version?: number;
+    ok: false;
+    kind?: undefined;
+    phase: string;
+    reason: LpccpFailureReason;
+    message: string;
+    diagnostics?: CompilationDiagnostic[];
+    runtime_errors?: LpccpRuntimeError[];
+}
+
+export type LpccpCompilationResponse =
+    | LpccpFileResponse
+    | LpccpDirectoryResponse
+    | LpccpHeaderResponse
+    | LpccpRequestFailureResponse;
 
 export interface LocalCompilationRequest {
     workspaceRoot: string;

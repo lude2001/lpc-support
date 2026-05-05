@@ -41,7 +41,8 @@ describe('CompilationService', () => {
             compile: {
                 mode: 'local',
                 local: {
-                    useSystemCommand: true
+                    useSystemCommand: true,
+                    compileMode: 'fresh-required'
                 }
             }
         });
@@ -66,6 +67,7 @@ describe('CompilationService', () => {
             targetPath: '/single/master.c',
             localConfig: expect.objectContaining({
                 useSystemCommand: true,
+                compileMode: 'fresh-required',
                 driverConfigPath: path.resolve('D:/workspace', 'etc/config.test')
             })
         }));
@@ -169,6 +171,98 @@ describe('CompilationService', () => {
 
         const diagnosticCollection = (vscode.languages.createDiagnosticCollection as jest.Mock).mock.results[0].value;
         expect(diagnosticCollection.set).toHaveBeenCalled();
+    });
+
+    test('maps lpccp runtime errors into VS Code diagnostics', async () => {
+        projectConfigService.loadForWorkspace.mockResolvedValue({
+            version: 1,
+            configHellPath: 'etc/config.test',
+            compile: {
+                mode: 'local',
+                local: {
+                    useSystemCommand: true
+                }
+            }
+        });
+        localBackend.compile.mockResolvedValue({
+            version: 1,
+            ok: false,
+            kind: 'file',
+            target: '/single/runtime.c',
+            diagnostics: [],
+            runtime_errors: [
+                {
+                    object: '/single/runtime',
+                    program: '/single/runtime.c',
+                    line: 23,
+                    error_type: 'runtime_error',
+                    message: 'bad argument',
+                    trace: []
+                }
+            ],
+            files_total: 0,
+            files_ok: 0,
+            files_failed: 0,
+            results: []
+        });
+
+        const service = new CompilationService(projectConfigService as any, localBackend as any, remoteBackend as any);
+        await service.compileFile('D:/workspace/single/runtime.c');
+
+        const diagnosticCollection = (vscode.languages.createDiagnosticCollection as jest.Mock).mock.results[0].value;
+        const [, diagnostics] = diagnosticCollection.set.mock.calls[0];
+        expect(diagnostics[0].message).toBe('bad argument');
+    });
+
+    test('shows structured lpccp connection failure message instead of throwing', async () => {
+        projectConfigService.loadForWorkspace.mockResolvedValue({
+            version: 1,
+            configHellPath: 'etc/config.test',
+            compile: {
+                mode: 'local',
+                local: {
+                    useSystemCommand: true
+                }
+            }
+        });
+        localBackend.compile.mockResolvedValue({
+            ok: false,
+            phase: 'connect',
+            reason: 'pipe_connect_failed',
+            message: 'cannot connect to compile service pipe'
+        });
+
+        const service = new CompilationService(projectConfigService as any, localBackend as any, remoteBackend as any);
+        await service.compileFile('D:/workspace/single/master.c');
+
+        expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('cannot connect to compile service pipe');
+    });
+
+    test('shows missing dev_test as warning when compile succeeded', async () => {
+        projectConfigService.loadForWorkspace.mockResolvedValue({
+            version: 1,
+            configHellPath: 'etc/config.test',
+            compile: {
+                mode: 'local',
+                local: {
+                    useSystemCommand: true
+                }
+            }
+        });
+        localBackend.compile.mockResolvedValue({
+            ok: false,
+            compile_status: 'ok',
+            test_status: 'missing',
+            phase: 'dev_test',
+            reason: 'test_missing',
+            message: 'Object does not define dev_test()'
+        });
+
+        const service = new CompilationService(projectConfigService as any, localBackend as any, remoteBackend as any);
+        await service.compileFile('D:/workspace/single/master.c');
+
+        expect(vscode.window.showWarningMessage).toHaveBeenCalledWith('Object does not define dev_test()');
+        expect(vscode.window.showErrorMessage).not.toHaveBeenCalledWith('Object does not define dev_test()');
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
