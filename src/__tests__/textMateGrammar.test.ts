@@ -3,19 +3,64 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const grammarPath = path.resolve(__dirname, '../../syntaxes/lpc.tmLanguage.json');
+const packagePath = path.resolve(__dirname, '../../package.json');
 
 function loadGrammar(): any {
     return JSON.parse(fs.readFileSync(grammarPath, 'utf8'));
 }
 
 describe('TextMate LPC grammar', () => {
+    test('semantic token contributions expose richer LPC visual roles and theme scopes', () => {
+        const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+        const contributes = packageJson.contributes;
+        const tokenTypes = contributes.semanticTokenTypes.map((token: { id: string }) => token.id);
+        const tokenModifiers = contributes.semanticTokenModifiers.map((modifier: { id: string }) => modifier.id);
+        const semanticTokenScopes = contributes.semanticTokenScopes.find(
+            (entry: { language: string }) => entry.language === 'lpc'
+        )?.scopes;
+
+        expect(tokenTypes).toEqual(expect.arrayContaining([
+            'lpcType',
+            'method',
+            'parameter',
+            'inactive'
+        ]));
+        expect(tokenModifiers).toEqual(expect.arrayContaining([
+            'declaration',
+            'local',
+            'defaultLibrary',
+            'readonly',
+            'static'
+        ]));
+        expect(semanticTokenScopes).toEqual(expect.objectContaining({
+            lpcType: ['support.type.primitive.lpc'],
+            method: ['entity.name.function.member.lpc'],
+            macro: ['entity.name.function.preprocessor.lpc'],
+            builtin: ['support.function.efun.lpc'],
+            inactive: ['comment.block.preprocessor.lpc']
+        }));
+    });
+
     test('stays lexical and does not duplicate semantic token responsibilities', () => {
         const grammarSource = fs.readFileSync(grammarPath, 'utf8');
 
         expect(grammarSource).not.toContain('support.function.efun.lpc');
-        expect(grammarSource).not.toContain('entity.name.function.lpc');
         expect(grammarSource).not.toContain('variable.other.lpc');
-        expect(grammarSource).not.toContain('meta.member.access.lpc');
+    });
+
+    test('provides richer lexical fallback scopes without owning semantic facts', () => {
+        const grammarSource = fs.readFileSync(grammarPath, 'utf8');
+
+        expect(grammarSource).toContain('meta.preprocessor.define.lpc');
+        expect(grammarSource).toContain('entity.name.function.preprocessor.lpc');
+        expect(grammarSource).toContain('variable.parameter.preprocessor.lpc');
+        expect(grammarSource).toContain('meta.function-call.lpc');
+        expect(grammarSource).toContain('entity.name.function.fallback.lpc');
+        expect(grammarSource).toContain('meta.member-access.lpc');
+        expect(grammarSource).toContain('entity.name.function.member.lpc');
+        expect(grammarSource).toContain('comment.block.preprocessor.lpc');
+        expect(grammarSource).toContain('comment.block.documentation.lpc');
+        expect(grammarSource).not.toContain('support.function.efun.lpc');
     });
 
     test('keeps lexer-level keywords covered as a fallback', () => {

@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.46.2",
+  "version": "0.47.0",
   "publisher": "ludexiang",
   "author": {
     "name": "ludexiang",
@@ -401,6 +401,11 @@
         "description": "关键字"
       },
       {
+        "id": "lpcType",
+        "superType": "type",
+        "description": "LPC 基础类型"
+      },
+      {
         "id": "type",
         "description": "类型关键字"
       },
@@ -409,8 +414,16 @@
         "description": "变量"
       },
       {
+        "id": "parameter",
+        "description": "函数参数"
+      },
+      {
         "id": "function",
         "description": "函数名"
+      },
+      {
+        "id": "method",
+        "description": "对象方法"
       },
       {
         "id": "property",
@@ -439,9 +452,57 @@
       {
         "id": "builtin",
         "description": "内置函数"
+      },
+      {
+        "id": "inactive",
+        "superType": "comment",
+        "description": "未启用的条件编译代码"
       }
     ],
-    "semanticTokenModifiers": []
+    "semanticTokenModifiers": [
+      {
+        "id": "declaration",
+        "description": "声明位置"
+      },
+      {
+        "id": "local",
+        "description": "局部符号"
+      },
+      {
+        "id": "defaultLibrary",
+        "description": "内置库符号"
+      },
+      {
+        "id": "readonly",
+        "description": "只读符号"
+      },
+      {
+        "id": "static",
+        "description": "静态符号"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "lpc",
+        "scopes": {
+          "lpcType": [
+            "support.type.primitive.lpc"
+          ],
+          "method": [
+            "entity.name.function.member.lpc"
+          ],
+          "macro": [
+            "entity.name.function.preprocessor.lpc"
+          ],
+          "builtin": [
+            "support.function.efun.lpc"
+          ],
+          "inactive": [
+            "comment.block.preprocessor.lpc"
+          ]
+        }
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "cross-env NODE_ENV=production npm run build",

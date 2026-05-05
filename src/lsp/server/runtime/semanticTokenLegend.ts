@@ -1,15 +1,7 @@
-export const SERVER_LANGUAGE_SEMANTIC_TOKEN_TYPES = [
-    'keyword',
-    'type',
-    'variable',
-    'function',
-    'property',
-    'macro',
-    'builtin',
-    'number',
-    'string',
-    'comment',
-    'operator'
-];
+import {
+    DEFAULT_LANGUAGE_SEMANTIC_TOKEN_MODIFIERS,
+    DEFAULT_LANGUAGE_SEMANTIC_TOKEN_TYPES
+} from '../../../language/services/structure/semanticTokenLegend';
 
-export const SERVER_LANGUAGE_SEMANTIC_TOKEN_MODIFIERS: string[] = [];
+export const SERVER_LANGUAGE_SEMANTIC_TOKEN_TYPES = DEFAULT_LANGUAGE_SEMANTIC_TOKEN_TYPES;
+export const SERVER_LANGUAGE_SEMANTIC_TOKEN_MODIFIERS = DEFAULT_LANGUAGE_SEMANTIC_TOKEN_MODIFIERS;

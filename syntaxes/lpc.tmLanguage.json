@@ -4,6 +4,9 @@
 	"fileTypes": ["c", "h"],
 	"patterns": [
 		{
+			"include": "#preprocessorDisabled"
+		},
+		{
 			"include": "#comments"
 		},
 		{
@@ -14,6 +17,12 @@
 		},
 		{
 			"include": "#heredoc"
+		},
+		{
+			"include": "#memberAccess"
+		},
+		{
+			"include": "#functionCall"
 		},
 		{
 			"include": "#keywords"
@@ -40,6 +49,8 @@
 			"patterns": [
 				{ "include": "#comments" },
 				{ "include": "#strings" },
+				{ "include": "#memberAccess" },
+				{ "include": "#functionCall" },
 				{ "include": "#keywords" },
 				{ "include": "#types" },
 				{ "include": "#numbers" },
@@ -56,14 +67,21 @@
 		},
 		{
 			"name": "meta.preprocessor.define.lpc",
-			"begin": "^\\s*(#\\s*define)\\b",
+			"begin": "^\\s*(#\\s*define)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\\s*(\\()\\s*([^)]*)\\s*(\\)))?",
 			"beginCaptures": {
-				"1": { "name": "keyword.control.preprocessor.define.lpc" }
+				"1": { "name": "keyword.control.preprocessor.define.lpc" },
+				"2": { "name": "entity.name.function.preprocessor.lpc" },
+				"3": { "name": "punctuation.definition.parameters.begin.lpc" },
+				"4": { "name": "variable.parameter.preprocessor.lpc" },
+				"5": { "name": "punctuation.definition.parameters.end.lpc" }
 			},
 			"end": "(?<!\\\\)$",
 			"patterns": [
 				{ "include": "#comments" },
-				{ "include": "#strings" }
+				{ "include": "#strings" },
+				{ "include": "#memberAccess" },
+				{ "include": "#functionCall" },
+				{ "include": "#operators" }
 			]
 		},
 		{
@@ -183,11 +201,31 @@
 		}
 	],
 	"repository": {
+		"preprocessorDisabled": {
+			"name": "comment.block.preprocessor.lpc",
+			"begin": "^\\s*#\\s*if\\s+0\\b.*$",
+			"end": "^\\s*#\\s*endif\\b.*$",
+			"patterns": [
+				{ "include": "#comments" },
+				{ "include": "#strings" }
+			]
+		},
 		"comments": {
 			"patterns": [
 				{
 					"name": "comment.line.double-slash.lpc",
 					"match": "//.*$"
+				},
+				{
+					"name": "comment.block.documentation.lpc",
+					"begin": "/\\*\\*",
+					"end": "\\*/",
+					"patterns": [
+						{
+							"name": "storage.type.annotation.lpcdoc",
+							"match": "@(?:param|return|returns|see|example|deprecated|brief|details)\\b"
+						}
+					]
 				},
 				{
 					"name": "comment.block.lpc",
@@ -218,6 +256,21 @@
 					]
 				}
 			]
+		},
+		"memberAccess": {
+			"name": "meta.member-access.lpc",
+			"match": "(->|\\.)(\\s*)([a-zA-Z_][a-zA-Z0-9_]*)",
+			"captures": {
+				"1": { "name": "keyword.operator.member.lpc" },
+				"3": { "name": "entity.name.function.member.lpc" }
+			}
+		},
+		"functionCall": {
+			"name": "meta.function-call.lpc",
+			"match": "\\b(?!if\\b|else\\b|while\\b|for\\b|foreach\\b|switch\\b|catch\\b|return\\b|new\\b|inherit\\b|include\\b)([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+			"captures": {
+				"1": { "name": "entity.name.function.fallback.lpc" }
+			}
 		},
 		"keywords": {
 			"patterns": [

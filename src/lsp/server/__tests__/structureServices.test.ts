@@ -187,25 +187,35 @@ describe('shared structure services', () => {
         expect(result.legend).toEqual({
             tokenTypes: [
                 'keyword',
+                'lpcType',
                 'type',
                 'variable',
+                'parameter',
                 'function',
+                'method',
                 'property',
                 'macro',
                 'builtin',
                 'number',
                 'string',
                 'comment',
-                'operator'
+                'operator',
+                'inactive'
             ],
-            tokenModifiers: []
+            tokenModifiers: [
+                'declaration',
+                'local',
+                'defaultLibrary',
+                'readonly',
+                'static'
+            ]
         });
         expect(result.tokens).toEqual([
             {
                 line: 0,
                 startCharacter: 0,
                 length: 3,
-                tokenType: 'type'
+                tokenType: 'lpcType'
             },
             {
                 line: 0,
@@ -252,11 +262,194 @@ describe('shared structure services', () => {
             'payload',
             new vscode.Position(0, 11)
         );
-        expect(symbolTable.findSymbol).toHaveBeenCalledWith(
+        expect(symbolTable.findSymbol).not.toHaveBeenCalledWith(
             'hp',
             new vscode.Position(0, 20)
         );
         expect(analysisService.parseDocument).toHaveBeenCalledWith(document as any);
+    });
+
+    test('DefaultLanguageSemanticTokensService enriches LPC semantic token roles and modifiers', async () => {
+        const document = createDocument([
+            '#if 0',
+            'int disabled;',
+            '#endif',
+            'int hp;',
+            'void heal(object target, int amount) {',
+            '    int local;',
+            '    target->heal(amount);',
+            '}'
+        ].join('\n'));
+        const text = document.getText();
+        const tokenAt = (type: number, tokenText: string, line: number, character: number) =>
+            createToken(type, tokenText, line + 1, character);
+        const globalSymbol = {
+            name: 'hp',
+            type: SymbolType.VARIABLE,
+            range: new vscode.Range(3, 4, 3, 6),
+            selectionRange: new vscode.Range(3, 4, 3, 6),
+            scope: { name: 'global' }
+        };
+        const functionSymbol = {
+            name: 'heal',
+            type: SymbolType.FUNCTION,
+            range: new vscode.Range(4, 5, 4, 9),
+            selectionRange: new vscode.Range(4, 5, 4, 9),
+            scope: { name: 'global' }
+        };
+        const targetParameter = {
+            name: 'target',
+            type: SymbolType.PARAMETER,
+            range: new vscode.Range(4, 17, 4, 23),
+            selectionRange: new vscode.Range(4, 17, 4, 23),
+            scope: { name: 'function' }
+        };
+        const amountParameter = {
+            name: 'amount',
+            type: SymbolType.PARAMETER,
+            range: new vscode.Range(4, 29, 4, 35),
+            selectionRange: new vscode.Range(4, 29, 4, 35),
+            scope: { name: 'function' }
+        };
+        const localSymbol = {
+            name: 'local',
+            type: SymbolType.VARIABLE,
+            range: new vscode.Range(5, 8, 5, 13),
+            selectionRange: new vscode.Range(5, 8, 5, 13),
+            scope: { name: 'function' }
+        };
+        const symbols = [globalSymbol, functionSymbol, targetParameter, amountParameter, localSymbol];
+        const symbolTable = {
+            findSymbol: jest.fn((name: string, position: vscode.Position) => {
+                if (name === 'target') {
+                    return targetParameter;
+                }
+                if (name === 'amount') {
+                    return amountParameter;
+                }
+                return symbols.find((symbol) => symbol.name === name);
+            }),
+            getGlobalScope: jest.fn(() => globalSymbol.scope)
+        };
+        const fill = jest.fn();
+        const analysisService = {
+            parseDocument: jest.fn().mockReturnValue({
+                parsed: {
+                    tokens: {
+                        fill,
+                        getTokens: () => [
+                            tokenAt(LPCLexer.KW_INT, 'int', 1, 0),
+                            tokenAt(LPCLexer.Identifier, 'disabled', 1, 4),
+                            tokenAt(LPCLexer.KW_INT, 'int', 3, 0),
+                            tokenAt(LPCLexer.Identifier, 'hp', 3, 4),
+                            tokenAt(LPCLexer.KW_VOID, 'void', 4, 0),
+                            tokenAt(LPCLexer.Identifier, 'heal', 4, 5),
+                            tokenAt(LPCLexer.KW_OBJECT, 'object', 4, 10),
+                            tokenAt(LPCLexer.Identifier, 'target', 4, 17),
+                            tokenAt(LPCLexer.KW_INT, 'int', 4, 25),
+                            tokenAt(LPCLexer.Identifier, 'amount', 4, 29),
+                            tokenAt(LPCLexer.KW_INT, 'int', 5, 4),
+                            tokenAt(LPCLexer.Identifier, 'local', 5, 8),
+                            tokenAt(LPCLexer.Identifier, 'target', 6, 4),
+                            tokenAt(LPCLexer.ARROW, '->', 6, 10),
+                            tokenAt(LPCLexer.Identifier, 'heal', 6, 12),
+                            tokenAt(LPCLexer.LPAREN, '(', 6, 16),
+                            tokenAt(LPCLexer.Identifier, 'amount', 6, 17)
+                        ]
+                    },
+                    frontend: {
+                        preprocessor: {
+                            inactiveRanges: [{
+                                startOffset: text.indexOf('int disabled;'),
+                                endOffset: text.indexOf('#endif'),
+                                reason: 'condition-false'
+                            }]
+                        }
+                    }
+                },
+                snapshot: {
+                    symbolTable,
+                    macroReferences: [],
+                    fileGlobals: [{
+                        name: 'hp',
+                        range: globalSymbol.range,
+                        selectionRange: globalSymbol.selectionRange,
+                        dataType: 'int'
+                    }]
+                }
+            })
+        };
+
+        const service = new DefaultLanguageSemanticTokensService(analysisService as any);
+        const result = await service.provideSemanticTokens({
+            context: createCapabilityContext(document)
+        });
+
+        expect(result.legend.tokenTypes).toEqual(expect.arrayContaining([
+            'method',
+            'parameter',
+            'lpcType',
+            'inactive'
+        ]));
+        expect(result.legend.tokenModifiers).toEqual(expect.arrayContaining([
+            'declaration',
+            'local'
+        ]));
+        expect(result.tokens).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                line: 1,
+                startCharacter: 0,
+                length: 13,
+                tokenType: 'inactive'
+            }),
+            expect.objectContaining({
+                line: 3,
+                startCharacter: 0,
+                length: 3,
+                tokenType: 'lpcType'
+            }),
+            expect.objectContaining({
+                line: 3,
+                startCharacter: 4,
+                length: 2,
+                tokenType: 'variable',
+                tokenModifiers: ['declaration']
+            }),
+            expect.objectContaining({
+                line: 4,
+                startCharacter: 5,
+                length: 4,
+                tokenType: 'function',
+                tokenModifiers: ['declaration']
+            }),
+            expect.objectContaining({
+                line: 4,
+                startCharacter: 17,
+                length: 6,
+                tokenType: 'parameter',
+                tokenModifiers: ['declaration', 'local']
+            }),
+            expect.objectContaining({
+                line: 5,
+                startCharacter: 8,
+                length: 5,
+                tokenType: 'variable',
+                tokenModifiers: ['declaration', 'local']
+            }),
+            expect.objectContaining({
+                line: 6,
+                startCharacter: 12,
+                length: 4,
+                tokenType: 'method'
+            }),
+            expect.objectContaining({
+                line: 6,
+                startCharacter: 17,
+                length: 6,
+                tokenType: 'parameter',
+                tokenModifiers: ['local']
+            })
+        ]));
     });
 
     test('DefaultLanguageSemanticTokensService does not classify uppercase identifiers as macros without macro facts', async () => {
@@ -295,7 +488,7 @@ describe('shared structure services', () => {
         });
 
         expect(result.tokens).toEqual([
-            { line: 0, startCharacter: 0, length: 3, tokenType: 'type' },
+            { line: 0, startCharacter: 0, length: 3, tokenType: 'lpcType' },
             { line: 0, startCharacter: 4, length: 2, tokenType: 'variable' },
             { line: 0, startCharacter: 7, length: 1, tokenType: 'operator' },
             { line: 0, startCharacter: 9, length: 1, tokenType: 'number' }
@@ -392,7 +585,7 @@ describe('shared structure services', () => {
                 line: 0,
                 startCharacter: 0,
                 length: 5,
-                tokenType: 'type'
+                tokenType: 'lpcType'
             },
             {
                 line: 0,
