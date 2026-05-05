@@ -103,4 +103,23 @@ describe('preprocessor diagnostics regressions', () => {
             })
         ]);
     });
+
+    test('keeps function-like macro receivers as normal expressions when followed by member access', () => {
+        const document = createDocument([
+            '#define SKILL_D(x)      ("/kungfu/skill/" + x)',
+            '',
+            'void cast_spell(string spell)',
+            '{',
+            '    string spell_skill;',
+            '',
+            '    if (stringp(spell_skill = query_skill_mapped("spells")))',
+            '        SKILL_D(spell_skill)->cast_spell(this_object(), spell);',
+            '}'
+        ].join('\n'), '/virtual/inherit/char/npc.c');
+
+        const parsed = new ParsedDocumentService({ cleanupInterval: 0, enableMonitoring: true }).get(document);
+
+        expect(parsed.diagnostics).toHaveLength(0);
+        expect(parsed.parseText).toContain('SKILL_D(spell_skill)->cast_spell(this_object(), spell);');
+    });
 });

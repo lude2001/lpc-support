@@ -48,16 +48,14 @@ export class MacroExpansionBuilder {
             return undefined;
         }
 
-        const lineStartOffset = findLineStart(text, reference.startOffset);
-        const lineEndOffset = findLineEnd(text, reference.startOffset);
-        const line = text.slice(lineStartOffset, lineEndOffset);
-        const pattern = new RegExp(`^(\\s*)${escapeRegExp(reference.name)}\\s*\\((.*)\\)\\s*;?\\s*$`);
-        const match = line.match(pattern);
-        if (!match) {
+        const invocation = parseWholeLineMacroInvocation(text, reference);
+        if (!invocation) {
             return undefined;
         }
 
-        const args = splitMacroArguments(match[2]);
+        const lineStartOffset = findLineStart(text, reference.startOffset);
+        const lineEndOffset = findLineEnd(text, reference.startOffset);
+        const args = splitMacroArguments(invocation.argumentText);
         if (args.length !== macro.parameters.length) {
             return undefined;
         }
@@ -66,13 +64,90 @@ export class MacroExpansionBuilder {
         return {
             lineStartOffset,
             lineEndOffset,
-            expandedLine: `${match[1]}${expandedBody}`
+            expandedLine: `${invocation.indent}${expandedBody}`
         };
     }
 
     private buildSourceMap(text: string): PreprocessorSourceMapEntry[] {
         return [{ originalStartOffset: 0, activeStartOffset: 0, length: text.length }];
     }
+}
+
+function parseWholeLineMacroInvocation(
+    text: string,
+    reference: MacroReferenceFact
+): { indent: string; argumentText: string } | undefined {
+    const lineStartOffset = findLineStart(text, reference.startOffset);
+    const lineEndOffset = findLineEnd(text, reference.startOffset);
+    const line = text.slice(lineStartOffset, lineEndOffset);
+    const referenceColumn = reference.startOffset - lineStartOffset;
+    const beforeMacro = line.slice(0, referenceColumn);
+    if (!/^\s*$/.test(beforeMacro)) {
+        return undefined;
+    }
+
+    let cursor = referenceColumn + reference.name.length;
+    while (cursor < line.length && /\s/.test(line[cursor])) {
+        cursor++;
+    }
+    if (line[cursor] !== '(') {
+        return undefined;
+    }
+
+    const argumentStart = cursor + 1;
+    const argumentEnd = findMatchingParen(line, cursor);
+    if (argumentEnd === undefined) {
+        return undefined;
+    }
+
+    const suffix = line.slice(argumentEnd + 1);
+    if (!/^\s*;?\s*$/.test(suffix)) {
+        return undefined;
+    }
+
+    return {
+        indent: beforeMacro,
+        argumentText: line.slice(argumentStart, argumentEnd)
+    };
+}
+
+function findMatchingParen(text: string, openParenIndex: number): number | undefined {
+    let depth = 0;
+    let quote: '"' | '\'' | undefined;
+    let escaped = false;
+
+    for (let index = openParenIndex; index < text.length; index++) {
+        const char = text[index];
+        if (quote) {
+            if (escaped) {
+                escaped = false;
+            } else if (char === '\\') {
+                escaped = true;
+            } else if (char === quote) {
+                quote = undefined;
+            }
+            continue;
+        }
+
+        if (char === '"' || char === '\'') {
+            quote = char;
+            continue;
+        }
+
+        if (char === '(') {
+            depth++;
+            continue;
+        }
+
+        if (char === ')') {
+            depth--;
+            if (depth === 0) {
+                return index;
+            }
+        }
+    }
+
+    return undefined;
 }
 
 function expandFunctionMacroBody(body: string, parameters: string[], args: string[]): string {
