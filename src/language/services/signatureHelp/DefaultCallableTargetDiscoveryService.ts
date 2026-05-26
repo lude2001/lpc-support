@@ -11,13 +11,18 @@ import type {
     ResolvedCallableTarget
 } from './LanguageSignatureHelpService';
 import { buildDeclarationKey, fromVsCodeRange } from './SignatureHelpPresentationSupport';
+import {
+    isCallableNameShadowedByNonCallableSymbol,
+    type CallableNameShadowAnalysisService
+} from '../callableNameShadowing';
 
 export class DefaultCallableTargetDiscoveryService implements CallableTargetDiscoveryService {
     public constructor(
         private readonly efunDocsManager?: EfunDocsManager,
         private readonly objectInferenceService?: ObjectInferenceService,
         private readonly targetMethodLookup?: TargetMethodLookup,
-        private readonly scopedMethodResolver?: ScopedMethodResolver
+        private readonly scopedMethodResolver?: ScopedMethodResolver,
+        private readonly analysisService?: CallableNameShadowAnalysisService
     ) {}
 
     public async discoverLocalOrInheritedTargets(
@@ -157,22 +162,39 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
             return [];
         }
 
+        const isExplicitEfunScope = request.callKind === 'efunScoped';
+        const lookupPosition = request.calleeLookupPosition ?? request.callExpressionRange.start;
+        if (!isExplicitEfunScope) {
+            if (
+                isCallableNameShadowedByNonCallableSymbol(
+                    this.analysisService,
+                    request.document,
+                    request.calleeName,
+                    lookupPosition
+                )
+            ) {
+                return [];
+            }
+        }
+
         const targets: ResolvedCallableTarget[] = [];
-        const simulatedDoc = this.efunDocsManager.getSimulatedDocAsync
-            ? await this.efunDocsManager.getSimulatedDocAsync(request.calleeName)
-            : this.efunDocsManager.getSimulatedDoc(request.calleeName);
-        const simulatedTarget = toSourceBackedTarget(simulatedDoc, request.calleeName, 'simulEfun', 'simul_efun', 5)
-            ?? (simulatedDoc
-                ? {
-                    kind: 'simulEfun' as const,
-                    name: request.calleeName,
-                    targetKey: `simulEfun:${request.calleeName}`,
-                    sourceLabel: 'simul_efun',
-                    priority: 5
-                }
-                : undefined);
-        if (simulatedTarget) {
-            targets.push(simulatedTarget);
+        if (!isExplicitEfunScope) {
+            const simulatedDoc = this.efunDocsManager.getSimulatedDocAsync
+                ? await this.efunDocsManager.getSimulatedDocAsync(request.calleeName)
+                : this.efunDocsManager.getSimulatedDoc(request.calleeName);
+            const simulatedTarget = toSourceBackedTarget(simulatedDoc, request.calleeName, 'simulEfun', 'simul_efun', 5)
+                ?? (simulatedDoc
+                    ? {
+                        kind: 'simulEfun' as const,
+                        name: request.calleeName,
+                        targetKey: `simulEfun:${request.calleeName}`,
+                        sourceLabel: 'simul_efun',
+                        priority: 5
+                    }
+                    : undefined);
+            if (simulatedTarget) {
+                targets.push(simulatedTarget);
+            }
         }
 
         const standardDoc = this.efunDocsManager.getStandardCallableDoc(request.calleeName);

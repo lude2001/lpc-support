@@ -759,6 +759,78 @@ describe('navigation services', () => {
         expect(efunDocsManager.getCurrentFileDocForDocument).not.toHaveBeenCalled();
     });
 
+    test('efun hover does not claim a local variable that shadows a standard efun', async () => {
+        const source = [
+            'void demo() {',
+            '    mixed allocate;',
+            '    allocate = 1;',
+            '}'
+        ].join('\n');
+        const document = createVsCodeTextDocument('D:/workspace/local-efun-shadow-hover.c', source);
+        const efunDocsManager = {
+            getCurrentFileDocForDocument: jest.fn(async () => undefined),
+            getInheritedFileDocForDocument: jest.fn(async () => undefined),
+            getIncludedFileDoc: jest.fn(async () => undefined),
+            getSimulatedDocAsync: jest.fn(async () => undefined),
+            getStandardCallableDoc: jest.fn(() => ({
+                name: 'allocate',
+                signatures: [{
+                    label: 'mixed *allocate(int size)',
+                    parameters: []
+                }]
+            }))
+        };
+        const service = new EfunLanguageHoverService(
+            efunDocsManager as any,
+            analysisService,
+            new CallableDocRenderer()
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document as any),
+            position: { line: 2, character: 7 }
+        });
+
+        expect(hover).toBeUndefined();
+        expect(efunDocsManager.getStandardCallableDoc).not.toHaveBeenCalled();
+    });
+
+    test('efun hover keeps explicit efun scope when a parameter has the same name', async () => {
+        const source = [
+            'void demo(string message) {',
+            '    efun::message("tell_object", message, this_object());',
+            '}'
+        ].join('\n');
+        const document = createVsCodeTextDocument('D:/workspace/explicit-efun-scope-hover.c', source);
+        const efunDocsManager = {
+            getCurrentFileDocForDocument: jest.fn(async () => undefined),
+            getInheritedFileDocForDocument: jest.fn(async () => undefined),
+            getIncludedFileDoc: jest.fn(async () => undefined),
+            getSimulatedDocAsync: jest.fn(async () => undefined),
+            getStandardCallableDoc: jest.fn(() => ({
+                name: 'message',
+                signatures: [{
+                    label: 'void message(mixed class, mixed message, mixed target)',
+                    parameters: []
+                }]
+            }))
+        };
+        const service = new EfunLanguageHoverService(
+            efunDocsManager as any,
+            analysisService,
+            new CallableDocRenderer()
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document as any),
+            position: { line: 1, character: 12 }
+        });
+
+        expect(hover?.contents[0].value).toContain('void message(mixed class, mixed message, mixed target)');
+        expect(efunDocsManager.getCurrentFileDocForDocument).not.toHaveBeenCalled();
+        expect(efunDocsManager.getSimulatedDocAsync).not.toHaveBeenCalled();
+    });
+
     test('definition service can operate on host-agnostic documents via injected boundaries', async () => {
         const source = 'local_call();';
         const document = createDocument(source);

@@ -234,7 +234,8 @@ describe('LanguageSignatureHelpService', () => {
             dependencies.efunDocsManager,
             dependencies.objectInferenceService,
             dependencies.targetMethodLookup,
-            dependencies.scopedMethodResolver
+            dependencies.scopedMethodResolver,
+            analysisService
         );
         const docResolver = dependencies.docResolver ?? new DefaultCallableDocResolver(
             documentationService,
@@ -648,6 +649,91 @@ describe('LanguageSignatureHelpService', () => {
             label: 'string efun_call(int value)',
             sourceLabel: 'efun'
         }));
+    });
+
+    test('does not return efun signature help when a local variable shadows the efun name', async () => {
+        const source = [
+            'void test() {',
+            '    mixed allocate;',
+            '    allocate(1);',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, 'D:/workspace/local-efun-shadow-signature.c');
+        const efunDocsManager = {
+            getCurrentFileDocForDocument: jest.fn(async () => undefined),
+            getInheritedFileDocForDocument: jest.fn(async () => undefined),
+            getIncludedFileDoc: jest.fn(async () => undefined),
+            getSimulatedDoc: jest.fn(() => undefined),
+            getSimulatedDocAsync: jest.fn(async () => undefined),
+            getStandardCallableDoc: jest.fn((name: string) => name === 'allocate'
+                ? createCallableDoc('allocate', 'efun', 'efun:allocate', [{
+                    label: 'mixed *allocate(int size)',
+                    returnType: 'mixed *',
+                    isVariadic: false,
+                    parameters: [{ name: 'size', type: 'int', description: 'Array size' }]
+                }])
+                : undefined)
+        };
+        const service = createSignatureHelpService({
+            efunDocsManager: efunDocsManager as any
+        });
+
+        const result = await service.provideSignatureHelp({
+            context: createContext(document),
+            position: (() => {
+                const position = positionAfter(source, '1');
+                return {
+                    line: position.line,
+                    character: position.character
+                };
+            })()
+        });
+
+        expect(result).toBeUndefined();
+        expect(efunDocsManager.getStandardCallableDoc).not.toHaveBeenCalled();
+    });
+
+    test('returns standard efun signature help for efun:: calls even when a parameter has the same name', async () => {
+        const source = [
+            'void test(string message) {',
+            '    efun::message("tell_object", message, this_object());',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, 'D:/workspace/explicit-efun-scope-signature.c');
+        const efunDocsManager = {
+            getCurrentFileDocForDocument: jest.fn(async () => undefined),
+            getInheritedFileDocForDocument: jest.fn(async () => undefined),
+            getIncludedFileDoc: jest.fn(async () => undefined),
+            getSimulatedDoc: jest.fn(() => undefined),
+            getSimulatedDocAsync: jest.fn(async () => undefined),
+            getStandardCallableDoc: jest.fn((name: string) => name === 'message'
+                ? createCallableDoc('message', 'efun', 'efun:message', [{
+                    label: 'void message(mixed class, mixed message, mixed target)',
+                    returnType: 'void',
+                    isVariadic: false,
+                    parameters: [
+                        { name: 'class', type: 'mixed', description: 'Message class' },
+                        { name: 'message', type: 'mixed', description: 'Message text' },
+                        { name: 'target', type: 'mixed', description: 'Message target' }
+                    ]
+                }])
+                : undefined)
+        };
+        const service = createSignatureHelpService({
+            efunDocsManager: efunDocsManager as any
+        });
+
+        const result = await service.provideSignatureHelp({
+            context: createContext(document),
+            position: positionAfter(source, '"tell_object"')
+        });
+
+        expect(result?.signatures[0]).toEqual(expect.objectContaining({
+            label: 'void message(mixed class, mixed message, mixed target)',
+            sourceLabel: 'efun'
+        }));
+        expect(efunDocsManager.getCurrentFileDocForDocument).not.toHaveBeenCalled();
+        expect(efunDocsManager.getSimulatedDocAsync).not.toHaveBeenCalled();
     });
 
     test('returns signature help for object-method calls', async () => {

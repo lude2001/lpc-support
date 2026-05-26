@@ -192,7 +192,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         efunDocsManager,
         objectInferenceService,
         targetMethodLookup,
-        scopedMethodResolver
+        scopedMethodResolver,
+        analysisService
     );
     const callableDocResolver = new DefaultCallableDocResolver(
         documentationService,

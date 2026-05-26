@@ -349,7 +349,8 @@ describe('createProductionLanguageServices', () => {
                 expect.anything(),
                 expect.anything(),
                 expect.anything(),
-                scopedMethodResolver
+                scopedMethodResolver,
+                analysisService
             );
             expect(signatureHelpCtor).toHaveBeenCalledWith(
                 expect.objectContaining({

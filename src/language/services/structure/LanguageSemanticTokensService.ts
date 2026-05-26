@@ -261,7 +261,7 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
             };
         }
 
-        if (EFUNS.has(text)) {
+        if (this.isExplicitEfunScopedIdentifier(tokenIndex, tokens) && EFUNS.has(text)) {
             return { tokenType: TOKEN_TYPES.builtin, tokenModifiers: ['defaultLibrary'] };
         }
 
@@ -293,10 +293,25 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
             };
         }
 
+        if (EFUNS.has(text)) {
+            return { tokenType: TOKEN_TYPES.builtin, tokenModifiers: ['defaultLibrary'] };
+        }
+
         return {
             tokenType: contextualType,
             tokenModifiers: context.getModifiersForToken(token, SymbolType.VARIABLE)
         };
+    }
+
+    private isExplicitEfunScopedIdentifier(tokenIndex: number, tokens: LpcTokenLike[]): boolean {
+        const previousToken = this.findAdjacentDefaultToken(tokens, tokenIndex, -1);
+        if (previousToken?.text !== '::') {
+            return false;
+        }
+
+        const scopeTokenIndex = tokens.indexOf(previousToken);
+        const qualifierToken = this.findAdjacentDefaultToken(tokens, scopeTokenIndex, -1);
+        return qualifierToken?.text === 'efun';
     }
 
     private isMacroReference(token: LpcTokenLike, snapshot: DocumentSemanticSnapshot): boolean {

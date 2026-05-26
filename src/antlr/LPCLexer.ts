@@ -128,55 +128,55 @@ export class LPCLexer extends Lexer {
 	];
 
 	public static readonly ruleNames: string[] = [
-		"NL", "INTEGER", "FLOAT", "DecimalLiteral", "FloatLiteral", "HexLiteral",
-		"OctLiteral", "BinLiteral", "CHAR_LITERAL", "STRING_LITERAL", "HEREDOC_TAG",
-		"HEREDOC_START", "ARRAY_DELIMITER_START", "HEREDOC_END", "HEREDOC_CHARS",
-		"ARRAY_DELIMITER_END", "ARRAY_DELIMITER_CHARS", "WS", "LINE_COMMENT",
-		"BLOCK_COMMENT", "DIRECTIVE", "IF", "ELSE", "FOR", "WHILE", "DO", "SWITCH",
-		"CASE", "DEFAULT", "BREAK", "CONTINUE", "RETURN", "FOREACH", "INHERIT",
-		"INCLUDE", "CATCH", "REF", "IN", "KW_INT", "KW_FLOAT", "KW_STRING", "KW_OBJECT",
-		"KW_MIXED", "KW_MAPPING", "KW_FUNCTION", "KW_BUFFER", "KW_VOID", "KW_STRUCT",
-		"KW_CLASS", "KW_ARRAY", "KW_CLOSURE", "KW_TREE", "KW_NEW", "KW_SIZEOF",
-		"KW_EFUN", "ELLIPSIS", "RANGE_OP", "ARROW", "DOT", "INC", "DEC", "SHIFT_LEFT_ASSIGN",
-		"SHIFT_RIGHT_ASSIGN", "PLUS_ASSIGN", "MINUS_ASSIGN", "STAR_ASSIGN", "DIV_ASSIGN",
-		"PERCENT_ASSIGN", "BIT_XOR_ASSIGN", "PLUS", "MINUS", "STAR", "DIV", "PERCENT",
-		"SCOPE", "SEMI", "COMMA", "LPAREN", "RPAREN", "LBRACE", "RBRACE", "LBRACK",
-		"RBRACK", "QUESTION", "COLON", "DOLLAR", "GT", "LT", "GE", "LE", "EQ",
-		"NE", "ASSIGN", "NOT", "AND", "OR", "SHIFT_LEFT", "SHIFT_RIGHT", "BIT_AND",
-		"BIT_OR", "BIT_XOR", "BIT_NOT", "BIT_OR_ASSIGN", "BIT_AND_ASSIGN", "MODIFIER",
+		"NL", "INTEGER", "FLOAT", "DecimalLiteral", "FloatLiteral", "HexLiteral", 
+		"OctLiteral", "BinLiteral", "CHAR_LITERAL", "STRING_LITERAL", "HEREDOC_TAG", 
+		"HEREDOC_START", "ARRAY_DELIMITER_START", "HEREDOC_END", "HEREDOC_CHARS", 
+		"ARRAY_DELIMITER_END", "ARRAY_DELIMITER_CHARS", "WS", "LINE_COMMENT", 
+		"BLOCK_COMMENT", "DIRECTIVE", "IF", "ELSE", "FOR", "WHILE", "DO", "SWITCH", 
+		"CASE", "DEFAULT", "BREAK", "CONTINUE", "RETURN", "FOREACH", "INHERIT", 
+		"INCLUDE", "CATCH", "REF", "IN", "KW_INT", "KW_FLOAT", "KW_STRING", "KW_OBJECT", 
+		"KW_MIXED", "KW_MAPPING", "KW_FUNCTION", "KW_BUFFER", "KW_VOID", "KW_STRUCT", 
+		"KW_CLASS", "KW_ARRAY", "KW_CLOSURE", "KW_TREE", "KW_NEW", "KW_SIZEOF", 
+		"KW_EFUN", "ELLIPSIS", "RANGE_OP", "ARROW", "DOT", "INC", "DEC", "SHIFT_LEFT_ASSIGN", 
+		"SHIFT_RIGHT_ASSIGN", "PLUS_ASSIGN", "MINUS_ASSIGN", "STAR_ASSIGN", "DIV_ASSIGN", 
+		"PERCENT_ASSIGN", "BIT_XOR_ASSIGN", "PLUS", "MINUS", "STAR", "DIV", "PERCENT", 
+		"SCOPE", "SEMI", "COMMA", "LPAREN", "RPAREN", "LBRACE", "RBRACE", "LBRACK", 
+		"RBRACK", "QUESTION", "COLON", "DOLLAR", "GT", "LT", "GE", "LE", "EQ", 
+		"NE", "ASSIGN", "NOT", "AND", "OR", "SHIFT_LEFT", "SHIFT_RIGHT", "BIT_AND", 
+		"BIT_OR", "BIT_XOR", "BIT_NOT", "BIT_OR_ASSIGN", "BIT_AND_ASSIGN", "MODIFIER", 
 		"PARAMETER_PLACEHOLDER", "Identifier",
 	];
 
 	private static readonly _LITERAL_NAMES: Array<string | undefined> = [
-		undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-		undefined, undefined, undefined, undefined, undefined, undefined, "'if'",
-		"'else'", "'for'", "'while'", "'do'", "'switch'", "'case'", "'default'",
-		"'break'", "'continue'", "'return'", "'foreach'", "'inherit'", "'include'",
-		"'catch'", "'ref'", "'in'", "'int'", "'float'", "'string'", "'object'",
-		"'mixed'", "'mapping'", "'function'", "'buffer'", "'void'", "'struct'",
-		"'class'", "'array'", "'closure'", "'__TREE__'", "'new'", "'sizeof'",
-		"'efun'", "'...'", "'..'", "'->'", "'.'", "'++'", "'--'", "'<<='", "'>>='",
-		"'+='", "'-='", "'*='", "'/='", "'%='", "'^='", "'+'", "'-'", "'*'", "'/'",
-		"'%'", "'::'", "';'", "','", "'('", "')'", "'{'", "'}'", "'['", "']'",
-		"'?'", "':'", "'$'", "'>'", "'<'", "'>='", "'<='", "'=='", "'!='", "'='",
-		"'!'", "'&&'", "'||'", "'<<'", "'>>'", "'&'", "'|'", "'^'", "'~'", "'|='",
+		undefined, undefined, undefined, undefined, undefined, undefined, undefined, 
+		undefined, undefined, undefined, undefined, undefined, undefined, "'if'", 
+		"'else'", "'for'", "'while'", "'do'", "'switch'", "'case'", "'default'", 
+		"'break'", "'continue'", "'return'", "'foreach'", "'inherit'", "'include'", 
+		"'catch'", "'ref'", "'in'", "'int'", "'float'", "'string'", "'object'", 
+		"'mixed'", "'mapping'", "'function'", "'buffer'", "'void'", "'struct'", 
+		"'class'", "'array'", "'closure'", "'__TREE__'", "'new'", "'sizeof'", 
+		"'efun'", "'...'", "'..'", "'->'", "'.'", "'++'", "'--'", "'<<='", "'>>='", 
+		"'+='", "'-='", "'*='", "'/='", "'%='", "'^='", "'+'", "'-'", "'*'", "'/'", 
+		"'%'", "'::'", "';'", "','", "'('", "')'", "'{'", "'}'", "'['", "']'", 
+		"'?'", "':'", "'$'", "'>'", "'<'", "'>='", "'<='", "'=='", "'!='", "'='", 
+		"'!'", "'&&'", "'||'", "'<<'", "'>>'", "'&'", "'|'", "'^'", "'~'", "'|='", 
 		"'&='",
 	];
 	private static readonly _SYMBOLIC_NAMES: Array<string | undefined> = [
-		undefined, "INTEGER", "FLOAT", "CHAR_LITERAL", "STRING_LITERAL", "HEREDOC_START",
-		"ARRAY_DELIMITER_START", "HEREDOC_END", "ARRAY_DELIMITER_END", "WS", "LINE_COMMENT",
-		"BLOCK_COMMENT", "DIRECTIVE", "IF", "ELSE", "FOR", "WHILE", "DO", "SWITCH",
-		"CASE", "DEFAULT", "BREAK", "CONTINUE", "RETURN", "FOREACH", "INHERIT",
-		"INCLUDE", "CATCH", "REF", "IN", "KW_INT", "KW_FLOAT", "KW_STRING", "KW_OBJECT",
-		"KW_MIXED", "KW_MAPPING", "KW_FUNCTION", "KW_BUFFER", "KW_VOID", "KW_STRUCT",
-		"KW_CLASS", "KW_ARRAY", "KW_CLOSURE", "KW_TREE", "KW_NEW", "KW_SIZEOF",
-		"KW_EFUN", "ELLIPSIS", "RANGE_OP", "ARROW", "DOT", "INC", "DEC", "SHIFT_LEFT_ASSIGN",
-		"SHIFT_RIGHT_ASSIGN", "PLUS_ASSIGN", "MINUS_ASSIGN", "STAR_ASSIGN", "DIV_ASSIGN",
-		"PERCENT_ASSIGN", "BIT_XOR_ASSIGN", "PLUS", "MINUS", "STAR", "DIV", "PERCENT",
-		"SCOPE", "SEMI", "COMMA", "LPAREN", "RPAREN", "LBRACE", "RBRACE", "LBRACK",
-		"RBRACK", "QUESTION", "COLON", "DOLLAR", "GT", "LT", "GE", "LE", "EQ",
-		"NE", "ASSIGN", "NOT", "AND", "OR", "SHIFT_LEFT", "SHIFT_RIGHT", "BIT_AND",
-		"BIT_OR", "BIT_XOR", "BIT_NOT", "BIT_OR_ASSIGN", "BIT_AND_ASSIGN", "MODIFIER",
+		undefined, "INTEGER", "FLOAT", "CHAR_LITERAL", "STRING_LITERAL", "HEREDOC_START", 
+		"ARRAY_DELIMITER_START", "HEREDOC_END", "ARRAY_DELIMITER_END", "WS", "LINE_COMMENT", 
+		"BLOCK_COMMENT", "DIRECTIVE", "IF", "ELSE", "FOR", "WHILE", "DO", "SWITCH", 
+		"CASE", "DEFAULT", "BREAK", "CONTINUE", "RETURN", "FOREACH", "INHERIT", 
+		"INCLUDE", "CATCH", "REF", "IN", "KW_INT", "KW_FLOAT", "KW_STRING", "KW_OBJECT", 
+		"KW_MIXED", "KW_MAPPING", "KW_FUNCTION", "KW_BUFFER", "KW_VOID", "KW_STRUCT", 
+		"KW_CLASS", "KW_ARRAY", "KW_CLOSURE", "KW_TREE", "KW_NEW", "KW_SIZEOF", 
+		"KW_EFUN", "ELLIPSIS", "RANGE_OP", "ARROW", "DOT", "INC", "DEC", "SHIFT_LEFT_ASSIGN", 
+		"SHIFT_RIGHT_ASSIGN", "PLUS_ASSIGN", "MINUS_ASSIGN", "STAR_ASSIGN", "DIV_ASSIGN", 
+		"PERCENT_ASSIGN", "BIT_XOR_ASSIGN", "PLUS", "MINUS", "STAR", "DIV", "PERCENT", 
+		"SCOPE", "SEMI", "COMMA", "LPAREN", "RPAREN", "LBRACE", "RBRACE", "LBRACK", 
+		"RBRACK", "QUESTION", "COLON", "DOLLAR", "GT", "LT", "GE", "LE", "EQ", 
+		"NE", "ASSIGN", "NOT", "AND", "OR", "SHIFT_LEFT", "SHIFT_RIGHT", "BIT_AND", 
+		"BIT_OR", "BIT_XOR", "BIT_NOT", "BIT_OR_ASSIGN", "BIT_AND_ASSIGN", "MODIFIER", 
 		"PARAMETER_PLACEHOLDER", "Identifier",
 	];
 	public static readonly VOCABULARY: Vocabulary = new VocabularyImpl(LPCLexer._LITERAL_NAMES, LPCLexer._SYMBOLIC_NAMES, []);
@@ -240,7 +240,7 @@ export class LPCLexer extends Lexer {
 			            this.heredocTag = this.text.substring(1).trim();
 			            this.type = LPCLexer.STRING_LITERAL;
 			            this.pushMode(LPCLexer.LPC_HEREDOC);
-
+			        
 			break;
 		}
 	}
@@ -250,7 +250,7 @@ export class LPCLexer extends Lexer {
 
 			            this.heredocTag = this.text.substring(2).trim();
 			            this.pushMode(LPCLexer.LPC_ARRAY_DELIMITER);
-
+			        
 			break;
 		}
 	}
@@ -264,7 +264,7 @@ export class LPCLexer extends Lexer {
 			            } else {
 			                this.more();
 			            }
-
+			        
 			break;
 		}
 	}
@@ -277,7 +277,7 @@ export class LPCLexer extends Lexer {
 			            } else {
 			                this.more();
 			            }
-
+			        
 			break;
 		}
 	}

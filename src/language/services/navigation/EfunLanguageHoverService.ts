@@ -5,8 +5,12 @@ import type { DocumentAnalysisService } from '../../../semantic/documentAnalysis
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import { SyntaxKind, type SyntaxDocument, type SyntaxNode } from '../../../syntax/types';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
+import {
+    isCallableNameShadowedByNonCallableSymbol,
+    type CallableNameShadowAnalysisService
+} from '../callableNameShadowing';
 
-type EfunHoverAnalysisService = Pick<DocumentAnalysisService, 'getSyntaxDocument'>;
+type EfunHoverAnalysisService = Pick<DocumentAnalysisService, 'getSyntaxDocument'> & Partial<CallableNameShadowAnalysisService>;
 
 export class EfunLanguageHoverService implements LanguageHoverService {
     private readonly analysisService: EfunHoverAnalysisService;
@@ -42,6 +46,17 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         }
 
         if (this.isArrowMemberAccess(document, position, word)) {
+            return undefined;
+        }
+
+        if (this.isEfunScopedAccess(document, position, word)) {
+            const standardCallableDoc = this.efunDocsManager.getStandardCallableDoc(word);
+            return standardCallableDoc
+                ? this.renderer.renderHover(standardCallableDoc, { sourceLabel: '标准 Efun' })
+                : undefined;
+        }
+
+        if (isCallableNameShadowedByNonCallableSymbol(this.analysisService, document, word, position)) {
             return undefined;
         }
 
@@ -111,6 +126,23 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         return candidates.some((node) => this.isMatchingArrowMember(node, word));
     }
 
+    private isEfunScopedAccess(document: vscode.TextDocument, position: vscode.Position, word: string): boolean {
+        const syntax = this.getSyntaxDocument(document);
+        if (!syntax) {
+            return false;
+        }
+
+        const candidates = this.getContainingSyntaxNodes(syntax, position);
+
+        for (const node of candidates) {
+            if (node.kind === SyntaxKind.CallExpression && this.isMatchingEfunScopedIdentifier(node.children[0], word)) {
+                return true;
+            }
+        }
+
+        return candidates.some((node) => this.isMatchingEfunScopedIdentifier(node, word));
+    }
+
     private getSyntaxDocument(document: vscode.TextDocument): SyntaxDocument | undefined {
         return this.analysisService.getSyntaxDocument(document, false)
             ?? this.analysisService.getSyntaxDocument(document, true);
@@ -155,6 +187,15 @@ export class EfunLanguageHoverService implements LanguageHoverService {
 
         const memberNode = node.children[1];
         return memberNode.kind === SyntaxKind.Identifier && memberNode.name === word;
+    }
+
+    private isMatchingEfunScopedIdentifier(node: SyntaxNode | undefined, word: string): boolean {
+        return Boolean(
+            node
+            && node.kind === SyntaxKind.Identifier
+            && node.metadata?.scopeQualifier === 'efun::'
+            && node.name === word
+        );
     }
 }
 

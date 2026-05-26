@@ -452,6 +452,79 @@ describe('shared structure services', () => {
         ]));
     });
 
+    test('DefaultLanguageSemanticTokensService keeps efun scoped callees builtin without repainting same-name parameters', async () => {
+        const document = createDocument([
+            'void demo(string message) {',
+            '    efun::message("tell_object", message, this_object());',
+            '}'
+        ].join('\n'));
+        const messageParameter = {
+            name: 'message',
+            type: SymbolType.PARAMETER,
+            range: new vscode.Range(0, 17, 0, 24),
+            selectionRange: new vscode.Range(0, 17, 0, 24),
+            scope: { name: 'function' }
+        };
+        const symbolTable = {
+            findSymbol: jest.fn((name: string) => name === 'message' ? messageParameter : undefined)
+        };
+        const analysisService = {
+            parseDocument: jest.fn().mockReturnValue({
+                parsed: {
+                    tokens: {
+                        fill: jest.fn(),
+                        getTokens: () => [
+                            createToken(LPCLexer.KW_VOID, 'void', 1, 0),
+                            createToken(LPCLexer.Identifier, 'demo', 1, 5),
+                            createToken(LPCLexer.KW_STRING, 'string', 1, 10),
+                            createToken(LPCLexer.Identifier, 'message', 1, 17),
+                            createToken(LPCLexer.KW_EFUN, 'efun', 2, 4),
+                            createToken(LPCLexer.SCOPE, '::', 2, 8),
+                            createToken(LPCLexer.Identifier, 'message', 2, 10),
+                            createToken(LPCLexer.LPAREN, '(', 2, 17),
+                            createToken(LPCLexer.STRING_LITERAL, '"tell_object"', 2, 18),
+                            createToken(LPCLexer.COMMA, ',', 2, 31),
+                            createToken(LPCLexer.Identifier, 'message', 2, 33)
+                        ]
+                    }
+                },
+                snapshot: {
+                    symbolTable,
+                    macroReferences: []
+                }
+            })
+        };
+
+        const service = new DefaultLanguageSemanticTokensService(analysisService as any);
+        const result = await service.provideSemanticTokens({
+            context: createCapabilityContext(document)
+        });
+
+        expect(result.tokens).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                line: 0,
+                startCharacter: 17,
+                length: 7,
+                tokenType: 'parameter',
+                tokenModifiers: ['declaration', 'local']
+            }),
+            expect.objectContaining({
+                line: 1,
+                startCharacter: 10,
+                length: 7,
+                tokenType: 'builtin',
+                tokenModifiers: ['defaultLibrary']
+            }),
+            expect.objectContaining({
+                line: 1,
+                startCharacter: 33,
+                length: 7,
+                tokenType: 'parameter',
+                tokenModifiers: ['local']
+            })
+        ]));
+    });
+
     test('DefaultLanguageSemanticTokensService does not classify uppercase identifiers as macros without macro facts', async () => {
         const document = createDocument('int HP = 1;');
         const symbolTable = {

@@ -39,7 +39,7 @@ export interface CallableDiscoveryRequest {
     position: vscode.Position;
     callExpressionRange: vscode.Range;
     calleeName: string;
-    callKind: 'function' | 'objectMethod' | 'scopedMethod';
+    callKind: 'function' | 'objectMethod' | 'scopedMethod' | 'efunScoped';
     calleeLookupPosition?: vscode.Position;
 }
 
@@ -137,6 +137,10 @@ export class LanguageSignatureHelpService {
     private async collectTargets(request: CallableDiscoveryRequest): Promise<ResolvedCallableTarget[]> {
         if (request.callKind === 'scopedMethod') {
             return this.discoveryService.discoverScopedMethodTargets(request);
+        }
+
+        if (request.callKind === 'efunScoped') {
+            return this.discoveryService.discoverEfunTargets(request);
         }
 
         const [

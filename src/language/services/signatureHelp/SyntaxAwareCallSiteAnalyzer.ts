@@ -88,7 +88,7 @@ export function countActiveParameterIndex(
 
 function getCalleeInfo(
     callee: SyntaxNode | undefined
-): { name: string; callKind: 'function' | 'objectMethod' | 'scopedMethod' } | undefined {
+): { name: string; callKind: 'function' | 'objectMethod' | 'scopedMethod' | 'efunScoped' } | undefined {
     if (!callee) {
         return undefined;
     }
@@ -96,7 +96,11 @@ function getCalleeInfo(
     if (callee.kind === SyntaxKind.Identifier && callee.name) {
         return {
             name: callee.name,
-            callKind: callee.metadata?.scopeQualifier === '::' ? 'scopedMethod' : 'function'
+            callKind: callee.metadata?.scopeQualifier === 'efun::'
+                ? 'efunScoped'
+                : callee.metadata?.scopeQualifier === '::'
+                    ? 'scopedMethod'
+                    : 'function'
         };
     }
 
