@@ -7,7 +7,7 @@ import { SyntaxBuilder } from '../syntax/SyntaxBuilder';
 import { TestHelper } from './utils/TestHelper';
 
 const FIXTURE_ROOT = path.resolve(__dirname, '../../test/lpc_code');
-const REAL_WORKSPACE_FIXTURE = 'D:\\code\\shuiyuzhengfeng_lpc\\kungfu\\skill\\yifeng-jian.c';
+const YIFENG_FIXTURE = path.join(FIXTURE_ROOT, 'yifeng-jian.c');
 const COLLAPSED_ACTION_SOURCE = `inherit SKILL;
 string type() { return "zhongji"; }
 
@@ -36,7 +36,7 @@ describe('yifeng-jian formatter regression', () => {
     test('keeps action mapping array in block layout for the real fixture', async () => {
         clearGlobalParsedDocumentService();
 
-        const source = fs.readFileSync(path.join(FIXTURE_ROOT, 'yifeng-jian.c'), 'utf8');
+        const source = fs.readFileSync(YIFENG_FIXTURE, 'utf8');
         const document = TestHelper.createMockDocument(source, 'lpc', 'yifeng-jian.c');
         const edits = await new FormattingService().formatDocument(document);
         const output = (edits[0]?.newText ?? source).replace(/\r\n/g, '\n');
@@ -49,11 +49,11 @@ describe('yifeng-jian formatter regression', () => {
         expect(output).not.toContain('mapping *action = ({ ([');
     });
 
-    test('keeps action mapping array in block layout for the real workspace file', async () => {
+    test('keeps action mapping array in block layout for the tracked fixture file', async () => {
         clearGlobalParsedDocumentService();
 
-        const source = fs.readFileSync(REAL_WORKSPACE_FIXTURE, 'utf8');
-        const document = TestHelper.createMockDocument(source, 'lpc', REAL_WORKSPACE_FIXTURE);
+        const source = fs.readFileSync(YIFENG_FIXTURE, 'utf8');
+        const document = TestHelper.createMockDocument(source, 'lpc', YIFENG_FIXTURE);
         const edits = await new FormattingService().formatDocument(document);
         const output = (edits[0]?.newText ?? source).replace(/\r\n/g, '\n');
 
@@ -67,8 +67,8 @@ describe('yifeng-jian formatter regression', () => {
     test('builds the action initializer as an array literal instead of an opaque expression', () => {
         clearGlobalParsedDocumentService();
 
-        const source = fs.readFileSync(REAL_WORKSPACE_FIXTURE, 'utf8');
-        const document = TestHelper.createMockDocument(source, 'lpc', REAL_WORKSPACE_FIXTURE);
+        const source = fs.readFileSync(YIFENG_FIXTURE, 'utf8');
+        const document = TestHelper.createMockDocument(source, 'lpc', YIFENG_FIXTURE);
         const parsed = getGlobalParsedDocumentService().get(document);
         const syntax = new SyntaxBuilder(parsed).build();
         const actionDeclarator = syntax.nodes.find((node) => node.kind === 'VariableDeclarator' && node.name === 'action');

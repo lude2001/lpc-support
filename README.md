@@ -1,6 +1,7 @@
 # LPC Support
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/ludexiang.lpc-support?color=blue&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=ludexiang.lpc-support)
+[![CI](https://github.com/lude2001/lpc-support/actions/workflows/ci.yml/badge.svg)](https://github.com/lude2001/lpc-support/actions/workflows/ci.yml)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/ludexiang.lpc-support?color=success)](https://marketplace.visualstudio.com/items?itemName=ludexiang.lpc-support)
 [![License](https://img.shields.io/github/license/lude2001/lpc-support?color=orange)](https://github.com/lude2001/lpc-support/blob/main/LICENSE)
 
