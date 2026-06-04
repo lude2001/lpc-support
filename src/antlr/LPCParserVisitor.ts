@@ -29,6 +29,7 @@ import { TailHeadRangeContext } from "./LPCParser";
 import { SourceFileContext } from "./LPCParser";
 import { StatementContext } from "./LPCParser";
 import { FunctionDefContext } from "./LPCParser";
+import { ModifierSectionContext } from "./LPCParser";
 import { VariableDeclContext } from "./LPCParser";
 import { VariableDeclaratorContext } from "./LPCParser";
 import { ParameterListContext } from "./LPCParser";
@@ -44,6 +45,7 @@ import { ExprStatementContext } from "./LPCParser";
 import { ExpressionContext } from "./LPCParser";
 import { AssignmentExpressionContext } from "./LPCParser";
 import { ConditionalExpressionContext } from "./LPCParser";
+import { NullishExpressionContext } from "./LPCParser";
 import { LogicalOrExpressionContext } from "./LPCParser";
 import { LogicalAndExpressionContext } from "./LPCParser";
 import { BitwiseOrExpressionContext } from "./LPCParser";
@@ -314,6 +316,13 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	visitFunctionDef?: (ctx: FunctionDefContext) => Result;
 
 	/**
+	 * Visit a parse tree produced by `LPCParser.modifierSection`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitModifierSection?: (ctx: ModifierSectionContext) => Result;
+
+	/**
 	 * Visit a parse tree produced by `LPCParser.variableDecl`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -417,6 +426,13 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitConditionalExpression?: (ctx: ConditionalExpressionContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `LPCParser.nullishExpression`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitNullishExpression?: (ctx: NullishExpressionContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.logicalOrExpression`.

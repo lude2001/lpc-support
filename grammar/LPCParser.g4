@@ -9,6 +9,7 @@ sourceFile
 
 statement
     :   functionDef
+    |   modifierSection
     |   variableDecl ';'
     |   structDef
     |   classDef
@@ -32,6 +33,10 @@ statement
 
 functionDef
     :   MODIFIER* typeSpec? STAR* Identifier LPAREN parameterList? RPAREN block
+    ;
+
+modifierSection
+    :   MODIFIER+ COLON
     ;
 
 variableDecl
@@ -109,11 +114,15 @@ expression
     ;
 
 assignmentExpression
-    :   conditionalExpression ( (ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | DIV_ASSIGN | PERCENT_ASSIGN | BIT_OR_ASSIGN | BIT_AND_ASSIGN | BIT_XOR_ASSIGN | SHIFT_LEFT_ASSIGN | SHIFT_RIGHT_ASSIGN) expression )?
+    :   conditionalExpression ( (ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | DIV_ASSIGN | PERCENT_ASSIGN | BIT_OR_ASSIGN | BIT_AND_ASSIGN | BIT_XOR_ASSIGN | SHIFT_LEFT_ASSIGN | SHIFT_RIGHT_ASSIGN | NULLISH_ASSIGN | LOGICAL_OR_ASSIGN | LOGICAL_AND_ASSIGN) expression )?
     ;
 
 conditionalExpression
-    :   logicalOrExpression ( '?' expression ':' conditionalExpression )?
+    :   nullishExpression ( '?' expression ':' conditionalExpression )?
+    ;
+
+nullishExpression
+    :   logicalOrExpression (NULLISH logicalOrExpression)*
     ;
 
 logicalOrExpression

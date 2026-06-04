@@ -26,6 +26,7 @@ export enum SyntaxKind {
     MacroUndefDirective = 'MacroUndefDirective',
     ConditionalDirective = 'ConditionalDirective',
     PreprocessorDirective = 'PreprocessorDirective',
+    ModifierSection = 'ModifierSection',
     ModifierList = 'ModifierList',
     ArgumentList = 'ArgumentList',
     ExpressionList = 'ExpressionList',
@@ -131,6 +132,7 @@ export function inferSyntaxNodeCategory(kind: SyntaxKind): SyntaxNodeCategory {
         case SyntaxKind.MacroUndefDirective:
         case SyntaxKind.ConditionalDirective:
         case SyntaxKind.PreprocessorDirective:
+        case SyntaxKind.ModifierSection:
         case SyntaxKind.FunctionDeclaration:
         case SyntaxKind.VariableDeclaration:
         case SyntaxKind.VariableDeclarator:

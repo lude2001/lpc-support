@@ -176,9 +176,10 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
                 continue;
             }
 
-            semanticTokens.push(...this.createSemanticTokens(token, classification));
+            semanticTokens.push(...this.createSemanticTokens(token, classification, context));
         }
 
+        semanticTokens.push(...context.createExpandedMacroReferenceTokens());
         semanticTokens.push(...context.createInactiveTokens());
         semanticTokens.sort((left, right) =>
             left.line - right.line || left.startCharacter - right.startCharacter || left.length - right.length
@@ -207,7 +208,11 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
         return tokenType ? { tokenType } : undefined;
     }
 
-    private createSemanticTokens(token: LpcTokenLike, classification: ClassifiedSemanticToken): LanguageSemanticToken[] {
+    private createSemanticTokens(
+        token: LpcTokenLike,
+        classification: ClassifiedSemanticToken,
+        context: SemanticTokenContext
+    ): LanguageSemanticToken[] {
         const text = token.text ?? '';
         if (text.length === 0) {
             return [];
@@ -215,11 +220,16 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
 
         const lines = text.split(/\r\n|\r|\n/);
         if (lines.length === 1) {
+            const mapped = context.mapActiveTokenSegment(token.line - 1, token.charPositionInLine, text.length);
+            if (!mapped) {
+                return [];
+            }
+
             return [
                 {
-                    line: token.line - 1,
-                    startCharacter: token.charPositionInLine,
-                    length: text.length,
+                    line: mapped.line,
+                    startCharacter: mapped.startCharacter,
+                    length: mapped.length,
                     tokenType: classification.tokenType,
                     ...createModifierData(classification.tokenModifiers)
                 }
@@ -227,19 +237,30 @@ export class DefaultLanguageSemanticTokensService implements LanguageSemanticTok
         }
 
         const tokens: LanguageSemanticToken[] = [];
+        let activeLine = token.line - 1;
+        let activeCharacter = token.charPositionInLine;
+
         for (let index = 0; index < lines.length; index++) {
             const length = lines[index].length;
             if (length === 0) {
+                activeLine += 1;
+                activeCharacter = 0;
                 continue;
             }
 
-            tokens.push({
-                line: token.line - 1 + index,
-                startCharacter: index === 0 ? token.charPositionInLine : 0,
-                length,
-                tokenType: classification.tokenType,
-                ...createModifierData(classification.tokenModifiers)
-            });
+            const mapped = context.mapActiveTokenSegment(activeLine, activeCharacter, length);
+            if (mapped) {
+                tokens.push({
+                    line: mapped.line,
+                    startCharacter: mapped.startCharacter,
+                    length: mapped.length,
+                    tokenType: classification.tokenType,
+                    ...createModifierData(classification.tokenModifiers)
+                });
+            }
+
+            activeLine += 1;
+            activeCharacter = 0;
         }
 
         return tokens;
@@ -386,6 +407,7 @@ function createModifierData(tokenModifiers: string[] | undefined): Pick<Language
 
 class SemanticTokenContext {
     private readonly lineStarts: number[];
+    private readonly activeLineStarts: number[];
 
     public constructor(
         private readonly text: string,
@@ -393,6 +415,7 @@ class SemanticTokenContext {
         private readonly parsed: any
     ) {
         this.lineStarts = computeLineStarts(text);
+        this.activeLineStarts = computeLineStarts(this.getActiveText());
     }
 
     public getModifiersForToken(
@@ -438,8 +461,56 @@ class SemanticTokenContext {
         );
     }
 
+    public createExpandedMacroReferenceTokens(): LanguageSemanticToken[] {
+        if (!Array.isArray(this.snapshot.macroReferences)) {
+            return [];
+        }
+
+        return this.snapshot.macroReferences
+            .filter((reference) => this.isExpandedOriginalRange(
+                this.offsetAt(reference.range.start.line, reference.range.start.character),
+                this.offsetAt(reference.range.end.line, reference.range.end.character)
+            ))
+            .map((reference) => ({
+                line: reference.range.start.line,
+                startCharacter: reference.range.start.character,
+                length: reference.range.end.character - reference.range.start.character,
+                tokenType: TOKEN_TYPES.macro
+            }));
+    }
+
+    public mapActiveTokenSegment(
+        activeLine: number,
+        activeCharacter: number,
+        length: number
+    ): { line: number; startCharacter: number; length: number } | undefined {
+        const activeStartOffset = this.activeOffsetAt(activeLine, activeCharacter);
+        const activeEndOffset = activeStartOffset + length;
+        const originalRange = this.mapActiveRangeToOriginal(activeStartOffset, activeEndOffset);
+        if (!originalRange) {
+            return undefined;
+        }
+
+        const start = this.positionAt(originalRange.startOffset);
+        const end = this.positionAt(originalRange.endOffset);
+        if (start.line !== end.line) {
+            return undefined;
+        }
+
+        return {
+            line: start.line,
+            startCharacter: start.character,
+            length: end.character - start.character
+        };
+    }
+
     public isTokenInactive(token: LpcTokenLike): boolean {
-        const startOffset = this.offsetAt(token.line - 1, token.charPositionInLine);
+        const mapped = this.mapActiveTokenSegment(token.line - 1, token.charPositionInLine, (token.text ?? '').length);
+        if (!mapped) {
+            return false;
+        }
+
+        const startOffset = this.offsetAt(mapped.line, mapped.startCharacter);
         return this.getInactiveRanges().some((range) =>
             startOffset >= range.startOffset && startOffset < range.endOffset
         );
@@ -448,6 +519,49 @@ class SemanticTokenContext {
     private getInactiveRanges(): InactiveRangeLike[] {
         const ranges = this.parsed?.frontend?.preprocessor?.inactiveRanges;
         return Array.isArray(ranges) ? ranges : [];
+    }
+
+    private getExpandedRanges(): Array<{ originalStartOffset: number; originalEndOffset: number }> {
+        const ranges = this.parsed?.frontend?.preprocessor?.activeView?.expandedRanges;
+        return Array.isArray(ranges) ? ranges : [];
+    }
+
+    private getSourceMap(): Array<{ originalStartOffset: number; activeStartOffset: number; length: number }> {
+        const sourceMap = this.parsed?.frontend?.preprocessor?.activeView?.sourceMap;
+        return Array.isArray(sourceMap) && sourceMap.length > 0
+            ? sourceMap
+            : [{ originalStartOffset: 0, activeStartOffset: 0, length: this.text.length }];
+    }
+
+    private getActiveText(): string {
+        return this.parsed?.frontend?.preprocessor?.activeView?.text
+            ?? this.parsed?.parseText
+            ?? this.text;
+    }
+
+    private mapActiveRangeToOriginal(
+        activeStartOffset: number,
+        activeEndOffset: number
+    ): { startOffset: number; endOffset: number } | undefined {
+        const entry = this.getSourceMap().find((candidate) =>
+            activeStartOffset >= candidate.activeStartOffset
+            && activeEndOffset <= candidate.activeStartOffset + candidate.length
+        );
+        if (!entry) {
+            return undefined;
+        }
+
+        const startOffset = entry.originalStartOffset + activeStartOffset - entry.activeStartOffset;
+        return {
+            startOffset,
+            endOffset: startOffset + activeEndOffset - activeStartOffset
+        };
+    }
+
+    private isExpandedOriginalRange(startOffset: number, endOffset: number): boolean {
+        return this.getExpandedRanges().some((range) =>
+            startOffset >= range.originalStartOffset && endOffset <= range.originalEndOffset
+        );
     }
 
     private createTokensFromOffsets(startOffset: number, endOffset: number, tokenType: string): LanguageSemanticToken[] {
@@ -515,6 +629,10 @@ class SemanticTokenContext {
 
     private offsetAt(line: number, character: number): number {
         return (this.lineStarts[line] ?? this.text.length) + character;
+    }
+
+    private activeOffsetAt(line: number, character: number): number {
+        return (this.activeLineStarts[line] ?? this.getActiveText().length) + character;
     }
 }
 

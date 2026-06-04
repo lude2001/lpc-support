@@ -220,12 +220,7 @@
 					"name": "comment.block.documentation.lpc",
 					"begin": "/\\*\\*",
 					"end": "\\*/",
-					"patterns": [
-						{
-							"name": "storage.type.annotation.lpcdoc",
-							"match": "@(?:param|return|returns|see|example|deprecated|brief|details)\\b"
-						}
-					]
+					"patterns": []
 				},
 				{
 					"name": "comment.block.lpc",

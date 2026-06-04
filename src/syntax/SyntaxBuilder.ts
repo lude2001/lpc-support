@@ -50,6 +50,7 @@ import {
     MultiplicativeExpressionContext,
     NewExpressionPrimaryContext,
     NewExpressionContext,
+    NullishExpressionContext,
     ParameterContext,
     ParameterListContext,
     ParameterPlaceholderContext,
@@ -329,6 +330,10 @@ export class SyntaxBuilder {
 
     public buildConditionalExpression(ctx: ConditionalExpressionContext): SyntaxNode {
         return expressionBuilders.buildConditionalExpression(this, ctx);
+    }
+
+    public buildNullishExpression(ctx: NullishExpressionContext): SyntaxNode {
+        return expressionBuilders.buildNullishExpression(this, ctx);
     }
 
     public buildLogicalOrExpression(ctx: LogicalOrExpressionContext): SyntaxNode {

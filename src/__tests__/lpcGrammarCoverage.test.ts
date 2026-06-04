@@ -106,6 +106,47 @@ describe('LPC grammar coverage baseline', () => {
         expect(diagnostics).toEqual([]);
     });
 
+    test('accepts FluffOS nullish and logical assignment operators', () => {
+        const diagnostics = parseDiagnostics([
+            'void demo(mixed value, mixed fallback, int enabled, int ready) {',
+            '    value ??= fallback;',
+            '    enabled ||= ready;',
+            '    ready &&= enabled;',
+            '    value = value ?? fallback;',
+            '}'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('accepts FluffOS top-level modifier section labels', () => {
+        const diagnostics = parseDiagnostics([
+            'private:',
+            'int hidden;',
+            'protected:',
+            'void setup() {',
+            '    return;',
+            '}',
+            'public:',
+            'string query_name();'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
+    test('parses object-like macros after recursive preprocessor expansion', () => {
+        const diagnostics = parseDiagnostics([
+            '#define ACCESS private',
+            '#define SECTION ACCESS:',
+            '#define FALLBACK_VALUE 1',
+            '#define DEFAULT_VALUE FALLBACK_VALUE',
+            'SECTION',
+            'int hidden = DEFAULT_VALUE;'
+        ].join('\n'));
+
+        expect(diagnostics).toEqual([]);
+    });
+
     test('accepts LPC default parameter closure syntax', () => {
         const diagnostics = parseDiagnostics([
             'varargs void demo(int amount : (: 1 :), string name : (: "none" :)) {',
@@ -499,6 +540,27 @@ describe('LPC grammar coverage baseline', () => {
             .map((node) => node.metadata?.operator);
 
         expect(operators).toEqual(['^=', '<<=', '>>=']);
+    });
+
+    test('preserves FluffOS nullish and logical assignment operators in syntax metadata', () => {
+        const nodes = buildSyntaxNodes([
+            'void demo(mixed value, mixed fallback, int enabled, int ready) {',
+            '    value ??= fallback;',
+            '    enabled ||= ready;',
+            '    ready &&= enabled;',
+            '    value = value ?? fallback;',
+            '}'
+        ].join('\n'));
+        const assignmentOperators = nodes
+            .filter((node) => node.kind === SyntaxKind.AssignmentExpression)
+            .map((node) => node.metadata?.operator);
+        const nullishExpression = nodes.find((node) =>
+            node.kind === SyntaxKind.BinaryExpression
+            && node.metadata?.operator === '??'
+        );
+
+        expect(assignmentOperators).toEqual(['??=', '||=', '&&=', '=']);
+        expect(nullishExpression).toBeDefined();
     });
 
     test('represents efun scoped calls with the scoped qualifier metadata', () => {

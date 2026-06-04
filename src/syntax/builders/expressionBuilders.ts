@@ -28,6 +28,7 @@ import {
     MappingLiteralExprContext,
     MultiplicativeExpressionContext,
     NewExpressionPrimaryContext,
+    NullishExpressionContext,
     ParameterPlaceholderContext,
     ParenExprContext,
     PostfixExpressionContext,
@@ -72,7 +73,10 @@ export function buildAssignmentExpression(b: SyntaxBuilder, ctx: AssignmentExpre
         ctx.BIT_AND_ASSIGN?.(),
         ctx.BIT_XOR_ASSIGN?.(),
         ctx.SHIFT_LEFT_ASSIGN?.(),
-        ctx.SHIFT_RIGHT_ASSIGN?.()
+        ctx.SHIFT_RIGHT_ASSIGN?.(),
+        ctx.NULLISH_ASSIGN?.(),
+        ctx.LOGICAL_OR_ASSIGN?.(),
+        ctx.LOGICAL_AND_ASSIGN?.()
     );
 
     if (!operator || !ctx.expression()) {
@@ -85,7 +89,7 @@ export function buildAssignmentExpression(b: SyntaxBuilder, ctx: AssignmentExpre
 }
 
 export function buildConditionalExpression(b: SyntaxBuilder, ctx: ConditionalExpressionContext): SyntaxNode {
-    const condition = b.buildLogicalOrExpression(ctx.logicalOrExpression());
+    const condition = b.buildNullishExpression(ctx.nullishExpression());
     if (!ctx.QUESTION() || !ctx.expression() || !ctx.conditionalExpression()) {
         return condition;
     }
@@ -97,6 +101,14 @@ export function buildConditionalExpression(b: SyntaxBuilder, ctx: ConditionalExp
         {
             metadata: { operator: '?:' }
         }
+    );
+}
+
+export function buildNullishExpression(b: SyntaxBuilder, ctx: NullishExpressionContext): SyntaxNode {
+    return b.buildBinaryLayer(
+        ctx,
+        b.asArray(ctx.logicalOrExpression()).map((node) => b.buildLogicalOrExpression(node)),
+        b.asArray(ctx.NULLISH?.()).map((token) => token.text)
     );
 }
 

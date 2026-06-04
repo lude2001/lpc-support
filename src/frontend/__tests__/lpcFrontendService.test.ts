@@ -37,7 +37,7 @@ describe('LpcFrontendService', () => {
                 })
             })
         ]);
-        expect(snapshot.preprocessor.activeView.text).toContain('inherit PATH;');
+        expect(snapshot.preprocessor.activeView.text).toContain('inherit "/std/object";');
         expect(snapshot.dialect.name).toBe('FluffOS');
     });
 

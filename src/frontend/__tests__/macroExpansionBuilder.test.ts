@@ -44,4 +44,58 @@ describe('MacroExpansionBuilder', () => {
 
         expect(expanded.text).toContain('string pay_add_label = "pay_add";');
     });
+
+    test('expands object-like macros recursively in active source', () => {
+        const text = [
+            '#define ACCESS private',
+            '#define SECTION ACCESS:',
+            '#define FALLBACK_VALUE 1',
+            '#define DEFAULT_VALUE FALLBACK_VALUE',
+            'SECTION',
+            'int hidden = DEFAULT_VALUE;'
+        ].join('\n');
+        const scanner = new PreprocessorScanner();
+        const scanned = scanner.scan('file:///recursive-object-macro.c', 1, text);
+        const conditional = new PreprocessorConditionEvaluator().evaluate(text, scanned.directives, []);
+        const macroFacts = new MacroFactResolver().resolve(text, scanned.directives, conditional.inactiveRanges);
+        const activeView = new ActiveSourceBuilder().build(text, scanned.directives, conditional.inactiveRanges);
+
+        const expanded = new MacroExpansionBuilder().expand(
+            activeView,
+            macroFacts.macroReferences,
+            macroFacts.activeMacros
+        );
+
+        expect(expanded.text).toContain('private:');
+        expect(expanded.text).toContain('int hidden = 1;');
+    });
+
+    test('does not expand object-like macros inside heredoc delimiters and bodies', () => {
+        const text = [
+            '#define LONG 16',
+            'int value = LONG;',
+            'void create() {',
+            '    set("long", @LONG',
+            'LONG should remain text',
+            'LONG );',
+            '}'
+        ].join('\n');
+        const scanner = new PreprocessorScanner();
+        const scanned = scanner.scan('file:///heredoc-macro.c', 1, text);
+        const conditional = new PreprocessorConditionEvaluator().evaluate(text, scanned.directives, []);
+        const macroFacts = new MacroFactResolver().resolve(text, scanned.directives, conditional.inactiveRanges);
+        const activeView = new ActiveSourceBuilder().build(text, scanned.directives, conditional.inactiveRanges);
+
+        const expanded = new MacroExpansionBuilder().expand(
+            activeView,
+            macroFacts.macroReferences,
+            macroFacts.activeMacros
+        );
+
+        expect(expanded.text).toContain('int value = 16;');
+        expect(expanded.text).toContain('set("long", @LONG');
+        expect(expanded.text).toContain('LONG should remain text');
+        expect(expanded.text).toContain('LONG );');
+        expect(expanded.text).not.toContain('@16');
+    });
 });

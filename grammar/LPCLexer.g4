@@ -96,9 +96,9 @@ KW_INT:'int'; KW_FLOAT:'float'; KW_STRING:'string'; KW_OBJECT:'object'; KW_MIXED
 
 // ---------- 操作符 / 标点 ----------
 ELLIPSIS:'...'; RANGE_OP:'..'; ARROW:'->'; DOT:'.'; INC:'++'; DEC:'--';
-SHIFT_LEFT_ASSIGN:'<<='; SHIFT_RIGHT_ASSIGN:'>>='; PLUS_ASSIGN:'+='; MINUS_ASSIGN:'-='; STAR_ASSIGN:'*='; DIV_ASSIGN:'/='; PERCENT_ASSIGN:'%='; BIT_XOR_ASSIGN:'^=';
+SHIFT_LEFT_ASSIGN:'<<='; SHIFT_RIGHT_ASSIGN:'>>='; NULLISH_ASSIGN:'??='; LOGICAL_OR_ASSIGN:'||='; LOGICAL_AND_ASSIGN:'&&='; PLUS_ASSIGN:'+='; MINUS_ASSIGN:'-='; STAR_ASSIGN:'*='; DIV_ASSIGN:'/='; PERCENT_ASSIGN:'%='; BIT_XOR_ASSIGN:'^=';
 PLUS:'+'; MINUS:'-'; STAR:'*'; DIV:'/'; PERCENT:'%'; SCOPE:'::';
-SEMI:';'; COMMA:','; LPAREN:'(' ; RPAREN:')'; LBRACE:'{' ; RBRACE:'}'; LBRACK:'[' ; RBRACK:']'; QUESTION:'?'; COLON:':'; DOLLAR:'$';
+SEMI:';'; COMMA:','; LPAREN:'(' ; RPAREN:')'; LBRACE:'{' ; RBRACE:'}'; LBRACK:'[' ; RBRACK:']'; NULLISH:'??'; QUESTION:'?'; COLON:':'; DOLLAR:'$';
 
 GT:'>'; LT:'<'; GE:'>='; LE:'<='; EQ:'=='; NE:'!='; ASSIGN:'='; NOT:'!'; AND:'&&'; OR:'||';
 

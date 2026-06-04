@@ -48,6 +48,15 @@ describe('TextMate LPC grammar', () => {
         expect(grammarSource).not.toContain('variable.other.lpc');
     });
 
+    test('keeps documentation annotations in the plain comment fallback color', () => {
+        const grammar = loadGrammar();
+        const documentationComment = grammar.repository.comments.patterns.find(
+            (pattern: { name?: string }) => pattern.name === 'comment.block.documentation.lpc'
+        );
+
+        expect(documentationComment?.patterns ?? []).toEqual([]);
+    });
+
     test('provides richer lexical fallback scopes without owning semantic facts', () => {
         const grammarSource = fs.readFileSync(grammarPath, 'utf8');
 

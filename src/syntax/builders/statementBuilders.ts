@@ -8,6 +8,7 @@ import {
     ForeachStatementContext,
     ForeachVarContext,
     IfStatementContext,
+    ModifierSectionContext,
     ReturnStatementContext,
     StatementContext,
     SwitchLabelWithColonContext,
@@ -21,6 +22,10 @@ import type { SyntaxBuilder } from '../SyntaxBuilder';
 export function buildStatement(b: SyntaxBuilder, ctx: StatementContext): SyntaxNode {
     if (ctx.functionDef()) {
         return b.buildFunctionDeclaration(ctx.functionDef()!);
+    }
+
+    if (ctx.modifierSection()) {
+        return buildModifierSection(b, ctx.modifierSection()!);
     }
 
     if (ctx.variableDecl()) {
@@ -110,6 +115,15 @@ export function buildStatement(b: SyntaxBuilder, ctx: StatementContext): SyntaxN
 export function buildBlock(b: SyntaxBuilder, ctx: BlockContext): SyntaxNode {
     const children = b.collectNodes(b.asArray(ctx.statement()).map((statement) => b.buildStatement(statement)));
     return b.createNode(SyntaxKind.Block, ctx, children);
+}
+
+export function buildModifierSection(b: SyntaxBuilder, ctx: ModifierSectionContext): SyntaxNode {
+    const modifiers = b.buildModifierList(ctx.MODIFIER());
+    return b.createNode(SyntaxKind.ModifierSection, ctx, modifiers ? [modifiers] : [], {
+        metadata: {
+            modifiers: b.asArray(ctx.MODIFIER()).map((token) => token.text)
+        }
+    });
 }
 
 export function buildExpressionStatement(b: SyntaxBuilder, ctx: ExprStatementContext): SyntaxNode {

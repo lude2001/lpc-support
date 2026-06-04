@@ -57,7 +57,8 @@ export class LpcFrontendService {
         );
         const activeView = this.macroExpansionBuilder.expand(
             this.activeSourceBuilder.build(text, scanned.directives, conditional.inactiveRanges),
-            macroFacts.macroReferences
+            macroFacts.macroReferences,
+            macroFacts.activeMacros
         );
         const preprocessor = {
             ...scanned,
