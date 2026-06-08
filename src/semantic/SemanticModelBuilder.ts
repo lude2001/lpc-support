@@ -548,7 +548,8 @@ export class SemanticModelBuilder {
             hasDefaultValue: parameter.hasDefaultValue,
             defaultValueText: parameter.defaultValueText
         }));
-        const isVariadic = parameters.some((parameter) => parameter.isVariadic === true);
+        const hasVariadicParameter = parameters.some((parameter) => parameter.isVariadic === true);
+        const hasVarargsModifier = symbol.modifiers?.includes('varargs') === true;
 
         return {
             name: symbol.name,
@@ -557,8 +558,8 @@ export class SemanticModelBuilder {
             requiredParameterCount: parameters.filter((parameter) =>
                 parameter.hasDefaultValue !== true && parameter.isVariadic !== true
             ).length,
-            maxParameterCount: isVariadic ? undefined : parameters.length,
-            isVariadic: isVariadic || undefined,
+            maxParameterCount: hasVariadicParameter ? undefined : parameters.length,
+            isVariadic: hasVariadicParameter || undefined,
             modifiers: symbol.modifiers || [],
             sourceUri: this.syntaxDocument.uri,
             range: symbol.range,
@@ -566,7 +567,13 @@ export class SemanticModelBuilder {
             documentation: symbol.documentation,
             definition: symbol.definition,
             hasBody: symbol.hasBody,
-            isPrototype: symbol.hasBody === false || undefined
+            isPrototype: symbol.hasBody === false || undefined,
+            ...(hasVarargsModifier
+                ? {
+                    requiredParameterCount: 0,
+                    maxParameterCount: hasVariadicParameter ? undefined : parameters.length
+                }
+                : {})
         };
     }
 

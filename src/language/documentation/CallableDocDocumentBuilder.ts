@@ -108,12 +108,20 @@ export class CallableDocDocumentBuilder {
             : undefined;
         const parameters = buildCallableParameters(parametersNode);
         const rawSyntax = extractSignatureSyntax(document, functionNode);
+        const isParameterVariadic = parameters.some((parameter) => parameter.variadic === true);
+        const isFunctionVarargs = hasModifier(functionNode, 'varargs');
 
         return {
             label: rawSyntax,
             returnType,
             parameters,
-            isVariadic: parameters.some((parameter) => parameter.variadic === true),
+            arity: isFunctionVarargs
+                ? {
+                    min: 0,
+                    max: isParameterVariadic ? null : parameters.length
+                }
+                : undefined,
+            isVariadic: isParameterVariadic,
             rawSyntax
         };
     }
@@ -232,6 +240,16 @@ function readNumericMetadata(node: SyntaxNode, key: string): number {
 
 function readBooleanMetadata(node: SyntaxNode, key: string): boolean {
     return node.metadata?.[key] === true;
+}
+
+function hasModifier(functionNode: SyntaxNode, modifier: string): boolean {
+    const modifierList = functionNode.children.find((child) => child.kind === SyntaxKind.ModifierList);
+    const metadataModifiers = modifierList?.metadata?.modifiers;
+    if (Array.isArray(metadataModifiers)) {
+        return metadataModifiers.includes(modifier);
+    }
+
+    return modifierList?.children.some((child) => child.name === modifier) ?? false;
 }
 
 function toDocumentRange(range: vscode.Range): DocumentRange {

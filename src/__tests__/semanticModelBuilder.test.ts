@@ -300,6 +300,23 @@ describe('SemanticModelBuilder', () => {
         ]);
     });
 
+    test('treats function-level varargs as allowing omitted trailing arguments', () => {
+        const snapshot = buildSemanticSnapshot(
+            'varargs void tell_room(mixed ob, string str, object *exclude) {}',
+            '/virtual/varargs-function.c'
+        );
+
+        expect(snapshot.parseDiagnostics).toHaveLength(0);
+        const tellRoom = snapshot.exportedFunctions[0];
+        expect(tellRoom).toMatchObject({
+            name: 'tell_room',
+            modifiers: ['varargs'],
+            requiredParameterCount: 0,
+            maxParameterCount: 3
+        });
+        expect(tellRoom.isVariadic).toBeUndefined();
+    });
+
     test('preserves prototype signatures as static function facts', () => {
         const snapshot = buildSemanticSnapshot(
             'varargs int query_score(ref object who, mixed *args...);',
@@ -313,7 +330,7 @@ describe('SemanticModelBuilder', () => {
                 returnType: 'int',
                 hasBody: false,
                 isPrototype: true,
-                requiredParameterCount: 1,
+                requiredParameterCount: 0,
                 maxParameterCount: undefined,
                 isVariadic: true,
                 parameters: [

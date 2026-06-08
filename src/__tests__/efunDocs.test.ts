@@ -383,6 +383,7 @@ describe('EfunDocsManager', () => {
         const getDirDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'get_dir.json'), 'utf8'));
         const mapArrayDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'map_array.json'), 'utf8'));
         const memberArrayDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'member_array.json'), 'utf8'));
+        const tellRoomDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'tell_room.json'), 'utf8'));
         expect(getDirDoc.signatures.map((signature: any) => signature.arity)).toEqual([
             { min: 1, max: 2 }
         ]);
@@ -392,6 +393,9 @@ describe('EfunDocsManager', () => {
         ]);
         expect(memberArrayDoc.signatures.map((signature: any) => signature.arity)).toEqual([
             { min: 2, max: 4 }
+        ]);
+        expect(tellRoomDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 2, max: 3 }
         ]);
     });
 
@@ -1046,6 +1050,48 @@ describe('SimulatedEfunScanner', () => {
         expect(scanner.get('message_vision')).toMatchObject({
             name: 'message_vision',
             summary: '发送动作消息'
+        });
+    });
+
+    test('scans function-level varargs simulated efuns with optional arity', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-varargs-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const includeDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(entryFile, '#include "/adm/simul_efun/message.c"\n');
+        fs.writeFileSync(path.join(includeDir, 'message.c'), [
+            '/**',
+            ' * @brief send message to room',
+            ' */',
+            'varargs void tell_room(mixed ob, string str, object *exclude)',
+            '{',
+            '}'
+        ].join('\n'));
+
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn().mockResolvedValue(entryFile),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' }),
+            getMudlibRootForWorkspace: jest.fn().mockResolvedValue(workspaceRoot)
+        };
+        const scanner = createSimulatedScanner(projectConfigService as any);
+
+        (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: workspaceRoot } }];
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn(() => undefined),
+            update: jest.fn().mockResolvedValue(undefined)
+        });
+
+        await scanner.loadSimulatedEfuns();
+
+        expect(scanner.get('tell_room')?.signatures[0]).toMatchObject({
+            label: 'varargs void tell_room(mixed ob, string str, object *exclude)',
+            arity: {
+                min: 0,
+                max: 3
+            }
         });
     });
 

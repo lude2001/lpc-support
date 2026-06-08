@@ -111,4 +111,25 @@ describe('CallableDocDocumentBuilder', () => {
             })
         ]);
     });
+
+    test('sets explicit arity for function-level varargs signatures', () => {
+        const document = createDocument(
+            'varargs void tell_room(mixed ob, string str, object *exclude) {}',
+            '/virtual/varargs-function-docs.c'
+        );
+        const builder = createDefaultCallableDocDocumentBuilder();
+
+        const docs = builder.build(document);
+        const declarationKey = docs.byName.get('tell_room')![0];
+        const signature = docs.byDeclaration.get(declarationKey)!.signatures[0];
+
+        expect(signature).toMatchObject({
+            label: 'varargs void tell_room(mixed ob, string str, object *exclude)',
+            isVariadic: false,
+            arity: {
+                min: 0,
+                max: 3
+            }
+        });
+    });
 });

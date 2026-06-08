@@ -431,5 +431,39 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(diagnostics[0].message).toContain('member_array');
         expect(diagnostics[0].message).toContain('期望 2-4 个');
     });
+
+    test('BasicSemanticDiagnosticsCollector accepts tell_room without exclude argument', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector({
+            resolveVisibleSymbols: jest.fn((_document, semantic) => ({
+                functions: semantic.exportedFunctions,
+                symbols: semantic.symbols,
+                fileGlobals: semantic.fileGlobals ?? [],
+                types: semantic.typeDefinitions,
+                macros: semantic.macroDefinitions ?? [],
+                macroReferences: semantic.macroReferences,
+                callableSignatures: [{
+                    name: 'tell_room',
+                    requiredParameterCount: 2,
+                    maxParameterCount: 3,
+                    isVariadic: false,
+                    source: 'efun'
+                }],
+                hasUnresolvedDependencies: false
+            }))
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo(object room, string msg, object *exclude) {',
+            '    tell_room(room, msg);',
+            '    tell_room(room, msg, exclude);',
+            '    tell_room(room);',
+            '}'
+        ].join('\n'), 'basic-semantic-tell-room.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['lpc.argumentCountMismatch']);
+        expect(diagnostics[0].message).toContain('tell_room');
+        expect(diagnostics[0].message).toContain('期望 2-3 个');
+    });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
