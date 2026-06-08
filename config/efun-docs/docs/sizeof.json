@@ -1,0 +1,27 @@
+{
+  "name": "sizeof",
+  "summary": "返回 array、mapping、buffer 或 string 类型数据 `var` 的元素个数，如果 `var` 不是以上类型，返回 0 。",
+  "reference": [
+    "allocate",
+    "allocate_mapping",
+    "strlen"
+  ],
+  "category": "常规函数（General）",
+  "signatures": [
+    {
+      "label": "int sizeof( mixed var )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "var",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

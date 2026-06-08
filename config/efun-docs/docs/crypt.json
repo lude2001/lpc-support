@@ -1,0 +1,30 @@
+{
+  "name": "crypt",
+  "summary": "以字符串 `seed` 为种子加密字符串 `str`，如果 `seed` 是 0，使用随机种子。\n\n   如果以字符串 `str` 加密后的字符串做为种子继续对字符串 `str` 加密，返回字符串还是这个种子。\n\n   请注意，fluffos 和 mudos 的加密方式不同，如果要兼容，只能使用 oldcrypt() 外部函数加密。",
+  "details": "示例\n用 crypt() 函数验证密码的示例：\n\n// 将用户输入转化为加密密码\nstring cryptPasswd = crypt(input, 0);\n\n// 将加密后的密码存储在用户账号存档中\n\n// 将登录输入与存储的加密密码进行比较\nif (crypt(input, cryptPasswd) == cryptPasswd) {\n    // 有效密码\n} else {\n    // 无效的密码尝试\n}",
+  "reference": [
+    "oldcrypt"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string crypt( string str, string | int seed )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "seed",
+          "type": "string | int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

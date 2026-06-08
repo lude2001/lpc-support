@@ -1,0 +1,33 @@
+{
+  "name": "explode",
+  "summary": "使用字符串 `del` 分割字符串 `str`，并返回分割后字符串组成的数组。",
+  "details": "示例\nexplode(str, \" \") 会返回一个由字符串 `str` 中所有单词组成的数组。\n   explode(str, \"\") 会返回一个由字符串 `str` 中所有字符组成的数组。",
+  "reference": [
+    "sscanf",
+    "explode_reversible",
+    "replace_string",
+    "strsrch"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string *explode( string str, string del )",
+      "returnType": "string *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "del",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

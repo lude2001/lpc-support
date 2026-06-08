@@ -1,0 +1,29 @@
+{
+  "name": "mud_status",
+  "summary": "这个外部函数返回驱动程序和 mudlib 的统计信息。如果不指定参数，`extra`默认值为0，如果参数 `extra` 不为零，会输出更多附加信息。",
+  "reference": [
+    "debug_info",
+    "dumpallobj",
+    "memory_info",
+    "uptime"
+  ],
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "string mud_status( int extra | void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "extra",
+          "type": "int",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

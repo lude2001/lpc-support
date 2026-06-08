@@ -1,0 +1,16 @@
+{
+  "name": "lookat_rotate2",
+  "summary": "lookat_rotate2 内置函数",
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "lookat_rotate2()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

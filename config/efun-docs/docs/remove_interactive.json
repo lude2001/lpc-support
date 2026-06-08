@@ -1,0 +1,25 @@
+{
+  "name": "remove_interactive",
+  "summary": "强制对象 `ob` 断线，如果对象不是在线玩家或已被摧毁返回 0，否则返回 1。",
+  "reference": [
+    "interactive"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int remove_interactive(object ob)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

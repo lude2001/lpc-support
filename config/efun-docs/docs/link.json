@@ -1,0 +1,33 @@
+{
+  "name": "link",
+  "summary": "创建一个从 `reference` 到 `original` 的链接。这个外部函数会触发主控对象调用 valid_link(original, reference) 方法，如果 valid_link() 返回 0，link() 会失败，如果 valid_link() 返回 1，当和 link() 使用相当参数的 rename() 外部函数执行成功时 link() 成功并返回 1。\n\n   注意：这个外部函数创建的是硬链接不是软链接（符号链接）。",
+  "reference": [
+    "rm",
+    "rmdir",
+    "rename",
+    "mkdir",
+    "cp"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "void link( string original, string reference )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "original",
+          "type": "string"
+        },
+        {
+          "name": "reference",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

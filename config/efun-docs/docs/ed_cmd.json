@@ -1,0 +1,22 @@
+{
+  "name": "ed_cmd",
+  "summary": "This efun is available only if __OLD_ED__ is not defined.\n\n   The  command  'cmd' is sent to the active ed session, and the resulting\n   output is returned.",
+  "category": "在线编辑相关函数（ED）",
+  "signatures": [
+    {
+      "label": "string ed_cmd(string cmd)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "cmd",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

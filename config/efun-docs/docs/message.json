@@ -1,0 +1,64 @@
+{
+  "name": "message",
+  "summary": "message() 呼叫 target 参数列表中除 exclude 参数列表以外的所有对象的 receive_message(mixed class, string message) 方法，通过此方法向对象发送消息。\n\n   参数 `class` 是消息的类型（用于客户端消息处理），例如：`combat`，`shout`, `emergency`等。\n\n   参数 `message` 是需要发送的消息字符串。\n\n   参数 `target` 是需要接收消息的对象列表，此参数数据类型既可以是单一对象字符串或者对象指针，也可以是一个对象数组。如果对象是非活着的，那么在此对象环境中的所有对象都会收到信息。\n\n   可选参数 `exclude` 是不需要接收消息的对象列表，此参数数据类型可以是对象或对象数组。",
+  "reference": [
+    "say",
+    "write",
+    "shout",
+    "tell_object",
+    "tell_room"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "void message( mixed class, mixed message, string | string * | object | object *target )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "class",
+          "type": "mixed"
+        },
+        {
+          "name": "message",
+          "type": "mixed"
+        },
+        {
+          "name": "target",
+          "type": "string | string *| object | object *"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    },
+    {
+      "label": "void message( mixed class, mixed message, string | string * | object | object *target, object | object *exclude )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "class",
+          "type": "mixed"
+        },
+        {
+          "name": "message",
+          "type": "mixed"
+        },
+        {
+          "name": "target",
+          "type": "string | string *| object | object *"
+        },
+        {
+          "name": "exclude",
+          "type": "object | object *"
+        }
+      ],
+      "arity": {
+        "min": 4,
+        "max": 4
+      }
+    }
+  ]
+}

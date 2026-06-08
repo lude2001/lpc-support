@@ -1,0 +1,30 @@
+{
+  "name": "find_living",
+  "summary": "首先查找标记为“活的”对象（即生物），然后查找ID `str`。生物是曾经呼叫过 enable_commands() 外部函数的对象，而且必须使用 set_living_name() 外部函数设置了名字，这些生物的名字会被存入 hash 表方便快速搜索。",
+  "reference": [
+    "living",
+    "livings",
+    "find_player",
+    "users",
+    "enable_commands",
+    "set_living_name"
+  ],
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "object find_living( string str )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

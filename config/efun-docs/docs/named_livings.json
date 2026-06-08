@@ -1,0 +1,22 @@
+{
+  "name": "named_livings",
+  "summary": "返回一个包括游戏中所有呼叫过 enable_commands() 和 set_living_name() 外部函数的对象的数组。",
+  "reference": [
+    "livings",
+    "set_living_name",
+    "enable_commands"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "object *named_livings()",
+      "returnType": "object *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

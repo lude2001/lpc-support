@@ -1,0 +1,34 @@
+{
+  "name": "buffer_transcode",
+  "summary": "将编码为 `from_encoding` 的缓冲区 `src` 转换为编码为 `to_encoding` 的缓冲区。",
+  "reference": [
+    "string_encode",
+    "string_decode"
+  ],
+  "category": "缓冲区相关函数（Buffers）",
+  "signatures": [
+    {
+      "label": "buffer buffer_transcode( buffer src, string from_encoding, string to_encoding )",
+      "returnType": "buffer",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "src",
+          "type": "buffer"
+        },
+        {
+          "name": "from_encoding",
+          "type": "string"
+        },
+        {
+          "name": "to_encoding",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

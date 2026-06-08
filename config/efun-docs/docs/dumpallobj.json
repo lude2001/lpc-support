@@ -1,0 +1,29 @@
+{
+  "name": "dumpallobj",
+  "summary": "这个外部函数导出已加载的所有对象的统计信息列表。如果没有指定参数，信息会导出到文件 /OBJ_DUMP，如果指定参数 `filename`，会导出信息到文件 `filename`。",
+  "reference": [
+    "mud_status",
+    "debug_info",
+    "dump_prog",
+    "dump_file_descriptors"
+  ],
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "void dumpallobj( string filename | void )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "filename",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

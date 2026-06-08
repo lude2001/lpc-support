@@ -1,0 +1,27 @@
+{
+  "name": "db_close",
+  "summary": "通过给定句柄关闭数据库连接。\n\n   关闭成功返回 1 ，失败返回 0 ，如果指定句柄不存在会报错。",
+  "reference": [
+    "db_connect",
+    "db_status",
+    "valid_database"
+  ],
+  "category": "数据库相关函数（DB）",
+  "signatures": [
+    {
+      "label": "int db_close( int handle )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

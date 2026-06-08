@@ -1,0 +1,29 @@
+{
+  "name": "to_int",
+  "summary": "如果'x'是一个浮点数，to_int()调用将返回与'x'等价的'int'类型的数字（去除任何小数部分，并向下取整）。\n\n   如果'x'是一个缓冲区，调用将返回嵌入在缓冲区中的（以网络字节顺序表示的）整数。\n\n   如果'x'是一个字符串，调用将尝试将字符串转换为整数。转换将从第一个字符开始，直到最后一个非数字字符串表示的数字之前停止并返回。如果转换失败，它将返回UNDEFINED(值为0)。",
+  "details": "示例\nto_int(3.14) == 3\nto_int(3.89) == 3\nto_int(\"3.14\") == 3\nto_int(\"3.14abc\") == 3\nto_int(\"abc3.14\") == UNDEFINED",
+  "reference": [
+    "to_float",
+    "read_buffer",
+    "sprintf",
+    "sscanf"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "int to_int( float | string | int | buffer x )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "x",
+          "type": "float | string | int | buffer"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

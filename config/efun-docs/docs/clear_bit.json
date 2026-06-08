@@ -1,0 +1,30 @@
+{
+  "name": "clear_bit",
+  "summary": "返回字符串 `str` 的第 `n` 位(bit)清零后的字符串，注意：原始字符串 `str` 不会被修改。",
+  "reference": [
+    "set_bit",
+    "test_bit"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string clear_bit( string str, int n )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "n",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

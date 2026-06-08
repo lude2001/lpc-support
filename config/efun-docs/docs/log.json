@@ -1,0 +1,27 @@
+{
+  "name": "log",
+  "summary": "Returns the natural logarithm of its argument, 'f'. 'f' must be positive.",
+  "reference": [
+    "exp",
+    "pow",
+    "sqrt"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float log( float f )",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

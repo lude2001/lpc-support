@@ -1,0 +1,30 @@
+{
+  "name": "trace_start",
+  "summary": "调用这个函数开始收集追踪信息，包括LPC函数级别的运行资料。\n\n   驱动在调用 `trace_end()` 或 `auto_stop_sec` 秒后停止收集并输出信息到 `filename` 文件，如果不指定`auto_stop_sec` 默认为 10 秒。\n\n   注意: 不要长时间的启动追踪，否则你会内存不足。",
+  "reference": [
+    "trace_end"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "void trace_start(string filename, int auto_stop_sec = 30)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "filename",
+          "type": "string"
+        },
+        {
+          "name": "auto_stop_sec",
+          "type": "int",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 2
+      }
+    }
+  ]
+}

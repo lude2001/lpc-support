@@ -1,0 +1,41 @@
+{
+  "name": "query_num",
+  "summary": "此外部函数返回数值 `num` 的英文读法。如果 num > 99999 或指定参数 `max`且 num > max 或 num < 0 ，函数返回 `many`。",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "string query_num(int num)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "num",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "string query_num(int num, int max)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "num",
+          "type": "int"
+        },
+        {
+          "name": "max",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

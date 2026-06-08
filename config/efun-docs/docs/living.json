@@ -1,0 +1,29 @@
+{
+  "name": "living",
+  "summary": "如果对象 `ob` 是活的（living）返回 1。关于 living 的定义：如果一个对象呼叫了 `enable_commands()` 外部函数，这个对象就活了。如果不指定参数，默认为this_object()。",
+  "reference": [
+    "interactive",
+    "enable_commands",
+    "find_living",
+    "is_living"
+  ],
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "int living( object ob | void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

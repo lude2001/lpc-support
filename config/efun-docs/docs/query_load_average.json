@@ -1,0 +1,21 @@
+{
+  "name": "query_load_average",
+  "summary": "这个外部函数返回一个报个每秒用户指令数和每秒驱动程序编译行数的信息字符串。",
+  "details": "示例\n> eval return query_load_average()\nResult = \"0.00 cmds/s, 891.11 comp lines/s\"",
+  "reference": [
+    "rusage"
+  ],
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "string query_load_average( void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

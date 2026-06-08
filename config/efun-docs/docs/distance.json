@@ -1,0 +1,26 @@
+{
+  "name": "distance",
+  "summary": "计算两点距离",
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float distance(int *|float *, int *|float *)",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "int *| float *"
+        },
+        {
+          "name": "arg2",
+          "type": "int *| float *"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

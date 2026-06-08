@@ -1,0 +1,27 @@
+{
+  "name": "catch",
+  "summary": "执行表达式 `expr`，如果没有错误会返回0，如果有标准错误，会返回一个以 `*` 开头的包括错误信息的字符串。\n\n   外部函数 throw() 用来马上抛出一个错误并返回非零值，可以和 catch 配合使用。另外 catch 本质上并不是外部函数而是一个编译器指令(或者和PHP一样叫语言结构)，类似还有sscanf, time_expression, parse_command。",
+  "reference": [
+    "error",
+    "throw",
+    "error_handler"
+  ],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "mixed catch( mixed expr )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "expr",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

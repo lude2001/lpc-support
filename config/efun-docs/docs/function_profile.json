@@ -1,0 +1,26 @@
+{
+  "name": "function_profile",
+  "summary": "This is only available if the driver was compiled with PROFILE_FUNCTIONS defined.\n\n   Returns function profiling information for 'ob', or this_object() if 'ob' is not specified.\n\n   An array of mappings is returned, one for each function in 'ob'.  The format of the mapping is:\n\n      ([ \"name\"     : name_of_the_function,\n         \"calls\"    : number_of_calls,\n         \"self\"     : cpu_time_spent_in self,\n         \"children\" : cpu_time_spent_in_children\n      ])\n\n   The usefulness of this is tied to the resolution of the CPU clock-even though the units are microseconds, the CPU timer resolution is often much less.",
+  "reference": [
+    "rusage",
+    "time_expression"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "mixed *function_profile( object ob )",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

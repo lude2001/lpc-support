@@ -1,0 +1,29 @@
+{
+  "name": "sin",
+  "summary": "Returns the sine of its argument, 'f', measured in radians.",
+  "reference": [
+    "acos",
+    "asin",
+    "atan",
+    "cos",
+    "tan"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float sin( float f )",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

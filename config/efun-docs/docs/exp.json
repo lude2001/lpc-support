@@ -1,0 +1,27 @@
+{
+  "name": "exp",
+  "summary": "exp() returns e^f.",
+  "reference": [
+    "log",
+    "pow",
+    "sqrt"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float exp( float f )",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -31,14 +31,11 @@ export class ServerLanguageContextFactory {
         workspaceRoot: string;
     } {
         const storedDocument = this.documentStore.get(documentUri);
-        const workspaceRoot = resolveWorkspaceRootFromRoots(documentUri, this.workspaceSession.getWorkspaceRoots());
+        const resolvedUri = storedDocument?.uri ?? documentUri;
+        const workspaceRoot = resolveWorkspaceRootFromRoots(resolvedUri, this.workspaceSession.getWorkspaceRoots());
 
         return {
-            document: {
-                uri: storedDocument?.uri ?? documentUri,
-                version: storedDocument?.version ?? 0,
-                getText: () => storedDocument?.text ?? ''
-            },
+            document: this.createDocumentShim(resolvedUri, storedDocument) as unknown as LanguageDocument,
             workspaceRoot
         };
     }

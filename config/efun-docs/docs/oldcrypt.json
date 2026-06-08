@@ -1,0 +1,30 @@
+{
+  "name": "oldcrypt",
+  "summary": "以字符串 `seed` 为种子加密字符串 `str`，如果 `seed` 是 0，使用随机种子。\n\n   如果以字符串 `str` 加密后的字符串做为种子继续对字符串 `str` 加密，返回字符串还是这个种子。",
+  "details": "示例\n用 oldcrypt() 函数验证密码的示例：\n\n   string crypt_pwd = oldcrypt(pwd, 0);\n   if (oldcrypt(pwd, crypt_pwd) == crypt_pwd)\n   {\n       // ...\n   }",
+  "reference": [
+    "crypt"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string oldcrypt( string str, string | int seed )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "seed",
+          "type": "string | int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

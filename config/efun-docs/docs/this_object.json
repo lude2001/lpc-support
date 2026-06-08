@@ -1,0 +1,22 @@
+{
+  "name": "this_object",
+  "summary": "返回当前对象的指针。",
+  "reference": [
+    "this_player",
+    "previous_object",
+    "origin"
+  ],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "object this_object( void )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

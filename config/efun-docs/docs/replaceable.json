@@ -1,0 +1,30 @@
+{
+  "name": "replaceable",
+  "summary": "string *fun defaults to ({ \"create\", \"__INIT\" }) and contains a list of functions which may be ignored for checking。\n\n   checks if object defines any functions itself (beside create and __INIT)\n\n   如果对象 `ob` 中定义了局部函数，返回 0，否则返回 1 。",
+  "reference": [
+    "replace_program",
+    "query_replaced_program"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int replaceable(object ob, void | string *fun)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        },
+        {
+          "name": "fun",
+          "type": "void | string *"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

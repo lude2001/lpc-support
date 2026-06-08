@@ -1,0 +1,52 @@
+{
+  "name": "remove_call_out",
+  "summary": "在第一种模式下移除当前对象中下一个即将呼叫的函数 `fun`，返回值是剩余延时，如果指定函数没有被延时呼叫返回 -1。\n\n   在第二种模式下通过call_out()返回的句柄移除当前对象中下一个即将呼叫的函数，返回值是剩余延时，如果指定函数没有被延时呼叫返回 -1。\n\n   在第三种模式下移除当前对象中所有的延时函数，返回值固定为0。",
+  "reference": [
+    "call_out",
+    "call_out_walltime",
+    "call_out_info"
+  ],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "int remove_call_out( string fun )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "fun",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "int remove_call_out( int handle )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "int remove_call_out()",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

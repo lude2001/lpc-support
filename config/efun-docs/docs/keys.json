@@ -1,0 +1,25 @@
+{
+  "name": "keys",
+  "summary": "keys() 返回一个包括映射 `m` 的所有索引（key）的数组。\n\n   示例，如果:\n\n   mapping m;\n   m = ([\"hp\" : 35, \"sp\" : 42, \"mass\" : 100]);\n\n   那么\n\n   keys(m) == ({\"hp\", \"sp\", \"mass\"})\n\n   注意：返回的 key 并不会有固定的顺序，不过其顺序和 values() 外部函数返回的值顺序相同。",
+  "reference": [
+    "values"
+  ],
+  "category": "映射相关函数（Mappings）",
+  "signatures": [
+    {
+      "label": "mixed *keys( mapping m )",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "m",
+          "type": "mapping"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

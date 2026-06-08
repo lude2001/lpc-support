@@ -1,0 +1,32 @@
+{
+  "name": "getuid",
+  "summary": "返回对象的用户ID（uid），一个对象的用户ID（uid）由对象创建时 creator_file() 方法的返回值决定，这个方法在主控对象。如果不指定对象，默认对象为 this_object()。",
+  "reference": [
+    "seteuid",
+    "geteuid",
+    "export_uid",
+    "this_object",
+    "previous_object",
+    "creator_file",
+    "valid_seteuid"
+  ],
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "string getuid( object ob | void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "name": "abs",
+  "summary": "返回参数的绝对值。\n\n   这是 FluffOS 2.0 新增的外部函数，在 MUDOS 中请用模拟外部函数实现。",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "mixed abs( float f )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "mixed abs( int i )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "i",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

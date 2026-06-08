@@ -1,0 +1,30 @@
+{
+  "name": "string_decode",
+  "summary": "将编码为 `encoding` 的缓冲区 `buf` 解码为 UTF-8 字符串。",
+  "reference": [
+    "string_encode",
+    "buffer_transcode"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string string_decode(buffer buf, string encoding)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "buf",
+          "type": "buffer"
+        },
+        {
+          "name": "encoding",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

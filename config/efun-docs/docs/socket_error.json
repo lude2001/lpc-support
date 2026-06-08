@@ -1,0 +1,27 @@
+{
+  "name": "socket_error",
+  "summary": "socket_error() 返回 socket 错误 `error` 的文字描述",
+  "details": "Return semantics:\n报错时返回错误描述，否则返回 \"socket_error: invalid error number\"。",
+  "reference": [
+    "socket_create",
+    "socket_connect"
+  ],
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "string socket_error( int error )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "error",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

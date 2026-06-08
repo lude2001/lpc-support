@@ -1,0 +1,26 @@
+{
+  "name": "query_snoop",
+  "summary": "如果玩家对象 'ob' 正在被其他玩家监听，返回监听者，否则返回 0 。",
+  "reference": [
+    "snoop",
+    "query_snooping"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "object query_snoop( object ob )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

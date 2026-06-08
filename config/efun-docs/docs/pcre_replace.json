@@ -1,0 +1,38 @@
+{
+  "name": "pcre_replace",
+  "summary": "returns a string where all captured groups have been replaced by the elements of the replacement array. Number of subgroups and the size of the replacement array must match.",
+  "reference": [
+    "pcre_assoc",
+    "pcre_cache",
+    "pcre_extract",
+    "pcre_match",
+    "pcre_version",
+    "pcre_replace_callback"
+  ],
+  "category": "PCRE 相关函数(PCRE)",
+  "signatures": [
+    {
+      "label": "string pcre_replace(string, string, string *)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        },
+        {
+          "name": "arg2",
+          "type": "string"
+        },
+        {
+          "name": "arg3",
+          "type": "string *"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

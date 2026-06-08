@@ -3,6 +3,7 @@ import { GlobalVariableCollector } from '../collectors/GlobalVariableCollector';
 import { StringLiteralCollector } from '../collectors/StringLiteralCollector';
 import { UnusedVariableCollector } from '../collectors/UnusedVariableCollector';
 import { ObjectAccessCollector } from '../diagnostics/collectors/ObjectAccessCollector';
+import { BasicSemanticDiagnosticsCollector } from '../diagnostics/collectors/BasicSemanticDiagnosticsCollector';
 import { MacroUsageCollector } from '../diagnostics/collectors/MacroUsageCollector';
 import { DiagnosticContext } from '../diagnostics/types';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
@@ -43,6 +44,24 @@ function createSyntaxNode(
         isMissing: false,
         isOpaque: false,
         ...extras
+    };
+}
+
+function analyzeCollectorSource(content: string, fileName: string): {
+    document: vscode.TextDocument;
+    parsed: any;
+    context: DiagnosticContext;
+} {
+    const document = TestHelper.createMockDocument(content, 'lpc', `/virtual/${fileName}`);
+    const analysis = DocumentSemanticSnapshotService.getInstance().parseDocument(document, false);
+    return {
+        document,
+        parsed: analysis.parsed!,
+        context: {
+            parsed: analysis.parsed!,
+            syntax: analysis.syntax,
+            semantic: analysis.semantic
+        }
     };
 }
 
@@ -278,6 +297,139 @@ describe('syntax-backed diagnostic collectors', () => {
 
         expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('unusedGlobalVar');
         expect(diagnostics[0].range).toEqual(new vscode.Range(0, 4, 0, 10));
+    });
+
+    test('BasicSemanticDiagnosticsCollector reports current-file argument count mismatches', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector();
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void callee(int amount) {}',
+            'void demo() {',
+            '    callee();',
+            '    callee(1);',
+            '    callee(1, 2);',
+            '}'
+        ].join('\n'), 'basic-semantic-arity.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+            'lpc.argumentCountMismatch',
+            'lpc.argumentCountMismatch'
+        ]);
+        expect(diagnostics.every((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Warning)).toBe(true);
+    });
+
+    test('BasicSemanticDiagnosticsCollector reports undefined symbols and direct calls conservatively', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector();
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo(object ob) {',
+            '    missing_value;',
+            '    missing_call();',
+            '    ob->missing_member();',
+            '    call_other(ob, "missing_dynamic");',
+            '}'
+        ].join('\n'), 'basic-semantic-undefined.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics).toHaveLength(2);
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining([
+            'lpc.undefinedSymbol',
+            'lpc.undefinedFunction'
+        ]));
+        expect(diagnostics.map((diagnostic) => diagnostic.message)).toEqual(expect.arrayContaining([
+            '未定义符号: missing_value',
+            '未定义函数: missing_call'
+        ]));
+    });
+
+    test('BasicSemanticDiagnosticsCollector handles variadic, macro, and degraded cases without noise', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector();
+        const { document, parsed, context } = analyzeCollectorSource([
+            '#define USER_D "/adm/user"',
+            'void variadic(int head, mixed * rest...) {}',
+            'void demo() {',
+            '    USER_D;',
+            '    variadic(1, 2, 3);',
+            '}'
+        ].join('\n'), 'basic-semantic-quiet.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+        const degradedDiagnostics = await collector.collect(document, parsed, {
+            ...context,
+            semantic: {
+                ...context.semantic!,
+                degraded: true
+            }
+        });
+
+        expect(diagnostics).toEqual([]);
+        expect(degradedDiagnostics).toEqual([]);
+    });
+
+    test('BasicSemanticDiagnosticsCollector consumes injected callable signatures for efun-style targets', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector({
+            resolveVisibleSymbols: jest.fn((_document, semantic) => ({
+                functions: semantic.exportedFunctions,
+                symbols: semantic.symbols,
+                fileGlobals: semantic.fileGlobals ?? [],
+                types: semantic.typeDefinitions,
+                macros: semantic.macroDefinitions ?? [],
+                macroReferences: semantic.macroReferences,
+                callableSignatures: [{
+                    name: 'write',
+                    requiredParameterCount: 1,
+                    maxParameterCount: 1,
+                    isVariadic: false,
+                    source: 'efun'
+                }],
+                hasUnresolvedDependencies: false
+            }))
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo() {',
+            '    write("ok");',
+            '    write();',
+            '}'
+        ].join('\n'), 'basic-semantic-efun.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['lpc.argumentCountMismatch']);
+        expect(diagnostics[0].message).toContain('write');
+    });
+
+    test('BasicSemanticDiagnosticsCollector accepts efun optional argument ranges', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector({
+            resolveVisibleSymbols: jest.fn((_document, semantic) => ({
+                functions: semantic.exportedFunctions,
+                symbols: semantic.symbols,
+                fileGlobals: semantic.fileGlobals ?? [],
+                types: semantic.typeDefinitions,
+                macros: semantic.macroDefinitions ?? [],
+                macroReferences: semantic.macroReferences,
+                callableSignatures: [{
+                    name: 'member_array',
+                    requiredParameterCount: 2,
+                    maxParameterCount: 4,
+                    isVariadic: false,
+                    source: 'efun'
+                }],
+                hasUnresolvedDependencies: false
+            }))
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo(mixed item, mixed *arr) {',
+            '    member_array(item, arr);',
+            '    member_array(item, arr, 0, 0, 1);',
+            '}'
+        ].join('\n'), 'basic-semantic-efun-optional.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['lpc.argumentCountMismatch']);
+        expect(diagnostics[0].message).toContain('member_array');
+        expect(diagnostics[0].message).toContain('期望 2-4 个');
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

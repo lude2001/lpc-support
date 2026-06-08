@@ -1,0 +1,22 @@
+{
+  "name": "set_light",
+  "summary": "参数 <light_level_adjustment> 为 0 为查询对象的当前光亮级别，为正代表增加当前对象的光亮级别，为负代表减少当前对象的光亮级别。\n\n   这个函数需要在local_options中#undef NO_LIGHT。\n\n   译者注：原则上这个函数不应该是驱动该提供的，因为这是很容易被模拟出来的游戏功能，但是既然驱动提供了，那就优先用驱动提供的吧。",
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "int set_light( int light_level_adjustment )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "light_level_adjustment",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "name": "query_idle",
+  "summary": "查询一个玩家对象 `ob` 发呆了多少秒。",
+  "reference": [
+    "in_edit",
+    "in_input"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int query_idle( object ob )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

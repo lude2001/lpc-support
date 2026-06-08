@@ -1,0 +1,27 @@
+{
+  "name": "compress_file",
+  "summary": "compress_file 内置函数",
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "int compress_file(string, string | void)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        },
+        {
+          "name": "arg2",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 2
+      }
+    }
+  ]
+}

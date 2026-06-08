@@ -1,0 +1,29 @@
+{
+  "name": "acos",
+  "summary": "Returns the arccosine of its argument, 'f', measured in radians.",
+  "reference": [
+    "asin",
+    "atan",
+    "cos",
+    "sin",
+    "tan"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float acos( float f )",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

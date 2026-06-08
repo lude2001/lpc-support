@@ -3,9 +3,15 @@ import * as vscode from 'vscode';
 import { SymbolType } from '../../../../ast/symbolTable';
 import { getTypeLookupName } from '../../../../ast/typeNormalization';
 import { EfunDocsManager } from '../../../../efunDocs';
-import { TypeDefinitionSummary } from '../../../../semantic/documentSemanticTypes';
+import {
+    FileGlobalSummary,
+    FunctionSummary,
+    MacroDefinitionSummary,
+    TypeDefinitionSummary
+} from '../../../../semantic/documentSemanticTypes';
 import { SyntaxKind, SyntaxNode } from '../../../../syntax/types';
 import { resolveVisibleSymbol } from '../../../../symbolReferenceResolver';
+import type { HeaderOwnerContextService } from '../../../shared/HeaderOwnerContextService';
 import type { LanguageWorkspaceProjectConfig } from '../../../contracts/LanguageWorkspaceContext';
 import { DefinitionResolverSupport } from './DefinitionResolverSupport';
 import type { DefinitionRequestState, DefinitionSemanticAdapter } from './types';
@@ -14,6 +20,7 @@ interface DirectSymbolDefinitionResolverDependencies {
     support: DefinitionResolverSupport;
     efunDocsManager: Pick<EfunDocsManager, 'getSimulatedDoc'>;
     semanticAdapter?: DefinitionSemanticAdapter;
+    headerOwnerContextService?: Pick<HeaderOwnerContextService, 'resolveOwnerContext'>;
 }
 
 export class DirectSymbolDefinitionResolver {
@@ -37,7 +44,7 @@ export class DirectSymbolDefinitionResolver {
             return localMacroDefinition;
         }
 
-        const simulatedEfunDefinition = await this.findSimulatedEfunDefinition(word, workspaceRoot, projectConfig);
+        const simulatedEfunDefinition = await this.findSimulatedEfunDefinition(document, word, workspaceRoot, projectConfig);
         if (simulatedEfunDefinition) {
             return simulatedEfunDefinition;
         }
@@ -52,12 +59,22 @@ export class DirectSymbolDefinitionResolver {
             return explicitMemberDefinition;
         }
 
-        return this.findVariableDefinition(
+        const variableDefinition = await this.findVariableDefinition(
             word,
             document,
             position,
-            this.dependencies.support.createRequestState()
+            requestState ?? this.dependencies.support.createRequestState()
         );
+        if (variableDefinition) {
+            return variableDefinition;
+        }
+
+        const ownerContextDefinition = await this.findHeaderOwnerContextDefinition(document, word);
+        if (ownerContextDefinition) {
+            return ownerContextDefinition;
+        }
+
+        return undefined;
     }
 
     private findLocalMacroDefinition(document: vscode.TextDocument, word: string): vscode.Location | undefined {
@@ -73,6 +90,44 @@ export class DirectSymbolDefinitionResolver {
 
         const macroUri = vscode.Uri.parse(macro.sourceUri);
         return new vscode.Location(macroUri, macro.range);
+    }
+
+    private async findHeaderOwnerContextDefinition(
+        document: vscode.TextDocument,
+        word: string
+    ): Promise<vscode.Location | undefined> {
+        const context = await this.dependencies.headerOwnerContextService?.resolveOwnerContext(document);
+        if (!context || context.isAmbiguous) {
+            return undefined;
+        }
+
+        const macro = context.macros.find((definition) => definition.name === word);
+        if (macro) {
+            return this.toSummaryLocation(macro);
+        }
+
+        const func = context.functions.find((definition) => definition.name === word);
+        if (func) {
+            return this.toSummaryLocation(func);
+        }
+
+        const fileGlobal = context.fileGlobals.find((definition) => definition.name === word);
+        if (fileGlobal) {
+            return this.toSummaryLocation(fileGlobal);
+        }
+
+        const type = context.types.find((definition) => definition.name === word);
+        return type ? this.toSummaryLocation(type) : undefined;
+    }
+
+    private toSummaryLocation(
+        summary: MacroDefinitionSummary | FunctionSummary | FileGlobalSummary | TypeDefinitionSummary
+    ): vscode.Location | undefined {
+        if (!summary.sourceUri) {
+            return undefined;
+        }
+
+        return new vscode.Location(this.toSourceUri(summary.sourceUri), summary.range);
     }
 
     private async handleIncludeDefinition(
@@ -106,14 +161,15 @@ export class DirectSymbolDefinitionResolver {
     }
 
     private async findSimulatedEfunDefinition(
+        document: vscode.TextDocument,
         word: string,
         workspaceRoot: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.Location | undefined> {
         const simulatedDoc = 'getSimulatedDocAsync' in this.dependencies.efunDocsManager
             ? await (this.dependencies.efunDocsManager as EfunDocsManager & {
-                getSimulatedDocAsync(funcName: string): Promise<ReturnType<EfunDocsManager['getSimulatedDoc']>>;
-            }).getSimulatedDocAsync(word)
+                getSimulatedDocAsync(funcName: string, document?: vscode.TextDocument): Promise<ReturnType<EfunDocsManager['getSimulatedDoc']>>;
+            }).getSimulatedDocAsync(word, document)
             : this.dependencies.efunDocsManager.getSimulatedDoc(word);
         if (!simulatedDoc) {
             return undefined;

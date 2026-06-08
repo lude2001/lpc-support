@@ -1,0 +1,23 @@
+{
+  "name": "notify_fail",
+  "summary": "取代通过 add_action() 外部函数设置的默认错误消息，将 `str` 存为要返回的错误消息。这是一种比较好的显示错误消息的方式，因为这个函数允许其它对象继续响应这个指令。请不要使用 write() 显示错误消息，因为这样做会要求函数返回 1，除非你想在 write() 返回的消息后看到运行时配置文件中设置的 `default fail message`，而如果直接返回 1，又会让其它对象失去了响应这个指令的机会。\n\n   如果参数使用函数指针，会调用这个函数，如果函数返回一个字符串，这个字符串会做为指令执行失败的消息。只要正确的设置 this_player()，在函数中也可以使用 write()。\n\n   如果 notify_fail() 调用多次，仅最后一次呼叫有效。\n\n   这个函数可以在指令执行失败时传回更友好的错误提示。",
+  "details": "示例\n在指令中通过notify_fail()设置失败提示，并在return 0;后触发。\n\nint main(object me, string arg)\n{\n    notify_fail(\"这里是指令执行失败的提示……\");\n    return 0;\n}\n\n以下是推荐方式：\n\nint main(object me, string arg)\n{\n    return notify_fail(\"这里是指令执行失败的提示……\");\n}\n\nReturn semantics:\nnotify_fail() 永远返回 0。",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int notify_fail( string | function str )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string | function"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

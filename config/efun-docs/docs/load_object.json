@@ -1,0 +1,28 @@
+{
+  "name": "load_object",
+  "summary": "通过文件名 `str` 查找游戏对象并返回对象指针，如果文件存在但对象未载入，载入并返回对象指针。如果对象不存在，返回 0。此函数相当于find_object(str, 1)。",
+  "reference": [
+    "file_name",
+    "stat",
+    "find_object",
+    "clone_object"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "object load_object( string str )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

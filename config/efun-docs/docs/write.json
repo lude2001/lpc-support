@@ -1,0 +1,29 @@
+{
+  "name": "write",
+  "summary": "对当前玩家显示 'str' 信息。 'str' 如果是数字会自动转换成字符串。对象类型也可以正常显示，但其它类型比如数组、映射、函数指针或缓冲区类型会显示为<ARRAY>、<MAPPING>、<FUNCTION>和<BUFFER>。\n   注意：此efun不会调用receive_message() apply；write()函数输出的最大长度为__LARGEST_PRINTABLE_STRING__，默认为65535字节（utf8编码一个汉字占3个字节）。",
+  "reference": [
+    "message",
+    "tell_object",
+    "tell_room",
+    "shout",
+    "say"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "void write(mixed str)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

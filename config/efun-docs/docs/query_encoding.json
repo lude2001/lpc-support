@@ -1,0 +1,20 @@
+{
+  "name": "query_encoding",
+  "summary": "获取当前玩家的输入输出编码。\n\n   注意：您得到的名称是ICU内部名称，它与 set_encoding() 返回的名称相同，可能是您传入的名称，也可能不是，但它们引用的是相同的编码。",
+  "reference": [
+    "set_encoding"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "string query_encoding()",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

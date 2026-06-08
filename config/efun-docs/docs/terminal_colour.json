@@ -1,0 +1,20 @@
+{
+  "name": "terminal_colour",
+  "summary": "terminal_colour 内置函数",
+  "details": "NAME\nterminal_colour - replaces codes in a string\n\nSYNOPSIS\nstring terminal_colour(string str, mapping m);\n   string terminal_colour(string str, mapping m, int wrap);\n   string terminal_colour(string str, mapping m, int wrap, int indent);\n\nDESCRIPTION\nterminal_colour() replaces each occurrence of %^key%^ in str with 'value', where 'key' and 'value' are the elements in the mapping m.\n\n   'wrap' is the optional column number to wrap at, and 'indent' is the amount to indent the second and following lines.  Codes are assumed to change the mode of the terminal and not generate any printable characters for the purposes of wrapping.\n\n   This efun is only available if PACKAGE_CONTRIB is defined.\n\n   Tim Hollebeek  Beek@ZorkMUD, Lima Bean, IdeaExchange, and elsewhere",
+  "reference": [
+    "terminal_colour_replace"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "terminal_colour()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

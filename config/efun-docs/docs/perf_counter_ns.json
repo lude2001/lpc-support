@@ -1,0 +1,26 @@
+{
+  "name": "perf_counter_ns",
+  "summary": "返回自1970年1月1日午夜（GMT）以来的纳秒数。",
+  "details": "示例\neval return perf_counter_ns()\nResult = 1658831676469273200",
+  "reference": [
+    "ctime",
+    "localtime",
+    "time_expression",
+    "time",
+    "time_ns",
+    "uptime"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int perf_counter_ns( void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

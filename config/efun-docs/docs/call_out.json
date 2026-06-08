@@ -1,0 +1,37 @@
+{
+  "name": "call_out",
+  "summary": "设置在当前对象（this_object()）中呼叫函数 `fun`，呼叫会延迟 `delay` 秒，`arg` 做为参数传给函数 `fun`。\n\n   如果在运行时配置文件中的 gametick 小于1000，可以使用浮点数代表毫秒。\n\n   请注意：如果运行时配置文件中 THIS_PLAYER_IN_CALL_OUT 的值不为1，你将不能在 `fun` 中使用 write() 或 say()，这种情况下可以使用 tell_object() 代替。\n\n   返回值是一个代表 call_out　的句柄，可以做为 find_call_out() 和 remove_call_out() 的参数。",
+  "reference": [
+    "call_out_walltime",
+    "find_call_out",
+    "remove_call_out",
+    "call_out_info"
+  ],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "int call_out( string | function fun, int | float delay, mixed arg ... )",
+      "returnType": "int",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "fun",
+          "type": "string | function"
+        },
+        {
+          "name": "delay",
+          "type": "int | float"
+        },
+        {
+          "name": "arg",
+          "type": "mixed",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": null
+      }
+    }
+  ]
+}

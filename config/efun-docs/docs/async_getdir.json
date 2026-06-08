@@ -1,0 +1,29 @@
+{
+  "name": "async_getdir",
+  "summary": "异步get_dir，执行结果传递给函数`f`。\n\n   如果'dir'是一个文件名（支持'*'和'?'通配符），则将返回一个字符串数组给回调函数，并包含符合规范的所有文件名。如果'dir'是一个目录名（以斜线结尾，例如：\"/u/\"、\"/adm/\"等），则返回该目录中的所有文件名。\n\n   不像get_dir例程，这个efun不需要一个整数作为第二个参数来指定更多的信息（比如文件名、文件大小、最后修改时间等）。\n\n   回调函数应该遵循以下格式：\n\n   function(mixed res) {\n       // 当目录不存在时返回0\n       // 没有匹配文件时返回空数组\n       // 匹配的文件名数组\n   }",
+  "reference": [
+    "get_dir"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "void async_getdir( string dir, function f )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "dir",
+          "type": "string"
+        },
+        {
+          "name": "f",
+          "type": "function"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

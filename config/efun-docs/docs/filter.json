@@ -1,0 +1,150 @@
+{
+  "name": "filter",
+  "summary": "如果第一个参数 `x` 是数组，filter() 的作用和 filter_array() 一样，如果第一个参数 `x` 是映射，filter() 的作用和 filter_mapping() 一样。如果第一个参数是字符串，filter() 会把每个字符转为整型传递给过滤函数，如果过滤函数返回 0 ，此字符被会过滤掉，否则正常返回。",
+  "reference": [
+    "filter_array",
+    "filter_mapping"
+  ],
+  "category": "常规函数（General）",
+  "signatures": [
+    {
+      "label": "mixed filter(string | mixed * | mapping, string | function, ...)",
+      "returnType": "mixed",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "mapping",
+          "type": "string | mixed *|"
+        },
+        {
+          "name": "function",
+          "type": "string |"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": null
+      }
+    },
+    {
+      "label": "mixed *filter_array( mixed *arr, string fun, object ob, mixed extra, ... )",
+      "returnType": "mixed",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        },
+        {
+          "name": "fun",
+          "type": "string"
+        },
+        {
+          "name": "ob",
+          "type": "object"
+        },
+        {
+          "name": "extra",
+          "type": "mixed"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 4,
+        "max": null
+      }
+    },
+    {
+      "label": "mixed *filter_array( mixed *arr, function f, mixed extra, ...)",
+      "returnType": "mixed",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        },
+        {
+          "name": "f",
+          "type": "function"
+        },
+        {
+          "name": "extra",
+          "type": "mixed"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": null
+      }
+    },
+    {
+      "label": "mapping filter_mapping( mapping map, string fun, object ob, mixed extra, ... )",
+      "returnType": "mixed",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "map",
+          "type": "mapping"
+        },
+        {
+          "name": "fun",
+          "type": "string"
+        },
+        {
+          "name": "ob",
+          "type": "object"
+        },
+        {
+          "name": "extra",
+          "type": "mixed"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 4,
+        "max": null
+      }
+    },
+    {
+      "label": "mapping filter_mapping( mapping map, function f, mixed extra, ... )",
+      "returnType": "mixed",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "map",
+          "type": "mapping"
+        },
+        {
+          "name": "f",
+          "type": "function"
+        },
+        {
+          "name": "extra",
+          "type": "mixed"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "set_notify_destruct",
+  "summary": "set_notify_destruct 内置函数",
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "set_notify_destruct()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

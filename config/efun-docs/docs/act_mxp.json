@@ -1,0 +1,17 @@
+{
+  "name": "act_mxp",
+  "summary": "act_mxp 内置函数",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "void act_mxp()",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

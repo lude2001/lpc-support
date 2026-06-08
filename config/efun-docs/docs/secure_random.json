@@ -1,0 +1,20 @@
+{
+  "name": "secure_random",
+  "summary": "secure_random 内置函数",
+  "details": "NAME\nsecure_random() - return a pseudo-random number, this should be unpredictable, but maybe slightly slow.\n\nSYNOPSIS\nint secure_random( int n );\n\nDESCRIPTION\nReturn a cryptographically secure random number from the range [0 .. (n -1)] (inclusive).\n\n   On Linux & OSX, this function explicitly use randomness from /dev/urandom, on windows it is implementation defined.",
+  "reference": [
+    "random"
+  ],
+  "category": "数字相关函数（Numbers）",
+  "signatures": [
+    {
+      "label": "secure_random()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

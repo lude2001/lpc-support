@@ -1,0 +1,43 @@
+{
+  "name": "async_write",
+  "summary": "将字符串'str'追加到文件'file'中。如果flag为1，则write_file将覆盖而不是追加。\n\n   不像write_file，它返回0表示失败，返回1表示成功，这个efun将会返回-1表示失败，并返回0表示成功给回调函数。\n\n   回调函数应该遵循以下格式：\n\n   function (int res) {\n       // -1表示失败\n       //  0表示成功\n   }",
+  "reference": [
+    "file_size",
+    "read_file",
+    "write_buffer",
+    "write_file",
+    "async_read",
+    "valid_read",
+    "valid_write"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "void async_write( string file, string str, int flag, function callback )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "file",
+          "type": "string"
+        },
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "flag",
+          "type": "int"
+        },
+        {
+          "name": "callback",
+          "type": "function"
+        }
+      ],
+      "arity": {
+        "min": 4,
+        "max": 4
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "set_heart_beat",
+  "summary": "参数 `flag` 为 0 时关闭对象心跳，为 1 时对象每一次心跳都会呼叫对象的 heart_beat() 方法一次（心跳频率可以在运行时配置文件中设置，默认为 1000 毫秒，即 1 秒）。参数数值大于 1 时代表每隔多少次心跳呼叫 heart_beat() 方法一次。",
+  "reference": [
+    "heart_beat",
+    "query_heart_beat",
+    "heart_beats"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "void set_heart_beat( int flag )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "flag",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

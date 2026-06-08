@@ -1,0 +1,29 @@
+{
+  "name": "query_ip_number",
+  "summary": "返回玩家对象 'ob' 的IP地址（IPv4 或 IPv6 格式）",
+  "reference": [
+    "query_ip_name",
+    "query_host_name",
+    "resolve",
+    "socket_address"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "string query_ip_number( object ob | void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

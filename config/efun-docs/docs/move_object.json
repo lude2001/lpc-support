@@ -1,0 +1,27 @@
+{
+  "name": "move_object",
+  "summary": "移动当前对象到环境 `dest`，移动后会触发当前对象和目标环境及其中对象的 init() 方法。",
+  "reference": [
+    "this_object",
+    "move_or_destruct",
+    "init"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "void move_object( object | string dest )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "dest",
+          "type": "object | string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -128,6 +128,40 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     const formattingConnection = supportsFormattingHandlers
         ? connection as Pick<Connection, 'onDocumentFormatting' | 'onDocumentRangeFormatting'>
         : undefined;
+    let workspaceConfigReady = !onWorkspaceConfigSync;
+    const pendingDiagnosticRefreshes = new Set<string>();
+
+    const refreshDiagnosticsWhenReady = (uri: string): void => {
+        if (!diagnosticsSession) {
+            return;
+        }
+
+        if (!workspaceConfigReady) {
+            pendingDiagnosticRefreshes.add(uri);
+            return;
+        }
+
+        void diagnosticsSession.refresh(uri);
+    };
+
+    const refreshPendingAndOpenDiagnostics = (): void => {
+        if (!diagnosticsSession) {
+            pendingDiagnosticRefreshes.clear();
+            return;
+        }
+
+        const uris = new Set([
+            ...pendingDiagnosticRefreshes,
+            ...documentStore.list().map((document) => document.uri)
+        ]);
+        pendingDiagnosticRefreshes.clear();
+
+        for (const uri of uris) {
+            if (documentStore.get(uri)) {
+                void diagnosticsSession.refresh(uri);
+            }
+        }
+    };
 
     connection.onInitialize((_params: InitializeParams): InitializeResult => {
         logger.info('Initializing LPC Phase A language server');
@@ -185,7 +219,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     connection.onDidOpenTextDocument(({ textDocument }: DidOpenTextDocumentParams) => {
         documentStore.open(textDocument.uri, textDocument.version, textDocument.text);
         __syncTextDocument(textDocument.uri, textDocument.text, textDocument.version);
-        void diagnosticsSession?.refresh(textDocument.uri);
+        refreshDiagnosticsWhenReady(textDocument.uri);
     });
 
     connection.onDidChangeTextDocument(({ textDocument, contentChanges }: DidChangeTextDocumentParams) => {
@@ -196,18 +230,28 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         documentStore.applyFullChange(textDocument.uri, textDocument.version, nextText);
         __syncTextDocument(textDocument.uri, nextText, textDocument.version);
         __emitTextDocumentChange(textDocument.uri);
-        void diagnosticsSession?.refresh(textDocument.uri);
+        refreshDiagnosticsWhenReady(textDocument.uri);
     });
 
     connection.onDidCloseTextDocument(({ textDocument }: DidCloseTextDocumentParams) => {
         documentStore.close(textDocument.uri);
         __closeTextDocument(textDocument.uri);
+        pendingDiagnosticRefreshes.delete(textDocument.uri);
         diagnosticsSession?.clear(textDocument.uri);
     });
 
     connection.onNotification(WorkspaceConfigSyncNotification.type, (payload: WorkspaceConfigSyncPayload) => {
+        workspaceConfigReady = false;
         workspaceSession.applyWorkspaceConfigSync(payload);
-        void onWorkspaceConfigSync?.();
+        void (async () => {
+            try {
+                await onWorkspaceConfigSync?.();
+                workspaceConfigReady = true;
+                refreshPendingAndOpenDiagnostics();
+            } catch (error) {
+                logger.error(`Failed to apply workspace configuration sync: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        })();
     });
 
     connection.onRequest(

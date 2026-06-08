@@ -1,0 +1,26 @@
+{
+  "name": "capitalize",
+  "summary": "转换字符串 `str` 的首字母为大写并返回新的字符串。",
+  "reference": [
+    "lower_case",
+    "upper_case"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string capitalize( string str )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

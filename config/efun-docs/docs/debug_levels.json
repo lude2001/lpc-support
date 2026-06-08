@@ -1,0 +1,16 @@
+{
+  "name": "debug_levels",
+  "summary": "debug_levels 内置函数",
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "debug_levels()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

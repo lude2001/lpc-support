@@ -1,0 +1,35 @@
+{
+  "name": "async_read",
+  "summary": "从文件中读取一行文本，并将其保存到一个字符串中。通常，read_file需要第二个和第三个参数来指定要读取的起始行和行数，但是async_read将整个文件返回给回调函数。\n\n   回调函数应该遵循以下格式：\n\n   function(mixed res) {\n       // 如果文件未读取，返回-1\n       // 否则返回文件的内容字符串\n   }",
+  "reference": [
+    "file_size",
+    "read_buffer",
+    "read_file",
+    "write_file",
+    "async_write",
+    "valid_read",
+    "valid_write"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "void async_read( string file, function callback )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "file",
+          "type": "string"
+        },
+        {
+          "name": "callback",
+          "type": "function"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

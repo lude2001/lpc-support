@@ -1,0 +1,29 @@
+{
+  "name": "parse_add_rule",
+  "summary": "Here \"verb\" is the command word (e.g. \"look\", \"read\" etc), The \"rule\" is the parsing rule to add. Rules are made up from two parts - tokens, and prepositions. Tokens are used to match various objects or strings, and prepositions are fixed positional words to specify meaning (like \"with\" or \"in\").\n\n   The MudOS accepts six tokens that I'm aware of:\n\n   OBJ - matches a single object\n   OBS - matches one or more objects\n   LIV - matches a single, living object\n   LVS - matches one or more living objects\n   WRD - matches a single word\n   STR - matches one or more words",
+  "reference": [
+    "add_action"
+  ],
+  "category": "语法分析相关函数（Parsing）",
+  "signatures": [
+    {
+      "label": "void parse_add_rule(string verb, string rule)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "verb",
+          "type": "string"
+        },
+        {
+          "name": "rule",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

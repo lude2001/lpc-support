@@ -1,0 +1,34 @@
+{
+  "name": "objectp",
+  "summary": "如果 `arg` 是对象，返回 1。",
+  "reference": [
+    "mapp",
+    "stringp",
+    "pointerp",
+    "intp",
+    "bufferp",
+    "floatp",
+    "functionp",
+    "nullp",
+    "undefinedp",
+    "classp"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "int objectp( mixed arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

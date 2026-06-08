@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+## [0.47.10] - 2026-06-09
+
+### 基础语义诊断
+
+- 新增直接函数调用的参数数量诊断，覆盖当前文件、include、inherit、标准 efun 与 simul-efun 中可确定的函数签名。
+- 新增保守的未定义函数与未定义普通符号诊断；当 include / inherit 依赖图无法完整解析时会抑制 undefined 类提示，避免动态 LPC 写法产生噪声。
+- 诊断主链新增可注入的语义符号解析器，VS Code 扩展端与 LSP runtime 端共享同一套可见符号解析边界。
+- 修复 `void | T` 形式的 efun 可选参数未参与参数数量归一化的问题，避免 `member_array(item, arr)` 被误报为参数数量不匹配。
+- 诊断前会确保当前工作区 simul-efun 状态已加载，避免已配置的 simul-efun 函数被误报为未定义函数。
+- simul-efun 加载现在会按当前文档所属 workspace root 解析配置，避免多根工作区或第一个 workspace 不是 mudlib 时，把 `new_bind`、`chinese_number` 等已配置 simul-efun 误报为未定义函数。
+- LSP diagnostics 现在会使用带 `fsPath` 的文档 URI 进入共享诊断链，避免诊断路径找不到当前文件所属 workspace 而漏载 simul-efun。
+- simul-efun 文档条目存在但签名暂时无法抽取时，会按未知参数数量的已定义函数处理，避免真实 mudlib 中的 `new_bind`、`chinese_number` 被继续误报为未定义函数。
+- LSP server 会等首轮 workspace 配置同步完成后再发布诊断，避免打开文件时先推送一批 simul-efun 未加载造成的短暂 undefined 误报。
+- 内置 efun 文档从单个 `config/efun-docs.json` 拆分为 `config/efun-docs/categories.json` 与按函数命名的 `config/efun-docs/docs/*.json`，为后续逐个校准参数数量提供稳定入口；发布脚本不再暴露 mud.wiki 抓取生成入口作为基准来源。
+- 内置 efun 签名新增显式 `arity` 字段，参数数量诊断优先使用文档声明的最小/最大参数数量，不再依赖 `type` 文本中的 `|` 形态推断；已校准 `get_dir`、`map_array`、`member_array` 的常见调用误报。
+
+### Header owner 上下文
+
+- 打开被唯一 `.c` translation unit include 的 `.h` 文件时，会复用 owner `.c` 在 include 之前可见的宏、函数、全局变量和类型，减少拆分式 mudlib header 中的未定义误报。
+- `.h` 文件中的 hover 与跳转定义会复用同一套 owner 上下文，可跳到 owner 前缀 include 中定义的函数、全局变量、类型和宏。
+- 多个 `.c` 同时 include 同一 `.h`、include 图无法解析或语义降级时保持保守，不猜测 owner 上下文。
+- owner 索引会在相关 `.c` / `.h` 文档变更、保存、文件 watcher 事件和 LSP 配置同步时失效；同一 `.c` 重复 include 同一 header 不再误判为多 owner。
+
 ## [0.47.8] - 2026-06-04
 
 ### 语义高亮修复

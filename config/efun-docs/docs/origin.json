@@ -1,0 +1,20 @@
+{
+  "name": "origin",
+  "summary": "返回一个表示当前函数的调用方式的字符串，具体定义可以驱动源码的 `include/origin.h` 头文件中找到：\n\n/* codes returned by the origin() efun */\n\n#define ORIGIN_BACKEND \"driver\" /* backwards compat */\n#define ORIGIN_DRIVER \"driver\"\n#define ORIGIN_LOCAL \"local\"\n#define ORIGIN_CALL_OTHER \"call_other\"\n#define ORIGIN_SIMUL_EFUN \"simul\"\n#define ORIGIN_INTERNAL \"internal\"\n#define ORIGIN_EFUN \"efun\"\n/* pseudo frames for call_other function pointers and efun pointer */\n#define ORIGIN_FUNCTION_POINTER \"function_pointer\"\n/* anonymous functions */\n#define ORIGIN_FUNCTIONAL \"functional\"",
+  "reference": [
+    "previous_object"
+  ],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "string origin( void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

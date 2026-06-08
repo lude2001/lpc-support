@@ -683,6 +683,65 @@ describe('navigation services', () => {
         expect(hover?.contents[0].value).toContain('#define LOCAL_PATH "/std/room.c"');
     });
 
+    test('unified hover service resolves header owner context function and global hovers', async () => {
+        const source = [
+            'void demo() {',
+            '    calculate_hit_power(me);',
+            '    winner_msg[0];',
+            '}'
+        ].join('\n');
+        const document = createVsCodeTextDocument('D:/workspace/adm/daemons/combat/combat_do_attack.h', source);
+        const service: LanguageHoverService = new UnifiedLanguageHoverService(
+            {
+                provideHover: jest.fn(async () => undefined)
+            },
+            {
+                analysisService,
+                efunHoverService: {
+                    provideHover: jest.fn(async () => undefined)
+                },
+                headerOwnerContextService: {
+                    resolveOwnerContext: jest.fn(async () => ({
+                        isAmbiguous: false,
+                        macros: [],
+                        types: [],
+                        functions: [{
+                            name: 'calculate_hit_power',
+                            returnType: 'int',
+                            parameters: [{
+                                name: 'me',
+                                dataType: 'object',
+                                range: new vscode.Range(0, 0, 0, 0)
+                            }],
+                            modifiers: [],
+                            sourceUri: 'file:///D:/workspace/adm/daemons/combat/combat_attack_power.h',
+                            range: new vscode.Range(84, 0, 84, 35),
+                            origin: 'include'
+                        }],
+                        fileGlobals: [{
+                            name: 'winner_msg',
+                            dataType: 'string *',
+                            sourceUri: 'file:///D:/workspace/adm/daemons/combat/combat_status_msg.h',
+                            range: new vscode.Range(8, 0, 8, 22)
+                        }]
+                    }))
+                }
+            }
+        );
+
+        const functionHover = await service.provideHover({
+            context: createContext(document as any),
+            position: { line: 1, character: '    calculate_hit'.length }
+        });
+        const globalHover = await service.provideHover({
+            context: createContext(document as any),
+            position: { line: 2, character: '    winner'.length }
+        });
+
+        expect(functionHover?.contents[0].value).toContain('int calculate_hit_power(object me)');
+        expect(globalHover?.contents[0].value).toContain('string * winner_msg');
+    });
+
     test('unified hover service falls back to efun docs when macro and object hovers do not resolve', async () => {
         const document = createDocument('allocate');
         const service: LanguageHoverService = new UnifiedLanguageHoverService(

@@ -18,6 +18,10 @@ export interface StructuredEfunSignature {
     label: string;
     returnType?: string;
     isVariadic: boolean;
+    arity?: {
+        min: number;
+        max?: number | null;
+    };
     parameters: StructuredEfunParameter[];
 }
 

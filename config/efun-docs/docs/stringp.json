@@ -1,0 +1,35 @@
+{
+  "name": "stringp",
+  "summary": "如果参数 `arg` 是一个字符串，返回 1 。",
+  "reference": [
+    "mapp",
+    "pointerp",
+    "objectp",
+    "intp",
+    "bufferp",
+    "floatp",
+    "functionp",
+    "nullp",
+    "undefinedp",
+    "classp",
+    "virtualp"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "int stringp( mixed arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

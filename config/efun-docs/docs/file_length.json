@@ -1,0 +1,25 @@
+{
+  "name": "file_length",
+  "summary": "函数返回指定文件 `file_name` 的行数，如果未找到文件返回 -1，如果是目录返回 -2。",
+  "reference": [
+    "file_size"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int file_length( string file_name )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "file_name",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

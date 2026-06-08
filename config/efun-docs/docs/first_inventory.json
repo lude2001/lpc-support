@@ -1,0 +1,28 @@
+{
+  "name": "first_inventory",
+  "summary": "返回对象 `ob` 内容物品中的第一个物品，参数 `ob` 既可以是对象也可以是对象的文件名（字符串类型），如果没有指定参数 `ob`，默认是 this_object()。",
+  "reference": [
+    "file_name",
+    "next_inventory",
+    "all_inventory",
+    "deep_inventory"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "object first_inventory(object | string default: F__THIS_OBJECT)",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "F__THIS_OBJECT",
+          "type": "object | string default:"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "error",
+  "summary": "当 error() 调用时会生成一个运行时错误消息 `err`，暂停当前线程，并把错误追踪信息记录到 debug 日志中。错误消息会附加前缀 `*`。",
+  "reference": [
+    "catch",
+    "throw",
+    "error_handler"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "void error( string err )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "err",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

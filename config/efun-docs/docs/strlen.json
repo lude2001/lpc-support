@@ -1,0 +1,26 @@
+{
+  "name": "strlen",
+  "summary": "strlen() 返回字符串 'str' 中的字符个数，这个函数是 sizeof(string) 的别名。\n\n   fluffos v2017 下 strlen() 和 strwidth() 作用一样，显示的是字符串占用的字节数。\n   fluffos v2019 下 strlen() 返回字符串的字符个数，strwidth() 显示字符串的显示宽度。",
+  "reference": [
+    "sizeof",
+    "strwidth"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "int strlen( string str )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

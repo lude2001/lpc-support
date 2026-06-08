@@ -1,0 +1,28 @@
+{
+  "name": "round",
+  "summary": "返回四舍五入后的浮点数。",
+  "reference": [
+    "floor",
+    "ceil",
+    "to_int",
+    "to_float"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float round( float f )",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

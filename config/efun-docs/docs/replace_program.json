@@ -1,0 +1,28 @@
+{
+  "name": "replace_program",
+  "summary": "replace_program() 函数会将 this_object() 替换为其继承的对象。字符串参数指定了要使用其程序的对象的文件名。替换完成后，当前对象实际上就成为了那个其他对象的克隆体，但保留了自身当前的文件名和全局变量值。不过，程序并不会立即被替换，而是要等到当前的执行过程完成之后才会进行实际替换。\n   这个函数的核心作用用于减少大型MUD的内存占用，要求目标程序必须在继承树中且不能用于simul_efun对象、不能有自己的函数定义，可用replaceable()函数判断。实际作用在现在不缺内存的MUD中可有可无，现代MUDLIB中有一个功能类似的函数set_default_object(__FILE__)。",
+  "reference": [
+    "clone_object",
+    "new",
+    "query_replaced_program",
+    "replaceable"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "void replace_program( string str )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

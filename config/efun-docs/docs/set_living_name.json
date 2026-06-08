@@ -1,0 +1,27 @@
+{
+  "name": "set_living_name",
+  "summary": "为一个生物设置名字，设置后可以使用 find_living() 外部函数找到这个对象。",
+  "reference": [
+    "enable_commands",
+    "find_living",
+    "find_player"
+  ],
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "void set_living_name( string name )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

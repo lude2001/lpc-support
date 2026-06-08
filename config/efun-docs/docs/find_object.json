@@ -1,0 +1,46 @@
+{
+  "name": "find_object",
+  "summary": "通过文件名 `str` 查找游戏已加载对象。如果对象是复制对象，文件名可以通过 file_name() 外部函数取得。如果对象不存在或未载入游戏，返回 0，否则返回对象指针。\n\n   如果可选参数 `flag`(不设置默认值为0) 为 1，此函数的效果等同于 load_object()。",
+  "reference": [
+    "file_name",
+    "stat",
+    "load_object"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "object find_object( string str )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "object find_object( string str, int flag)",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "flag",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "name": "bufferp",
+  "summary": "如果 `arg` 是一个缓冲区(buffer)类型的值返回 1，否则返回 0。",
+  "reference": [
+    "mapp",
+    "stringp",
+    "pointerp",
+    "objectp",
+    "intp",
+    "floatp",
+    "functionp",
+    "nullp",
+    "undefinedp",
+    "classp"
+  ],
+  "category": "缓冲区相关函数（Buffers）",
+  "signatures": [
+    {
+      "label": "int bufferp( mixed arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

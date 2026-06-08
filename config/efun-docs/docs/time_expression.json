@@ -1,0 +1,30 @@
+{
+  "name": "time_expression",
+  "summary": "Evaluate <expr>. The amount of real time that passed during the evaluation of <expr>, in microseconds, is returned. The precision of the value is not necessarily 1 microsecond; in fact, it probably is much less precise.\n\n评估 <expr>。返回在评估 <expr> 过程中经过的实际时间，以微秒为单位。返回值的精度不一定是1微秒；实际上，可能远没有这么精确。\n\n提示： time_expression 本质上并不是外部函数而是一个语言结构（类似还有sscanf, catch, parse_command等）。",
+  "details": "示例\nint main(object me, string arg)\n{\n    int cost;\n\n    cost = time_expression\n    {\n        for (int i = 0; i < 100; i++)\n        {\n            printf(\"i = %d\\n\", i);\n        }\n    };\n\n    printf(\"代码执行耗时：%d 微秒\\n\", cost);\n\n    return 1;\n}",
+  "reference": [
+    "rusage",
+    "function_profile",
+    "time",
+    "time_ns",
+    "perf_counter_ns"
+  ],
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "int time_expression( mixed expr )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "expr",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

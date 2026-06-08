@@ -1,0 +1,27 @@
+{
+  "name": "restore_variable",
+  "summary": "从一个字符串取回变量的值，数据存取格式和 save/restore_object 外部函数一样。",
+  "reference": [
+    "restore_object",
+    "save_variable",
+    "restore_from_string"
+  ],
+  "category": "常规函数（General）",
+  "signatures": [
+    {
+      "label": "mixed restore_variable( string value )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "value",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "bind",
+  "summary": "返回一个和函数指针 `f` 完全相同的函数指针，但是所属对象从创建 `f` 的对象变为 `ob`。这在函数 `f` 的创建者被摧毁或 `f` 是需要由其它对象调用的外部函数时非常有用。\n\n   示例:\n\n   void make_living(object ob)\n   {\n       function f;\n\n       f = bind((: enable_commands :), ob);\n\n       evaluate(f);\n   }\n\n   以上示例的效果和由对象 `ob` 自己执行 enable_commands() 外部函数完全一样。因为 bind() 允许你强制其它对象执行一些代码，这会造成一些安全风险，为了防止被滥用，需要 MASTER 对象中的 valid_bind() apply 方法返回1，否则 bind() 无法执行。",
+  "reference": [
+    "evaluate"
+  ],
+  "category": "函数相关函数（Functions）",
+  "signatures": [
+    {
+      "label": "function bind(function f, object ob)",
+      "returnType": "function",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "function"
+        },
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

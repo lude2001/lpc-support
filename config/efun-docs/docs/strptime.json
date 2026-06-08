@@ -1,0 +1,29 @@
+{
+  "name": "strptime",
+  "summary": "Parse given time 'str' with a format string, see https://en.cppreference.com/w/cpp/io/manip/get_time",
+  "reference": [
+    "strftime"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "int strptime( string fmt, string str )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "fmt",
+          "type": "string"
+        },
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

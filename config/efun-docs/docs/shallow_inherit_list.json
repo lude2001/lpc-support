@@ -1,0 +1,27 @@
+{
+  "name": "shallow_inherit_list",
+  "summary": "返回对象 `obj` 继承的对象的文件名数组，仅仅返回直接继承的对象，如：A 继承 B，B 继承 C，inherit_list(A) 返回的数组中只有 B 没有 C。",
+  "reference": [
+    "deep_inherit_list",
+    "inherits",
+    "inherit_list"
+  ],
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "string *shallow_inherit_list(object default:F__THIS_OBJECT)",
+      "returnType": "string *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "F__THIS_OBJECT",
+          "type": "object default:"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

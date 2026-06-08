@@ -1,0 +1,22 @@
+{
+  "name": "db_status",
+  "summary": "返回一个描述数据库当前连接状态的字符串（包括所有数据库句柄）。",
+  "reference": [
+    "db_close",
+    "db_connect",
+    "valid_database"
+  ],
+  "category": "数据库相关函数（DB）",
+  "signatures": [
+    {
+      "label": "string db_status( void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

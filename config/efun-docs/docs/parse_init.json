@@ -1,0 +1,20 @@
+{
+  "name": "parse_init",
+  "summary": "The efun parse_init() is used to tell MudOS that this object is one that may use or be used by the parsing package. If your object does not call this then trying to use other parsing efuns will generate a runtime error and the parser will ignore the object when searching for matches. Suggest call parse_init() from create() in the standard object.",
+  "reference": [
+    "parse_refresh"
+  ],
+  "category": "语法分析相关函数（Parsing）",
+  "signatures": [
+    {
+      "label": "void parse_init()",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

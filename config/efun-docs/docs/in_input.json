@@ -1,0 +1,22 @@
+{
+  "name": "in_input",
+  "summary": "检查是否在输入状态",
+  "details": "NAME\nin_input() - determines if a player is inputting to an input_to\n\nSYNOPSIS\nint in_input( object default : F_THIS_OBJECT );\n\nDESCRIPTION\nReturns  1  if  the  object  is  currently  inputting to an input_to or\n   get_char.\n\nSEE ALSO\nget_char(3), input_to(3)",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "in_input(ob)",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "ob"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

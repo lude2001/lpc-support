@@ -1,0 +1,24 @@
+{
+  "name": "query_host_name",
+  "summary": "query_host_name() 返回服务器主机名称",
+  "details": "Return semantics:\n成功返回主机名称字符串，失败返回一个空字符串。",
+  "reference": [
+    "resolve",
+    "socket_address",
+    "query_ip_name",
+    "query_ip_number"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "string query_host_name( void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

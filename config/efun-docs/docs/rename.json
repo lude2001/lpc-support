@@ -1,0 +1,33 @@
+{
+  "name": "rename",
+  "summary": "修改文件 `src` 的文件名为 `dst`",
+  "details": "Return semantics:\nrename() 改名成功返回 0 ，失败返回非零值。",
+  "reference": [
+    "rm",
+    "rmdir",
+    "cp",
+    "link"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "int rename( string src, string dst )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "src",
+          "type": "string"
+        },
+        {
+          "name": "dst",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

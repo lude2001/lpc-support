@@ -1,0 +1,24 @@
+{
+  "name": "pcre_version",
+  "summary": "返回系统使用的 PCRE 库版本",
+  "reference": [
+    "pcre_cache",
+    "pcre_match",
+    "pcre_assoc",
+    "pcre_extract",
+    "pcre_replace"
+  ],
+  "category": "PCRE 相关函数(PCRE)",
+  "signatures": [
+    {
+      "label": "string pcre_version(void)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

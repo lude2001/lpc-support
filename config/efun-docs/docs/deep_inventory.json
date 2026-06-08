@@ -1,0 +1,31 @@
+{
+  "name": "deep_inventory",
+  "summary": "返回对象 `ob` 中的所有对象及对象中的所有对象（层层递进查找，直到传回所有对象为止）的数组。如果没有指定参数 `ob`，默认是 this_object()。",
+  "reference": [
+    "first_inventory",
+    "next_inventory",
+    "all_inventory"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "object *deep_inventory(object | object * | function ob, void | function default: F__THIS_OBJECT)",
+      "returnType": "object *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object | object *| function"
+        },
+        {
+          "name": "F__THIS_OBJECT",
+          "type": "void | function default:"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

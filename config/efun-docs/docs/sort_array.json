@@ -1,0 +1,73 @@
+{
+  "name": "sort_array",
+  "summary": "第一种形式返回一个和参数 `arr` 元素相同的数组，只是根据 `ob->fun()` 的规则按升序快速排序。`ob->fun()` 返回值 -1、0、1 说明二个元素的关系是小于、等于或大于。\n\n   第二种形式和第一种形式功能相同，只是参数使用函数指针。\n\n   第三种形式返回一个和参数 `arr` 元素相同的数组，只是使用内置排序程序快速排序，参数 `direction` 0或1代表升序，-1代表降序。使用内置排序程序的局限是数组元素必须是相同类型的，参与比较的元素必须是字符串、整型或浮点型中的一种，如果数组中包含数组，只会根据子数组的第一个元素进行排序。",
+  "reference": [
+    "filter_array",
+    "map_array",
+    "strcmp"
+  ],
+  "category": "数组相关函数（Arrays）",
+  "signatures": [
+    {
+      "label": "mixed *sort_array( mixed *arr, string fun, object ob )",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        },
+        {
+          "name": "fun",
+          "type": "string"
+        },
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    },
+    {
+      "label": "mixed *sort_array( mixed *arr, function f )",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        },
+        {
+          "name": "f",
+          "type": "function"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "label": "mixed *sort_array( mixed *arr, int direction )",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        },
+        {
+          "name": "direction",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

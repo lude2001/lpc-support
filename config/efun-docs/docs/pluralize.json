@@ -1,0 +1,22 @@
+{
+  "name": "pluralize",
+  "summary": "此外部函数返回英文 `eng` 的复数形式。如 `a red house` 返回 `red houses`。",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "string pluralize(string eng)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "eng",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

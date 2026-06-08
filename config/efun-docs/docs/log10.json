@@ -1,0 +1,22 @@
+{
+  "name": "log10",
+  "summary": "计算以10为底的对数",
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float log10(float|int)",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "int",
+          "type": "float |"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "name": "socket_set_option",
+  "summary": "// todo",
+  "details": "示例\n#define STREAM 1\n#define DATAGRAM 2\n#define STREAM_TLS 5\n\n#define STATE_RESOLVING 0\n#define STATE_CONNECTING 1\n#define STATE_CLOSED 2\n#define STATE_CONNECTED 3\n\n#define SO_TLS_VERIFY_PEER 1\n#define SO_TLS_SNI_HOSTNAME 2\n\nint get(string host, int port, string path, int tls, mixed callback) {\n  int fd;\n\n  receiver = this_player();\n\n  fd = socket_create(tls ? STREAM_TLS : STREAM, \"receive_data\", \"socket_shutdown\");\n\n  if (tls) {\n    socket_set_option(fd, SO_TLS_VERIFY_PEER, 1);\n    socket_set_option(fd, SO_TLS_SNI_HOSTNAME, host);\n  }\n  // ...\n}",
+  "reference": [
+    "socket_get_option"
+  ],
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "void socket_set_option(int, int, mixed)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "int"
+        },
+        {
+          "name": "arg2",
+          "type": "int"
+        },
+        {
+          "name": "arg3",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "stat",
+  "summary": "如果 `str` 是一个文件，stat() 返回一个关于文件信息的数组，数组格式如下：\n\n   ({ 文件大小, 文件最后修改时间, 文件载入游戏时间, 文件创建时间 })\n\n   如果 `str` 是一个目录，或者第二个参数是 -1 ，stat() 的作用和 get_dir() 一样。",
+  "reference": [
+    "get_dir",
+    "file_size"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "mixed stat( string str, int default: 0 )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "arg2",
+          "type": "int default: 0"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

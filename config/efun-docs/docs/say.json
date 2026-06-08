@@ -1,0 +1,67 @@
+{
+  "name": "say",
+  "summary": "把信息发送给发送者所在环境中的所有对象及所在环境是发送者的所有对象。发送者只能是 `this_player()` 或者 `this_player() == 0` 的 `this_object()`。\n\n   第二个参数是可选的，如果指定第二个参数 `obj`，信息不会发给 `obj`，`obj` 可以是一个对象或者是对象数组。\n\n   注意：此efun不会调用receive_message() apply；say()函数输出的最大长度为__LARGEST_PRINTABLE_STRING__，默认为65535字节（utf8编码一个汉字占3个字节）。",
+  "reference": [
+    "message",
+    "write",
+    "shout",
+    "tell_object",
+    "tell_room"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "void say( string str )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "void say( string str, object obj )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "obj",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "label": "void say( string str, object *obj )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "obj",
+          "type": "object *"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

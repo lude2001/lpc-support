@@ -1,0 +1,22 @@
+{
+  "name": "has_mxp",
+  "summary": "has_mxp 内置函数",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int has_mxp(object default:F__THIS_OBJECT)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "F__THIS_OBJECT",
+          "type": "object default:"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

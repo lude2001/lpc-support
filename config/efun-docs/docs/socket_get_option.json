@@ -1,0 +1,29 @@
+{
+  "name": "socket_get_option",
+  "summary": "// todo",
+  "reference": [
+    "socket_set_option"
+  ],
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "mixed socket_get_option(int, int)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "int"
+        },
+        {
+          "name": "arg2",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

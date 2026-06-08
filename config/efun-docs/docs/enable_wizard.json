@@ -1,0 +1,21 @@
+{
+  "name": "enable_wizard",
+  "summary": "本函数仅在驱动编译时未定义 NO_WIZARD 的情况下有效。\n\n   任何互动对象（玩家）呼叫 enable_wizard() 外部函数都会让此对象呼叫 wizardp() 外部函数的返回值为真（1）。enable_wizard() 可以让此玩家拥有以下三项特权：\n\n   1. 当驱动编译时定义了 RESTRICTED_ED ，可以使用 ed 的受限模式（restricted  modes）。\n   2. 可以收到运行时详细错误信息。\n   3. 可以使用 trace() 和 traceprefix() 外部函数。",
+  "reference": [
+    "disable_wizard",
+    "wizardp"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "void enable_wizard( void )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

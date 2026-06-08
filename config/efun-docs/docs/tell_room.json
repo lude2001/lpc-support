@@ -1,0 +1,37 @@
+{
+  "name": "tell_room",
+  "summary": "向房间 `room` 中的所有对象发送消息 `msg`，`room` 既可以是房间对象，也可以是房间文件名字符串。如果指定 `exclude` 参数，所有在此数组中的对象不会收到消息。\n   注意：tell_room()函数输出的最大长度为__LARGEST_PRINTABLE_STRING__，默认为65535字节（utf8编码一个汉字占3个字节）。",
+  "reference": [
+    "message",
+    "write",
+    "shout",
+    "say",
+    "tell_object"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "void tell_room(object | string room, string | object | int | float msg, void | object | object *exclude)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "room",
+          "type": "object | string"
+        },
+        {
+          "name": "msg",
+          "type": "string | object | int | float"
+        },
+        {
+          "name": "exclude",
+          "type": "void | object | object *"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

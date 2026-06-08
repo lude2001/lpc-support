@@ -1,0 +1,26 @@
+{
+  "name": "wizardp",
+  "summary": "如果玩家 `arg` 执行过 enable_wizard() 外部函数返回 1 。",
+  "reference": [
+    "disable_wizard",
+    "enable_wizard"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int wizardp( object arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

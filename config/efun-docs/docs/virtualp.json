@@ -1,0 +1,33 @@
+{
+  "name": "virtualp",
+  "summary": "如果参数 `arg` 是对象并且有 O_VIRTUAL 标志(flag)，返回 1。由主控对象（master()）中 compile_object() 方法创造出来的对象，驱动程序都会设置 O_VIRTUAL 标志。\n   如果不指定对象，默认为this_object()。",
+  "reference": [
+    "clonep",
+    "userp",
+    "wizardp",
+    "objectp",
+    "new",
+    "clone_object",
+    "call_other",
+    "file_name"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "int virtualp( object arg | void)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "name": "present",
+  "summary": "如果第一个参数是字符串，且第二个参数省略，则在当前对象的环境中查找对象，通过调用对象的 id() 方法进行匹配，返回 1 表示匹配成功。\n\n   如果第一个参数是字符串，且第二个参数是对象，则仅在该对象的 inventory（物品栏）中查找目标，使用与上述相同的匹配策略。\n\n   \"foo 1\" 表示 inventory 中的第一个 \"foo\" 对象。inventory 中的“第一个”指的是最后移入的对象。\n\n   如果第一个参数是对象，且第二个参数省略，则检查该对象是否在当前对象的 inventory 中，或作为同级对象存在于当前对象环境的 inventory 中，找到时返回该对象的父对象。\n\n   如果第一个参数是对象，且第二个参数是对象，则检查 object1 是否在 object2 的 inventory 中，存在则返回 object1。\n\n   如果对象被隐藏（通过 set_hide() 设置），且当前对象不可隐藏，则返回 0。\n\npresent() 函数用法说明\n\n参数1\n\n参数2\n\n功能说明\n\n字符串\n省略\n在当前对象的环境中查找对象，通过调用对象的 id() 方法进行匹配，返回 1 表示匹配成功。\n\n字符串\n对象\n仅在指定对象的 inventory（物品栏）中查找目标，使用与上述相同的匹配策略。\n\n对象\n省略\n检查该对象是否在当前对象的 inventory 中，或作为同级对象存在于当前对象环境的 inventory 中，找到时返回该对象的父对象。\n\n对象\n对象\n检查 object1 是否在 object2 的 inventory 中，存在则返回 object1。\n\n任意\n任意\n如果对象通过 set_hide() 隐藏，且当前对象不可隐藏，则返回 0。",
+  "reference": [
+    "move_object",
+    "environment",
+    "id"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "object present( object | string str )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "object | string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "object present( object | string str, object ob )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "object | string"
+        },
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

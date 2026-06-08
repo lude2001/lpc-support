@@ -1,0 +1,29 @@
+{
+  "name": "set_config",
+  "summary": "set_config 内置函数",
+  "reference": [
+    "get_config"
+  ],
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "void set_config(int, mixed)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "int"
+        },
+        {
+          "name": "arg2",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

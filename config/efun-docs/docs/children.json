@@ -1,0 +1,27 @@
+{
+  "name": "children",
+  "summary": "这个外部函数返回一个文件名为 `name` 的对象及其所有复制对象组成的数组。一个使用 children() 的示例是查找所有玩家对象：\n\n   object *list;\n\n   list = children(\"/obj/user\");\n\n   这让你能找到所有玩家（包括在线玩家和断线玩家，而 users() 外部函数仅报告在线玩家）。",
+  "reference": [
+    "deep_inherit_list",
+    "inherit_list",
+    "objects"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "object *children( string name )",
+      "returnType": "object *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

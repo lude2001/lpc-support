@@ -1,0 +1,27 @@
+{
+  "name": "throw",
+  "summary": "throw() 外部函数常用来在对象中强制报错，throw() 和 catch() 联合使用可以让程序在运行时报错时选择显示哪种错误消息。以下是典型用法：\n\nvoid create()\n{\n    string err;\n\n    err = catch\n    {\n        throw(\"出错啦！\");\n    };\n\n    debug_message(err);\n}",
+  "reference": [
+    "catch",
+    "error",
+    "error_handler"
+  ],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "void throw(mixed)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "query_privs",
+  "summary": "query_privs 内置函数",
+  "details": "NAME\nquery_privs() - return the privs string for an object\n\nSYNOPSIS\nstring query_privs( object ob | void );\n\nDESCRIPTION\nReturns the privs string for an object.  The privs string is determined\n   at compile time via a call to privs_file() in the  master  object,  and\n   changeable via the set_privs() efun.\n\n   This efun is only available if PRIVS is defined at driver compile time.\n\nSEE ALSO\nprivs_file(4), set_privs(3)",
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "query_privs()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

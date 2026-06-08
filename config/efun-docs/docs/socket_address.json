@@ -1,0 +1,35 @@
+{
+  "name": "socket_address",
+  "summary": "socket_address()  返回 efun socket `s` 的远程连接地址，返回地址格式类似：\"127.0.0.1 23\"",
+  "details": "Return semantics:\n成功返回地址字符串，失败返回一个空字符串。",
+  "reference": [
+    "socket_connect",
+    "socket_create",
+    "resolve",
+    "query_host_name",
+    "query_ip_name",
+    "query_ip_number"
+  ],
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "string socket_address( int s | object ob, int default: 0 )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "int s | object"
+        },
+        {
+          "name": "arg2",
+          "type": "int default: 0"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "cache_stats",
+  "summary": "这个外部函数仅在驱动程序编译时定义过了 CACHE_STATS 时有效。这个函数会输出 call_other() 的缓存信息。",
+  "reference": [
+    "opcprof",
+    "mud_status"
+  ],
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "string cache_stats( void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

@@ -195,6 +195,115 @@ describe('DirectSymbolDefinitionResolver', () => {
         ));
     });
 
+    test('returns header owner context function and global definitions', async () => {
+        const document = createDocument('D:/workspace/adm/daemons/combat/combat_do_attack.h', [
+            'void demo() {',
+            '    calculate_hit_power(me);',
+            '    winner_msg[0];',
+            '}'
+        ].join('\n'));
+        const support = createAnalysisBackedSupport([document]);
+        const resolver = new DirectSymbolDefinitionResolver({
+            support,
+            efunDocsManager: { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            semanticAdapter: {
+                resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
+            },
+            headerOwnerContextService: {
+                resolveOwnerContext: jest.fn(async () => ({
+                    isAmbiguous: false,
+                    macros: [],
+                    types: [],
+                    functions: [{
+                        name: 'calculate_hit_power',
+                        returnType: 'int',
+                        parameters: [],
+                        modifiers: [],
+                        sourceUri: 'file:///D:/workspace/adm/daemons/combat/combat_attack_power.h',
+                        range: new vscode.Range(84, 0, 84, 35),
+                        origin: 'include'
+                    }],
+                    fileGlobals: [{
+                        name: 'winner_msg',
+                        dataType: 'string *',
+                        sourceUri: 'file:///D:/workspace/adm/daemons/combat/combat_status_msg.h',
+                        range: new vscode.Range(8, 0, 8, 22)
+                    }]
+                }))
+            }
+        } as any);
+
+        const functionResult = await resolver.resolve(
+            document,
+            new vscode.Position(1, '    calculate_hit'.length),
+            'calculate_hit_power',
+            'D:/workspace'
+        );
+        const globalResult = await resolver.resolve(
+            document,
+            new vscode.Position(2, '    winner'.length),
+            'winner_msg',
+            'D:/workspace'
+        );
+
+        expect(functionResult).toEqual(new vscode.Location(
+            vscode.Uri.parse('file:///D:/workspace/adm/daemons/combat/combat_attack_power.h'),
+            new vscode.Range(84, 0, 84, 35)
+        ));
+        expect(globalResult).toEqual(new vscode.Location(
+            vscode.Uri.parse('file:///D:/workspace/adm/daemons/combat/combat_status_msg.h'),
+            new vscode.Range(8, 0, 8, 22)
+        ));
+    });
+
+    test('prefers current visible variables over header owner context definitions', async () => {
+        const document = createDocument('D:/workspace/adm/daemons/combat/combat_do_attack.h', [
+            'void demo() {',
+            '    int winner_msg;',
+            '    winner_msg = 1;',
+            '}'
+        ].join('\n'));
+        const support = createAnalysisBackedSupport([document]);
+        const ownerContextService = {
+            resolveOwnerContext: jest.fn(async () => ({
+                isAmbiguous: false,
+                macros: [],
+                types: [],
+                functions: [],
+                fileGlobals: [{
+                    name: 'winner_msg',
+                    dataType: 'string *',
+                    sourceUri: 'file:///D:/workspace/adm/daemons/combat/combat_status_msg.h',
+                    range: new vscode.Range(8, 0, 8, 22)
+                }]
+            }))
+        };
+        const resolver = new DirectSymbolDefinitionResolver({
+            support,
+            efunDocsManager: { getSimulatedDoc: jest.fn().mockReturnValue(undefined) } as any,
+            semanticAdapter: {
+                resolveVisibleVariableLocation: jest.fn().mockReturnValue({
+                    uri: 'file:///D:/workspace/adm/daemons/combat/combat_do_attack.h',
+                    range: {
+                        start: { line: 1, character: 8 },
+                        end: { line: 1, character: 18 }
+                    }
+                })
+            },
+            headerOwnerContextService: ownerContextService
+        } as any);
+
+        const result = await resolver.resolve(
+            document,
+            new vscode.Position(2, '    winner'.length),
+            'winner_msg',
+            'D:/workspace'
+        );
+
+        expect(result?.range).toEqual(new vscode.Range(1, 8, 1, 18));
+        expect(ownerContextService.resolveOwnerContext).not.toHaveBeenCalled();
+    });
+
     test('returns visible variable definitions before inherited fallback', async () => {
         const support = createSupport();
         const resolver = new DirectSymbolDefinitionResolver({

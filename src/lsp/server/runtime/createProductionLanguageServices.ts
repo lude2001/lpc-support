@@ -12,6 +12,8 @@ import { CallableDocRenderer } from '../../../language/documentation/CallableDoc
 import { createDefaultFunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import { CompletionContextAnalyzer } from '../../../completion/completionContextAnalyzer';
 import type { LanguageFeatureServices } from '../../../language/contracts/LanguageFeatureServices';
+import { DefaultDiagnosticSymbolResolver } from '../../../diagnostics/semantic/DiagnosticSymbolResolver';
+import { HeaderOwnerContextService } from '../../../language/shared/HeaderOwnerContextService';
 import {
     WorkspaceDocumentPathSupport,
     createVsCodeWorkspaceDocumentHost
@@ -143,7 +145,15 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         scopedCompletionSupport
     });
     const codeActionsService = createLanguageCodeActionService(analysisService);
-    const { diagnosticsService } = createDiagnosticsStack(analysisService);
+    const headerOwnerContextService = new HeaderOwnerContextService(documentPathSupport, analysisService);
+    const diagnosticSymbolResolver = new DefaultDiagnosticSymbolResolver({
+        analysisService,
+        pathSupport: documentPathSupport,
+        projectSymbolIndex,
+        efunDocsManager,
+        headerOwnerContextResolver: headerOwnerContextService
+    });
+    const { diagnosticsService } = createDiagnosticsStack(analysisService, { symbolResolver: diagnosticSymbolResolver });
     const formattingService = createLanguageFormattingService(new FormattingService());
     const objectHoverService = createDefaultObjectInferenceLanguageHoverService(
         objectInferenceService,
@@ -162,7 +172,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         objectHoverService,
         {
             analysisService,
-            efunHoverService: new EfunLanguageHoverService(efunDocsManager, analysisService, callableDocRenderer)
+            efunHoverService: new EfunLanguageHoverService(efunDocsManager, analysisService, callableDocRenderer),
+            headerOwnerContextService
         }
     );
     const definitionService = new AstBackedLanguageDefinitionService(
@@ -174,7 +185,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
             analysisService,
             scopedMethodResolver,
             host: workspaceDocumentHost,
-            pathSupport: documentPathSupport
+            pathSupport: documentPathSupport,
+            headerOwnerContextService
         }
     );
     const referenceService = createDefaultAstBackedLanguageReferenceService({
@@ -229,6 +241,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         formattingService,
         navigationService,
         onWorkspaceConfigSync: async () => {
+            headerOwnerContextService.clear();
             await efunDocsManager.refreshWorkspaceState();
         },
         signatureHelpService,
@@ -248,8 +261,7 @@ export function resolveServerExtensionPath(startDir: string = __dirname): string
 
     while (true) {
         const packageJsonPath = path.join(currentDir, 'package.json');
-        const efunDocsPath = path.join(currentDir, 'config', 'efun-docs.json');
-        if (fs.existsSync(packageJsonPath) && fs.existsSync(efunDocsPath)) {
+        if (fs.existsSync(packageJsonPath) && hasBundledEfunDocs(currentDir)) {
             return currentDir;
         }
 
@@ -260,4 +272,14 @@ export function resolveServerExtensionPath(startDir: string = __dirname): string
 
         currentDir = parentDir;
     }
+}
+
+function hasBundledEfunDocs(extensionRoot: string): boolean {
+    const splitDocsDir = path.join(extensionRoot, 'config', 'efun-docs', 'docs');
+    const splitCategoriesPath = path.join(extensionRoot, 'config', 'efun-docs', 'categories.json');
+    if (fs.existsSync(splitCategoriesPath) && fs.existsSync(splitDocsDir)) {
+        return true;
+    }
+
+    return fs.existsSync(path.join(extensionRoot, 'config', 'efun-docs.json'));
 }

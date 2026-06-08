@@ -1,0 +1,45 @@
+{
+  "name": "rtrim",
+  "summary": "移除字符串左侧的空白字符或其他预定义字符。\n\n   这是 FLUFFOS 新增的外部函数，在 MUDOS 中请用模拟外部函数实现。",
+  "reference": [
+    "trim",
+    "ltrim"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string rtrim( string str )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "string rtrim( string str, string charlist )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "charlist",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

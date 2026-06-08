@@ -1,0 +1,29 @@
+{
+  "name": "asin",
+  "summary": "Returns the arcsine of its argument, 'f', measured in radians.",
+  "reference": [
+    "acos",
+    "atan",
+    "cos",
+    "sin",
+    "tan"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float asin( float f )",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

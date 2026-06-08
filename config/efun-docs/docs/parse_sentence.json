@@ -1,0 +1,37 @@
+{
+  "name": "parse_sentence",
+  "summary": "This efun calls the driver parser and tells it to parse and execute the command contained in the given string. The efun may return an integer error code, or a string error message. If a string message is returned, it should be displayed to the player. The integer codes are:\n\n   * 1: command has been processed ok\n   * 0: no matching command was found, no processing done\n   * -1: A matching command was found but none of its rules were matched.\n   * -2: A rule made sense but all \"can\" or \"direct\" applies returned 0.\n\n   * Parsing package changes:\n       . parse_sentence has an optional 3rd and 4th arg.\n       . The 3rd arg an array of objects to use in the parse instead of the inventory of the environment of the user.  Nested arrays indicate containment, i.e. ({ ob1, ({ object inside ob1 }), ob2, ob3, ({ first ob in ob3, second ob in ob3 }), ... })\n       . The 4th argument is a mapping of string -> object which can be used to supply nicknames and similar things.  For this parse, the 'object' acts as if 'string' were returned by pc_id_list(). Entries that do not correspond to objects involved in the current parse are ignored.",
+  "reference": [
+    "add_action"
+  ],
+  "category": "语法分析相关函数（Parsing）",
+  "signatures": [
+    {
+      "label": "mixed parse_sentence(string, void | int, void | object *, void | mapping)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        },
+        {
+          "name": "int",
+          "type": "void |"
+        },
+        {
+          "name": "arg3",
+          "type": "void | object *"
+        },
+        {
+          "name": "mapping",
+          "type": "void |"
+        }
+      ],
+      "arity": {
+        "min": 4,
+        "max": 4
+      }
+    }
+  ]
+}

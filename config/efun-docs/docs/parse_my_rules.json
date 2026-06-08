@@ -1,0 +1,30 @@
+{
+  "name": "parse_my_rules",
+  "summary": "parse_my_rules 内置函数",
+  "category": "语法分析相关函数（Parsing）",
+  "signatures": [
+    {
+      "label": "mixed parse_my_rules(object, string, void | int)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "object"
+        },
+        {
+          "name": "arg2",
+          "type": "string"
+        },
+        {
+          "name": "int",
+          "type": "void |"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

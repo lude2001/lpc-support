@@ -1,0 +1,17 @@
+{
+  "name": "flush_messages",
+  "summary": "flush_messages 内置函数",
+  "details": "NAME\nflush_messages - send all pending messages to a user\n\nSYNOPSIS\nint flush_messages();\n   int flush_messages(object user);\n\nDESCRIPTION\nNormally, messages are queued, then sent all at once to minimize the number of packets required. This efun forces all pending messages to be written immediately. If no user is specified, messages for ALL users are flushed.",
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "flush_messages()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

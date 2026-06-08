@@ -126,8 +126,12 @@ export class EfunDocsManager {
         return this.simulatedEfunScanner.get(funcName);
     }
 
-    public async getSimulatedDocAsync(funcName: string): Promise<CallableDoc | undefined> {
-        return this.simulatedEfunScanner.getAsync(funcName);
+    public async getSimulatedDocAsync(funcName: string, document?: vscode.TextDocument): Promise<CallableDoc | undefined> {
+        return this.simulatedEfunScanner.getAsync(funcName, document);
+    }
+
+    public async ensureWorkspaceStateCurrent(document?: vscode.TextDocument): Promise<void> {
+        await this.simulatedEfunScanner.ensureWorkspaceStateCurrent(document);
     }
 
     public async refreshWorkspaceState(): Promise<void> {
@@ -155,6 +159,12 @@ function materializeCallableSignature(signature: StructuredEfunSignature): Calla
     return {
         label: signature.label,
         returnType: signature.returnType,
+        arity: signature.arity
+            ? {
+                min: signature.arity.min,
+                max: signature.arity.max
+            }
+            : undefined,
         parameters: signature.parameters.map(materializeCallableParameter),
         isVariadic: signature.isVariadic,
         rawSyntax: signature.label

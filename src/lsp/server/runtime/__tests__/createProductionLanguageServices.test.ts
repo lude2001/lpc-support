@@ -550,7 +550,12 @@ describe('createProductionLanguageServices', () => {
             const services = createProductionLanguageServices();
 
             expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
-            expect(createDiagnosticsStack).toHaveBeenCalledWith(analysisService);
+            expect(createDiagnosticsStack).toHaveBeenCalledWith(
+                analysisService,
+                expect.objectContaining({
+                    symbolResolver: expect.anything()
+                })
+            );
             expect(services.diagnosticsService).toBe(diagnosticsStack.diagnosticsService);
         });
     });
@@ -563,11 +568,11 @@ describe('createProductionLanguageServices', () => {
             const srcRuntimeDir = path.join(extensionRoot, 'src', 'lsp', 'server', 'runtime');
             const distRuntimeDir = path.join(extensionRoot, 'dist', 'lsp');
 
-            fs.mkdirSync(path.join(extensionRoot, 'config'), { recursive: true });
+            fs.mkdirSync(path.join(extensionRoot, 'config', 'efun-docs', 'docs'), { recursive: true });
             fs.mkdirSync(srcRuntimeDir, { recursive: true });
             fs.mkdirSync(distRuntimeDir, { recursive: true });
             fs.writeFileSync(path.join(extensionRoot, 'package.json'), '{"name":"lpc-support"}', 'utf8');
-            fs.writeFileSync(path.join(extensionRoot, 'config', 'efun-docs.json'), '{"docs":{},"categories":{}}', 'utf8');
+            fs.writeFileSync(path.join(extensionRoot, 'config', 'efun-docs', 'categories.json'), '{}', 'utf8');
 
             expect(moduleUnderTest.resolveServerExtensionPath(srcRuntimeDir)).toBe(extensionRoot);
             expect(moduleUnderTest.resolveServerExtensionPath(distRuntimeDir)).toBe(extensionRoot);

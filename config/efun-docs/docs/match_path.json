@@ -1,0 +1,17 @@
+{
+  "name": "match_path",
+  "summary": "match_path 内置函数",
+  "details": "NAME\nmatch_path() - search a mapping for a path\n\nSYNOPSIS\nmixed match_path( mapping m, string str );\n\nDESCRIPTION\nmatch_path()  searches a mapping for a path.  Each key is assumed to be a string.  The value is  completely  arbitrary.   The  efun  finds the largest matching path in the mapping.  Keys ended in '/' are assumed to match paths with character that follow the '/', i.e. / is  a wildcard for anything below this directory.\n\n示例\nvoid do_tests()\n   {\n       mapping m = ([\"foo/\":1, \"bar\":2, \"bazz/foo\":3, \"foo/bar/bazz\":4]);\n\n       ASSERT(!match_path(m, \"kajdfj\"));\n       ASSERT(match_path(m, \"bar\") == 2);\n       ASSERT(match_path(m, \"bar/\") == 2);\n       ASSERT(match_path(m, \"bazz//foo\") == 3);\n       ASSERT(match_path(m, \"bazz/foo//\") == 3);\n       ASSERT(match_path(m, \"foo/bar\") == 1);\n       ASSERT(match_path(m, \"foo/bar/bazz\") == 4);\n   }\n\nAUTHOR\nCygnus",
+  "category": "映射相关函数（Mappings）",
+  "signatures": [
+    {
+      "label": "match_path()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

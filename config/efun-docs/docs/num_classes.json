@@ -1,0 +1,26 @@
+{
+  "name": "num_classes",
+  "summary": "FluffOS 1.33新增efun，此外部函数对象 `ob` 中定义的 class 类型变量的数量。",
+  "reference": [
+    "classes",
+    "classp"
+  ],
+  "category": "结构体（类）相关函数（Class）",
+  "signatures": [
+    {
+      "label": "int num_classes(object ob)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

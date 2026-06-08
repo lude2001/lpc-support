@@ -1,0 +1,28 @@
+{
+  "name": "ceil",
+  "summary": "返回最接近的大于或等于 f 的整数（以浮点数形式），如：4.1 返回 5.000000。",
+  "reference": [
+    "floor",
+    "to_int",
+    "to_float",
+    "round"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float ceil( float f )",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

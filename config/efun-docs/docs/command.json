@@ -1,0 +1,27 @@
+{
+  "name": "command",
+  "summary": "让当前对象执行玩家命令 `str`，如果执行失败返回0，否则返回一个代表执行指令消耗时间的数值，数值越大代表越耗时。",
+  "reference": [
+    "add_action",
+    "enable_commands",
+    "commands"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int command( string str)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

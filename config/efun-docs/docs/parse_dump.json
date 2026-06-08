@@ -1,0 +1,17 @@
+{
+  "name": "parse_dump",
+  "summary": "parse_dump 内置函数",
+  "category": "语法分析相关函数（Parsing）",
+  "signatures": [
+    {
+      "label": "string parse_dump()",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

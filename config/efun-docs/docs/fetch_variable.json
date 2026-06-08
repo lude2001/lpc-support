@@ -1,0 +1,34 @@
+{
+  "name": "fetch_variable",
+  "summary": "返回对象 `ob` 中定义的全局变量 `arg` 的值，如果不指定对象 `ob`，默认为 this_object()。请注意：变量 `arg` 必须是指定对象中已定义的，且不能是private类型。\n\n   此外部函数要求驱动程序编译是定义了 PACKAGE_CONTRIB 包。\n\n   此外部函数存在安全隐患，最好通过sefun重写做安全检查。",
+  "details": "示例\nint weight = fetch_variable( \"weight\", this_player() ) ;\n   printf(\"%d\\n\", weight\") ;",
+  "reference": [
+    "restore_variable",
+    "store_variable",
+    "restore_object",
+    "variables"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "mixed fetch_variable(string arg, object ob | void)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "string"
+        },
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 2
+      }
+    }
+  ]
+}

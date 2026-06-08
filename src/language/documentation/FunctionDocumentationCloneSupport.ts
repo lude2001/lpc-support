@@ -24,6 +24,7 @@ export function cloneCallableDoc(callableDoc: CallableDoc): CallableDoc {
         ...callableDoc,
         signatures: callableDoc.signatures.map((signature) => ({
             ...signature,
+            arity: signature.arity ? { ...signature.arity } : undefined,
             parameters: signature.parameters.map((parameter) => ({ ...parameter }))
         })),
         returns: callableDoc.returns ? { ...callableDoc.returns } : undefined,

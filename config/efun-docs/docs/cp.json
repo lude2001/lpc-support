@@ -1,0 +1,33 @@
+{
+  "name": "cp",
+  "summary": "复制 文件 `src` 到 `dst`。",
+  "details": "Return semantics:\n复制成功返回 1，复制失败返回负数。",
+  "reference": [
+    "rm",
+    "rmdir",
+    "rename",
+    "link"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "int cp( string src, string dst )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "src",
+          "type": "string"
+        },
+        {
+          "name": "dst",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

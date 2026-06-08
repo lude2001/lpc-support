@@ -44,7 +44,7 @@ function toLanguageDiagnosticArray(diagnostics: readonly vscode.Diagnostic[]): L
     return diagnostics.map(toLanguageDiagnostic);
 }
 
-function toHostDocument(document: { uri: string; version: number; getText(): string }): vscode.TextDocument {
+function toHostDocument(document: { uri: string | vscode.Uri; version: number; getText(): string }): vscode.TextDocument {
     const text = document.getText();
     const lines = text.split(/\r?\n/);
     const lineStarts = [0];
@@ -60,9 +60,13 @@ function toHostDocument(document: { uri: string; version: number; getText(): str
         return Math.min(lineStart + position.character, text.length);
     };
 
+    const uri = typeof document.uri === 'string'
+        ? vscode.Uri.parse(document.uri)
+        : document.uri;
+
     return {
-        uri: vscode.Uri.parse(document.uri),
-        fileName: vscode.Uri.parse(document.uri).fsPath || document.uri,
+        uri,
+        fileName: uri.fsPath || uri.toString(),
         languageId: 'lpc',
         version: document.version,
         lineCount: lines.length,
@@ -128,7 +132,7 @@ type DiagnosticsAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>
 
 function toLanguageDiagnosticsAnalysis(
     analysisService: DiagnosticsAnalysisService,
-    document: { uri: string; version: number; getText(): string }
+    document: { uri: string | vscode.Uri; version: number; getText(): string }
 ): LanguageDiagnosticsAnalysis & { parsed?: ParsedDocument } {
     const hostDocument = toHostDocument(document);
     const analysis = analysisService.parseDocument(hostDocument);

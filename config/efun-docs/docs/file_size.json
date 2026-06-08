@@ -1,0 +1,27 @@
+{
+  "name": "file_size",
+  "summary": "file_size() 返回文件 `file` 的大小（字节），如果文件不存在或你无权读取返回　-1，如果 `file` 是一个目录返回 -2。",
+  "reference": [
+    "stat",
+    "get_dir",
+    "file_length"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "int file_size( string file )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "file",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

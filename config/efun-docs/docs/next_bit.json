@@ -1,0 +1,26 @@
+{
+  "name": "next_bit",
+  "summary": "next_bit 内置函数",
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "int next_bit(string, int)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        },
+        {
+          "name": "arg2",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

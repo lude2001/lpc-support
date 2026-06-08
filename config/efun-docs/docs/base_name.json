@@ -1,0 +1,50 @@
+{
+  "name": "base_name",
+  "summary": "返回指定对象的基本文件名（不包括 `#` 以后的部分）。如果不指定参数，默认对象为 this_object()。\n\n   这是 FluffOS 1.13 新增的外部函数，在 MUDOS 中请用模拟外部函数实现。",
+  "reference": [
+    "file_name"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "string base_name( void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    },
+    {
+      "label": "string base_name(string text)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "string base_name(object ob)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "reset_eval_cost",
+  "summary": "reset_eval_cost() resets the evaluation cost remaining to the maximum evaluation cost.\n\n   此函数相当于set_eval_limit(int default: 0);",
+  "reference": [
+    "catch",
+    "error",
+    "throw",
+    "error_handler",
+    "eval_cost",
+    "set_eval_limit"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "int reset_eval_cost()",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

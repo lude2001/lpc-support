@@ -1,0 +1,17 @@
+{
+  "name": "query_ed_mode",
+  "summary": "query_ed_mode 内置函数",
+  "details": "NAME\nquery_ed_mode() - find out the status of the current ed session\n\nSYNOPSIS\nint query_ed_mode()\n\nDESCRIPTION\nThis efun is available only if __OLD_ED__ is not defined.\n\n   Finds  the  status  of  the  ed  session for the current object, if one exists.  It returns:\n\n        0  - the current object is at a normal ed prompt (':')\n       -1  - the current object isn't in ed\n       -2  - the current object is at the more prompt in the middle of help\n       >0  - the object is at a prompt for a line.  The  number  is  the  line number.",
+  "category": "在线编辑相关函数（ED）",
+  "signatures": [
+    {
+      "label": "query_ed_mode()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

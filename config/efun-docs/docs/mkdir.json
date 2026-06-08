@@ -1,0 +1,27 @@
+{
+  "name": "mkdir",
+  "summary": "创建目录 `directory`，成功返回 1，失败返回 0 。",
+  "reference": [
+    "rm",
+    "rmdir",
+    "link"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "int mkdir( string directory )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "directory",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

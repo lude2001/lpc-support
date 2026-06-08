@@ -1,0 +1,54 @@
+{
+  "name": "implode",
+  "summary": "第一种模式下，使用字符串 `del` 连接数组 `arr` 中的每个字符串并返回合并后的字符串。数组中仅字符串类型的数据会被处理，非字符串类型的元素会被忽略。\n   第二种模式下，数组不限于字符串类型，会把参数`x`或函数`func`的返回值做第1个参数，数组元素做第2个参数传给函数处理并以返回值为结果继续循环至数组最后一个元素。",
+  "reference": [
+    "explode",
+    "explode_reversible",
+    "sprintf"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "mixed implode(mixed *arr, string del)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        },
+        {
+          "name": "del",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "label": "mixed implode(mixed *arr, function func, void | mixed x)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        },
+        {
+          "name": "func",
+          "type": "function"
+        },
+        {
+          "name": "x",
+          "type": "void | mixed"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

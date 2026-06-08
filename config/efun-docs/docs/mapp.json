@@ -1,0 +1,34 @@
+{
+  "name": "mapp",
+  "summary": "如果变量 `arg` 是映射类型返回 1。",
+  "reference": [
+    "stringp",
+    "pointerp",
+    "objectp",
+    "intp",
+    "bufferp",
+    "floatp",
+    "functionp",
+    "nullp",
+    "undefinedp",
+    "classp"
+  ],
+  "category": "映射相关函数（Mappings）",
+  "signatures": [
+    {
+      "label": "int mapp( mixed arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

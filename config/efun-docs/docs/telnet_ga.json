@@ -1,0 +1,17 @@
+{
+  "name": "telnet_ga",
+  "summary": "发送Telnet GA信号",
+  "details": "NAME\ntelnet_ga() - send an TELNET GA message\n\nSYNOPSIS\nvoid telnet_ga();\n\nDESCRIPTION\nif user is under telnet, then send an TELNET_IAC TELNET_GA sequence, useful for prompts that don't terminate with a newline character.\n\n   GA is \"go ahead\".  It says that we are at the end of a message.  A game client can use this to process a whole message at one time.  Network packets are subjected to MTU, maximum transmission unit, so if you have a size limit of 1000 bytes on the network layer, and you send 1500 bytes, then on the network layer it will send it as 1000 and then 500.  So your game client will get 1000 bytes and then it wants to know if it has gotten a whole message or if it is about to get the second part of a message that has 2 parts.  If you have some scripting that looks for a pattern, then you want to be able to see the pattern even if the network spreads it out over 2 packets.  So when your client gets a message without GA at the end, it might wait a moment to see if there is a second half to this packet before processing for pattern matches. So, servers usually attach a GA onto the end of your prompt so that a response to you typing a command always comes in with GA at the end, and I think FluffOS does that too.  If you want to send it at other times, like when the game notifies you of something that is not a response to you typing a command, you can use that function.\n\nSEE ALSO\ntelnet_nop(3)",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "telnet_ga()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

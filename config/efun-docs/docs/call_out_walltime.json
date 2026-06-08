@@ -1,0 +1,37 @@
+{
+  "name": "call_out_walltime",
+  "summary": "This efun is identical to call_out except it does not schedule the call on the game loop. Rather, in real seconds. The delay can be in seconds or fraction of a second.",
+  "reference": [
+    "remove_call_out",
+    "call_out_info",
+    "call_out",
+    "find_call_out"
+  ],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "int call_out_walltime( string | function fun, int | float delay, mixed arg ... )",
+      "returnType": "int",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "fun",
+          "type": "string | function"
+        },
+        {
+          "name": "delay",
+          "type": "int | float"
+        },
+        {
+          "name": "arg",
+          "type": "mixed",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": null
+      }
+    }
+  ]
+}

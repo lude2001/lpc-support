@@ -1,0 +1,28 @@
+{
+  "name": "receive",
+  "summary": "这个外部函数是驱动程序 add_message() 函数的界面，其目的是向当前对象显示消息。如果当前对象是玩家(interactive)返回 1，否则返回 0 。通常，receive() 应该在 receive_snoop() 或 receive_message() 中被呼叫。",
+  "reference": [
+    "catch_tell",
+    "receive_message",
+    "receive_snoop",
+    "message"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int receive( string | buffer message )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "message",
+          "type": "string | buffer"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

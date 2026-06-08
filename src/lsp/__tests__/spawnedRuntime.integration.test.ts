@@ -550,6 +550,84 @@ describe('spawned LSP runtime integration', () => {
         ]);
     }, 30000);
 
+    test('does not report configured simulated efun calls as undefined diagnostics', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-simulefun-call-diagnostics-'));
+        const configDir = path.join(workspaceRoot, 'config');
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const includeDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const sourcePath = path.join(workspaceRoot, 'adm', 'daemons', 'aoyid.c');
+
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'lpc-support.json'),
+            JSON.stringify({
+                version: 1,
+                configHellPath: path.join('config', 'config.dev')
+            }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(configDir, 'config.dev'),
+            [
+                'mudlib directory : ../',
+                'include directories : /include',
+                'simulated efun file : /adm/single/simul_efun'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(entryDir, 'simul_efun.c'),
+            [
+                '#include "/adm/simul_efun/object.c"',
+                '#include "/adm/simul_efun/chinese.c"'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(includeDir, 'object.c'),
+            [
+                '/**',
+                ' * @brief 生成绑定物品',
+                ' * @param string path 物品路径',
+                ' * @return object 物品',
+                ' */',
+                'object new_bind(string path) { return new(path); }'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(includeDir, 'chinese.c'),
+            [
+                '/**',
+                ' * @brief 数字转中文',
+                ' * @param int i 数字',
+                ' * @return string 中文数字',
+                ' */',
+                'string chinese_number(int i) { return ""; }'
+            ].join('\n'),
+            'utf8'
+        );
+        const source = [
+            'void demo() {',
+            '    object book = new_bind("/clone/aoyi_book/aoyi_book");',
+            '    string level = chinese_number(1);',
+            '}'
+        ].join('\n');
+        fs.writeFileSync(sourcePath, source, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+
+        const diagnosticsPromise = harness.waitForDiagnostics(uriFromPath(sourcePath));
+        await harness.openDocument(sourcePath, source);
+        const diagnostics = await diagnosticsPromise;
+
+        expect(diagnostics.filter((diagnostic) => diagnostic.code === 'lpc.undefinedFunction'))
+            .toEqual([]);
+    }, 30000);
+
     test('didOpen diagnostics do not inherit poisoned simulated-efun parse state for included helper files', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-simulefun-diagnostics-'));
         const entryDir = path.join(workspaceRoot, 'adm', 'single');

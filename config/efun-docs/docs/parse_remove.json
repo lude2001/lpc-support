@@ -1,0 +1,22 @@
+{
+  "name": "parse_remove",
+  "summary": "parse_remove 内置函数",
+  "category": "语法分析相关函数（Parsing）",
+  "signatures": [
+    {
+      "label": "void parse_remove(string)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

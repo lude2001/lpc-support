@@ -1,0 +1,26 @@
+{
+  "name": "opcprof",
+  "summary": "注意：需要驱动程序编译时 #define OPCPROF，FluffOS v2017 和 v2019 已移除这个外部函数。\n\n   This function dumps a list of statistics on each efunction and eoperator. If no argument is specified, then the information will be dumped to files named /OPCPROF.efun and /OPCPROF.eoper. If an argument is specified, then that name is used as the filename for the dump.",
+  "reference": [
+    "function_profile"
+  ],
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "void opcprof( string | void )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

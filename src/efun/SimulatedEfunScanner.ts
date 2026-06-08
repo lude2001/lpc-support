@@ -32,10 +32,10 @@ export class SimulatedEfunScanner {
         return this.docs.get(name);
     }
 
-    public async getAsync(name: string): Promise<CallableDoc | undefined> {
-        await this.ensureWorkspaceStateCurrent();
+    public async getAsync(name: string, document?: vscode.TextDocument): Promise<CallableDoc | undefined> {
+        await this.ensureWorkspaceStateCurrent(document);
         if (!this.hasLoadedWorkspaceState) {
-            await this.refreshWorkspaceState(true);
+            await this.refreshWorkspaceState(true, document);
         }
 
         return this.get(name);
@@ -53,8 +53,8 @@ export class SimulatedEfunScanner {
         return this.loadSimulatedEfuns();
     }
 
-    public async refreshWorkspaceState(force: boolean = false): Promise<void> {
-        const workspaceRoot = this.getWorkspaceRoot();
+    public async refreshWorkspaceState(force: boolean = false, document?: vscode.TextDocument): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot(document);
         if (!force && this.hasLoadedWorkspaceState && workspaceRoot === this.loadedWorkspaceRoot) {
             return;
         }
@@ -64,7 +64,7 @@ export class SimulatedEfunScanner {
         }
 
         const loadVersion = ++this.loadVersion;
-        const nextDocs = await this.collectSimulatedEfuns();
+        const nextDocs = await this.collectSimulatedEfuns(workspaceRoot);
         if (loadVersion !== this.loadVersion) {
             return;
         }
@@ -86,10 +86,10 @@ export class SimulatedEfunScanner {
         }
     }
 
-    private async collectSimulatedEfuns(): Promise<Map<string, CallableDoc>> {
+    private async collectSimulatedEfuns(resolvedWorkspaceRoot?: string): Promise<Map<string, CallableDoc>> {
         const docs = new Map<string, CallableDoc>();
 
-        const workspaceRoot = this.getWorkspaceRoot();
+        const workspaceRoot = resolvedWorkspaceRoot ?? this.getWorkspaceRoot();
         if (!workspaceRoot) {
             return docs;
         }
@@ -110,10 +110,10 @@ export class SimulatedEfunScanner {
         return docs;
     }
 
-    private async ensureWorkspaceStateCurrent(): Promise<void> {
-        const workspaceRoot = this.getWorkspaceRoot();
+    public async ensureWorkspaceStateCurrent(document?: vscode.TextDocument): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot(document);
         if (!this.hasLoadedWorkspaceState || workspaceRoot !== this.loadedWorkspaceRoot) {
-            await this.refreshWorkspaceState(true);
+            await this.refreshWorkspaceState(true, document);
         }
     }
 
@@ -284,8 +284,23 @@ export class SimulatedEfunScanner {
         return undefined;
     }
 
-    private getWorkspaceRoot(): string | undefined {
+    private getWorkspaceRoot(document?: vscode.TextDocument): string | undefined {
+        if (document) {
+            return vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath
+                ?? this.findWorkspaceRootContainingDocument(document);
+        }
+
         return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    }
+
+    private findWorkspaceRootContainingDocument(document: vscode.TextDocument): string | undefined {
+        const documentPath = path.normalize(document.uri.fsPath).toLowerCase();
+        return vscode.workspace.workspaceFolders
+            ?.map((folder) => folder.uri.fsPath)
+            .find((workspaceRoot) => {
+                const normalizedRoot = path.normalize(workspaceRoot).toLowerCase();
+                return documentPath === normalizedRoot || documentPath.startsWith(`${normalizedRoot}${path.sep}`);
+            });
     }
 
     private buildLineStarts(content: string): number[] {

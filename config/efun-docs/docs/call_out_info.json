@@ -1,0 +1,22 @@
+{
+  "name": "call_out_info",
+  "summary": "获取所有延迟呼叫中的函数信息，返回二维数组的格式，子数组包括 3 个元素：对象、函数、延迟时间。",
+  "reference": [
+    "call_out",
+    "find_call_out",
+    "remove_call_out"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "mixed *call_out_info()",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

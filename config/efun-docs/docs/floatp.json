@@ -1,0 +1,34 @@
+{
+  "name": "floatp",
+  "summary": "如果 `arg` 是一个浮点数返回 1，否则返回 0 。",
+  "reference": [
+    "mapp",
+    "stringp",
+    "pointerp",
+    "objectp",
+    "intp",
+    "bufferp",
+    "functionp",
+    "nullp",
+    "undefinedp",
+    "classp"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "int floatp( mixed arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "sha1",
+  "summary": "使用 SHA1 算法对字符串 `str` Hash运算。\n\n   此函数仅在编译驱动时定义了 `PACKAGE_SHA1` 有效。",
+  "details": "示例\nsha1(\"something\") = \"1af17e73721dbe0c40011b82ed4bb1a7dbe3ce29\"",
+  "reference": [
+    "hash"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string sha1(string str)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "string sha1(buffer bf)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "bf",
+          "type": "buffer"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

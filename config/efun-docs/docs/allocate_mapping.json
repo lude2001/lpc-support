@@ -1,0 +1,46 @@
+{
+  "name": "allocate_mapping",
+  "summary": "返回一个预分配了 `size` 个元素的映射变量，`size`大于等于0。\n\n   示例:\n   mapping x;\n   int y = 200;\n   x = allocate_mapping(y);\n\n   示例中 y 是映射 x 的初始大小。如果你已经确定映射有多少个元素，使用 allocate_mapping 初始化变量是首选方式。因为这样一次性分配所有空间的内存利用效率更高。如果你要使用映射存储 200 项资料，使用示例初始化是相当适合的。注意，以上示例并不代表只能存储 200 项资料，只是前 200 项资料能更有效的存储。\n\n   如果你需要从映射中删除大量的元素，使用 x = ([]) 来初始化映射比使用 allocate_mapping() 更好。因为在这种情况下 `size` 是无意义的， x= allocate_mapping(200); 的效果等于 x =([ ]);\n\n   allocate_mapping(array keys, mixed v):\n     - if v is an array, the returned array has keys 'keys' and values 'v' (like 3.2.x's mkmapping)\n     - if it is a function, the the mapping has keys 'keys' and values evaluate(v, key)\n     - otherwise, each key has the value 'v'",
+  "details": "示例\nallocate_mapping(0);\n// ([ ])\n\nallocate_mapping(25);\n// ([ ])\n\nallocate_mapping( ({ 1, 2, 3 }), ({ \"one\", \"two\", \"three\" }) );\n// ([ 1 : \"one\", 2 : \"two\", 3 : \"three\" ])\n\nallocate_mapping( users(), (: $1->query_name() :));\n// ([\n//     OBJ(karahd /std/user#9) : \"Karahd\",\n//     OBJ(gesslar /std/user#2) : \"Gesslar\"\n// ])\n\nallocate_mapping( ({ \"apple\", \"banana\", \"pear\" }), 25);\n// ([ \"pear\" : 25, \"apple\" : 25, \"banana\" : 25 ])",
+  "reference": [
+    "map_delete",
+    "allocate"
+  ],
+  "category": "映射相关函数（Mappings）",
+  "signatures": [
+    {
+      "label": "mapping allocate_mapping(int size)",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "size",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "mapping allocate_mapping(mixed *key, mixed value)",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "key",
+          "type": "mixed *"
+        },
+        {
+          "name": "value",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

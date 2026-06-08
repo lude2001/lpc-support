@@ -1,0 +1,35 @@
+{
+  "name": "functionp",
+  "summary": "如果 `arg` 是函数指针返回非零针，否则返回0。函数指针是函数类型的变量。\n   如：function f = (: this_player(), \"query\" :);\n   或：function f = (: write, \"Hello, world!\\n\" :);\n\n   返回值为驱动程序 \"include/function.h\" 中定义的函数指针类型。\n\n   function pointer type        value\n   ---------------------        -----\n   call_other                   FP_CALL_OTHER\n   lfun                         FP_LOCAL\n   efun                         FP_EFUN\n   simul_efun                   FP_SIMUL\n   functional                   FP_FUNCTIONAL\n\n   此外，在某些情况下会有以下值：\n   (有参数)                  FP_HAS_ARGUMENTS\n   (创建函数的对象被摧毁)     FP_OWNER_DESTED\n   (无法被绑定)              FP_NOT_BINDABLE\n\n   最后一组值为位元值（bit values），可以用来做位运算测试，FP_MASK 可以忽略某些位测试函数指针的基本型态。\n\n   示例:\n\n   测试一个函数指针是否是外部函数（efun）指针：\n\n   if ((functionp(f) & FP_MASK) == FP_EFUN) ...\n\n   测试函数是否有参数：\n\n   if (functionp(f) & FP_HAS_ARGUMENTS) ...\n\n   <function.h>头文件具体内容如下：\n\n/* codes returned by the functionp() efun */\n\n#define FP_LOCAL 2\n#define FP_EFUN 3\n#define FP_SIMUL 4\n#define FP_FUNCTIONAL 5\n\n/* internal use */\n#define FP_G_VAR 6\n#define FP_L_VAR 7\n#define FP_ANONYMOUS 8\n\n/* additional flags */\n#define FP_MASK 0x0f\n#define FP_HAS_ARGUMENTS 0x10\n#define FP_OWNER_DESTED 0x20\n#define FP_NOT_BINDABLE 0x40",
+  "reference": [
+    "mapp",
+    "stringp",
+    "pointerp",
+    "objectp",
+    "intp",
+    "bufferp",
+    "floatp",
+    "nullp",
+    "undefinedp",
+    "virtualp",
+    "bind"
+  ],
+  "category": "函数相关函数（Functions）",
+  "signatures": [
+    {
+      "label": "int functionp( mixed arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

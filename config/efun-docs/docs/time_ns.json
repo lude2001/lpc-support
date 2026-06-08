@@ -1,0 +1,17 @@
+{
+  "name": "time_ns",
+  "summary": "time_ns 内置函数",
+  "details": "NAME\ntime_ns() - return the number of nanoseconds since January 1, 1970\n\nSYNOPSIS\nint time_ns( void );\n\nDESCRIPTION\nReturn the number of nanoseconds since midnight (GMT) January 1, 1970.\n\n   注意：这是202年5月30日 3478cc2 分支新增efun。\n\nSEE ALSO\ntime(3), ctime(3), localtime(3), time_expression(3), uptime(3), perf_counter_ns(3)",
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "time_ns()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

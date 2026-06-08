@@ -1,0 +1,41 @@
+{
+  "name": "sscanf",
+  "summary": "以格式 `fmt` 分析字符串 `str`，`fmt` 可以包含使用 `%d`（或 `%x`）或 `%s` 分隔的字符串，每一个 `%d` 和 `%s` 按顺序对应一个变量参数 `var1`、`var2`...。`%d` 读入整数到变量，`%s` 读入字符串到变量。* 也可以用在格式定义符中（如 %*d 和 %*s），表示忽略对应的内容（不分配给变量）。LPC语言中的 sscanf() 函数和C语言中的同名函数功能类似，但又稍有不同，一方面不需要像C语言一样对普通变量使用取地址运算符 &，另一方面在LPC语言中 sscanf(str, \"%s %s\",  str1,  str2) 会把第一个单词分配给变量str1，剩余部分分配给str2，而在C语言中str2只会是第二个单词。请注意 `%s%s` 是不能使用的。\n\n   返回值是匹配字符串的格式定义符数量。\n\nSpecifiers:\n       %s          -   match a string\n       %d          -   match an integer\n       %f          -   match a float\n       %x          -   match a base 16 number and convert to base 10\n       %(regexp)   -   match a regexp pattern\n\n   The \"*\" may be used in a specifier (e.g. \"%*s\") to skip over a match in\n   the input string and not assign it to a function argument.   A \"%%\" may\n   be used to match the \"%\" character,  which will also be skipped over in\n   the function arguments.",
+  "details": "EXAMPLE\nBasic Usage:\n       string what, who;\n\n       if (sscanf(input, \"give %s to %s\", what, who) == 2)\n           write(\"You give \" + what + \" to \" + who + \".\");\n       else\n           write(\"Give what to who?\");\n\n       sscanf(\"give\", \"give %s to %s\", what, who) == 0\n       // what == UNDEFINED && who == UNDEFINED\n\n       sscanf(\"give item\", \"give %s to %s\", what, who) == 1\n       // what == \"item\" && who == UNDEFINED\n\n       sscanf(\"give item to name\", \"give %s to %s\", what, who) == 2\n       // what == \"item\" && who == \"name\"\n\nNumeric:\n       int i;\n       sscanf(\"123\", \"%d\", i) == 1\n       // i == 123\n\n       float f;\n       sscanf(\"1.23\", \"%f\", f) == 1\n       // f == 1.230000\n\n       int b10;\n       sscanf(\"ABC\", \"%x\", b10) == 1\n       // b10 == 2748\n\nRegexp:\n       string str1, str2;\n       sscanf(\"one two\", \"%([a-z]+) %([a-z]+)\", str1, str2) == 2\n       // str1 == \"one\" && str2 == \"two\"",
+  "reference": [
+    "explode",
+    "replace_string",
+    "strsrch"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "int sscanf( string str, string fmt, mixed var1, mixed var2 ... )",
+      "returnType": "int",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "fmt",
+          "type": "string"
+        },
+        {
+          "name": "var1",
+          "type": "mixed"
+        },
+        {
+          "name": "var2",
+          "type": "mixed",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": null
+      }
+    }
+  ]
+}

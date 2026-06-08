@@ -1,0 +1,50 @@
+{
+  "name": "arrayp",
+  "summary": "如果变量 `arg` 是数组则返回1，否则返回0。\n\n   `arrayp()` 是 `pointerp()` 的别名。",
+  "details": "Return semantics:\n1 或者 0",
+  "reference": [
+    "mapp",
+    "stringp",
+    "objectp",
+    "intp",
+    "bufferp",
+    "floatp",
+    "functionp",
+    "nullp",
+    "undefinedp",
+    "errorp"
+  ],
+  "category": "数组相关函数（Arrays）",
+  "signatures": [
+    {
+      "label": "int arrayp(mixed arg)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "int pointerp(mixed arg)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

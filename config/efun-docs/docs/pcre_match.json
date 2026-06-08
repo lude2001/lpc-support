@@ -1,0 +1,38 @@
+{
+  "name": "pcre_match",
+  "summary": "analog with regexp efun for backwards compatibility reasons but utilizing the PCRE library.",
+  "reference": [
+    "pcre_assoc",
+    "pcre_match_all",
+    "pcre_cache",
+    "pcre_extract",
+    "pcre_version",
+    "pcre_replace"
+  ],
+  "category": "PCRE 相关函数(PCRE)",
+  "signatures": [
+    {
+      "label": "mixed pcre_match(string|string *lines, string pattern, void|int flag)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "lines",
+          "type": "string | string *"
+        },
+        {
+          "name": "pattern",
+          "type": "string"
+        },
+        {
+          "name": "flag",
+          "type": "void | int"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

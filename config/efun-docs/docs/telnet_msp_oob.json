@@ -1,0 +1,22 @@
+{
+  "name": "telnet_msp_oob",
+  "summary": "发送MSP带外数据",
+  "details": "NAME\ntelnet_msp_oob() - send an OOB MSP message\n\nSYNOPSIS\nvoid telnet_msp_oob(string);\n\nDESCRIPTION\nFluffOS v2019.20220507 新增支持，if user is under telnet, then send an IAC SB TELOPT_MSP msg IAC SE sequence, as documented in https://wiki.mudlet.org/w/Manual:Supported_Protocols#MSP\n\nSEE ALSO\nmsp_enable(4)",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "telnet_msp_oob(msg)",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "msg"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

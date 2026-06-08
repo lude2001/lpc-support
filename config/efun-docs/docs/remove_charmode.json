@@ -1,0 +1,17 @@
+{
+  "name": "remove_charmode",
+  "summary": "remove_charmode 内置函数",
+  "details": "NAME\nremove_charmode() - switches interactive object into linemode.\n\nSYNOPSIS\nint remove_charmode(object);\n\nDESCRIPTION\nswitches interactive object into linemode\n\n   returns -1 if argument missing\n   -2 in case of error (object destroyed or not interactive)\n   current input_to flags with char_mode unset\n\nSEE ALSO\nquery_charmode(3), input_to(3), get_char(3)",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "remove_charmode()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

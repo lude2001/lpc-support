@@ -1,0 +1,37 @@
+{
+  "name": "socket_bind",
+  "summary": "socket_bind() 为未名称的 socket 指定名称， 当通过 socket_create() 创建一个 socket 连接后，它存在于命名空间中但没有指定名称（译者注：简单的说就是有 IP 没端口），socket_bind() 会请求把端口 `port` 分配给 socket `s`。\n   string可选参数为指定绑定的IP地址（字符串格式）当指定具体IP地址时只绑定到该特定地址，否则绑定到所有可用网络接口（0.0.0.0）。",
+  "details": "Return semantics:\n成功时返回 EESUCCESS，失败（错误）时返回代表以下意义的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性\n   EEISBOUND      Socket 已经绑定（被命名）\n   EEADDRINUSE    地址已经被占用\n   EEBIND         绑定（命名）出问题\n   EEGETSOCKNAME  获取 socket 名称（getsockname）出问题\n\n   注：所有错误名称定义在驱动程序源文件的 `socket_err.h` 头文件中。",
+  "reference": [
+    "socket_connect",
+    "socket_create",
+    "socket_listen"
+  ],
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "int socket_bind( int s, int port, string | void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "s",
+          "type": "int"
+        },
+        {
+          "name": "port",
+          "type": "int"
+        },
+        {
+          "name": "arg3",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 3
+      }
+    }
+  ]
+}

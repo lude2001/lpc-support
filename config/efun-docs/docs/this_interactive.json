@@ -1,0 +1,21 @@
+{
+  "name": "this_interactive",
+  "summary": "返回呼叫此函数的玩家对象。此函数总是返回原始的玩家对象，相当于this_player(1)，而不像 this_player() 会受到 enable_commands() 或 command() 影响。",
+  "reference": [
+    "this_object",
+    "this_player"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "object this_interactive()",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

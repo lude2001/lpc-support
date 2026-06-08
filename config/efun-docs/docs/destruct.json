@@ -1,0 +1,27 @@
+{
+  "name": "destruct",
+  "summary": "从游戏中完全销毁并移除对象 `ob`。如果不指定对象 `ob`，默认为 this_object()。在呼叫 destruct() 后，如果对象是 this_object()，this_object() 的代码仍然会继续执行，但最好马上返回一个值，而且所有指向被销毁的对象的变量值都会变成 0。\n\n   即将被销毁的对象的所有内容对象都会呼叫自己的 move_or_destruct() 方法，如果呼叫 move_or_destruct() 方法的对象不把自己移到即将被销毁的对象外，也会被一起销毁。",
+  "reference": [
+    "clone_object",
+    "new",
+    "move_or_destruct"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "void destruct( void | object ob )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "void | object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

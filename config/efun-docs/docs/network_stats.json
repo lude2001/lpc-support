@@ -1,0 +1,20 @@
+{
+  "name": "network_stats",
+  "summary": "返回网络相关数据统计的映射，内容如下：\n\n   - incoming packets total : int\n   - incoming volume total : int\n   - outgoing packets total : int\n   - outgoing volume total : int\n\n   - incoming packets port X : int\n   - incoming volume port X : int\n   - outgoing packets port X : int\n   - outgoing volume port X : int\n\n   如果驱动编译时定义了 PACKAGE_SOCKETS，还会有以下内容：\n\n   - incoming packets sockets : int\n   - incoming volume sockets : int\n   - outgoing packets sockets : int\n   - outgoing volume sockets : int\n\n   这是 FLUFFOS 新增的外部函数，要求驱动程序编译时定义了 PACKAGE_CONTRIB 包。",
+  "reference": [
+    "sys_network_ports"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "mapping network_stats()",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

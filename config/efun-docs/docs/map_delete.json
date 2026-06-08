@@ -1,0 +1,29 @@
+{
+  "name": "map_delete",
+  "summary": "map_delete 从映射 `m` 中移除 key 为 `element` 的键值对(key:value)。\n\n   示例，给定：\n\n   mapping names;\n\n   names = ([]);\n   names[\"truilkan\"] = \"john\";\n   names[\"wayfarer\"] = \"erik\";\n   names[\"jacques\"] = \"dwayne\";\n\n   那么：\n\n   map_delete(names,\"truilkan\");\n\n   导致映射 `names` 的结果为：\n\n   ([\"wayfarer\" : \"erik\", \"jacques\" : \"dwayne\"])\n\n   在 map_delete(names, \"truilkan\") 后映射 `names` 中不再包括 `truilkan`，除非再被加回去。",
+  "reference": [
+    "allocate_mapping"
+  ],
+  "category": "映射相关函数（Mappings）",
+  "signatures": [
+    {
+      "label": "void map_delete( mapping m, mixed element )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "m",
+          "type": "mapping"
+        },
+        {
+          "name": "element",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "call_stack",
+  "summary": "If the int argument is 0, call_stack() returns an array of the names of the on the call stack, with the first one being the most recent (i.e. the currently running program).  If the int argument is 1, call_stack returns the objects in which that program is executing.  If it is 2, the name of the functions are returned.  If it is 3, the value of origin() in that frame is returned. If it is 4, the value will be the full file path and the line number.\n\n如果参数为0，call_stack()将返回一个包含调用栈中函数名称的数组，其中第一个函数是最近的（即当前正在运行的程序）。如果参数为1，则返回执行该程序的对象。如果为2，则返回函数的名称。如果为3，则返回该帧中origin()的值。如果为4，则返回完整的文件路径和行号。",
+  "details": "示例\n[728|728]eval return call_stack()\nResult = ({ /* sizeof() == 3 */\n  \"/tmp/debug_eval_file.c\",\n  \"/cmds/cmd/eval.c\",\n  \"/inherit/living.c\"\n})\n[728|728]eval return call_stack(0)\nResult = ({ /* sizeof() == 3 */\n  \"/tmp/debug_eval_file.c\",\n  \"/cmds/cmd/eval.c\",\n  \"/inherit/living.c\"\n})\n[728|728]eval return call_stack(1)\nResult = ({ /* sizeof() == 3 */\n  /tmp/debug_eval_file (\"/tmp/debug_eval_file\"),\n  /cmds/cmd/eval (\"/cmds/cmd/eval\"),\n  /inherit/user5#2 (\"杨宇(test)\")\n})\n[728|728]eval return call_stack(2)\nResult = ({ /* sizeof() == 3 */\n  \"eval\",\n  \"main\",\n  \"command_hook\"\n})\n[728|728]eval return call_stack(3)\nResult = ({ /* sizeof() == 3 */\n  \"call_other\",\n  \"call_other\",\n  \"driver\"\n})\n[728|728]eval return call_stack(4)\nResult = ({ /* sizeof() == 3 */\n  \"/tmp/debug_eval_file.c:2\",\n  \"/cmds/cmd/eval.c:23\",\n  \"/inherit/living.c:56\"\n})\n[728|728]eval return call_stack(5)\n*First argument of call_stack() must be 0, 1, 2, 3, or 4.",
+  "reference": [
+    "dump_trace",
+    "all_previous_objects",
+    "previous_object",
+    "origin"
+  ],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "string *call_stack(int default: 0)",
+      "returnType": "string *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "int default: 0"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

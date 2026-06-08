@@ -1,0 +1,35 @@
+{
+  "name": "store_class_member",
+  "summary": "这是 FluffOS 2.0 新增的外部函数，保存结构体 `instantiated_class` 的第 `class_element` 个成员的值为 `value`，返回更新后的结构体。",
+  "details": "示例\nclass person\n{\n    string name;\n    int age;\n    string city;\n}\n\nvoid fun()\n{\n    class person me = new (class person);\n\n    me->name = \"Foo\";\n    me->age = 42;\n    me->city = \"Fooville\";\n\n    write(sprintf(\"%O\\n\", me));\n\n    // Result:\n    // CLASS( 3 elements\n    //   \"Foo\",\n    //   42,\n    //   \"Fooville\"\n    //  )\n\n    me = store_class_member(me, 1, 43);\n\n    write(sprintf(\"%O\\n\", me));\n\n    // Result:\n    // CLASS( 3 elements\n    //   \"Foo\",\n    //   43,\n    //   \"Fooville\"\n    //  )\n}",
+  "reference": [
+    "classes",
+    "fetch_class_member"
+  ],
+  "category": "结构体（类）相关函数（Class）",
+  "signatures": [
+    {
+      "label": "mixed store_class_member(mixed instantiated_class, int class_element, mixed value)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "instantiated_class",
+          "type": "mixed"
+        },
+        {
+          "name": "class_element",
+          "type": "int"
+        },
+        {
+          "name": "value",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

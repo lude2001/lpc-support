@@ -1,0 +1,22 @@
+{
+  "name": "query_charmode",
+  "summary": "查询字符模式",
+  "details": "NAME\nquery_charmode\n\nSYNOPSIS\nint query_charmode(object);\n\nDESCRIPTION\nreturns -1 if argument missing\n   -2 in case of error (object destroyed or not interactive)\n   0 if interactive object is in line mode\n   !0 otherwise (actual value depends on compile time define)\n\nSEE ALSO\nremove_charmode(3), input_to(3), get_char(3)",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "query_charmode(ob)",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "ob"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

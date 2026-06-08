@@ -1,0 +1,17 @@
+{
+  "name": "dump_jemalloc",
+  "summary": "dump_jemalloc 内置函数",
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "void dump_jemalloc()",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

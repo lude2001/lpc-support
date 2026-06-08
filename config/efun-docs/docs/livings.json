@@ -1,0 +1,23 @@
+{
+  "name": "livings",
+  "summary": "返回一个包括所有活着的对象指针的数组。关于什么对象算活的请看 living() 外部函数中的说明。",
+  "reference": [
+    "enable_commands",
+    "find_living",
+    "users",
+    "objects"
+  ],
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "object *livings( void )",
+      "returnType": "object *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

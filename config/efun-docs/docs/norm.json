@@ -1,0 +1,22 @@
+{
+  "name": "norm",
+  "summary": "计算向量范数",
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float norm(int *|float * f)",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "int *| float *"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

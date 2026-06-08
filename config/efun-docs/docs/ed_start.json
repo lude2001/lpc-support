@@ -1,0 +1,22 @@
+{
+  "name": "ed_start",
+  "summary": "开始编辑文件",
+  "details": "NAME\ned_start() - start an ed session\n\nSYNOPSIS\nstring ed_start(string file | void, int restricted | void)\n\nDESCRIPTION\nThis efun is available only if __OLD_ED__ is not defined.\n\n   The internal editor is started, optionally loading 'file' for editing. The resulting output is returned.  The editor session  remains  active, and further calls to ed_cmd() can be used to send commands to it.\n\n   If restricted is 1, the commands that change which file is being edited will be disabled.\n\n   Only one ed session can be active per object at a time.",
+  "category": "在线编辑相关函数（ED）",
+  "signatures": [
+    {
+      "label": "ed_start(file)",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "file"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

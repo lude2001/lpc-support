@@ -1,0 +1,26 @@
+{
+  "name": "query_replaced_program",
+  "summary": "if object called replace_program this function returns the path to the object it was replaced with, if no ob, obiect defaults to this_object()",
+  "reference": [
+    "replace_program",
+    "replaceable"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "string query_replaced_program(void | object ob)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "void | object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "remove_get_char",
+  "summary": "remove_get_char 内置函数",
+  "details": "NAME\nremove_get_char() - cancels active input_to\n\nSYNOPSIS\nint remove_get_char(object interactive);\n\nDESCRIPTION\ncancels active input_to\n   set's interactive->carryover = NULL\n   set's interactive->num_carry = 0\n\n   returns -3 if argument missing\n   -2 if object destroyed or not interactive\n   -1 if no input_to active\n   1 otherwise",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "remove_get_char()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

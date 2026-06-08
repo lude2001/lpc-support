@@ -1,0 +1,16 @@
+{
+  "name": "clear_debug_level",
+  "summary": "clear_debug_level 内置函数",
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "clear_debug_level()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

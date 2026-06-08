@@ -1,0 +1,25 @@
+{
+  "name": "function_owner",
+  "summary": "返回指定函数指针 `f` 的所有者对象。\n\n   此外部函数要求驱动程序编译时定义了 PACKAGE_CONTRIB 包。",
+  "reference": [
+    "bind"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "object function_owner(function f)",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "function"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

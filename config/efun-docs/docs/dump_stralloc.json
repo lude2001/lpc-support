@@ -1,0 +1,22 @@
+{
+  "name": "dump_stralloc",
+  "summary": "dump_stralloc 内置函数",
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "string dump_stralloc(string)",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

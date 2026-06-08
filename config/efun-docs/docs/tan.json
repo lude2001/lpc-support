@@ -1,0 +1,29 @@
+{
+  "name": "tan",
+  "summary": "Returns the tangent of its argument, 'f', measured in radians.",
+  "reference": [
+    "acos",
+    "asin",
+    "atan",
+    "cos",
+    "sin"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float tan( float f )",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

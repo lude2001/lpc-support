@@ -1,0 +1,31 @@
+{
+  "name": "snoop",
+  "summary": "当使用2个参数时，对象 `snooper` 开始监听对象 `snoopee`。当第二个参数省略时，关闭 `snooper` 的所有监听。通常使用模拟外部函数控制 snoop() 的安全性。\n\n   如果函数执行成功，使用2个参数时返回 `snoopee`，只有一个参数时返回 `snooper`。如果执行失败返回 0 。",
+  "reference": [
+    "query_snoop",
+    "query_snooping"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "object snoop( object snooper, object snoopee | void )",
+      "returnType": "object",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "snooper",
+          "type": "object"
+        },
+        {
+          "name": "snoopee",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "uptime",
+  "summary": "函数返回驱动程序最近一次启动至今经过的秒数",
+  "reference": [
+    "time",
+    "ctime",
+    "localtime",
+    "time_expression"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "int uptime( void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

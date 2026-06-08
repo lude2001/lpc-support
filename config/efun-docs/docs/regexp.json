@@ -1,0 +1,38 @@
+{
+  "name": "regexp",
+  "summary": "Typically  when  presented with an array of lines of text and a regular\n   expression, regexp(3) returns an array  containing  those  lines  which\n   match  the  pattern  specified  by  the regular expression. If the flag\n   (default 0) has bit 2 set, then non-matches will be returned instead of\n   matches.  If the flag  has bit 1 set, the array returned will be of the\n   form ({ index1 + 1, match1, ..., indexn + 1, matchn }) where index1  is\n   the index of 1st match/non match in the array lines.",
+  "details": "正则表达式语法\nA  regular  expression  is zero or more branches, separated by '|'.  It\n   matches anything that matches one of the branches.\n\n   A branch is zero or more pieces, concatenated.  It matches a match  for\n   the first, followed by a match for the second, etc.\n\n   A piece is an atom possibly followed by '*', '+', or '?'.  An atom fol‐\n   lowed by '*' matches a sequence of 0 or more matches of the  atom.   An\n   atom  followed  by  '+'  matches a sequence of 1 or more matches of the\n   atom.  An atom followed by '?' matches a match of the atom, or the null\n   string.\n\n   An  atom  is  a regular expression in parentheses (matching a match for\n   the regular expression), a range (see below), '.'  (matching any single\n   character), '^' (matching the null string at the beginning of the input\n   string), '$' (matching the null string at the end of the input string),\n   a  '\\'  followed  by a single character (matching that character), or a\n   single character with no other significance (matching that character).\n\n   A range is a sequence of characters  enclosed  in  '[]'.   It  normally\n   matches any single character from the sequence.  If the sequence begins\n   with '^', it matches any single character not  from  the  rest  of  the\n   sequence.  If two characters in the sequence are separated by '-', this\n   is shorthand for the full list of ASCII characters between  them  (e.g.\n   '[0-9]'  matches  any  decimal digit).  To include a literal ']' in the\n   sequence, make it the first character (following a possible  '^').   To\n   include a literal '-', make it the first or last character.\n\nAMBIGUITY\nIf  a  regular  expression could match two different parts of the input\n   string, it will match the one which begins earliest.  If both begin  in\n   the same place but match different lengths, or match the same length in\n   different ways, life gets messier, as follows.\n\n   In general, the possibilities in a list of branches are  considered  in\n   left-to-right  order,  the possibilities for '*', '+', and '?' are con‐\n   sidered longest-first, nested constructs are considered from the outer‐\n   most  in,  and  concatenated  constructs are considered leftmost-first.\n   The match that will be chosen is the one that uses the earliest  possi‐\n   bility  in the first choice that has to be made.  If there is more than\n   one choice, the next will be made in the same manner  (earliest  possi‐\n   bility) subject to the decision on the first choice.  And so forth.\n\n   For  example,  '(ab|a)b*c'  could  match 'abc' in one of two ways.  The\n   first choice is between 'ab' and 'a'; since 'ab' is earlier,  and  does\n   lead  to  a  successful  overall match, it is chosen.  Since the 'b' is\n   already spoken for, the 'b*' must match its last possibility—the  empty\n   string—since it must respect the earlier choice.\n\n   In  the particular case where no '|'s are present and there is only one\n   '*', '+', or '?', the net effect is that  the  longest  possible  match\n   will  be  chosen.   So  'ab*',  presented  with  'xabbbby',  will match\n   'abbbb'.  Note that if 'ab*' is  tried  against  'xabyabbbz',  it  will\n   match  'ab'  just  after  'x',  due  to  the begins-earliest rule.  (In\n   effect, the decision on where to start the match is the first choice to\n   be  made,  hence  subsequent choices must respect it even if this leads\n   them to less-preferred alternatives.)",
+  "reference": [
+    "sscanf",
+    "explode",
+    "strsrch",
+    "ed",
+    "reg_assoc"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string *regexp( string | string *lines, string pattern, void | int flag )",
+      "returnType": "string *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "lines",
+          "type": "string | string *"
+        },
+        {
+          "name": "pattern",
+          "type": "string"
+        },
+        {
+          "name": "flag",
+          "type": "void | int"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

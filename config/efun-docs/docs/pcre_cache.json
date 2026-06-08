@@ -1,0 +1,24 @@
+{
+  "name": "pcre_cache",
+  "summary": "returns content of the pcre cache (not all that useful)",
+  "reference": [
+    "pcre_assoc",
+    "pcre_extract",
+    "pcre_match",
+    "pcre_version",
+    "pcre_replace"
+  ],
+  "category": "PCRE 相关函数(PCRE)",
+  "signatures": [
+    {
+      "label": "mapping pcre_cache(void)",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

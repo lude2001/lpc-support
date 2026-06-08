@@ -1,0 +1,25 @@
+{
+  "name": "set_hide",
+  "summary": "为当前对象设置隐藏标志 `flag`，0 代表不隐藏，1 代表隐藏。当对象隐藏后，只有其它有隐藏权限（主控对象中的 valid_hide() 判断）的对象可以使用 find_object()、users()、children()、all_inventory()等查找此对象，objects()不会显示隐藏对象。",
+  "reference": [
+    "valid_hide"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "void set_hide( int flag )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "flag",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

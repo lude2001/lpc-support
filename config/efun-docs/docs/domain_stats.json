@@ -1,0 +1,44 @@
+{
+  "name": "domain_stats",
+  "summary": "domain_stats() 和 author_stats() 返回的都是信息映射。如果没有指定参数，返回的信息是所有域或所有创建者的。如果指定参数，返回的信息映射是指定域或创建者的，映射的键为：moves、errors、heart_beats、array_size 和 errors，值为整型数值。\n\n   Moves is the number of objects that have moved into objects in the given domain（or author）. Errors is the number of errors incurred by objects with the given domain（or author）. Heart_beats is the number of heartbeat calls made on objects having the given domain（or author）. Array_size is the size (in bytes) of the arrays allocated by the domain（or author）. Objects is the number of objects created by the given domain（or author）.\n\n   如果没有指定参数，返回的映射格式如下：\n\n   ([ domain0 : info0, domain1 : info1, ... ])\n\n   其中 info0 格式如下：\n\n   ([ \"moves\" : moves, \"errors\" : errors, \"heart_beats\" : heart_beats, \"array_size\" : array_size, \"objects\" : objects ])\n\n   如果指定参数，返回的映射格式和 info0 相同。",
+  "reference": [
+    "domain_file",
+    "author_file",
+    "set_author"
+  ],
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "mapping domain_stats( string domain | void )",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "domain",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "label": "mapping author_stats( string domain | void )",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "domain",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

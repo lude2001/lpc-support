@@ -1,0 +1,34 @@
+{
+  "name": "pcre_extract",
+  "summary": "returns an array of captured groups specified in pattern.",
+  "details": "示例\neval return pcre_extract(\"bbracadabra\", \"([abc]+)\");",
+  "reference": [
+    "pcre_assoc",
+    "pcre_cache",
+    "pcre_match",
+    "pcre_version",
+    "pcre_replace"
+  ],
+  "category": "PCRE 相关函数(PCRE)",
+  "signatures": [
+    {
+      "label": "string *pcre_extract(string input, string pattern)",
+      "returnType": "string *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string"
+        },
+        {
+          "name": "pattern",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

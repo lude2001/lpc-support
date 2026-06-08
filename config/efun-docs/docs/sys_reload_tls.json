@@ -1,0 +1,17 @@
+{
+  "name": "sys_reload_tls",
+  "summary": "sys_reload_tls 内置函数",
+  "details": "NAME\nsys_reload_tls() - Reload the TLS certificate and key for given port.\n\nSYNOPSIS\nvoid sys_reload_tls ( int port_index );\n\nDESCRIPTION\nReload the TLS certificate and key for given port index, as specified in config file.\n\n   For example, if you defined external_port_1_tls in the config then you can calling sys_reload_tls(1) to reload it. This allows you to update the certificate and key without restarting the server.\n\n   Note:\n     - you have to overwrite the previous cert/key file on disk before calling this function.\n     - reloading TLS for websocket port is not currently supported.\n     - 这是2023年5月30日 3bca73a 分支新增的Efun。",
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "sys_reload_tls()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

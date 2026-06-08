@@ -1,0 +1,46 @@
+{
+  "name": "new",
+  "summary": "第一种用法和 clone_object() 完全一样，注意：clone_object() 是 new() 的别名。\n\n   第二种用法用于初始化一个结构体类型（struct | class）的变量。示例如下：\n\n   class example {\n       string name;\n       int age;\n       string *lover;\n   }\n\n   void create()\n   {\n       // 变量\n       class example instance = new(class example);\n       // 赋值\n       instance->age = 24;\n       instance->name = \"Ivy\";\n       instance->lover = ({\"Alice\", \"Vivian\", \"lucy\"});\n       // ...\n   }\n\n   在结构体变量初始化时也可以直接传值，如：\n       class example instance = new(class exaample, name:\"ivy\", age:24, lover:({\"Alice\",\"Vivian\"}))",
+  "reference": [
+    "clone_object",
+    "destruct",
+    "move_object"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "object x = new( string name, ... )",
+      "returnType": "object x =",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": null
+      }
+    },
+    {
+      "label": "class foo x = new( class foo )",
+      "returnType": "class foo x =",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "foo",
+          "type": "class"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

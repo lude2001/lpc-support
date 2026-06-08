@@ -1,0 +1,31 @@
+{
+  "name": "inherits",
+  "summary": "如果 `ob` 没有继承 `file` inherits() 返回 0，如果继承最新版 `file` 返回 1，如果继承旧版本 `file` 返回 2，如果不指定参数`ob`，默认为this_object()。",
+  "reference": [
+    "deep_inherit_list",
+    "inherit_list"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "int inherits( string file, object obj | void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "file",
+          "type": "string"
+        },
+        {
+          "name": "obj",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 2
+      }
+    }
+  ]
+}

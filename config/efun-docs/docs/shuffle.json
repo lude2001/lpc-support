@@ -1,0 +1,25 @@
+{
+  "name": "shuffle",
+  "summary": "FluffOS 1.11 新增efun，打乱数组 `arr` 并返回乱序后的数组，请注意原始数组 `arr` 也被打乱。",
+  "reference": [
+    "element_of"
+  ],
+  "category": "数组相关函数（Arrays）",
+  "signatures": [
+    {
+      "label": "mixed *shuffle(mixed *arr)",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

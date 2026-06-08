@@ -1,0 +1,26 @@
+{
+  "name": "rotate_z",
+  "summary": "rotate_z 内置函数",
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "float *rotate_z(float *, float)",
+      "returnType": "float *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "float *"
+        },
+        {
+          "name": "arg2",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

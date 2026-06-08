@@ -1,0 +1,38 @@
+{
+  "name": "store_variable",
+  "summary": "设置对象 `ob` 中定义的全局变量 `arg` 的值为 `value`，如果不指定对象 `ob`，默认为 this_object()。请注意：变量 `arg` 必须是指定对象中已定义的，且不为private类型。\n\n   此外部函数要求驱动程序编译时定义了 PACKAGE_CONTRIB 包。\n\n   此外部函数存在安全隐患，最好通过sefun重写做安全检查。",
+  "details": "示例\nstore_variable( \"weight\", 150, this_player() ) ;",
+  "reference": [
+    "restore_variable",
+    "fetch_variable",
+    "save_object",
+    "variables"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "void store_variable(string arg, mixed value, object ob | void)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "mixed"
+        },
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 3
+      }
+    }
+  ]
+}

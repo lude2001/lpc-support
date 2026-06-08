@@ -1,0 +1,27 @@
+{
+  "name": "userp",
+  "summary": "如果 `arg` 曾经是玩家，返回 1。",
+  "reference": [
+    "interactive",
+    "users",
+    "living"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int userp( object arg)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

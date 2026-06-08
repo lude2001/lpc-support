@@ -1,0 +1,26 @@
+{
+  "name": "upper_case",
+  "summary": "返回字符串 `str` 的大写形式（`str` 本身不会被改变）",
+  "reference": [
+    "capitalize",
+    "lower_case"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "string upper_case( string str )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

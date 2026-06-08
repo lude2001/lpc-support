@@ -1,0 +1,26 @@
+{
+  "name": "repeat_string",
+  "summary": "以指定的次数 `i` 重复一个字符串 `str`,并返回新生成的字符串。如果 `i` 小于等于 0 返回空字符串。如果 `i` 大于 0 ，请注意生成的字符串长度不能超出系统最大长度。",
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "string repeat_string( string str, int i )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "i",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { TargetMethodLookup } from '../../../targetMethodLookup';
 import type { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
+import type { HeaderOwnerContextService } from '../../shared/HeaderOwnerContextService';
 import type { WorkspaceDocumentPathSupport } from '../../shared/WorkspaceDocumentPathSupport';
 import { DefinitionResolverSupport } from './definition/DefinitionResolverSupport';
 import { DirectSymbolDefinitionResolver } from './definition/DirectSymbolDefinitionResolver';
@@ -36,6 +37,7 @@ interface LanguageDefinitionDependencies {
     semanticAdapter?: DefinitionSemanticAdapter;
     scopedMethodResolver?: ScopedMethodResolver;
     pathSupport?: WorkspaceDocumentPathSupport;
+    headerOwnerContextService?: Pick<HeaderOwnerContextService, 'resolveOwnerContext'>;
 }
 
 export class AstBackedLanguageDefinitionService implements LanguageDefinitionService {
@@ -90,7 +92,8 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         this.directSymbolDefinitionResolver = new DirectSymbolDefinitionResolver({
             support: this.support,
             efunDocsManager: this.efunDocsManager,
-            semanticAdapter: this.semanticAdapter
+            semanticAdapter: this.semanticAdapter,
+            headerOwnerContextService: dependencies.headerOwnerContextService
         });
         this.functionFamilyDefinitionResolver = new FunctionFamilyDefinitionResolver({
             support: this.support,

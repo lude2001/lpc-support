@@ -1,0 +1,17 @@
+{
+  "name": "is_daylight_savings_time",
+  "summary": "is_daylight_savings_time 内置函数",
+  "details": "NAME\nis_daylight_savings_time\n\nSYNOPSIS\nint is_daylight_savings_time(string, int);\n\nDESCRIPTION\nreturns 1 if given time in given timezone is within daylight saving region\n   0 if not and -1 on error",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "is_daylight_savings_time()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

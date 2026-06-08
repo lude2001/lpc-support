@@ -1,0 +1,23 @@
+{
+  "name": "commands",
+  "summary": "返回当前对象可用指令的资料，这是一个包括每个指令 4 项资料的二维数组，第 1 项是通过 add_action() 外部函数增加的指令的名称，第 2 项是指令标志（add_action() 命令的第三个参数，通常为0），第 3 项是定义此指令的对象，第 4 项是指令呼叫的函数（函数指针）。",
+  "reference": [
+    "add_action",
+    "enable_commands",
+    "disable_commands",
+    "command"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "mixed *commands()",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

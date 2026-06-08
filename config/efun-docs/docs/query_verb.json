@@ -1,0 +1,21 @@
+{
+  "name": "query_verb",
+  "summary": "返回当前指令的名称，如果不是通过指令执行的，返回 0 。这个函数可以用来判断在好几个命令会执行同一个函数时到底是哪一个命令呼叫的函数。\n\n   注意：长度限制为99个字符（汉字根据utf-8编码计算，为33个字符）。",
+  "reference": [
+    "add_action",
+    "command"
+  ],
+  "category": "语法分析相关函数（Parsing）",
+  "signatures": [
+    {
+      "label": "string query_verb()",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

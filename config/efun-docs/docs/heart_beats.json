@@ -1,0 +1,22 @@
+{
+  "name": "heart_beats",
+  "summary": "返回游戏中所有有心跳对象的数组。",
+  "reference": [
+    "heart_beat",
+    "set_heart_beat",
+    "query_heart_beat"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "object *heart_beats()",
+      "returnType": "object *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

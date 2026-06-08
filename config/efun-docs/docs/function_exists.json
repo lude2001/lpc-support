@@ -1,0 +1,70 @@
+{
+  "name": "function_exists",
+  "summary": "返回对象 `ob` 中定义函数 `str` 的对象的文件名。如果函数由对象 `ob` 继承的对象定义，返回值会和 `file_name(ob)` 不同（返回的是被继承的对象文件）。\n\n   如果函数在指定对象中没有定义，返回 0 。\n\n   请注意，function_exists() 不会在投影对象 `ob` 的对象中寻找，也不会在无法从对象以外呼叫的函数（protected 和 private 类型）中寻找，但是如果指定参数 `flag` 且为非零值，protected 和 private 类型的方法也会被寻找到。\n\n如果要判断一个efun是否存在，可以判断相关宏是否定义，或者在条件编译中使用`efun_defined`，如：\n\n   #if efun_defined(snoop)\n   // todo\n   #endif",
+  "reference": [
+    "call_other",
+    "call_out",
+    "functionp",
+    "valid_shadow"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "string function_exists( string str )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "string function_exists( string str, object ob )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "label": "string function_exists( string str, object ob, int flag )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "ob",
+          "type": "object"
+        },
+        {
+          "name": "flag",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "floor",
+  "summary": "返回小于或等于 f 的最接近的整数（以浮点数形式）。如：4.9 返回 4.000000",
+  "reference": [
+    "ceil",
+    "round",
+    "to_int",
+    "to_float"
+  ],
+  "category": "浮点运算相关函数（Floats）",
+  "signatures": [
+    {
+      "label": "float floor( float f )",
+      "returnType": "float",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

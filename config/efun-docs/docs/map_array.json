@@ -1,0 +1,70 @@
+{
+  "name": "map_array",
+  "summary": "返回由数组 `arr` 中的元素经过对象 `ob` 中的方法 `fun` 或函数指针 `f` 处理后的元素组成的新数组。如果有额外参数 `extra`，也会做为参数传递给处理函数。主要功能：\n\n   foreach (index) arr[index] = ob->fun(arr[index],extra);\n\n   此函数本质上就是限制参数为mixed *arr类型的map()函数。",
+  "reference": [
+    "filter_array",
+    "sort_array",
+    "map"
+  ],
+  "category": "数组相关函数（Arrays）",
+  "signatures": [
+    {
+      "label": "mixed *map_array(mixed *arr, string fun, object ob, mixed extra, ... )",
+      "returnType": "mixed *",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        },
+        {
+          "name": "fun",
+          "type": "string"
+        },
+        {
+          "name": "ob",
+          "type": "object"
+        },
+        {
+          "name": "extra",
+          "type": "mixed"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": null
+      }
+    },
+    {
+      "label": "mixed *map_array(mixed *arr, function f, mixed extra, ... )",
+      "returnType": "mixed *",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "arr",
+          "type": "mixed *"
+        },
+        {
+          "name": "f",
+          "type": "function"
+        },
+        {
+          "name": "extra",
+          "type": "mixed"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": null
+      }
+    }
+  ]
+}

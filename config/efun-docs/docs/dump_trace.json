@@ -1,0 +1,21 @@
+{
+  "name": "dump_trace",
+  "summary": "Get current LPC stacktrace.",
+  "reference": [
+    "call_stack",
+    "dumpallobj"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "mixed* dump_trace()",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

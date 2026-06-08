@@ -1,0 +1,32 @@
+{
+  "name": "socket_listen",
+  "summary": "为了接收连接，需要先使用 socket_create() 创建 socket，并使用 socket_listen() 进入监听模式，最后使用 socket_accept() 接收连接。socket_listen() 仅仅在 STEAM 或 MUD 模式有效。\n\n   参数 `listen_callback` 是监听中的 socket 收到连接请求时驱动程序调用的函数名称，函数原型格式如下：\n\n   void listen_callback(int fd)\n\n   其中参数 `fd` 是正在监听中的 socket 连接。",
+  "details": "Return semantics:\n成功时返回 EESUCCESS，失败（错误）时返回代表以下意义的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性\n   EEMODENOTSUPP  不支持的 Socket 模式\n   EENOADDR       Socket 没有绑定地址\n   EEISCONN       Socket 已连接\n   EELISTEN       监听有问题",
+  "reference": [
+    "socket_accept",
+    "socket_connect",
+    "socket_create"
+  ],
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "int socket_listen( int s, string|function listen_callback )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "s",
+          "type": "int"
+        },
+        {
+          "name": "listen_callback",
+          "type": "string | function"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

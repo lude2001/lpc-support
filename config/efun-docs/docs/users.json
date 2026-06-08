@@ -1,0 +1,22 @@
+{
+  "name": "users",
+  "summary": "返回包括所有互动玩家的对象数组，注意不包括断线的玩家。",
+  "reference": [
+    "livings",
+    "children",
+    "objects"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "object *users( void )",
+      "returnType": "object *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

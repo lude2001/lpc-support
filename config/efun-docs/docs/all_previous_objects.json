@@ -1,0 +1,24 @@
+{
+  "name": "all_previous_objects",
+  "summary": "返回一个由所有调用当前函数的对象组成的数组，相当于调用previous_object(-1)。注意：调用局部函数不会改变当前对象的 previous_object()。",
+  "reference": [
+    "previous_object",
+    "call_stack",
+    "call_other",
+    "call_out",
+    "origin"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "object *all_previous_objects()",
+      "returnType": "object *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

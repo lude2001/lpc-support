@@ -1,0 +1,27 @@
+{
+  "name": "rm",
+  "summary": "删除文件 `file`，成功返回 1 ，失败返回 0 。",
+  "reference": [
+    "mkdir",
+    "rmdir",
+    "link"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "int rm( string file )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "file",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

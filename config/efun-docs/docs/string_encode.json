@@ -1,0 +1,30 @@
+{
+  "name": "string_encode",
+  "summary": "将 utf-8 编码的字符串 `str` 编码为 `encoding` 编码的缓冲区。",
+  "reference": [
+    "string_decode",
+    "buffer_transcode"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "buffer string_encode(string str, string encoding)",
+      "returnType": "buffer",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "encoding",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

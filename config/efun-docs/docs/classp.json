@@ -1,0 +1,34 @@
+{
+  "name": "classp",
+  "summary": "如果变量 `arg` 是 class/struct 类型返回 1。",
+  "reference": [
+    "stringp",
+    "pointerp",
+    "objectp",
+    "intp",
+    "bufferp",
+    "floatp",
+    "functionp",
+    "nullp",
+    "undefinedp",
+    "mapp"
+  ],
+  "category": "结构体（类）相关函数（Class）",
+  "signatures": [
+    {
+      "label": "int classp( mixed arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "deep_inherit_list",
+  "summary": "返回对象 `obj` 继承（包括直接继承和间接继承）的所有对象的文件名的数组。\n\n   省略 `obj` 默认对象为 this_object()。",
+  "reference": [
+    "inherit_list",
+    "inherits"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "string *deep_inherit_list( object obj | void )",
+      "returnType": "string *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "obj",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "copy",
+  "summary": "复制数组或映射",
+  "details": "说明\n返回变量 `arg` 的复制。变量只能是以下类型：\n   - array\n   - buffer (if compiled into driver)\n   - class\n   - mapping\n\n   例如：\n   int *a, *b = ({ 1 });\n   a = b;\n   a[0] = 2;\n   printf(\"%O %O\\n\", a, b);\n\n   结果是： ({ 2 }) ({ 2 })\n\n   int *a, *b = ({ 1 });\n   a = copy(b);\n   a[0] = 2;\n   printf(\"%O %O\\n\", a, b);\n\n   结果是： ({ 2 }) ({ 1 })",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "mixed copy(mixed arg)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

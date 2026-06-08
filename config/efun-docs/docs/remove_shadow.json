@@ -1,0 +1,26 @@
+{
+  "name": "remove_shadow",
+  "summary": "remove all shadows from the specified object, or remove a specified shadow from another object. does not destruct the shadow.\n\n   移除对象 `ob` 上的投影，如果对象没有投影或被投影返回 0 ，否则返回 1 。\n\n   此外部函数仅在驱动编译时没有定义 NO_SHADOWS 时有效。",
+  "reference": [
+    "shadow",
+    "query_shadowing"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int remove_shadow(object ob)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

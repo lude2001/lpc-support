@@ -1,0 +1,30 @@
+{
+  "name": "export_uid",
+  "summary": "把对象 `ob` 的用户ID（uid）设置为当前对象的有效用户ID（euid）。这个函数只有对象 `ob` 的有效用户ID（euid）为 0 时才有效。",
+  "reference": [
+    "this_object",
+    "seteuid",
+    "getuid",
+    "geteuid",
+    "previous_object",
+    "valid_seteuid"
+  ],
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "int export_uid( object ob )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

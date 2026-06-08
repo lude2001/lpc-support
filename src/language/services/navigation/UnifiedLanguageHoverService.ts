@@ -1,11 +1,18 @@
 import * as vscode from 'vscode';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
-import type { MacroDefinitionSummary } from '../../../semantic/documentSemanticTypes';
+import type {
+    FileGlobalSummary,
+    FunctionSummary,
+    MacroDefinitionSummary,
+    TypeDefinitionSummary
+} from '../../../semantic/documentSemanticTypes';
+import type { HeaderOwnerContextService } from '../../shared/HeaderOwnerContextService';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
 
 interface UnifiedLanguageHoverServiceDependencies {
     efunHoverService: LanguageHoverService;
     analysisService?: DocumentAnalysisService;
+    headerOwnerContextService?: Pick<HeaderOwnerContextService, 'resolveOwnerContext'>;
 }
 
 export class UnifiedLanguageHoverService implements LanguageHoverService {
@@ -28,6 +35,11 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
         const macroHover = await this.resolveMacroHover(document, position);
         if (macroHover) {
             return macroHover;
+        }
+
+        const ownerContextHover = await this.resolveHeaderOwnerContextHover(document, position);
+        if (ownerContextHover) {
+            return ownerContextHover;
         }
 
         const objectHover = await this.objectHoverService.provideHover(request);
@@ -59,6 +71,56 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
         return undefined;
     }
 
+    private async resolveHeaderOwnerContextHover(
+        document: vscode.TextDocument,
+        position: vscode.Position
+    ): Promise<LanguageHoverResult | undefined> {
+        const range = document.getWordRangeAtPosition(position);
+        if (!range) {
+            return undefined;
+        }
+
+        const word = document.getText(range);
+        const context = await this.dependencies.headerOwnerContextService?.resolveOwnerContext(document);
+        if (!context || context.isAmbiguous) {
+            return undefined;
+        }
+
+        const macro = context.macros.find((definition) => definition.name === word);
+        if (macro) {
+            return {
+                contents: [this.renderFrontendMacroHover(macro)],
+                range: toLanguageHoverRange(range)
+            };
+        }
+
+        const func = context.functions.find((definition) => definition.name === word);
+        if (func) {
+            return {
+                contents: [this.renderFunctionHover(func)],
+                range: toLanguageHoverRange(range)
+            };
+        }
+
+        const fileGlobal = context.fileGlobals.find((definition) => definition.name === word);
+        if (fileGlobal) {
+            return {
+                contents: [this.renderFileGlobalHover(fileGlobal)],
+                range: toLanguageHoverRange(range)
+            };
+        }
+
+        const type = context.types.find((definition) => definition.name === word);
+        if (type) {
+            return {
+                contents: [this.renderTypeHover(type)],
+                range: toLanguageHoverRange(range)
+            };
+        }
+
+        return undefined;
+    }
+
     private findFrontendMacro(document: vscode.TextDocument, word: string): MacroDefinitionSummary | undefined {
         const snapshot = this.getFrontendSnapshot(document);
         return snapshot?.macroDefinitions?.find((macro) => macro.name === word);
@@ -83,6 +145,43 @@ export class UnifiedLanguageHoverService implements LanguageHoverService {
         return {
             kind: 'markdown',
             value
+        };
+    }
+
+    private renderFunctionHover(summary: FunctionSummary): { kind: 'markdown'; value: string } {
+        const parameters = summary.parameters.map((parameter) => {
+            const suffix = parameter.isVariadic ? '...' : '';
+            return `${parameter.dataType} ${parameter.name}${suffix}`;
+        }).join(', ');
+        return {
+            kind: 'markdown',
+            value: [
+                '```lpc',
+                `${summary.returnType} ${summary.name}(${parameters})`,
+                '```'
+            ].join('\n')
+        };
+    }
+
+    private renderFileGlobalHover(summary: FileGlobalSummary): { kind: 'markdown'; value: string } {
+        return {
+            kind: 'markdown',
+            value: [
+                '```lpc',
+                `${summary.dataType} ${summary.name}`,
+                '```'
+            ].join('\n')
+        };
+    }
+
+    private renderTypeHover(summary: TypeDefinitionSummary): { kind: 'markdown'; value: string } {
+        return {
+            kind: 'markdown',
+            value: [
+                '```lpc',
+                `${summary.kind} ${summary.name}`,
+                '```'
+            ].join('\n')
         };
     }
 }

@@ -1,0 +1,40 @@
+{
+  "name": "external_start",
+  "summary": "If PACKAGE_EXTERNAL is defined, then lines of the form:\n\n       external_cmd_1: /usr/local/bin/gzip\n\n   in the config file allow the mud to run the command using the following efun:\n\n       int external_start(int which, string args, mixed read_cb, mixed write_cb, mixed close_cb)\n\n   which is the command number (e.g. 1 from the example above) args is the argument passed to the command.  A socket is returned, which can be used to communicate with stdin/stdout of the command.\n\n   valid_socket() is passed \"external\" as the operation.\n\nExecute a shell command external to the driver.\n\n   Commands that you would like to execute must be added to the runtime config. The enumerated commands may then be invoked by their number as the first argument to external_start `external_index`.\n\n   This function returns the socket number which you should record for later processing of the results from the external command.\n\n`args` - An array of the arguments passed to the external command.\n   `read_call_back` - As data becomes available, this function will be called with a string containing that data.\n   `write_call_back` - I am not 100% sure what would be written to the external command, but, this is a required parameter.\n   `close_call_back` - When the socket closes, this function is called.",
+  "details": "RUNTIME CONFIGURATION\nYou can configure your runtime configuration to know about various external commands by adding lines such as: external_cmd_## : /path/to/command\n   where ## is the number that will be invoked with `external_start`.\n\n       # external commands\n       external_cmd_1 : /usr/local/bin/node\n       external_cmd_2 : /usr/bin/curl\n\nCALLBACKS\nThe callbacks, when invoked, will pass the following information:\n\n       void read_call_back(int fd, string data)\n       void write_call_back(int fd)\n       void close_call_back(int fd)\n\n示例\n提示：fluffos v2019支持100个外部命令，使用示例：https://bbs.mud.ren/threads/244",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int external_start(int, string | string *, string | function, string | function, string | function | void)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "int"
+        },
+        {
+          "name": "arg2",
+          "type": "string | string *"
+        },
+        {
+          "name": "function",
+          "type": "string |"
+        },
+        {
+          "name": "function",
+          "type": "string |"
+        },
+        {
+          "name": "function",
+          "type": "string |",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 4,
+        "max": 5
+      }
+    }
+  ]
+}

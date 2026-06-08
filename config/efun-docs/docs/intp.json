@@ -1,0 +1,34 @@
+{
+  "name": "intp",
+  "summary": "如果变量 `arg` 是整型返回1，否则返回0。",
+  "reference": [
+    "mapp",
+    "stringp",
+    "pointerp",
+    "objectp",
+    "bufferp",
+    "floatp",
+    "functionp",
+    "nullp",
+    "undefinedp",
+    "errorp"
+  ],
+  "category": "数字相关函数（Numbers）",
+  "signatures": [
+    {
+      "label": "int intp( mixed arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

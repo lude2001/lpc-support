@@ -1,0 +1,17 @@
+{
+  "name": "pcre_match_all",
+  "summary": "pcre_match_all 内置函数",
+  "details": "NAME\npcre_match_all() - find all matches\n\nSYNOPSIS\nmixed pcre_match_all(string input, string pattern);\n\nDESCRIPTION\nSimiliar to php preg_match_all, this EFUN returns a array of string arrays,\n   containing all matches and captured groups.\n\nExample\n// https://tools.ietf.org/html/rfc3986#appendix-B\n   pcre_match_all(\"http://www.ics.uci.edu/pub/ietf/uri/#Related\",\n                      \"^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?\" ));\n\n   Will return\n     ({ /* sizeof() == 1 */\n       ({ /* sizeof() == 10 */\n         \"http://www.ics.uci.edu/pub/ietf/uri/#Related\",\n             \"http:\",\n             \"http\",\n             \"//www.ics.uci.edu\",\n             \"www.ics.uci.edu\",\n             \"/pub/ietf/uri/\",\n             \"\",\n             \"\",\n             \"#Related\",\n             \"Related\"\n       })\n     }),\n\n   There are 1 match in the entire string, the first item in the array is the matched substring, then all the\n   captured groups.",
+  "category": "PCRE 相关函数(PCRE)",
+  "signatures": [
+    {
+      "label": "pcre_match_all()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

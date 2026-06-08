@@ -1,0 +1,60 @@
+{
+  "name": "socket_create",
+  "summary": "socket_create() 创建一个 efun socket。参数 `mode` 决定要创建哪种模式的 socket。目前支持的 socket 模式为:\n\n   MUD         使用 TCP 协议传输 LPC 类型数据\n   STREAM      使用 TCP 协议传输原始数据\n   DATAGRAM    使用 UDP 协议\n\n   具体在<socket.h>头文件中有定义：\n\n#ifndef SOCKET_H\n#define SOCKET_H\n\n#define MUD                 0   // for sending LPC data types using TCP protocol.\n#define STREAM              1   // for sending raw data using TCP protocol.\n#define DATAGRAM            2   // for using UDP protocol.\n#define STREAM_BINARY       3\n#define DATAGRAM_BINARY     4\n#define STREAM_TLS          5\n#define STREAM_TLS_BINARY   6\n\n#endif          /* SOCKET_H */\n\n参数 `read_callback` 是 socket 接收数据后驱动程序调用的函数名称，此函数原型应该是以下格式：\n\n   void read_callback(int fd, mixed message, void|string addr);\n\n   其中参数 `fd` 是接收到数据的 socket 连接；参数 `message` 是接收到的数据，在非二进制模式下返回值是 utf-8 格式的字符串，在二进制模式下返回值是 buffer；在UDP模式下，第三个参数 `addr` 为客户端IP地址。\n\n   参数 `close_callback` 是 socket 意外关闭时驱动程序调用的函数名称（如不是通过 socket_close() 关闭）。此函数原型应该是以下格式：\n\n   void close_callback(int fd);\n\n   其中参数 `fd` 是被关闭的 socket 连接。注意：close_callback() 不能在 DATAGRAM 模式下使用。",
+  "details": "Return semantics:\n成功时返回一个非负连接描述符，失败(出错)时返回以下意义的负值：\n\n错误\n\nEEMODENOTSUPP  不支持的 Socket 模式\n   EESOCKET       创建 socket 时的问题\n   EESETSOCKOPT   设置 socket 选项（setsockopt）时的问题\n   EENONBLOCK     设置非阻塞模式（non-blocking mode）时的问题\n   EENOSOCKS      没有空余的 efun sockets\n   EESECURITY     试图违反安全性\n\n   以上错误定义在驱动程序源文件的<socket_err.h>头文件中,具体文件内容如下：\n\n/*\n * socket_errors.h -- definitions for efun socket error return codes.\n *    5-92 : Dwayne Fontenot (Jacques@TMI) : original coding.\n *   10-92 : Dave Richards (Cynosure) : less original coding.\n */\n\n#ifndef _SOCKET_ERRORS_H_\n#define _SOCKET_ERRORS_H_\n\n#define EESUCCESS 1       /* Call was successful */\n#define EESOCKET -1       /* Problem creating socket */\n#define EESETSOCKOPT -2   /* Problem with setsockopt */\n#define EENONBLOCK -3     /* Problem setting non-blocking mode */\n#define EENOSOCKS -4      /* UNUSED */\n#define EEFDRANGE -5      /* Descriptor out of range */\n#define EEBADF -6         /* Descriptor is invalid */\n#define EESECURITY -7     /* Security violation attempted */\n#define EEISBOUND -8      /* Socket is already bound */\n#define EEADDRINUSE -9    /* Address already in use */\n#define EEBIND -10        /* Problem with bind */\n#define EEGETSOCKNAME -11 /* Problem with getsockname */\n#define EEMODENOTSUPP -12 /* Socket mode not supported */\n#define EENOADDR -13      /* Socket not bound to an address */\n#define EEISCONN -14      /* Socket is already connected */\n#define EELISTEN -15      /* Problem with listen */\n#define EENOTLISTN -16    /* Socket not listening */\n#define EEWOULDBLOCK -17  /* Operation would block */\n#define EEINTR -18        /* Interrupted system call */\n#define EEACCEPT -19      /* Problem with accept */\n#define EEISLISTEN -20    /* Socket is listening */\n#define EEBADADDR -21     /* Problem with address format */\n#define EEALREADY -22     /* Operation already in progress */\n#define EECONNREFUSED -23 /* Connection refused */\n#define EECONNECT -24     /* Problem with connect */\n#define EENOTCONN -25     /* Socket not connected */\n#define EETYPENOTSUPP -26 /* Object type not supported */\n#define EESENDTO -27      /* Problem with sendto */\n#define EESEND -28        /* Problem with send */\n#define EECALLBACK -29    /* Wait for callback */\n#define EESOCKRLSD -30    /* Socket already released */\n#define EESOCKNOTRLSD -31 /* Socket not released */\n#define EEBADDATA -32     /* sending data with too many nested levels */\n\n#define ERROR_STRINGS 33 /* sizeof (error_strings) */\n\n#endif /* _SOCKET_ERRORS_H_ */",
+  "reference": [
+    "socket_accept",
+    "socket_bind",
+    "socket_close",
+    "socket_connect",
+    "socket_listen",
+    "socket_write",
+    "socket_set_option",
+    "valid_socket"
+  ],
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "int socket_create( int mode, string|function read_callback )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "mode",
+          "type": "int"
+        },
+        {
+          "name": "read_callback",
+          "type": "string | function"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "label": "int socket_create( int mode, string|function read_callback, string|function close_callback )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "mode",
+          "type": "int"
+        },
+        {
+          "name": "read_callback",
+          "type": "string | function"
+        },
+        {
+          "name": "close_callback",
+          "type": "string | function"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

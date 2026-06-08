@@ -1,0 +1,81 @@
+{
+  "name": "db_connect",
+  "summary": "创建一个新的数据库连接到主机 `host` 上的数据库， `db` 是要连接的数据库，如果不指定用户名 `user` 将使用驱动编译时设置的值做登录ID， `type` 用来选择数据库类型，可用值取决于驱动编译时的配置，如果不指定类型将使用编译时设置的默认数据库类型。\n\n   数据库密码通过主控对象中的 valid_database() 方法设置。\n\n   连接成功返回一个新的数据库连接句柄（整型），否则返回失败消息（字符串型）。\n\n   FlufFOS 支持 MYSQL, SQLITE3 和 PostgreSQL。\n\nWhen compiling driver, you need to pass -DPACKAGE_DB=ON and -DPACKAGE_DB_MYSQL=X or -DPACKAGE_DB_SQLITE=X or -DPACKAGE_DB_POSTGRESQL=X and you should also pass -DPACKAGE_DB_DEFAULT_DB=X which should be one of the value above. If one value is an empty string, the driver support for that DB is disabled.\n\n   X here means an integer representing the \"type\" parameter in db_connect().\n\nDriver prvoides following pre-defines constant to lib for DB types.\n   __USE_MYSQL__   is what -DPACKAGE_DB_MYSQL=<value> is, default to be 1\n   __USE_SQLITE3__ is what -DPACKAGE_DB_SQLITE=<value> is, default to be not defined.\n   __USE_POSTGRE__ is what -DPACKAGE_DB_POSTGRESQL=<value> is, default to be not defined.\n   __DEFAULT_DB__  is what -DPACKAGE_DB_DEFAULT_DB=<value> is, default to be 1\n\n// SQLITE3示例\n   db = db_connect(\"\", \"/tmp/sqlite.db\", \"\", __USE_SQLITE3__);",
+  "reference": [
+    "db_close",
+    "db_status",
+    "valid_database"
+  ],
+  "category": "数据库相关函数（DB）",
+  "signatures": [
+    {
+      "label": "mixed db_connect( string host, string db )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "host",
+          "type": "string"
+        },
+        {
+          "name": "db",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "label": "mixed db_connect( string host, string db, string user )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "host",
+          "type": "string"
+        },
+        {
+          "name": "db",
+          "type": "string"
+        },
+        {
+          "name": "user",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    },
+    {
+      "label": "mixed db_connect( string host, string db, string user, int type )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "host",
+          "type": "string"
+        },
+        {
+          "name": "db",
+          "type": "string"
+        },
+        {
+          "name": "user",
+          "type": "string"
+        },
+        {
+          "name": "type",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 4,
+        "max": 4
+      }
+    }
+  ]
+}

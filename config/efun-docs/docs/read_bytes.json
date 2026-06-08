@@ -1,0 +1,68 @@
+{
+  "name": "read_bytes",
+  "summary": "这个函数从文件 `path` 中 `start` 字节位置开始读取 `length` 长度的字节，读取的字符以字符串类型返回。注意： (start + length) 的大小不可以超出文件大小，否则会读取失败，如果缺省第三个参数会从指定位置读到文件尾，如果后两个参数都缺省会读取整个文件。",
+  "reference": [
+    "read_file",
+    "write_bytes"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "string read_bytes( string path )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "string read_bytes( string path, int start )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string"
+        },
+        {
+          "name": "start",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "label": "string read_bytes( string path, int start, int length )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string"
+        },
+        {
+          "name": "start",
+          "type": "int"
+        },
+        {
+          "name": "length",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

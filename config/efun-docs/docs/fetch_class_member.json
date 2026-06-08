@@ -1,0 +1,31 @@
+{
+  "name": "fetch_class_member",
+  "summary": "这是 FluffOS 2.0 新增的外部函数，返回实例化的类 `instantiated_class` 的索引为 `index` 的成员的值，这对数据成员没有标签（变量名）的匿名类非常有用。",
+  "details": "示例\n{\n    mixed me = assemble_class( ({ \"Foo\", 42, \"Fooville\" }) ) ;\n    int age ;\n    string name, city ;\n\n    name = fetch_class_member( me, 0 ) ;\n    age = fetch_class_member( me, 1 ) ;\n    city = fetch_class_member( me, 2 ) ;\n}",
+  "reference": [
+    "assemble_class",
+    "store_class_member"
+  ],
+  "category": "结构体（类）相关函数（Class）",
+  "signatures": [
+    {
+      "label": "mixed fetch_class_member( mixed instantiated_class, int index )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "instantiated_class",
+          "type": "mixed"
+        },
+        {
+          "name": "index",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

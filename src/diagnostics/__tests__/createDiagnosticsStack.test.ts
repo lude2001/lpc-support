@@ -5,6 +5,7 @@ import { LocalVariableDeclarationCollector } from '../../collectors/LocalVariabl
 import { StringLiteralCollector } from '../../collectors/StringLiteralCollector';
 import { UnusedVariableCollector } from '../../collectors/UnusedVariableCollector';
 import { createSharedDiagnosticsService } from '../../language/services/diagnostics/createSharedDiagnosticsService';
+import { BasicSemanticDiagnosticsCollector } from '../collectors/BasicSemanticDiagnosticsCollector';
 import { MacroUsageCollector } from '../collectors/MacroUsageCollector';
 import { ObjectAccessCollector } from '../collectors/ObjectAccessCollector';
 import {
@@ -25,7 +26,7 @@ describe('createDiagnosticsStack', () => {
     test('creates the default collector set in the expected order', () => {
         const collectors = createDefaultDiagnosticsCollectors();
 
-        expect(collectors).toHaveLength(7);
+        expect(collectors).toHaveLength(8);
         expect(collectors[0]).toBeInstanceOf(StringLiteralCollector);
         expect(collectors[1]).toBeInstanceOf(FileNamingCollector);
         expect(collectors[2]).toBeInstanceOf(UnusedVariableCollector);
@@ -33,6 +34,7 @@ describe('createDiagnosticsStack', () => {
         expect(collectors[4]).toBeInstanceOf(LocalVariableDeclarationCollector);
         expect(collectors[5]).toBeInstanceOf(ObjectAccessCollector);
         expect(collectors[6]).toBeInstanceOf(MacroUsageCollector);
+        expect(collectors[7]).toBeInstanceOf(BasicSemanticDiagnosticsCollector);
     });
 
     test('assembles diagnostics service from ASTManager and the default collector set', () => {
@@ -52,7 +54,21 @@ describe('createDiagnosticsStack', () => {
             stack.collectors
         );
         expect(createSharedDiagnosticsService.mock.calls[0][0].parseDocument).toBeDefined();
-        expect(stack.collectors).toHaveLength(7);
+        expect(stack.collectors).toHaveLength(8);
         expect(stack.diagnosticsService).toBe(diagnosticsService);
+    });
+
+    test('passes the injected symbol resolver to the semantic collector', () => {
+        const analysisService = {
+            parseDocument: jest.fn()
+        } as any;
+        const diagnosticsService = { collectDiagnostics: jest.fn() } as any;
+        const symbolResolver = { resolveVisibleSymbols: jest.fn() };
+        (createSharedDiagnosticsService as jest.Mock).mockReturnValue(diagnosticsService);
+
+        const stack = createDiagnosticsStack(analysisService, { symbolResolver });
+
+        expect(stack.collectors[7]).toBeInstanceOf(BasicSemanticDiagnosticsCollector);
+        expect((stack.collectors[7] as any).resolver).toBe(symbolResolver);
     });
 });

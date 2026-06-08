@@ -1,0 +1,31 @@
+{
+  "name": "db_fetch",
+  "summary": "从数据库查询的结果集中返回指定行的数据列数组，如果失败会返回错误消息字符串。",
+  "details": "示例\nmixed dbconn, rows, *res;\n\n   if (stringp(dbconn = db_connect(\"192.168.10.10\", \"homestead\", \"homestead\")))\n   {\n       write(dbconn); /* error */\n   }\n   else\n   {\n       rows = db_exec(dbconn, \"SELECT name, phone FROM users limit 20\");\n       if (!rows)\n           write(\"查询结果为空\\n\");\n       else if (stringp(rows))\n           write(rows); /* error */\n       else\n           for (int i = 1; i <= rows; i++)\n           {\n               res = db_fetch(dbconn, i);\n               write(res[0] + \" \" + res[1] + \"\\n\");\n           }\n\n       db_close(dbconn);\n   }",
+  "reference": [
+    "db_exec",
+    "valid_database"
+  ],
+  "category": "数据库相关函数（DB）",
+  "signatures": [
+    {
+      "label": "mixed *db_fetch( int handle, int row )",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "int"
+        },
+        {
+          "name": "row",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

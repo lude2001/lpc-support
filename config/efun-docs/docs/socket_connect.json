@@ -1,0 +1,40 @@
+{
+  "name": "socket_connect",
+  "summary": "参数 `s` 是一个 socket 连接，`s` 必须是 STREAM 模式 或 MUD 模式. 参数 `address` 是将要连接的 socket 地址，地址格式类似： \"127.0.0.1 23\"。\n\n   参数 `read_callback` 是 socket 获取数据时驱动程序调用的函数名称，函数原型应该是以下格式：\n\n   void read_callback(int fd, mixed message)\n\n   其中参数 `fd` 是接受数据的 socket 连接，参数 `message` 是接收到的数据。\n\n   参数 `write_callback` 是 socket 准备写入数据时驱动程序调用的函数名称，函数原型应该是以下格式：\n\n   void write_callback(int fd)\n\n   其中参数 `fd` 是将被写入数据的 socket 连接。",
+  "details": "Return semantics:\n成功时返回 EESUCCESS ，失败（出错）时返回代表以下意义的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性\n   EEMODENOTSUPP  不支持的 Socket 模式\n   EEISLISTEN     Socket 正在监听中\n   EEISCONN       Socket 已连接\n   EEBADADDR      地址格式问题\n   EEINTR         中断的系统调用\n   EEADDRINUSE    地址已经被占用\n   EEALREADY      操作已在进行中\n   EECONNREFUSED  连接被拒绝\n   EECONNECT      连接问题",
+  "reference": [
+    "socket_accept",
+    "socket_close",
+    "socket_create"
+  ],
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "int socket_connect( int s, string address, string|function read_callback, string|function write_callback )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "s",
+          "type": "int"
+        },
+        {
+          "name": "address",
+          "type": "string"
+        },
+        {
+          "name": "read_callback",
+          "type": "string | function"
+        },
+        {
+          "name": "write_callback",
+          "type": "string | function"
+        }
+      ],
+      "arity": {
+        "min": 4,
+        "max": 4
+      }
+    }
+  ]
+}

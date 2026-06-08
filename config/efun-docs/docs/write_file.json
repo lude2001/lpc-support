@@ -1,0 +1,40 @@
+{
+  "name": "write_file",
+  "summary": "将字符串 `str` 追加到文件 `file` 中，写入成功返回 1，失败返回  0 。可选参数`flag`默认值为0，如果参数 `flag` 是 1，写入方式是覆盖而不是追加。",
+  "reference": [
+    "file_size",
+    "read_file",
+    "write_buffer",
+    "async_read",
+    "async_write",
+    "valid_read",
+    "valid_write"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "int write_file( string file, string str, int flag | void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "file",
+          "type": "string"
+        },
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "flag",
+          "type": "int",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 3
+      }
+    }
+  ]
+}

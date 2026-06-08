@@ -1,0 +1,30 @@
+{
+  "name": "parse_add_synonym",
+  "summary": "parse_add_synonym 内置函数",
+  "category": "语法分析相关函数（Parsing）",
+  "signatures": [
+    {
+      "label": "void parse_add_synonym(string, string, void | string)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        },
+        {
+          "name": "arg2",
+          "type": "string"
+        },
+        {
+          "name": "string",
+          "type": "void |"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

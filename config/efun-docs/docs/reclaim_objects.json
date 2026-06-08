@@ -1,0 +1,20 @@
+{
+  "name": "reclaim_objects",
+  "summary": "重复检查所有已加载的对象，并释放残留的对象，这个能释放大量内存占用，具体取决于MUD的代码情况。如果一个对象仅仅是被已摧毁的对象的全局变量指针，这个对象就是残留的对象。这个函数返回值是被清理的对象的数量。\n\n   提示：FLUFFOS驱动现在会自动调用此函数。",
+  "reference": [
+    "destruct"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "int reclaim_objects( void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

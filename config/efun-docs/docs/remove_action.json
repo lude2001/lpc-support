@@ -1,0 +1,32 @@
+{
+  "name": "remove_action",
+  "summary": "取消玩家指令 `cmd` 和函数 `fun` 的绑定。基本上，remove_action() 是 add_action() 的反向操作，当一个指令不再需要时，可以使用 remove_action() 移除。",
+  "details": "Return semantics:\n成功返回 1，失败返回 0。",
+  "reference": [
+    "add_action",
+    "query_verb",
+    "init"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int remove_action( string fun, string cmd )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "fun",
+          "type": "string"
+        },
+        {
+          "name": "cmd",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

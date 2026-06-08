@@ -1,0 +1,33 @@
+{
+  "name": "db_exec",
+  "summary": "通过指定句柄执行 SQL 语句，如果执行成功会返回结果的行数，否则返回错误消息字符串。",
+  "reference": [
+    "db_commit",
+    "db_fetch",
+    "db_rollback",
+    "async_db_exec",
+    "valid_database"
+  ],
+  "category": "数据库相关函数（DB）",
+  "signatures": [
+    {
+      "label": "mixed db_exec( int handle, string sql_query )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "int"
+        },
+        {
+          "name": "sql_query",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "event",
+  "summary": "在目标对象中调用 \"event_\" + event_name。\"event_\" + event_name 必须是一个公共函数。目标可以是单个对象或对象数组。\n\n   如果目标是单个对象，event 函数将首先在该对象中调用事件函数，然后它将在目标的所有 all_inventory() 对象中调用事件函数。\n\n   如果目标是对象数组，event 函数将在所有指定的对象中调用事件函数。与单目标版本不同，它不会级联到每个对象的库存中。\n\n   该函数将传递调用对象作为其第一个参数，然后是所有指定的参数。",
+  "details": "示例\n// In a room\n\n// will call event_heal_up on the room, and then every object in the room\nevent( this_object(), \"heal_up\", 50, 50 ) ;\n\n// will call event_heal_up in the results of users() efun\nevent( users(), \"heal_up\", 25, 25 ) ;\n\n// In a player object\n\n// To take advantage of this event, write an event_heal_up in the player\n// object to receive the call\nvoid event_heal_up(object source, int health, int mana)\n{\n    message(\"heal\", sprintf(\"You were healed %d health and %d mana by %O.\\n\", health, mana, source), this_object()) ;\n}",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "void event(object | object * target, string event_name, mixed *args..)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "target",
+          "type": "object | object *"
+        },
+        {
+          "name": "event_name",
+          "type": "string"
+        },
+        {
+          "name": "arg3",
+          "type": "mixed *args.."
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "telnet_nop",
+  "summary": "if user is under telnet, then send an TELNET_IAC TELNET_NOP sequence, useful to keep the connection alive.\n\n   NOP is \"no operation\".  You can send a packet that communicates to the client but does not include actual data.  It's like you say here is a message but it has size of 0.  This lets you keep the network connection active.  If you have networking equipment that forgets about connections whenever they are silent for too long, then this will stop that from happening.",
+  "reference": [
+    "telnet_ga",
+    "send_nullbyte"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "void telnet_nop()",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "member_array",
+  "summary": "返回 `item` 在 数组或字符串 `arr` 中首次出现的位置，如果指定起始位置 `start`，则从指定位置之后开始查询，如果没有找到则返回 -1。\n\n   Note, if the second argument is a string, the first parameter must be an int representing the character you are looking for in the provided string.",
+  "details": "示例\n{\n    member_array( \"red\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) ) ;\n    // 0\n\n    member_array( \"red\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) , 1) ;\n    // 2\n\n    member_array( \"blue\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) , 3) ;\n    // -1\n\n    member_array( \"purple\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) ) ;\n    // -1\n\n    member_array('F', \"Drink the FluffOS Kool-Aid!\") ;\n    // 10\n\n    member_array('Z', \"Drink the FluffOS Kool-Aid!\") ;\n    // -1\n}",
+  "reference": [
+    "strsrch"
+  ],
+  "category": "数组相关函数（Arrays）",
+  "signatures": [
+    {
+      "label": "int member_array(mixed item, string | mixed *arr, void | int start, void | int)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "item",
+          "type": "mixed"
+        },
+        {
+          "name": "arr",
+          "type": "string | mixed *"
+        },
+        {
+          "name": "start",
+          "type": "void | int"
+        },
+        {
+          "name": "int",
+          "type": "void |"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 4
+      }
+    }
+  ]
+}

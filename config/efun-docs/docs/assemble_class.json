@@ -1,0 +1,27 @@
+{
+  "name": "assemble_class",
+  "summary": "这是 FluffOS 2.0 新增的外部函数，用数组 `elements` 的元素实例化一个结构体(class)",
+  "details": "示例\n{\n    mixed *elements = ({ \"Foo\", 42, \"Fooville\" }) ;\n    mixed cl = assemble_class( elements ) ;\n\n    write( sprintf( \"%O\\n\", cl ) ) ;\n}\n\n结果：\n\nCLASS( 3 elements\n     \"Foo\",\n     42,\n     \"Fooville\"\n   )\n\n警告\nIf you have a previously defined class and assign the result from\n   assemble_class to a variable, the variable will be shaped from the\n   result of assemble_class. No error is caught by the shapes being\n   different, and the original specification is ignored.\n\n   class person {\n       string name ;\n       int age ;\n       string city ;\n   }\n\n   void fun()\n   {\n       class person me ;\n\n       me = assemble_class( ({ \"Would\", \"You\", \"Like\", 42, \"Bubblegums\" }) ) ;\n       write( sprintf( \"%O\\n\", me ) ) ;\n\n       // CLASS( 5 elements\n       //   \"Would\",\n       //   \"You\",\n       //   \"Like\",\n       //   42,\n       //   \"Bubblegums\"\n       //  )\n   }",
+  "reference": [
+    "disassemble_class",
+    "fetch_class_member"
+  ],
+  "category": "结构体（类）相关函数（Class）",
+  "signatures": [
+    {
+      "label": "mixed assemble_class( mixed *elements )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "elements",
+          "type": "mixed *"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

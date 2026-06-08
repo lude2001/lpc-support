@@ -1,0 +1,29 @@
+{
+  "name": "evaluate",
+  "summary": "如果 `f` 是一个函数会使用剩余的参数调用 `f`，否则直接返回 `f`。 evaluate(f, ...) 的作用和直接调用 f(...) 相同，等价于：(* f)(...)。",
+  "reference": [
+    "bind"
+  ],
+  "category": "函数相关函数（Functions）",
+  "signatures": [
+    {
+      "label": "mixed evaluate(mixed f, ...)",
+      "returnType": "mixed",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "f",
+          "type": "mixed"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "send_msdp_variable",
+  "summary": "MudWiki 列表包含该函数，但详情页尚未提供内容。",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "send_msdp_variable()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "send_gmcp",
+  "summary": "send_gmcp 内置函数",
+  "details": "NAME\nsend_gmcp() - send a GMCP message\n\nSYNOPSIS\nvoid send_gmcp( string message );\n\nDESCRIPTION\nSends a GMCP 'message' for this_object() to the user's client.\n\n   For payload formatting information see: http://www.gammon.com.au/gmcp, https://github.com/keneanung/GMCPAdditions\n\n   Note: send_gmcp() should only be called from within a user object.\n\nSEE ALSO\ngmcp_enable(4), gmcp(4), has_gmcp(3)",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "send_gmcp()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

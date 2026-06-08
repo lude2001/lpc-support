@@ -1,0 +1,65 @@
+{
+  "name": "read_buffer",
+  "summary": "如果 `src` 是一个字符串（文件名），会从文件第 `start` 字节开始读取长度 `len` 字节的内容并以缓冲区类型返回，如果没有指定起始和长度，会读取整个文件。\n\n   如果 `src` 是一个缓冲区，会从缓冲区第 `start` 字节开始读取长度 `len` 字节的内容并以字符串类型返回。\n\n   请注意，你能从文件读取到缓冲区的最大字节数通过运行时配置文件的 `maximum byte transfer` 参数控制。",
+  "details": "作者\nTruilkan",
+  "reference": [
+    "write_buffer",
+    "allocate_buffer",
+    "bufferp",
+    "read_bytes",
+    "write_bytes"
+  ],
+  "category": "缓冲区相关函数（Buffers）",
+  "signatures": [
+    {
+      "label": "buffer read_buffer( string src, int start | void, int len | void )",
+      "returnType": "buffer",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "src",
+          "type": "string"
+        },
+        {
+          "name": "start",
+          "type": "int",
+          "optional": true
+        },
+        {
+          "name": "len",
+          "type": "int",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 3
+      }
+    },
+    {
+      "label": "string read_buffer( buffer src, int start | void, int len | void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "src",
+          "type": "buffer"
+        },
+        {
+          "name": "start",
+          "type": "int",
+          "optional": true
+        },
+        {
+          "name": "len",
+          "type": "int",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 3
+      }
+    }
+  ]
+}

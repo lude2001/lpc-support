@@ -1,0 +1,58 @@
+{
+  "name": "write_buffer",
+  "summary": "If 'dest' is a file, then 'source' must be an int (and will be  written\n   to the file in network-byte-order), a buffer, or a string, and 'source'\n   will be written to the file 'dest' starting at byte # 'start'.\n\n   If 'dest' is a buffer, then 'source' will be written  into  the  buffer\n   starting  at  byte  # 'start' in the buffer.  If 'source' is an int, it\n   will be written in network-byte-order.",
+  "details": "作者\nTruilkan",
+  "reference": [
+    "read_buffer",
+    "allocate_buffer"
+  ],
+  "category": "缓冲区相关函数（Buffers）",
+  "signatures": [
+    {
+      "label": "int write_buffer( string dest, int start, string | buffer | int source )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "dest",
+          "type": "string"
+        },
+        {
+          "name": "start",
+          "type": "int"
+        },
+        {
+          "name": "source",
+          "type": "string | buffer | int"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    },
+    {
+      "label": "int write_buffer( buffer dest, int start, string | buffer | int source )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "dest",
+          "type": "buffer"
+        },
+        {
+          "name": "start",
+          "type": "int"
+        },
+        {
+          "name": "source",
+          "type": "string | buffer | int"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "parse_command",
+  "summary": "MudWiki 列表包含该函数，但详情页尚未提供内容。",
+  "category": "语法分析相关函数（Parsing）",
+  "signatures": [
+    {
+      "label": "parse_command()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

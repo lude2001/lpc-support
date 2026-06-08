@@ -1,0 +1,22 @@
+{
+  "name": "uncompress",
+  "summary": "uncompress 内置函数",
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "buffer uncompress(string | buffer)",
+      "returnType": "buffer",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "buffer",
+          "type": "string |"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

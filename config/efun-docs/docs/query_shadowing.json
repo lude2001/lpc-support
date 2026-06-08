@@ -1,0 +1,27 @@
+{
+  "name": "query_shadowing",
+  "summary": "返回对象 `ob` 投影的对象，如果没有投影任何对象返回 0。",
+  "reference": [
+    "shadow",
+    "objectp",
+    "valid_shadow"
+  ],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "object query_shadowing( object ob )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

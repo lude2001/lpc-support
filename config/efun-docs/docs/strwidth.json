@@ -1,0 +1,25 @@
+{
+  "name": "strwidth",
+  "summary": "FluffOS 2.1 新增efun，strwidth() 返回字符串 'str' 的显示宽度。\n\n   The driver uses rules defined in https://www.unicode.org/reports/tr11/tr11-36.html to calcuate character width.\n   Control characters has no width, Wide characters, including emojis are two column wide. This rule is also used by sprintf() to layout strings.",
+  "reference": [
+    "strlen"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "int strwidth( string str )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "find_player",
+  "summary": "和 find_living() 外部函数功能类似, 只是仅从玩家(interactive)或曾经是玩家的对象中寻找。",
+  "reference": [
+    "enable_commands",
+    "find_living",
+    "livings",
+    "users",
+    "set_living_name"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "object find_player( string str )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

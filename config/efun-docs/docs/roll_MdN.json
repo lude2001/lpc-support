@@ -1,0 +1,34 @@
+{
+  "name": "roll_MdN",
+  "summary": "FluffOS 1.33新增efun，生成数字 `n` 的随机数 `m` 次，并返回所有随机数之和。注意和 random() 外部函数不同，这里生成的数值范围是 1 ~ n 。\n\nFluffOS v2019.20220507-25-g0459814b 版新增支持第三个bonus参数。",
+  "reference": [
+    "random"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int roll_MdN(int m, int n, int bonus : default = 0)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "m",
+          "type": "int"
+        },
+        {
+          "name": "n",
+          "type": "int"
+        },
+        {
+          "name": "default",
+          "type": "int bonus :",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 3
+      }
+    }
+  ]
+}

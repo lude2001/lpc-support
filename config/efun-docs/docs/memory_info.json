@@ -1,0 +1,29 @@
+{
+  "name": "memory_info",
+  "summary": "如果指定参数 `ob` ，memory_info() 返回对象 `ob` 的内存占用量，如果不指定参数，memory_info() 返回所有对象的内存占用量。请注意，返回值为近似值，MUD 的内存占用量并不完全等于系统分配给 MUD 的内存。",
+  "reference": [
+    "debug_info",
+    "malloc_status",
+    "mud_status",
+    "memory_summary"
+  ],
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "int memory_info( object ob | void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

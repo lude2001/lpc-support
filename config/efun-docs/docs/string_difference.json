@@ -1,0 +1,29 @@
+{
+  "name": "string_difference",
+  "summary": "按字符顺序比较字符串 `str1` 和 `str2` 的不同，并返回不同值的数量。",
+  "reference": [
+    "strcmp"
+  ],
+  "category": "字符串相关函数（Strings）",
+  "signatures": [
+    {
+      "label": "int string_difference( string str1, string str2 )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "str1",
+          "type": "string"
+        },
+        {
+          "name": "str2",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

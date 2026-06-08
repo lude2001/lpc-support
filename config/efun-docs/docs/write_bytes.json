@@ -1,0 +1,34 @@
+{
+  "name": "write_bytes",
+  "summary": "这个函数把字符串 `series` 的内容从文件 `path` 的字节位置 `start` 开始写入到文件。写入失败返回 0 ，成功返回 1 。",
+  "reference": [
+    "write_file",
+    "read_bytes"
+  ],
+  "category": "文件系统相关函数（Filesystem）",
+  "signatures": [
+    {
+      "label": "int write_bytes( string path, int start, string series )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string"
+        },
+        {
+          "name": "start",
+          "type": "int"
+        },
+        {
+          "name": "series",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

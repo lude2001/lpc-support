@@ -1,0 +1,31 @@
+{
+  "name": "debug_info",
+  "summary": "debug_info() 是一个用来调试驱动的通用工具。调试信息的操作由第一个参数 `operation` 决定，可用参数值为 0、1、2 ；第二个参数 `ob` 为要调试的对象。",
+  "details": "示例\n> eval return debug_info(0, me)\nResult = \"O_HEART_BEAT      : TRUE\nO_IS_WIZARD       : TRUE\nO_ENABLE_COMMANDS : TRUE\nO_CLONE           : TRUE\nO_VIRTUAL         : FALSE\nO_DESTRUCTED      : FALSE\nO_ONCE_INTERACTIVE: TRUE\nO_RESET_STATE     : FALSE\nO_WILL_CLEAN_UP   : FALSE\nO_WILL_RESET      : TRUE\nO_ZMP             : FALSE\nO_GMCP            : FALSE\nO_MXP             : FALSE\nO_COMPRESS        : TRUE\nO_MSP             : FALSE\nnext_reset  : 1582\ntotal light : 0\ntime_of_ref : 1151\nref         : 15\nname        : '/clone/user/user#1'\nnext_all    : OBJ(/clone/user/user)\nPrevious object in object list: OBJ(/adm/daemons/chard)\nposition in object list:8082\n\"\n\n> eval return debug_info(1, me)\nResult = \"program ref's 2\nName /clone/user/user.c\nprogram size 4633\nfunction flags table 484 (968)\ncompiler function table 66 (1056)\nnum strings 193\nnum vars 15 (150)\nnum inherits 7 (112)\ntotal size 8936\n\n\"\n\n> eval return debug_info(2, me)\nResult = \"busy:   0\ninterrupt:   0\noverride:   0\nalias:   0\nhistory:   0\nlast_input:   \"eval return debug_info(2,me)\"\norginal_input:   \"eval return debug_info(2,me)\"\ndirect_command:   0\nkiller:   ({ })\nwant_kills:   ({ })\nenemy:   ({ })\nnext_action:   (: call_other,   \"/adm/daemons/race/human.c\",   \"query_action\" :)\ndefault_object:   \"/adm/daemons/race/human.c\"\ndefault_function:   \"query_action\"\ncompetitor:   0\npath:   ({ /* sizeof() == 10 */\n\n   \"/cmds/adm/\",\n   \"/cmds/arch/\",\n   \"/cmds/wiz/\",\n   \"/cmds/imm/\",\n   \"/cmds/usr/\",\n   \"/cmds/std/\",\n   \"/cmds/skill/\",\n   \"/cmds/test/\",\n   \"/mudcore/cmds/wizard/\",\n   \"/mudcore/cmds/player/\"\n })\n\nenabled:   1\nlast_applyer_name:   0\nlast_applyer_id:   0\ncond_applyer:   0\nconditions:   0\nlast_damage_from:   0\nlast_damage_name:   0\ndefeated_by:   0\ndefeated_by_who:   0\nghost:   0\ndbase:   ([ /* sizeof() == 45 */\n\n   \"age\" : 14,\n   \"cwd\" : \"/\",\n   \"birthday\" : 1658792274,\n   \"cwf\" : \"/mudcore/system/daemons/http/qq_d.c\",\n   \"attitude\" : \"peaceful\",\n   \"max_jing\" : 100,\n   \"state\" : ([ /* sizeof() == 1 */\n       \"go\" : 86,\n     ]),\n   \"last_save\" : 1658830696,\n   \"surname\" : \"小\",\n   \"gender\" : \"男性\",\n   \"jing\" : 100,\n   \"purename\" : \"泥巴\",\n   \"id\" : \"mudren\",\n   \"limbs\" : ({ /* sizeof() == 16 */\n       \"头部\",\n       \"颈部\",\n       \"胸口\",\n       \"后心\",\n       \"左肩\",\n       \"右肩\",\n       \"左臂\",\n       \"右臂\",\n       \"左手\",\n       \"右手\",\n       \"腰间\",\n       \"小腹\",\n       \"左腿\",\n       \"右腿\",\n       \"左脚\",\n       \"右脚\"\n     }),\n   \"channels\" : ({ /* sizeof() == 7 */\n       \"chat\",\n       \"rumor\",\n       \"party\",\n       \"bill\",\n       \"sing\",\n       \"family\",\n       \"rultra\"\n     }),\n   \"food\" : 300,\n   \"potential\" : 100,\n   \"eff_jing\" : 100,\n   \"dex\" : 20,\n   \"name\" : \"小泥巴\",\n   \"mud_age\" : 30258,\n   \"race\" : \"人类\",\n   \"can_speak\" : 1,\n   \"born\" : \"扬州人氏\",\n   \"int\" : 20,\n   \"registered\" : 1,\n   \"max_qi\" : 100,\n   \"unit\" : \"位\",\n   \"eff_qi\" : 100,\n   \"water\" : 300,\n   \"con\" : 20,\n   \"startroom\" : \"/d/city/kedian\",\n   \"shen_type\" : 0,\n   \"kar\" : 8,\n   \"storage_bag\" : 1,\n   \"title\" : \"普通百姓\",\n   \"str\" : 20,\n   \"shen\" : 0,\n   \"special_skill\" : ([ /* sizeof() == 3 */\n       \"self\" : 1,\n       \"lucky\" : 1,\n       \"might\" : 1,\n     ]),\n   \"env\" : ([ /* sizeof() == 4 */\n       \"no_autoultra\" : 1,\n       \"wimpy\" : 60,\n       \"auto_get\" : 1,\n       \"auto_regenerate\" : 1,\n     ]),\n   \"born_family\" : \"没有\",\n   \"last_read_news\" : 1658792274,\n   \"per\" : 14,\n   \"qi\" : 100,\n ])\n\ntmp_dbase:   ([ /* sizeof() == 8 */\n\n   \"scan_time\" : 1658830696,\n   \"terminal_type\" : \"TINTIN++\",\n   \"apply\" : ([ /* sizeof() == 1 */\n       \"armor\" : 2,\n     ]),\n   \"reply\" : \"zhou butong\",\n   \"link_ob\" : /clone/user/login#0,\n   \"user_setup\" : 1,\n   \"armor\" : ([ /* sizeof() == 2 */\n       \"cloth\" : /clone/cloth/jinduan#2 (\"锦缎(jinduan)\"),\n       \"boots\" : /clone/cloth/xianlv#3 (\"仙履(shoes)\"),\n     ]),\n   \"logon_time\" : 1658830696,\n ])\n\ndefault_ob:   0\nmsg_buffer:   ({ })\nwritten:   2\nlog_in:   0\nweight:   42000\nencumb:   20\nmax_encumb:   66000\nmagic_move:   0\nin_temp:   0\nmy_id:   ({ /* sizeof() == 1 */\n\n   \"mudren\"\n })\n\nskills:   0\nlearned:   0\nskill_map:   0\nskill_prepare:   0\nwprepare:   0\ncount:   0\nvars:   ([ ])\nleader:   0\nteam:   0\nnext_beat:   1658830714\nkeep_beat_flag:   0\nshort_desc:   0\nautoload:   0\ngmcp_log:   ({ /* sizeof() == 1 */\n\n   \"Received: Room.Info.Get\"\n })\n\ntoDoList:   ([ ])\nsolved:   ({ })\nmy_depot:   ([ ])\nbag:   ({ })\nadmin_flag:   0\nuser_cracked:   0\nnet_dead:   0\nlast_age_set:   1658830703\nuser_say:   0\nuser_command:   0\nattach_flag:   0\nat_time:   0\nban_to:   0\nban_say_msg:   \"\"\nmy_defeater_id:   0\nmy_killer_id:   0\ncraze:   0\nprison:   0\ntime_to_leave:   0\n\n\"",
+  "reference": [
+    "dump_file_descriptors",
+    "socket_status"
+  ],
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "mixed debug_info( int operation, object ob )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "operation",
+          "type": "int"
+        },
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

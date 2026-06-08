@@ -1,0 +1,30 @@
+{
+  "name": "restore_object",
+  "summary": "从文件 `name` 读取存档（变量和值）到当前对象。如果第二个可选参数是 1，所有非 nosave 类型的变量不会在恢复存档前被重置为 0（正常情况下会重置为0）。\n\n   如果读取时出错，所有受影响到变量都不会被更改并传回错误。",
+  "reference": [
+    "save_object",
+    "restore_variable"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "int restore_object( string name, int flag )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "flag",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

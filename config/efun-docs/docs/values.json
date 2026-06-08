@@ -1,0 +1,25 @@
+{
+  "name": "values",
+  "summary": "values() 返回一个映射 `m` 所有 value 组成的数组\n\n   示例，如:\n\n   mapping m;\n\n   m = ([\"hp\" : 35, \"sp\" : 42, \"mass\" : 100]);\n\n   那么\n\n   values(m) == ({35, 42, 100})\n\n   注意：返回的 value 的顺序和 keys() 外部函数返回的所有 key 的顺序一致。",
+  "reference": [
+    "keys"
+  ],
+  "category": "映射相关函数（Mappings）",
+  "signatures": [
+    {
+      "label": "mixed *values( mapping m )",
+      "returnType": "mixed *",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "m",
+          "type": "mapping"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

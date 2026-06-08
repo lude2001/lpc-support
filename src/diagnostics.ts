@@ -7,7 +7,13 @@ export { DiagnosticsOrchestrator } from './diagnostics/DiagnosticsOrchestrator';
 
 // 导出 diagnostics stack factory
 export { createDiagnosticsStack } from './diagnostics/createDiagnosticsStack';
-export type { DiagnosticsStack } from './diagnostics/createDiagnosticsStack';
+export type { CreateDiagnosticsStackOptions, DiagnosticsStack } from './diagnostics/createDiagnosticsStack';
+export { DefaultDiagnosticSymbolResolver } from './diagnostics/semantic/DiagnosticSymbolResolver';
+export type {
+    DiagnosticCallableSignature,
+    DiagnosticSymbolResolver,
+    VisibleDiagnosticSymbols
+} from './diagnostics/semantic/DiagnosticSymbolResolver';
 
 // 导出类型定义
 export type { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './diagnostics/types';

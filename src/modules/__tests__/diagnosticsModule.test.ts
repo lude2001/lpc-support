@@ -18,12 +18,16 @@ describe('registerDiagnostics', () => {
     let context: vscode.ExtensionContext;
     let diagnosticsOrchestrator: { analyzeDocument: jest.Mock; dispose: jest.Mock };
     let analysisService: { parseDocument: jest.Mock };
+    let documentPathSupport: { kind: string };
+    let efunDocsManager: { kind: string };
     let originalActiveTextEditor: unknown;
 
     beforeEach(() => {
         registry = new ServiceRegistry();
         context = { subscriptions: [] } as vscode.ExtensionContext;
         analysisService = { parseDocument: jest.fn() };
+        documentPathSupport = { kind: 'document-path-support' };
+        efunDocsManager = { kind: 'efun-docs-manager' };
         diagnosticsOrchestrator = { analyzeDocument: jest.fn(), dispose: jest.fn() };
         originalActiveTextEditor = (vscode.window as any).activeTextEditor;
 
@@ -46,12 +50,19 @@ describe('registerDiagnostics', () => {
             fileExists: jest.fn(),
             getWorkspaceFolder: jest.fn()
         } as any);
+        registry.register(Services.DocumentPathSupport, documentPathSupport as any);
+        registry.register(Services.EfunDocs, efunDocsManager as any);
 
         registerDiagnostics(registry, context);
 
         expect(DiagnosticsOrchestrator).toHaveBeenCalledTimes(1);
         expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
-        expect(createDiagnosticsStack).toHaveBeenCalledWith(analysisService);
+        expect(createDiagnosticsStack).toHaveBeenCalledWith(
+            analysisService,
+            expect.objectContaining({
+                symbolResolver: expect.anything()
+            })
+        );
         expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(
             context,
             expect.objectContaining({
@@ -78,11 +89,18 @@ describe('registerDiagnostics', () => {
             fileExists: jest.fn(),
             getWorkspaceFolder: jest.fn()
         } as any);
+        registry.register(Services.DocumentPathSupport, documentPathSupport as any);
+        registry.register(Services.EfunDocs, efunDocsManager as any);
 
         registerDiagnostics(registry, context);
 
         expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
-        expect(createDiagnosticsStack).toHaveBeenCalledWith(analysisService);
+        expect(createDiagnosticsStack).toHaveBeenCalledWith(
+            analysisService,
+            expect.objectContaining({
+                symbolResolver: expect.anything()
+            })
+        );
     });
 
     test('does not analyze document when no active editor exists', () => {
@@ -94,11 +112,18 @@ describe('registerDiagnostics', () => {
             fileExists: jest.fn(),
             getWorkspaceFolder: jest.fn()
         } as any);
+        registry.register(Services.DocumentPathSupport, documentPathSupport as any);
+        registry.register(Services.EfunDocs, efunDocsManager as any);
 
         registerDiagnostics(registry, context);
 
         expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
-        expect(createDiagnosticsStack).toHaveBeenCalledWith(analysisService);
+        expect(createDiagnosticsStack).toHaveBeenCalledWith(
+            analysisService,
+            expect.objectContaining({
+                symbolResolver: expect.anything()
+            })
+        );
     });
 
     test('keeps diagnostics UX registered while diagnostics stack always comes from the shared factory', () => {
@@ -113,6 +138,8 @@ describe('registerDiagnostics', () => {
             fileExists: jest.fn(),
             getWorkspaceFolder: jest.fn()
         } as any);
+        registry.register(Services.DocumentPathSupport, documentPathSupport as any);
+        registry.register(Services.EfunDocs, efunDocsManager as any);
 
         registerDiagnostics(registry, context);
 

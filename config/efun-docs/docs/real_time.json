@@ -1,0 +1,23 @@
+{
+  "name": "real_time",
+  "summary": "返回一个本地服务器时间戳，时间戳是指格林威治时间1970年01月01日00时00分00秒(北京时间1970年01月01日08时00分00秒)起至现在的总毫秒数。",
+  "reference": [
+    "ctime",
+    "localtime",
+    "time",
+    "uptime"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int real_time( void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

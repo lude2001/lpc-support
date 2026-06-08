@@ -1,0 +1,26 @@
+{
+  "name": "query_ip_port",
+  "summary": "返回指定玩家对象 `ob` 的连线端口，如果不指定玩家，默认为 this_player()。如果对象非在线玩家返回 0 。",
+  "reference": [
+    "interactive",
+    "this_player"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int query_ip_port(void | object ob)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "void | object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

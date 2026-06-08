@@ -1,0 +1,51 @@
+{
+  "name": "pointerp",
+  "summary": "如果变量 `arg` 是数组则返回1，否则返回0。",
+  "details": "Return semantics:\n1 或者 0",
+  "reference": [
+    "clonep",
+    "mapp",
+    "stringp",
+    "objectp",
+    "intp",
+    "bufferp",
+    "floatp",
+    "functionp",
+    "nullp",
+    "undefinedp",
+    "classp",
+    "virtualp"
+  ],
+  "category": "数组相关函数（Arrays）",
+  "signatures": [
+    {
+      "label": "int arrayp(mixed arg)",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "int pointerp(mixed arg)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

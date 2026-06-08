@@ -1,0 +1,28 @@
+{
+  "name": "db_commit",
+  "summary": "对于事务数据库，这将提交最后一组操作。\n\n   提交成功返回 1，失败返回 0 。",
+  "details": "说明\nNot yet implemented!",
+  "reference": [
+    "db_exec",
+    "db_rollback",
+    "valid_database"
+  ],
+  "category": "数据库相关函数（DB）",
+  "signatures": [
+    {
+      "label": "int db_commit(int handle )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

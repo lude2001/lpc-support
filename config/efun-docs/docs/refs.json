@@ -1,0 +1,17 @@
+{
+  "name": "refs",
+  "summary": "refs 内置函数",
+  "details": "NAME\nrefs - return the number of references to a data structure\n\nSYNOPSIS\nint refs( mixed data );\n\nDESCRIPTION\nThe number of references to 'data' will be returned by refs().  This is useful for deciding whether or not to make a copy of a data structure before returning it.\n\nSEE ALSO\nchildren(3), inherit_list(3), deep_inherit_list(3), objects(3)",
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "refs()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

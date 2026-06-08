@@ -1,0 +1,27 @@
+{
+  "name": "typeof",
+  "summary": "返回表达式或变量的数据类型，具体类型在驱动文件<type.h>中定义如下：\n\n/* /include/type.h */\n\n#ifndef _TYPE_H\n#define _TYPE_H\n\n#define T_INT \"int\"\n#define T_STRING \"string\"\n#define T_ARRAY \"array\"\n#define T_OBJECT \"object\"\n#define T_MAPPING \"mapping\"\n#define T_FUNCTION \"function\"\n#define T_FLOAT \"float\"\n#define T_BUFFER \"buffer\"\n#define T_CLASS \"class\"\n\n#define T_INVALID \"*invalid*\"\n#define T_LVALUE \"*lvalue*\"\n#define T_LVALUE_BYTE \"*lvalue_byte*\"\n#define T_LVALUE_RANGE \"*lvalue_range*\"\n#define T_LVALUE_CODEPOINT \"*lvalue_codepoint*\"\n#define T_ERROR_HANDLER \"*error_handler*\"\n#define T_FREED \"*freed*\"\n#define T_UNKNOWN \"*unknown*\"\n\n#endif\n\n请注意，在LPC中所有数据类型的变量如果没有初始化，默认值都为0，typeof() 返回值都是 int 型。",
+  "reference": [
+    "allocate",
+    "allocate_mapping",
+    "strlen"
+  ],
+  "category": "常规函数（General）",
+  "signatures": [
+    {
+      "label": "string typeof( mixed var )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "var",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

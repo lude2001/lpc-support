@@ -1,0 +1,33 @@
+{
+  "name": "nullp",
+  "summary": "如果变量 'arg' 是空值（null）返回 1。 'arg' 在以下几种情况为 null:\n\n  1. 变量没有初始化。\n  2. 变量是函数的形式参数，但在调用时没有传递实参。\n  3. 变量是映射变量中不存在的元素。(如： arg = map[not_there])\n  4. 变量是 call_other() 外部函数呼叫对象中不存在的函数的返回值(如： arg = call_other(obj, \"???\"))\n  5. 变量指向（array/class/mapping）中被销毁的对象元素。\n\n   本质上 nullp() 是 undefinedp() 的别名。\n\n   fluffos v2019.20220507-11版本以后可以判断class中未赋值的变量。",
+  "reference": [
+    "mapp",
+    "stringp",
+    "pointerp",
+    "objectp",
+    "intp",
+    "bufferp",
+    "floatp",
+    "functionp",
+    "undefinedp"
+  ],
+  "category": "常规函数（General）",
+  "signatures": [
+    {
+      "label": "int nullp( mixed arg )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

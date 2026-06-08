@@ -39,6 +39,10 @@ export interface CallableSignature {
     returnType?: string;
     parameters: CallableParameter[];
     isVariadic: boolean;
+    arity?: {
+        min: number;
+        max?: number | null;
+    };
     rawSyntax?: string;
 }
 

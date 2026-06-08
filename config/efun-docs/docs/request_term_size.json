@@ -1,0 +1,22 @@
+{
+  "name": "request_term_size",
+  "summary": "FluffOS 2.4 新增efun。",
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "void request_term_size(void | int)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "int",
+          "type": "void |"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -31,6 +31,7 @@ describe('ServerLanguageContextFactory', () => {
 
         expect(diagnosticsContext.workspaceRoot).toBe('D:/workspace');
         expect(diagnosticsContext.document.getText()).toBe('BAD_OBJECT->query_name();');
+        expect((diagnosticsContext.document.uri as unknown as { fsPath: string }).fsPath).toBe('D:/workspace/check.c');
     });
 
     test('falls back safely when createCapabilityContext receives no documentUri', () => {

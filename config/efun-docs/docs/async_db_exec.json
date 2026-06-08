@@ -1,0 +1,38 @@
+{
+  "name": "async_db_exec",
+  "summary": "通过指定句柄异步执行 SQL 语句，结果传给函数`f`。",
+  "reference": [
+    "db_fetch",
+    "db_exec"
+  ],
+  "category": "数据库相关函数（DB）",
+  "signatures": [
+    {
+      "label": "void async_db_exec(int handle, string sql, string | function f, ...)",
+      "returnType": "void",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "int"
+        },
+        {
+          "name": "sql",
+          "type": "string"
+        },
+        {
+          "name": "f",
+          "type": "string | function"
+        },
+        {
+          "name": "args",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": null
+      }
+    }
+  ]
+}

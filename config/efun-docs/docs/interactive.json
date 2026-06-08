@@ -1,0 +1,28 @@
+{
+  "name": "interactive",
+  "summary": "如果 `ob` 是在线玩家返回非零值，如果是断线玩家或非玩家对象返回 0。",
+  "reference": [
+    "query_ip_number",
+    "query_ip_name",
+    "enable_commands"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "int interactive( object ob | void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

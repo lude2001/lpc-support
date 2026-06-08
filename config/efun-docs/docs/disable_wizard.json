@@ -1,0 +1,21 @@
+{
+  "name": "disable_wizard",
+  "summary": "enable_wizard() 的反相操作，移除当前玩家对象的巫师特权。",
+  "reference": [
+    "enable_wizard",
+    "wizardp"
+  ],
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "void disable_wizard( void )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

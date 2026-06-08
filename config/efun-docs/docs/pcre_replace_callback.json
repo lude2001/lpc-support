@@ -1,0 +1,35 @@
+{
+  "name": "pcre_replace_callback",
+  "summary": "returns a string where all captured groups have been replaced by the return value of function pointe fun or function fun in object ob.(called with the matched string and match number, starting with 0)",
+  "category": "PCRE 相关函数(PCRE)",
+  "signatures": [
+    {
+      "label": "string pcre_replace_callback(string input, string pattern, string|function, mixed *args...)",
+      "returnType": "string",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string"
+        },
+        {
+          "name": "pattern",
+          "type": "string"
+        },
+        {
+          "name": "function",
+          "type": "string |"
+        },
+        {
+          "name": "args",
+          "type": "mixed *",
+          "variadic": true
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": null
+      }
+    }
+  ]
+}

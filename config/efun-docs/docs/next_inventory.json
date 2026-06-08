@@ -1,0 +1,28 @@
+{
+  "name": "next_inventory",
+  "summary": "返回和对象 `ob` 环境相同的后一个对象。如果没有指定参数 `ob`，默认是 this_object()。\n\n   先进入环境的对象顺序靠后，所以 next_inventory() 取得的是比指定对象先进入环境的对象，如果指定对象是第一个进入环境，哪怕环境中有其它对象进入返回值也是 0。",
+  "reference": [
+    "first_inventory",
+    "all_inventory",
+    "deep_inventory"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "object next_inventory( object ob | void )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

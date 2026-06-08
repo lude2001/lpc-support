@@ -1,0 +1,22 @@
+{
+  "name": "in_edit",
+  "summary": "检查是否在编辑状态",
+  "details": "NAME\nin_edit() - determine if a player is in the editor\n\nSYNOPSIS\nstring in_edit( object default : F_THIS_OBJECT );\n\nDESCRIPTION\nIf  the  given  object  is  in  the  editor,  the  file being edited is\n   returned, else zero.\n\nSEE ALSO\ned(3), in_input(3)",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "in_edit(ob)",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "ob"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

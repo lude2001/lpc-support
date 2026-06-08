@@ -1,0 +1,26 @@
+{
+  "name": "environment",
+  "summary": "返回包含对象 `ob` 的对象(环境)，如果没有指定参数，`ob` 默认是 this_object()。如果对象 `ob` 不在任何环境里，返回 0。",
+  "reference": [
+    "this_object"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "object environment( object ob | void )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

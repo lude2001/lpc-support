@@ -1,0 +1,17 @@
+{
+  "name": "sys_network_ports",
+  "summary": "sys_network_ports 内置函数",
+  "details": "NAME\nsys_network_ports() - 显示活动的网络端口\n\nSYNOPSIS\nmixed *sys_network_ports(void);\n\nDESCRIPTION\nReturns an array of arrays; one for each network port that is being actively used.\n   说明：2023年6月1日 commit 181308d 新增Efun。\n\nRETURN VALUES\nAn array of the following sub-array will be returned with each active port:\n\n       ({ (string) type, (int) port, (int) tls, })\n\nSEE ALSO\nnetwork_stats(3)",
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "sys_network_ports()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

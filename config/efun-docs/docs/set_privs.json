@@ -1,0 +1,17 @@
+{
+  "name": "set_privs",
+  "summary": "set_privs 内置函数",
+  "details": "NAME\nset_privs() - set the privs string for an object\n\nSYNOPSIS\nvoid set_privs( object ob, int | string privs );\n\nDESCRIPTION\nSets the privs string for 'ob' to 'privs'.\n\n   This efun is only available if PRIVS is defined at driver compile time.\n\nSEE ALSO\nprivs_file(4), query_privs(3)",
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "set_privs()",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

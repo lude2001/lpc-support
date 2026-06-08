@@ -40,6 +40,13 @@ function createSimulatedScanner(projectConfigService?: any): SimulatedEfunScanne
     );
 }
 
+function normalizeTestPath(filePath: string): string {
+    return path.normalize(filePath)
+        .replace(/\\/g, '/')
+        .replace(/^\/+([A-Za-z]:\/)/, '$1')
+        .toLowerCase();
+}
+
 function createLookupBuilder(
     documentationService: FunctionDocumentationService,
     pathSupport: WorkspaceDocumentPathSupport
@@ -101,6 +108,22 @@ describe('EfunDocsManager', () => {
         fs.mkdirSync(configDir, { recursive: true });
         const serialized = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
         fs.writeFileSync(path.join(configDir, 'efun-docs.json'), serialized, 'utf8');
+    }
+
+    function writeSplitBundle(extensionPath: string, bundle: Record<string, unknown>): void {
+        const splitDocsDir = path.join(extensionPath, 'config', 'efun-docs', 'docs');
+        fs.mkdirSync(splitDocsDir, { recursive: true });
+
+        fs.writeFileSync(
+            path.join(extensionPath, 'config', 'efun-docs', 'categories.json'),
+            JSON.stringify(bundle.categories ?? {}, null, 2),
+            'utf8'
+        );
+
+        const docs = bundle.docs as Record<string, unknown> | undefined;
+        for (const [name, doc] of Object.entries(docs ?? {})) {
+            fs.writeFileSync(path.join(splitDocsDir, `${name}.json`), JSON.stringify(doc, null, 2), 'utf8');
+        }
     }
 
     function createStructuredBundle(overrides?: {
@@ -276,6 +299,137 @@ describe('EfunDocsManager', () => {
         });
         expect(minimalDoc?.summary).toBeUndefined();
         expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    test('prefers split bundled efun docs over the legacy single bundle', () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-split-'));
+        writeBundleFile(extensionPath, createStructuredBundle({
+            docs: {
+                allocate: {
+                    name: 'allocate',
+                    summary: 'legacy bundle doc',
+                    category: '数组相关函数（Arrays）',
+                    signatures: [{
+                        label: 'mixed *allocate(int size)',
+                        returnType: 'mixed *',
+                        isVariadic: false,
+                        parameters: [{ name: 'size', type: 'int' }]
+                    }]
+                }
+            }
+        }));
+        writeSplitBundle(extensionPath, createStructuredBundle({
+            docs: {
+                allocate: {
+                    name: 'allocate',
+                    summary: 'split bundle doc',
+                    category: '数组相关函数（Arrays）',
+                    signatures: [{
+                        label: 'mixed *allocate(int size, mixed value)',
+                        returnType: 'mixed *',
+                        isVariadic: false,
+                        arity: {
+                            min: 1,
+                            max: 2
+                        },
+                        parameters: [
+                            { name: 'size', type: 'int' },
+                            { name: 'value', type: 'mixed' }
+                        ]
+                    }]
+                }
+            },
+            categories: {
+                '数组相关函数（Arrays）': ['allocate']
+            }
+        }));
+
+        const manager = createManager(extensionPath);
+        const allocateDoc = manager.getStandardCallableDoc('allocate');
+
+        expect(allocateDoc?.summary).toBe('split bundle doc');
+        expect(allocateDoc?.signatures.map(signature => signature.label)).toEqual([
+            'mixed *allocate(int size, mixed value)'
+        ]);
+        expect(allocateDoc?.signatures[0].arity).toEqual({
+            min: 1,
+            max: 2
+        });
+        expect(manager.getCategories().get('数组相关函数（Arrays）')).toEqual(['allocate']);
+    });
+
+    test('bundled split efun docs declare explicit arity for every signature', () => {
+        const docsDir = path.join(process.cwd(), 'config', 'efun-docs', 'docs');
+        const missingArity: string[] = [];
+
+        for (const fileName of fs.readdirSync(docsDir).filter(name => name.endsWith('.json'))) {
+            const doc = JSON.parse(fs.readFileSync(path.join(docsDir, fileName), 'utf8')) as {
+                signatures?: Array<{ arity?: { min?: unknown; max?: unknown } }>;
+            };
+            doc.signatures?.forEach((signature, index) => {
+                const arity = signature.arity;
+                const hasValidMin = Number.isInteger(arity?.min) && Number(arity?.min) >= 0;
+                const hasValidMax = arity?.max === null
+                    || arity?.max === undefined
+                    || (Number.isInteger(arity.max) && Number(arity.max) >= Number(arity.min));
+                if (!arity || !hasValidMin || !hasValidMax) {
+                    missingArity.push(`${fileName}#${index}`);
+                }
+            });
+        }
+
+        expect(missingArity).toEqual([]);
+
+        const getDirDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'get_dir.json'), 'utf8'));
+        const mapArrayDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'map_array.json'), 'utf8'));
+        const memberArrayDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'member_array.json'), 'utf8'));
+        expect(getDirDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 1, max: 2 }
+        ]);
+        expect(mapArrayDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 3, max: null },
+            { min: 2, max: null }
+        ]);
+        expect(memberArrayDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 2, max: 4 }
+        ]);
+    });
+
+    test('keeps legacy arity on standard callable doc signatures', () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-legacy-arity-'));
+        writeBundleFile(extensionPath, createStructuredBundle({
+            docs: {
+                legacy_arity: {
+                    name: 'legacy_arity',
+                    category: '调用相关函数（Calls）',
+                    signatures: [{
+                        label: 'mixed legacy_arity(int size)',
+                        returnType: 'mixed',
+                        isVariadic: false,
+                        arity: {
+                            min: 1,
+                            max: null
+                        },
+                        parameters: [{ name: 'size', type: 'int' }]
+                    }]
+                }
+            },
+            categories: {
+                '调用相关函数（Calls）': ['legacy_arity']
+            }
+        }));
+
+        const manager = createManager(extensionPath);
+
+        const legacyDoc = manager.getStandardCallableDoc('legacy_arity');
+
+        expect(legacyDoc?.signatures[0]).toMatchObject({
+            label: 'mixed legacy_arity(int size)',
+            arity: {
+                min: 1,
+                max: null
+            }
+        });
     });
 
     test('re-export shim exposes the facade manager class', () => {
@@ -557,6 +711,37 @@ describe('EfunDocsManager', () => {
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
+    });
+
+    test('rejects invalid signature arity and warns', () => {
+        const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-invalid-arity-'));
+        writeBundleFile(extensionPath, createStructuredBundle({
+            docs: {
+                invalid_arity: {
+                    name: 'invalid_arity',
+                    category: '调用相关函数（Calls）',
+                    signatures: [{
+                        label: 'void invalid_arity(int size)',
+                        returnType: 'void',
+                        isVariadic: false,
+                        arity: {
+                            min: 2,
+                            max: 1
+                        },
+                        parameters: [{ name: 'size', type: 'int' }]
+                    }]
+                }
+            },
+            categories: {
+                '调用相关函数（Calls）': ['invalid_arity']
+            }
+        }));
+
+        const manager = createManager(extensionPath);
+
+        expect(manager.getStandardCallableDoc('invalid_arity')).toBeUndefined();
+        expect(manager.getAllFunctions()).toEqual([]);
+        expect(warnSpy).toHaveBeenCalled();
     });
 
     test('drops invalid docs when a parameter is missing name', () => {
@@ -862,6 +1047,69 @@ describe('SimulatedEfunScanner', () => {
             name: 'message_vision',
             summary: '发送动作消息'
         });
+    });
+
+    test('loads simulated efuns for the workspace that owns the requested document', async () => {
+        const unrelatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-unrelated-root-'));
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-document-root-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const includeDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+        const sourceDocument = TestHelper.createMockDocument(
+            'void demo() { new_bind("/x"); chinese_number(1); }',
+            'lpc',
+            path.join(workspaceRoot, 'adm', 'daemons', 'aoyid.c')
+        );
+        (sourceDocument as any).uri = vscode.Uri.file(sourceDocument.fileName);
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(entryFile, [
+            '#include "/adm/simul_efun/object.c"',
+            '#include "/adm/simul_efun/chinese.c"'
+        ].join('\n'));
+        fs.writeFileSync(path.join(includeDir, 'object.c'), [
+            '/**',
+            ' * @brief 生成绑定物品',
+            ' * @param string path 物品路径',
+            ' * @return object 物品',
+            ' */',
+            'object new_bind(string path) { return new(path); }'
+        ].join('\n'));
+        fs.writeFileSync(path.join(includeDir, 'chinese.c'), [
+            '/**',
+            ' * @brief 数字转中文',
+            ' * @param int i 数字',
+            ' * @return string 中文数字',
+            ' */',
+            'string chinese_number(int i) { return ""; }'
+        ].join('\n'));
+
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn(async (root: string) =>
+                root === workspaceRoot ? entryFile : undefined
+            ),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' }),
+            getMudlibRootForWorkspace: jest.fn(async (root: string) =>
+                root === workspaceRoot ? workspaceRoot : undefined
+            )
+        };
+        const scanner = createSimulatedScanner(projectConfigService as any);
+
+        (vscode.workspace.workspaceFolders as unknown) = [
+            { uri: { fsPath: unrelatedRoot } },
+            { uri: { fsPath: workspaceRoot } }
+        ];
+        (vscode.workspace.getWorkspaceFolder as jest.Mock).mockImplementation((uri: vscode.Uri) =>
+            normalizeTestPath(uri.fsPath).startsWith(normalizeTestPath(workspaceRoot))
+                ? { uri: { fsPath: workspaceRoot } }
+                : { uri: { fsPath: unrelatedRoot } }
+        );
+
+        await scanner.ensureWorkspaceStateCurrent(sourceDocument);
+
+        expect(projectConfigService.getSimulatedEfunFileForWorkspace).toHaveBeenCalledWith(workspaceRoot);
+        expect(scanner.getAllNames()).toEqual(expect.arrayContaining(['new_bind', 'chinese_number']));
     });
 
     test('loading simulated efun docs does not poison parse cache for included sources with single-line if else chains', async () => {

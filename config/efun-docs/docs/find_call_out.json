@@ -1,0 +1,44 @@
+{
+  "name": "find_call_out",
+  "summary": "寻找一个即将被调用的调用，可以通过函数名或句柄来寻找。如果参数是一个字符串，则会找到将要执行的名为'func'的第一个调用，返回剩余的秒数。如果找不到调用，则返回-1。如果参数是一个整数，则会找到具有句柄'handle'的调用，并返回剩余的秒数。如果找不到调用，则返回-1。\n\n   这将会查找由call_out()或call_out_walltime()所安排的调用。如果剩余时间是小数，则结果将是一个整数，其值将被向下取整。",
+  "details": "示例\nint handle = call_out(\"func\", 10);\nprintf(\"剩余时间：%O\\n\", find_call_out(handle));\n// 剩余时间：10\n\nint handle = call_out(\"func\", 10.75);\nprintf(\"剩余时间：%O\\n\", find_call_out(handle));\n// 剩余时间：10",
+  "reference": [
+    "call_out",
+    "call_out_walltime",
+    "remove_call_out",
+    "set_heart_beat"
+  ],
+  "category": "系统相关函数（System）",
+  "signatures": [
+    {
+      "label": "int find_call_out( string func )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "func",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "int find_call_out( int handle )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

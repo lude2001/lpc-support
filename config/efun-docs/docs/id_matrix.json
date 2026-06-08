@@ -1,0 +1,17 @@
+{
+  "name": "id_matrix",
+  "summary": "id_matrix 内置函数",
+  "category": "未归类函数",
+  "signatures": [
+    {
+      "label": "float *id_matrix()",
+      "returnType": "float *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}
