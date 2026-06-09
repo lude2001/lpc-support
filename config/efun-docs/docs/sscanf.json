@@ -10,12 +10,12 @@
   "category": "字符串相关函数（Strings）",
   "signatures": [
     {
-      "label": "int sscanf( string str, string fmt, mixed var1, mixed var2 ... )",
+      "label": "int sscanf( string input, string fmt, mixed ...args )",
       "returnType": "int",
       "isVariadic": true,
       "parameters": [
         {
-          "name": "str",
+          "name": "input",
           "type": "string"
         },
         {
@@ -23,17 +23,13 @@
           "type": "string"
         },
         {
-          "name": "var1",
-          "type": "mixed"
-        },
-        {
-          "name": "var2",
+          "name": "args",
           "type": "mixed",
           "variadic": true
         }
       ],
       "arity": {
-        "min": 3,
+        "min": 2,
         "max": null
       }
     }

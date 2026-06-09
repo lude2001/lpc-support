@@ -20,11 +20,12 @@
         },
         {
           "name": "int",
-          "type": "void |"
+          "type": "void |",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 1,
+        "min": 0,
         "max": 2
       }
     },
@@ -35,15 +36,17 @@
       "parameters": [
         {
           "name": "name",
-          "type": "string"
+          "type": "string",
+          "optional": true
         },
         {
           "name": "flag",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 2,
+        "min": 0,
         "max": 2
       }
     }

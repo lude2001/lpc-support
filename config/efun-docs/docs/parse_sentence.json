@@ -17,19 +17,22 @@
         },
         {
           "name": "int",
-          "type": "void |"
+          "type": "void |",
+          "optional": true
         },
         {
           "name": "arg3",
-          "type": "void | object *"
+          "type": "void | object *",
+          "optional": true
         },
         {
           "name": "mapping",
-          "type": "void |"
+          "type": "void |",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 4,
+        "min": 1,
         "max": 4
       }
     }

@@ -23,11 +23,13 @@
         },
         {
           "name": "ob",
-          "type": "object"
+          "type": "object",
+          "optional": true
         },
         {
           "name": "extra",
-          "type": "mixed"
+          "type": "mixed",
+          "optional": true
         },
         {
           "name": "args",
@@ -35,7 +37,7 @@
         }
       ],
       "arity": {
-        "min": 3,
+        "min": 2,
         "max": null
       }
     },
@@ -54,7 +56,8 @@
         },
         {
           "name": "extra",
-          "type": "mixed"
+          "type": "mixed",
+          "optional": true
         },
         {
           "name": "args",

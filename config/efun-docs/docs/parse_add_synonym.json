@@ -18,11 +18,12 @@
         },
         {
           "name": "string",
-          "type": "void |"
+          "type": "void |",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 3,
+        "min": 2,
         "max": 3
       }
     }

@@ -343,6 +343,25 @@ describe('syntax-backed diagnostic collectors', () => {
         ]));
     });
 
+    test('BasicSemanticDiagnosticsCollector recognizes comma-separated initialized local variables', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector();
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo() {',
+            '    string str1="", str2="", str3f="", str3d="", me_att="", you_def="", damage_msg="", other_msg="";',
+            '    str3f = str1 + str2;',
+            '    str3d = str3f;',
+            '    me_att = damage_msg;',
+            '    you_def = other_msg;',
+            '}'
+        ].join('\n'), 'basic-semantic-comma-locals.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(context.semantic).toBeDefined();
+        expect(context.semantic?.degraded).toBeFalsy();
+        expect(diagnostics).toEqual([]);
+    });
+
     test('BasicSemanticDiagnosticsCollector handles variadic, macro, and degraded cases without noise', async () => {
         const collector = new BasicSemanticDiagnosticsCollector();
         const { document, parsed, context } = analyzeCollectorSource([

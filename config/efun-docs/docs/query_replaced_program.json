@@ -14,11 +14,12 @@
       "parameters": [
         {
           "name": "ob",
-          "type": "void | object"
+          "type": "void | object",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 1,
+        "min": 0,
         "max": 1
       }
     }

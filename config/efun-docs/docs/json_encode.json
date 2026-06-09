@@ -1,0 +1,23 @@
+{
+  "name": "json_encode",
+  "summary": "FluffOS json package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/json/json.spec:2\nstring json_encode(mixed);",
+  "category": "常规函数（General）",
+  "signatures": [
+    {
+      "label": "string json_encode( mixed )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

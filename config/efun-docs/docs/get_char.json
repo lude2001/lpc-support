@@ -19,7 +19,8 @@
         },
         {
           "name": "flag",
-          "type": "int"
+          "type": "int",
+          "optional": true
         },
         {
           "name": "args",
@@ -27,7 +28,7 @@
         }
       ],
       "arity": {
-        "min": 2,
+        "min": 1,
         "max": null
       }
     }

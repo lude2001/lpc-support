@@ -12,7 +12,7 @@
     {
       "label": "string replace_string( string str, string pattern, string replace )",
       "returnType": "string",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "str",
@@ -29,13 +29,13 @@
       ],
       "arity": {
         "min": 3,
-        "max": 3
+        "max": null
       }
     },
     {
       "label": "string replace_string( string str, string pattern, string replace, int max )",
       "returnType": "string",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "str",
@@ -51,18 +51,19 @@
         },
         {
           "name": "max",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 4,
-        "max": 4
+        "min": 3,
+        "max": null
       }
     },
     {
       "label": "string replace_string( string str, string pattern, string replace, int first, int last )",
       "returnType": "string",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "str",
@@ -78,16 +79,18 @@
         },
         {
           "name": "first",
-          "type": "int"
+          "type": "int",
+          "optional": true
         },
         {
           "name": "last",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 5,
-        "max": 5
+        "min": 3,
+        "max": null
       }
     }
   ]

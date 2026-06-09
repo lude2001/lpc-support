@@ -1,0 +1,25 @@
+{
+  "name": "json_decode",
+  "summary": "将 JSON 字符串解码为 LPC 值。",
+  "reference": [
+    "json_encode"
+  ],
+  "category": "常规函数（General）",
+  "signatures": [
+    {
+      "label": "mixed json_decode(string text)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

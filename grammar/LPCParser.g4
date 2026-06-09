@@ -44,7 +44,7 @@ variableDecl
     ;
 
 variableDeclarator
-    :   STAR* Identifier (ASSIGN expression)?
+    :   STAR* Identifier (ASSIGN assignmentExpression)?
     ;
 
 parameterList

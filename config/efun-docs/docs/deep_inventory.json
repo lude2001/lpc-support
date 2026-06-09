@@ -19,11 +19,12 @@
         },
         {
           "name": "F__THIS_OBJECT",
-          "type": "void | function default:"
+          "type": "void | function default:",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 2,
+        "min": 1,
         "max": 2
       }
     }

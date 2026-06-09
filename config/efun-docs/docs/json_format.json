@@ -1,0 +1,28 @@
+{
+  "name": "json_format",
+  "summary": "FluffOS json package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/json/json.spec:3\nstring json_format(string, int | void);",
+  "category": "常规函数（General）",
+  "signatures": [
+    {
+      "label": "string json_format( string, int | void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        },
+        {
+          "name": "arg2",
+          "type": "int | void",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 2
+      }
+    }
+  ]
+}

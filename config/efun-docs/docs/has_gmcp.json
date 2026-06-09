@@ -11,11 +11,12 @@
       "parameters": [
         {
           "name": "F__THIS_OBJECT",
-          "type": "object default:"
+          "type": "object default:",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 1,
+        "min": 0,
         "max": 1
       }
     }

@@ -10,11 +10,12 @@
       "parameters": [
         {
           "name": "int",
-          "type": "void |"
+          "type": "void |",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 1,
+        "min": 0,
         "max": 1
       }
     }

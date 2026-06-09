@@ -53,6 +53,13 @@ export class SimulatedEfunScanner {
         return this.loadSimulatedEfuns();
     }
 
+    public invalidateWorkspaceState(): void {
+        this.loadVersion += 1;
+        this.hasLoadedWorkspaceState = false;
+        this.loadedWorkspaceRoot = undefined;
+        this.docs = new Map();
+    }
+
     public async refreshWorkspaceState(force: boolean = false, document?: vscode.TextDocument): Promise<void> {
         const workspaceRoot = this.getWorkspaceRoot(document);
         if (!force && this.hasLoadedWorkspaceState && workspaceRoot === this.loadedWorkspaceRoot) {
@@ -79,11 +86,7 @@ export class SimulatedEfunScanner {
     }
 
     public async loadSimulatedEfuns(): Promise<void> {
-        const loadVersion = ++this.loadVersion;
-        const nextDocs = await this.collectSimulatedEfuns();
-        if (loadVersion === this.loadVersion) {
-            this.docs = nextDocs;
-        }
+        await this.refreshWorkspaceState(false);
     }
 
     private async collectSimulatedEfuns(resolvedWorkspaceRoot?: string): Promise<Map<string, CallableDoc>> {

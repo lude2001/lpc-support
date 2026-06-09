@@ -28,7 +28,7 @@
       ],
       "arity": {
         "min": 2,
-        "max": 2
+        "max": 3
       }
     },
     {
@@ -46,11 +46,12 @@
         },
         {
           "name": "flag",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 3,
+        "min": 2,
         "max": 3
       }
     }

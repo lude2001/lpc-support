@@ -737,7 +737,7 @@ export class LPCParser extends Parser {
 				this.state = 236;
 				this.match(LPCParser.ASSIGN);
 				this.state = 237;
-				this.expression();
+				this.assignmentExpression();
 				}
 			}
 
@@ -4993,7 +4993,7 @@ export class LPCParser extends Parser {
 		"\xE7\xE9\x07D\x02\x02\xE8\xE7\x03\x02\x02\x02\xE9\xEC\x03\x02\x02\x02" +
 		"\xEA\xE8\x03\x02\x02\x02\xEA\xEB\x03\x02\x02\x02\xEB\xED\x03\x02\x02\x02" +
 		"\xEC\xEA\x03\x02\x02\x02\xED\xF0\x07h\x02\x02\xEE\xEF\x07Z\x02\x02\xEF" +
-		"\xF1\x05\"\x12\x02\xF0\xEE\x03\x02\x02\x02\xF0\xF1\x03\x02\x02\x02\xF1" +
+		"\xF1\x05$\x13\x02\xF0\xEE\x03\x02\x02\x02\xF0\xF1\x03\x02\x02\x02\xF1" +
 		"\r\x03\x02\x02\x02\xF2\xF7\x05\x10\t\x02\xF3\xF4\x07I\x02\x02\xF4\xF6" +
 		"\x05\x10\t\x02\xF5\xF3\x03\x02\x02\x02\xF6\xF9\x03\x02\x02\x02\xF7\xF5" +
 		"\x03\x02\x02\x02\xF7\xF8\x03\x02\x02\x02\xF8\x0F\x03\x02\x02\x02\xF9\xF7" +
@@ -5612,8 +5612,8 @@ export class VariableDeclaratorContext extends ParserRuleContext {
 		}
 	}
 	public ASSIGN(): TerminalNode | undefined { return this.tryGetToken(LPCParser.ASSIGN, 0); }
-	public expression(): ExpressionContext | undefined {
-		return this.tryGetRuleContext(0, ExpressionContext);
+	public assignmentExpression(): AssignmentExpressionContext | undefined {
+		return this.tryGetRuleContext(0, AssignmentExpressionContext);
 	}
 	constructor(parent: ParserRuleContext | undefined, invokingState: number) {
 		super(parent, invokingState);

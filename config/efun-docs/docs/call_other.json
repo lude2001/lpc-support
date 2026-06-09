@@ -29,7 +29,7 @@
     {
       "label": "unknown call_other( object ob, mixed *args)",
       "returnType": "unknown",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "ob",
@@ -42,7 +42,7 @@
       ],
       "arity": {
         "min": 2,
-        "max": 2
+        "max": null
       }
     },
     {
@@ -71,7 +71,7 @@
     {
       "label": "unknown call_other( string file, mixed *args)",
       "returnType": "unknown",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "file",
@@ -84,7 +84,7 @@
       ],
       "arity": {
         "min": 2,
-        "max": 2
+        "max": null
       }
     },
     {
@@ -113,7 +113,7 @@
     {
       "label": "unknown call_other( object *obs, mixed *args )",
       "returnType": "unknown",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "obs",
@@ -126,7 +126,7 @@
       ],
       "arity": {
         "min": 2,
-        "max": 2
+        "max": null
       }
     }
   ]

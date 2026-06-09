@@ -521,7 +521,8 @@
     "test:e2e": "jest --testPathPattern=e2e",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
-    "test:performance": "jest --testPathPattern=performance"
+    "test:performance": "jest --testPathPattern=performance",
+    "audit:efun-arity": "node scripts/audit-efun-arity.mjs"
   },
   "license": "MIT",
   "icon": "icon.png",
@@ -532,6 +533,7 @@
     "media/**",
     "language-configuration.json",
     "config/**",
+    "docs/efun-arity-audit.md",
     "README.md",
     "CHANGELOG.md",
     "icon.png",

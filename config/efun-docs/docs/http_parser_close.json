@@ -1,0 +1,23 @@
+{
+  "name": "http_parser_close",
+  "summary": "FluffOS sockets package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:25\nvoid http_parser_close(mixed);",
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "void http_parser_close( mixed )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

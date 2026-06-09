@@ -1,15 +1,34 @@
 {
   "name": "parse_command",
-  "summary": "MudWiki 列表包含该函数，但详情页尚未提供内容。",
+  "summary": "尝试用给定模式匹配命令字符串。FluffOS 将 parse_command 作为编译器 operator 处理，前三个参数为必填，后续目标变量为变参。",
   "category": "语法分析相关函数（Parsing）",
   "signatures": [
     {
-      "label": "parse_command()",
-      "isVariadic": false,
-      "parameters": [],
+      "label": "int parse_command( string command, object | object *env, string pattern, mixed ...args )",
+      "returnType": "int",
+      "isVariadic": true,
+      "parameters": [
+        {
+          "name": "command",
+          "type": "string"
+        },
+        {
+          "name": "env",
+          "type": "object | object *"
+        },
+        {
+          "name": "pattern",
+          "type": "string"
+        },
+        {
+          "name": "args",
+          "type": "mixed",
+          "variadic": true
+        }
+      ],
       "arity": {
-        "min": 0,
-        "max": 0
+        "min": 3,
+        "max": null
       }
     }
   ]

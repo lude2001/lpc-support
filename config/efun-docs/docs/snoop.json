@@ -10,7 +10,7 @@
     {
       "label": "object snoop( object snooper, object snoopee | void )",
       "returnType": "object",
-      "isVariadic": true,
+      "isVariadic": false,
       "parameters": [
         {
           "name": "snooper",
@@ -24,7 +24,7 @@
       ],
       "arity": {
         "min": 1,
-        "max": null
+        "max": 2
       }
     }
   ]

@@ -52,20 +52,23 @@
       "parameters": [
         {
           "name": "file",
-          "type": "string"
+          "type": "string",
+          "optional": true
         },
         {
           "name": "exit_fn",
-          "type": "string"
+          "type": "string",
+          "optional": true
         },
         {
           "name": "restricted",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 3,
-        "max": 3
+        "min": 0,
+        "max": 5
       }
     },
     {
@@ -75,24 +78,28 @@
       "parameters": [
         {
           "name": "file",
-          "type": "string"
+          "type": "string",
+          "optional": true
         },
         {
           "name": "write_fn",
-          "type": "string"
+          "type": "string",
+          "optional": true
         },
         {
           "name": "exit_fn",
-          "type": "string"
+          "type": "string",
+          "optional": true
         },
         {
           "name": "restricted",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 4,
-        "max": 4
+        "min": 0,
+        "max": 5
       }
     }
   ]

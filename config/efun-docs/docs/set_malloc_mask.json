@@ -1,0 +1,23 @@
+{
+  "name": "set_malloc_mask",
+  "summary": "FluffOS develop package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/develop/develop.spec:19\nvoid set_malloc_mask(int);",
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "void set_malloc_mask( int )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

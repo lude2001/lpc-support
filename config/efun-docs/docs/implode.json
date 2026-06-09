@@ -24,7 +24,7 @@
       ],
       "arity": {
         "min": 2,
-        "max": 2
+        "max": 3
       }
     },
     {
@@ -42,11 +42,12 @@
         },
         {
           "name": "x",
-          "type": "void | mixed"
+          "type": "void | mixed",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 3,
+        "min": 2,
         "max": 3
       }
     }

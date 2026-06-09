@@ -1,0 +1,23 @@
+{
+  "name": "add_a",
+  "summary": "FluffOS dwlib package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:4\nstring add_a( string );",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "string add_a( string )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

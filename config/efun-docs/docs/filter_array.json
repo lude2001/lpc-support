@@ -5,7 +5,7 @@
   "category": "数组相关函数（Arrays）",
   "signatures": [
     {
-      "label": "mixed *filter_array( mixed *arr, string fun, object ob, mixed extra, ... )",
+      "label": "mixed *filter_array( mixed *arr, string fun, object|string ob, mixed extra, ... )",
       "returnType": "mixed *",
       "isVariadic": true,
       "parameters": [
@@ -19,11 +19,13 @@
         },
         {
           "name": "ob",
-          "type": "object"
+          "type": "object|string",
+          "optional": true
         },
         {
           "name": "extra",
-          "type": "mixed"
+          "type": "mixed",
+          "optional": true
         },
         {
           "name": "args",
@@ -31,7 +33,7 @@
         }
       ],
       "arity": {
-        "min": 4,
+        "min": 2,
         "max": null
       }
     },
@@ -50,7 +52,8 @@
         },
         {
           "name": "extra",
-          "type": "mixed"
+          "type": "mixed",
+          "optional": true
         },
         {
           "name": "args",
@@ -58,7 +61,7 @@
         }
       ],
       "arity": {
-        "min": 3,
+        "min": 2,
         "max": null
       }
     }

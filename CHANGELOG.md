@@ -19,6 +19,7 @@
 - LSP server 会等首轮 workspace 配置同步完成后再发布诊断，避免打开文件时先推送一批 simul-efun 未加载造成的短暂 undefined 误报。
 - 内置 efun 文档从单个 `config/efun-docs.json` 拆分为 `config/efun-docs/categories.json` 与按函数命名的 `config/efun-docs/docs/*.json`，为后续逐个校准参数数量提供稳定入口；发布脚本不再暴露 mud.wiki 抓取生成入口作为基准来源。
 - 内置 efun 签名新增显式 `arity` 字段，参数数量诊断优先使用文档声明的最小/最大参数数量，不再依赖 `type` 文本中的 `|` 形态推断；已校准 `get_dir`、`map_array`、`member_array` 的常见调用误报。
+- 内置 efun 文档参数数量已按 FluffOS `.spec`、operator 文档与源码实现全量复审，补齐缺失的标准 efun 条目，并新增 `npm run audit:efun-arity` 与 `docs/efun-arity-audit.md` 逐函数来源报告，用于对照本地 FluffOS checkout 防止后续回归。
 - 语义摘要与 simul-efun 文档扫描现在会识别函数级 `varargs` 修饰符，把省略尾部参数的调用视为合法，避免 `varargs void tell_room(...)` 这类 simul-efun 覆写被误报参数数量不匹配；同时校准标准 efun `tell_room` 的参数范围为 2-3 个。
 
 ### Header owner 上下文

@@ -22,11 +22,13 @@
         },
         {
           "name": "start",
-          "type": "void | int"
+          "type": "void | int",
+          "optional": true
         },
         {
           "name": "int",
-          "type": "void |"
+          "type": "void |",
+          "optional": true
         }
       ],
       "arity": {

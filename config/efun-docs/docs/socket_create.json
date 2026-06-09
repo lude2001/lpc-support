@@ -30,7 +30,7 @@
       ],
       "arity": {
         "min": 2,
-        "max": 2
+        "max": 3
       }
     },
     {
@@ -48,11 +48,12 @@
         },
         {
           "name": "close_callback",
-          "type": "string | function"
+          "type": "string | function",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 3,
+        "min": 2,
         "max": 3
       }
     }

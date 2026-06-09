@@ -81,7 +81,9 @@ export function buildVariableDeclaration(
 
 export function buildVariableDeclarator(b: SyntaxBuilder, ctx: VariableDeclaratorContext): SyntaxNode {
     const children: SyntaxNode[] = [b.buildIdentifierNode(ctx.Identifier())];
-    const initializer = ctx.expression() ? b.buildExpression(ctx.expression()!) : undefined;
+    const initializer = ctx.assignmentExpression()
+        ? b.buildAssignmentExpression(ctx.assignmentExpression()!)
+        : undefined;
 
     if (initializer) {
         children.push(initializer);

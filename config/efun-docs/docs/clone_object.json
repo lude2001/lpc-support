@@ -19,7 +19,8 @@
         },
         {
           "name": "extra",
-          "type": "mixed"
+          "type": "mixed",
+          "optional": true
         },
         {
           "name": "args",
@@ -27,7 +28,7 @@
         }
       ],
       "arity": {
-        "min": 2,
+        "min": 1,
         "max": null
       }
     },
@@ -42,7 +43,8 @@
         },
         {
           "name": "extra",
-          "type": "mixed"
+          "type": "mixed",
+          "optional": true
         },
         {
           "name": "args",
@@ -50,7 +52,7 @@
         }
       ],
       "arity": {
-        "min": 2,
+        "min": 1,
         "max": null
       }
     }

@@ -1,0 +1,18 @@
+{
+  "name": "http_response_parser_create",
+  "summary": "FluffOS sockets package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:26\nmixed http_response_parser_create();",
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "mixed http_response_parser_create()",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

@@ -25,7 +25,8 @@
         },
         {
           "name": "exclude",
-          "type": "void | object | object *"
+          "type": "void | object | object *",
+          "optional": true
         }
       ],
       "arity": {

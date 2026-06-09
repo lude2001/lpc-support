@@ -1,0 +1,23 @@
+{
+  "name": "http_decode_form",
+  "summary": "FluffOS sockets package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:21\nmapping http_decode_form(string);",
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "mapping http_decode_form( string )",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

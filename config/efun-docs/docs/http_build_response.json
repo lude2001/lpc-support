@@ -1,0 +1,31 @@
+{
+  "name": "http_build_response",
+  "summary": "FluffOS sockets package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:22\nstring http_build_response(int, mapping, string);",
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "string http_build_response( int, mapping, string )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "int"
+        },
+        {
+          "name": "arg2",
+          "type": "mapping"
+        },
+        {
+          "name": "arg3",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

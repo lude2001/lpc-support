@@ -23,11 +23,12 @@
         },
         {
           "name": "arg2",
-          "type": "int default: 0"
+          "type": "int default: 0",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 2,
+        "min": 1,
         "max": 2
       }
     }

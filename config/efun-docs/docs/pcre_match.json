@@ -26,12 +26,13 @@
         },
         {
           "name": "flag",
-          "type": "void | int"
+          "type": "void | int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 3,
-        "max": 3
+        "min": 2,
+        "max": 4
       }
     }
   ]

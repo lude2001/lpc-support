@@ -1,0 +1,32 @@
+{
+  "name": "replace",
+  "summary": "FluffOS dwlib package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:6\nstring replace(string, string *|string, string|void);",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "string replace( string, string *|string, string|void )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        },
+        {
+          "name": "arg2",
+          "type": "string *|string"
+        },
+        {
+          "name": "arg3",
+          "type": "string|void",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 3
+      }
+    }
+  ]
+}

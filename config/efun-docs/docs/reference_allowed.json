@@ -1,0 +1,28 @@
+{
+  "name": "reference_allowed",
+  "summary": "FluffOS dwlib package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:2\nint reference_allowed(object, string | object | void);",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int reference_allowed( object, string | object | void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "object"
+        },
+        {
+          "name": "arg2",
+          "type": "string | object | void",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 2
+      }
+    }
+  ]
+}

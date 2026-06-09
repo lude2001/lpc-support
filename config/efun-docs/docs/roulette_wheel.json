@@ -1,0 +1,23 @@
+{
+  "name": "roulette_wheel",
+  "summary": "FluffOS dwlib package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:9\nmixed roulette_wheel( mapping );",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "mixed roulette_wheel( mapping )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "mapping"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

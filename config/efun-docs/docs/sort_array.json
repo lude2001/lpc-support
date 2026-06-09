@@ -11,7 +11,7 @@
     {
       "label": "mixed *sort_array( mixed *arr, string fun, object ob )",
       "returnType": "mixed *",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "arr",
@@ -23,18 +23,19 @@
         },
         {
           "name": "ob",
-          "type": "object"
+          "type": "object",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 3,
-        "max": 3
+        "min": 2,
+        "max": null
       }
     },
     {
       "label": "mixed *sort_array( mixed *arr, function f )",
       "returnType": "mixed *",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "arr",
@@ -47,13 +48,13 @@
       ],
       "arity": {
         "min": 2,
-        "max": 2
+        "max": null
       }
     },
     {
       "label": "mixed *sort_array( mixed *arr, int direction )",
       "returnType": "mixed *",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "arr",
@@ -66,7 +67,7 @@
       ],
       "arity": {
         "min": 2,
-        "max": 2
+        "max": null
       }
     }
   ]

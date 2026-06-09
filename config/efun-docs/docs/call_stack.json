@@ -17,11 +17,12 @@
       "parameters": [
         {
           "name": "arg1",
-          "type": "int default: 0"
+          "type": "int default: 0",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 1,
+        "min": 0,
         "max": 1
       }
     }

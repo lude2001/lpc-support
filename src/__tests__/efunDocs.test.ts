@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { ASTManager } from '../ast/astManager';
 import { EfunDocsManager as FacadeEfunDocsManager } from '../efun/EfunDocsManager';
@@ -381,22 +382,96 @@ describe('EfunDocsManager', () => {
         expect(missingArity).toEqual([]);
 
         const getDirDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'get_dir.json'), 'utf8'));
+        const jsonDecodeDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'json_decode.json'), 'utf8'));
+        const filterArrayDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'filter_array.json'), 'utf8'));
         const mapArrayDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'map_array.json'), 'utf8'));
         const memberArrayDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'member_array.json'), 'utf8'));
+        const newDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'new.json'), 'utf8'));
+        const parseCommandDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'parse_command.json'), 'utf8'));
+        const sscanfDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'sscanf.json'), 'utf8'));
+        const thisPlayerDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'this_player.json'), 'utf8'));
+        const thisUserDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'this_user.json'), 'utf8'));
         const tellRoomDoc = JSON.parse(fs.readFileSync(path.join(docsDir, 'tell_room.json'), 'utf8'));
         expect(getDirDoc.signatures.map((signature: any) => signature.arity)).toEqual([
             { min: 1, max: 2 }
         ]);
+        expect(jsonDecodeDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 1, max: 1 }
+        ]);
+        expect(filterArrayDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 2, max: null },
+            { min: 2, max: null }
+        ]);
         expect(mapArrayDoc.signatures.map((signature: any) => signature.arity)).toEqual([
-            { min: 3, max: null },
+            { min: 2, max: null },
             { min: 2, max: null }
         ]);
         expect(memberArrayDoc.signatures.map((signature: any) => signature.arity)).toEqual([
             { min: 2, max: 4 }
         ]);
+        expect(newDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 1, max: null },
+            { min: 1, max: null }
+        ]);
+        expect(parseCommandDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 3, max: null }
+        ]);
+        expect(sscanfDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 2, max: null }
+        ]);
+        expect(thisPlayerDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 0, max: 1 },
+            { min: 0, max: 1 }
+        ]);
+        expect(thisUserDoc.signatures.map((signature: any) => signature.arity)).toEqual([
+            { min: 0, max: 1 },
+            { min: 0, max: 1 }
+        ]);
         expect(tellRoomDoc.signatures.map((signature: any) => signature.arity)).toEqual([
             { min: 2, max: 3 }
         ]);
+    });
+
+    test('bundled efun docs match FluffOS arity declarations when checkout is available', () => {
+        const fluffosRoot = process.env.FLUFFOS_ROOT ?? 'D:/code/fluffos';
+        if (!fs.existsSync(path.join(fluffosRoot, 'src', 'packages'))) {
+            return;
+        }
+
+        const output = execFileSync(
+            process.execPath,
+            [
+                path.join(process.cwd(), 'scripts', 'audit-efun-arity.mjs'),
+                '--fluffos-root',
+                fluffosRoot,
+                '--json'
+            ],
+            {
+                cwd: process.cwd(),
+                encoding: 'utf8'
+            }
+        );
+        const result = JSON.parse(output) as {
+            docCount: number;
+            specCount: number;
+            entries: Array<{
+                name: string;
+                sources: unknown[];
+            }>;
+            tooNarrow: unknown[];
+            tooBroad: unknown[];
+            missingSpec: unknown[];
+            missingDoc: unknown[];
+        };
+
+        expect(result.docCount).toBe(405);
+        expect(result.specCount).toBe(405);
+        expect(result.entries).toHaveLength(405);
+        expect(result.entries.filter(entry => entry.sources.length === 0)).toEqual([]);
+        expect(result.tooNarrow).toEqual([]);
+        expect(result.tooBroad).toEqual([]);
+        expect(result.missingSpec).toEqual([]);
+        expect(result.missingDoc).toEqual([]);
     });
 
     test('keeps legacy arity on standard callable doc signatures', () => {
@@ -1155,6 +1230,69 @@ describe('SimulatedEfunScanner', () => {
         await scanner.ensureWorkspaceStateCurrent(sourceDocument);
 
         expect(projectConfigService.getSimulatedEfunFileForWorkspace).toHaveBeenCalledWith(workspaceRoot);
+        expect(scanner.getAllNames()).toEqual(expect.arrayContaining(['new_bind', 'chinese_number']));
+    });
+
+    test('reloads simulated efuns from the requested document root after workspace state invalidation', async () => {
+        const unrelatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-invalidate-unrelated-'));
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-invalidate-document-'));
+        const entryDir = path.join(workspaceRoot, 'adm', 'single');
+        const includeDir = path.join(workspaceRoot, 'adm', 'simul_efun');
+        const entryFile = path.join(entryDir, 'simul_efun.c');
+        const sourceDocument = TestHelper.createMockDocument(
+            'void demo() { new_bind("/x"); chinese_number(1); }',
+            'lpc',
+            path.join(workspaceRoot, 'adm', 'daemons', 'aoyid.c')
+        );
+        (sourceDocument as any).uri = vscode.Uri.file(sourceDocument.fileName);
+
+        fs.mkdirSync(entryDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(entryFile, [
+            '#include "/adm/simul_efun/object.c"',
+            '#include "/adm/simul_efun/chinese.c"'
+        ].join('\n'));
+        fs.writeFileSync(path.join(includeDir, 'object.c'), [
+            '/**',
+            ' * @brief 生成绑定物品',
+            ' */',
+            'object new_bind(string path) { return new(path); }'
+        ].join('\n'));
+        fs.writeFileSync(path.join(includeDir, 'chinese.c'), [
+            '/**',
+            ' * @brief 数字转中文',
+            ' */',
+            'string chinese_number(int i) { return ""; }'
+        ].join('\n'));
+
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn(async (root: string) =>
+                root === workspaceRoot ? entryFile : undefined
+            ),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' }),
+            getMudlibRootForWorkspace: jest.fn(async (root: string) =>
+                root === workspaceRoot ? workspaceRoot : undefined
+            )
+        };
+        const scanner = createSimulatedScanner(projectConfigService as any);
+
+        (vscode.workspace.workspaceFolders as unknown) = [
+            { uri: { fsPath: unrelatedRoot } },
+            { uri: { fsPath: workspaceRoot } }
+        ];
+        (vscode.workspace.getWorkspaceFolder as jest.Mock).mockImplementation((uri: vscode.Uri) =>
+            normalizeTestPath(uri.fsPath).startsWith(normalizeTestPath(workspaceRoot))
+                ? { uri: { fsPath: workspaceRoot } }
+                : { uri: { fsPath: unrelatedRoot } }
+        );
+
+        await scanner.ensureWorkspaceStateCurrent(sourceDocument);
+        scanner.invalidateWorkspaceState();
+        expect(scanner.getAllNames()).toEqual([]);
+
+        await scanner.ensureWorkspaceStateCurrent(sourceDocument);
+
+        expect(projectConfigService.getSimulatedEfunFileForWorkspace).toHaveBeenLastCalledWith(workspaceRoot);
         expect(scanner.getAllNames()).toEqual(expect.arrayContaining(['new_bind', 'chinese_number']));
     });
 

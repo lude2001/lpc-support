@@ -20,11 +20,12 @@
       "parameters": [
         {
           "name": "setup_actions",
-          "type": "void | int"
+          "type": "void | int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 1,
+        "min": 0,
         "max": 1
       }
     }

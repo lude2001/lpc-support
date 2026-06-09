@@ -11,7 +11,7 @@
     {
       "label": "mixed *allocate( int size )",
       "returnType": "mixed *",
-      "isVariadic": true,
+      "isVariadic": false,
       "parameters": [
         {
           "name": "size",
@@ -20,13 +20,13 @@
       ],
       "arity": {
         "min": 1,
-        "max": null
+        "max": 2
       }
     },
     {
       "label": "mixed *allocate( int size, mixed value )",
       "returnType": "mixed *",
-      "isVariadic": true,
+      "isVariadic": false,
       "parameters": [
         {
           "name": "size",
@@ -34,12 +34,13 @@
         },
         {
           "name": "value",
-          "type": "mixed"
+          "type": "mixed",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 2,
-        "max": null
+        "min": 1,
+        "max": 2
       }
     }
   ]

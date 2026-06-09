@@ -138,6 +138,10 @@ export class EfunDocsManager {
         await this.simulatedEfunScanner.refreshWorkspaceState(true);
     }
 
+    public invalidateWorkspaceState(): void {
+        this.simulatedEfunScanner.invalidateWorkspaceState();
+    }
+
     public async configureSimulatedEfuns(): Promise<void> {
         await this.simulatedEfunScanner.configure();
     }

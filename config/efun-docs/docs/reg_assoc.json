@@ -23,11 +23,12 @@
         },
         {
           "name": "def",
-          "type": "void | mixed"
+          "type": "void | mixed",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 4,
+        "min": 3,
         "max": 4
       }
     }

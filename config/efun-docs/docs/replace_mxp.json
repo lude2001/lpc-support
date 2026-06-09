@@ -1,0 +1,23 @@
+{
+  "name": "replace_mxp",
+  "summary": "FluffOS dwlib package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:8\nstring replace_mxp(string);",
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "string replace_mxp( string )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

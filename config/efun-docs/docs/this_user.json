@@ -7,31 +7,34 @@
   "category": "互动对象(玩家)相关函数（Interactive）",
   "signatures": [
     {
-      "label": "object this_player( int flag )",
-      "isVariadic": false,
-      "parameters": [
-        {
-          "name": "flag",
-          "type": "int"
-        }
-      ],
-      "arity": {
-        "min": 1,
-        "max": 1
-      }
-    },
-    {
-      "label": "object this_user( int flag )",
+      "label": "object this_player( int flag: 0 )",
       "returnType": "object",
       "isVariadic": false,
       "parameters": [
         {
           "name": "flag",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 1,
+        "min": 0,
+        "max": 1
+      }
+    },
+    {
+      "label": "object this_user( int flag: 0 )",
+      "returnType": "object",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "flag",
+          "type": "int",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
         "max": 1
       }
     }

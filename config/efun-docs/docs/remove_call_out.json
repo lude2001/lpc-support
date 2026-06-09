@@ -15,11 +15,12 @@
       "parameters": [
         {
           "name": "fun",
-          "type": "string"
+          "type": "string",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 1,
+        "min": 0,
         "max": 1
       }
     },
@@ -30,11 +31,12 @@
       "parameters": [
         {
           "name": "handle",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 1,
+        "min": 0,
         "max": 1
       }
     },
@@ -45,7 +47,7 @@
       "parameters": [],
       "arity": {
         "min": 0,
-        "max": 0
+        "max": 1
       }
     }
   ]

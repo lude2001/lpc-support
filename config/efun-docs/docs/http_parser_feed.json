@@ -1,0 +1,27 @@
+{
+  "name": "http_parser_feed",
+  "summary": "FluffOS sockets package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:24\nmapping http_parser_feed(mixed, string);",
+  "category": "SOCKET相关函数（Sockets）",
+  "signatures": [
+    {
+      "label": "mapping http_parser_feed( mixed, string )",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "mixed"
+        },
+        {
+          "name": "arg2",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

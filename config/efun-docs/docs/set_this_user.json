@@ -1,0 +1,23 @@
+{
+  "name": "set_this_user",
+  "summary": "FluffOS core package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/core/core.spec:94\nvoid set_this_user set_this_player(object | int);",
+  "category": "互动对象(玩家)相关函数（Interactive）",
+  "signatures": [
+    {
+      "label": "void set_this_user( object | int )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "object | int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

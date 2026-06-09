@@ -19,7 +19,7 @@
       ],
       "arity": {
         "min": 1,
-        "max": 1
+        "max": 3
       }
     },
     {
@@ -33,12 +33,13 @@
         },
         {
           "name": "start",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 2,
-        "max": 2
+        "min": 1,
+        "max": 3
       }
     },
     {
@@ -52,15 +53,17 @@
         },
         {
           "name": "start",
-          "type": "int"
+          "type": "int",
+          "optional": true
         },
         {
           "name": "length",
-          "type": "int"
+          "type": "int",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 3,
+        "min": 1,
         "max": 3
       }
     }

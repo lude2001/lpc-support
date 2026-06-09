@@ -1,0 +1,28 @@
+{
+  "name": "debugmalloc",
+  "summary": "FluffOS develop package efun.",
+  "details": "Source: D:/code/fluffos/src/packages/develop/develop.spec:18\nstring debugmalloc(string, int default: 0);",
+  "category": "内部处理相关函数（Internals）",
+  "signatures": [
+    {
+      "label": "string debugmalloc( string, int default: 0 )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "arg1",
+          "type": "string"
+        },
+        {
+          "name": "arg2",
+          "type": "int",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 2
+      }
+    }
+  ]
+}

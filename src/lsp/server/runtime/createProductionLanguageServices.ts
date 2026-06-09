@@ -242,7 +242,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         navigationService,
         onWorkspaceConfigSync: async () => {
             headerOwnerContextService.clear();
-            await efunDocsManager.refreshWorkspaceState();
+            efunDocsManager.invalidateWorkspaceState();
         },
         signatureHelpService,
         structureService

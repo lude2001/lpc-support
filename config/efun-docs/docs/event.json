@@ -7,7 +7,7 @@
     {
       "label": "void event(object | object * target, string event_name, mixed *args..)",
       "returnType": "void",
-      "isVariadic": false,
+      "isVariadic": true,
       "parameters": [
         {
           "name": "target",
@@ -19,12 +19,13 @@
         },
         {
           "name": "arg3",
-          "type": "mixed *args.."
+          "type": "mixed *args..",
+          "optional": true
         }
       ],
       "arity": {
-        "min": 3,
-        "max": 3
+        "min": 2,
+        "max": null
       }
     }
   ]
