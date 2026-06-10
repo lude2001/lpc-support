@@ -29,7 +29,7 @@ type SnapshotProvider = {
 };
 type EfunProvider = {
     getAllFunctions(): string[];
-    getAllSimulatedFunctions(): string[];
+    getAllSimulatedFunctions(document: vscode.TextDocument): string[];
 };
 
 export interface CompletionQueryEngineOptions {
@@ -104,13 +104,13 @@ export class CompletionQueryEngine {
 
         const candidates = trace
             ? trace.measure('candidate-build', () => {
-                const rawCandidates = this.buildCandidates(snapshot, position, analyzedContext, inheritedSymbols.functions, inheritedSymbols.types);
+                const rawCandidates = this.buildCandidates(document, snapshot, position, analyzedContext, inheritedSymbols.functions, inheritedSymbols.types);
                 const filteredCandidates = this.filterAndSortCandidates(rawCandidates, analyzedContext.currentWord);
                 trace.recordStage('candidate-build', 0, { candidateCount: filteredCandidates.length });
                 return filteredCandidates;
             })
             : this.filterAndSortCandidates(
-                this.buildCandidates(snapshot, position, analyzedContext, inheritedSymbols.functions, inheritedSymbols.types),
+                this.buildCandidates(document, snapshot, position, analyzedContext, inheritedSymbols.functions, inheritedSymbols.types),
                 analyzedContext.currentWord
             );
 
@@ -122,6 +122,7 @@ export class CompletionQueryEngine {
     }
 
     private buildCandidates(
+        document: vscode.TextDocument,
         snapshot: DocumentSemanticSnapshot,
         position: vscode.Position,
         context: CompletionQueryContext,
@@ -148,7 +149,8 @@ export class CompletionQueryEngine {
                     includedSymbols.functions,
                     includedSymbols.fileGlobals,
                     inheritedFunctions,
-                    [...includedSymbols.types, ...inheritedTypes]
+                    [...includedSymbols.types, ...inheritedTypes],
+                    document
                 );
         }
     }
@@ -158,7 +160,8 @@ export class CompletionQueryEngine {
         includedFunctions: FunctionSummary[],
         includedGlobals: FileGlobalSummary[],
         inheritedFunctions: FunctionSummary[],
-        inheritedTypes: TypeDefinitionSummary[]
+        inheritedTypes: TypeDefinitionSummary[],
+        document: vscode.TextDocument
     ): CompletionCandidate[] {
         const candidates: CompletionCandidate[] = [];
         const symbols = snapshot.symbolTable.getSymbolsInScope(position);
@@ -269,7 +272,7 @@ export class CompletionQueryEngine {
             });
         }
 
-        for (const efun of this.efunProvider?.getAllSimulatedFunctions() || []) {
+        for (const efun of this.efunProvider?.getAllSimulatedFunctions(document) || []) {
             candidates.push({
                 key: `simul-efun:${efun}`,
                 label: efun,

@@ -328,9 +328,9 @@ describe('DefaultDiagnosticSymbolResolver', () => {
         (resolver as any).options.efunDocsManager = {
             ensureWorkspaceStateCurrent,
             getAllFunctions: () => [],
-            getAllSimulatedFunctions: () => loaded ? ['new_bind', 'chinese_number'] : [],
+            getAllSimulatedFunctions: jest.fn(() => loaded ? ['new_bind', 'chinese_number'] : []),
             getStandardCallableDoc: () => undefined,
-            getSimulatedDoc: (name: string) => ({
+            getSimulatedDoc: jest.fn((name: string) => ({
                 name,
                 declarationKey: `simul:${name}`,
                 signatures: [{
@@ -344,12 +344,18 @@ describe('DefaultDiagnosticSymbolResolver', () => {
                     isVariadic: false
                 }],
                 sourceKind: 'simulEfun'
-            })
+            }))
         };
 
         const visible = await resolver.resolveVisibleSymbols(mainDocument, mainSnapshot);
 
         expect(ensureWorkspaceStateCurrent).toHaveBeenCalledWith(mainDocument);
+        expect((resolver as any).options.efunDocsManager.getAllSimulatedFunctions)
+            .toHaveBeenCalledWith(mainDocument);
+        expect((resolver as any).options.efunDocsManager.getSimulatedDoc)
+            .toHaveBeenCalledWith('new_bind', mainDocument);
+        expect((resolver as any).options.efunDocsManager.getSimulatedDoc)
+            .toHaveBeenCalledWith('chinese_number', mainDocument);
         expect(visible.callableSignatures.map((signature) => signature.name)).toEqual(expect.arrayContaining([
             'new_bind',
             'chinese_number'

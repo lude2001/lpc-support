@@ -107,15 +107,16 @@ export class WorkspaceDocumentPathSupport {
     }
 
     public fileExists(filePath: string): boolean {
-        return this.host.fileExists(filePath);
+        return this.host.fileExists(this.normalizeFsPath(filePath));
     }
 
     public getWorkspaceFolderRoot(document: vscode.TextDocument): string | undefined {
-        return this.host.getWorkspaceFolder(document.uri)?.uri.fsPath;
+        const workspaceFolder = this.host.getWorkspaceFolder(document.uri)?.uri.fsPath;
+        return workspaceFolder ? this.normalizeFsPath(workspaceFolder) : undefined;
     }
 
     public getWorkspaceRoot(document: vscode.TextDocument): string {
-        return this.getWorkspaceFolderRoot(document) ?? path.dirname(document.uri.fsPath);
+        return this.getWorkspaceFolderRoot(document) ?? path.dirname(this.normalizeFsPath(document.uri.fsPath));
     }
 
     public resolveWorkspaceFilePath(
@@ -160,7 +161,7 @@ export class WorkspaceDocumentPathSupport {
             return path.join(workspaceRoot, resolvedValue.substring(1));
         }
 
-        return path.resolve(path.dirname(document.uri.fsPath), resolvedValue);
+        return path.resolve(path.dirname(this.normalizeFsPath(document.uri.fsPath)), resolvedValue);
     }
 
     public resolveObjectFilePath(
@@ -185,7 +186,7 @@ export class WorkspaceDocumentPathSupport {
 
             candidatePath = path.join(workspaceRoot, normalizedTargetPath.substring(1));
         } else {
-            candidatePath = path.resolve(path.dirname(document.uri.fsPath), normalizedTargetPath);
+            candidatePath = path.resolve(path.dirname(this.normalizeFsPath(document.uri.fsPath)), normalizedTargetPath);
         }
 
         return this.fileExists(candidatePath) ? candidatePath : undefined;
@@ -213,7 +214,7 @@ export class WorkspaceDocumentPathSupport {
             return [path.join(workspaceRoot, relativePath)];
         }
 
-        return [path.resolve(path.dirname(document.uri.fsPath), normalizedPath)];
+        return [path.resolve(path.dirname(this.normalizeFsPath(document.uri.fsPath)), normalizedPath)];
     }
 
     public async resolveIncludeFilePath(
@@ -242,7 +243,7 @@ export class WorkspaceDocumentPathSupport {
             return path.join(workspaceRoot, relativePath);
         }
 
-        return path.resolve(path.dirname(document.uri.fsPath), normalizedPath);
+        return path.resolve(path.dirname(this.normalizeFsPath(document.uri.fsPath)), normalizedPath);
     }
 
     public resolveProjectPath(
@@ -397,6 +398,10 @@ export class WorkspaceDocumentPathSupport {
         return this.isWorkspaceAbsolutePath(targetPath)
             ? targetPath
             : path.resolve(workspaceRoot, targetPath);
+    }
+
+    private normalizeFsPath(filePath: string): string {
+        return filePath.replace(/^\/([A-Za-z]:[\\/])/, '$1');
     }
 
     private resolveMudlibRoot(workspaceRoot: string, mudlibDirectory: string, configHellPath?: string): string {

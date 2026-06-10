@@ -131,7 +131,6 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         const position = new vscode.Position(request.position.line, request.position.character);
         const workspaceRoot = request.context.workspace.workspaceRoot;
         const projectConfig = request.context.workspace.projectConfig;
-        const requestState = this.createRequestState();
         const wordRange = document.getWordRangeAtPosition(position);
         if (!wordRange) {
             return [];
@@ -154,14 +153,14 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
             word,
             workspaceRoot,
             projectConfig,
-            requestState
+            this.createRequestState()
         );
         if (directDefinition) {
             return this.toLanguageLocations(directDefinition);
         }
 
         return this.toLanguageLocations(
-            await this.functionFamilyDefinitionResolver.resolve(document, word, requestState)
+            await this.functionFamilyDefinitionResolver.resolve(document, word, this.createRequestState())
         );
     }
 

@@ -61,11 +61,17 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         getAllFunctions: jest.fn(() => []),
         getStandardCallableDoc: jest.fn(() => undefined),
         getAllSimulatedFunctions: jest.fn(() => []),
-        getSimulatedDoc: jest.fn(() => undefined)
+        getSimulatedDoc: jest.fn(() => undefined),
+        ensureWorkspaceStateCurrent: jest.fn(async () => undefined)
     };
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     beforeEach(() => {
+        efunDocsManager.getAllFunctions.mockReturnValue([]);
+        efunDocsManager.getStandardCallableDoc.mockReturnValue(undefined);
+        efunDocsManager.getAllSimulatedFunctions.mockReturnValue([]);
+        efunDocsManager.getSimulatedDoc.mockReturnValue(undefined);
+        efunDocsManager.ensureWorkspaceStateCurrent.mockResolvedValue(undefined);
     });
 
     afterEach(() => {
@@ -158,6 +164,51 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         expect(resolved.documentation?.value ?? '').toContain('object create()');
         expect(resolved.documentation?.value ?? '').toContain('Base room create');
         expect(resolved.documentation?.value ?? '').not.toContain('scoped detail sentinel');
+    });
+
+    test('provideCompletion loads simulated efuns for the current document workspace', async () => {
+        const document = createDocument(
+            path.join(process.cwd(), '.tmp-completion-service', 'workspace-a', 'room.c'),
+            'sim'
+        );
+        efunDocsManager.getAllSimulatedFunctions.mockReturnValue(['simul_call']);
+        const documentHost = createVsCodeTextDocumentHost();
+        const service = createDefaultQueryBackedLanguageCompletionService({
+            efunDocsManager: efunDocsManager as any,
+            analysisService,
+            documentationService: { getDocForDeclaration: jest.fn() } as any,
+            objectInferenceService: {} as any,
+            instrumentation: new CompletionInstrumentation(),
+            inheritanceReporter: {
+                clear: jest.fn(),
+                show: jest.fn(),
+                appendLine: jest.fn()
+            } as any,
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver()),
+            contextAnalyzer: new CompletionContextAnalyzer(),
+            scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
+                analysisService,
+                host: documentHost
+            }),
+            scopedCompletionSupport: createDefaultScopedMethodCompletionSupport({
+                documentationService: { getDocForDeclaration: jest.fn() } as any,
+                documentLoader: jest.fn(),
+                renderer: new CallableDocRenderer()
+            })
+        }) as any;
+
+        const result = await service.provideCompletion({
+            context: {
+                document,
+                workspace: { workspaceRoot: process.cwd() },
+                cancellation: { isCancellationRequested: false }
+            } as any,
+            position: { line: 0, character: 3 }
+        });
+
+        expect(efunDocsManager.ensureWorkspaceStateCurrent).toHaveBeenCalledWith(document);
+        expect(efunDocsManager.getAllSimulatedFunctions).toHaveBeenCalledWith(document);
+        expect(result.items.map((item: any) => item.label)).toContain('simul_call');
     });
 
     test('scoped completion resolveCompletionItem does not fabricate docs for ambiguous merged candidates', async () => {

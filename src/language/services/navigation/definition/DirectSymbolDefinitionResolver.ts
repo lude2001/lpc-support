@@ -170,7 +170,7 @@ export class DirectSymbolDefinitionResolver {
             ? await (this.dependencies.efunDocsManager as EfunDocsManager & {
                 getSimulatedDocAsync(funcName: string, document?: vscode.TextDocument): Promise<ReturnType<EfunDocsManager['getSimulatedDoc']>>;
             }).getSimulatedDocAsync(word, document)
-            : this.dependencies.efunDocsManager.getSimulatedDoc(word);
+            : this.dependencies.efunDocsManager.getSimulatedDoc(word, document);
         if (!simulatedDoc) {
             return undefined;
         }

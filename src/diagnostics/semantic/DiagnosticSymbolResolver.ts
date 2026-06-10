@@ -272,8 +272,8 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         for (const name of manager.getAllFunctions()) {
             signatures.push(...fromCallableDoc(name, manager.getStandardCallableDoc(name), 'efun'));
         }
-        for (const name of manager.getAllSimulatedFunctions()) {
-            signatures.push(...fromCallableDoc(name, manager.getSimulatedDoc(name), 'simul-efun'));
+        for (const name of manager.getAllSimulatedFunctions(document)) {
+            signatures.push(...fromCallableDoc(name, manager.getSimulatedDoc(name, document), 'simul-efun'));
         }
 
         return signatures;

@@ -12,12 +12,10 @@ import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigServic
 type SimulatedEfunAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
 
 export class SimulatedEfunScanner {
-    private docs: Map<string, CallableDoc> = new Map();
+    private readonly workspaceStates = new Map<string, SimulatedEfunWorkspaceState>();
     private readonly analysisService: SimulatedEfunAnalysisService;
     private readonly documentationService: FunctionDocumentationService;
-    private hasLoadedWorkspaceState = false;
-    private loadedWorkspaceRoot: string | undefined;
-    private loadVersion = 0;
+    private activeWorkspaceStateKey: string | undefined;
 
     constructor(
         private readonly projectConfigService: LpcProjectConfigService | undefined,
@@ -29,20 +27,20 @@ export class SimulatedEfunScanner {
     }
 
     public get(name: string): CallableDoc | undefined {
-        return this.docs.get(name);
+        return this.getForDocument(name);
     }
 
     public async getAsync(name: string, document?: vscode.TextDocument): Promise<CallableDoc | undefined> {
         await this.ensureWorkspaceStateCurrent(document);
-        if (!this.hasLoadedWorkspaceState) {
-            await this.refreshWorkspaceState(true, document);
-        }
-
-        return this.get(name);
+        return this.getForDocument(name, document);
     }
 
-    public getAllNames(): string[] {
-        return Array.from(this.docs.keys());
+    public getForDocument(name: string, document?: vscode.TextDocument): CallableDoc | undefined {
+        return this.getWorkspaceState(document).docs.get(name);
+    }
+
+    public getAllNames(document?: vscode.TextDocument): string[] {
+        return Array.from(this.getWorkspaceState(document).docs.keys());
     }
 
     public async configure(): Promise<void> {
@@ -54,31 +52,31 @@ export class SimulatedEfunScanner {
     }
 
     public invalidateWorkspaceState(): void {
-        this.loadVersion += 1;
-        this.hasLoadedWorkspaceState = false;
-        this.loadedWorkspaceRoot = undefined;
-        this.docs = new Map();
+        for (const state of this.workspaceStates.values()) {
+            state.loadVersion += 1;
+        }
+        this.workspaceStates.clear();
     }
 
     public async refreshWorkspaceState(force: boolean = false, document?: vscode.TextDocument): Promise<void> {
         const workspaceRoot = this.getWorkspaceRoot(document);
-        if (!force && this.hasLoadedWorkspaceState && workspaceRoot === this.loadedWorkspaceRoot) {
+        const state = this.getWorkspaceStateForRoot(workspaceRoot);
+        if (!force && state.hasLoaded) {
             return;
         }
 
         if (force) {
-            this.hasLoadedWorkspaceState = false;
+            state.hasLoaded = false;
         }
 
-        const loadVersion = ++this.loadVersion;
+        const loadVersion = ++state.loadVersion;
         const nextDocs = await this.collectSimulatedEfuns(workspaceRoot);
-        if (loadVersion !== this.loadVersion) {
+        if (loadVersion !== state.loadVersion) {
             return;
         }
 
-        this.docs = nextDocs;
-        this.hasLoadedWorkspaceState = true;
-        this.loadedWorkspaceRoot = workspaceRoot;
+        state.docs = nextDocs;
+        state.hasLoaded = true;
     }
 
     public async configureSimulatedEfuns(): Promise<void> {
@@ -114,10 +112,42 @@ export class SimulatedEfunScanner {
     }
 
     public async ensureWorkspaceStateCurrent(document?: vscode.TextDocument): Promise<void> {
-        const workspaceRoot = this.getWorkspaceRoot(document);
-        if (!this.hasLoadedWorkspaceState || workspaceRoot !== this.loadedWorkspaceRoot) {
+        const state = this.getWorkspaceState(document);
+        if (!state.hasLoaded) {
             await this.refreshWorkspaceState(true, document);
         }
+    }
+
+    private getWorkspaceState(document?: vscode.TextDocument): SimulatedEfunWorkspaceState {
+        return this.getWorkspaceStateByKey(this.getWorkspaceStateKey(document));
+    }
+
+    private getWorkspaceStateForRoot(workspaceRoot: string | undefined): SimulatedEfunWorkspaceState {
+        return this.getWorkspaceStateByKey(workspaceRoot ?? '<no-workspace>');
+    }
+
+    private getWorkspaceStateByKey(key: string): SimulatedEfunWorkspaceState {
+        this.activeWorkspaceStateKey = key;
+        const existing = this.workspaceStates.get(key);
+        if (existing) {
+            return existing;
+        }
+
+        const created: SimulatedEfunWorkspaceState = {
+            docs: new Map(),
+            hasLoaded: false,
+            loadVersion: 0
+        };
+        this.workspaceStates.set(key, created);
+        return created;
+    }
+
+    private getWorkspaceStateKey(document?: vscode.TextDocument): string {
+        if (!document && this.activeWorkspaceStateKey) {
+            return this.activeWorkspaceStateKey;
+        }
+
+        return this.getWorkspaceRoot(document) ?? '<no-workspace>';
     }
 
     private async loadFromProjectConfigEntry(
@@ -334,4 +364,10 @@ function materializeDocMap(documentDocs: DocumentCallableDocs): Map<string, Call
     }
 
     return docs;
+}
+
+interface SimulatedEfunWorkspaceState {
+    docs: Map<string, CallableDoc>;
+    hasLoaded: boolean;
+    loadVersion: number;
 }

@@ -100,6 +100,7 @@ describe('CompletionItemPresentationService', () => {
 
     test('resolveCompletionItem attaches efun docs', async () => {
         const CompletionItemPresentationService = loadService();
+        const document = createDocument(path.join(process.cwd(), '.tmp-completion-presentation', 'efun.c'), 'write("");\n');
         const service = new CompletionItemPresentationService(
             {
                 getStandardCallableDoc: jest.fn(() => ({
@@ -128,11 +129,48 @@ describe('CompletionItemPresentationService', () => {
             detail: 'void write',
             sortGroup: 'builtin',
             metadata: { sourceType: 'efun' }
-        } as any);
+        } as any, document);
 
         expect(resolved.documentation?.value ?? '').toContain('void write(string msg);');
         expect(resolved.documentation?.value ?? '').toContain('Writes a message.');
         expect(resolved.insertText).toBe('write($1)');
+    });
+
+    test('resolveCompletionItem loads simulated efun docs from the current document workspace', async () => {
+        const CompletionItemPresentationService = loadService();
+        const document = createDocument(path.join(process.cwd(), '.tmp-completion-presentation', 'workspace-a', 'room.c'), 'simul_call();\n');
+        const getSimulatedDoc = jest.fn(() => ({
+            name: 'simul_call',
+            declarationKey: 'simul:simul_call',
+            sourceKind: 'simulEfun',
+            summary: 'Workspace local simulated efun.',
+            signatures: [{
+                label: 'mixed simul_call()',
+                returnType: 'mixed',
+                isVariadic: false,
+                parameters: []
+            }]
+        }));
+        const service = new CompletionItemPresentationService(
+            {
+                getStandardCallableDoc: jest.fn(),
+                getSimulatedDoc
+            },
+            new ProjectSymbolIndex(new InheritanceResolver()),
+            { applyScopedDocumentation: jest.fn() }
+        );
+
+        const resolved = await service.resolveCompletionItem({ label: 'simul_call' } as any, {
+            key: 'simul-efun:simul_call',
+            label: 'simul_call',
+            kind: vscode.CompletionItemKind.Function,
+            detail: 'mixed simul_call',
+            sortGroup: 'builtin',
+            metadata: { sourceType: 'simul-efun' }
+        } as any, document);
+
+        expect(getSimulatedDoc).toHaveBeenCalledWith('simul_call', document);
+        expect(resolved.documentation?.value ?? '').toContain('Workspace local simulated efun.');
     });
 
     test('resolveCompletionItem attaches macro docs', async () => {
@@ -146,6 +184,7 @@ describe('CompletionItemPresentationService', () => {
             { applyScopedDocumentation: jest.fn() }
         );
 
+        const document = createDocument(path.join(process.cwd(), '.tmp-completion-presentation', 'macro.c'), 'ROOM_D\n');
         const resolved = await service.resolveCompletionItem({ label: 'ROOM_D' } as any, {
             key: 'macro:ROOM_D',
             label: 'ROOM_D',
@@ -153,7 +192,7 @@ describe('CompletionItemPresentationService', () => {
             detail: '#define ROOM_D',
             sortGroup: 'scope',
             metadata: { sourceType: 'macro' }
-        } as any);
+        } as any, document);
 
         expect(resolved.documentation?.value ?? '').toContain('#define ROOM_D');
     });
@@ -176,6 +215,7 @@ describe('CompletionItemPresentationService', () => {
             { applyScopedDocumentation }
         );
 
+        const document = createDocument(path.join(process.cwd(), '.tmp-completion-presentation', 'scoped.c'), '::create();\n');
         const resolved = await service.resolveCompletionItem({ label: 'create' } as any, {
             key: 'scoped:create',
             label: 'create',
@@ -183,7 +223,7 @@ describe('CompletionItemPresentationService', () => {
             detail: 'object create',
             sortGroup: 'inherited',
             metadata: { sourceType: 'scoped-method', declarationKey: 'decl-key' }
-        } as any);
+        } as any, document);
 
         expect(applyScopedDocumentation).toHaveBeenCalled();
         expect(resolved.documentation?.value).toBe('scoped callable docs');
@@ -240,7 +280,7 @@ describe('CompletionItemPresentationService', () => {
                 sourceType: 'local',
                 sourceUri: sourceDocument.uri.toString()
             }
-        } as any);
+        } as any, sourceDocument);
 
         expect(resolved.documentation?.value ?? '').toContain('string query_name(int mode)');
         expect(resolved.documentation?.value ?? '').toContain('Structured room name docs');

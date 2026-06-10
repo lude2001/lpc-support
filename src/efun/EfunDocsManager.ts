@@ -118,12 +118,12 @@ export class EfunDocsManager {
         return Array.from(this.efunDocs.keys());
     }
 
-    public getAllSimulatedFunctions(): string[] {
-        return this.simulatedEfunScanner.getAllNames();
+    public getAllSimulatedFunctions(document?: vscode.TextDocument): string[] {
+        return this.simulatedEfunScanner.getAllNames(document);
     }
 
-    public getSimulatedDoc(funcName: string): CallableDoc | undefined {
-        return this.simulatedEfunScanner.get(funcName);
+    public getSimulatedDoc(funcName: string, document?: vscode.TextDocument): CallableDoc | undefined {
+        return this.simulatedEfunScanner.getForDocument(funcName, document);
     }
 
     public async getSimulatedDocAsync(funcName: string, document?: vscode.TextDocument): Promise<CallableDoc | undefined> {

@@ -21,10 +21,13 @@ export class DefaultCallableDocResolver implements CallableDocResolver {
         }
 
         if (target.kind === 'simulEfun' && (!target.documentUri || !target.declarationKey)) {
+            const requestDocument = target.requestDocumentUri
+                ? await this.host.openTextDocument(vscode.Uri.parse(target.requestDocumentUri))
+                : undefined;
             const simulatedDoc = this.efunDocsManager
                 ? this.efunDocsManager.getSimulatedDocAsync
-                    ? await this.efunDocsManager.getSimulatedDocAsync(target.name)
-                    : this.efunDocsManager.getSimulatedDoc(target.name)
+                    ? await this.efunDocsManager.getSimulatedDocAsync(target.name, requestDocument)
+                    : this.efunDocsManager.getSimulatedDoc(target.name, requestDocument)
                 : undefined;
             return simulatedDoc ? { ...simulatedDoc, sourceKind: 'simulEfun' } : undefined;
         }

@@ -40,7 +40,8 @@ export class CompletionItemPresentationService {
 
     public async resolveCompletionItem(
         item: LanguageCompletionItem,
-        candidate: CompletionCandidate
+        candidate: CompletionCandidate,
+        document: vscode.TextDocument
     ): Promise<LanguageCompletionItem> {
         const resolvedItem: LanguageCompletionItem = {
             ...item
@@ -55,7 +56,7 @@ export class CompletionItemPresentationService {
                 this.applyEfunDocumentation(resolvedItem, this.efunDocsManager.getStandardCallableDoc(candidate.label));
                 break;
             case 'simul-efun':
-                this.applyEfunDocumentation(resolvedItem, this.efunDocsManager.getSimulatedDoc(candidate.label));
+                this.applyEfunDocumentation(resolvedItem, this.efunDocsManager.getSimulatedDoc(candidate.label, document));
                 break;
             case 'macro':
                 this.applyKeywordDocumentation(resolvedItem, candidate);

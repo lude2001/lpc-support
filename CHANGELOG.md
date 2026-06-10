@@ -23,6 +23,7 @@
 - 语义摘要与 simul-efun 文档扫描现在会识别函数级 `varargs` 修饰符，把省略尾部参数的调用视为合法，避免 `varargs void tell_room(...)` 这类 simul-efun 覆写被误报参数数量不匹配；同时校准标准 efun `tell_room` 的参数范围为 2-3 个。
 - 基础语义诊断现在会识别 FluffOS 驱动预定义宏与构建生成宏族，避免 `__DIR__`、`__FILE__`、`__LINE__`、`__PACKAGE_*__`、`__HAVE_*__`、`__CFG_*__` 等被误报为未定义符号。
 - 预处理宏引用收集现在会跳过字符串、字符字面量和注释，避免 `"NPC 使用者..."` 这类普通文本被 `#define NPC "/inherit/char/npc"` 误展开并触发 ANTLR 连锁语法错误。
+- simul-efun 文档缓存现在按 workspace 分区，诊断收集会用当前文档所属 workspace 读取签名，避免多文件或多 workspace 后台诊断把 `new_bind`、`chinese_number`、`to_chinese` 等已配置 simul-efun 再次误报为未定义函数。
 
 ### Header owner 上下文
 

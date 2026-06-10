@@ -56,6 +56,40 @@ describe('DefaultCallableDocResolver', () => {
         }));
     });
 
+    test('passes the request document when resolving unbacked simul_efun docs', async () => {
+        const requestDocument = createDocument('void test() { simul_call(1); }', 'D:/workspace-a/room.c');
+        const getSimulatedDocAsync = jest.fn(async () => ({
+            name: 'simul_call',
+            signatures: []
+        }));
+        const host = {
+            openTextDocument: jest.fn(async () => requestDocument)
+        };
+        const resolver = new DefaultCallableDocResolver(
+            {} as any,
+            {
+                getSimulatedDocAsync
+            } as any,
+            host
+        );
+
+        const doc = await resolver.resolveFromTarget({
+            kind: 'simulEfun',
+            name: 'simul_call',
+            targetKey: 'simulEfun:simul_call',
+            requestDocumentUri: requestDocument.uri.toString(),
+            sourceLabel: 'simul_efun',
+            priority: 5
+        });
+
+        expect(host.openTextDocument).toHaveBeenCalledTimes(1);
+        expect(getSimulatedDocAsync).toHaveBeenCalledWith('simul_call', requestDocument);
+        expect(doc).toEqual(expect.objectContaining({
+            name: 'simul_call',
+            sourceKind: 'simulEfun'
+        }));
+    });
+
     test('loads declaration-backed docs through the documentation service', async () => {
         const document = createDocument('void demo(int value) {}', 'D:/workspace/demo.c');
         const documentationService = {

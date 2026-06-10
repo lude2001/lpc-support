@@ -344,6 +344,23 @@ describe('syntax-backed diagnostic collectors', () => {
         ]));
     });
 
+    test('BasicSemanticDiagnosticsCollector suppresses undefined diagnostics without resolver when dependencies exist', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector();
+        const { document, parsed, context } = analyzeCollectorSource([
+            'inherit ROOM;',
+            '',
+            'void create() {',
+            '    set("short", "room");',
+            '    setup();',
+            '    ROOM_D;',
+            '}'
+        ].join('\n'), 'basic-semantic-unresolved-dependency.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics).toEqual([]);
+    });
+
     test('BasicSemanticDiagnosticsCollector recognizes comma-separated initialized local variables', async () => {
         const collector = new BasicSemanticDiagnosticsCollector();
         const { document, parsed, context } = analyzeCollectorSource([

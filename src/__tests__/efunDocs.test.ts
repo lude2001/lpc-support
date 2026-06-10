@@ -1296,6 +1296,71 @@ describe('SimulatedEfunScanner', () => {
         expect(scanner.getAllNames()).toEqual(expect.arrayContaining(['new_bind', 'chinese_number']));
     });
 
+    test('keeps simulated efun docs isolated per workspace during interleaved diagnostics', async () => {
+        const workspaceRootA = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-workspace-a-'));
+        const workspaceRootB = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-workspace-b-'));
+        const entryDirA = path.join(workspaceRootA, 'adm', 'single');
+        const includeDirA = path.join(workspaceRootA, 'adm', 'simul_efun');
+        const entryFileA = path.join(entryDirA, 'simul_efun.c');
+        const documentA = TestHelper.createMockDocument(
+            'void demo() { new_bind("/x"); chinese_number(1); }',
+            'lpc',
+            path.join(workspaceRootA, 'adm', 'daemons', 'aoyid.c')
+        );
+        const documentB = TestHelper.createMockDocument(
+            'void demo() { write("plain workspace"); }',
+            'lpc',
+            path.join(workspaceRootB, 'room.c')
+        );
+        (documentA as any).uri = vscode.Uri.file(documentA.fileName);
+        (documentB as any).uri = vscode.Uri.file(documentB.fileName);
+
+        fs.mkdirSync(entryDirA, { recursive: true });
+        fs.mkdirSync(includeDirA, { recursive: true });
+        fs.writeFileSync(entryFileA, [
+            '#include "/adm/simul_efun/object.c"',
+            '#include "/adm/simul_efun/chinese.c"'
+        ].join('\n'));
+        fs.writeFileSync(path.join(includeDirA, 'object.c'), 'object new_bind(string path) { return new(path); }\n');
+        fs.writeFileSync(path.join(includeDirA, 'chinese.c'), 'string chinese_number(int i) { return ""; }\n');
+
+        const projectConfigService = {
+            getSimulatedEfunFileForWorkspace: jest.fn(async (root: string) =>
+                root === workspaceRootA ? entryFileA : undefined
+            ),
+            getResolvedForWorkspace: jest.fn().mockResolvedValue({ mudlibDirectory: './' }),
+            getMudlibRootForWorkspace: jest.fn(async (root: string) =>
+                root === workspaceRootA ? workspaceRootA : root
+            )
+        };
+        const scanner = createSimulatedScanner(projectConfigService as any);
+
+        (vscode.workspace.workspaceFolders as unknown) = [
+            { uri: { fsPath: workspaceRootA } },
+            { uri: { fsPath: workspaceRootB } }
+        ];
+        (vscode.workspace.getWorkspaceFolder as jest.Mock).mockImplementation((uri: vscode.Uri) => {
+            const normalized = normalizeTestPath(uri.fsPath);
+            if (normalized.startsWith(normalizeTestPath(workspaceRootA))) {
+                return { uri: { fsPath: workspaceRootA } };
+            }
+            if (normalized.startsWith(normalizeTestPath(workspaceRootB))) {
+                return { uri: { fsPath: workspaceRootB } };
+            }
+            return undefined;
+        });
+
+        await scanner.ensureWorkspaceStateCurrent(documentA);
+        expect(scanner.getAllNames(documentA)).toEqual(expect.arrayContaining(['new_bind', 'chinese_number']));
+
+        await scanner.ensureWorkspaceStateCurrent(documentB);
+
+        expect(scanner.getAllNames(documentB)).toEqual([]);
+        expect(scanner.getAllNames(documentA)).toEqual(expect.arrayContaining(['new_bind', 'chinese_number']));
+        expect(scanner.getForDocument('new_bind', documentA)).toBeDefined();
+        expect(scanner.getForDocument('new_bind', documentB)).toBeUndefined();
+    });
+
     test('loading simulated efun docs does not poison parse cache for included sources with single-line if else chains', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-cache-poison-'));
         const entryDir = path.join(workspaceRoot, 'adm', 'single');

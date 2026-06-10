@@ -167,7 +167,7 @@ function createCurrentFileVisibleSymbols(semantic: SemanticSnapshot): VisibleDia
         macros: semantic.macroDefinitions ?? [],
         macroReferences: semantic.macroReferences,
         callableSignatures: semantic.exportedFunctions.map((summary) => toCallableSignature(summary)),
-        hasUnresolvedDependencies: false
+        hasUnresolvedDependencies: semantic.includeStatements.length > 0 || semantic.inheritStatements.length > 0
     };
 }
 

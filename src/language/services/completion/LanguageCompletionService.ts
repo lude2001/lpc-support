@@ -105,6 +105,7 @@ interface QueryBackedLanguageCompletionOwnedServices {
     candidateResolver: CompletionCandidateResolver;
     presentationService: CompletionItemPresentationService;
     queryEngine: CompletionQueryEngine;
+    efunDocsManager: Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent'>>;
 }
 
 export class QueryBackedLanguageCompletionService implements LanguageCompletionService {
@@ -113,6 +114,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     private readonly inheritedIndexService: CompletionInheritedIndexService;
     private readonly candidateResolver: CompletionCandidateResolver;
     private readonly presentationService: CompletionItemPresentationService;
+    private readonly efunDocsManager: Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent'>>;
 
     constructor(services: QueryBackedLanguageCompletionOwnedServices) {
         this.instrumentation = services.instrumentation;
@@ -120,6 +122,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         this.candidateResolver = services.candidateResolver;
         this.presentationService = services.presentationService;
         this.queryEngine = services.queryEngine;
+        this.efunDocsManager = services.efunDocsManager;
     }
 
     public async provideCompletion(request: LanguageCompletionRequest): Promise<LanguageCompletionResult> {
@@ -138,6 +141,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         });
 
         try {
+            await this.efunDocsManager.ensureWorkspaceStateCurrent?.(document);
             this.inheritedIndexService.warmInheritedIndex(document);
 
             const result = this.queryEngine.query(
@@ -191,7 +195,11 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         };
 
         await trace.measureAsync('item-resolve', async () => {
-            resolvedItem = await this.presentationService.resolveCompletionItem(resolvedItem, candidate);
+            resolvedItem = await this.presentationService.resolveCompletionItem(
+                resolvedItem,
+                candidate,
+                this.requireTextDocument(request.context)
+            );
         }, { candidateCount: 1 });
 
         resolvedItem.data = {
@@ -261,7 +269,7 @@ export function createDefaultQueryBackedLanguageCompletionService(
         contextAnalyzer: dependencies.contextAnalyzer,
         efunProvider: {
             getAllFunctions: () => dependencies.efunDocsManager.getAllFunctions(),
-            getAllSimulatedFunctions: () => dependencies.efunDocsManager.getAllSimulatedFunctions()
+            getAllSimulatedFunctions: (document) => dependencies.efunDocsManager.getAllSimulatedFunctions(document)
         }
     });
 
@@ -270,6 +278,7 @@ export function createDefaultQueryBackedLanguageCompletionService(
         inheritedIndexService,
         candidateResolver,
         presentationService,
-        queryEngine
+        queryEngine,
+        efunDocsManager: dependencies.efunDocsManager
     });
 }

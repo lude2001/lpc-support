@@ -121,4 +121,31 @@ describe('DefaultCallableTargetDiscoveryService', () => {
             expect.objectContaining({ kind: 'efun', sourceLabel: 'efun', priority: 6 })
         ]);
     });
+
+    test('discovers simulated efun targets with the current request document', async () => {
+        const document = createDocument('void test() { simul_call(1); }', 'D:/workspace-a/room.c');
+        const getSimulatedDoc = jest.fn(() => ({ name: 'simul_call' }));
+        const service = new DefaultCallableTargetDiscoveryService({
+            getSimulatedDoc,
+            getStandardCallableDoc: jest.fn(() => undefined)
+        } as any);
+
+        const targets = await service.discoverEfunTargets({
+            document,
+            position: new vscode.Position(0, 24),
+            callExpressionRange: new vscode.Range(0, 14, 0, 27),
+            calleeName: 'simul_call',
+            callKind: 'function'
+        });
+
+        expect(getSimulatedDoc).toHaveBeenCalledWith('simul_call', document);
+        expect(targets).toEqual([
+            expect.objectContaining({
+                kind: 'simulEfun',
+                requestDocumentUri: document.uri.toString(),
+                sourceLabel: 'simul_efun',
+                priority: 5
+            })
+        ]);
+    });
 });

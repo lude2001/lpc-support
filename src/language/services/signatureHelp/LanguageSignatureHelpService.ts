@@ -49,6 +49,7 @@ export interface ResolvedCallableTarget {
     targetKey: string;
     documentUri?: string;
     declarationKey?: string;
+    requestDocumentUri?: string;
     sourceLabel: string;
     priority: number;
 }
