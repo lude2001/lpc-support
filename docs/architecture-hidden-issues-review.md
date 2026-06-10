@@ -24,8 +24,8 @@
 | --- | --- | --- | --- | --- | --- |
 | B01 | Done | P0 | Header owner prefix 分析可能污染真实 owner 语义缓存 | prefix document 已使用隔离 cache key，同时保留真实 `fsPath` 供 include 解析；新增真实 cache 回归测试 | 长期仍建议合入 semantic/project index，避免 owner service 自建上下文 |
 | B02 | Open | P1 | Header owner 在生产路径递归扫 `.c` 并重新推断 include | `HeaderOwnerContextService` 递归枚举 workspace `.c`，读全文并用 `PreprocessorScanner` 扫 include | 把 owner/include 可见上下文移动到 semantic/project index 层，Provider 只查询索引 |
-| B03 | In Progress | P1 | include / inherit 解析没有稳定使用 mudlib root | 已修复 Windows `/C:/...` slash-drive 路径导致 inherit 打不开的子问题；mudlib root 贯穿仍未完成 | 让 root document 的 project config/mudlibRoot 贯穿递归解析，统一路径服务 |
-| B04 | Open | P1 | LSP spawned runtime 存在 workspace config 双真源 | `WorkspaceSession` 用 sync payload；部分 diagnostics/efun/path 仍重读磁盘配置 | LSP server 内选一个配置真源，优先由 `WorkspaceSession` snapshot 驱动项目配置 |
+| B03 | In Progress | P1 | include / inherit 解析没有稳定使用 mudlib root | diagnostics resolver 已携带 workspace projectConfig 解析 include/inherit，`resolveInheritedFilePath` 支持 mudlib root；navigation 等路径仍需复核 | 继续让 projectConfig/mudlibRoot 贯穿所有递归解析入口 |
+| B04 | In Progress | P1 | LSP spawned runtime 存在 workspace config 双真源 | LSP diagnostics request 已携带 `WorkspaceSession` projectConfig，配置同步失败不再卡住诊断；其它服务仍需复核是否重读磁盘配置 | LSP server 内选一个配置真源，优先由 `WorkspaceSession` snapshot 驱动项目配置 |
 
 ## 诊断与预处理
 
@@ -42,7 +42,7 @@
 | ID | 状态 | 严重度 | 问题 | 证据 | 修复方向 |
 | --- | --- | --- | --- | --- | --- |
 | D01 | Done | P1 | completion / completion resolve / signature fallback 对 simul-efun 仍依赖 active workspace | `rg` 未再发现生产路径无上下文 `getAllSimulatedFunctions()` / `getSimulatedDoc(name)` 调用；聚焦测试通过 | 保留无 document API 仅作兼容入口，主路径不再依赖 |
-| D02 | Open | P2 | workspace config sync 失败可能让 LSP diagnostics 永久停在 not-ready | sync handler 先置 not-ready，异常时只记录日志 | `try/finally` 恢复状态，失败时明确处理 pending diagnostics |
+| D02 | Done | P2 | workspace config sync 失败可能让 LSP diagnostics 永久停在 not-ready | sync handler 已用 `finally` 恢复 ready 状态并释放 pending/open diagnostics；失败路径测试覆盖 | 保留错误日志，避免配置刷新失败导致后续诊断永久停摆 |
 | D03 | Open | P3 | extension host scanFolder 与 LSP 实时 diagnostics 启用条件不一致 | host 要求 `lpc-support.json`；LSP 只等 config sync ready | 抽共享 diagnostics enable policy |
 
 ## 测试与发布卫生

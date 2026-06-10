@@ -15,6 +15,7 @@ import type { CallableDoc, CallableSignature } from '../../language/documentatio
 import type { WorkspaceDocumentPathSupport } from '../../language/shared/WorkspaceDocumentPathSupport';
 import type { EfunDocsManager } from '../../efunDocs';
 import type { HeaderOwnerContextService } from '../../language/shared/HeaderOwnerContextService';
+import type { LanguageDiagnosticsWorkspaceContext } from '../../language/services/diagnostics/LanguageDiagnosticsService';
 
 export interface DiagnosticCallableSignature {
     name: string;
@@ -38,7 +39,8 @@ export interface VisibleDiagnosticSymbols {
 export interface DiagnosticSymbolResolver {
     resolveVisibleSymbols(
         document: vscode.TextDocument,
-        semantic: SemanticSnapshot
+        semantic: SemanticSnapshot,
+        workspace?: LanguageDiagnosticsWorkspaceContext
     ): Promise<VisibleDiagnosticSymbols> | VisibleDiagnosticSymbols;
 }
 
@@ -78,9 +80,10 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
 
     public async resolveVisibleSymbols(
         document: vscode.TextDocument,
-        semantic: SemanticSnapshot
+        semantic: SemanticSnapshot,
+        workspace?: LanguageDiagnosticsWorkspaceContext
     ): Promise<VisibleDiagnosticSymbols> {
-        const dependencyState = await this.indexDocument(document, semantic, new Set<string>(), 'root');
+        const dependencyState = await this.indexDocument(document, semantic, new Set<string>(), 'root', workspace);
         const uri = document.uri.toString();
         const included = this.options.projectSymbolIndex.getIncludedSymbols(uri);
         const inherited = this.options.projectSymbolIndex.getInheritedSymbols(uri);
@@ -131,7 +134,8 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         document: vscode.TextDocument,
         semantic: SemanticSnapshot,
         visitedUris: Set<string>,
-        relation: 'root' | 'include' | 'inherited'
+        relation: 'root' | 'include' | 'inherited',
+        workspace?: LanguageDiagnosticsWorkspaceContext
     ): Promise<DependencyIndexResult> {
         if (visitedUris.has(semantic.uri)) {
             return emptyDependencyIndexResult();
@@ -142,8 +146,13 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         let hasUnresolved = false;
         const included = emptyDependencySymbolCollection();
         const inherited = emptyDependencySymbolCollection();
-        const workspaceRoot = this.options.pathSupport.getWorkspaceFolderRoot(document);
-        const resolvedIncludes = await this.resolveIncludeStatements(document, semantic.includeStatements, workspaceRoot);
+        const workspaceRoot = workspace?.workspaceRoot ?? this.options.pathSupport.getWorkspaceFolderRoot(document);
+        const resolvedIncludes = await this.resolveIncludeStatements(
+            document,
+            semantic.includeStatements,
+            workspaceRoot,
+            workspace
+        );
         this.options.projectSymbolIndex.updateFromSemanticSnapshot({
             ...semantic,
             includeStatements: resolvedIncludes.includeStatements
@@ -158,7 +167,8 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
             const childResult = await this.indexDependencyFile(
                 vscode.Uri.parse(includeStatement.resolvedUri).fsPath,
                 visitedUris,
-                relation === 'inherited' ? 'inherited' : 'include'
+                relation === 'inherited' ? 'inherited' : 'include',
+                workspace
             );
             hasUnresolved = hasUnresolved || childResult.hasUnresolved;
             mergeCollection(included, childResult.included);
@@ -169,14 +179,15 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
             const inheritedFile = this.options.pathSupport.resolveInheritedFilePath(
                 document,
                 inheritStatement.value,
-                workspaceRoot
+                workspaceRoot,
+                workspace?.projectConfig
             );
             if (!inheritedFile || !this.options.pathSupport.fileExists(inheritedFile)) {
                 hasUnresolved = true;
                 continue;
             }
 
-            const childResult = await this.indexDependencyFile(inheritedFile, visitedUris, 'inherited');
+            const childResult = await this.indexDependencyFile(inheritedFile, visitedUris, 'inherited', workspace);
             hasUnresolved = hasUnresolved || childResult.hasUnresolved;
             mergeCollection(inherited, childResult.inherited);
         }
@@ -196,7 +207,8 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
     private async resolveIncludeStatements(
         document: vscode.TextDocument,
         includeStatements: IncludeDirective[],
-        workspaceRoot: string | undefined
+        workspaceRoot: string | undefined,
+        workspace?: LanguageDiagnosticsWorkspaceContext
     ): Promise<{ includeStatements: IncludeDirective[]; hasUnresolved: boolean }> {
         let hasUnresolved = false;
         const resolvedStatements: IncludeDirective[] = [];
@@ -211,7 +223,8 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
                 document,
                 includeStatement.value,
                 includeStatement.isSystemInclude,
-                workspaceRoot
+                workspaceRoot,
+                workspace?.projectConfig
             );
             const includeFile = includeFiles.find((filePath) => this.options.pathSupport.fileExists(filePath));
             if (!includeFile) {
@@ -235,7 +248,8 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
     private async indexDependencyFile(
         filePath: string,
         visitedUris: Set<string>,
-        relation: 'include' | 'inherited'
+        relation: 'include' | 'inherited',
+        workspace?: LanguageDiagnosticsWorkspaceContext
     ): Promise<DependencyIndexResult> {
         const dependencyDocument = await this.options.pathSupport.tryOpenTextDocument(filePath);
         if (!dependencyDocument) {
@@ -257,7 +271,7 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
             return unresolvedDependencyIndexResult();
         }
 
-        return this.indexDocument(dependencyDocument, dependencySemantic, visitedUris, relation);
+        return this.indexDocument(dependencyDocument, dependencySemantic, visitedUris, relation, workspace);
     }
 
     private async collectEfunSignatures(document: vscode.TextDocument): Promise<DiagnosticCallableSignature[]> {

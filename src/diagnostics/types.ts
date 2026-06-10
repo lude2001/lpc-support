@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { LanguageDiagnosticsWorkspaceContext } from '../language/services/diagnostics/LanguageDiagnosticsService';
 import { ParsedDocument } from '../parser/types';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxDocument } from '../syntax/types';
@@ -7,6 +8,7 @@ export interface DiagnosticContext {
     parsed: ParsedDocument;
     syntax?: SyntaxDocument;
     semantic?: SemanticSnapshot;
+    workspace?: LanguageDiagnosticsWorkspaceContext;
 }
 
 /**

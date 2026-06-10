@@ -246,10 +246,11 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         void (async () => {
             try {
                 await onWorkspaceConfigSync?.();
-                workspaceConfigReady = true;
-                refreshPendingAndOpenDiagnostics();
             } catch (error) {
                 logger.error(`Failed to apply workspace configuration sync: ${error instanceof Error ? error.message : String(error)}`);
+            } finally {
+                workspaceConfigReady = true;
+                refreshPendingAndOpenDiagnostics();
             }
         })();
     });

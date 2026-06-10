@@ -213,8 +213,15 @@ describe('WorkspaceDocumentPathSupport', () => {
 
         const includeDir = await support.getPrimaryIncludeDirectory(workspaceRoot, projectConfig);
         const simulatedPath = await support.getConfiguredSimulatedEfunFile(workspaceRoot, projectConfig);
+        const inheritedPath = support.resolveInheritedFilePath(
+            createDocument('D:/code/shuiyuzhengfeng_lpc/obj/room.c'),
+            '/std/room',
+            workspaceRoot,
+            projectConfig
+        );
 
         expect(includeDir?.replace(/\\/g, '/')).toBe('D:/code/shuiyuzhengfeng_lpc/include');
         expect(simulatedPath?.replace(/\\/g, '/')).toBe('D:/code/shuiyuzhengfeng_lpc/adm/single/simul_efun.c');
+        expect(inheritedPath?.replace(/\\/g, '/')).toBe('D:/code/shuiyuzhengfeng_lpc/std/room.c');
     });
 });

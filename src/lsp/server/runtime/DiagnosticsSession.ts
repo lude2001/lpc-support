@@ -48,14 +48,12 @@ export class DiagnosticsSession {
     }
 
     private createRequest(storedDocument: Readonly<{ uri: string; version: number; text: string }>): LanguageDiagnosticsRequest {
-        const { document, workspaceRoot } = this.contextFactory.createDiagnosticsRequestContext(storedDocument.uri);
+        const { document, workspace } = this.contextFactory.createDiagnosticsRequestContext(storedDocument.uri);
 
         return {
             context: {
                 document,
-                workspace: {
-                    workspaceRoot
-                },
+                workspace,
                 mode: 'lsp'
             }
         };

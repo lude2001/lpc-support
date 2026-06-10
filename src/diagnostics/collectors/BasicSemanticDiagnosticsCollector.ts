@@ -91,7 +91,7 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
         }
 
         const visibleSymbols = this.resolver
-            ? await this.resolver.resolveVisibleSymbols(_document, context.semantic)
+            ? await this.resolver.resolveVisibleSymbols(_document, context.semantic, context.workspace)
             : createCurrentFileVisibleSymbols(context.semantic);
         const parentMap = buildParentMap(context.syntax.nodes);
         const diagnostics: vscode.Diagnostic[] = [];

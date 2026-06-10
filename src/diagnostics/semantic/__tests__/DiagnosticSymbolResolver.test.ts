@@ -242,6 +242,59 @@ describe('DefaultDiagnosticSymbolResolver', () => {
         });
     });
 
+    test('uses workspace project config when resolving inherited diagnostics dependencies', async () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-basic-diagnostics-'));
+        const mainPath = path.join(tempRoot, 'obj', 'room.c');
+        const inheritedPath = path.join(tempRoot, 'mudlib', 'std', 'room.c');
+        fs.mkdirSync(path.dirname(mainPath), { recursive: true });
+        fs.mkdirSync(path.dirname(inheritedPath), { recursive: true });
+        fs.writeFileSync(mainPath, '', 'utf8');
+        fs.writeFileSync(inheritedPath, '', 'utf8');
+
+        const mainDocument = createDocument(mainPath);
+        const inheritedDocument = createDocument(inheritedPath);
+        const snapshots = new Map<string, SemanticSnapshot>();
+        snapshots.set(mainDocument.uri.toString(), createSnapshot(mainDocument, {
+            inheritStatements: [{
+                rawText: 'inherit "/std/room";',
+                expressionKind: 'string',
+                value: '/std/room',
+                range: new vscode.Range(0, 0, 0, 0),
+                isResolved: false
+            }]
+        }));
+        snapshots.set(inheritedDocument.uri.toString(), createSnapshot(inheritedDocument, {
+            exportedFunctions: [createFunction('inherited_helper', inheritedDocument.uri.toString(), 0)]
+        }));
+        const { resolver, pathSupport } = createResolver(snapshots, tempRoot);
+        pathSupport.resolveInheritedFilePath = jest.fn((_document, _inheritValue, _workspaceRoot, projectConfig) =>
+            path.join(tempRoot!, projectConfig?.resolvedConfig?.mudlibDirectory ?? '', 'std', 'room.c')
+        );
+
+        const visible = await resolver.resolveVisibleSymbols(mainDocument, snapshots.get(mainDocument.uri.toString())!, {
+            workspaceRoot: tempRoot,
+            projectConfig: {
+                projectConfigPath: path.join(tempRoot, 'lpc-support.json'),
+                configHellPath: 'config/config.dev',
+                resolvedConfig: {
+                    mudlibDirectory: 'mudlib'
+                }
+            }
+        });
+
+        expect(pathSupport.resolveInheritedFilePath).toHaveBeenCalledWith(
+            mainDocument,
+            '/std/room',
+            tempRoot,
+            expect.objectContaining({
+                resolvedConfig: expect.objectContaining({
+                    mudlibDirectory: 'mudlib'
+                })
+            })
+        );
+        expect(visible.callableSignatures.map((signature) => signature.name)).toContain('inherited_helper');
+    });
+
     test('uses explicit callable arity for efun diagnostics', async () => {
         tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-basic-diagnostics-'));
         const mainPath = path.join(tempRoot, 'room.c');

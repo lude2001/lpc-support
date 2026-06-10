@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../../language/contracts/LanguageCapabilityContext';
 import type { LanguageDocument } from '../../../language/contracts/LanguageDocument';
+import type { LanguageWorkspaceContext } from '../../../language/contracts/LanguageWorkspaceContext';
 import { DocumentStore } from './DocumentStore';
 import { fromFileUri, resolveWorkspaceRootFromRoots } from './serverPathUtils';
 import { WorkspaceSession } from './WorkspaceSession';
@@ -28,7 +29,7 @@ export class ServerLanguageContextFactory {
 
     public createDiagnosticsRequestContext(documentUri: string): {
         document: LanguageDocument;
-        workspaceRoot: string;
+        workspace: LanguageWorkspaceContext;
     } {
         const storedDocument = this.documentStore.get(documentUri);
         const resolvedUri = storedDocument?.uri ?? documentUri;
@@ -36,7 +37,7 @@ export class ServerLanguageContextFactory {
 
         return {
             document: this.createDocumentShim(resolvedUri, storedDocument) as unknown as LanguageDocument,
-            workspaceRoot
+            workspace: this.workspaceSession.toLanguageWorkspaceContext(workspaceRoot)
         };
     }
 

@@ -139,7 +139,8 @@ export class WorkspaceDocumentPathSupport {
     public resolveInheritedFilePath(
         document: vscode.TextDocument,
         inheritValue: string,
-        workspaceRoot: string | undefined
+        workspaceRoot: string | undefined,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): string | undefined {
         let resolvedValue = inheritValue;
         if (/^[A-Z_][A-Z0-9_]*$/.test(resolvedValue)) {
@@ -158,7 +159,7 @@ export class WorkspaceDocumentPathSupport {
         }
 
         if (resolvedValue.startsWith('/')) {
-            return path.join(workspaceRoot, resolvedValue.substring(1));
+            return this.resolveProjectPath(workspaceRoot, resolvedValue, projectConfig);
         }
 
         return path.resolve(path.dirname(this.normalizeFsPath(document.uri.fsPath)), resolvedValue);

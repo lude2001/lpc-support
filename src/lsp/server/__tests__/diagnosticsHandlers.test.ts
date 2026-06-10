@@ -27,6 +27,14 @@ describe('diagnostics session and handlers', () => {
         const workspaceSession = new WorkspaceSession({
             workspaceRoots: ['D:/workspace']
         });
+        workspaceSession.updateWorkspaceConfig('D:/workspace', {
+            projectConfigPath: 'D:/workspace/lpc-support.json',
+            configHellPath: 'config/config.dev',
+            resolvedConfig: {
+                mudlibDirectory: '../mudlib',
+                includeDirectories: ['/include']
+            }
+        });
         const expectedDiagnostics: LanguageDiagnostic[] = [
             {
                 range: {
@@ -47,6 +55,14 @@ describe('diagnostics session and handlers', () => {
                 {
                     collect: jest.fn(async (_document, _analysis, context) => {
                         expect(context.workspace.workspaceRoot).toBe('D:/workspace');
+                        expect(context.workspace.projectConfig).toMatchObject({
+                            projectConfigPath: 'D:/workspace/lpc-support.json',
+                            configHellPath: 'config/config.dev',
+                            resolvedConfig: {
+                                mudlibDirectory: '../mudlib',
+                                includeDirectories: ['/include']
+                            }
+                        });
                         return expectedDiagnostics;
                     })
                 }
@@ -168,12 +184,13 @@ describe('diagnostics session and handlers', () => {
         });
         const documentStore = new DocumentStore();
         const workspaceSession = new WorkspaceSession({});
-        const logger = new ServerLogger({
+        const loggerOutput = {
             info: jest.fn(),
             warn: jest.fn(),
             error: jest.fn(),
             log: jest.fn()
-        });
+        };
+        const logger = new ServerLogger(loggerOutput);
         documentStore.open('file:///D:/workspace/diagnostics.c', 1, 'new_bind("/x");');
 
         registerCapabilities({
@@ -230,12 +247,13 @@ describe('diagnostics session and handlers', () => {
         });
         const documentStore = new DocumentStore();
         const workspaceSession = new WorkspaceSession({});
-        const logger = new ServerLogger({
+        const loggerOutput = {
             info: jest.fn(),
             warn: jest.fn(),
             error: jest.fn(),
             log: jest.fn()
-        });
+        };
+        const logger = new ServerLogger(loggerOutput);
 
         registerCapabilities({
             connection,
@@ -279,6 +297,76 @@ describe('diagnostics session and handlers', () => {
         await Promise.resolve();
 
         expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);
+        expect(diagnosticsSession.refresh).toHaveBeenCalledWith('file:///D:/workspace/diagnostics.c');
+    });
+
+    test('releases deferred diagnostics when workspace config sync fails', async () => {
+        const openHandlers: Array<(params: DidOpenTextDocumentParams) => void> = [];
+        let configSyncHandler: ((payload: WorkspaceConfigSyncPayload) => void) | undefined;
+        const diagnosticsSession = {
+            refresh: jest.fn(async () => []),
+            clear: jest.fn(() => [])
+        };
+        const onWorkspaceConfigSync = jest.fn(async () => {
+            throw new Error('sync failed');
+        });
+        const connection = createConnectionStub({
+            onDidOpenTextDocument: jest.fn(handler => {
+                openHandlers.push(handler);
+                return Disposable.create(() => undefined);
+            }),
+            onNotification: jest.fn((type, handler) => {
+                if (type === WorkspaceConfigSyncNotification.type) {
+                    configSyncHandler = handler as any;
+                }
+                return Disposable.create(() => undefined);
+            })
+        });
+        const documentStore = new DocumentStore();
+        const workspaceSession = new WorkspaceSession({});
+        const loggerOutput = {
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            log: jest.fn()
+        };
+        const logger = new ServerLogger(loggerOutput);
+
+        registerCapabilities({
+            connection,
+            documentStore,
+            logger,
+            serverVersion: '0.40.0-test',
+            workspaceSession,
+            diagnosticsSession: diagnosticsSession as any,
+            onWorkspaceConfigSync
+        });
+
+        openHandlers[0]?.({
+            textDocument: {
+                uri: 'file:///D:/workspace/diagnostics.c',
+                languageId: 'lpc',
+                version: 1,
+                text: 'new_bind("/x");'
+            }
+        });
+
+        configSyncHandler?.({
+            workspaceRoots: ['D:/workspace'],
+            workspaces: [{
+                workspaceRoot: 'D:/workspace',
+                projectConfigPath: 'D:/workspace/lpc-support.json',
+                configHellPath: 'config/config.dev',
+                resolvedConfig: {
+                    simulatedEfunFile: '/adm/single/simul_efun'
+                },
+                lastSyncedAt: '2026-06-08T00:00:00.000Z'
+            }]
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(loggerOutput.error).toHaveBeenCalledWith('Failed to apply workspace configuration sync: sync failed');
         expect(diagnosticsSession.refresh).toHaveBeenCalledWith('file:///D:/workspace/diagnostics.c');
     });
 });

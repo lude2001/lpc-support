@@ -119,12 +119,14 @@ function toHostDocument(document: { uri: string | vscode.Uri; version: number; g
 
 function toDiagnosticContext(
     parsed: ParsedDocument,
-    analysis: { syntax?: unknown; semantic?: unknown }
+    analysis: { syntax?: unknown; semantic?: unknown },
+    workspace: DiagnosticContext['workspace']
 ): DiagnosticContext {
     return {
         parsed,
         syntax: analysis.syntax as DiagnosticContext['syntax'],
-        semantic: analysis.semantic as DiagnosticContext['semantic']
+        semantic: analysis.semantic as DiagnosticContext['semantic'],
+        workspace
     };
 }
 
@@ -157,7 +159,7 @@ function toLanguageDiagnosticsCollector(collector: IDiagnosticCollector): Langua
             const diagnosticContext = toDiagnosticContext(parsed, {
                 syntax: analysis.syntax,
                 semantic: analysis.semantic
-            });
+            }, context.workspace);
             const result = await collector.collect(hostDocument, parsed, diagnosticContext);
             return toLanguageDiagnosticArray(result);
         }
