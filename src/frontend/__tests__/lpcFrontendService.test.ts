@@ -82,4 +82,28 @@ describe('LpcFrontendService', () => {
         );
         expect(snapshot.preprocessor.activeView.text).toContain('int score_value;');
     });
+
+    test('does not treat include directories as implicit global macro sources', () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-frontend-include-'));
+        const includeDir = path.join(tempRoot, 'include');
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(path.join(includeDir, 'defs.h'), '#define ENABLED 1\n');
+        const document = TestHelper.createMockDocument([
+            '#ifdef ENABLED',
+            'int should_not_be_active;',
+            '#endif'
+        ].join('\n'), 'lpc', path.join(tempRoot, 'main.c'));
+
+        const snapshot = new LpcFrontendService({ includeDirectories: [includeDir] }).get(document);
+
+        expect(snapshot.preprocessor.macros.map((macro) => macro.name)).not.toContain('ENABLED');
+        expect(snapshot.preprocessor.inactiveRanges).toEqual([
+            expect.objectContaining({
+                range: expect.objectContaining({
+                    start: expect.objectContaining({ line: 1, character: 0 })
+                })
+            })
+        ]);
+        expect(snapshot.preprocessor.activeView.text).not.toContain('should_not_be_active');
+    });
 });

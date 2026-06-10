@@ -33,7 +33,7 @@ export interface MacroDefinitionFact extends SourceOffsetRange {
     replacement: string;
     parameters?: string[];
     isFunctionLike: boolean;
-    source: 'document' | 'config' | 'include' | 'global-include';
+    source: 'document' | 'config' | 'include';
     sourceUri?: string;
 }
 
