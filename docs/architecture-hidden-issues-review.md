@@ -23,7 +23,7 @@
 | ID | 状态 | 严重度 | 问题 | 证据 | 修复方向 |
 | --- | --- | --- | --- | --- | --- |
 | B01 | Done | P0 | Header owner prefix 分析可能污染真实 owner 语义缓存 | prefix document 已使用隔离 cache key，同时保留真实 `fsPath` 供 include 解析；新增真实 cache 回归测试 | 长期仍建议合入 semantic/project index，避免 owner service 自建上下文 |
-| B02 | Open | P1 | Header owner 在生产路径递归扫 `.c` 并重新推断 include | `HeaderOwnerContextService` 递归枚举 workspace `.c`，读全文并用 `PreprocessorScanner` 扫 include | 把 owner/include 可见上下文移动到 semantic/project index 层，Provider 只查询索引 |
+| B02 | In Progress | P1 | Header owner 在生产路径递归扫 `.c` 并重新推断 include | `HeaderOwnerContextService` 已改为通过 `WorkspaceDocumentPathSupport.findWorkspaceSourceFiles()` 使用 host 文件搜索，不再自建同步递归；仍会扫描候选 `.c` 并读 include | 长期把 owner/include 可见上下文移动到 semantic/project index 层，Provider 只查询索引 |
 | B03 | In Progress | P1 | include / inherit 解析没有稳定使用 mudlib root | diagnostics resolver 已携带 workspace projectConfig 解析 include/inherit，`resolveInheritedFilePath` 支持 mudlib root；navigation 等路径仍需复核 | 继续让 projectConfig/mudlibRoot 贯穿所有递归解析入口 |
 | B04 | In Progress | P1 | LSP spawned runtime 存在 workspace config 双真源 | LSP diagnostics request 已携带 `WorkspaceSession` projectConfig，配置同步失败不再卡住诊断；其它服务仍需复核是否重读磁盘配置 | LSP server 内选一个配置真源，优先由 `WorkspaceSession` snapshot 驱动项目配置 |
 

@@ -25,6 +25,35 @@ describe('WorkspaceDocumentPathSupport', () => {
         await expect(support.tryOpenTextDocument('D:/workspace/missing.c')).resolves.toBeUndefined();
     });
 
+    test('findWorkspaceSourceFiles prefers injected workspace file search', async () => {
+        const workspaceRoot = 'D:/workspace';
+        const findFiles = jest.fn(async () => [
+            vscode.Uri.file('D:/workspace/obj/room.c'),
+            vscode.Uri.file('D:/other/obj/outside.c'),
+            vscode.Uri.file('D:/workspace/include/config.h')
+        ]);
+        const support = new WorkspaceDocumentPathSupport({
+            host: {
+                openTextDocument: jest.fn(),
+                fileExists: jest.fn(() => false),
+                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } })),
+                findFiles
+            } as any
+        });
+
+        const files = await support.findWorkspaceSourceFiles(workspaceRoot, '.c');
+
+        expect(files.map((filePath) => filePath.replace(/\\/g, '/'))).toEqual([
+            'D:/workspace/obj/room.c'
+        ]);
+        expect(findFiles).toHaveBeenCalledWith(
+            expect.objectContaining({
+                pattern: '**/*.c'
+            }),
+            expect.stringContaining('node_modules')
+        );
+    });
+
     test('resolves workspace and inherited file paths with frontend macro facts', () => {
         const workspaceRoot = 'D:/workspace';
         const document = createDocument('D:/workspace/obj/room.c');

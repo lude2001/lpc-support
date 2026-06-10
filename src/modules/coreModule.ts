@@ -8,7 +8,7 @@ import { EfunDocsManager } from '../efunDocs';
 import { FunctionDocLookupBuilder } from '../efun/FunctionDocLookupBuilder';
 import { LpcFrontendService } from '../frontend/LpcFrontendService';
 import { createDefaultFunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
-import { createVsCodeTextDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
+import { createVsCodeWorkspaceDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
@@ -29,7 +29,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     const documentationService = createDefaultFunctionDocumentationService();
     registry.register(Services.FunctionDocumentation, documentationService);
 
-    const textDocumentHost = createVsCodeTextDocumentHost();
+    const textDocumentHost = createVsCodeWorkspaceDocumentHost();
     registry.register(Services.TextDocumentHost, textDocumentHost);
 
     const documentPathSupport = new WorkspaceDocumentPathSupport({

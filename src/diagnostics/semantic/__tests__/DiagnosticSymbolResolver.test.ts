@@ -101,6 +101,26 @@ function createResolver(snapshots: Map<string, SemanticSnapshot>, root: string):
             const relativePath = inheritValue.replace(/^\/+/, '');
             return path.join(root, relativePath.endsWith('.c') ? relativePath : `${relativePath}.c`);
         }),
+        findWorkspaceSourceFiles: jest.fn(async (workspaceRoot: string, extension: '.c' | '.h') => {
+            const results: string[] = [];
+            const visit = (directory: string): void => {
+                if (!fs.existsSync(directory)) {
+                    return;
+                }
+
+                for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+                    const entryPath = path.join(directory, entry.name);
+                    if (entry.isDirectory()) {
+                        visit(entryPath);
+                    } else if (entry.isFile() && entry.name.endsWith(extension)) {
+                        results.push(entryPath);
+                    }
+                }
+            };
+
+            visit(workspaceRoot);
+            return results;
+        }),
         tryOpenTextDocument: jest.fn(async (target: string | vscode.Uri) => {
             const filePath = typeof target === 'string' ? target : target.fsPath;
             const document = documents.get(normalizeTestPath(filePath));
@@ -436,6 +456,7 @@ describe('DefaultDiagnosticSymbolResolver', () => {
         const visible = await resolver.resolveVisibleSymbols(headerDocument, headerSnapshot);
 
         expect(visible.hasUnresolvedDependencies).toBe(false);
+        expect(pathSupport.findWorkspaceSourceFiles).toHaveBeenCalledWith(tempRoot, '.c');
         expect(visible.macros.find((macro) => macro.name === 'AOYI_D')).toMatchObject({
             value: '"/adm/daemons/aoyid"'
         });

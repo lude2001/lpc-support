@@ -1,5 +1,5 @@
-import * as fs from 'fs';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import type {
     FileGlobalSummary,
@@ -132,7 +132,7 @@ export class HeaderOwnerContextService {
 
     private async buildOwnerIndex(workspaceRoot: string): Promise<Map<string, string[]>> {
         const index = new Map<string, string[]>();
-        for (const ownerFile of listTranslationUnitFiles(workspaceRoot)) {
+        for (const ownerFile of await this.pathSupport.findWorkspaceSourceFiles(workspaceRoot, '.c')) {
             const text = safeReadFile(ownerFile);
             if (text === undefined) {
                 continue;
@@ -318,37 +318,6 @@ function emptyHeaderOwnerContext(isAmbiguous: boolean): HeaderOwnerContext {
     };
 }
 
-function listTranslationUnitFiles(workspaceRoot: string): string[] {
-    const results: string[] = [];
-    const visit = (directory: string): void => {
-        const entries = safeReadDirectory(directory);
-        for (const entry of entries) {
-            const entryPath = path.join(directory, entry.name);
-            if (entry.isDirectory()) {
-                if (!IGNORED_DIRECTORIES.has(entry.name)) {
-                    visit(entryPath);
-                }
-                continue;
-            }
-
-            if (entry.isFile() && entry.name.endsWith('.c')) {
-                results.push(entryPath);
-            }
-        }
-    };
-
-    visit(workspaceRoot);
-    return results;
-}
-
-function safeReadDirectory(directory: string): fs.Dirent[] {
-    try {
-        return fs.readdirSync(directory, { withFileTypes: true });
-    } catch {
-        return [];
-    }
-}
-
 function safeReadFile(filePath: string): string | undefined {
     try {
         return fs.readFileSync(filePath, 'utf8');
@@ -417,15 +386,3 @@ function normalizePath(filePath: string): string {
         .replace(/^\/+([a-z]:\/)/i, '$1')
         .toLowerCase();
 }
-
-const IGNORED_DIRECTORIES = new Set([
-    '.git',
-    'node_modules',
-    'dist',
-    'out',
-    'coverage',
-    'binaries',
-    'log',
-    'logs',
-    'data'
-]);

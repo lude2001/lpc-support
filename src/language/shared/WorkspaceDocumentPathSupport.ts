@@ -14,7 +14,7 @@ export interface TextDocumentHost {
 export type OpenTextDocumentHost = Pick<TextDocumentHost, 'openTextDocument'>;
 
 export interface WorkspaceDocumentHost extends TextDocumentHost {
-    findFiles(pattern: vscode.GlobPattern): Promise<readonly vscode.Uri[]>;
+    findFiles(pattern: vscode.GlobPattern, exclude?: vscode.GlobPattern): Promise<readonly vscode.Uri[]>;
     getWorkspaceFolders(): readonly { uri: { fsPath: string } }[] | undefined;
     onDidChangeTextDocument(
         listener: (event: vscode.TextDocumentChangeEvent) => unknown
@@ -44,7 +44,7 @@ export function createVsCodeWorkspaceDocumentHost(): WorkspaceDocumentHost {
     const textDocumentHost = createVsCodeTextDocumentHost();
     return {
         ...textDocumentHost,
-        findFiles: async (pattern) => vscode.workspace.findFiles(pattern),
+        findFiles: async (pattern, exclude) => vscode.workspace.findFiles(pattern, exclude),
         getWorkspaceFolders: () => vscode.workspace.workspaceFolders,
         onDidChangeTextDocument: (listener) => vscode.workspace.onDidChangeTextDocument(listener)
     };
@@ -108,6 +108,26 @@ export class WorkspaceDocumentPathSupport {
 
     public fileExists(filePath: string): boolean {
         return this.host.fileExists(this.normalizeFsPath(filePath));
+    }
+
+    public async findWorkspaceSourceFiles(workspaceRoot: string, extension: '.c' | '.h'): Promise<string[]> {
+        const normalizedRoot = this.normalizeFsPath(workspaceRoot);
+        const findFiles = (this.host as Partial<WorkspaceDocumentHost>).findFiles;
+        const pattern = `**/*${extension}`;
+
+        if (findFiles) {
+            const uris = await findFiles.call(
+                this.host,
+                new vscode.RelativePattern(normalizedRoot, pattern),
+                WORKSPACE_SEARCH_EXCLUDE_PATTERN
+            );
+            return uris
+                .map((uri) => this.normalizeFsPath(uri.fsPath))
+                .filter((filePath) => isPathInsideWorkspace(filePath, normalizedRoot))
+                .filter((filePath) => filePath.endsWith(extension));
+        }
+
+        return this.findWorkspaceSourceFilesFromFs(normalizedRoot, extension);
     }
 
     public getWorkspaceFolderRoot(document: vscode.TextDocument): string | undefined {
@@ -417,4 +437,52 @@ export class WorkspaceDocumentPathSupport {
 
         return this.resolveWorkspacePath(workspaceRoot, mudlibDirectory);
     }
+
+    private async findWorkspaceSourceFilesFromFs(workspaceRoot: string, extension: '.c' | '.h'): Promise<string[]> {
+        const results: string[] = [];
+        const visit = async (directory: string): Promise<void> => {
+            let entries: fs.Dirent[];
+            try {
+                entries = await fs.promises.readdir(directory, { withFileTypes: true });
+            } catch {
+                return;
+            }
+
+            await Promise.all(entries.map(async (entry) => {
+                const entryPath = path.join(directory, entry.name);
+                if (entry.isDirectory()) {
+                    if (!IGNORED_WORKSPACE_DIRECTORIES.has(entry.name)) {
+                        await visit(entryPath);
+                    }
+                    return;
+                }
+
+                if (entry.isFile() && entry.name.endsWith(extension)) {
+                    results.push(entryPath);
+                }
+            }));
+        };
+
+        await visit(workspaceRoot);
+        return results;
+    }
 }
+
+function isPathInsideWorkspace(filePath: string, workspaceRoot: string): boolean {
+    const relativePath = path.relative(workspaceRoot, filePath);
+    return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+const WORKSPACE_SEARCH_EXCLUDE_PATTERN = '{**/.git/**,**/node_modules/**,**/dist/**,**/out/**,**/coverage/**,**/binaries/**,**/log/**,**/logs/**,**/data/**}';
+
+const IGNORED_WORKSPACE_DIRECTORIES = new Set([
+    '.git',
+    'node_modules',
+    'dist',
+    'out',
+    'coverage',
+    'binaries',
+    'log',
+    'logs',
+    'data'
+]);
