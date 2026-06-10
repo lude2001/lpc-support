@@ -92,24 +92,24 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         const visibleFunctions = dedupeFunctions([
             ...semantic.exportedFunctions,
             ...(headerOwnerContext?.functions ?? []),
-            ...included.functions,
             ...dependencyState.included.functions,
-            ...inherited.functions,
-            ...dependencyState.inherited.functions
+            ...included.functions,
+            ...dependencyState.inherited.functions,
+            ...inherited.functions
         ]);
         const visibleFileGlobals = dedupeFileGlobals([
             ...(semantic.fileGlobals ?? []),
             ...(headerOwnerContext?.fileGlobals ?? []),
-            ...included.fileGlobals,
-            ...dependencyState.included.fileGlobals
+            ...dependencyState.included.fileGlobals,
+            ...included.fileGlobals
         ]);
         const visibleTypes = dedupeTypes([
             ...semantic.typeDefinitions,
             ...(headerOwnerContext?.types ?? []),
-            ...included.types,
             ...dependencyState.included.types,
-            ...inherited.types,
-            ...dependencyState.inherited.types
+            ...included.types,
+            ...dependencyState.inherited.types,
+            ...inherited.types
         ]);
 
         return {

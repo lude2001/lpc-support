@@ -315,6 +315,44 @@ describe('DefaultDiagnosticSymbolResolver', () => {
         expect(visible.callableSignatures.map((signature) => signature.name)).toContain('inherited_helper');
     });
 
+    test('prefers freshly resolved include signatures over stale project index records', async () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-basic-diagnostics-'));
+        const mainPath = path.join(tempRoot, 'room.c');
+        const includePath = path.join(tempRoot, 'include', 'helper.h');
+        fs.mkdirSync(path.dirname(includePath), { recursive: true });
+        fs.writeFileSync(mainPath, '', 'utf8');
+        fs.writeFileSync(includePath, '', 'utf8');
+
+        const mainDocument = createDocument(mainPath);
+        const includeDocument = createDocument(includePath);
+        const oldIncludeSnapshot = createSnapshot(includeDocument, {
+            exportedFunctions: [createFunction('include_helper', includeDocument.uri.toString(), 1)]
+        });
+        const freshIncludeSnapshot = createSnapshot(includeDocument, {
+            exportedFunctions: [createFunction('include_helper', includeDocument.uri.toString(), 2)]
+        });
+        const mainSnapshot = createSnapshot(mainDocument, {
+            includeStatements: [{
+                rawText: '#include "/include/helper.h"',
+                value: '/include/helper.h',
+                range: new vscode.Range(0, 0, 0, 0),
+                isSystemInclude: false
+            }]
+        });
+        const { resolver } = createResolver(new Map([
+            [mainDocument.uri.toString(), mainSnapshot],
+            [includeDocument.uri.toString(), freshIncludeSnapshot]
+        ]), tempRoot);
+        (resolver as any).options.projectSymbolIndex.updateFromSnapshot(oldIncludeSnapshot);
+
+        const visible = await resolver.resolveVisibleSymbols(mainDocument, mainSnapshot);
+
+        expect(visible.callableSignatures.find((signature) => signature.name === 'include_helper')).toMatchObject({
+            requiredParameterCount: 2,
+            maxParameterCount: 2
+        });
+    });
+
     test('uses explicit callable arity for efun diagnostics', async () => {
         tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-basic-diagnostics-'));
         const mainPath = path.join(tempRoot, 'room.c');

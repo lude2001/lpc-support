@@ -43,7 +43,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
         }
 
         const existingRecord = this.records.get(snapshot.uri);
-        if (existingRecord && existingRecord.version >= snapshot.version) {
+        if (existingRecord && existingRecord.version > snapshot.version) {
             return;
         }
 

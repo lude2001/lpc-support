@@ -169,6 +169,36 @@ describe('ProjectSymbolIndex', () => {
         expect(index.getRecord(snapshot.uri)?.exportedFunctions.map(func => func.name)).toEqual(['query_name']);
     });
 
+    test('updates records when a same-version dependency snapshot is rebuilt', () => {
+        const firstSnapshot = createSnapshot('/virtual/include/helper.h');
+        firstSnapshot.exportedFunctions = [{
+            name: 'old_helper',
+            returnType: 'void',
+            parameters: [],
+            modifiers: [],
+            sourceUri: firstSnapshot.uri,
+            range: new vscode.Range(0, 0, 0, 10),
+            origin: 'local'
+        }];
+        const refreshedSnapshot = createSnapshot('/virtual/include/helper.h');
+        refreshedSnapshot.version = firstSnapshot.version;
+        refreshedSnapshot.exportedFunctions = [{
+            name: 'fresh_helper',
+            returnType: 'void',
+            parameters: [],
+            modifiers: [],
+            sourceUri: refreshedSnapshot.uri,
+            range: new vscode.Range(0, 0, 0, 12),
+            origin: 'local'
+        }];
+
+        const index = new ProjectSymbolIndex(new InheritanceResolver(['/']));
+        index.updateFromSnapshot(firstSnapshot);
+        index.updateFromSnapshot(refreshedSnapshot);
+
+        expect(index.getRecord(firstSnapshot.uri)?.exportedFunctions.map(func => func.name)).toEqual(['fresh_helper']);
+    });
+
     test('builds include-backed visible symbol sets from resolved include facts', () => {
         const headerSnapshot = createSnapshot('/virtual/include/helper.h');
         headerSnapshot.exportedFunctions = [{
