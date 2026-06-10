@@ -5,6 +5,7 @@ import { UnusedVariableCollector } from '../collectors/UnusedVariableCollector';
 import { ObjectAccessCollector } from '../diagnostics/collectors/ObjectAccessCollector';
 import { BasicSemanticDiagnosticsCollector } from '../diagnostics/collectors/BasicSemanticDiagnosticsCollector';
 import { MacroUsageCollector } from '../diagnostics/collectors/MacroUsageCollector';
+import { isFluffOSPredefinedMacro } from '../diagnostics/semantic/FluffOSPredefinedMacros';
 import { DiagnosticContext } from '../diagnostics/types';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
@@ -384,6 +385,35 @@ describe('syntax-backed diagnostic collectors', () => {
 
         expect(diagnostics).toEqual([]);
         expect(degradedDiagnostics).toEqual([]);
+    });
+
+    test('BasicSemanticDiagnosticsCollector recognizes FluffOS predefined macros', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector();
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo() {',
+            '    string dir = __DIR__;',
+            '    string file = __FILE__;',
+            '    int line = __LINE__;',
+            '    int hasDb = __PACKAGE_DB__;',
+            '    int maxDepth = __CFG_MAX_CALL_DEPTH__;',
+            '    missing_symbol;',
+            '}'
+        ].join('\n'), 'basic-semantic-predefined-macros.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.message)).toEqual([
+            '未定义符号: missing_symbol'
+        ]);
+    });
+
+    test('FluffOS predefined macro helper covers generated driver option families', () => {
+        expect(isFluffOSPredefinedMacro('__DIR__')).toBe(true);
+        expect(isFluffOSPredefinedMacro('__LINE__')).toBe(true);
+        expect(isFluffOSPredefinedMacro('__PACKAGE_CRYPTO__')).toBe(true);
+        expect(isFluffOSPredefinedMacro('__HAVE_UNISTD_H__')).toBe(true);
+        expect(isFluffOSPredefinedMacro('__CFG_MAX_ARRAY_SIZE__')).toBe(true);
+        expect(isFluffOSPredefinedMacro('__NOT_A_DRIVER_PREDEFINED__')).toBe(false);
     });
 
     test('BasicSemanticDiagnosticsCollector consumes injected callable signatures for efun-style targets', async () => {

@@ -70,6 +70,35 @@ describe('MacroExpansionBuilder', () => {
         expect(expanded.text).toContain('int hidden = 1;');
     });
 
+    test('does not expand object-like macros inside quoted strings or comments', () => {
+        const text = [
+            '#define NPC "/inherit/char/npc"',
+            'inherit NPC;',
+            'string description = "NPC 使用者除张三丰外防御能力会折减。";',
+            'string escaped = "quoted \\"NPC\\" text";',
+            '// NPC should stay in comments',
+            '/* NPC should also stay here */'
+        ].join('\n');
+        const scanner = new PreprocessorScanner();
+        const scanned = scanner.scan('file:///quoted-object-macro.c', 1, text);
+        const conditional = new PreprocessorConditionEvaluator().evaluate(text, scanned.directives, []);
+        const macroFacts = new MacroFactResolver().resolve(text, scanned.directives, conditional.inactiveRanges);
+        const activeView = new ActiveSourceBuilder().build(text, scanned.directives, conditional.inactiveRanges);
+
+        const expanded = new MacroExpansionBuilder().expand(
+            activeView,
+            macroFacts.macroReferences,
+            macroFacts.activeMacros
+        );
+
+        expect(expanded.text).toContain('inherit "/inherit/char/npc";');
+        expect(expanded.text).toContain('"NPC 使用者除张三丰外防御能力会折减。"');
+        expect(expanded.text).toContain('"quoted \\"NPC\\" text"');
+        expect(expanded.text).toContain('// NPC should stay in comments');
+        expect(expanded.text).toContain('/* NPC should also stay here */');
+        expect(expanded.expandedRanges?.map((range) => range.macroName)).toEqual(['NPC']);
+    });
+
     test('does not expand object-like macros inside heredoc delimiters and bodies', () => {
         const text = [
             '#define LONG 16',

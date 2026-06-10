@@ -15,6 +15,7 @@ import type {
     DiagnosticSymbolResolver,
     VisibleDiagnosticSymbols
 } from '../semantic/DiagnosticSymbolResolver';
+import { isFluffOSPredefinedMacro } from '../semantic/FluffOSPredefinedMacros';
 import type { DiagnosticContext, IDiagnosticCollector } from '../types';
 
 const ARGUMENT_COUNT_CODE = 'lpc.argumentCountMismatch';
@@ -328,7 +329,8 @@ function isKnownName(name: string, visibleSymbols: VisibleDiagnosticSymbols): bo
         return true;
     }
 
-    return visibleSymbols.functions.some((entry) => entry.name === name)
+    return isFluffOSPredefinedMacro(name)
+        || visibleSymbols.functions.some((entry) => entry.name === name)
         || visibleSymbols.callableSignatures.some((entry) => entry.name === name)
         || visibleSymbols.fileGlobals.some((entry) => entry.name === name)
         || visibleSymbols.types.some((entry) => entry.name === name)

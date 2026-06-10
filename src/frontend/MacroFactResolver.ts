@@ -74,16 +74,47 @@ export class MacroFactResolver {
             return;
         }
 
-        const segment = text.slice(startOffset, endOffset);
-        const identifierPattern = /\b[A-Za-z_][A-Za-z0-9_]*\b/g;
-        let match: RegExpExecArray | null;
-        while ((match = identifierPattern.exec(segment)) !== null) {
-            const absoluteStart = startOffset + match.index;
+        let cursor = startOffset;
+        while (cursor < endOffset) {
+            if (isInsideInactiveRange(cursor, inactiveRanges)) {
+                cursor += 1;
+                continue;
+            }
+
+            const char = text[cursor];
+            if (char === '"' || char === '\'') {
+                cursor = consumeQuoted(text, cursor, char, endOffset);
+                continue;
+            }
+
+            if (char === '/' && text[cursor + 1] === '/') {
+                cursor = consumeLineComment(text, cursor, endOffset);
+                continue;
+            }
+
+            if (char === '/' && text[cursor + 1] === '*') {
+                cursor = consumeBlockComment(text, cursor, endOffset);
+                continue;
+            }
+
+            if (!isIdentifierStart(char)) {
+                cursor += 1;
+                continue;
+            }
+
+            const absoluteStart = cursor;
+            let absoluteEnd = cursor + 1;
+            while (absoluteEnd < endOffset && isIdentifierPart(text[absoluteEnd])) {
+                absoluteEnd += 1;
+            }
+            cursor = absoluteEnd;
+
             if (isInsideInactiveRange(absoluteStart, inactiveRanges)) {
                 continue;
             }
 
-            const macro = activeMacros.get(match[0]);
+            const name = text.slice(absoluteStart, absoluteEnd);
+            const macro = activeMacros.get(name);
             if (!macro) {
                 continue;
             }
@@ -92,14 +123,58 @@ export class MacroFactResolver {
                 name: macro.name,
                 resolved: macro,
                 startOffset: absoluteStart,
-                endOffset: absoluteStart + macro.name.length,
+                endOffset: absoluteEnd,
                 range: new vscode.Range(
                     positionAt(lineStartOffsets, absoluteStart),
-                    positionAt(lineStartOffsets, absoluteStart + macro.name.length)
+                    positionAt(lineStartOffsets, absoluteEnd)
                 )
             });
         }
     }
+}
+
+function consumeQuoted(text: string, startOffset: number, quote: string, maxOffset: number): number {
+    let cursor = startOffset + 1;
+    let escaped = false;
+
+    while (cursor < maxOffset) {
+        const char = text[cursor];
+        cursor += 1;
+
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+
+        if (char === '\\') {
+            escaped = true;
+            continue;
+        }
+
+        if (char === quote) {
+            break;
+        }
+    }
+
+    return cursor;
+}
+
+function consumeLineComment(text: string, startOffset: number, maxOffset: number): number {
+    const newlineOffset = text.indexOf('\n', startOffset + 2);
+    return newlineOffset === -1 || newlineOffset >= maxOffset ? maxOffset : newlineOffset + 1;
+}
+
+function consumeBlockComment(text: string, startOffset: number, maxOffset: number): number {
+    const closingOffset = text.indexOf('*/', startOffset + 2);
+    return closingOffset === -1 || closingOffset + 2 > maxOffset ? maxOffset : closingOffset + 2;
+}
+
+function isIdentifierStart(char: string | undefined): boolean {
+    return Boolean(char && /[A-Za-z_]/.test(char));
+}
+
+function isIdentifierPart(char: string | undefined): boolean {
+    return Boolean(char && /[A-Za-z0-9_]/.test(char));
 }
 
 function createMacroFact(directive: PreprocessorDirective, sourceUri?: string): MacroDefinitionFact | undefined {
