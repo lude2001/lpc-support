@@ -171,6 +171,7 @@ function createResolver(snapshots: Map<string, SemanticSnapshot>, root: string):
 
 describe('DefaultDiagnosticSymbolResolver', () => {
     afterEach(() => {
+        DocumentSemanticSnapshotService.getInstance().clearAllCache();
         if (tempRoot) {
             fs.rmSync(tempRoot, { recursive: true, force: true });
             tempRoot = undefined;
@@ -385,6 +386,35 @@ describe('DefaultDiagnosticSymbolResolver', () => {
         expect(visible.macros.find((macro) => macro.name === 'AOYI_D')).toMatchObject({
             value: '"/adm/daemons/aoyid"'
         });
+    });
+
+    test('does not cache owner prefix analysis as the real owner document snapshot', async () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-header-owner-cache-'));
+        const ownerPath = path.join(tempRoot, 'adm', 'daemons', 'combatd.c');
+        const headerPath = path.join(tempRoot, 'adm', 'daemons', 'combat', 'combat_do_attack.h');
+        fs.mkdirSync(path.dirname(ownerPath), { recursive: true });
+        fs.mkdirSync(path.dirname(headerPath), { recursive: true });
+        const ownerText = [
+            '#define AOYI_D "/adm/daemons/aoyid"',
+            '#include "/adm/daemons/combat/combat_do_attack.h"',
+            'int owner_after_header() { return 1; }'
+        ].join('\n');
+        fs.writeFileSync(ownerPath, ownerText, 'utf8');
+        fs.writeFileSync(headerPath, 'void demo() { AOYI_D->query_family_aoyi_name("x"); }\n', 'utf8');
+
+        const headerDocument = createDocument(headerPath, fs.readFileSync(headerPath, 'utf8'));
+        const ownerDocument = createDocument(ownerPath, ownerText);
+        const analysisService = DocumentSemanticSnapshotService.getInstance();
+        const { pathSupport } = createResolver(new Map(), tempRoot);
+        const service = new HeaderOwnerContextService(pathSupport as any, analysisService);
+
+        const context = await service.resolveOwnerContext(headerDocument);
+        const ownerSnapshot = analysisService.getBestAvailableSemanticSnapshot(ownerDocument);
+
+        expect(context.isAmbiguous).toBe(false);
+        expect(ownerSnapshot.uri).toBe(ownerDocument.uri.toString());
+        expect(ownerSnapshot.exportedFunctions.map((func) => func.name)).toContain('owner_after_header');
+        service.dispose();
     });
 
     test('does not expose owner macros defined after the header include', async () => {

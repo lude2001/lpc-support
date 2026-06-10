@@ -22,7 +22,7 @@
 
 | ID | 状态 | 严重度 | 问题 | 证据 | 修复方向 |
 | --- | --- | --- | --- | --- | --- |
-| B01 | Open | P0 | Header owner prefix 分析可能污染真实 owner 语义缓存 | `HeaderOwnerContextService` 用真实 owner URI 构造 prefix document；semantic snapshot cache 按 URI/version 保存 | 改为 isolated analysis 或 synthetic URI，不进入真实文档缓存；长期合入 semantic/project index |
+| B01 | Done | P0 | Header owner prefix 分析可能污染真实 owner 语义缓存 | prefix document 已使用隔离 cache key，同时保留真实 `fsPath` 供 include 解析；新增真实 cache 回归测试 | 长期仍建议合入 semantic/project index，避免 owner service 自建上下文 |
 | B02 | Open | P1 | Header owner 在生产路径递归扫 `.c` 并重新推断 include | `HeaderOwnerContextService` 递归枚举 workspace `.c`，读全文并用 `PreprocessorScanner` 扫 include | 把 owner/include 可见上下文移动到 semantic/project index 层，Provider 只查询索引 |
 | B03 | In Progress | P1 | include / inherit 解析没有稳定使用 mudlib root | 已修复 Windows `/C:/...` slash-drive 路径导致 inherit 打不开的子问题；mudlib root 贯穿仍未完成 | 让 root document 的 project config/mudlibRoot 贯穿递归解析，统一路径服务 |
 | B04 | Open | P1 | LSP spawned runtime 存在 workspace config 双真源 | `WorkspaceSession` 用 sync payload；部分 diagnostics/efun/path 仍重读磁盘配置 | LSP server 内选一个配置真源，优先由 `WorkspaceSession` snapshot 驱动项目配置 |

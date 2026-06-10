@@ -182,7 +182,12 @@ export class HeaderOwnerContextService {
         }
 
         const prefixText = text.slice(0, include.startOffset);
-        const prefixDocument = createSyntheticDocument(ownerFile, prefixText, 100000 + include.startOffset);
+        const prefixDocument = createSyntheticDocument(
+            ownerFile,
+            prefixText,
+            1,
+            createOwnerPrefixCacheKey(ownerFile, include.startOffset)
+        );
         const prefixSemantic = this.getSemanticSnapshot(prefixDocument);
         if (!prefixSemantic || prefixSemantic.degraded) {
             return emptyHeaderOwnerContext(true);
@@ -352,10 +357,15 @@ function safeReadFile(filePath: string): string | undefined {
     }
 }
 
-function createSyntheticDocument(filePath: string, content: string, version = 1): vscode.TextDocument {
+function createSyntheticDocument(
+    filePath: string,
+    content: string,
+    version = 1,
+    uriCacheKey?: string
+): vscode.TextDocument {
     const lines = content.split(/\r?\n/);
     return {
-        uri: vscode.Uri.file(filePath),
+        uri: createSyntheticUri(filePath, uriCacheKey),
         fileName: filePath,
         languageId: 'lpc',
         version,
@@ -363,6 +373,29 @@ function createSyntheticDocument(filePath: string, content: string, version = 1)
         getText: () => content,
         lineAt: (line: number) => ({ text: lines[line] ?? '' })
     } as unknown as vscode.TextDocument;
+}
+
+function createSyntheticUri(filePath: string, cacheKey?: string): vscode.Uri {
+    const uri = vscode.Uri.file(filePath);
+    if (!cacheKey) {
+        return uri;
+    }
+
+    return {
+        scheme: uri.scheme,
+        authority: uri.authority,
+        path: uri.path,
+        query: uri.query,
+        fragment: uri.fragment,
+        fsPath: uri.fsPath,
+        with: (change: Parameters<vscode.Uri['with']>[0]) => uri.with(change),
+        toJSON: () => uri.toJSON(),
+        toString: () => cacheKey
+    } as unknown as vscode.Uri;
+}
+
+function createOwnerPrefixCacheKey(ownerFile: string, includeOffset: number): string {
+    return `${vscode.Uri.file(ownerFile).toString()}#header-owner-prefix:${includeOffset}`;
 }
 
 function isHeaderDocument(document: vscode.TextDocument): boolean {
