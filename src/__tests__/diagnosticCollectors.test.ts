@@ -404,6 +404,25 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(degradedDiagnostics).toEqual([]);
     });
 
+    test('BasicSemanticDiagnosticsCollector only treats macro references as known at their own ranges', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector();
+        const { document, parsed, context } = analyzeCollectorSource([
+            '#define TEMP_VALUE 1',
+            'void demo() {',
+            '    TEMP_VALUE;',
+            '#undef TEMP_VALUE',
+            '    TEMP_VALUE;',
+            '}'
+        ].join('\n'), 'basic-semantic-macro-reference-range.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.message)).toEqual([
+            '未定义符号: TEMP_VALUE'
+        ]);
+        expect(diagnostics[0].range.start.line).toBe(4);
+    });
+
     test('BasicSemanticDiagnosticsCollector recognizes FluffOS predefined macros', async () => {
         const collector = new BasicSemanticDiagnosticsCollector();
         const { document, parsed, context } = analyzeCollectorSource([

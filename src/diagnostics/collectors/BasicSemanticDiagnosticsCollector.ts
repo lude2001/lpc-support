@@ -112,7 +112,7 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
 
             const signatures = visibleSymbols.callableSignatures.filter((signature) => signature.name === calleeName);
             if (signatures.length === 0) {
-                if (!visibleSymbols.hasUnresolvedDependencies && !isKnownName(calleeName, visibleSymbols)) {
+                if (!visibleSymbols.hasUnresolvedDependencies && !isKnownName(calleeName, visibleSymbols, callee.range)) {
                     diagnostics.push(createWarning(
                         callee.range,
                         `未定义函数: ${calleeName}`,
@@ -145,7 +145,7 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
                 continue;
             }
 
-            if (!isKnownName(identifier.name, visibleSymbols)) {
+            if (!isKnownName(identifier.name, visibleSymbols, identifier.range)) {
                 diagnostics.push(createWarning(
                     identifier.range,
                     `未定义符号: ${identifier.name}`,
@@ -324,7 +324,7 @@ function isReferenceIdentifier(
     return identifier.category === 'expression';
 }
 
-function isKnownName(name: string, visibleSymbols: VisibleDiagnosticSymbols): boolean {
+function isKnownName(name: string, visibleSymbols: VisibleDiagnosticSymbols, range?: vscode.Range): boolean {
     if (KNOWN_LPC_NAMES.has(name)) {
         return true;
     }
@@ -335,7 +335,9 @@ function isKnownName(name: string, visibleSymbols: VisibleDiagnosticSymbols): bo
         || visibleSymbols.fileGlobals.some((entry) => entry.name === name)
         || visibleSymbols.types.some((entry) => entry.name === name)
         || visibleSymbols.macros.some((entry) => entry.name === name)
-        || visibleSymbols.macroReferences.some((entry) => entry.name === name)
+        || (range !== undefined && visibleSymbols.macroReferences.some((entry) =>
+            entry.name === name && rangesEqual(entry.range, range)
+        ))
         || visibleSymbols.symbols.some((entry) => isVisibleSemanticSymbol(entry) && entry.name === name);
 }
 
