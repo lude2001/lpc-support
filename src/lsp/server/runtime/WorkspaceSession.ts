@@ -13,6 +13,7 @@ import {
 export interface WorkspaceConfigSnapshot {
     projectConfigPath: string;
     configHellPath?: string;
+    playerObjectPath?: string;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
 }
@@ -61,6 +62,7 @@ export class WorkspaceSession {
             this.updateWorkspaceConfig(workspace.workspaceRoot, {
                 projectConfigPath: workspace.projectConfigPath,
                 configHellPath: workspace.configHellPath,
+                playerObjectPath: workspace.playerObjectPath,
                 resolvedConfig: workspace.resolvedConfig,
                 lastSyncedAt: workspace.lastSyncedAt
             });

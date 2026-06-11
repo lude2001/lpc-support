@@ -51,7 +51,6 @@ import { DefaultLanguageSemanticTokensService } from '../../../language/services
 import { createDefaultObjectInferenceService } from '../../../objectInference/ObjectInferenceService';
 import { createDefaultScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
-import { LpcProjectConfigService } from '../../../projectConfig/LpcProjectConfigService';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { createDefaultSemanticEvaluationService } from '../../../semanticEvaluation/SemanticEvaluationService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
@@ -63,13 +62,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
     const workspaceDocumentHost = createVsCodeWorkspaceDocumentHost();
-    const projectConfigService = new LpcProjectConfigService();
     const documentationService = createDefaultFunctionDocumentationService();
     const completionInstrumentation = new CompletionInstrumentation();
     const documentPathSupport = new WorkspaceDocumentPathSupport({
         host: workspaceDocumentHost,
-        analysisService,
-        projectConfigService
+        analysisService
     });
     const functionDocLookupBuilder = new FunctionDocLookupBuilder({
         documentationService,
@@ -78,8 +75,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     });
     const semanticEvaluationService = createDefaultSemanticEvaluationService({
         analysisService,
-        pathSupport: documentPathSupport,
-        projectConfigService
+        pathSupport: documentPathSupport
     });
     const objectInferenceService = createDefaultObjectInferenceService({
         analysisService,
@@ -98,7 +94,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
     const targetMethodLookup = new TargetMethodLookup(analysisService, documentPathSupport);
     const efunDocsManager = new EfunDocsManager(
         createServerExtensionContext(),
-        projectConfigService,
+        undefined,
         analysisService,
         documentationService,
         documentPathSupport,
@@ -180,7 +176,7 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         efunDocsManager,
         objectInferenceService,
         targetMethodLookup,
-        projectConfigService,
+        undefined,
         {
             analysisService,
             scopedMethodResolver,

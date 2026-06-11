@@ -193,8 +193,12 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
         const targets: ResolvedCallableTarget[] = [];
         if (!isExplicitEfunScope) {
             const simulatedDoc = this.efunDocsManager.getSimulatedDocAsync
-                ? await this.efunDocsManager.getSimulatedDocAsync(request.calleeName, request.document)
-                : this.efunDocsManager.getSimulatedDoc(request.calleeName, request.document);
+                ? await this.efunDocsManager.getSimulatedDocAsync(
+                    request.calleeName,
+                    request.document,
+                    request.projectConfig
+                )
+                : this.efunDocsManager.getSimulatedDoc(request.calleeName, request.document, request.projectConfig);
             const simulatedTarget = toSourceBackedTarget(simulatedDoc, request.calleeName, 'simulEfun', 'simul_efun', 5)
                 ?? (simulatedDoc
                     ? {
@@ -202,6 +206,7 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
                         name: request.calleeName,
                         targetKey: `simulEfun:${request.calleeName}`,
                         requestDocumentUri: request.document.uri.toString(),
+                        projectConfig: request.projectConfig,
                         sourceLabel: 'simul_efun',
                         priority: 5
                     }
@@ -237,8 +242,8 @@ function toSourceBackedTarget(
         return undefined;
     }
 
-    const documentUri = vscode.Uri.file(doc.sourcePath).toString();
-    const declarationKey = buildDeclarationKey(documentUri, doc.sourceRange);
+        const documentUri = vscode.Uri.file(doc.sourcePath).toString();
+        const declarationKey = buildDeclarationKey(documentUri, doc.sourceRange);
 
     return {
         kind,

@@ -1,6 +1,7 @@
 import { configuredCandidateSetValue, objectValue, unknownValue } from '../valueFactories';
 import type { EnvironmentSemanticProvider, EnvironmentSemanticRequest } from './types';
 import type { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
+import { getDocumentWorkspaceProjectConfig } from '../../language/shared/documentWorkspaceConfig';
 
 export interface ThisPlayerProviderDependencies {
     playerObjectPath?: string;
@@ -44,6 +45,11 @@ export class ThisPlayerProvider implements EnvironmentSemanticProvider {
     ): Promise<string | undefined> {
         if (this.dependencies.playerObjectPath) {
             return this.dependencies.playerObjectPath;
+        }
+
+        const documentConfig = getDocumentWorkspaceProjectConfig(request.document);
+        if (documentConfig?.playerObjectPath) {
+            return documentConfig.playerObjectPath;
         }
 
         if (!this.dependencies.projectConfigService || !request.workspaceRoot) {

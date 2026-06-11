@@ -164,7 +164,7 @@ describe('createProductionLanguageServices', () => {
             );
             expect(EfunDocsManager).toHaveBeenCalledWith(
                 expect.anything(),
-                projectConfigService,
+                undefined,
                 analysisService,
                 documentationService,
                 expect.anything(),
@@ -191,7 +191,7 @@ describe('createProductionLanguageServices', () => {
                 efunDocsManager,
                 objectInferenceService,
                 targetMethodLookup,
-                projectConfigService,
+                undefined,
                 expect.objectContaining({
                     analysisService
                 })
@@ -342,7 +342,7 @@ describe('createProductionLanguageServices', () => {
                 expect.anything(),
                 expect.anything(),
                 expect.anything(),
-                expect.anything(),
+                undefined,
                 expect.objectContaining({ scopedMethodResolver })
             );
             expect(callableTargetDiscoveryCtor).toHaveBeenCalledWith(

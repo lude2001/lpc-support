@@ -206,7 +206,7 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             position: { line: 0, character: 3 }
         });
 
-        expect(efunDocsManager.ensureWorkspaceStateCurrent).toHaveBeenCalledWith(document);
+        expect(efunDocsManager.ensureWorkspaceStateCurrent).toHaveBeenCalledWith(document, undefined);
         expect(efunDocsManager.getAllSimulatedFunctions).toHaveBeenCalledWith(document);
         expect(result.items.map((item: any) => item.label)).toContain('simul_call');
     });

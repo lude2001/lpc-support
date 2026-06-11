@@ -15,6 +15,7 @@ import type { CallableDoc, CallableSignature } from '../../language/documentatio
 import type { WorkspaceDocumentPathSupport } from '../../language/shared/WorkspaceDocumentPathSupport';
 import type { EfunDocsManager } from '../../efunDocs';
 import type { HeaderOwnerContextService } from '../../language/shared/HeaderOwnerContextService';
+import type { LanguageWorkspaceProjectConfig } from '../../language/contracts/LanguageWorkspaceContext';
 import type { LanguageDiagnosticsWorkspaceContext } from '../../language/services/diagnostics/LanguageDiagnosticsService';
 
 export interface DiagnosticCallableSignature {
@@ -87,7 +88,7 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         const uri = document.uri.toString();
         const included = this.options.projectSymbolIndex.getIncludedSymbols(uri);
         const inherited = this.options.projectSymbolIndex.getInheritedSymbols(uri);
-        const efunSignatures = await this.collectEfunSignatures(document);
+        const efunSignatures = await this.collectEfunSignatures(document, workspace?.projectConfig);
         const headerOwnerContext = await this.options.headerOwnerContextResolver?.resolveOwnerContext(document);
         const visibleFunctions = dedupeFunctions([
             ...semantic.exportedFunctions,
@@ -274,20 +275,23 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         return this.indexDocument(dependencyDocument, dependencySemantic, visitedUris, relation, workspace);
     }
 
-    private async collectEfunSignatures(document: vscode.TextDocument): Promise<DiagnosticCallableSignature[]> {
+    private async collectEfunSignatures(
+        document: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<DiagnosticCallableSignature[]> {
         const manager = this.options.efunDocsManager;
         if (!manager) {
             return [];
         }
 
-        await manager.ensureWorkspaceStateCurrent?.(document);
+        await manager.ensureWorkspaceStateCurrent?.(document, projectConfig);
 
         const signatures: DiagnosticCallableSignature[] = [];
         for (const name of manager.getAllFunctions()) {
             signatures.push(...fromCallableDoc(name, manager.getStandardCallableDoc(name), 'efun'));
         }
-        for (const name of manager.getAllSimulatedFunctions(document)) {
-            signatures.push(...fromCallableDoc(name, manager.getSimulatedDoc(name, document), 'simul-efun'));
+        for (const name of manager.getAllSimulatedFunctions(document, projectConfig)) {
+            signatures.push(...fromCallableDoc(name, manager.getSimulatedDoc(name, document, projectConfig), 'simul-efun'));
         }
 
         return signatures;

@@ -138,7 +138,7 @@ describe('DefaultCallableTargetDiscoveryService', () => {
             callKind: 'function'
         });
 
-        expect(getSimulatedDoc).toHaveBeenCalledWith('simul_call', document);
+        expect(getSimulatedDoc).toHaveBeenCalledWith('simul_call', document, undefined);
         expect(targets).toEqual([
             expect.objectContaining({
                 kind: 'simulEfun',

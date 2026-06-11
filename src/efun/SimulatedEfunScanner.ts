@@ -8,6 +8,8 @@ import { FunctionDocumentationService } from '../language/documentation/Function
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import type { CallableDoc, DocumentCallableDocs } from '../language/documentation/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
+import type { LanguageWorkspaceProjectConfig } from '../language/contracts/LanguageWorkspaceContext';
+import { getDocumentWorkspaceProjectConfig } from '../language/shared/documentWorkspaceConfig';
 
 type SimulatedEfunAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>;
 
@@ -30,17 +32,28 @@ export class SimulatedEfunScanner {
         return this.getForDocument(name);
     }
 
-    public async getAsync(name: string, document?: vscode.TextDocument): Promise<CallableDoc | undefined> {
-        await this.ensureWorkspaceStateCurrent(document);
-        return this.getForDocument(name, document);
+    public async getAsync(
+        name: string,
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<CallableDoc | undefined> {
+        await this.ensureWorkspaceStateCurrent(document, projectConfig);
+        return this.getForDocument(name, document, projectConfig);
     }
 
-    public getForDocument(name: string, document?: vscode.TextDocument): CallableDoc | undefined {
-        return this.getWorkspaceState(document).docs.get(name);
+    public getForDocument(
+        name: string,
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): CallableDoc | undefined {
+        return this.getWorkspaceState(document, projectConfig).docs.get(name);
     }
 
-    public getAllNames(document?: vscode.TextDocument): string[] {
-        return Array.from(this.getWorkspaceState(document).docs.keys());
+    public getAllNames(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): string[] {
+        return Array.from(this.getWorkspaceState(document, projectConfig).docs.keys());
     }
 
     public async configure(): Promise<void> {
@@ -58,8 +71,12 @@ export class SimulatedEfunScanner {
         this.workspaceStates.clear();
     }
 
-    public async refreshWorkspaceState(force: boolean = false, document?: vscode.TextDocument): Promise<void> {
-        const workspaceRoot = this.getWorkspaceRoot(document);
+    public async refreshWorkspaceState(
+        force: boolean = false,
+        document?: vscode.TextDocument,
+        projectConfig: LanguageWorkspaceProjectConfig | undefined = getDocumentWorkspaceProjectConfig(document)
+    ): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot(document, projectConfig);
         const state = this.getWorkspaceStateForRoot(workspaceRoot);
         if (!force && state.hasLoaded) {
             return;
@@ -70,7 +87,7 @@ export class SimulatedEfunScanner {
         }
 
         const loadVersion = ++state.loadVersion;
-        const nextDocs = await this.collectSimulatedEfuns(workspaceRoot);
+        const nextDocs = await this.collectSimulatedEfuns(workspaceRoot, projectConfig);
         if (loadVersion !== state.loadVersion) {
             return;
         }
@@ -87,7 +104,10 @@ export class SimulatedEfunScanner {
         await this.refreshWorkspaceState(false);
     }
 
-    private async collectSimulatedEfuns(resolvedWorkspaceRoot?: string): Promise<Map<string, CallableDoc>> {
+    private async collectSimulatedEfuns(
+        resolvedWorkspaceRoot?: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<Map<string, CallableDoc>> {
         const docs = new Map<string, CallableDoc>();
 
         const workspaceRoot = resolvedWorkspaceRoot ?? this.getWorkspaceRoot();
@@ -95,15 +115,16 @@ export class SimulatedEfunScanner {
             return docs;
         }
 
-        const simulatedEfunEntryFile = this.projectConfigService
-            ? await this.projectConfigService.getSimulatedEfunFileForWorkspace(workspaceRoot)
-            : undefined;
+        const simulatedEfunEntryFile = this.resolveSimulatedEfunEntryFile(workspaceRoot, projectConfig)
+            ?? (this.projectConfigService
+                ? await this.projectConfigService.getSimulatedEfunFileForWorkspace(workspaceRoot)
+                : undefined);
         if (!simulatedEfunEntryFile) {
             return docs;
         }
 
         try {
-            await this.loadFromProjectConfigEntry(workspaceRoot, simulatedEfunEntryFile, docs);
+            await this.loadFromProjectConfigEntry(workspaceRoot, simulatedEfunEntryFile, docs, projectConfig);
         } catch (error) {
             console.error('加载模拟函数库文档失败:', error);
         }
@@ -111,15 +132,21 @@ export class SimulatedEfunScanner {
         return docs;
     }
 
-    public async ensureWorkspaceStateCurrent(document?: vscode.TextDocument): Promise<void> {
-        const state = this.getWorkspaceState(document);
+    public async ensureWorkspaceStateCurrent(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<void> {
+        const state = this.getWorkspaceState(document, projectConfig);
         if (!state.hasLoaded) {
-            await this.refreshWorkspaceState(true, document);
+            await this.refreshWorkspaceState(true, document, projectConfig);
         }
     }
 
-    private getWorkspaceState(document?: vscode.TextDocument): SimulatedEfunWorkspaceState {
-        return this.getWorkspaceStateByKey(this.getWorkspaceStateKey(document));
+    private getWorkspaceState(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): SimulatedEfunWorkspaceState {
+        return this.getWorkspaceStateByKey(this.getWorkspaceStateKey(document, projectConfig));
     }
 
     private getWorkspaceStateForRoot(workspaceRoot: string | undefined): SimulatedEfunWorkspaceState {
@@ -142,20 +169,24 @@ export class SimulatedEfunScanner {
         return created;
     }
 
-    private getWorkspaceStateKey(document?: vscode.TextDocument): string {
+    private getWorkspaceStateKey(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): string {
         if (!document && this.activeWorkspaceStateKey) {
             return this.activeWorkspaceStateKey;
         }
 
-        return this.getWorkspaceRoot(document) ?? '<no-workspace>';
+        return this.getWorkspaceRoot(document, projectConfig) ?? '<no-workspace>';
     }
 
     private async loadFromProjectConfigEntry(
         workspaceRoot: string,
         entryFilePath: string,
-        docs: Map<string, CallableDoc>
+        docs: Map<string, CallableDoc>,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<void> {
-        const mudlibRoot = await this.resolveMudlibRoot(workspaceRoot);
+        const mudlibRoot = await this.resolveMudlibRoot(workspaceRoot, projectConfig);
         const queue = [entryFilePath];
         const visited = new Set<string>();
 
@@ -180,7 +211,15 @@ export class SimulatedEfunScanner {
         }
     }
 
-    private async resolveMudlibRoot(workspaceRoot: string): Promise<string> {
+    private async resolveMudlibRoot(
+        workspaceRoot: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<string> {
+        const mudlibRootFromRequest = this.resolveMudlibRootFromProjectConfig(workspaceRoot, projectConfig);
+        if (mudlibRootFromRequest) {
+            return mudlibRootFromRequest;
+        }
+
         if (this.projectConfigService && typeof this.projectConfigService.getMudlibRootForWorkspace === 'function') {
             const configuredMudlibRoot = await this.projectConfigService.getMudlibRootForWorkspace(workspaceRoot);
             if (configuredMudlibRoot) {
@@ -198,6 +237,79 @@ export class SimulatedEfunScanner {
         }
 
         return path.resolve(workspaceRoot, mudlibDirectory);
+    }
+
+    private resolveSimulatedEfunEntryFile(
+        workspaceRoot: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): string | undefined {
+        const configuredPath = projectConfig?.resolvedConfig?.simulatedEfunFile;
+        if (!configuredPath) {
+            return undefined;
+        }
+
+        return this.resolveExistingCodePath(
+            this.resolveProjectPath(workspaceRoot, configuredPath, projectConfig)
+        );
+    }
+
+    private resolveProjectPath(
+        workspaceRoot: string,
+        configPath: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): string {
+        if (this.isWorkspaceAbsolutePath(configPath)) {
+            return configPath;
+        }
+
+        const mudlibRoot = this.resolveMudlibRootFromProjectConfig(workspaceRoot, projectConfig) ?? workspaceRoot;
+        const normalizedPath = configPath.startsWith('/') ? configPath.substring(1) : configPath;
+        return path.join(mudlibRoot, normalizedPath);
+    }
+
+    private resolveMudlibRootFromProjectConfig(
+        workspaceRoot: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): string | undefined {
+        const mudlibDirectory = projectConfig?.resolvedConfig?.mudlibDirectory;
+        if (!mudlibDirectory) {
+            return undefined;
+        }
+
+        if (this.isWorkspaceAbsolutePath(mudlibDirectory)) {
+            return mudlibDirectory;
+        }
+
+        if (projectConfig?.configHellPath) {
+            const configHellPath = this.resolveWorkspacePath(workspaceRoot, projectConfig.configHellPath);
+            return path.resolve(path.dirname(configHellPath), mudlibDirectory);
+        }
+
+        return this.resolveWorkspacePath(workspaceRoot, mudlibDirectory);
+    }
+
+    private resolveExistingCodePath(targetPath: string): string {
+        if (fs.existsSync(targetPath) || path.extname(targetPath)) {
+            return targetPath;
+        }
+
+        for (const candidate of [`${targetPath}.c`, `${targetPath}.h`]) {
+            if (fs.existsSync(candidate)) {
+                return candidate;
+            }
+        }
+
+        return targetPath;
+    }
+
+    private resolveWorkspacePath(workspaceRoot: string, targetPath: string): string {
+        return this.isWorkspaceAbsolutePath(targetPath)
+            ? targetPath
+            : path.resolve(workspaceRoot, targetPath);
+    }
+
+    private isWorkspaceAbsolutePath(targetPath: string): boolean {
+        return /^[A-Za-z]:[\\/]/.test(targetPath) || targetPath.startsWith('\\\\');
     }
 
     private extractRelatedSourceFiles(currentFilePath: string, content: string, mudlibRoot: string): string[] {
@@ -317,7 +429,14 @@ export class SimulatedEfunScanner {
         return undefined;
     }
 
-    private getWorkspaceRoot(document?: vscode.TextDocument): string | undefined {
+    private getWorkspaceRoot(
+        document?: vscode.TextDocument,
+        projectConfig: LanguageWorkspaceProjectConfig | undefined = getDocumentWorkspaceProjectConfig(document)
+    ): string | undefined {
+        if (projectConfig?.projectConfigPath) {
+            return path.dirname(projectConfig.projectConfigPath);
+        }
+
         if (document) {
             return vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath
                 ?? this.findWorkspaceRootContainingDocument(document);

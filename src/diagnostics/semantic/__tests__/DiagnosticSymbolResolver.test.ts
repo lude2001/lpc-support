@@ -461,13 +461,13 @@ describe('DefaultDiagnosticSymbolResolver', () => {
 
         const visible = await resolver.resolveVisibleSymbols(mainDocument, mainSnapshot);
 
-        expect(ensureWorkspaceStateCurrent).toHaveBeenCalledWith(mainDocument);
+        expect(ensureWorkspaceStateCurrent).toHaveBeenCalledWith(mainDocument, undefined);
         expect((resolver as any).options.efunDocsManager.getAllSimulatedFunctions)
-            .toHaveBeenCalledWith(mainDocument);
+            .toHaveBeenCalledWith(mainDocument, undefined);
         expect((resolver as any).options.efunDocsManager.getSimulatedDoc)
-            .toHaveBeenCalledWith('new_bind', mainDocument);
+            .toHaveBeenCalledWith('new_bind', mainDocument, undefined);
         expect((resolver as any).options.efunDocsManager.getSimulatedDoc)
-            .toHaveBeenCalledWith('chinese_number', mainDocument);
+            .toHaveBeenCalledWith('chinese_number', mainDocument, undefined);
         expect(visible.callableSignatures.map((signature) => signature.name)).toEqual(expect.arrayContaining([
             'new_bind',
             'chinese_number'

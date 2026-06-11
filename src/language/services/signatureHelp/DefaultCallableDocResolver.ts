@@ -26,8 +26,12 @@ export class DefaultCallableDocResolver implements CallableDocResolver {
                 : undefined;
             const simulatedDoc = this.efunDocsManager
                 ? this.efunDocsManager.getSimulatedDocAsync
-                    ? await this.efunDocsManager.getSimulatedDocAsync(target.name, requestDocument)
-                    : this.efunDocsManager.getSimulatedDoc(target.name, requestDocument)
+                    ? await this.efunDocsManager.getSimulatedDocAsync(
+                        target.name,
+                        requestDocument,
+                        target.projectConfig
+                    )
+                    : this.efunDocsManager.getSimulatedDoc(target.name, requestDocument, target.projectConfig)
                 : undefined;
             return simulatedDoc ? { ...simulatedDoc, sourceKind: 'simulEfun' } : undefined;
         }

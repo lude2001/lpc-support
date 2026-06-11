@@ -70,6 +70,7 @@ async function createWorkspaceConfigSyncPayload(
             workspaceRoot,
             projectConfigPath: normalizeWorkspacePath(projectConfigService.getProjectConfigPath(workspaceRoot)),
             configHellPath: projectConfig?.configHellPath,
+            playerObjectPath: projectConfig?.playerObjectPath,
             resolvedConfig: projectConfig?.resolved,
             lastSyncedAt: projectConfig?.lastSyncedAt
         };

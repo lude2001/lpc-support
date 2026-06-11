@@ -83,7 +83,7 @@ describe('DefaultCallableDocResolver', () => {
         });
 
         expect(host.openTextDocument).toHaveBeenCalledTimes(1);
-        expect(getSimulatedDocAsync).toHaveBeenCalledWith('simul_call', requestDocument);
+        expect(getSimulatedDocAsync).toHaveBeenCalledWith('simul_call', requestDocument, undefined);
         expect(doc).toEqual(expect.objectContaining({
             name: 'simul_call',
             sourceKind: 'simulEfun'

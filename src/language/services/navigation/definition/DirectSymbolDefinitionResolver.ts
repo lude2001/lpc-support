@@ -18,7 +18,7 @@ import type { DefinitionRequestState, DefinitionSemanticAdapter } from './types'
 
 interface DirectSymbolDefinitionResolverDependencies {
     support: DefinitionResolverSupport;
-    efunDocsManager: Pick<EfunDocsManager, 'getSimulatedDoc'>;
+    efunDocsManager: Pick<EfunDocsManager, 'getSimulatedDoc'> & Partial<Pick<EfunDocsManager, 'getSimulatedDocAsync'>>;
     semanticAdapter?: DefinitionSemanticAdapter;
     headerOwnerContextService?: Pick<HeaderOwnerContextService, 'resolveOwnerContext'>;
 }
@@ -168,10 +168,8 @@ export class DirectSymbolDefinitionResolver {
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.Location | undefined> {
         const simulatedDoc = 'getSimulatedDocAsync' in this.dependencies.efunDocsManager
-            ? await (this.dependencies.efunDocsManager as EfunDocsManager & {
-                getSimulatedDocAsync(funcName: string, document?: vscode.TextDocument): Promise<ReturnType<EfunDocsManager['getSimulatedDoc']>>;
-            }).getSimulatedDocAsync(word, document)
-            : this.dependencies.efunDocsManager.getSimulatedDoc(word, document);
+            ? await this.dependencies.efunDocsManager.getSimulatedDocAsync?.(word, document, projectConfig)
+            : this.dependencies.efunDocsManager.getSimulatedDoc(word, document, projectConfig);
         if (!simulatedDoc) {
             return undefined;
         }

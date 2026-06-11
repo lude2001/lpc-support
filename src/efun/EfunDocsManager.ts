@@ -14,6 +14,7 @@ import type { StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignatur
 import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
+import type { LanguageWorkspaceProjectConfig } from '../language/contracts/LanguageWorkspaceContext';
 
 export class EfunDocsManager {
     private bundledLoader: BundledEfunLoader;
@@ -119,20 +120,34 @@ export class EfunDocsManager {
         return Array.from(this.efunDocs.keys());
     }
 
-    public getAllSimulatedFunctions(document?: vscode.TextDocument): string[] {
-        return this.simulatedEfunScanner.getAllNames(document);
+    public getAllSimulatedFunctions(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): string[] {
+        return this.simulatedEfunScanner.getAllNames(document, projectConfig);
     }
 
-    public getSimulatedDoc(funcName: string, document?: vscode.TextDocument): CallableDoc | undefined {
-        return this.simulatedEfunScanner.getForDocument(funcName, document);
+    public getSimulatedDoc(
+        funcName: string,
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): CallableDoc | undefined {
+        return this.simulatedEfunScanner.getForDocument(funcName, document, projectConfig);
     }
 
-    public async getSimulatedDocAsync(funcName: string, document?: vscode.TextDocument): Promise<CallableDoc | undefined> {
-        return this.simulatedEfunScanner.getAsync(funcName, document);
+    public async getSimulatedDocAsync(
+        funcName: string,
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<CallableDoc | undefined> {
+        return this.simulatedEfunScanner.getAsync(funcName, document, projectConfig);
     }
 
-    public async ensureWorkspaceStateCurrent(document?: vscode.TextDocument): Promise<void> {
-        await this.simulatedEfunScanner.ensureWorkspaceStateCurrent(document);
+    public async ensureWorkspaceStateCurrent(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<void> {
+        await this.simulatedEfunScanner.ensureWorkspaceStateCurrent(document, projectConfig);
     }
 
     public async refreshWorkspaceState(): Promise<void> {

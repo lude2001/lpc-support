@@ -52,6 +52,7 @@ export interface ResolvedCallableTarget {
     documentUri?: string;
     declarationKey?: string;
     requestDocumentUri?: string;
+    projectConfig?: LanguageWorkspaceProjectConfig;
     sourceLabel: string;
     priority: number;
 }

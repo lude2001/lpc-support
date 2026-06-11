@@ -22,6 +22,7 @@ import {
 } from 'vscode-languageserver-protocol/node';
 import { IPCMessageReader, IPCMessageWriter } from 'vscode-jsonrpc/node';
 import { createProtocolConnection } from 'vscode-languageserver-protocol/node';
+import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import { HealthRequest } from '../shared/protocol/health';
 import { WorkspaceConfigSyncNotification } from '../shared/protocol/workspaceConfigSync';
 
@@ -38,6 +39,15 @@ describe('spawned LSP runtime integration', () => {
         const malformedDocumentPath = path.join(workspaceRoot, 'bad name!.c');
         const formatDocumentPath = path.join(workspaceRoot, 'format-me.c');
 
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'lpc-support.json'),
+            JSON.stringify({
+                version: 1,
+                configHellPath: 'config.hell'
+            }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(path.join(workspaceRoot, 'config.hell'), '', 'utf8');
         fs.writeFileSync(malformedDocumentPath, 'void demo() { return; }', 'utf8');
         fs.writeFileSync(formatDocumentPath, 'void test(){}', 'utf8');
 
@@ -1123,15 +1133,18 @@ class SpawnedServerHarness {
                 ]
             });
             await connection.sendNotification(InitializedNotification.type, {});
+            const projectConfigService = new LpcProjectConfigService();
+            const projectConfig = await projectConfigService.loadForWorkspace(workspaceRoot);
             await connection.sendNotification(WorkspaceConfigSyncNotification.type, {
                 workspaceRoots: [workspaceRoot],
                 workspaces: [
                     {
                         workspaceRoot,
-                        projectConfigPath: path.join(workspaceRoot, 'lpc-support.json'),
-                        configHellPath: 'config.hell',
-                        resolvedConfig: {},
-                        lastSyncedAt: new Date('2026-04-11T00:00:00.000Z').toISOString()
+                        projectConfigPath: projectConfigService.getProjectConfigPath(workspaceRoot),
+                        configHellPath: projectConfig?.configHellPath,
+                        playerObjectPath: projectConfig?.playerObjectPath,
+                        resolvedConfig: projectConfig?.resolved,
+                        lastSyncedAt: projectConfig?.lastSyncedAt ?? new Date('2026-04-11T00:00:00.000Z').toISOString()
                     }
                 ]
             });

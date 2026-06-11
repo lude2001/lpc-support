@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../../language/contracts/LanguageCapabilityContext';
 import type { LanguageDocument } from '../../../language/contracts/LanguageDocument';
 import type { LanguageWorkspaceContext } from '../../../language/contracts/LanguageWorkspaceContext';
+import { attachDocumentWorkspaceProjectConfig } from '../../../language/shared/documentWorkspaceConfig';
 import { DocumentStore } from './DocumentStore';
 import { fromFileUri, resolveWorkspaceRootFromRoots } from './serverPathUtils';
 import { WorkspaceSession } from './WorkspaceSession';
@@ -16,10 +17,11 @@ export class ServerLanguageContextFactory {
         const storedDocument = documentUri ? this.documentStore.get(documentUri) : undefined;
         const resolvedUri = documentUri ?? storedDocument?.uri ?? '';
         const workspaceRoot = resolveWorkspaceRootFromRoots(resolvedUri || undefined, this.workspaceSession.getWorkspaceRoots());
+        const workspace = this.workspaceSession.toLanguageWorkspaceContext(workspaceRoot);
 
         return {
-            document: this.createDocumentShim(resolvedUri, storedDocument),
-            workspace: this.workspaceSession.toLanguageWorkspaceContext(workspaceRoot),
+            document: this.createDocumentShim(resolvedUri, storedDocument, workspace),
+            workspace,
             mode: 'lsp',
             cancellation: {
                 isCancellationRequested: false
@@ -34,16 +36,18 @@ export class ServerLanguageContextFactory {
         const storedDocument = this.documentStore.get(documentUri);
         const resolvedUri = storedDocument?.uri ?? documentUri;
         const workspaceRoot = resolveWorkspaceRootFromRoots(resolvedUri, this.workspaceSession.getWorkspaceRoots());
+        const workspace = this.workspaceSession.toLanguageWorkspaceContext(workspaceRoot);
 
         return {
-            document: this.createDocumentShim(resolvedUri, storedDocument) as unknown as LanguageDocument,
-            workspace: this.workspaceSession.toLanguageWorkspaceContext(workspaceRoot)
+            document: this.createDocumentShim(resolvedUri, storedDocument, workspace) as unknown as LanguageDocument,
+            workspace
         };
     }
 
     private createDocumentShim(
         documentUri: string,
-        storedDocument: Readonly<{ uri: string; version: number; text: string }> | undefined
+        storedDocument: Readonly<{ uri: string; version: number; text: string }> | undefined,
+        workspace: LanguageWorkspaceContext
     ): LanguageCapabilityContext['document'] {
         const text = storedDocument?.text ?? '';
         const version = storedDocument?.version ?? 0;
@@ -52,7 +56,7 @@ export class ServerLanguageContextFactory {
         const lineStarts = buildLineStarts(text);
         const uriLike = createUriLike(documentUri, fileName);
 
-        return {
+        return attachDocumentWorkspaceProjectConfig({
             uri: uriLike,
             version,
             fileName,
@@ -132,7 +136,7 @@ export class ServerLanguageContextFactory {
 
                 return createHostPosition(line, safeOffset - lineStarts[line]);
             }
-        } as unknown as LanguageCapabilityContext['document'];
+        } as unknown as LanguageCapabilityContext['document'], workspace.projectConfig);
     }
 }
 

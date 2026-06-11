@@ -86,7 +86,7 @@ export class EfunLanguageHoverService implements LanguageHoverService {
             return this.renderer.renderHover({ ...includeDoc, sourceKind: 'include' });
         }
 
-        const simulatedDoc = await this.efunDocsManager.getSimulatedDocAsync(word, document);
+        const simulatedDoc = await this.efunDocsManager.getSimulatedDocAsync(word, document, projectConfig);
         if (simulatedDoc) {
             return this.renderer.renderHover({ ...simulatedDoc, sourceKind: 'simulEfun' });
         }

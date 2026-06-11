@@ -2,6 +2,7 @@ import type { LpcResolvedConfig } from '../../projectConfig/LpcProjectConfig';
 export interface LanguageWorkspaceProjectConfig {
     projectConfigPath: string;
     configHellPath?: string;
+    playerObjectPath?: string;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
 }

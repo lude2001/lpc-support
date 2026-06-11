@@ -141,7 +141,10 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         });
 
         try {
-            await this.efunDocsManager.ensureWorkspaceStateCurrent?.(document);
+            await this.efunDocsManager.ensureWorkspaceStateCurrent?.(
+                document,
+                request.context.workspace.projectConfig
+            );
             this.inheritedIndexService.warmInheritedIndex(document);
 
             const result = this.queryEngine.query(

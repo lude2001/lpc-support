@@ -7,6 +7,7 @@ export interface WorkspaceConfigSyncSnapshot {
     workspaceRoot: string;
     projectConfigPath: string;
     configHellPath?: string;
+    playerObjectPath?: string;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
 }
