@@ -77,7 +77,8 @@ export class IncludeResolver {
             includePath: include.value,
             isSystemInclude: include.isSystemInclude,
             workspaceRoot: this.workspaceRoot,
-            includeDirectories: this.includeDirectories
+            includeDirectories: this.includeDirectories,
+            allowAncestorFallback: true
         });
         return candidates.find((candidate) => fs.existsSync(candidate));
     }

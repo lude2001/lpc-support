@@ -480,6 +480,14 @@ function parseInlineMacroInvocation(
         return undefined;
     }
 
+    let suffixCursor = argumentEnd + 1;
+    while (suffixCursor < text.length && /[ \t]/.test(text[suffixCursor])) {
+        suffixCursor += 1;
+    }
+    if (text.slice(suffixCursor, suffixCursor + 2) === '->') {
+        return undefined;
+    }
+
     const invocationText = text.slice(reference.startOffset, argumentEnd + 1);
     if (/\r?\n/.test(invocationText)) {
         return undefined;

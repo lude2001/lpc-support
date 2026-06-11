@@ -6,6 +6,7 @@ export interface IncludePathResolutionOptions {
     isSystemInclude: boolean;
     workspaceRoot?: string;
     includeDirectories?: readonly string[];
+    allowAncestorFallback?: boolean;
 }
 
 export function resolveIncludePathCandidates(options: IncludePathResolutionOptions): string[] {
@@ -17,16 +18,20 @@ export function resolveIncludePathCandidates(options: IncludePathResolutionOptio
             ? includeDirectories
             : options.workspaceRoot
                 ? [path.join(options.workspaceRoot, 'include')]
-                : [];
+                : options.allowAncestorFallback
+                    ? createAncestorIncludeDirectoryCandidates(options.documentPath)
+                    : [];
         return directories.map((includeDirectory) => path.join(includeDirectory, normalizedPath));
     }
 
     if (isLpcAbsolutePath(normalizedPath)) {
-        if (!options.workspaceRoot) {
-            return [];
+        if (options.workspaceRoot) {
+            return [path.join(options.workspaceRoot, normalizedPath.substring(1))];
         }
 
-        return [path.join(options.workspaceRoot, normalizedPath.substring(1))];
+        return options.allowAncestorFallback
+            ? createAncestorMudlibAbsoluteCandidates(normalizedPath, options.documentPath)
+            : [];
     }
 
     if (path.isAbsolute(normalizedPath)) {
@@ -50,4 +55,39 @@ function isLpcAbsolutePath(filePath: string): boolean {
 
 function normalizeFsPath(fsPath: string): string {
     return fsPath.replace(/^\/+([A-Za-z]:[\\/])/, '$1');
+}
+
+function createAncestorIncludeDirectoryCandidates(documentPath: string): string[] {
+    const candidates: string[] = [];
+    let currentDirectory = path.dirname(normalizeFsPath(documentPath));
+
+    while (true) {
+        candidates.push(path.join(currentDirectory, 'include'));
+        const parentDirectory = path.dirname(currentDirectory);
+        if (parentDirectory === currentDirectory) {
+            break;
+        }
+
+        currentDirectory = parentDirectory;
+    }
+
+    return candidates;
+}
+
+function createAncestorMudlibAbsoluteCandidates(includePath: string, documentPath: string): string[] {
+    const relativeIncludePath = includePath.substring(1);
+    const candidates: string[] = [];
+    let currentDirectory = path.dirname(normalizeFsPath(documentPath));
+
+    while (true) {
+        candidates.push(path.join(currentDirectory, relativeIncludePath));
+        const parentDirectory = path.dirname(currentDirectory);
+        if (parentDirectory === currentDirectory) {
+            break;
+        }
+
+        currentDirectory = parentDirectory;
+    }
+
+    return candidates;
 }
