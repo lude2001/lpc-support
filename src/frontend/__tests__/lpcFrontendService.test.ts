@@ -4,6 +4,7 @@ import { TestHelper } from '../../__tests__/utils/TestHelper';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as vscode from 'vscode';
 
 describe('LpcFrontendService', () => {
     let tempRoot: string | undefined;
@@ -105,5 +106,32 @@ describe('LpcFrontendService', () => {
             })
         ]);
         expect(snapshot.preprocessor.activeView.text).not.toContain('should_not_be_active');
+    });
+
+    test('uses project config include directories only as explicit include search paths', () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-frontend-project-include-'));
+        const includeDir = path.join(tempRoot, 'include');
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.writeFileSync(path.join(tempRoot, 'lpc-support.json'), JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }), 'utf8');
+        fs.writeFileSync(path.join(tempRoot, 'config.hell'), [
+            'mudlib directory : ./',
+            'include directories : /include'
+        ].join('\n'), 'utf8');
+        fs.writeFileSync(path.join(includeDir, 'defs.h'), '#define ENABLED 1\n', 'utf8');
+        const document = TestHelper.createMockDocument([
+            '#include <defs.h>',
+            '#ifdef ENABLED',
+            'int included_macro_is_active;',
+            '#endif'
+        ].join('\n'), 'lpc', path.join(tempRoot, 'main.c'));
+
+        const snapshot = new LpcFrontendService().get(document);
+
+        expect(snapshot.preprocessor.includeReferences[0].resolvedUri).toBe(vscode.Uri.file(path.join(includeDir, 'defs.h')).toString());
+        expect(snapshot.preprocessor.macros.map((macro) => macro.name)).toContain('ENABLED');
+        expect(snapshot.preprocessor.activeView.text).toContain('included_macro_is_active');
     });
 });

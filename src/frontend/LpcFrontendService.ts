@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import { ActiveSourceBuilder } from './ActiveSourceBuilder';
 import { createDefaultFluffOSDialectProfile } from './dialect';
 import { IncludeResolver } from './IncludeResolver';
@@ -8,6 +9,7 @@ import { MacroFactResolver } from './MacroFactResolver';
 import { PreprocessorConditionEvaluator } from './PreprocessorConditionEvaluator';
 import { PreprocessorScanner } from './PreprocessorScanner';
 import { IncludeReferenceFact, LpcDialectProfile, LpcFrontendSnapshot, MacroDefinitionFact } from './types';
+import { parseConfigHell } from '../projectConfig/configHellParser';
 
 export interface LpcFrontendServiceOptions {
     dialect?: LpcDialectProfile;
@@ -22,11 +24,12 @@ export class LpcFrontendService {
     private readonly macroFactResolver = new MacroFactResolver();
     private readonly macroExpansionBuilder = new MacroExpansionBuilder();
     private readonly dialect: LpcDialectProfile;
-    private readonly includeResolver: IncludeResolver;
+    private readonly includeDirectories: string[];
+    private readonly configuredIncludeDirectoryCache = new Map<string, string[]>();
 
     constructor(options: LpcFrontendServiceOptions = {}) {
         this.dialect = options.dialect ?? createDefaultFluffOSDialectProfile();
-        this.includeResolver = new IncludeResolver(options.includeDirectories ?? []);
+        this.includeDirectories = options.includeDirectories ?? [];
     }
 
     public get(document: vscode.TextDocument): LpcFrontendSnapshot {
@@ -38,8 +41,9 @@ export class LpcFrontendService {
 
         const text = document.getText();
         const scanned = this.scanner.scan(document.uri.toString(), document.version, text);
-        const includes = this.includeResolver.resolve(document.uri.toString(), scanned.includeReferences);
-        const includeMacros = this.collectIncludeMacros(includes.includeReferences);
+        const includeResolver = new IncludeResolver(this.getIncludeDirectoriesForDocument(document.uri.toString()));
+        const includes = includeResolver.resolve(document.uri.toString(), scanned.includeReferences);
+        const includeMacros = this.collectIncludeMacros(includes.includeReferences, includeResolver);
         const conditional = this.conditionEvaluator.evaluate(text, scanned.directives, includeMacros);
         const macroFacts = this.macroFactResolver.resolve(
             text,
@@ -88,10 +92,111 @@ export class LpcFrontendService {
 
     public clear(): void {
         this.snapshots.clear();
+        this.configuredIncludeDirectoryCache.clear();
+    }
+
+    private getIncludeDirectoriesForDocument(documentUri: string): string[] {
+        return [
+            ...this.includeDirectories,
+            ...this.collectConfiguredIncludeDirectories(documentUri)
+        ];
+    }
+
+    private collectConfiguredIncludeDirectories(documentUri: string): string[] {
+        const documentPath = normalizeFsPath(vscode.Uri.parse(documentUri).fsPath);
+        const workspaceRoot = this.findWorkspaceRoot(documentPath);
+        if (!workspaceRoot) {
+            return [];
+        }
+
+        const cached = this.configuredIncludeDirectoryCache.get(workspaceRoot);
+        if (cached) {
+            return cached;
+        }
+
+        const directories = this.readConfiguredIncludeDirectories(workspaceRoot);
+        this.configuredIncludeDirectoryCache.set(workspaceRoot, directories);
+        return directories;
+    }
+
+    private findWorkspaceRoot(documentPath: string): string | undefined {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder?.(vscode.Uri.file(documentPath));
+        if (workspaceFolder?.uri.fsPath && fs.existsSync(path.join(workspaceFolder.uri.fsPath, 'lpc-support.json'))) {
+            return workspaceFolder.uri.fsPath;
+        }
+
+        let current = path.dirname(documentPath);
+        while (true) {
+            if (fs.existsSync(path.join(current, 'lpc-support.json'))) {
+                return current;
+            }
+
+            const parent = path.dirname(current);
+            if (parent === current) {
+                return undefined;
+            }
+
+            current = parent;
+        }
+    }
+
+    private readConfiguredIncludeDirectories(workspaceRoot: string): string[] {
+        const projectConfigPath = path.join(workspaceRoot, 'lpc-support.json');
+        if (!fs.existsSync(projectConfigPath)) {
+            return [];
+        }
+
+        try {
+            const projectConfig = JSON.parse(fs.readFileSync(projectConfigPath, 'utf8')) as { configHellPath?: string };
+            if (!projectConfig.configHellPath) {
+                return [];
+            }
+
+            const configHellPath = path.isAbsolute(projectConfig.configHellPath)
+                ? projectConfig.configHellPath
+                : path.resolve(workspaceRoot, projectConfig.configHellPath);
+            if (!fs.existsSync(configHellPath)) {
+                return [];
+            }
+
+            const resolved = parseConfigHell(fs.readFileSync(configHellPath, 'utf8'));
+            const mudlibRoot = this.resolveMudlibRoot(workspaceRoot, resolved.mudlibDirectory, projectConfig.configHellPath);
+            return (resolved.includeDirectories ?? [])
+                .map((includeDirectory) => this.resolveProjectPath(mudlibRoot, includeDirectory))
+                .filter((includeDirectory) => fs.existsSync(includeDirectory));
+        } catch {
+            return [];
+        }
+    }
+
+    private resolveMudlibRoot(workspaceRoot: string, mudlibDirectory: string | undefined, configHellPath: string): string {
+        if (!mudlibDirectory) {
+            return workspaceRoot;
+        }
+
+        if (path.isAbsolute(mudlibDirectory)) {
+            return mudlibDirectory;
+        }
+
+        const configHellAbsolutePath = path.isAbsolute(configHellPath)
+            ? configHellPath
+            : path.resolve(workspaceRoot, configHellPath);
+        return path.resolve(path.dirname(configHellAbsolutePath), mudlibDirectory);
+    }
+
+    private resolveProjectPath(mudlibRoot: string, targetPath: string): string {
+        if (targetPath.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(targetPath.slice(1))) {
+            return path.join(mudlibRoot, targetPath.slice(1));
+        }
+
+        return path.isAbsolute(targetPath)
+            ? targetPath
+            : path.resolve(mudlibRoot, targetPath);
     }
 
     private collectIncludeMacros(
         includeReferences: IncludeReferenceFact[],
+        includeResolver: IncludeResolver,
         visited: Set<string> = new Set()
     ): MacroDefinitionFact[] {
         const macros: MacroDefinitionFact[] = [];
@@ -110,8 +215,8 @@ export class LpcFrontendService {
 
             const text = fs.readFileSync(includePath, 'utf8');
             const scanned = this.scanner.scan(include.resolvedUri, 1, text);
-            const nestedIncludes = this.includeResolver.resolve(include.resolvedUri, scanned.includeReferences);
-            const nestedMacros = this.collectIncludeMacros(nestedIncludes.includeReferences, visited);
+            const nestedIncludes = includeResolver.resolve(include.resolvedUri, scanned.includeReferences);
+            const nestedMacros = this.collectIncludeMacros(nestedIncludes.includeReferences, includeResolver, visited);
             const conditional = this.conditionEvaluator.evaluate(text, scanned.directives, nestedMacros);
             const facts = this.macroFactResolver.resolve(
                 text,
