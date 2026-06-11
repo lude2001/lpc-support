@@ -13,7 +13,7 @@
 - frontend include 解析会使用 `lpc-support.json` / `config.hell` 中的 include dirs 作为显式 `#include` 搜索路径，但不会再把 include dirs 下所有 header 宏当作全局宏。
 - 基础语义诊断会优先使用本轮递归解析到的 fresh dependency symbols，并允许 same-version 依赖快照刷新覆盖旧索引记录。
 - 宏引用只在当前 range 被视为已知宏名；`#undef` 后同名普通标识符不再被旧 macro reference 静默放行。
-- function-like 宏无法展开到普通表达式位置时，基础语义诊断会保守抑制 undefined 类提示，避免半展开代码产生噪声。
+- function-like 宏现在支持表达式级 `NAME(...)` token 范围展开；无法解析的调用仍会让基础语义诊断保守抑制 undefined 类提示，避免半展开代码产生噪声。
 
 ### 工程与发布
 

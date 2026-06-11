@@ -30,17 +30,18 @@ export class MacroExpansionBuilder {
             }
 
             if (macro.isFunctionLike) {
-                const expanded = this.tryExpandWholeLineInvocation(text, reference, macroByName);
+                const expanded = this.tryExpandWholeLineInvocation(text, reference, macroByName)
+                    ?? this.tryExpandInlineInvocation(text, reference, macroByName);
                 if (!expanded) {
                     continue;
                 }
 
-                text = `${text.slice(0, expanded.lineStartOffset)}${expanded.expandedLine}${text.slice(expanded.lineEndOffset)}`;
+                text = `${text.slice(0, expanded.originalStartOffset)}${expanded.replacementText}${text.slice(expanded.originalEndOffset)}`;
                 appliedExpansions.push({
                     macroName: reference.name,
-                    originalStartOffset: expanded.lineStartOffset,
-                    originalEndOffset: expanded.lineEndOffset,
-                    replacementText: expanded.expandedLine
+                    originalStartOffset: expanded.originalStartOffset,
+                    originalEndOffset: expanded.originalEndOffset,
+                    replacementText: expanded.replacementText
                 });
                 continue;
             }
@@ -69,7 +70,7 @@ export class MacroExpansionBuilder {
         text: string,
         reference: MacroReferenceFact,
         macroByName: Map<string, MacroDefinitionFact>
-    ): { lineStartOffset: number; lineEndOffset: number; expandedLine: string } | undefined {
+    ): InlineExpansion | undefined {
         const macro = reference.resolved;
         if (!macro?.parameters) {
             return undefined;
@@ -92,9 +93,40 @@ export class MacroExpansionBuilder {
             macroByName
         );
         return {
-            lineStartOffset,
-            lineEndOffset,
-            expandedLine: `${invocation.indent}${expandedBody}`
+            originalStartOffset: lineStartOffset,
+            originalEndOffset: lineEndOffset,
+            replacementText: `${invocation.indent}${expandedBody}`
+        };
+    }
+
+    private tryExpandInlineInvocation(
+        text: string,
+        reference: MacroReferenceFact,
+        macroByName: Map<string, MacroDefinitionFact>
+    ): InlineExpansion | undefined {
+        const macro = reference.resolved;
+        if (!macro?.parameters || !isActiveIdentifierReference(text, reference)) {
+            return undefined;
+        }
+
+        const invocation = parseInlineMacroInvocation(text, reference);
+        if (!invocation) {
+            return undefined;
+        }
+
+        const args = splitMacroArguments(invocation.argumentText);
+        if (args.length !== macro.parameters.length) {
+            return undefined;
+        }
+
+        const replacementText = expandObjectMacroText(
+            expandFunctionMacroBody(macro.replacement, macro.parameters, args),
+            macroByName
+        );
+        return {
+            originalStartOffset: reference.startOffset,
+            originalEndOffset: invocation.endOffset,
+            replacementText
         };
     }
 
@@ -140,6 +172,12 @@ export class MacroExpansionBuilder {
 
 interface AppliedExpansion {
     macroName: string;
+    originalStartOffset: number;
+    originalEndOffset: number;
+    replacementText: string;
+}
+
+interface InlineExpansion {
     originalStartOffset: number;
     originalEndOffset: number;
     replacementText: string;
@@ -420,6 +458,36 @@ function parseWholeLineMacroInvocation(
     return {
         indent: beforeMacro,
         argumentText: line.slice(argumentStart, argumentEnd)
+    };
+}
+
+function parseInlineMacroInvocation(
+    text: string,
+    reference: MacroReferenceFact
+): { argumentText: string; endOffset: number } | undefined {
+    let cursor = reference.endOffset;
+    while (cursor < text.length && /[ \t]/.test(text[cursor])) {
+        cursor += 1;
+    }
+
+    if (text[cursor] !== '(') {
+        return undefined;
+    }
+
+    const argumentStart = cursor + 1;
+    const argumentEnd = findMatchingParen(text, cursor);
+    if (argumentEnd === undefined) {
+        return undefined;
+    }
+
+    const invocationText = text.slice(reference.startOffset, argumentEnd + 1);
+    if (/\r?\n/.test(invocationText)) {
+        return undefined;
+    }
+
+    return {
+        argumentText: text.slice(argumentStart, argumentEnd),
+        endOffset: argumentEnd + 1
     };
 }
 

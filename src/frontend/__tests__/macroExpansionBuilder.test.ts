@@ -45,6 +45,27 @@ describe('MacroExpansionBuilder', () => {
         expect(expanded.text).toContain('string pay_add_label = "pay_add";');
     });
 
+    test('expands expression-level function-like macro invocations', () => {
+        const text = [
+            '#define MAX(a,b) ((a) > (b) ? (a) : (b))',
+            'int value = MAX(foo(1, 2), scores[0]);'
+        ].join('\n');
+        const scanner = new PreprocessorScanner();
+        const scanned = scanner.scan('file:///inline-function-macro.c', 1, text);
+        const conditional = new PreprocessorConditionEvaluator().evaluate(text, scanned.directives, []);
+        const macroFacts = new MacroFactResolver().resolve(text, scanned.directives, conditional.inactiveRanges);
+        const activeView = new ActiveSourceBuilder().build(text, scanned.directives, conditional.inactiveRanges);
+
+        const expanded = new MacroExpansionBuilder().expand(activeView, macroFacts.macroReferences);
+
+        expect(expanded.text).toContain('int value = ((foo(1, 2)) > (scores[0]) ? (foo(1, 2)) : (scores[0]));');
+        expect(expanded.expandedRanges).toEqual([
+            expect.objectContaining({
+                macroName: 'MAX'
+            })
+        ]);
+    });
+
     test('expands object-like macros recursively in active source', () => {
         const text = [
             '#define ACCESS private',
