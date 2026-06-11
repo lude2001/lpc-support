@@ -32,7 +32,10 @@ describe('IncludeResolver', () => {
         const documentUri = vscode.Uri.file(path.join(sourceDir, 'main.c')).toString();
         const snapshot = new PreprocessorScanner().scan(documentUri, 1, text);
 
-        const resolved = new IncludeResolver([includeDir]).resolve(documentUri, snapshot.includeReferences);
+        const resolved = new IncludeResolver({
+            includeDirectories: [includeDir],
+            workspaceRoot: tempRoot
+        }).resolve(documentUri, snapshot.includeReferences);
 
         expect(resolved.includeReferences).toEqual([
             expect.objectContaining({
@@ -59,7 +62,7 @@ describe('IncludeResolver', () => {
         expect(resolved.diagnostics).toEqual([]);
     });
 
-    test('resolves LPC mudlib-absolute quoted includes from an ancestor root', () => {
+    test('resolves LPC mudlib-absolute quoted includes from the workspace root', () => {
         const roomDir = path.join(tempRoot, 'd', 'city');
         const helperDir = path.join(tempRoot, 'adm', 'simul_efun');
         fs.mkdirSync(roomDir, { recursive: true });
@@ -70,7 +73,7 @@ describe('IncludeResolver', () => {
         const documentUri = vscode.Uri.file(path.join(roomDir, 'message.c')).toString();
         const snapshot = new PreprocessorScanner().scan(documentUri, 1, text);
 
-        const resolved = new IncludeResolver().resolve(documentUri, snapshot.includeReferences);
+        const resolved = new IncludeResolver({ workspaceRoot: tempRoot }).resolve(documentUri, snapshot.includeReferences);
 
         expect(resolved.includeReferences).toEqual([
             expect.objectContaining({
@@ -81,7 +84,7 @@ describe('IncludeResolver', () => {
         expect(resolved.diagnostics).toEqual([]);
     });
 
-    test('resolves LPC system includes from an ancestor mudlib include directory', () => {
+    test('resolves LPC system includes from the workspace include directory', () => {
         const itemDir = path.join(tempRoot, 'inherit', 'item');
         const includeDir = path.join(tempRoot, 'include');
         fs.mkdirSync(itemDir, { recursive: true });
@@ -92,7 +95,7 @@ describe('IncludeResolver', () => {
         const documentUri = vscode.Uri.file(path.join(itemDir, 'combined.c')).toString();
         const snapshot = new PreprocessorScanner().scan(documentUri, 1, text);
 
-        const resolved = new IncludeResolver().resolve(documentUri, snapshot.includeReferences);
+        const resolved = new IncludeResolver({ workspaceRoot: tempRoot }).resolve(documentUri, snapshot.includeReferences);
 
         expect(resolved.includeReferences).toEqual([
             expect.objectContaining({

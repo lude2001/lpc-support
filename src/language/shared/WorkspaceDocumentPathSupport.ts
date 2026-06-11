@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import type { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import type { DocumentAnalysisService } from '../../semantic/documentAnalysisService';
 import type { LanguageWorkspaceProjectConfig } from '../contracts/LanguageWorkspaceContext';
+import { ensureHeaderOrSourceExtension, resolveIncludePathCandidates } from './includePathResolution';
 
 export interface TextDocumentHost {
     openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument>;
@@ -227,18 +228,16 @@ export class WorkspaceDocumentPathSupport {
             return [];
         }
 
-        const normalizedPath = this.ensureHeaderOrSourceExtension(includePath);
-        if (isSystemInclude) {
-            const includeDirectories = await this.getIncludeDirectories(workspaceRoot, projectConfig);
-            return includeDirectories.map((includeDirectory) => path.join(includeDirectory, normalizedPath));
-        }
-
-        if (path.isAbsolute(normalizedPath)) {
-            const relativePath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
-            return [path.join(workspaceRoot, relativePath)];
-        }
-
-        return [path.resolve(path.dirname(this.normalizeFsPath(document.uri.fsPath)), normalizedPath)];
+        const includeDirectories = isSystemInclude
+            ? await this.getIncludeDirectories(workspaceRoot, projectConfig)
+            : [];
+        return resolveIncludePathCandidates({
+            documentPath: this.normalizeFsPath(document.uri.fsPath),
+            includePath,
+            isSystemInclude,
+            workspaceRoot,
+            includeDirectories
+        });
     }
 
     public async resolveIncludeFilePath(
@@ -252,7 +251,7 @@ export class WorkspaceDocumentPathSupport {
             return undefined;
         }
 
-        const normalizedPath = this.ensureHeaderOrSourceExtension(includePath);
+        const normalizedPath = ensureHeaderOrSourceExtension(includePath);
         if (isSystemInclude) {
             const globalIncludePath = await this.getPrimaryIncludeDirectory(workspaceRoot, projectConfig);
             if (!globalIncludePath) {
@@ -358,14 +357,6 @@ export class WorkspaceDocumentPathSupport {
         }
 
         return [path.join(workspaceRoot, 'include')];
-    }
-
-    private ensureHeaderOrSourceExtension(filePath: string): string {
-        if (filePath.endsWith('.h') || filePath.endsWith('.c')) {
-            return filePath;
-        }
-
-        return `${filePath}.h`;
     }
 
     private ensureExtension(filePath: string, extension: '.c' | '.h'): string {

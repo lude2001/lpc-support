@@ -35,7 +35,7 @@
 | C02 | Done | P1 | 依赖符号缓存可能旧签名压过新签名 | `ProjectSymbolIndex` 允许 same-version rebuilt snapshot 覆盖旧记录；diagnostics 合并顺序优先本轮递归 fresh dependency | 保持 degraded snapshot 不覆盖有效记录 |
 | C03 | Done | P2 | `macroReferences` 被当作全文件 known name，`#undef` 后会漏报 | `BasicSemanticDiagnosticsCollector.isKnownName` 现在只在当前 identifier range 与 macro reference range 相等时放行 | 后续若做完整宏可见性，可进一步按位置维护宏环境 |
 | C04 | Done | P2 | function-like 宏只支持整行展开 | `MacroExpansionBuilder` 已支持表达式级 `NAME(...)` token 范围展开，保留整行声明宏路径；无法解析的调用仍由基础语义诊断保守抑制 undefined 类噪声；frontend macro 与 diagnostic collector 回归通过 | 后续若支持跨行宏调用，再扩展 inline invocation parser |
-| C05 | In Progress | P2 | frontend include 解析与 project config include dirs 两套逻辑 | `LpcFrontendService` 已从 `lpc-support.json` / `config.hell` 读取 include dirs 作为显式 include 搜索路径；仍未完全复用 diagnostics pathSupport resolver | 长期统一 include/path resolver，frontend 与 diagnostics 共用同一项目配置 |
+| C05 | Done | P2 | frontend include 解析与 project config include dirs 两套逻辑 | frontend `IncludeResolver` 与 `WorkspaceDocumentPathSupport` 已共用 `resolveIncludePathCandidates`，项目根、系统 include dirs、mudlib 绝对 include 与相对 include 的候选规则保持一致；include/pathSupport/spawned runtime 回归通过 | 后续新增 include 规则先改共享 resolver，再由 frontend/pathSupport 消费 |
 
 ## LSP 与功能一致性
 

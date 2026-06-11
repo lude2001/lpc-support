@@ -41,7 +41,8 @@ export class LpcFrontendService {
 
         const text = document.getText();
         const scanned = this.scanner.scan(document.uri.toString(), document.version, text);
-        const includeResolver = new IncludeResolver(this.getIncludeDirectoriesForDocument(document.uri.toString()));
+        const includeResolution = this.getIncludeResolutionOptionsForDocument(document.uri.toString());
+        const includeResolver = new IncludeResolver(includeResolution);
         const includes = includeResolver.resolve(document.uri.toString(), scanned.includeReferences);
         const includeMacros = this.collectIncludeMacros(includes.includeReferences, includeResolver);
         const conditional = this.conditionEvaluator.evaluate(text, scanned.directives, includeMacros);
@@ -95,16 +96,22 @@ export class LpcFrontendService {
         this.configuredIncludeDirectoryCache.clear();
     }
 
-    private getIncludeDirectoriesForDocument(documentUri: string): string[] {
-        return [
-            ...this.includeDirectories,
-            ...this.collectConfiguredIncludeDirectories(documentUri)
-        ];
-    }
-
-    private collectConfiguredIncludeDirectories(documentUri: string): string[] {
+    private getIncludeResolutionOptionsForDocument(documentUri: string): {
+        includeDirectories: string[];
+        workspaceRoot?: string;
+    } {
         const documentPath = normalizeFsPath(vscode.Uri.parse(documentUri).fsPath);
         const workspaceRoot = this.findWorkspaceRoot(documentPath);
+        return {
+            includeDirectories: [
+                ...this.includeDirectories,
+                ...this.collectConfiguredIncludeDirectories(workspaceRoot)
+            ],
+            workspaceRoot
+        };
+    }
+
+    private collectConfiguredIncludeDirectories(workspaceRoot: string | undefined): string[] {
         if (!workspaceRoot) {
             return [];
         }

@@ -1,11 +1,11 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import {
     IncludeGraph,
     IncludeReferenceFact,
     PreprocessorDiagnostic
 } from './types';
+import { resolveIncludePathCandidates } from '../language/shared/includePathResolution';
 
 export interface IncludeResolutionResult {
     includeReferences: IncludeReferenceFact[];
@@ -13,18 +13,34 @@ export interface IncludeResolutionResult {
     diagnostics: PreprocessorDiagnostic[];
 }
 
+export interface IncludeResolverOptions {
+    includeDirectories?: string[];
+    workspaceRoot?: string;
+}
+
 export class IncludeResolver {
-    constructor(private readonly includeDirectories: string[] = []) {}
+    private readonly includeDirectories: string[];
+    private readonly workspaceRoot: string | undefined;
+
+    constructor(options: IncludeResolverOptions | string[] = {}) {
+        if (Array.isArray(options)) {
+            this.includeDirectories = options;
+            this.workspaceRoot = undefined;
+            return;
+        }
+
+        this.includeDirectories = options.includeDirectories ?? [];
+        this.workspaceRoot = options.workspaceRoot;
+    }
 
     public resolve(
         documentUri: string,
         includeReferences: IncludeReferenceFact[]
     ): IncludeResolutionResult {
         const documentPath = normalizeFsPath(vscode.Uri.parse(documentUri).fsPath);
-        const documentDirectory = path.dirname(documentPath);
         const diagnostics: PreprocessorDiagnostic[] = [];
         const resolvedReferences = includeReferences.map((include) => {
-            const resolvedPath = this.resolveIncludePath(include, documentDirectory);
+            const resolvedPath = this.resolveIncludePath(include, documentPath);
             if (!resolvedPath) {
                 diagnostics.push({
                     code: 'preprocessor.includeNotFound',
@@ -55,62 +71,15 @@ export class IncludeResolver {
         };
     }
 
-    private resolveIncludePath(include: IncludeReferenceFact, documentDirectory: string): string | undefined {
-        const candidates = include.isSystemInclude
-            ? [
-                ...this.includeDirectories.map((directory) => path.join(directory, include.value)),
-                ...this.createAncestorIncludeDirectoryCandidates(include.value, documentDirectory)
-            ]
-            : [
-                ...this.createMudlibAbsoluteCandidates(include.value, documentDirectory),
-                path.resolve(documentDirectory, include.value),
-                ...this.includeDirectories.map((directory) => path.join(directory, include.value))
-            ];
-
+    private resolveIncludePath(include: IncludeReferenceFact, documentPath: string): string | undefined {
+        const candidates = resolveIncludePathCandidates({
+            documentPath,
+            includePath: include.value,
+            isSystemInclude: include.isSystemInclude,
+            workspaceRoot: this.workspaceRoot,
+            includeDirectories: this.includeDirectories
+        });
         return candidates.find((candidate) => fs.existsSync(candidate));
-    }
-
-    private createAncestorIncludeDirectoryCandidates(includeValue: string, documentDirectory: string): string[] {
-        if (path.isAbsolute(includeValue)) {
-            return [];
-        }
-
-        const candidates: string[] = [];
-        let currentDirectory = documentDirectory;
-
-        while (true) {
-            candidates.push(path.join(currentDirectory, 'include', includeValue));
-            const parentDirectory = path.dirname(currentDirectory);
-            if (parentDirectory === currentDirectory) {
-                break;
-            }
-
-            currentDirectory = parentDirectory;
-        }
-
-        return candidates;
-    }
-
-    private createMudlibAbsoluteCandidates(includeValue: string, documentDirectory: string): string[] {
-        if (!includeValue.startsWith('/')) {
-            return [];
-        }
-
-        const relativeIncludePath = includeValue.slice(1);
-        const candidates: string[] = [];
-        let currentDirectory = documentDirectory;
-
-        while (true) {
-            candidates.push(path.join(currentDirectory, relativeIncludePath));
-            const parentDirectory = path.dirname(currentDirectory);
-            if (parentDirectory === currentDirectory) {
-                break;
-            }
-
-            currentDirectory = parentDirectory;
-        }
-
-        return candidates;
     }
 }
 
