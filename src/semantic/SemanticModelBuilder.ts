@@ -522,7 +522,10 @@ export class SemanticModelBuilder {
         return this.syntaxDocument.parsed.frontend?.preprocessor.macroReferences.map((reference) => ({
             name: reference.name,
             range: reference.range,
-            resolvedValue: reference.resolved?.replacement
+            resolvedValue: reference.resolved?.replacement,
+            isFunctionLike: reference.resolved?.isFunctionLike,
+            startOffset: reference.startOffset,
+            endOffset: reference.endOffset
         })) ?? [];
     }
 

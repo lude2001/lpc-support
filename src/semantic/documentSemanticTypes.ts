@@ -90,6 +90,9 @@ export interface MacroReference {
     name: string;
     range: vscode.Range;
     resolvedValue?: string;
+    isFunctionLike?: boolean;
+    startOffset?: number;
+    endOffset?: number;
 }
 
 export interface MacroDefinitionSummary {

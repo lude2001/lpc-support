@@ -423,6 +423,26 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(diagnostics[0].range.start.line).toBe(4);
     });
 
+    test('BasicSemanticDiagnosticsCollector suppresses undefined diagnostics around unexpanded function-like macros', async () => {
+        const collector = new BasicSemanticDiagnosticsCollector();
+        const { document, parsed, context } = analyzeCollectorSource([
+            '#define Wrap(value) value',
+            'void demo() {',
+            '    int value = Wrap(missing_symbol);',
+            '}'
+        ].join('\n'), 'basic-semantic-unexpanded-function-macro.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(context.semantic?.macroReferences).toEqual([
+            expect.objectContaining({
+                name: 'Wrap',
+                isFunctionLike: true
+            })
+        ]);
+        expect(diagnostics).toEqual([]);
+    });
+
     test('BasicSemanticDiagnosticsCollector recognizes FluffOS predefined macros', async () => {
         const collector = new BasicSemanticDiagnosticsCollector();
         const { document, parsed, context } = analyzeCollectorSource([

@@ -34,7 +34,7 @@
 | C01 | Done | P1 | include directories 被当成全局已 include 宏来源 | `LpcFrontendService` 已删除 configured include dir 全局宏扫描；include dirs 只在显式 `#include` 解析时参与搜索 | 若未来需要 preinclude/global include，应单独建模而不是复用 include dirs |
 | C02 | Done | P1 | 依赖符号缓存可能旧签名压过新签名 | `ProjectSymbolIndex` 允许 same-version rebuilt snapshot 覆盖旧记录；diagnostics 合并顺序优先本轮递归 fresh dependency | 保持 degraded snapshot 不覆盖有效记录 |
 | C03 | Done | P2 | `macroReferences` 被当作全文件 known name，`#undef` 后会漏报 | `BasicSemanticDiagnosticsCollector.isKnownName` 现在只在当前 identifier range 与 macro reference range 相等时放行 | 后续若做完整宏可见性，可进一步按位置维护宏环境 |
-| C04 | Open | P2 | function-like 宏只支持整行展开 | `MacroExpansionBuilder.tryExpandWholeLineInvocation` 只处理整行调用 | 长期补 token 级 function-like expansion；短期对未展开位置降级，避免强诊断 |
+| C04 | In Progress | P2 | function-like 宏只支持整行展开 | semantic macro references 已携带 function-like/offset 信息；基础语义诊断遇到未展开 function-like 宏引用时抑制 undefined 类诊断 | 长期补 token 级 function-like expansion；当前已完成短期少报降级 |
 | C05 | Open | P2 | frontend include 解析与 project config include dirs 两套逻辑 | `LpcFrontendService` 的 `IncludeResolver` 没拿到项目 include dirs；diagnostics pathSupport 另有解析 | 统一 include/path resolver，frontend 与 diagnostics 共用同一项目配置 |
 
 ## LSP 与功能一致性

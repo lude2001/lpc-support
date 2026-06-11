@@ -96,6 +96,8 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
         const parentMap = buildParentMap(context.syntax.nodes);
         const diagnostics: vscode.Diagnostic[] = [];
         const callCalleeRanges = new Set<string>();
+        const suppressUndefinedDiagnostics = visibleSymbols.hasUnresolvedDependencies
+            || hasUnexpandedFunctionLikeMacroReference(context.semantic);
 
         for (const callExpression of context.syntax.nodes.filter((node) => isKind(node, SyntaxKind.CallExpression))) {
             const callee = getDirectCallee(callExpression);
@@ -112,7 +114,7 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
 
             const signatures = visibleSymbols.callableSignatures.filter((signature) => signature.name === calleeName);
             if (signatures.length === 0) {
-                if (!visibleSymbols.hasUnresolvedDependencies && !isKnownName(calleeName, visibleSymbols, callee.range)) {
+                if (!suppressUndefinedDiagnostics && !isKnownName(calleeName, visibleSymbols, callee.range)) {
                     diagnostics.push(createWarning(
                         callee.range,
                         `未定义函数: ${calleeName}`,
@@ -131,7 +133,7 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
             }
         }
 
-        if (visibleSymbols.hasUnresolvedDependencies) {
+        if (suppressUndefinedDiagnostics) {
             return diagnostics;
         }
 
@@ -339,6 +341,24 @@ function isKnownName(name: string, visibleSymbols: VisibleDiagnosticSymbols, ran
             entry.name === name && rangesEqual(entry.range, range)
         ))
         || visibleSymbols.symbols.some((entry) => isVisibleSemanticSymbol(entry) && entry.name === name);
+}
+
+function hasUnexpandedFunctionLikeMacroReference(semantic: SemanticSnapshot): boolean {
+    const expandedRanges = semantic.syntax.parsed.frontend?.preprocessor.activeView.expandedRanges ?? [];
+    return semantic.macroReferences.some((reference) => {
+        if (!reference.isFunctionLike) {
+            return false;
+        }
+
+        if (reference.startOffset === undefined || reference.endOffset === undefined) {
+            return true;
+        }
+
+        return !expandedRanges.some((range) =>
+            reference.startOffset! >= range.originalStartOffset
+            && reference.endOffset! <= range.originalEndOffset
+        );
+    });
 }
 
 function isVisibleSemanticSymbol(symbol: SemanticSymbolSummary): boolean {
