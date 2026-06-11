@@ -12,11 +12,16 @@ export function registerDiagnostics(registry: ServiceRegistry, context: vscode.E
     const textDocumentHost = registry.get(Services.TextDocumentHost);
     const documentPathSupport = registry.get(Services.DocumentPathSupport);
     const efunDocsManager = registry.get(Services.EfunDocs);
-    const headerOwnerContextService = new HeaderOwnerContextService(documentPathSupport, analysisService);
+    const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver());
+    const headerOwnerContextService = new HeaderOwnerContextService(
+        documentPathSupport,
+        analysisService,
+        projectSymbolIndex
+    );
     const symbolResolver = new DefaultDiagnosticSymbolResolver({
         analysisService,
         pathSupport: documentPathSupport,
-        projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver()),
+        projectSymbolIndex,
         efunDocsManager,
         headerOwnerContextResolver: headerOwnerContextService
     });

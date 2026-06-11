@@ -81,6 +81,7 @@ function createResolver(snapshots: Map<string, SemanticSnapshot>, root: string):
     resolver: DefaultDiagnosticSymbolResolver;
     pathSupport: any;
     analysisService: any;
+    projectSymbolIndex: ProjectSymbolIndex;
 } {
     const snapshotsByFsPath = new Map(
         Array.from(snapshots.entries()).map(([uri, snapshot]) => [normalizeTestPath(vscode.Uri.parse(uri).fsPath), snapshot] as const)
@@ -146,46 +147,48 @@ function createResolver(snapshots: Map<string, SemanticSnapshot>, root: string):
         getSemanticSnapshot: jest.fn(getSnapshot),
         getBestAvailableSemanticSnapshot: jest.fn(getSnapshot)
     };
+    const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
 
     return {
         resolver: new DefaultDiagnosticSymbolResolver({
-        analysisService,
-        pathSupport: pathSupport as any,
-        projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver([root])),
-        efunDocsManager: {
-            getAllFunctions: () => ['write'],
-            getAllSimulatedFunctions: () => ['simul_log'],
-            getStandardCallableDoc: (name) => name === 'write'
-                ? {
-                    name,
-                    declarationKey: 'efun:write',
-                    signatures: [{
-                        label: 'void write(string message)',
-                        parameters: [{ name: 'message', type: 'string' }],
-                        isVariadic: false
-                    }],
-                    sourceKind: 'efun'
-                }
-                : undefined,
-            getSimulatedDoc: (name) => name === 'simul_log'
-                ? {
-                    name,
-                    declarationKey: 'simul:simul_log',
-                    signatures: [{
-                        label: 'void simul_log(string message, mixed *rest...)',
-                        parameters: [
-                            { name: 'message', type: 'string' },
-                            { name: 'rest', type: 'mixed *', variadic: true }
-                        ],
-                        isVariadic: true
-                    }],
-                    sourceKind: 'simulEfun'
-                }
-                : undefined
-        }
+            analysisService,
+            pathSupport: pathSupport as any,
+            projectSymbolIndex,
+            efunDocsManager: {
+                getAllFunctions: () => ['write'],
+                getAllSimulatedFunctions: () => ['simul_log'],
+                getStandardCallableDoc: (name) => name === 'write'
+                    ? {
+                        name,
+                        declarationKey: 'efun:write',
+                        signatures: [{
+                            label: 'void write(string message)',
+                            parameters: [{ name: 'message', type: 'string' }],
+                            isVariadic: false
+                        }],
+                        sourceKind: 'efun'
+                    }
+                    : undefined,
+                getSimulatedDoc: (name) => name === 'simul_log'
+                    ? {
+                        name,
+                        declarationKey: 'simul:simul_log',
+                        signatures: [{
+                            label: 'void simul_log(string message, mixed *rest...)',
+                            parameters: [
+                                { name: 'message', type: 'string' },
+                                { name: 'rest', type: 'mixed *', variadic: true }
+                            ],
+                            isVariadic: true
+                        }],
+                        sourceKind: 'simulEfun'
+                    }
+                    : undefined
+            }
         }),
         pathSupport,
-        analysisService
+        analysisService,
+        projectSymbolIndex
     };
 }
 
@@ -488,8 +491,8 @@ describe('DefaultDiagnosticSymbolResolver', () => {
 
         const headerDocument = createDocument(headerPath, fs.readFileSync(headerPath, 'utf8'));
         const headerSnapshot = createSnapshot(headerDocument);
-        const { resolver, pathSupport, analysisService } = createResolver(new Map([[headerDocument.uri.toString(), headerSnapshot]]), tempRoot);
-        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService);
+        const { resolver, pathSupport, analysisService, projectSymbolIndex } = createResolver(new Map([[headerDocument.uri.toString(), headerSnapshot]]), tempRoot);
+        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService, projectSymbolIndex);
 
         const visible = await resolver.resolveVisibleSymbols(headerDocument, headerSnapshot);
 
@@ -517,8 +520,8 @@ describe('DefaultDiagnosticSymbolResolver', () => {
         const headerDocument = createDocument(headerPath, fs.readFileSync(headerPath, 'utf8'));
         const ownerDocument = createDocument(ownerPath, ownerText);
         const analysisService = DocumentSemanticSnapshotService.getInstance();
-        const { pathSupport } = createResolver(new Map(), tempRoot);
-        const service = new HeaderOwnerContextService(pathSupport as any, analysisService);
+        const { pathSupport, projectSymbolIndex } = createResolver(new Map(), tempRoot);
+        const service = new HeaderOwnerContextService(pathSupport as any, analysisService, projectSymbolIndex);
 
         const context = await service.resolveOwnerContext(headerDocument);
         const ownerSnapshot = analysisService.getBestAvailableSemanticSnapshot(ownerDocument);
@@ -543,8 +546,8 @@ describe('DefaultDiagnosticSymbolResolver', () => {
 
         const headerDocument = createDocument(headerPath, fs.readFileSync(headerPath, 'utf8'));
         const headerSnapshot = createSnapshot(headerDocument);
-        const { resolver, pathSupport, analysisService } = createResolver(new Map([[headerDocument.uri.toString(), headerSnapshot]]), tempRoot);
-        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService);
+        const { resolver, pathSupport, analysisService, projectSymbolIndex } = createResolver(new Map([[headerDocument.uri.toString(), headerSnapshot]]), tempRoot);
+        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService, projectSymbolIndex);
 
         const visible = await resolver.resolveVisibleSymbols(headerDocument, headerSnapshot);
 
@@ -567,8 +570,8 @@ describe('DefaultDiagnosticSymbolResolver', () => {
 
         const headerDocument = createDocument(headerPath, fs.readFileSync(headerPath, 'utf8'));
         const headerSnapshot = createSnapshot(headerDocument);
-        const { resolver, pathSupport, analysisService } = createResolver(new Map([[headerDocument.uri.toString(), headerSnapshot]]), tempRoot);
-        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService);
+        const { resolver, pathSupport, analysisService, projectSymbolIndex } = createResolver(new Map([[headerDocument.uri.toString(), headerSnapshot]]), tempRoot);
+        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService, projectSymbolIndex);
 
         const visible = await resolver.resolveVisibleSymbols(headerDocument, headerSnapshot);
 
@@ -606,8 +609,8 @@ describe('DefaultDiagnosticSymbolResolver', () => {
 
             const firstHeaderDocument = createDocument(firstHeaderPath, fs.readFileSync(firstHeaderPath, 'utf8'));
             const secondHeaderDocument = createDocument(secondHeaderPath, fs.readFileSync(secondHeaderPath, 'utf8'));
-            const { pathSupport, analysisService } = createResolver(new Map(), tempRoot);
-            const service = new HeaderOwnerContextService(pathSupport as any, analysisService);
+            const { pathSupport, analysisService, projectSymbolIndex } = createResolver(new Map(), tempRoot);
+            const service = new HeaderOwnerContextService(pathSupport as any, analysisService, projectSymbolIndex);
 
             const firstContext = await service.resolveOwnerContext(firstHeaderDocument);
             expect(firstContext.isAmbiguous).toBe(false);
@@ -664,8 +667,8 @@ describe('DefaultDiagnosticSymbolResolver', () => {
         const headerDocument = createDocument(headerPath, fs.readFileSync(headerPath, 'utf8'));
         const headerSnapshot = createSnapshot(headerDocument);
         const snapshots = new Map([[headerDocument.uri.toString(), headerSnapshot]]);
-        const { resolver, pathSupport, analysisService } = createResolver(snapshots, tempRoot);
-        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService);
+        const { resolver, pathSupport, analysisService, projectSymbolIndex } = createResolver(snapshots, tempRoot);
+        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService, projectSymbolIndex);
 
         const visible = await resolver.resolveVisibleSymbols(headerDocument, headerSnapshot);
 
@@ -691,8 +694,8 @@ describe('DefaultDiagnosticSymbolResolver', () => {
 
         const headerDocument = createDocument(headerPath, fs.readFileSync(headerPath, 'utf8'));
         const headerSnapshot = createSnapshot(headerDocument);
-        const { resolver, pathSupport, analysisService } = createResolver(new Map([[headerDocument.uri.toString(), headerSnapshot]]), tempRoot);
-        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService);
+        const { resolver, pathSupport, analysisService, projectSymbolIndex } = createResolver(new Map([[headerDocument.uri.toString(), headerSnapshot]]), tempRoot);
+        (resolver as any).options.headerOwnerContextResolver = new HeaderOwnerContextService(pathSupport as any, analysisService, projectSymbolIndex);
 
         const visible = await resolver.resolveVisibleSymbols(headerDocument, headerSnapshot);
 

@@ -23,7 +23,7 @@
 | ID | 状态 | 严重度 | 问题 | 证据 | 修复方向 |
 | --- | --- | --- | --- | --- | --- |
 | B01 | Done | P0 | Header owner prefix 分析可能污染真实 owner 语义缓存 | prefix document 已使用隔离 cache key，同时保留真实 `fsPath` 供 include 解析；新增真实 cache 回归测试 | 长期仍建议合入 semantic/project index，避免 owner service 自建上下文 |
-| B02 | In Progress | P1 | Header owner 在生产路径递归扫 `.c` 并重新推断 include | `HeaderOwnerContextService` 已改为通过 `WorkspaceDocumentPathSupport.findWorkspaceSourceFiles()` 使用 host 文件搜索，不再自建同步递归；仍会扫描候选 `.c` 并读 include | 长期把 owner/include 可见上下文移动到 semantic/project index 层，Provider 只查询索引 |
+| B02 | Done | P1 | Header owner 在生产路径递归扫 `.c` 并重新推断 include | owner 发现已拆到 `HeaderOwnerIndexService` 预热 `ProjectSymbolIndex` 反向 include owner 关系；`HeaderOwnerContextService` 只查询索引并基于唯一 owner prefix 生成上下文；focused header owner、装配与 spawned runtime 回归通过 | 后续新增 `.h` owner 能力继续通过 project index 查询，不在 Provider/Context 层自建 owner 扫描 |
 | B03 | Done | P1 | include / inherit 解析没有稳定使用 mudlib root | diagnostics、definition、hover、signature help 与函数文档 lookup 已携带 workspace projectConfig；include/inherit 缓存按 projectConfig 分区，新增导航与文档 lookup 回归测试 | 后续新增路径解析入口必须继续接收 request workspace context |
 | B04 | Done | P1 | LSP spawned runtime 存在 workspace config 双真源 | spawned runtime 装配已移除底层 `LpcProjectConfigService` fallback，document shim 携带 `WorkspaceSession` projectConfig；diagnostics、completion、hover、definition、signature help 均传递同一配置；focused spawned runtime 与语言能力回归通过 | 后续新增 LSP 主路径能力必须从 request workspace context 派生项目配置 |
 

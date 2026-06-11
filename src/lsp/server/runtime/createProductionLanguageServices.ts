@@ -141,7 +141,11 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         scopedCompletionSupport
     });
     const codeActionsService = createLanguageCodeActionService(analysisService);
-    const headerOwnerContextService = new HeaderOwnerContextService(documentPathSupport, analysisService);
+    const headerOwnerContextService = new HeaderOwnerContextService(
+        documentPathSupport,
+        analysisService,
+        projectSymbolIndex
+    );
     const diagnosticSymbolResolver = new DefaultDiagnosticSymbolResolver({
         analysisService,
         pathSupport: documentPathSupport,

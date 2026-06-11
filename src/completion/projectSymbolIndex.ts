@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import { getTypeLookupName } from '../ast/typeNormalization';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import {
@@ -10,6 +11,7 @@ import {
     ResolvedInheritTarget,
     TypeDefinitionSummary
 } from './types';
+import type { MacroDefinitionSummary } from '../semantic/documentSemanticTypes';
 import { InheritanceIndexView, InheritanceResolver } from './inheritanceResolver';
 
 type ProjectSemanticSnapshot = Pick<
@@ -22,6 +24,7 @@ type ProjectSemanticSnapshot = Pick<
     | 'fileGlobals'
     | 'inheritStatements'
     | 'includeStatements'
+    | 'macroDefinitions'
     | 'macroReferences'
     | 'createdAt'
 > & Pick<Partial<SemanticSnapshot>, 'degraded'>;
@@ -77,6 +80,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
                 };
             }),
             includeStatements: snapshot.includeStatements.map(statement => ({ ...statement })),
+            macroDefinitions: snapshot.macroDefinitions?.map(definition => cloneMacroDefinitionSummary(definition)),
             macroReferences: snapshot.macroReferences.map(reference => ({ ...reference })),
             updatedAt: snapshot.createdAt
         });
@@ -104,6 +108,23 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
     public getRecord(uri: string): FileSymbolRecord | undefined {
         const record = this.records.get(uri);
         return record ? cloneFileSymbolRecord(record) : undefined;
+    }
+
+    public getOwnersIncluding(includeUri: string): FileSymbolRecord[] {
+        const normalizedIncludeUri = normalizeUriKey(includeUri);
+        const owners: FileSymbolRecord[] = [];
+
+        for (const record of this.records.values()) {
+            if (
+                record.includeStatements.some((statement) =>
+                    statement.resolvedUri && normalizeUriKey(statement.resolvedUri) === normalizedIncludeUri
+                )
+            ) {
+                owners.push(cloneFileSymbolRecord(record));
+            }
+        }
+
+        return owners;
     }
 
     public getResolvedInheritTargets(uri: string): ResolvedInheritTarget[] {
@@ -265,6 +286,13 @@ function cloneFunctionSummary(summary: FunctionSummary): FunctionSummary {
     };
 }
 
+function cloneMacroDefinitionSummary(summary: MacroDefinitionSummary): MacroDefinitionSummary {
+    return {
+        ...summary,
+        parameters: summary.parameters ? [...summary.parameters] : undefined
+    };
+}
+
 function cloneFileSymbolRecord(record: FileSymbolRecord): FileSymbolRecord {
     return {
         ...record,
@@ -280,6 +308,16 @@ function cloneFileSymbolRecord(record: FileSymbolRecord): FileSymbolRecord {
         fileGlobals: record.fileGlobals.map(summary => cloneFileGlobalSummary(summary)),
         inheritStatements: record.inheritStatements.map(statement => ({ ...statement })),
         includeStatements: record.includeStatements.map(statement => ({ ...statement })),
+        macroDefinitions: record.macroDefinitions?.map(definition => cloneMacroDefinitionSummary(definition)),
         macroReferences: record.macroReferences.map(reference => ({ ...reference }))
     };
+}
+
+function normalizeUriKey(uri: string): string {
+    try {
+        const parsed = uri.includes('://') ? vscode.Uri.parse(uri) : vscode.Uri.file(uri);
+        return parsed.toString().toLowerCase();
+    } catch {
+        return uri.replace(/\\/g, '/').toLowerCase();
+    }
 }

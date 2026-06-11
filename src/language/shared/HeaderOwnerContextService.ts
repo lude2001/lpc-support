@@ -1,7 +1,8 @@
 import * as path from 'path';
-import * as fs from 'fs';
 import * as vscode from 'vscode';
+import type { ProjectSymbolIndex } from '../../completion/projectSymbolIndex';
 import type {
+    FileSymbolRecord,
     FileGlobalSummary,
     FunctionSummary,
     IncludeDirective,
@@ -10,7 +11,8 @@ import type {
 } from '../../semantic/documentSemanticTypes';
 import type { DocumentAnalysisService } from '../../semantic/documentAnalysisService';
 import type { SemanticSnapshot } from '../../semantic/semanticSnapshot';
-import { PreprocessorScanner } from '../../frontend/PreprocessorScanner';
+import { getDocumentWorkspaceProjectConfig } from './documentWorkspaceConfig';
+import { HeaderOwnerIndexService } from './HeaderOwnerIndexService';
 import type { WorkspaceDocumentPathSupport } from './WorkspaceDocumentPathSupport';
 
 export interface HeaderOwnerContext {
@@ -24,14 +26,17 @@ export interface HeaderOwnerContext {
 type HeaderOwnerAnalysisService = Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
 
 export class HeaderOwnerContextService {
-    private readonly scanner = new PreprocessorScanner();
-    private readonly ownerIndexByWorkspace = new Map<string, Map<string, string[]>>();
     private readonly disposables: vscode.Disposable[] = [];
+    private readonly ownerIndexService: HeaderOwnerIndexService;
 
     public constructor(
         private readonly pathSupport: WorkspaceDocumentPathSupport,
-        private readonly analysisService: HeaderOwnerAnalysisService
+        private readonly analysisService: HeaderOwnerAnalysisService,
+        private readonly projectSymbolIndex: ProjectSymbolIndex,
+        ownerIndexService?: HeaderOwnerIndexService
     ) {
+        this.ownerIndexService = ownerIndexService
+            ?? new HeaderOwnerIndexService(pathSupport, analysisService, projectSymbolIndex);
         this.registerInvalidationHooks();
     }
 
@@ -45,21 +50,22 @@ export class HeaderOwnerContextService {
             return emptyHeaderOwnerContext(true);
         }
 
-        const ownerIndex = await this.getOwnerIndex(workspaceRoot);
-        const ownerFiles = ownerIndex.get(normalizePath(document.uri.fsPath)) ?? [];
-        if (ownerFiles.length === 0) {
+        const projectConfig = getDocumentWorkspaceProjectConfig(document);
+        await this.ownerIndexService.warmOwnersForHeader(document, projectConfig);
+        const ownerRecords = this.projectSymbolIndex.getOwnersIncluding(document.uri.toString());
+        if (ownerRecords.length === 0) {
             return emptyHeaderOwnerContext(true);
         }
 
-        if (ownerFiles.length > 1) {
+        if (ownerRecords.length > 1) {
             return emptyHeaderOwnerContext(true);
         }
 
-        return this.collectOwnerContextBeforeInclude(ownerFiles[0], document, workspaceRoot);
+        return this.collectOwnerContextBeforeInclude(ownerRecords[0], document, workspaceRoot);
     }
 
     public clear(): void {
-        this.ownerIndexByWorkspace.clear();
+        this.ownerIndexService.clear();
     }
 
     public dispose(): void {
@@ -104,89 +110,32 @@ export class HeaderOwnerContextService {
             return;
         }
 
-        const workspaceRoot = this.findCachedWorkspaceRootForPath(filePath);
-        if (workspaceRoot) {
-            this.ownerIndexByWorkspace.delete(workspaceRoot);
-            return;
-        }
-
         this.clear();
     }
 
-    private findCachedWorkspaceRootForPath(filePath: string): string | undefined {
-        const normalizedFile = normalizePath(filePath);
-        return Array.from(this.ownerIndexByWorkspace.keys())
-            .find((workspaceRoot) => normalizedFile.startsWith(normalizePath(workspaceRoot)));
-    }
-
-    private async getOwnerIndex(workspaceRoot: string): Promise<Map<string, string[]>> {
-        const cached = this.ownerIndexByWorkspace.get(workspaceRoot);
-        if (cached) {
-            return cached;
-        }
-
-        const index = await this.buildOwnerIndex(workspaceRoot);
-        this.ownerIndexByWorkspace.set(workspaceRoot, index);
-        return index;
-    }
-
-    private async buildOwnerIndex(workspaceRoot: string): Promise<Map<string, string[]>> {
-        const index = new Map<string, string[]>();
-        for (const ownerFile of await this.pathSupport.findWorkspaceSourceFiles(workspaceRoot, '.c')) {
-            const text = safeReadFile(ownerFile);
-            if (text === undefined) {
-                continue;
-            }
-
-            const ownerDocument = createSyntheticDocument(ownerFile, text);
-            const scanned = this.scanner.scan(ownerDocument.uri.toString(), 1, text);
-            for (const include of scanned.includeReferences) {
-                const candidates = await this.pathSupport.resolveIncludeFilePaths(
-                    ownerDocument,
-                    include.value,
-                    include.isSystemInclude,
-                    workspaceRoot
-                );
-                const resolved = candidates.find((candidate) => this.pathSupport.fileExists(candidate));
-                if (!resolved || !isHeaderPath(resolved)) {
-                    continue;
-                }
-
-                const key = normalizePath(resolved);
-                const owners = index.get(key) ?? [];
-                if (!owners.some((owner) => normalizePath(owner) === normalizePath(ownerFile))) {
-                    owners.push(ownerFile);
-                }
-                index.set(key, owners);
-            }
-        }
-
-        return index;
-    }
-
     private async collectOwnerContextBeforeInclude(
-        ownerFile: string,
+        ownerRecord: FileSymbolRecord,
         headerDocument: vscode.TextDocument,
         workspaceRoot: string
     ): Promise<HeaderOwnerContext> {
-        const text = safeReadFile(ownerFile);
-        if (text === undefined) {
+        const ownerDocument = await this.pathSupport.tryOpenTextDocument(vscode.Uri.parse(ownerRecord.uri));
+        if (!ownerDocument) {
             return emptyHeaderOwnerContext(true);
         }
 
-        const ownerDocument = createSyntheticDocument(ownerFile, text);
-        const scanned = this.scanner.scan(ownerDocument.uri.toString(), 1, text);
-        const include = await this.findIncludeForHeader(ownerDocument, scanned.includeReferences, headerDocument, workspaceRoot);
+        const include = this.findIncludeForHeader(ownerRecord, headerDocument);
         if (!include) {
             return emptyHeaderOwnerContext(true);
         }
 
-        const prefixText = text.slice(0, include.startOffset);
+        const ownerText = ownerDocument.getText();
+        const includeStartOffset = offsetAt(ownerDocument, include.range.start, ownerText);
+        const prefixText = ownerText.slice(0, includeStartOffset);
         const prefixDocument = createSyntheticDocument(
-            ownerFile,
+            ownerDocument.uri.fsPath,
             prefixText,
-            1,
-            createOwnerPrefixCacheKey(ownerFile, include.startOffset)
+            ownerDocument.version,
+            createOwnerPrefixCacheKey(ownerDocument.uri.fsPath, includeStartOffset)
         );
         const prefixSemantic = this.getSemanticSnapshot(prefixDocument);
         if (!prefixSemantic || prefixSemantic.degraded) {
@@ -204,6 +153,7 @@ export class HeaderOwnerContextService {
             prefixDocument,
             prefixSemantic.includeStatements,
             workspaceRoot,
+            getDocumentWorkspaceProjectConfig(headerDocument),
             new Set<string>()
         );
 
@@ -216,33 +166,21 @@ export class HeaderOwnerContextService {
         return context;
     }
 
-    private async findIncludeForHeader(
-        ownerDocument: vscode.TextDocument,
-        includes: readonly { value: string; isSystemInclude: boolean; startOffset: number }[],
-        headerDocument: vscode.TextDocument,
-        workspaceRoot: string
-    ): Promise<{ startOffset: number } | undefined> {
-        const headerPath = normalizePath(headerDocument.uri.fsPath);
-        for (const include of includes) {
-            const candidates = await this.pathSupport.resolveIncludeFilePaths(
-                ownerDocument,
-                include.value,
-                include.isSystemInclude,
-                workspaceRoot
-            );
-            const resolved = candidates.find((candidate) => this.pathSupport.fileExists(candidate));
-            if (resolved && normalizePath(resolved) === headerPath) {
-                return include;
-            }
-        }
-
-        return undefined;
+    private findIncludeForHeader(
+        ownerRecord: FileSymbolRecord,
+        headerDocument: vscode.TextDocument
+    ): IncludeDirective | undefined {
+        const headerUri = normalizeUri(headerDocument.uri.toString());
+        return ownerRecord.includeStatements.find((includeStatement) =>
+            includeStatement.resolvedUri && normalizeUri(includeStatement.resolvedUri) === headerUri
+        );
     }
 
     private async collectIncludedSemanticContext(
         ownerDocument: vscode.TextDocument,
         includeStatements: readonly IncludeDirective[],
         workspaceRoot: string,
+        projectConfig: ReturnType<typeof getDocumentWorkspaceProjectConfig>,
         visited: Set<string>
     ): Promise<HeaderOwnerContext> {
         const context = emptyHeaderOwnerContext(false);
@@ -252,7 +190,8 @@ export class HeaderOwnerContextService {
                 ownerDocument,
                 includeStatement.value,
                 includeStatement.isSystemInclude,
-                workspaceRoot
+                workspaceRoot,
+                projectConfig
             );
             const includeFile = candidates.find((candidate) => this.pathSupport.fileExists(candidate));
             if (!includeFile) {
@@ -287,6 +226,7 @@ export class HeaderOwnerContextService {
                 includeDocument,
                 semantic.includeStatements,
                 workspaceRoot,
+                projectConfig,
                 visited
             );
             context.macros.push(...nestedContext.macros);
@@ -316,14 +256,6 @@ function emptyHeaderOwnerContext(isAmbiguous: boolean): HeaderOwnerContext {
         types: [],
         isAmbiguous
     };
-}
-
-function safeReadFile(filePath: string): string | undefined {
-    try {
-        return fs.readFileSync(filePath, 'utf8');
-    } catch {
-        return undefined;
-    }
 }
 
 function createSyntheticDocument(
@@ -385,4 +317,25 @@ function normalizePath(filePath: string): string {
         .replace(/\\/g, '/')
         .replace(/^\/+([a-z]:\/)/i, '$1')
         .toLowerCase();
+}
+
+function normalizeUri(uri: string): string {
+    return uri.toLowerCase();
+}
+
+function offsetAt(document: vscode.TextDocument, position: vscode.Position, text: string): number {
+    const documentWithOffsetAt = document as vscode.TextDocument & {
+        offsetAt?: (position: vscode.Position) => number;
+    };
+    if (typeof documentWithOffsetAt.offsetAt === 'function') {
+        return documentWithOffsetAt.offsetAt(position);
+    }
+
+    let offset = 0;
+    const lines = text.split(/\r?\n/);
+    for (let line = 0; line < position.line && line < lines.length; line += 1) {
+        offset += lines[line].length + 1;
+    }
+
+    return Math.min(offset + position.character, text.length);
 }

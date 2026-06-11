@@ -9,7 +9,7 @@
 - 修复 header owner 前缀分析复用真实 owner URI 污染语义缓存的问题，避免后台刷新后 `.h`/owner `.c` 语义快照互相覆盖。
 - LSP 诊断请求现在会携带 workspace project config，include / inherit 递归解析可使用 config.hell 的 mudlib root 与 include dirs。
 - LSP spawned runtime 现在以 `WorkspaceSession` 同步的 project config 作为 simulated efun 与 `this_player` 等运行期能力的单一配置来源，避免后台刷新或多文件打开后重新出现模拟函数未定义误报。
-- header owner 文件发现改为通过 workspace host 文件搜索边界执行，避免诊断路径自行同步递归扫描工作区。
+- header owner 文件发现改为通过 `ProjectSymbolIndex` 的反向 include owner 关系查询，避免上下文服务自行维护 `.c` owner 扫描索引，并保持 owner 文件变更后的 `.h` 语境刷新。
 - frontend include 解析会使用 `lpc-support.json` / `config.hell` 中的 include dirs 作为显式 `#include` 搜索路径，但不会再把 include dirs 下所有 header 宏当作全局宏。
 - 基础语义诊断会优先使用本轮递归解析到的 fresh dependency symbols，并允许 same-version 依赖快照刷新覆盖旧索引记录。
 - 宏引用只在当前 range 被视为已知宏名；`#undef` 后同名普通标识符不再被旧 macro reference 静默放行。
