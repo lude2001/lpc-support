@@ -33,11 +33,18 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
         }
 
         const targets: ResolvedCallableTarget[] = [];
-        const currentFileDoc = await this.efunDocsManager.getCurrentFileDocForDocument(request.document, request.calleeName);
+        const currentFileDoc = await this.efunDocsManager.getCurrentFileDocForDocument(
+            request.document,
+            request.calleeName,
+            { projectConfig: request.projectConfig }
+        );
         const inheritedDoc = await this.efunDocsManager.getInheritedFileDocForDocument(
             request.document,
             request.calleeName,
-            { forceFresh: true }
+            {
+                forceFresh: true,
+                projectConfig: request.projectConfig
+            }
         );
 
         const localTarget = toSourceBackedTarget(currentFileDoc, request.calleeName, 'local', 'current-file', 1);
@@ -63,7 +70,10 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
         const includeDoc = await this.efunDocsManager.getIncludedFileDoc(
             request.document,
             request.calleeName,
-            { forceFresh: true }
+            {
+                forceFresh: true,
+                projectConfig: request.projectConfig
+            }
         );
         const target = toSourceBackedTarget(includeDoc, request.calleeName, 'include', 'include', 3);
         return target ? [target] : [];
@@ -98,7 +108,10 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
                 request.document,
                 candidate.path,
                 request.calleeName,
-                { useFreshSnapshots: true }
+                {
+                    useFreshSnapshots: true,
+                    projectConfig: request.projectConfig
+                }
             );
             if (!resolvedMethod) {
                 continue;

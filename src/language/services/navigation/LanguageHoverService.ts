@@ -174,7 +174,7 @@ export class VsCodeHoverMethodResolver implements HoverMethodResolver {
     public constructor(private readonly targetMethodLookup: TargetMethodLookup) {}
 
     public async findMethod(
-        _context: LanguageCapabilityContext,
+        context: LanguageCapabilityContext,
         document: HoverDocument,
         targetPath: string,
         methodName: string
@@ -182,7 +182,8 @@ export class VsCodeHoverMethodResolver implements HoverMethodResolver {
         const resolvedMethod = await this.targetMethodLookup.findMethod(
             ensureVsCodeBackedDocument(document),
             targetPath,
-            methodName
+            methodName,
+            { projectConfig: context.workspace.projectConfig }
         );
         if (!resolvedMethod) {
             return undefined;

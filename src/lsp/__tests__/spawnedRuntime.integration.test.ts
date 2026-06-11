@@ -314,7 +314,7 @@ describe('spawned LSP runtime integration', () => {
         ].join('\n'));
     }, 30000);
 
-    test('resolves macro definitions from workspace include directories after runtime startup', async () => {
+    test('resolves explicitly included macro definitions through workspace include directories after runtime startup', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-macro-definition-'));
         const includeDir = path.join(workspaceRoot, 'include');
         const headerPath = path.join(includeDir, 'defs.h');
@@ -335,7 +335,7 @@ describe('spawned LSP runtime integration', () => {
             'utf8'
         );
         fs.writeFileSync(headerPath, '#define USER_D "/adm/obj/user"\n', 'utf8');
-        fs.writeFileSync(sourcePath, 'void demo() { USER_D->query_name(); }\n', 'utf8');
+        fs.writeFileSync(sourcePath, '#include <defs.h>\nvoid demo() { USER_D->query_name(); }\n', 'utf8');
 
         harness = await SpawnedServerHarness.start(workspaceRoot);
         await harness.openDocument(sourcePath, fs.readFileSync(sourcePath, 'utf8'));
@@ -345,7 +345,7 @@ describe('spawned LSP runtime integration', () => {
                 uri: uriFromPath(sourcePath)
             },
             position: {
-                line: 0,
+                line: 1,
                 character: 14
             }
         });

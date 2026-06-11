@@ -27,6 +27,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout FluffOS
+        uses: actions/checkout@v4
+        with:
+          repository: fluffos/fluffos
+          path: fluffos
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -47,6 +53,9 @@ jobs:
 
       - name: Run tests
         run: npm test -- --runInBand
+
+      - name: Audit efun arity docs
+        run: npm run audit:efun-arity:strict -- --fluffos-root "${{ github.workspace }}\\fluffos"
 
       - name: Package extension
         run: npm run package

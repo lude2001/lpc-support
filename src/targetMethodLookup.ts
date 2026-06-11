@@ -5,6 +5,7 @@ import {
     WorkspaceDocumentPathSupport,
     assertDocumentPathSupport
 } from './language/shared/WorkspaceDocumentPathSupport';
+import type { LanguageWorkspaceProjectConfig } from './language/contracts/LanguageWorkspaceContext';
 import type { DocumentAnalysisService } from './semantic/documentAnalysisService';
 import { SemanticSnapshot } from './semantic/semanticSnapshot';
 
@@ -17,6 +18,7 @@ export interface ResolvedTargetMethod {
 
 export interface TargetMethodLookupOptions {
     useFreshSnapshots?: boolean;
+    projectConfig?: LanguageWorkspaceProjectConfig;
 }
 
 interface ResolvedFunctionRange {
@@ -55,7 +57,12 @@ export class TargetMethodLookup {
         options?: TargetMethodLookupOptions
     ): Promise<ResolvedTargetMethod | undefined> {
         const workspaceRoot = this.pathSupport.getWorkspaceFolderRoot(currentDocument);
-        const resolvedTargetPath = this.pathSupport.resolveWorkspaceFilePath(currentDocument, targetFilePath, workspaceRoot);
+        const resolvedTargetPath = this.pathSupport.resolveWorkspaceFilePath(
+            currentDocument,
+            targetFilePath,
+            workspaceRoot,
+            options?.projectConfig
+        );
         if (!resolvedTargetPath || visitedFiles.has(resolvedTargetPath)) {
             return undefined;
         }
@@ -102,7 +109,12 @@ export class TargetMethodLookup {
             options?.useFreshSnapshots === true ? false : true
         ).inheritStatements) {
             const workspaceRoot = this.pathSupport.getWorkspaceFolderRoot(targetDocument);
-            const inheritedFile = this.pathSupport.resolveInheritedFilePath(targetDocument, inheritStatement.value, workspaceRoot);
+            const inheritedFile = this.pathSupport.resolveInheritedFilePath(
+                targetDocument,
+                inheritStatement.value,
+                workspaceRoot,
+                options?.projectConfig
+            );
             if (!inheritedFile || !this.pathSupport.fileExists(inheritedFile) || visitedFiles.has(inheritedFile)) {
                 continue;
             }
@@ -135,7 +147,8 @@ export class TargetMethodLookup {
                 document,
                 includeStatement.value,
                 includeStatement.isSystemInclude,
-                this.pathSupport.getWorkspaceFolderRoot(document)
+                this.pathSupport.getWorkspaceFolderRoot(document),
+                options?.projectConfig
             );
 
             for (const includeFile of includeFiles) {

@@ -1035,7 +1035,7 @@ describe('language-service integration regression', () => {
         expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
         expect(definition[0].range.start.line).toBe(0);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name');
+        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', { projectConfig: undefined });
     });
 
     test('definition resolves inherited file-scope global object receivers to the current-file target', async () => {
@@ -1087,7 +1087,7 @@ describe('language-service integration regression', () => {
         expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
         expect(definition[0].range.start.line).toBe(0);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name');
+        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', { projectConfig: undefined });
     });
 
     test('definition resolves local receivers initialized from new(CLASSIFY_POP) through frontend macro object inference', async () => {
@@ -1128,7 +1128,7 @@ describe('language-service integration regression', () => {
         expect(definition).toHaveLength(1);
         expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'add_data_button');
+        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'add_data_button', { projectConfig: undefined });
     });
 
     test('semantic evaluation model_get feeds downstream object-method definition', async () => {
@@ -1200,7 +1200,7 @@ describe('language-service integration regression', () => {
         expect(definition).toHaveLength(1);
         expect(normalizeLocationUri(definition[0].uri)).toBe(loginModelFile);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, loginModelFile, 'error_result');
+        expect(findMethod).toHaveBeenCalledWith(document, loginModelFile, 'error_result', { projectConfig: undefined });
     });
 
     test('semantic evaluation model_get resolves macro receivers before return-objects fallback', async () => {
@@ -1280,8 +1280,8 @@ describe('language-service integration regression', () => {
 
         expect(definition).toHaveLength(1);
         expect(normalizeLocationUri(definition[0].uri)).toBe(navigationModelFile);
-        expect(findMethod).toHaveBeenCalledWith(document, navigationModelFile, 'create_action');
-        expect(findMethod).not.toHaveBeenCalledWith(document, equipModelFile, 'create_action');
+        expect(findMethod).toHaveBeenCalledWith(document, navigationModelFile, 'create_action', { projectConfig: undefined });
+        expect(findMethod).not.toHaveBeenCalledWith(document, equipModelFile, 'create_action', { projectConfig: undefined });
     });
 
     test('merged candidates from if/else return two locations when each file implements query_name', async () => {

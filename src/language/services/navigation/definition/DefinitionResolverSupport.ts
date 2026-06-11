@@ -32,7 +32,7 @@ export class DefinitionResolverSupport {
                     }
                 }
             } else {
-                this.includeFileCache.delete(filePath);
+                this.deleteIncludeCacheEntries(filePath);
             }
         });
     }
@@ -164,16 +164,26 @@ export class DefinitionResolverSupport {
         return this.pathSupport.resolveIncludeFilePath(document, includePath, isSystemInclude, workspaceRoot, projectConfig);
     }
 
-    public resolveInheritedFilePath(document: vscode.TextDocument, inheritValue: string): string | undefined {
-        return this.pathSupport.resolveInheritedFilePath(document, inheritValue, this.getWorkspaceRoot(document));
+    public resolveInheritedFilePath(
+        document: vscode.TextDocument,
+        inheritValue: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): string | undefined {
+        return this.pathSupport.resolveInheritedFilePath(
+            document,
+            inheritValue,
+            this.getWorkspaceRoot(document),
+            projectConfig
+        );
     }
 
     public async openInheritedDocument(
         document: vscode.TextDocument,
         inheritValue: string,
-        requestState: DefinitionRequestState
+        requestState: DefinitionRequestState,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.TextDocument | undefined> {
-        const inheritedFile = this.resolveInheritedFilePath(document, inheritValue);
+        const inheritedFile = this.resolveInheritedFilePath(document, inheritValue, projectConfig);
         if (!inheritedFile || !this.context.host.fileExists(inheritedFile) || requestState.processedFiles.has(inheritedFile)) {
             return undefined;
         }
@@ -240,7 +250,7 @@ export class DefinitionResolverSupport {
         filePath: string,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string[]> {
-        const cacheKey = this.normalizeCachePath(filePath);
+        const cacheKey = this.getIncludeCacheKey(filePath, projectConfig);
         if (this.includeFileCache.has(cacheKey)) {
             return this.includeFileCache.get(cacheKey)!;
         }
@@ -293,5 +303,31 @@ export class DefinitionResolverSupport {
 
     private normalizeCachePath(filePath: string): string {
         return normalizeNavigationFsPath(filePath);
+    }
+
+    private getIncludeCacheKey(filePath: string, projectConfig?: LanguageWorkspaceProjectConfig): string {
+        return `${this.normalizeCachePath(filePath)}::${this.getProjectConfigCacheKey(projectConfig)}`;
+    }
+
+    private getProjectConfigCacheKey(projectConfig?: LanguageWorkspaceProjectConfig): string {
+        const resolvedConfig = projectConfig?.resolvedConfig;
+        if (!resolvedConfig) {
+            return 'default';
+        }
+
+        return JSON.stringify({
+            configHellPath: projectConfig?.configHellPath,
+            mudlibDirectory: resolvedConfig.mudlibDirectory,
+            includeDirectories: resolvedConfig.includeDirectories ?? [],
+            simulatedEfunFile: resolvedConfig.simulatedEfunFile
+        });
+    }
+
+    private deleteIncludeCacheEntries(normalizedFilePath: string): void {
+        for (const key of this.includeFileCache.keys()) {
+            if (key === normalizedFilePath || key.startsWith(`${normalizedFilePath}::`)) {
+                this.includeFileCache.delete(key);
+            }
+        }
     }
 }

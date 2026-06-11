@@ -63,7 +63,8 @@ export class DirectSymbolDefinitionResolver {
             word,
             document,
             position,
-            requestState ?? this.dependencies.support.createRequestState()
+            requestState ?? this.dependencies.support.createRequestState(),
+            projectConfig
         );
         if (variableDefinition) {
             return variableDefinition;
@@ -237,7 +238,11 @@ export class DirectSymbolDefinitionResolver {
             }
 
             for (const inheritStatement of this.dependencies.support.findInherits(document)) {
-                const inheritedFile = this.dependencies.support.resolveInheritedFilePath(document, inheritStatement);
+                const inheritedFile = this.dependencies.support.resolveInheritedFilePath(
+                    document,
+                    inheritStatement,
+                    projectConfig
+                );
                 if (!inheritedFile || !this.dependencies.support.fileExists(inheritedFile)) {
                     continue;
                 }
@@ -256,7 +261,8 @@ export class DirectSymbolDefinitionResolver {
         variableName: string,
         document: vscode.TextDocument,
         position: vscode.Position,
-        requestState: DefinitionRequestState
+        requestState: DefinitionRequestState,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.Location | undefined> {
         const adaptedVisibleLocation = this.dependencies.semanticAdapter?.resolveVisibleVariableLocation?.(document, variableName, position);
         if (adaptedVisibleLocation) {
@@ -269,7 +275,7 @@ export class DirectSymbolDefinitionResolver {
             return this.dependencies.support.toSymbolLocation(document.uri, visibleSymbol);
         }
 
-        return this.findInheritedVariableDefinition(document, variableName, requestState);
+        return this.findInheritedVariableDefinition(document, variableName, requestState, projectConfig);
     }
 
     private async findExplicitTypeMemberDefinition(
@@ -387,7 +393,8 @@ export class DirectSymbolDefinitionResolver {
             const inheritedDocument = await this.dependencies.support.openInheritedDocument(
                 document,
                 inheritStatement.value,
-                this.dependencies.support.createRequestState()
+                this.dependencies.support.createRequestState(),
+                projectConfig
             );
             if (inheritedDocument) {
                 definitions.push(...await this.collectVisibleTypeDefinitions(inheritedDocument, projectConfig, visited));
@@ -442,11 +449,17 @@ export class DirectSymbolDefinitionResolver {
     private async findInheritedVariableDefinition(
         document: vscode.TextDocument,
         variableName: string,
-        requestState: DefinitionRequestState
+        requestState: DefinitionRequestState,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.Location | undefined> {
         const snapshot = this.dependencies.support.getSemanticSnapshot(document);
         for (const inheritStatement of snapshot.inheritStatements) {
-            const inheritedDoc = await this.dependencies.support.openInheritedDocument(document, inheritStatement.value, requestState);
+            const inheritedDoc = await this.dependencies.support.openInheritedDocument(
+                document,
+                inheritStatement.value,
+                requestState,
+                projectConfig
+            );
             if (!inheritedDoc) {
                 continue;
             }
@@ -460,7 +473,12 @@ export class DirectSymbolDefinitionResolver {
                 return this.dependencies.support.toSymbolLocation(inheritedDoc.uri, inheritedSymbol);
             }
 
-            const nestedInheritedVarDef = await this.findInheritedVariableDefinition(inheritedDoc, variableName, requestState);
+            const nestedInheritedVarDef = await this.findInheritedVariableDefinition(
+                inheritedDoc,
+                variableName,
+                requestState,
+                projectConfig
+            );
             if (nestedInheritedVarDef) {
                 return nestedInheritedVarDef;
             }

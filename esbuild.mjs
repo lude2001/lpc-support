@@ -33,7 +33,7 @@ const sharedOptions = {
   platform: 'node',
   target: 'node16',
   format: 'cjs',
-  sourcemap: process.env.NODE_ENV === 'development' ? true : 'external',
+  sourcemap: process.env.NODE_ENV === 'development',
   minify: process.env.NODE_ENV === 'production',
   treeShaking: true,
   loader: {

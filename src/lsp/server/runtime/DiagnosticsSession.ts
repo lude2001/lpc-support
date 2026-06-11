@@ -1,5 +1,6 @@
 import type { LanguageDiagnostic, LanguageDiagnosticsService } from '../../../language/services/diagnostics/LanguageDiagnosticsService';
 import type { LanguageDiagnosticsRequest } from '../../../language/services/diagnostics/LanguageDiagnosticsService';
+import { shouldRunProjectDiagnostics } from '../../../diagnostics/diagnosticsEnablePolicy';
 import { DocumentStore } from './DocumentStore';
 import { ServerLanguageContextFactory } from './ServerLanguageContextFactory';
 import { WorkspaceSession } from './WorkspaceSession';
@@ -28,9 +29,12 @@ export class DiagnosticsSession {
             return this.clear(uri);
         }
 
-        const diagnostics = await this.options.diagnosticsService.collectDiagnostics(
-            this.createRequest(storedDocument)
-        );
+        const request = this.createRequest(storedDocument);
+        if (!shouldRunProjectDiagnostics(request.context.workspace)) {
+            return this.clear(uri);
+        }
+
+        const diagnostics = await this.options.diagnosticsService.collectDiagnostics(request);
 
         this.latestDiagnostics.set(uri, diagnostics);
         this.options.publishDiagnostics(uri, diagnostics);

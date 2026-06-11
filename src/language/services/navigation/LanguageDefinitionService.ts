@@ -142,7 +142,12 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
             return this.toLanguageLocations(scopedDefinition);
         }
 
-        const objectMethodDefinition = await this.objectMethodDefinitionResolver.resolve(document, position, word);
+        const objectMethodDefinition = await this.objectMethodDefinitionResolver.resolve(
+            document,
+            position,
+            word,
+            projectConfig
+        );
         if (objectMethodDefinition) {
             return this.toLanguageLocations(objectMethodDefinition);
         }
@@ -160,7 +165,7 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         }
 
         return this.toLanguageLocations(
-            await this.functionFamilyDefinitionResolver.resolve(document, word, this.createRequestState())
+            await this.functionFamilyDefinitionResolver.resolve(document, word, this.createRequestState(), projectConfig)
         );
     }
 

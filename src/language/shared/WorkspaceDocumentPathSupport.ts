@@ -142,7 +142,8 @@ export class WorkspaceDocumentPathSupport {
     public resolveWorkspaceFilePath(
         document: vscode.TextDocument,
         filePath: string,
-        workspaceRoot: string | undefined
+        workspaceRoot: string | undefined,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): string | undefined {
         if (path.isAbsolute(filePath)) {
             return filePath;
@@ -153,7 +154,9 @@ export class WorkspaceDocumentPathSupport {
         }
 
         const relativePath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
-        return path.join(workspaceRoot, relativePath);
+        return filePath.startsWith('/')
+            ? this.resolveProjectPath(workspaceRoot, filePath, projectConfig)
+            : path.join(workspaceRoot, relativePath);
     }
 
     public resolveInheritedFilePath(

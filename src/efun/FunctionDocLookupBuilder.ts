@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import type { CallableSourceKind, DocumentCallableDocs } from '../language/documentation/types';
+import type { LanguageWorkspaceProjectConfig } from '../language/contracts/LanguageWorkspaceContext';
 import {
     WorkspaceDocumentPathSupport,
     assertDocumentPathSupport
@@ -18,6 +19,11 @@ export interface FunctionDocLookupBuilderOptions {
     pathSupport?: WorkspaceDocumentPathSupport;
 }
 
+export interface FunctionDocLookupBuildOptions {
+    forceFresh?: boolean;
+    projectConfig?: LanguageWorkspaceProjectConfig;
+}
+
 export class FunctionDocLookupBuilder {
     private readonly documentationService: FunctionDocumentationService;
     private readonly analysisService: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
@@ -31,7 +37,7 @@ export class FunctionDocLookupBuilder {
 
     public async buildLookup(
         document: vscode.TextDocument,
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<RawFunctionDocLookup> {
         const snapshot = this.analysisService.getSemanticSnapshot(document, false);
         const inheritedFiles = snapshot.inheritStatements.map((statement) => statement.value);
@@ -48,7 +54,7 @@ export class FunctionDocLookupBuilder {
         document: vscode.TextDocument,
         source: string,
         sourceKind: CallableSourceKind,
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): RawFunctionDocSource {
         if (options?.forceFresh) {
             this.documentationService.invalidate(document.uri.toString());
@@ -65,7 +71,7 @@ export class FunctionDocLookupBuilder {
     private async loadInheritedFileDocs(
         document: vscode.TextDocument,
         inheritedFiles: readonly string[],
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<RawFunctionDocSource[]> {
         const inheritedSources: RawFunctionDocSource[] = [];
         if (!inheritedFiles.length) {
@@ -75,7 +81,12 @@ export class FunctionDocLookupBuilder {
         const workspaceRoot = this.pathSupport.getWorkspaceRoot(document);
 
         for (const inheritPath of inheritedFiles) {
-            const resolvedPath = this.pathSupport.resolveInheritedFilePath(document, inheritPath, workspaceRoot);
+            const resolvedPath = this.pathSupport.resolveInheritedFilePath(
+                document,
+                inheritPath,
+                workspaceRoot,
+                options?.projectConfig
+            );
             if (!resolvedPath) {
                 continue;
             }
@@ -116,10 +127,10 @@ export class FunctionDocLookupBuilder {
     private async loadIncludeFileDocs(
         document: vscode.TextDocument,
         includeStatements: readonly IncludeDirective[],
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<RawFunctionDocSource[]> {
         const includeSources: RawFunctionDocSource[] = [];
-        const includeFiles = await this.getIncludeFiles(document, includeStatements);
+        const includeFiles = await this.getIncludeFiles(document, includeStatements, options?.projectConfig);
 
         for (const includeFile of includeFiles) {
             if (!includeFile.endsWith('.h') && !includeFile.endsWith('.c')) {
@@ -146,7 +157,8 @@ export class FunctionDocLookupBuilder {
 
     private async getIncludeFiles(
         document: vscode.TextDocument,
-        includeStatements: readonly IncludeDirective[]
+        includeStatements: readonly IncludeDirective[],
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string[]> {
         const includeFiles: string[] = [];
         const workspaceRoot = this.pathSupport.getWorkspaceRoot(document);
@@ -157,7 +169,8 @@ export class FunctionDocLookupBuilder {
                 document,
                 includePath,
                 includeStatement.isSystemInclude,
-                workspaceRoot
+                workspaceRoot,
+                projectConfig
             );
 
             const fallbackPaths = !path.extname(includePath)

@@ -241,4 +241,55 @@ describe('FunctionDocLookupBuilder', () => {
 
         fs.rmSync(tempRoot, { recursive: true, force: true });
     });
+
+    test('absolute inherits honor workspace project config mudlib directory', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-doc-workspace-'));
+        const mudlibRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-doc-mudlib-'));
+        const mainFile = path.join(workspaceRoot, 'cmds', 'main.c');
+        const inheritedFile = path.join(mudlibRoot, 'std', 'base.c');
+
+        fs.mkdirSync(path.dirname(mainFile), { recursive: true });
+        fs.mkdirSync(path.dirname(inheritedFile), { recursive: true });
+        fs.writeFileSync(
+            inheritedFile,
+            [
+                '/**',
+                ' * @brief mudlib inherited helper',
+                ' */',
+                'int helper_mudlib();'
+            ].join('\n')
+        );
+
+        (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({ uri: { fsPath: workspaceRoot } });
+
+        const builder = new FunctionDocLookupBuilder({
+            documentationService: createDefaultFunctionDocumentationService(),
+            analysisService: DocumentSemanticSnapshotService.getInstance(),
+            pathSupport: new WorkspaceDocumentPathSupport({
+                host: createVsCodeTextDocumentHost(),
+                analysisService: DocumentSemanticSnapshotService.getInstance()
+            }),
+        });
+        const document = createTextDocument(mainFile, 'inherit "/std/base";\n');
+
+        const lookup = await builder.buildLookup(document, {
+            projectConfig: {
+                projectConfigPath: path.join(workspaceRoot, 'lpc-support.json'),
+                resolvedConfig: {
+                    mudlibDirectory: mudlibRoot
+                }
+            }
+        });
+        const doc = getDocByName(lookup.inheritedGroups[0].docs, 'helper_mudlib');
+
+        expect(lookup.inheritedGroups[0].sourceKind).toBe('inherit');
+        expect(lookup.inheritedGroups[0].filePath).toBe(inheritedFile);
+        expect(doc).toMatchObject({
+            name: 'helper_mudlib',
+            summary: 'mudlib inherited helper'
+        });
+
+        fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        fs.rmSync(mudlibRoot, { recursive: true, force: true });
+    });
 });

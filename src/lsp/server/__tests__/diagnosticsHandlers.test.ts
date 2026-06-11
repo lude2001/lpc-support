@@ -88,6 +88,38 @@ describe('diagnostics session and handlers', () => {
         expect(publishDiagnostics).toHaveBeenCalledWith('file:///D:/workspace/diagnostics.c', expectedDiagnostics);
     });
 
+    test('DiagnosticsSession.refresh skips documents outside configured LPC projects', async () => {
+        const publishDiagnostics = jest.fn();
+        const documentStore = new DocumentStore();
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace-without-config']
+        });
+        const diagnosticsService = {
+            collectDiagnostics: jest.fn(async () => [{
+                range: {
+                    start: { line: 0, character: 0 },
+                    end: { line: 0, character: 1 }
+                },
+                severity: 'warning' as const,
+                message: 'should not run'
+            }])
+        };
+        documentStore.open('file:///D:/workspace-without-config/diagnostics.c', 1, 'void demo() {}');
+
+        const { DiagnosticsSession } = require('../runtime/DiagnosticsSession') as typeof import('../runtime/DiagnosticsSession');
+        const diagnosticsSession = new DiagnosticsSession({
+            documentStore,
+            workspaceSession,
+            diagnosticsService,
+            publishDiagnostics
+        });
+
+        await diagnosticsSession.refresh('file:///D:/workspace-without-config/diagnostics.c');
+
+        expect(diagnosticsService.collectDiagnostics).not.toHaveBeenCalled();
+        expect(publishDiagnostics).toHaveBeenCalledWith('file:///D:/workspace-without-config/diagnostics.c', []);
+    });
+
     test('registerCapabilities wires diagnostics publication through document lifecycle events', async () => {
         const openHandlers: Array<(params: DidOpenTextDocumentParams) => void> = [];
         const changeHandlers: Array<(params: DidChangeTextDocumentParams) => void> = [];

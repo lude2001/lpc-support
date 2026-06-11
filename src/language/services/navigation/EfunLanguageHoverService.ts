@@ -3,6 +3,7 @@ import type { EfunDocsManager } from '../../../efunDocs';
 import { assertAnalysisService } from '../../../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../../../semantic/documentAnalysisService';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
+import type { LanguageWorkspaceProjectConfig } from '../../contracts/LanguageWorkspaceContext';
 import { SyntaxKind, type SyntaxDocument, type SyntaxNode } from '../../../syntax/types';
 import type { LanguageHoverRequest, LanguageHoverResult, LanguageHoverService } from './LanguageHoverService';
 import {
@@ -32,14 +33,20 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         }
 
         const word = document.getText(wordRange);
-        const hoverMarkdown = await this.resolveHoverMarkdown(document, position, word);
+        const hoverMarkdown = await this.resolveHoverMarkdown(
+            document,
+            position,
+            word,
+            request.context.workspace.projectConfig
+        );
         return hoverMarkdown ? createHoverResult(wordRange, hoverMarkdown) : undefined;
     }
 
     private async resolveHoverMarkdown(
         document: vscode.TextDocument,
         position: vscode.Position,
-        word: string
+        word: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<string | undefined> {
         if (this.isScopedMethodAccess(document, position, word)) {
             return undefined;
@@ -60,7 +67,7 @@ export class EfunLanguageHoverService implements LanguageHoverService {
             return undefined;
         }
 
-        const currentDoc = await this.efunDocsManager.getCurrentFileDocForDocument(document, word);
+        const currentDoc = await this.efunDocsManager.getCurrentFileDocForDocument(document, word, { projectConfig });
         if (currentDoc) {
             return this.renderer.renderHover({ ...currentDoc, sourceKind: 'local' });
         }
@@ -68,13 +75,13 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         const inheritedDoc = await this.efunDocsManager.getInheritedFileDocForDocument(
             document,
             word,
-            { forceFresh: true }
+            { forceFresh: true, projectConfig }
         );
         if (inheritedDoc) {
             return this.renderer.renderHover({ ...inheritedDoc, sourceKind: 'inherit' });
         }
 
-        const includeDoc = await this.efunDocsManager.getIncludedFileDoc(document, word);
+        const includeDoc = await this.efunDocsManager.getIncludedFileDoc(document, word, { projectConfig });
         if (includeDoc) {
             return this.renderer.renderHover({ ...includeDoc, sourceKind: 'include' });
         }

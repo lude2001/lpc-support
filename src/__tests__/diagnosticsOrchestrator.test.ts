@@ -289,11 +289,14 @@ describe('DiagnosticsOrchestrator', () => {
         await (orchestrator as any).collectDiagnostics(createDocument('int demo() { return 1; }'));
 
         expect(collectSpy).toHaveBeenCalledTimes(1);
-        expect(collectSpy.mock.calls[0][2]).toEqual({
+        expect(collectSpy.mock.calls[0][2]).toEqual(expect.objectContaining({
             parsed: expect.any(Object),
             syntax: syntaxDocument,
-            semantic: semanticSnapshot
-        });
+            semantic: semanticSnapshot,
+            workspace: expect.objectContaining({
+                workspaceRoot: '/workspace/project'
+            })
+        }));
     });
 
     test('preserves async batching and yield scheduling when analyzeDocumentAsync uses enableAsyncDiagnostics', async () => {

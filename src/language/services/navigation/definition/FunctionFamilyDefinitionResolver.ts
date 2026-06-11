@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { LanguageWorkspaceProjectConfig } from '../../../contracts/LanguageWorkspaceContext';
 import { DefinitionResolverSupport } from './DefinitionResolverSupport';
 import type { DefinitionRequestState, DefinitionSemanticAdapter } from './types';
 
@@ -23,16 +24,17 @@ export class FunctionFamilyDefinitionResolver {
     public async resolve(
         document: vscode.TextDocument,
         word: string,
-        requestState: DefinitionRequestState
+        requestState: DefinitionRequestState,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.Location | undefined> {
         await this.findFunctionDefinitions(document, requestState);
 
         if (!requestState.functionDefinitions.has(word)) {
-            await this.findInheritedFunctionDefinitions(document, requestState);
+            await this.findInheritedFunctionDefinitions(document, requestState, projectConfig);
         }
 
         if (!requestState.functionDefinitions.has(word)) {
-            const includeLocation = await this.findFunctionInCurrentFileIncludes(document, word);
+            const includeLocation = await this.findFunctionInCurrentFileIncludes(document, word, projectConfig);
             if (includeLocation) {
                 return includeLocation;
             }
@@ -67,26 +69,33 @@ export class FunctionFamilyDefinitionResolver {
 
     private async findInheritedFunctionDefinitions(
         document: vscode.TextDocument,
-        requestState: DefinitionRequestState
+        requestState: DefinitionRequestState,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<void> {
         const inherits = this.dependencies.support.findInherits(document);
 
         for (const inheritValue of inherits) {
-            const inheritedDocument = await this.dependencies.support.openInheritedDocument(document, inheritValue, requestState);
+            const inheritedDocument = await this.dependencies.support.openInheritedDocument(
+                document,
+                inheritValue,
+                requestState,
+                projectConfig
+            );
             if (!inheritedDocument) {
                 continue;
             }
 
             await this.findFunctionDefinitions(inheritedDocument, requestState);
-            await this.findInheritedFunctionDefinitions(inheritedDocument, requestState);
+            await this.findInheritedFunctionDefinitions(inheritedDocument, requestState, projectConfig);
         }
     }
 
     private async findFunctionInCurrentFileIncludes(
         document: vscode.TextDocument,
-        functionName: string
+        functionName: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.Location | undefined> {
-        const includeFiles = await this.dependencies.support.getIncludeFiles(document.uri.fsPath);
+        const includeFiles = await this.dependencies.support.getIncludeFiles(document.uri.fsPath, projectConfig);
         let functionImplementation: vscode.Location | undefined;
         let functionPrototype: vscode.Location | undefined;
 

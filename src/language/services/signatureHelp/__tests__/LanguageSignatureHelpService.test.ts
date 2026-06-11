@@ -560,8 +560,12 @@ describe('LanguageSignatureHelpService', () => {
             label: 'void local_call(int value)',
             sourceLabel: 'current-file'
         }));
-        expect(getCurrentFileDocForDocument).toHaveBeenCalledWith(document, 'local_call');
-        expect(getInheritedFileDocForDocument).toHaveBeenCalledWith(document, 'local_call', { forceFresh: true });
+        expect(getCurrentFileDocForDocument).toHaveBeenCalledWith(document, 'local_call', { projectConfig: undefined });
+        expect(getInheritedFileDocForDocument).toHaveBeenCalledWith(
+            document,
+            'local_call',
+            { forceFresh: true, projectConfig: undefined }
+        );
         expect(getCurrentFileDoc).not.toHaveBeenCalled();
         expect(getInheritedFileDoc).not.toHaveBeenCalled();
     });

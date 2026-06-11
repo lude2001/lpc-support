@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { LanguageCapabilityContext } from '../../contracts/LanguageCapabilityContext';
+import type { LanguageWorkspaceProjectConfig } from '../../contracts/LanguageWorkspaceContext';
 import type { LanguagePosition } from '../../contracts/LanguagePosition';
 import { CallableDocRenderer } from '../../documentation/CallableDocRenderer';
 import type { CallableDoc } from '../../documentation/types';
@@ -41,6 +42,7 @@ export interface CallableDiscoveryRequest {
     calleeName: string;
     callKind: 'function' | 'objectMethod' | 'scopedMethod' | 'efunScoped';
     calleeLookupPosition?: vscode.Position;
+    projectConfig?: LanguageWorkspaceProjectConfig;
 }
 
 export interface ResolvedCallableTarget {
@@ -100,7 +102,10 @@ export class LanguageSignatureHelpService {
             return undefined;
         }
 
-        const rawTargets = await this.collectTargets(analyzedCallSite);
+        const rawTargets = await this.collectTargets({
+            ...analyzedCallSite,
+            projectConfig: request.context.workspace.projectConfig
+        });
         if (rawTargets.length === 0) {
             return undefined;
         }

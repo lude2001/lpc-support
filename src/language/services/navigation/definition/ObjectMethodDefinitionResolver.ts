@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ObjectInferenceService } from '../../../../objectInference/ObjectInferenceService';
 import { TargetMethodLookup } from '../../../../targetMethodLookup';
+import type { LanguageWorkspaceProjectConfig } from '../../../contracts/LanguageWorkspaceContext';
 import { DefinitionResolverSupport } from './DefinitionResolverSupport';
 
 interface ObjectMethodDefinitionResolverDependencies {
@@ -15,7 +16,8 @@ export class ObjectMethodDefinitionResolver {
     public async resolve(
         document: vscode.TextDocument,
         position: vscode.Position,
-        memberName: string
+        memberName: string,
+        projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<vscode.Location[] | undefined> {
         const objectAccess = await this.dependencies.objectInferenceService.inferObjectAccess(document, position);
         if (!objectAccess || objectAccess.memberName !== memberName) {
@@ -30,7 +32,12 @@ export class ObjectMethodDefinitionResolver {
         const seenLocations = new Set<string>();
 
         for (const candidate of objectAccess.inference.candidates) {
-            const resolvedMethod = await this.dependencies.targetMethodLookup.findMethod(document, candidate.path, objectAccess.memberName);
+            const resolvedMethod = await this.dependencies.targetMethodLookup.findMethod(
+                document,
+                candidate.path,
+                objectAccess.memberName,
+                { projectConfig }
+            );
             if (!resolvedMethod?.location) {
                 continue;
             }

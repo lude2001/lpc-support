@@ -29,7 +29,7 @@ describe('ServerLanguageContextFactory', () => {
         const factory = new ServerLanguageContextFactory(store, session);
         const diagnosticsContext = factory.createDiagnosticsRequestContext('file:///D:/workspace/check.c');
 
-        expect(diagnosticsContext.workspaceRoot).toBe('D:/workspace');
+        expect(diagnosticsContext.workspace.workspaceRoot).toBe('D:/workspace');
         expect(diagnosticsContext.document.getText()).toBe('BAD_OBJECT->query_name();');
         expect((diagnosticsContext.document.uri as unknown as { fsPath: string }).fsPath).toBe('D:/workspace/check.c');
     });

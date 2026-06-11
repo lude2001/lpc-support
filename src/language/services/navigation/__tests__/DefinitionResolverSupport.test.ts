@@ -243,6 +243,35 @@ describe('DefinitionResolverSupport', () => {
         expect(openTextDocument).toHaveBeenCalledTimes(2);
     });
 
+    test('include file cache is scoped by workspace project config', async () => {
+        const {
+            support,
+            sourcePath,
+            openTextDocument
+        } = createSupportHarness();
+
+        const alphaConfig = {
+            projectConfigPath: 'D:/workspace/lpc-support.json',
+            resolvedConfig: {
+                mudlibDirectory: 'D:/mudlib-alpha',
+                includeDirectories: ['/include']
+            }
+        };
+        const betaConfig = {
+            projectConfigPath: 'D:/workspace/lpc-support.json',
+            resolvedConfig: {
+                mudlibDirectory: 'D:/mudlib-beta',
+                includeDirectories: ['/include']
+            }
+        };
+
+        await support.getIncludeFiles(sourcePath, alphaConfig);
+        await support.getIncludeFiles(sourcePath, alphaConfig);
+        await support.getIncludeFiles(sourcePath, betaConfig);
+
+        expect(openTextDocument).toHaveBeenCalledTimes(2);
+    });
+
     test('non-.h changes only invalidate their own include cache and preserve header cache', async () => {
         const {
             support,

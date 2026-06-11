@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import { assertDocumentationService } from '../language/documentation/assertDocumentationService';
 import type { CallableDoc, DocumentCallableDocs } from '../language/documentation/types';
-import { FunctionDocLookupBuilder } from './FunctionDocLookupBuilder';
+import { FunctionDocLookupBuilder, type FunctionDocLookupBuildOptions } from './FunctionDocLookupBuilder';
 import type {
     FunctionDocLookup,
     FunctionDocSourceGroup,
@@ -37,7 +37,7 @@ export class FileFunctionDocTracker {
     public async getDocFromIncludes(
         document: vscode.TextDocument,
         name: string,
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<CallableDoc | undefined> {
         const lookup = await this.getOrBuildDocumentLookup(document, options);
         for (const funcDocs of lookup.includeFileDocs.values()) {
@@ -52,15 +52,16 @@ export class FileFunctionDocTracker {
 
     public async getDocForDocument(
         document: vscode.TextDocument,
-        name: string
+        name: string,
+        options?: FunctionDocLookupBuildOptions
     ): Promise<CallableDoc | undefined> {
-        return (await this.getOrBuildDocumentLookup(document)).currentFileDocs.get(name);
+        return (await this.getOrBuildDocumentLookup(document, options)).currentFileDocs.get(name);
     }
 
     public async getDocFromInheritedForDocument(
         document: vscode.TextDocument,
         name: string,
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<CallableDoc | undefined> {
         const lookup = await this.getOrBuildDocumentLookup(document, options);
         for (const funcDocs of lookup.inheritedFileDocs.values()) {
@@ -75,7 +76,7 @@ export class FileFunctionDocTracker {
 
     public async getFunctionDocLookup(
         document: vscode.TextDocument,
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<FunctionDocLookup> {
         const lookup = await this.getOrBuildDocumentLookup(document, options);
         return lookup.lookup;
@@ -84,9 +85,9 @@ export class FileFunctionDocTracker {
 
     private async getOrBuildDocumentLookup(
         document: vscode.TextDocument,
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<MaterializedFunctionDocLookup> {
-        const uri = document.uri.toString();
+        const uri = this.getCacheKey(document, options);
         const text = document.getText();
         const cached = this.documentLookupCache.get(uri);
         if (!options?.forceFresh && cached && cached.version === document.version && cached.text === text) {
@@ -107,6 +108,20 @@ export class FileFunctionDocTracker {
         });
 
         return lookup;
+    }
+
+    private getCacheKey(document: vscode.TextDocument, options?: FunctionDocLookupBuildOptions): string {
+        const resolvedConfig = options?.projectConfig?.resolvedConfig;
+        if (!resolvedConfig) {
+            return `${document.uri.toString()}::default`;
+        }
+
+        return `${document.uri.toString()}::${JSON.stringify({
+            configHellPath: options.projectConfig?.configHellPath,
+            mudlibDirectory: resolvedConfig.mudlibDirectory,
+            includeDirectories: resolvedConfig.includeDirectories ?? [],
+            simulatedEfunFile: resolvedConfig.simulatedEfunFile
+        })}`;
     }
 
     private materializeLookup(rawLookup: RawFunctionDocLookup): MaterializedFunctionDocLookup {

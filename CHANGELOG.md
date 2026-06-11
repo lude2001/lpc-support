@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+### 架构与诊断稳定性
+
+- 修复 header owner 前缀分析复用真实 owner URI 污染语义缓存的问题，避免后台刷新后 `.h`/owner `.c` 语义快照互相覆盖。
+- LSP 诊断请求现在会携带 workspace project config，include / inherit 递归解析可使用 config.hell 的 mudlib root 与 include dirs。
+- header owner 文件发现改为通过 workspace host 文件搜索边界执行，避免诊断路径自行同步递归扫描工作区。
+- frontend include 解析会使用 `lpc-support.json` / `config.hell` 中的 include dirs 作为显式 `#include` 搜索路径，但不会再把 include dirs 下所有 header 宏当作全局宏。
+- 基础语义诊断会优先使用本轮递归解析到的 fresh dependency symbols，并允许 same-version 依赖快照刷新覆盖旧索引记录。
+- 宏引用只在当前 range 被视为已知宏名；`#undef` 后同名普通标识符不再被旧 macro reference 静默放行。
+- function-like 宏无法展开到普通表达式位置时，基础语义诊断会保守抑制 undefined 类提示，避免半展开代码产生噪声。
+
+### 工程与发布
+
+- CI 增加 FluffOS checkout 与严格 efun arity audit，避免 efun 文档参数范围漂移。
+- 修复测试分组脚本空跑问题；未配置的 e2e / performance 脚本会明确失败而不是报告 0 tests。
+- 打包改为使用锁定的本地 `@vscode/vsce`，并避免 package 脚本与 `vscode:prepublish` 重复 build。
+- 生产打包不再生成 sourcemap，并继续通过 package `files` 白名单控制 VSIX 内容。
+- `@types/vscode` 移入 devDependencies 并对齐最低 VS Code engine；移除已跟踪的本地/临时配置文件。
+
 ## [0.47.10] - 2026-06-09
 
 ### 基础语义诊断

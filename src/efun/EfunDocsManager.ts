@@ -8,7 +8,7 @@ import {
 } from '../language/shared/WorkspaceDocumentPathSupport';
 import { BundledEfunLoader } from './BundledEfunLoader';
 import { FileFunctionDocTracker, type FunctionDocLookup } from './FileFunctionDocTracker';
-import { FunctionDocLookupBuilder } from './FunctionDocLookupBuilder';
+import { FunctionDocLookupBuilder, type FunctionDocLookupBuildOptions } from './FunctionDocLookupBuilder';
 import { SimulatedEfunScanner } from './SimulatedEfunScanner';
 import type { StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
 import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
@@ -78,15 +78,16 @@ export class EfunDocsManager {
 
     public async getCurrentFileDocForDocument(
         document: vscode.TextDocument,
-        funcName: string
+        funcName: string,
+        options?: FunctionDocLookupBuildOptions
     ): Promise<CallableDoc | undefined> {
-        return this.fileFunctionDocTracker.getDocForDocument(document, funcName);
+        return this.fileFunctionDocTracker.getDocForDocument(document, funcName, options);
     }
 
     public async getInheritedFileDocForDocument(
         document: vscode.TextDocument,
         funcName: string,
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<CallableDoc | undefined> {
         return this.fileFunctionDocTracker.getDocFromInheritedForDocument(document, funcName, options);
     }
@@ -94,14 +95,14 @@ export class EfunDocsManager {
     public async getIncludedFileDoc(
         document: vscode.TextDocument,
         funcName: string,
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<CallableDoc | undefined> {
         return this.fileFunctionDocTracker.getDocFromIncludes(document, funcName, options);
     }
 
     public async getFunctionDocLookupForDocument(
         document: vscode.TextDocument,
-        options?: { forceFresh?: boolean }
+        options?: FunctionDocLookupBuildOptions
     ): Promise<FunctionDocLookup> {
         return this.fileFunctionDocTracker.getFunctionDocLookup(document, options);
     }

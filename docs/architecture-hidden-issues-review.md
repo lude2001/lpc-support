@@ -24,8 +24,8 @@
 | --- | --- | --- | --- | --- | --- |
 | B01 | Done | P0 | Header owner prefix 分析可能污染真实 owner 语义缓存 | prefix document 已使用隔离 cache key，同时保留真实 `fsPath` 供 include 解析；新增真实 cache 回归测试 | 长期仍建议合入 semantic/project index，避免 owner service 自建上下文 |
 | B02 | In Progress | P1 | Header owner 在生产路径递归扫 `.c` 并重新推断 include | `HeaderOwnerContextService` 已改为通过 `WorkspaceDocumentPathSupport.findWorkspaceSourceFiles()` 使用 host 文件搜索，不再自建同步递归；仍会扫描候选 `.c` 并读 include | 长期把 owner/include 可见上下文移动到 semantic/project index 层，Provider 只查询索引 |
-| B03 | In Progress | P1 | include / inherit 解析没有稳定使用 mudlib root | diagnostics resolver 已携带 workspace projectConfig 解析 include/inherit，`resolveInheritedFilePath` 支持 mudlib root；navigation 等路径仍需复核 | 继续让 projectConfig/mudlibRoot 贯穿所有递归解析入口 |
-| B04 | In Progress | P1 | LSP spawned runtime 存在 workspace config 双真源 | LSP diagnostics request 已携带 `WorkspaceSession` projectConfig，配置同步失败不再卡住诊断；其它服务仍需复核是否重读磁盘配置 | LSP server 内选一个配置真源，优先由 `WorkspaceSession` snapshot 驱动项目配置 |
+| B03 | Done | P1 | include / inherit 解析没有稳定使用 mudlib root | diagnostics、definition、hover、signature help 与函数文档 lookup 已携带 workspace projectConfig；include/inherit 缓存按 projectConfig 分区，新增导航与文档 lookup 回归测试 | 后续新增路径解析入口必须继续接收 request workspace context |
+| B04 | In Progress | P1 | LSP spawned runtime 存在 workspace config 双真源 | LSP diagnostics、navigation、hover、signature help 主请求路径已携带 `WorkspaceSession` projectConfig；底层服务仍保留 `LpcProjectConfigService` 作为 fallback | 继续收敛 fallback 读取，最终让 spawned runtime 只从 `WorkspaceSession` snapshot 派生请求上下文 |
 
 ## 诊断与预处理
 
@@ -43,19 +43,19 @@
 | --- | --- | --- | --- | --- | --- |
 | D01 | Done | P1 | completion / completion resolve / signature fallback 对 simul-efun 仍依赖 active workspace | `rg` 未再发现生产路径无上下文 `getAllSimulatedFunctions()` / `getSimulatedDoc(name)` 调用；聚焦测试通过 | 保留无 document API 仅作兼容入口，主路径不再依赖 |
 | D02 | Done | P2 | workspace config sync 失败可能让 LSP diagnostics 永久停在 not-ready | sync handler 已用 `finally` 恢复 ready 状态并释放 pending/open diagnostics；失败路径测试覆盖 | 保留错误日志，避免配置刷新失败导致后续诊断永久停摆 |
-| D03 | Open | P3 | extension host scanFolder 与 LSP 实时 diagnostics 启用条件不一致 | host 要求 `lpc-support.json`；LSP 只等 config sync ready | 抽共享 diagnostics enable policy |
+| D03 | Done | P3 | extension host scanFolder 与 LSP 实时 diagnostics 启用条件不一致 | host 与 LSP 现在共用 `shouldRunProjectDiagnostics`；无项目配置时 LSP refresh 发布空诊断且不运行 collector | 后续新增诊断入口继续复用该策略 |
 
 ## 测试与发布卫生
 
 | ID | 状态 | 严重度 | 问题 | 证据 | 修复方向 |
 | --- | --- | --- | --- | --- | --- |
-| E01 | Open | P1 | Jest 分组脚本会空跑或覆盖不足 | `test:unit`、`test:e2e`、`test:performance` listTests 为 0 | 改为 Jest projects、明确匹配规则，或删除误导脚本 |
-| E02 | Open | P1 | efun arity audit 未接入 CI，缺 FluffOS checkout 时成功退出 | `scripts/audit-efun-arity.mjs` 缺 spec 时 `exit(0)` | 加 strict/CI 模式；CI checkout FluffOS 或显式跳过说明 |
-| E03 | Open | P2 | package 路径重复 build 且 `vsce` 未锁版本 | `vscode:prepublish` 与 `package` 都 build；`npx @vscode/vsce` 未固定 | 固定 devDependency，打包脚本只保留一个 build 入口 |
-| E04 | Open | P2 | VSIX 包含 production sourcemap 和 `sourcesContent` | `dist/**/*.map` 被 `files` 包入 | 发布版关闭 sourcemap 或从包中过滤 map |
-| E05 | Open | P3 | VS Code engine 与 `@types/vscode` 版本/依赖位置不一致 | engine `^1.82.0`，types `^1.95.0` 且在 dependencies | types 移到 devDependencies，并对齐最低 engine 或提升 engine |
-| E06 | Open | P3 | 仓库跟踪本地/临时文件 | `.claude/settings.local.json`、`temp-package.json` | 后续从 git 移除并更新 ignore |
-| E07 | Open | P3 | 版本与 changelog 边界不清 | `Unreleased` 为空，当前未提交修复写入 `0.47.10`，同版本 VSIX 已存在 | 后续发布时明确是否 bump；未发布内容优先放 `Unreleased` |
+| E01 | Done | P1 | Jest 分组脚本会空跑或覆盖不足 | `test:unit` / `test:integration` 指向现有测试；未配置 e2e/performance 时明确失败 | 后续若新增 e2e/performance，再替换为真实 test target |
+| E02 | Done | P1 | efun arity audit 未接入 CI，缺 FluffOS checkout 时成功退出 | audit 脚本新增 `--strict`；CI checkout FluffOS 并运行 `audit:efun-arity:strict` | 本地普通 audit 仍可在缺 checkout 时跳过 |
+| E03 | Done | P2 | package 路径重复 build 且 `vsce` 未锁版本 | `@vscode/vsce` 已锁为 devDependency；package 脚本交给本地 `vsce package` 触发 `vscode:prepublish` | 避免 `npx` 临时版本与重复 build |
+| E04 | Done | P2 | VSIX 包含 production sourcemap 和 `sourcesContent` | production esbuild 不再生成 sourcemap；VSIX 内容继续由 package `files` 白名单控制 | 后续打包验证继续检查 VSIX 内容 |
+| E05 | Done | P3 | VS Code engine 与 `@types/vscode` 版本/依赖位置不一致 | `@types/vscode` 已移入 devDependencies 并对齐 `^1.82.0` | 若提升 engine，再同步提升 types |
+| E06 | Done | P3 | 仓库跟踪本地/临时文件 | `.claude/settings.local.json`、`temp-package.json` 已从 git index 移除并加入 ignore | 本地文件保留，不再随仓库提交 |
+| E07 | Done | P3 | 版本与 changelog 边界不清 | 本轮未发布修复写入 `Unreleased`，未修改版本号 | 发布前再决定是否 bump |
 
 ## 修复顺序
 

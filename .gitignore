@@ -22,10 +22,12 @@ tests/reports/
 *.log
 *.tmp
 *.temp
+temp-package.json
 
 # IDE and system files
 .DS_Store
 Thumbs.db
+.claude/settings.local.json
 
 # Test and debug files
 test-*.js

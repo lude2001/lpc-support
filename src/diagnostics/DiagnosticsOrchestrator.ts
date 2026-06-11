@@ -11,6 +11,7 @@ import type {
     LanguageDiagnosticsService
 } from '../language/services/diagnostics/LanguageDiagnosticsService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
+import { shouldRunProjectDiagnostics } from './diagnosticsEnablePolicy';
 
 interface DiagnosticsOrchestratorOptions {
     diagnosticsService: LanguageDiagnosticsService;
@@ -185,7 +186,7 @@ export class DiagnosticsOrchestrator {
             return false;
         }
 
-        return fs.existsSync(path.join(workspaceRoot, 'lpc-support.json'));
+        return shouldRunProjectDiagnostics({ workspaceRoot });
     }
 
     private async yieldToMainThread(): Promise<void> {
