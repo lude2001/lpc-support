@@ -165,7 +165,8 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
         }
 
         if (projectConfig?.searchEfunDefinitionInInheritanceChain !== true
-            && this.efunDocsManager.getStandardCallableDoc?.(word)) {
+            && this.efunDocsManager.getStandardCallableDoc?.(word)
+            && !this.hasLocalFunctionDefinition(document, word)) {
             return [];
         }
 
@@ -176,6 +177,11 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
 
     private createRequestState(): DefinitionRequestState {
         return this.support.createRequestState();
+    }
+
+    private hasLocalFunctionDefinition(document: vscode.TextDocument, functionName: string): boolean {
+        const snapshot = this.support.getSemanticSnapshot(document);
+        return snapshot.exportedFunctions.some((func) => func.name === functionName);
     }
 
     private toLanguageLocations(

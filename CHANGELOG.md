@@ -15,6 +15,11 @@
 - 宏引用只在当前 range 被视为已知宏名；`#undef` 后同名普通标识符不再被旧 macro reference 静默放行。
 - function-like 宏现在支持表达式级 `NAME(...)` token 范围展开；无法解析的调用仍会让基础语义诊断保守抑制 undefined 类提示，避免半展开代码产生噪声。
 
+### 导航
+
+- "转到定义"对标准 efun（驱动内置函数）调用默认不再遍历继承链，避免此前等待十余秒后才返回"未找到"的延迟；模拟函数库（simul-efun）重写、继承链重写与当前文件内同名函数定义仍可正常跳转。
+- 新增设置 `lpc.searchEfunDefinitionInInheritanceChain`（默认关闭），开启后恢复对 efun 调用的继承链定义搜索，适用于在继承链（而非 simul-efun）中重写 efun 的项目。
+
 ### 工程与发布
 
 - CI 增加 FluffOS checkout 与严格 efun arity audit，避免 efun 文档参数范围漂移。

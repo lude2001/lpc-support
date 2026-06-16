@@ -1108,4 +1108,33 @@ describe('AstBackedLanguageDefinitionService', () => {
 
         expect(familySpy).toHaveBeenCalled();
     });
+
+    test('still navigates to a same-name function defined in the current file when it shadows a standard efun', async () => {
+        const document = createTextDocument(
+            'D:\\workspace\\adm\\daemons\\topd.c',
+            'void write(string msg) {}\nwrite("hello");\n'
+        );
+        const service = createDefinitionService(
+            {
+                getSimulatedDoc: jest.fn().mockReturnValue(undefined),
+                getStandardCallableDoc: jest.fn().mockReturnValue({ name: 'write' })
+            } as any
+        );
+        const familySpy = jest.spyOn(
+            (service as any).functionFamilyDefinitionResolver,
+            'resolve'
+        );
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 1, character: 1 }
+        });
+
+        expect(definition.length).toBeGreaterThan(0);
+        expect(familySpy).toHaveBeenCalled();
+    });
 });
