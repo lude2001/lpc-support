@@ -16,6 +16,7 @@ export interface WorkspaceConfigSnapshot {
     playerObjectPath?: string;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
+    searchEfunDefinitionInInheritanceChain?: boolean;
 }
 
 export interface WorkspaceSessionOptions {
@@ -64,7 +65,8 @@ export class WorkspaceSession {
                 configHellPath: workspace.configHellPath,
                 playerObjectPath: workspace.playerObjectPath,
                 resolvedConfig: workspace.resolvedConfig,
-                lastSyncedAt: workspace.lastSyncedAt
+                lastSyncedAt: workspace.lastSyncedAt,
+                searchEfunDefinitionInInheritanceChain: workspace.searchEfunDefinitionInInheritanceChain
             });
         }
     }

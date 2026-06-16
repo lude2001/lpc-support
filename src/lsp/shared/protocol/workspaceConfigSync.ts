@@ -10,6 +10,7 @@ export interface WorkspaceConfigSyncSnapshot {
     playerObjectPath?: string;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
+    searchEfunDefinitionInInheritanceChain?: boolean;
 }
 
 export interface WorkspaceConfigSyncPayload {

@@ -252,6 +252,11 @@
           "default": false,
           "description": "启用“局部变量定义必须在可执行语句或代码块开头”的检查。FluffOS 新版本通常不需要此限制。"
         },
+        "lpc.searchEfunDefinitionInInheritanceChain": {
+          "type": "boolean",
+          "default": false,
+          "description": "对 efun（驱动内置函数）调用执行“转到定义”时是否搜索继承链。默认关闭：efun 调用直接返回“未找到”，避免遍历继承链带来的延迟。仅当你在继承链（而非模拟函数库 simul_efun）中重写了 efun 时才需要开启。"
+        },
         "lpc.performance.debounceDelay": {
           "type": "number",
           "default": 300,

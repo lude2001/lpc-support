@@ -63,6 +63,7 @@ async function createWorkspaceConfigSyncPayload(
     const workspaceRoots = normalizeWorkspaceRoots(
         (vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.fsPath)
     );
+    const searchEfunDefinitionInInheritanceChain = readSearchEfunDefinitionInInheritanceChain();
     const workspaces = await Promise.all(workspaceRoots.map(async workspaceRoot => {
         const projectConfig = await projectConfigService.loadForWorkspace(workspaceRoot);
 
@@ -72,7 +73,8 @@ async function createWorkspaceConfigSyncPayload(
             configHellPath: projectConfig?.configHellPath,
             playerObjectPath: projectConfig?.playerObjectPath,
             resolvedConfig: projectConfig?.resolved,
-            lastSyncedAt: projectConfig?.lastSyncedAt
+            lastSyncedAt: projectConfig?.lastSyncedAt,
+            searchEfunDefinitionInInheritanceChain
         };
     }));
 
@@ -80,6 +82,10 @@ async function createWorkspaceConfigSyncPayload(
         workspaceRoots,
         workspaces
     };
+}
+
+function readSearchEfunDefinitionInInheritanceChain(): boolean {
+    return vscode.workspace.getConfiguration?.('lpc')?.get?.('searchEfunDefinitionInInheritanceChain') === true;
 }
 
 async function attemptResync(

@@ -1051,4 +1051,61 @@ describe('AstBackedLanguageDefinitionService', () => {
         expect(definition).toEqual([argumentLocation]);
         expect(visibleVariableSpy).toHaveBeenCalled();
     });
+
+    test('skips inheritance chain search for standard efun calls by default', async () => {
+        const document = createDocument('D:\\workspace\\adm\\daemons\\topd.c', 'undefinedp');
+        const service = createDefinitionService(
+            {
+                getSimulatedDoc: jest.fn().mockReturnValue(undefined),
+                getStandardCallableDoc: jest.fn().mockReturnValue({ name: 'undefinedp' })
+            } as any
+        );
+        const familySpy = jest.spyOn(
+            (service as any).functionFamilyDefinitionResolver,
+            'resolve'
+        ).mockResolvedValue(undefined);
+
+        const definition = await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: { workspaceRoot: 'D:\\workspace' },
+                mode: 'lsp'
+            },
+            position: { line: 0, character: 2 }
+        });
+
+        expect(definition).toEqual([]);
+        expect(familySpy).not.toHaveBeenCalled();
+    });
+
+    test('searches inheritance chain for standard efun calls when opt-in is enabled', async () => {
+        const document = createDocument('D:\\workspace\\adm\\daemons\\topd.c', 'undefinedp');
+        const service = createDefinitionService(
+            {
+                getSimulatedDoc: jest.fn().mockReturnValue(undefined),
+                getStandardCallableDoc: jest.fn().mockReturnValue({ name: 'undefinedp' })
+            } as any
+        );
+        const familySpy = jest.spyOn(
+            (service as any).functionFamilyDefinitionResolver,
+            'resolve'
+        ).mockResolvedValue(undefined);
+
+        await service.provideDefinition({
+            context: {
+                document: document as any,
+                workspace: {
+                    workspaceRoot: 'D:\\workspace',
+                    projectConfig: {
+                        projectConfigPath: 'D:\\workspace\\lpc-support.json',
+                        searchEfunDefinitionInInheritanceChain: true
+                    }
+                },
+                mode: 'lsp'
+            },
+            position: { line: 0, character: 2 }
+        });
+
+        expect(familySpy).toHaveBeenCalled();
+    });
 });

@@ -164,6 +164,11 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
             return this.toLanguageLocations(directDefinition);
         }
 
+        if (projectConfig?.searchEfunDefinitionInInheritanceChain !== true
+            && this.efunDocsManager.getStandardCallableDoc?.(word)) {
+            return [];
+        }
+
         return this.toLanguageLocations(
             await this.functionFamilyDefinitionResolver.resolve(document, word, this.createRequestState(), projectConfig)
         );

@@ -243,7 +243,8 @@ describe('LspClientManager activation', () => {
                         resolvedConfig: {
                             includeDirectories: ['include']
                         },
-                        lastSyncedAt: '2026-04-10T00:00:00.000Z'
+                        lastSyncedAt: '2026-04-10T00:00:00.000Z',
+                        searchEfunDefinitionInInheritanceChain: false
                     }
                 ]
             }
@@ -286,7 +287,8 @@ describe('LspClientManager activation', () => {
                     projectConfigPath: 'D:/workspace-b/lpc-support.json',
                     configHellPath: 'config.hell',
                     resolvedConfig: undefined,
-                    lastSyncedAt: undefined
+                    lastSyncedAt: undefined,
+                    searchEfunDefinitionInInheritanceChain: false
                 }
             ]
         });
@@ -329,14 +331,16 @@ describe('LspClientManager activation', () => {
                     projectConfigPath: 'D:/workspace-a/lpc-support.json',
                     configHellPath: 'config.hell',
                     resolvedConfig: undefined,
-                    lastSyncedAt: undefined
+                    lastSyncedAt: undefined,
+                    searchEfunDefinitionInInheritanceChain: false
                 },
                 {
                     workspaceRoot: 'D:/workspace-a/nested',
                     projectConfigPath: 'D:/workspace-a/nested/lpc-support.json',
                     configHellPath: '.vscode\\nested.hell',
                     resolvedConfig: undefined,
-                    lastSyncedAt: undefined
+                    lastSyncedAt: undefined,
+                    searchEfunDefinitionInInheritanceChain: false
                 }
             ]
         });

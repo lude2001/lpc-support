@@ -5,6 +5,7 @@ export interface LanguageWorkspaceProjectConfig {
     playerObjectPath?: string;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
+    searchEfunDefinitionInInheritanceChain?: boolean;
 }
 
 export interface LanguageWorkspaceContext {
