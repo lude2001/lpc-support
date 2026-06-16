@@ -912,6 +912,47 @@ describe('SimulatedEfunScanner', () => {
         resetAstManagerSingletonForTests();
     });
 
+    test('reports workspace state as not ready when config.hell is configured but unresolved', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-unresolved-'));
+        const sourceDocument = TestHelper.createMockDocument(
+            'void demo() { same_week(); }',
+            'lpc',
+            path.join(workspaceRoot, 'adm', 'daemons', 'topd.c')
+        );
+        (sourceDocument as any).uri = vscode.Uri.file(sourceDocument.fileName);
+        const scanner = createSimulatedScanner();
+
+        const unresolvedProjectConfig = {
+            projectConfigPath: path.join(workspaceRoot, 'lpc-support.json'),
+            configHellPath: 'config/config.dev'
+        };
+
+        await scanner.ensureWorkspaceStateCurrent(sourceDocument, unresolvedProjectConfig as any);
+
+        expect(scanner.isWorkspaceStateReady(sourceDocument, unresolvedProjectConfig as any)).toBe(false);
+        expect(scanner.getAllNames(sourceDocument, unresolvedProjectConfig as any)).toEqual([]);
+    });
+
+    test('reports workspace state as ready when no config.hell is configured', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-no-config-hell-'));
+        const sourceDocument = TestHelper.createMockDocument(
+            'void demo() {}',
+            'lpc',
+            path.join(workspaceRoot, 'room.c')
+        );
+        (sourceDocument as any).uri = vscode.Uri.file(sourceDocument.fileName);
+        const scanner = createSimulatedScanner();
+
+        const configWithoutHell = {
+            projectConfigPath: path.join(workspaceRoot, 'lpc-support.json')
+        };
+
+        await scanner.ensureWorkspaceStateCurrent(sourceDocument, configWithoutHell as any);
+
+        expect(scanner.isWorkspaceStateReady(sourceDocument, configWithoutHell as any)).toBe(true);
+        expect(scanner.getAllNames(sourceDocument, configWithoutHell as any)).toEqual([]);
+    });
+
     test('clears previously loaded docs when a later reload cannot scan', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-clear-'));
         const scanner = createSimulatedScanner();

@@ -60,7 +60,7 @@ export interface DefaultDiagnosticSymbolResolverOptions {
         | 'getAllSimulatedFunctions'
         | 'getStandardCallableDoc'
         | 'getSimulatedDoc'
-    > & Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent'>>;
+    > & Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent' | 'isSimulatedEfunReady'>>;
     headerOwnerContextResolver?: Pick<HeaderOwnerContextService, 'resolveOwnerContext'>;
 }
 
@@ -127,9 +127,11 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
             macroReferences: semantic.macroReferences,
             callableSignatures: [
                 ...visibleFunctions.map((summary) => toSignature(summary, summary.origin)),
-                ...efunSignatures
+                ...efunSignatures.signatures
             ],
-            hasUnresolvedDependencies: dependencyState.hasUnresolved || Boolean(headerOwnerContext?.isAmbiguous)
+            hasUnresolvedDependencies: dependencyState.hasUnresolved
+                || Boolean(headerOwnerContext?.isAmbiguous)
+                || !efunSignatures.simulEfunReady
         };
     }
 
@@ -281,10 +283,10 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
     private async collectEfunSignatures(
         document: vscode.TextDocument,
         projectConfig?: LanguageWorkspaceProjectConfig
-    ): Promise<DiagnosticCallableSignature[]> {
+    ): Promise<{ signatures: DiagnosticCallableSignature[]; simulEfunReady: boolean }> {
         const manager = this.options.efunDocsManager;
         if (!manager) {
-            return [];
+            return { signatures: [], simulEfunReady: true };
         }
 
         await manager.ensureWorkspaceStateCurrent?.(document, projectConfig);
@@ -297,7 +299,8 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
             signatures.push(...fromCallableDoc(name, manager.getSimulatedDoc(name, document, projectConfig), 'simul-efun'));
         }
 
-        return signatures;
+        const simulEfunReady = manager.isSimulatedEfunReady?.(document, projectConfig) ?? true;
+        return { signatures, simulEfunReady };
     }
 }
 

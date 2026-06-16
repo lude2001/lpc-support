@@ -525,6 +525,27 @@ describe('DefaultDiagnosticSymbolResolver', () => {
         ]));
     });
 
+    test('marks dependencies unresolved when simulated efun workspace state is not ready', async () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-simul-not-ready-'));
+        const mainPath = path.join(tempRoot, 'room.c');
+        fs.writeFileSync(mainPath, '', 'utf8');
+        const mainDocument = createDocument(mainPath);
+        const mainSnapshot = createSnapshot(mainDocument);
+        const { resolver } = createResolver(new Map([[mainDocument.uri.toString(), mainSnapshot]]), tempRoot);
+        (resolver as any).options.efunDocsManager = {
+            getAllFunctions: () => [],
+            getAllSimulatedFunctions: () => [],
+            getStandardCallableDoc: () => undefined,
+            getSimulatedDoc: () => undefined,
+            ensureWorkspaceStateCurrent: jest.fn(),
+            isSimulatedEfunReady: () => false
+        };
+
+        const visible = await resolver.resolveVisibleSymbols(mainDocument, mainSnapshot);
+
+        expect(visible.hasUnresolvedDependencies).toBe(true);
+    });
+
     test('adds macros from the unique owner translation unit before a header include', async () => {
         tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-header-owner-'));
         const ownerPath = path.join(tempRoot, 'adm', 'daemons', 'combatd.c');

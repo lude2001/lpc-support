@@ -86,6 +86,10 @@ export class SimulatedEfunScanner {
             state.hasLoaded = false;
         }
 
+        if (!this.canResolveSimulatedEfunConfig(projectConfig)) {
+            return;
+        }
+
         const loadVersion = ++state.loadVersion;
         const nextDocs = await this.collectSimulatedEfuns(workspaceRoot, projectConfig);
         if (loadVersion !== state.loadVersion) {
@@ -140,6 +144,13 @@ export class SimulatedEfunScanner {
         if (!state.hasLoaded) {
             await this.refreshWorkspaceState(true, document, projectConfig);
         }
+    }
+
+    public isWorkspaceStateReady(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): boolean {
+        return this.getWorkspaceState(document, projectConfig).hasLoaded;
     }
 
     private getWorkspaceState(
@@ -237,6 +248,15 @@ export class SimulatedEfunScanner {
         }
 
         return path.resolve(workspaceRoot, mudlibDirectory);
+    }
+
+    private canResolveSimulatedEfunConfig(
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): boolean {
+        if (!projectConfig?.configHellPath) {
+            return true;
+        }
+        return Boolean(projectConfig.resolvedConfig);
     }
 
     private resolveSimulatedEfunEntryFile(

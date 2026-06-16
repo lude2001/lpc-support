@@ -150,6 +150,14 @@ export class EfunDocsManager {
         await this.simulatedEfunScanner.ensureWorkspaceStateCurrent(document, projectConfig);
     }
 
+    public isSimulatedEfunReady(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): boolean {
+        return this.simulatedEfunScanner.isWorkspaceStateReady(document, projectConfig);
+    }
+
+
     public async refreshWorkspaceState(): Promise<void> {
         await this.simulatedEfunScanner.refreshWorkspaceState(true);
     }
