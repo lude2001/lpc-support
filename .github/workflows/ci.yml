@@ -30,7 +30,7 @@ jobs:
       - name: Checkout FluffOS
         uses: actions/checkout@v4
         with:
-          repository: fluffos/fluffos
+          repository: lude2001/fluffos
           path: fluffos
 
       - name: Set up Node.js
