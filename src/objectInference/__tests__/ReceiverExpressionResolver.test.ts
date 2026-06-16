@@ -80,4 +80,53 @@ describe('ReceiverExpressionResolver', () => {
         );
         expect(result.candidates).toEqual(resolvedCandidates);
     });
+
+    test('uses natural member-call object results before annotation fallback', async () => {
+        const document = createTextDocument(
+            'D:/workspace/receiver-expression-natural.c',
+            [
+                'void demo() {',
+                '    ob->model_get("ui")->query();',
+                '}'
+            ].join('\n')
+        );
+        const syntax = getSyntaxDocument(document);
+        const functionNode = findFunctionDeclaration(syntax);
+        const callExpression = findFirstCallExpression(syntax);
+        const naturalCandidates: ObjectCandidate[] = [{ path: '/adm/protocol/model/ui_model.c', source: 'builtin-call' }];
+
+        const identifierTracer = {
+            traceIdentifierInFunction: jest.fn()
+        };
+        const objectMethodReturnResolver = {
+            resolveMethodReturnOutcome: jest.fn()
+        };
+        const resolver = new ReceiverExpressionResolver({
+            returnObjectResolver: {
+                resolveExpressionOutcome: jest.fn().mockResolvedValue({
+                    candidates: naturalCandidates
+                })
+            } as any,
+            objectMethodReturnResolver: objectMethodReturnResolver as any,
+            globalBindingResolver: {
+                resolveVisibleBinding: jest.fn()
+            } as any,
+            inheritedGlobalBindingResolver: {
+                resolveInheritedBinding: jest.fn()
+            } as any,
+            identifierTracer
+        });
+
+        const result = await resolver.resolveSourceExpression(
+            document,
+            functionNode,
+            callExpression,
+            callExpression.range.start,
+            new Set<string>()
+        );
+
+        expect(result.candidates).toEqual(naturalCandidates);
+        expect(identifierTracer.traceIdentifierInFunction).not.toHaveBeenCalled();
+        expect(objectMethodReturnResolver.resolveMethodReturnOutcome).not.toHaveBeenCalled();
+    });
 });

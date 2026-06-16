@@ -166,6 +166,7 @@ export interface InheritedSymbolSet {
     chain: string[];
     functions: FunctionSummary[];
     types: TypeDefinitionSummary[];
+    fileGlobals: FileGlobalSummary[];
     unresolvedTargets: ResolvedInheritTarget[];
 }
 

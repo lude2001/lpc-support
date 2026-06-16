@@ -94,6 +94,12 @@ export class ReturnObjectResolver {
             return { candidates: [] };
         }
 
+        if (classified.kind === 'literal') {
+            return {
+                candidates: await this.resolvePathCandidate(document, classified.expression, 'literal')
+            };
+        }
+
         if (expression.kind !== SyntaxKind.CallExpression) {
             return { candidates: [] };
         }

@@ -120,6 +120,32 @@ describe('MacroExpansionBuilder', () => {
         expect(expanded.expandedRanges?.map((range) => range.macroName)).toEqual(['NPC']);
     });
 
+    test('strips source comments from macro replacements without truncating string literals', () => {
+        const text = [
+            '#define ZONE my["zone"]      // receiving object zone',
+            '#define URL "http://example.test/path" /* endpoint */',
+            'void create() {',
+            '    ZONE = URL;',
+            '}'
+        ].join('\n');
+        const scanner = new PreprocessorScanner();
+        const scanned = scanner.scan('file:///commented-macro.c', 1, text);
+        const conditional = new PreprocessorConditionEvaluator().evaluate(text, scanned.directives, []);
+        const macroFacts = new MacroFactResolver().resolve(text, scanned.directives, conditional.inactiveRanges);
+        const activeView = new ActiveSourceBuilder().build(text, scanned.directives, conditional.inactiveRanges);
+
+        const expanded = new MacroExpansionBuilder().expand(
+            activeView,
+            macroFacts.macroReferences,
+            macroFacts.activeMacros
+        );
+
+        expect(macroFacts.activeMacros.find((macro) => macro.name === 'ZONE')?.replacement).toBe('my["zone"]');
+        expect(macroFacts.activeMacros.find((macro) => macro.name === 'URL')?.replacement).toBe('"http://example.test/path"');
+        expect(expanded.text).toContain('my["zone"] = "http://example.test/path";');
+        expect(expanded.text).not.toContain('receiving object zone');
+    });
+
     test('does not expand object-like macros inside heredoc delimiters and bodies', () => {
         const text = [
             '#define LONG 16',

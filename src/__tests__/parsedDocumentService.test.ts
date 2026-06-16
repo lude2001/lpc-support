@@ -103,6 +103,31 @@ describe('ParsedDocumentService', () => {
         expect(parsed.frontend?.preprocessor.inactiveRanges).toHaveLength(1);
     });
 
+    test('accepts object-like macro expansion to indexed expressions in assignments and slices', () => {
+        const service = new ParsedDocumentService({ cleanupInterval: 0, enableMonitoring: true });
+        const document = createDocument([
+            '#define ZONE my["zone"]      // receiving object zone',
+            '',
+            'void accept(string zone) {',
+            '    mapping my = query_entire_dbase();',
+            '    string fname;',
+            '',
+            '    ZONE = zone;',
+            '    change_status(QUEST_READY);',
+            '',
+            '    if (! stringp(ZONE) || strlen(ZONE) < 1 ||',
+            '        ZONE == fname[0..strlen(ZONE) - 1])',
+            '        return;',
+            '}'
+        ].join('\n'), '/virtual/macro-indexed-expression.c');
+
+        const parsed = service.get(document);
+
+        expect(parsed.parseText).toContain('my["zone"] = zone;');
+        expect(parsed.parseText).toContain('my["zone"] == fname[0..strlen(my["zone"]) - 1]');
+        expect(parsed.diagnostics).toHaveLength(0);
+    });
+
     test('reports preprocessor diagnostics through parsed document diagnostics', () => {
         const service = new ParsedDocumentService({ cleanupInterval: 0, enableMonitoring: true });
         const document = createDocument([

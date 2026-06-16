@@ -315,6 +315,10 @@ export class CallTargetResolver {
         }
 
         const semantic = this.analysisService.getSemanticSnapshot(document, false);
+        if (!semantic?.exportedFunctions) {
+            return undefined;
+        }
+
         const functionSummary = semantic.exportedFunctions.find((entry) => entry.name === functionName);
         if (!functionSummary) {
             return undefined;

@@ -135,9 +135,11 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
         const chain = this.inheritanceResolver.getInheritanceChain(uri);
         const functions: FunctionSummary[] = [];
         const types: TypeDefinitionSummary[] = [];
+        const fileGlobals: FileGlobalSummary[] = [];
         const unresolvedTargets: ResolvedInheritTarget[] = [];
         const seenFunctionKeys = new Set<string>();
         const seenTypeKeys = new Set<string>();
+        const seenGlobalKeys = new Set<string>();
         const visited = new Set<string>([uri]);
 
         const traverse = (currentUri: string): void => {
@@ -187,6 +189,16 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
                     });
                 }
 
+                for (const global of record.fileGlobals) {
+                    const key = `${record.uri}:${global.name}`;
+                    if (seenGlobalKeys.has(key)) {
+                        continue;
+                    }
+
+                    seenGlobalKeys.add(key);
+                    fileGlobals.push(cloneFileGlobalSummary(global));
+                }
+
                 traverse(target.resolvedUri);
             }
         };
@@ -197,6 +209,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
             chain,
             functions,
             types,
+            fileGlobals,
             unresolvedTargets
         };
     }

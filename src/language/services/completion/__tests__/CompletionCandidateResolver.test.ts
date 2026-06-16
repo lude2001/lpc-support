@@ -241,7 +241,7 @@ describe('CompletionCandidateResolver', () => {
             { buildCandidates } as any,
             {
                 refreshInheritedIndex: jest.fn(),
-                getInheritedSymbols: jest.fn(() => ({ chain: [], functions: [], types: [], unresolvedTargets: [] })),
+                getInheritedSymbols: jest.fn(() => ({ chain: [], functions: [], types: [], fileGlobals: [], unresolvedTargets: [] })),
                 getRecord: jest.fn(),
                 getResolvedInheritTargets: jest.fn(() => []),
                 getDocumentForUri: jest.fn()

@@ -947,6 +947,106 @@ describe('spawned LSP runtime integration', () => {
         expect(locations[0].range.start.line).toBe(0);
     }, 30000);
 
+    test('global include macros feed model_get object-method definition through the spawned server', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-global-include-model-get-'));
+        const configDir = path.join(workspaceRoot, 'config');
+        const includeDir = path.join(workspaceRoot, 'include');
+        const protocolPath = path.join(workspaceRoot, 'adm', 'protocol', 'protocol_server.c');
+        const uiLayoutModelPath = path.join(workspaceRoot, 'adm', 'protocol', 'model', 'ui_layout_model.c');
+        const sourcePath = path.join(workspaceRoot, 'cmds', 'std', 'look.c');
+
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.mkdirSync(includeDir, { recursive: true });
+        fs.mkdirSync(path.dirname(protocolPath), { recursive: true });
+        fs.mkdirSync(path.dirname(uiLayoutModelPath), { recursive: true });
+        fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+        fs.writeFileSync(
+            path.join(workspaceRoot, 'lpc-support.json'),
+            JSON.stringify({
+                version: 1,
+                configHellPath: path.join('config', 'config.dev')
+            }, null, 2),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(configDir, 'config.dev'),
+            [
+                'mudlib directory : ../',
+                'include directories : /include',
+                'global include file : <globals.h>'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            path.join(includeDir, 'globals.h'),
+            '#define PROTOCOL_D "/adm/protocol/protocol_server"\n',
+            'utf8'
+        );
+        fs.writeFileSync(
+            protocolPath,
+            [
+                'mapping query_model_registry() {',
+                '    return ([',
+                '        "ui_layout": ([ "path": "/adm/protocol/model/ui_layout_model", "mode": "load" ]),',
+                '    ]);',
+                '}',
+                '',
+                'object model_get(string model_name) {',
+                '    mapping info = query_model_registry()[model_name];',
+                '    return load_object(info["path"]);',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            uiLayoutModelPath,
+            [
+                'string render_room_info(string title, string content, int brief, mapping *actions) {',
+                '    return title + content;',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        const sourceText = [
+            'void demo() {',
+            '    object ui_layout_model;',
+            '    ui_layout_model = PROTOCOL_D->model_get("ui_layout");',
+            '    ui_layout_model->render_room_info("title", "content", 0, ({}));',
+            '}'
+        ].join('\n');
+        fs.writeFileSync(sourcePath, sourceText, 'utf8');
+
+        harness = await SpawnedServerHarness.start(workspaceRoot);
+        await harness.openDocument(sourcePath, sourceText);
+
+        const macroDefinition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: positionOfSubstring(sourceText, 'PROTOCOL_D')
+        });
+        const methodDefinition = await harness.connection.sendRequest(DefinitionRequest.type, {
+            textDocument: {
+                uri: uriFromPath(sourcePath)
+            },
+            position: positionOfSubstring(sourceText, 'render_room_info')
+        });
+
+        expect(normalizeDefinitionLocations(macroDefinition)).toEqual([
+            {
+                uri: uriFromPath(path.join(includeDir, 'globals.h')),
+                range: {
+                    start: { line: 0, character: 0 },
+                    end: { line: 0, character: '#define PROTOCOL_D "/adm/protocol/protocol_server"'.length }
+                }
+            }
+        ]);
+        const locations = normalizeDefinitionLocations(methodDefinition);
+        expect(locations).toHaveLength(1);
+        expect(locations[0].uri).toBe(uriFromPath(uiLayoutModelPath));
+        expect(locations[0].range.start.line).toBe(0);
+    }, 30000);
+
     test('this_player semantic provider resolves config-backed runtime definitions', async () => {
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-spawned-this-player-'));
         const playerPath = path.join(workspaceRoot, 'adm', 'objects', 'player.c');

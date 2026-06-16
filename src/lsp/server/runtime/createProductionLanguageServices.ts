@@ -8,6 +8,7 @@ import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
 import { createDiagnosticsStack } from '../../../diagnostics';
 import { EfunDocsManager } from '../../../efunDocs';
 import { FunctionDocLookupBuilder } from '../../../efun/FunctionDocLookupBuilder';
+import { clearGlobalLpcFrontendService } from '../../../frontend/LpcFrontendService';
 import { CallableDocRenderer } from '../../../language/documentation/CallableDocRenderer';
 import { createDefaultFunctionDocumentationService } from '../../../language/documentation/FunctionDocumentationService';
 import { CompletionContextAnalyzer } from '../../../completion/completionContextAnalyzer';
@@ -52,6 +53,7 @@ import { createDefaultObjectInferenceService } from '../../../objectInference/Ob
 import { createDefaultScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
+import { clearGlobalParsedDocumentService } from '../../../parser/ParsedDocumentService';
 import { createDefaultSemanticEvaluationService } from '../../../semanticEvaluation/SemanticEvaluationService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { setServerWorkspaceRoots } from './serverHostState';
@@ -242,6 +244,9 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         navigationService,
         onWorkspaceConfigSync: async () => {
             headerOwnerContextService.clear();
+            clearGlobalLpcFrontendService();
+            clearGlobalParsedDocumentService();
+            analysisService.clearAllCache();
             efunDocsManager.invalidateWorkspaceState();
         },
         signatureHelpService,

@@ -135,7 +135,7 @@ export class PreprocessorScanner {
 
         return {
             name: match[1],
-            replacement: (match[3] || '').trimEnd(),
+            replacement: stripReplacementComments(match[3] || '').trimEnd(),
             parameters,
             isFunctionLike: parameters !== undefined,
             source: 'document',
@@ -243,6 +243,73 @@ function normalizeDirectiveBody(rawText: string): string {
         .map((line) => line.replace(/\\\s*$/, ''))
         .join('\n')
         .trim();
+}
+
+export function stripReplacementComments(text: string): string {
+    let result = '';
+    let inString = false;
+    let inChar = false;
+    let escaping = false;
+
+    for (let index = 0; index < text.length; index += 1) {
+        const current = text[index];
+        const next = text[index + 1];
+
+        if (escaping) {
+            result += current;
+            escaping = false;
+            continue;
+        }
+
+        if (inString || inChar) {
+            result += current;
+            if (current === '\\') {
+                escaping = true;
+                continue;
+            }
+            if (inString && current === '"') {
+                inString = false;
+            } else if (inChar && current === "'") {
+                inChar = false;
+            }
+            continue;
+        }
+
+        if (current === '"') {
+            inString = true;
+            result += current;
+            continue;
+        }
+
+        if (current === "'") {
+            inChar = true;
+            result += current;
+            continue;
+        }
+
+        if (current === '/' && next === '/') {
+            while (index + 1 < text.length && text[index + 1] !== '\n' && text[index + 1] !== '\r') {
+                index += 1;
+            }
+            continue;
+        }
+
+        if (current === '/' && next === '*') {
+            index += 2;
+            while (index < text.length && !(text[index] === '*' && text[index + 1] === '/')) {
+                index += 1;
+            }
+            if (index < text.length) {
+                index += 1;
+            }
+            result += ' ';
+            continue;
+        }
+
+        result += current;
+    }
+
+    return result;
 }
 
 function endsWithContinuation(line: string): boolean {

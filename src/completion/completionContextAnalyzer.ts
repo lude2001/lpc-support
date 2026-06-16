@@ -224,7 +224,85 @@ export class CompletionContextAnalyzer {
             return tokenBackedContext;
         }
 
+        const lineBackedContext = this.extractLineBackedReceiverContext(document, position);
+        if (lineBackedContext) {
+            return lineBackedContext;
+        }
+
         return { receiverChain: [] };
+    }
+
+    private extractLineBackedReceiverContext(
+        document: vscode.TextDocument,
+        position: vscode.Position
+    ): ReceiverContext | undefined {
+        const linePrefix = document.lineAt(position).text.slice(0, position.character);
+        if (isInsideLineStringOrComment(linePrefix)) {
+            return undefined;
+        }
+
+        const arrowIndex = linePrefix.lastIndexOf('->');
+        const dotIndex = linePrefix.lastIndexOf('.');
+        const operatorIndex = Math.max(arrowIndex, dotIndex);
+        if (operatorIndex < 0) {
+            return undefined;
+        }
+
+        const suffix = linePrefix.slice(operatorIndex + (operatorIndex === arrowIndex ? 2 : 1));
+        if (!/^\s*[A-Za-z_][A-Za-z0-9_]*\s*$/.test(suffix) && !/^\s*$/.test(suffix)) {
+            return undefined;
+        }
+
+        const receiverExpression = this.extractReceiverExpressionFromLinePrefix(linePrefix.slice(0, operatorIndex));
+        if (!receiverExpression) {
+            return undefined;
+        }
+
+        const receiverChain = buildSimpleReceiverChainFromText(receiverExpression);
+        if (receiverChain.length > 0) {
+            return { receiverChain };
+        }
+
+        return {
+            receiverChain: [],
+            receiverExpression
+        };
+    }
+
+    private extractReceiverExpressionFromLinePrefix(prefixBeforeOperator: string): string | undefined {
+        let index = prefixBeforeOperator.length - 1;
+        while (index >= 0 && /\s/.test(prefixBeforeOperator[index])) {
+            index -= 1;
+        }
+
+        if (index < 0) {
+            return undefined;
+        }
+
+        let depth = 0;
+        for (; index >= 0; index -= 1) {
+            const character = prefixBeforeOperator[index];
+            if (character === ')' || character === ']') {
+                depth += 1;
+                continue;
+            }
+
+            if (character === '(' || character === '[') {
+                if (depth > 0) {
+                    depth -= 1;
+                    continue;
+                }
+
+                break;
+            }
+
+            if (depth === 0 && /[\s,;{}=?:+\-*\/%!~&|^<>]/.test(character)) {
+                break;
+            }
+        }
+
+        const receiverExpression = prefixBeforeOperator.slice(index + 1).trim();
+        return receiverExpression.length > 0 ? receiverExpression : undefined;
     }
 
     private extractTokenBackedReceiverContext(
@@ -449,6 +527,16 @@ function buildSimpleReceiverChain(tokens: readonly LpcTokenLike[]): string[] {
     }
 
     return expectIdentifier ? [] : chain;
+}
+
+function buildSimpleReceiverChainFromText(expression: string): string[] {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*(?:\s*(?:->|\.)\s*[A-Za-z_][A-Za-z0-9_]*)*$/.test(expression)) {
+        return [];
+    }
+
+    return expression
+        .split(/\s*(?:->|\.)\s*/)
+        .filter(Boolean);
 }
 
 function isOpeningDelimiter(tokenText: string): boolean {

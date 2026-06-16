@@ -461,10 +461,35 @@ export const workspace = {
 
         while (queue.length > 0) {
             const currentPath = queue.shift()!;
-            const stats = await fs.promises.stat(currentPath);
+            if (currentPath !== basePath && isIgnoredWorkspaceSearchPath(basePath, currentPath)) {
+                continue;
+            }
+
+            let stats: fs.Stats;
+            try {
+                stats = await fs.promises.stat(currentPath);
+            } catch (error) {
+                if (isTransientFileSystemError(error)) {
+                    continue;
+                }
+                throw error;
+            }
+
             if (stats.isDirectory()) {
-                const entries = await fs.promises.readdir(currentPath);
+                let entries: string[];
+                try {
+                    entries = await fs.promises.readdir(currentPath);
+                } catch (error) {
+                    if (isTransientFileSystemError(error)) {
+                        continue;
+                    }
+                    throw error;
+                }
+
                 for (const entry of entries) {
+                    if (IGNORED_WORKSPACE_SEARCH_DIRECTORIES.has(entry)) {
+                        continue;
+                    }
                     queue.push(path.join(currentPath, entry));
                 }
                 continue;
@@ -649,6 +674,33 @@ function globToRegExp(glob: string): RegExp {
 
 function normalizePath(targetPath: string): string {
     return targetPath.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+const IGNORED_WORKSPACE_SEARCH_DIRECTORIES = new Set([
+    '.git',
+    'node_modules',
+    'dist',
+    'out',
+    'coverage'
+]);
+
+function isIgnoredWorkspaceSearchPath(basePath: string, currentPath: string): boolean {
+    const relativePath = path.relative(basePath, currentPath);
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+        return false;
+    }
+
+    return relativePath
+        .split(/[\\/]+/)
+        .some(segment => IGNORED_WORKSPACE_SEARCH_DIRECTORIES.has(segment));
+}
+
+function isTransientFileSystemError(error: unknown): boolean {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    return code === 'ENOENT'
+        || code === 'ENOTDIR'
+        || code === 'EACCES'
+        || code === 'EPERM';
 }
 
 function isFileUri(value: string): boolean {

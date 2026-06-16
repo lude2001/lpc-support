@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { InheritanceResolver } from '../../../completion/inheritanceResolver';
 import { ProjectSymbolIndex } from '../../../completion/projectSymbolIndex';
-import type { FunctionSummary } from '../../../semantic/documentSemanticTypes';
+import type { FileGlobalSummary, FunctionSummary } from '../../../semantic/documentSemanticTypes';
 import type { SemanticSnapshot } from '../../../semantic/semanticSnapshot';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
 import { DefaultDiagnosticSymbolResolver } from '../DiagnosticSymbolResolver';
@@ -46,6 +46,19 @@ function createFunction(
         sourceUri,
         range: new vscode.Range(0, 0, 0, 0),
         origin: 'local'
+    };
+}
+
+function createFileGlobal(
+    name: string,
+    sourceUri: string,
+    dataType: string
+): FileGlobalSummary {
+    return {
+        name,
+        dataType,
+        sourceUri,
+        range: new vscode.Range(0, 0, 0, 0)
     };
 }
 
@@ -263,6 +276,41 @@ describe('DefaultDiagnosticSymbolResolver', () => {
             requiredParameterCount: 1,
             isVariadic: true
         });
+    });
+
+    test('exposes file globals inherited through the inherit chain', async () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-inherited-globals-'));
+        const mainPath = path.join(tempRoot, 'adm', 'daemons', 'topd.c');
+        const inheritPath = path.join(tempRoot, 'feature', 'dbase.c');
+        fs.mkdirSync(path.dirname(mainPath), { recursive: true });
+        fs.mkdirSync(path.dirname(inheritPath), { recursive: true });
+        fs.writeFileSync(mainPath, '', 'utf8');
+        fs.writeFileSync(inheritPath, '', 'utf8');
+
+        const mainDocument = createDocument(mainPath);
+        const inheritDocument = createDocument(inheritPath);
+        const snapshots = new Map<string, SemanticSnapshot>();
+        snapshots.set(mainDocument.uri.toString(), createSnapshot(mainDocument, {
+            inheritStatements: [{
+                rawText: 'inherit F_DBASE;',
+                expressionKind: 'macro',
+                value: 'feature/dbase',
+                range: new vscode.Range(0, 0, 0, 0),
+                isResolved: false
+            }]
+        }));
+        snapshots.set(inheritDocument.uri.toString(), createSnapshot(inheritDocument, {
+            fileGlobals: [createFileGlobal('dbase', inheritDocument.uri.toString(), 'mapping')]
+        }));
+
+        const { resolver } = createResolver(snapshots, tempRoot);
+        const visible = await resolver.resolveVisibleSymbols(
+            mainDocument,
+            snapshots.get(mainDocument.uri.toString())!
+        );
+
+        expect(visible.hasUnresolvedDependencies).toBe(false);
+        expect(visible.fileGlobals.map((global) => global.name)).toContain('dbase');
     });
 
     test('uses workspace project config when resolving inherited diagnostics dependencies', async () => {

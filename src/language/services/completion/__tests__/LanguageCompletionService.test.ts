@@ -75,6 +75,7 @@ describe('LanguageCompletionService scoped completion resolve', () => {
     });
 
     afterEach(() => {
+        jest.useRealTimers();
         DocumentSemanticSnapshotService.getInstance().clear();
     });
 
@@ -209,6 +210,55 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         expect(efunDocsManager.ensureWorkspaceStateCurrent).toHaveBeenCalledWith(document, undefined);
         expect(efunDocsManager.getAllSimulatedFunctions).toHaveBeenCalledWith(document);
         expect(result.items.map((item: any) => item.label)).toContain('simul_call');
+    });
+
+    test('provideCompletion does not block on a slow simulated efun workspace refresh', async () => {
+        jest.useFakeTimers();
+        const document = createDocument(
+            path.join(process.cwd(), '.tmp-completion-service', 'workspace-a', 'slow-room.c'),
+            'query'
+        );
+        efunDocsManager.ensureWorkspaceStateCurrent.mockImplementation(() => new Promise<void>(() => undefined));
+        const documentHost = createVsCodeTextDocumentHost();
+        const service = createDefaultQueryBackedLanguageCompletionService({
+            efunDocsManager: efunDocsManager as any,
+            analysisService,
+            documentationService: { getDocForDeclaration: jest.fn() } as any,
+            objectInferenceService: {} as any,
+            instrumentation: new CompletionInstrumentation(),
+            inheritanceReporter: {
+                clear: jest.fn(),
+                show: jest.fn(),
+                appendLine: jest.fn()
+            } as any,
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver()),
+            contextAnalyzer: new CompletionContextAnalyzer(),
+            scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
+                analysisService,
+                host: documentHost
+            }),
+            scopedCompletionSupport: createDefaultScopedMethodCompletionSupport({
+                documentationService: { getDocForDeclaration: jest.fn() } as any,
+                documentLoader: jest.fn(),
+                renderer: new CallableDocRenderer()
+            })
+        }) as any;
+
+        const resultPromise = service.provideCompletion({
+            context: {
+                document,
+                workspace: { workspaceRoot: process.cwd() },
+                cancellation: { isCancellationRequested: false }
+            } as any,
+            position: { line: 0, character: 5 }
+        });
+
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+        const result = await resultPromise;
+
+        expect(efunDocsManager.ensureWorkspaceStateCurrent).toHaveBeenCalledWith(document, undefined);
+        expect(Array.isArray(result.items)).toBe(true);
     });
 
     test('scoped completion resolveCompletionItem does not fabricate docs for ambiguous merged candidates', async () => {

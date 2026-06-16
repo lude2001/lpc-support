@@ -102,7 +102,9 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
             ...(semantic.fileGlobals ?? []),
             ...(headerOwnerContext?.fileGlobals ?? []),
             ...dependencyState.included.fileGlobals,
-            ...included.fileGlobals
+            ...included.fileGlobals,
+            ...dependencyState.inherited.fileGlobals,
+            ...inherited.fileGlobals
         ]);
         const visibleTypes = dedupeTypes([
             ...semantic.typeDefinitions,
@@ -200,6 +202,7 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         } else if (relation === 'inherited') {
             inherited.functions.push(...semantic.exportedFunctions.map((summary) => ({ ...summary, origin: 'inherited' as const })));
             inherited.types.push(...semantic.typeDefinitions);
+            inherited.fileGlobals.push(...(semantic.fileGlobals ?? []));
         }
 
         return { hasUnresolved, included, inherited };

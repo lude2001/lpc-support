@@ -6,7 +6,7 @@ import {
     MacroUndefFact,
     PreprocessorDirective
 } from './types';
-import { positionAt } from './PreprocessorScanner';
+import { positionAt, stripReplacementComments } from './PreprocessorScanner';
 
 export interface MacroFactResolutionResult {
     activeMacros: MacroDefinitionFact[];
@@ -189,7 +189,7 @@ function createMacroFact(directive: PreprocessorDirective, sourceUri?: string): 
 
     return {
         name: match[1],
-        replacement: (match[3] || '').trimEnd(),
+        replacement: stripReplacementComments(match[3] || '').trimEnd(),
         parameters,
         isFunctionLike: parameters !== undefined,
         source: 'document',

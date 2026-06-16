@@ -108,6 +108,8 @@ interface QueryBackedLanguageCompletionOwnedServices {
     efunDocsManager: Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent'>>;
 }
 
+const COMPLETION_WORKSPACE_STATE_WAIT_MS = 1000;
+
 export class QueryBackedLanguageCompletionService implements LanguageCompletionService {
     private readonly queryEngine: CompletionQueryEngine;
     private readonly instrumentation: CompletionInstrumentation;
@@ -141,7 +143,7 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         });
 
         try {
-            await this.efunDocsManager.ensureWorkspaceStateCurrent?.(
+            await this.awaitWorkspaceStateForCompletion(
                 document,
                 request.context.workspace.projectConfig
             );
@@ -231,6 +233,36 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
 
     public async scanInheritance(document: vscode.TextDocument): Promise<void> {
         await this.inheritedIndexService.scanInheritance(document);
+    }
+
+    private async awaitWorkspaceStateForCompletion(
+        document: vscode.TextDocument,
+        projectConfig: LanguageCapabilityContext['workspace']['projectConfig']
+    ): Promise<void> {
+        const statePromise = this.efunDocsManager.ensureWorkspaceStateCurrent?.(document, projectConfig);
+        if (!statePromise) {
+            return;
+        }
+
+        let timeoutHandle: NodeJS.Timeout | undefined;
+        const timeoutPromise = new Promise<void>((resolve) => {
+            timeoutHandle = setTimeout(resolve, COMPLETION_WORKSPACE_STATE_WAIT_MS);
+        });
+
+        try {
+            await Promise.race([
+                statePromise,
+                timeoutPromise
+            ]);
+        } finally {
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
+        }
+
+        void statePromise.catch(error => {
+            console.error('Error refreshing simulated efun state for completion:', error);
+        });
     }
 
 }

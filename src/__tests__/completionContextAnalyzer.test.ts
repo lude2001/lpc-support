@@ -104,6 +104,21 @@ describe('CompletionContextAnalyzer', () => {
         expect(namedScoped.receiverExpression).toBe('room::');
     });
 
+    test('classifies empty member prefixes immediately after arrow operators', () => {
+        const document = createDocument(
+            'tell_object(me, ui_layout_model->render_room_info(title, content));'
+        );
+
+        const context = analyzer.analyze(
+            document,
+            new vscode.Position(0, 'tell_object(me, ui_layout_model->'.length)
+        );
+
+        expect(context.kind).toBe('member');
+        expect(context.receiverChain).toEqual(['ui_layout_model']);
+        expect(context.currentWord).toBe('');
+    });
+
     test('classifies scoped method name positions while excluding qualifier and argument positions', () => {
         const document = createDocument('room::init(arg);');
 

@@ -90,6 +90,11 @@ export class ReceiverExpressionResolver {
             return undefined;
         }
 
+        const naturalOutcome = await this.returnObjectResolver.resolveExpressionOutcome(document, expression);
+        if (naturalOutcome.candidates.length > 0 || naturalOutcome.reason === 'non-static') {
+            return naturalOutcome;
+        }
+
         const receiverOutcome = await this.resolveReceiverExpression(
             document,
             functionNode,

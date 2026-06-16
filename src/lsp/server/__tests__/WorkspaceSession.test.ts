@@ -1,4 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 import type { WorkspaceConfigSyncPayload } from '../../shared/protocol/workspaceConfigSync';
 import { Uri, workspace } from '../runtime/vscodeShim';
@@ -159,4 +162,60 @@ describe('WorkspaceSession', () => {
 
         expect(Object.keys(context).sort()).toEqual(['projectConfig', 'workspaceRoot']);
     });
+
+    test('runtime findFiles skips git metadata while scanning workspace files', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-lsp-find-files-git-'));
+        fs.mkdirSync(path.join(workspaceRoot, 'src'), { recursive: true });
+        fs.mkdirSync(path.join(workspaceRoot, '.git', 'refs', 'codex', 'turn-diffs'), { recursive: true });
+        fs.writeFileSync(path.join(workspaceRoot, 'src', 'live.c'), 'void create() {}\n', 'utf8');
+        fs.writeFileSync(path.join(workspaceRoot, '.git', 'refs', 'codex', 'turn-diffs', 'hidden.c'), 'broken', 'utf8');
+        new WorkspaceSession({ workspaceRoots: [workspaceRoot] });
+
+        try {
+            const matches = await workspace.findFiles('**/*.c');
+
+            expect(matches.map(uri => normalizeTestPath(uri.fsPath))).toEqual([
+                normalizeTestPath(path.join(workspaceRoot, 'src', 'live.c'))
+            ]);
+        } finally {
+            new WorkspaceSession({ workspaceRoots: [] });
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('runtime findFiles tolerates files that disappear during traversal', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-lsp-find-files-missing-'));
+        const livePath = path.join(workspaceRoot, 'src', 'live.c');
+        const volatilePath = path.join(workspaceRoot, 'src', 'volatile.c');
+        fs.mkdirSync(path.dirname(livePath), { recursive: true });
+        fs.writeFileSync(livePath, 'void create() {}\n', 'utf8');
+        fs.writeFileSync(volatilePath, 'void gone() {}\n', 'utf8');
+        new WorkspaceSession({ workspaceRoots: [workspaceRoot] });
+
+        const originalStat = fs.promises.stat.bind(fs.promises);
+        const statSpy = jest.spyOn(fs.promises, 'stat').mockImplementation(async (target) => {
+            if (normalizeTestPath(target.toString()) === normalizeTestPath(volatilePath)) {
+                const error = new Error('gone') as NodeJS.ErrnoException;
+                error.code = 'ENOENT';
+                throw error;
+            }
+            return originalStat(target);
+        });
+
+        try {
+            const matches = await workspace.findFiles('**/*.c');
+
+            expect(matches.map(uri => normalizeTestPath(uri.fsPath))).toEqual([
+                normalizeTestPath(livePath)
+            ]);
+        } finally {
+            statSpy.mockRestore();
+            new WorkspaceSession({ workspaceRoots: [] });
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
 });
+
+function normalizeTestPath(filePath: string): string {
+    return filePath.replace(/\\/g, '/');
+}
