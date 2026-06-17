@@ -257,7 +257,14 @@ export class CompletionQueryEngine {
             });
         }
 
+        const simulatedEfuns = this.efunProvider?.getAllSimulatedFunctions(document) || [];
+        const simulatedEfunNames = new Set(simulatedEfuns);
+
         for (const efun of this.efunProvider?.getAllFunctions() || []) {
+            if (simulatedEfunNames.has(efun)) {
+                continue;
+            }
+
             candidates.push({
                 key: `efun:${efun}`,
                 label: efun,
@@ -272,7 +279,7 @@ export class CompletionQueryEngine {
             });
         }
 
-        for (const efun of this.efunProvider?.getAllSimulatedFunctions(document) || []) {
+        for (const efun of simulatedEfuns) {
             candidates.push({
                 key: `simul-efun:${efun}`,
                 label: efun,

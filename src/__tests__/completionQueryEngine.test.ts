@@ -196,6 +196,45 @@ describe('CompletionQueryEngine', () => {
         ]));
     });
 
+    test('prefers simulated efun candidates over standard efuns with the same label', () => {
+        const filePath = path.join(root, 'simul-efun-overrides.c');
+        const content = [
+            'void demo() {',
+            '    tell_',
+            '}'
+        ].join('\n');
+
+        fs.writeFileSync(filePath, content, 'utf8');
+
+        const astManager = getAstManagerForTests();
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
+        const engine = new CompletionQueryEngine({
+            snapshotProvider: astManager,
+            projectSymbolIndex,
+            contextAnalyzer: new CompletionContextAnalyzer(),
+            efunProvider: {
+                getAllFunctions: () => ['tell_object', 'tell_room'],
+                getAllSimulatedFunctions: () => ['tell_object', 'tell_room']
+            }
+        });
+        const document = createDocument(filePath, content);
+
+        const result = engine.query(
+            document,
+            new vscode.Position(1, '    tell_'.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        const tellObjectCandidates = result.candidates.filter(candidate => candidate.label === 'tell_object');
+        const tellRoomCandidates = result.candidates.filter(candidate => candidate.label === 'tell_room');
+
+        expect(tellObjectCandidates).toHaveLength(1);
+        expect(tellObjectCandidates[0].metadata.sourceType).toBe('simul-efun');
+        expect(tellRoomCandidates).toHaveLength(1);
+        expect(tellRoomCandidates[0].metadata.sourceType).toBe('simul-efun');
+    });
+
     test('returns explicit class member candidates for dot member access', () => {
         const filePath = path.join(root, 'dot-member.c');
         const content = [
