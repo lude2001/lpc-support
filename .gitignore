@@ -64,3 +64,4 @@ test/lpc_code/
 .agents/
 .codex/
 tmp/
+.tmp/

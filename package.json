@@ -528,6 +528,7 @@
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "test:performance": "node -e \"console.error('No performance test suite is configured.'); process.exit(1)\"",
+    "probe:lsp": "node scripts/lsp-probe.mjs",
     "audit:efun-arity": "node scripts/audit-efun-arity.mjs",
     "audit:efun-arity:strict": "node scripts/audit-efun-arity.mjs --strict"
   },

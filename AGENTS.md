@@ -52,6 +52,7 @@
 - `npm run test:unit`、`npm run test:integration`、`npm run test:e2e`、`npm run test:performance`：按类型执行测试。
 - `npm run test:coverage`：输出覆盖率报告到 `coverage/`。
 - `npm run clean`：清理 `dist/` 与 `out/`。
+- `npm run probe:lsp -- --project <真实LPC项目根目录> --file <LPC路径> [--position 行:列]`：在真实项目上运行本机 LSP 静态探针，用于排查编辑器诊断、跳转、悬停与补全问题。
 
 ### 当前常用验证命令
 
@@ -104,6 +105,26 @@
   - 锁定选区格式化规则
 - `src/__tests__/yifengDebug.test.ts`
   - 锁定 `yifeng-jian.c` 的关键 formatter 回归
+
+### 真实项目 LSP 静态探针
+
+当用户要排查“编辑器为什么报错 / 为什么不跳转 / 为什么不补全 / hover 不对”这类问题时，优先使用本仓库的 LSP 静态探针，而不是直接猜测原因，也不要启动 driver 或走 `lpccp`。探针只模拟 VS Code 打开文件并向 `dist/lsp/server.js` 发 LSP 请求，目标是定位编辑器静态语言能力链路的问题。
+
+常用命令：
+
+```powershell
+npm run probe:lsp -- --project D:\code\shuiyuzhengfeng_lpc --file /adm/single/master.c
+npm run probe:lsp -- --project D:\code\shuiyuzhengfeng_lpc --file /adm/single/master.c --position 12:8
+```
+
+使用约束：
+
+- 默认报告输出到 `.tmp/lsp-probe/latest.json` 与 `.tmp/lsp-probe/latest.md`，`.tmp/` 不应提交。
+- 默认报告必须保持脱敏：不写真实项目绝对根路径、不写源码正文、不写源码片段、不写函数体、不写补全候选标签。
+- `--position` 使用 1-based 行列；传入后会额外请求 definition / hover / completion，并在请求超时时记录 `timedOut`。
+- 只有用户明确同意时，才使用 `--include-completion-labels` 或 `LPC_PROBE_INCLUDE_COMPLETION_LABELS=1` 输出补全候选标签。
+- `probe:lsp` 是静态编辑器探针，不验证 FluffOS 运行时语义；运行时编译/重载问题才考虑 `lpccp`。
+- 排查完成后，在回复里引用报告里的阶段、数量、超时和诊断消息即可，不要把真实项目源码摘出来。
 
 ## 提交与 Pull Request 规范
 提交信息遵循 Conventional Commits，并与仓库历史一致：`feat:`、`fix:`、`refactor:`、`docs:`、`chore:`，可选 scope（示例：`feat(diagnostics): ...`）。  
