@@ -21,6 +21,10 @@ export interface TargetMethodLookupOptions {
     projectConfig?: LanguageWorkspaceProjectConfig;
 }
 
+export interface TargetDependencyFootprintRecorder {
+    addDependencyFootprint(ownerUri: string, dependencies: readonly string[]): void;
+}
+
 interface ResolvedFunctionRange {
     declarationRange: vscode.Range;
     navigationRange: vscode.Range;
@@ -34,7 +38,8 @@ export class TargetMethodLookup {
 
     constructor(
         analysisService: TargetMethodAnalysisService,
-        pathSupport?: WorkspaceDocumentPathSupport
+        pathSupport?: WorkspaceDocumentPathSupport,
+        private readonly dependencyFootprintRecorder?: TargetDependencyFootprintRecorder
     ) {
         this.analysisService = analysisService;
         this.pathSupport = assertDocumentPathSupport('TargetMethodLookup', pathSupport);
@@ -46,7 +51,14 @@ export class TargetMethodLookup {
         methodName: string,
         options?: TargetMethodLookupOptions
     ): Promise<ResolvedTargetMethod | undefined> {
-        return this.findMethodRecursive(currentDocument, targetFilePath, methodName, new Set<string>(), options);
+        return this.findMethodRecursive(
+            currentDocument,
+            targetFilePath,
+            methodName,
+            new Set<string>(),
+            currentDocument.uri.toString(),
+            options
+        );
     }
 
     private async findMethodRecursive(
@@ -54,6 +66,7 @@ export class TargetMethodLookup {
         targetFilePath: string,
         methodName: string,
         visitedFiles: Set<string>,
+        ownerUri: string,
         options?: TargetMethodLookupOptions
     ): Promise<ResolvedTargetMethod | undefined> {
         const workspaceRoot = this.pathSupport.getWorkspaceFolderRoot(currentDocument);
@@ -68,7 +81,7 @@ export class TargetMethodLookup {
         }
 
         visitedFiles.add(resolvedTargetPath);
-        return this.resolveMethodRecursive(currentDocument, resolvedTargetPath, methodName, visitedFiles, options);
+        return this.resolveMethodRecursive(currentDocument, resolvedTargetPath, methodName, visitedFiles, ownerUri, options);
     }
 
     private async resolveMethodRecursive(
@@ -76,6 +89,7 @@ export class TargetMethodLookup {
         resolvedTargetPath: string,
         methodName: string,
         visitedFiles: Set<string>,
+        ownerUri: string,
         options?: TargetMethodLookupOptions
     ): Promise<ResolvedTargetMethod | undefined> {
         const targetDocument = path.resolve(resolvedTargetPath) === path.resolve(currentDocument.uri.fsPath)
@@ -85,6 +99,7 @@ export class TargetMethodLookup {
             return undefined;
         }
 
+        this.recordDependency(ownerUri, targetDocument.uri.fsPath);
         const directRange = this.findFunctionRangeInSemanticSnapshot(
             targetDocument,
             methodName,
@@ -99,7 +114,7 @@ export class TargetMethodLookup {
             };
         }
 
-        const includeLocation = await this.findMethodInIncludedFiles(targetDocument, methodName, options);
+        const includeLocation = await this.findMethodInIncludedFiles(targetDocument, methodName, ownerUri, options);
         if (includeLocation) {
             return includeLocation;
         }
@@ -124,6 +139,7 @@ export class TargetMethodLookup {
                 inheritedFile,
                 methodName,
                 visitedFiles,
+                ownerUri,
                 options
             );
             if (inheritedLocation) {
@@ -137,6 +153,7 @@ export class TargetMethodLookup {
     private async findMethodInIncludedFiles(
         document: vscode.TextDocument,
         methodName: string,
+        ownerUri: string,
         options?: TargetMethodLookupOptions
     ): Promise<ResolvedTargetMethod | undefined> {
         for (const includeStatement of this.getSemanticSnapshot(
@@ -161,6 +178,7 @@ export class TargetMethodLookup {
                     continue;
                 }
 
+                this.recordDependency(ownerUri, includeDocument.uri.fsPath);
                 const functionRange = this.findFunctionRangeInSemanticSnapshot(
                     includeDocument,
                     methodName,
@@ -201,5 +219,11 @@ export class TargetMethodLookup {
 
     private getSemanticSnapshot(document: vscode.TextDocument, useCache: boolean = true): SemanticSnapshot {
         return this.analysisService.getSemanticSnapshot(document, useCache);
+    }
+
+    private recordDependency(ownerUri: string, filePath: string): void {
+        this.dependencyFootprintRecorder?.addDependencyFootprint(ownerUri, [
+            vscode.Uri.file(filePath).toString()
+        ]);
     }
 }

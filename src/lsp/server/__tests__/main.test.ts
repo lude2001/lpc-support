@@ -15,7 +15,10 @@ describe('production LSP server entry', () => {
             codeActionsService: { provideCodeActions: jest.fn() }
         };
         const createProductionLanguageServices = jest.fn(() => services);
-        const changeIndex = { recordDependencyFootprint: jest.fn() };
+        const changeIndex = {
+            addDependencyFootprint: jest.fn(),
+            recordDependencyFootprint: jest.fn()
+        };
         const WorkspaceChangeIndex = jest.fn(() => changeIndex);
 
         jest.isolateModules(() => {

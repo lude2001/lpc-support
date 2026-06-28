@@ -89,6 +89,25 @@ export class WorkspaceChangeIndex {
         return next;
     }
 
+    public addDependencyFootprint(ownerUri: string, dependencies: readonly string[]): WorkspaceFileState {
+        const existing = this.states.get(ownerUri);
+        const next: WorkspaceFileState = {
+            uri: ownerUri,
+            openVersion: existing?.openVersion,
+            workspaceConfigGeneration: this.workspaceConfigGeneration,
+            dirty: existing?.dirty ?? false,
+            maybeStale: existing?.maybeStale ?? false,
+            deleted: existing?.deleted ?? false,
+            lastChangedAt: existing?.lastChangedAt ?? Date.now(),
+            lastDependencyFootprint: normalizeUniqueUris([
+                ...(existing?.lastDependencyFootprint ?? []),
+                ...dependencies
+            ])
+        };
+        this.states.set(ownerUri, next);
+        return next;
+    }
+
     public getMaybeStaleOpenUris(): string[] {
         return Array.from(this.states.values())
             .filter(state => state.openVersion !== undefined && state.maybeStale)

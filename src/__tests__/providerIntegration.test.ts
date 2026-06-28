@@ -377,6 +377,62 @@ describe('language-service integration regression', () => {
         expect(result?.location.range).toEqual(new vscode.Range(3, 7, 3, 17));
     });
 
+    test('target method lookup records object target dependency footprints for the requesting document', async () => {
+        installWorkspaceOpenTextDocumentFixture();
+        const targetFile = path.join(fixtureRoot, 'lib', 'npc.c');
+        const includeFile = path.join(fixtureRoot, 'include', 'npc_methods.h');
+        const inheritedFile = path.join(fixtureRoot, 'std', 'base_npc.c');
+        fs.mkdirSync(path.dirname(includeFile), { recursive: true });
+        fs.mkdirSync(path.dirname(inheritedFile), { recursive: true });
+        fs.writeFileSync(
+            targetFile,
+            [
+                '#include "/include/npc_methods.h"',
+                'inherit "/std/base_npc";'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            includeFile,
+            [
+                'string query_name()',
+                '{',
+                '    return "npc";',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        fs.writeFileSync(
+            inheritedFile,
+            [
+                'int query_level()',
+                '{',
+                '    return 1;',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        const ownerDocument = createDocument(path.join(fixtureRoot, 'room.c'), 'void test() {}');
+        const dependencyFootprintRecorder = { addDependencyFootprint: jest.fn() };
+        const lookup = new TargetMethodLookup(analysisService, pathSupport, dependencyFootprintRecorder);
+
+        await lookup.findMethod(ownerDocument, targetFile, 'query_name');
+        await lookup.findMethod(ownerDocument, targetFile, 'query_level');
+
+        expect(dependencyFootprintRecorder.addDependencyFootprint).toHaveBeenCalledWith(
+            ownerDocument.uri.toString(),
+            [vscode.Uri.file(targetFile).toString()]
+        );
+        expect(dependencyFootprintRecorder.addDependencyFootprint).toHaveBeenCalledWith(
+            ownerDocument.uri.toString(),
+            [vscode.Uri.file(includeFile).toString()]
+        );
+        expect(dependencyFootprintRecorder.addDependencyFootprint).toHaveBeenCalledWith(
+            ownerDocument.uri.toString(),
+            [vscode.Uri.file(inheritedFile).toString()]
+        );
+    });
+
     test('completion resolves file-scope global object receivers through inferred target files', async () => {
         const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
         fs.mkdirSync(path.dirname(targetFile), { recursive: true });
@@ -1035,7 +1091,10 @@ describe('language-service integration regression', () => {
         expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
         expect(definition[0].range.start.line).toBe(0);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', { projectConfig: undefined });
+        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', {
+            projectConfig: undefined,
+            useFreshSnapshots: true
+        });
     });
 
     test('definition resolves inherited file-scope global object receivers to the current-file target', async () => {
@@ -1087,7 +1146,10 @@ describe('language-service integration regression', () => {
         expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
         expect(definition[0].range.start.line).toBe(0);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', { projectConfig: undefined });
+        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', {
+            projectConfig: undefined,
+            useFreshSnapshots: true
+        });
     });
 
     test('definition resolves local receivers initialized from new(CLASSIFY_POP) through frontend macro object inference', async () => {
@@ -1128,7 +1190,10 @@ describe('language-service integration regression', () => {
         expect(definition).toHaveLength(1);
         expect(normalizeLocationUri(definition[0].uri)).toBe(targetFile);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'add_data_button', { projectConfig: undefined });
+        expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'add_data_button', {
+            projectConfig: undefined,
+            useFreshSnapshots: true
+        });
     });
 
     test('semantic evaluation model_get feeds downstream object-method definition', async () => {
@@ -1200,7 +1265,10 @@ describe('language-service integration regression', () => {
         expect(definition).toHaveLength(1);
         expect(normalizeLocationUri(definition[0].uri)).toBe(loginModelFile);
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
-        expect(findMethod).toHaveBeenCalledWith(document, loginModelFile, 'error_result', { projectConfig: undefined });
+        expect(findMethod).toHaveBeenCalledWith(document, loginModelFile, 'error_result', {
+            projectConfig: undefined,
+            useFreshSnapshots: true
+        });
     });
 
     test('semantic evaluation model_get resolves macro receivers before return-objects fallback', async () => {
@@ -1280,8 +1348,14 @@ describe('language-service integration regression', () => {
 
         expect(definition).toHaveLength(1);
         expect(normalizeLocationUri(definition[0].uri)).toBe(navigationModelFile);
-        expect(findMethod).toHaveBeenCalledWith(document, navigationModelFile, 'create_action', { projectConfig: undefined });
-        expect(findMethod).not.toHaveBeenCalledWith(document, equipModelFile, 'create_action', { projectConfig: undefined });
+        expect(findMethod).toHaveBeenCalledWith(document, navigationModelFile, 'create_action', {
+            projectConfig: undefined,
+            useFreshSnapshots: true
+        });
+        expect(findMethod).not.toHaveBeenCalledWith(document, equipModelFile, 'create_action', {
+            projectConfig: undefined,
+            useFreshSnapshots: true
+        });
     });
 
     test('merged candidates from if/else return two locations when each file implements query_name', async () => {

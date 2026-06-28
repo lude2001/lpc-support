@@ -63,7 +63,7 @@ import { setServerWorkspaceRoots } from './serverHostState';
 import type { WorkspaceChangeIndex } from './WorkspaceChangeIndex';
 
 export interface ProductionLanguageServicesOptions {
-    changeIndex?: Pick<WorkspaceChangeIndex, 'recordDependencyFootprint'>;
+    changeIndex?: Pick<WorkspaceChangeIndex, 'addDependencyFootprint' | 'recordDependencyFootprint'>;
 }
 
 export function createProductionLanguageServices(
@@ -91,6 +91,7 @@ export function createProductionLanguageServices(
     });
     const objectInferenceService = createDefaultObjectInferenceService({
         analysisService,
+        dependencyFootprintRecorder: options.changeIndex,
         documentationService,
         host: workspaceDocumentHost,
         pathSupport: documentPathSupport,
@@ -103,7 +104,7 @@ export function createProductionLanguageServices(
         host: workspaceDocumentHost
     });
     const projectSymbolIndex = new ProjectSymbolIndex(inheritanceResolver);
-    const targetMethodLookup = new TargetMethodLookup(analysisService, documentPathSupport);
+    const targetMethodLookup = new TargetMethodLookup(analysisService, documentPathSupport, options.changeIndex);
     const efunDocsManager = new EfunDocsManager(
         createServerExtensionContext(),
         undefined,

@@ -156,6 +156,7 @@ describe('createProductionLanguageServices', () => {
             expect(createDefaultObjectInferenceService).toHaveBeenCalledWith(
                 expect.objectContaining({
                     analysisService,
+                    dependencyFootprintRecorder: undefined,
                     documentationService,
                     host: expect.objectContaining({
                         openTextDocument: expect.any(Function)
@@ -474,7 +475,11 @@ describe('createProductionLanguageServices', () => {
             diagnosticsService: { collectDiagnostics: jest.fn() }
         };
         const createDiagnosticsStack = jest.fn(() => diagnosticsStack);
-        const changeIndex = { recordDependencyFootprint: jest.fn() };
+        const changeIndex = {
+            addDependencyFootprint: jest.fn(),
+            recordDependencyFootprint: jest.fn()
+        };
+        const targetMethodLookupCtor = jest.fn(() => ({ kind: 'target-method-lookup' }));
 
         jest.isolateModules(() => {
             jest.doMock('../../../../projectConfig/LpcProjectConfigService', () => ({
@@ -502,7 +507,7 @@ describe('createProductionLanguageServices', () => {
                 ScopedMethodResolver: jest.fn(() => ({ kind: 'scoped-method-resolver' }))
             }));
             jest.doMock('../../../../targetMethodLookup', () => ({
-                TargetMethodLookup: jest.fn(() => ({ kind: 'target-method-lookup' }))
+                TargetMethodLookup: targetMethodLookupCtor
             }));
             jest.doMock('../../../../language/services/completion/LanguageCompletionService', () => ({
                 createDefaultQueryBackedLanguageCompletionService: jest.fn(() => ({ provideCompletion: jest.fn() }))
@@ -559,6 +564,17 @@ describe('createProductionLanguageServices', () => {
             );
             const diagnosticsOptions = createDiagnosticsStack.mock.calls[0][1] as any;
             expect(diagnosticsOptions.symbolResolver.options.dependencyFootprintRecorder).toBe(changeIndex);
+            const { createDefaultObjectInferenceService } = require('../../../../objectInference/ObjectInferenceService') as typeof import('../../../../objectInference/ObjectInferenceService');
+            expect(createDefaultObjectInferenceService).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    dependencyFootprintRecorder: changeIndex
+                })
+            );
+            expect(targetMethodLookupCtor).toHaveBeenCalledWith(
+                analysisService,
+                expect.anything(),
+                changeIndex
+            );
             expect(services.diagnosticsService).toBe(diagnosticsStack.diagnosticsService);
         });
     });

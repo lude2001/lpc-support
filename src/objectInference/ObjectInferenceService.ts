@@ -16,7 +16,7 @@ import {
     createDefaultSemanticEvaluationService
 } from '../semanticEvaluation/SemanticEvaluationService';
 import type { SemanticValue } from '../semanticEvaluation/types';
-import { TargetMethodLookup } from '../targetMethodLookup';
+import { TargetMethodLookup, type TargetDependencyFootprintRecorder } from '../targetMethodLookup';
 import { ObjectCandidateResolver } from './ObjectCandidateResolver';
 import { GlobalObjectBindingResolver } from './GlobalObjectBindingResolver';
 import { InheritedGlobalObjectBindingResolver } from './InheritedGlobalObjectBindingResolver';
@@ -43,6 +43,7 @@ export interface ObjectInferenceServiceDependencies {
 
 export interface DefaultObjectInferenceServiceDependencies {
     analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
+    dependencyFootprintRecorder?: TargetDependencyFootprintRecorder;
     documentationService?: FunctionDocumentationService;
     host?: TextDocumentHost;
     pathSupport?: WorkspaceDocumentPathSupport;
@@ -532,7 +533,8 @@ export function createDefaultObjectInferenceService(
     const inheritanceResolver = new InheritanceResolver();
     const targetMethodLookup = new TargetMethodLookup(
         analysisService,
-        pathSupport
+        pathSupport,
+        dependencies.dependencyFootprintRecorder
     );
     const scopedMethodResolver = new ScopedMethodResolver({
         analysisService,

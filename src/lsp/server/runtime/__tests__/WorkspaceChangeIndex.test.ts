@@ -135,4 +135,21 @@ describe('WorkspaceChangeIndex', () => {
         }));
         expect(index.getMaybeStaleOpenUris()).toEqual([]);
     });
+
+    test('appends dependency footprints without replacing existing diagnostics dependencies', () => {
+        const index = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/room.c';
+        const includeUri = 'file:///D:/workspace/include/helper.h';
+        const targetUri = 'file:///D:/workspace/obj/npc.c';
+
+        index.markOpened(ownerUri, 3);
+        index.recordDependencyFootprint(ownerUri, [includeUri]);
+        index.markDiskChanged(includeUri, 'changed');
+        index.addDependencyFootprint(ownerUri, [targetUri, includeUri]);
+
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            maybeStale: true,
+            lastDependencyFootprint: [includeUri, targetUri]
+        }));
+    });
 });
