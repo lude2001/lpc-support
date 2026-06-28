@@ -66,6 +66,8 @@ import { __bindDocumentStore, __closeTextDocument, __emitTextDocumentChange, __i
 import { WorkspaceChangeIndex } from '../runtime/WorkspaceChangeIndex';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
+const MAYBE_STALE_DIAGNOSTIC_REFRESH_DELAY_MS = 200;
+
 export type ServerConnection = Pick<
     Connection,
     | 'onInitialize'
@@ -136,6 +138,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         : undefined;
     let workspaceConfigReady = !onWorkspaceConfigSync;
     const pendingDiagnosticRefreshes = new Set<string>();
+    const pendingMaybeStaleDiagnosticRefreshes = new Set<string>();
+    let maybeStaleDiagnosticRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
     const refreshDiagnosticsWhenReady = (uri: string): void => {
         if (!diagnosticsSession) {
@@ -162,6 +166,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     const refreshPendingAndOpenDiagnostics = (): void => {
         if (!diagnosticsSession) {
             pendingDiagnosticRefreshes.clear();
+            pendingMaybeStaleDiagnosticRefreshes.clear();
             return;
         }
 
@@ -176,6 +181,41 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
                 void diagnosticsSession.refresh(uri);
             }
         }
+    };
+
+    const flushMaybeStaleDiagnosticRefreshes = (): void => {
+        maybeStaleDiagnosticRefreshTimer = undefined;
+        if (!diagnosticsSession) {
+            pendingMaybeStaleDiagnosticRefreshes.clear();
+            return;
+        }
+
+        const uris = [...pendingMaybeStaleDiagnosticRefreshes];
+        pendingMaybeStaleDiagnosticRefreshes.clear();
+
+        for (const uri of uris) {
+            if (documentStore.get(uri)) {
+                refreshDiagnosticsWhenReady(uri);
+            }
+        }
+    };
+
+    const scheduleMaybeStaleDiagnosticRefreshes = (uris: readonly string[]): void => {
+        if (!diagnosticsSession || uris.length === 0) {
+            return;
+        }
+
+        for (const uri of uris) {
+            pendingMaybeStaleDiagnosticRefreshes.add(uri);
+        }
+
+        if (maybeStaleDiagnosticRefreshTimer) {
+            clearTimeout(maybeStaleDiagnosticRefreshTimer);
+        }
+        maybeStaleDiagnosticRefreshTimer = setTimeout(
+            flushMaybeStaleDiagnosticRefreshes,
+            MAYBE_STALE_DIAGNOSTIC_REFRESH_DELAY_MS
+        );
     };
 
     connection.onInitialize((_params: InitializeParams): InitializeResult => {
@@ -280,6 +320,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     connection.onNotification(SourceFileChangeNotification.type, (payload: SourceFileChangePayload) => {
         changeIndex?.markDiskChanged(payload.uri, payload.changeType);
         invalidateDocument(payload.uri);
+        scheduleMaybeStaleDiagnosticRefreshes(changeIndex?.getMaybeStaleOpenUris() ?? []);
         if (payload.changeType === 'deleted') {
             diagnosticsSession?.clear(payload.uri);
         }

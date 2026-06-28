@@ -22,6 +22,7 @@ import {
 
 describe('diagnostics session and handlers', () => {
     afterEach(() => {
+        jest.useRealTimers();
         jest.resetModules();
         jest.clearAllMocks();
     });
@@ -265,6 +266,66 @@ describe('diagnostics session and handlers', () => {
             deleted: true
         }));
         expect(diagnosticsSession.clear).toHaveBeenCalledWith('file:///D:/workspace/include/settings.h');
+    });
+
+    test('source file changes debounce diagnostics refreshes for maybe stale open owners', () => {
+        jest.useFakeTimers();
+        let sourceFileChangeHandler: ((payload: SourceFileChangePayload) => void) | undefined;
+        const diagnosticsSession = {
+            refresh: jest.fn(async () => []),
+            clear: jest.fn(() => [])
+        };
+        const connection = createConnectionStub({
+            onNotification: jest.fn((type, handler) => {
+                if (type === SourceFileChangeNotification.type) {
+                    sourceFileChangeHandler = handler as any;
+                }
+                return Disposable.create(() => undefined);
+            })
+        });
+        const documentStore = new DocumentStore();
+        const changeIndex = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/adm/daemons/ownerd.c';
+        const dependencyUri = 'file:///D:/workspace/include/settings.h';
+        documentStore.open(ownerUri, 7, '#include "/include/settings.h"\nvoid create() {}');
+        changeIndex.markOpened(ownerUri, 7);
+        changeIndex.recordDependencyFootprint(ownerUri, [dependencyUri]);
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace']
+        });
+        const logger = new ServerLogger({
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            log: jest.fn()
+        });
+
+        registerCapabilities({
+            connection,
+            changeIndex,
+            documentStore,
+            logger,
+            serverVersion: '0.40.0-test',
+            workspaceSession,
+            diagnosticsSession: diagnosticsSession as any
+        });
+
+        sourceFileChangeHandler?.({
+            uri: dependencyUri,
+            changeType: 'changed'
+        });
+        sourceFileChangeHandler?.({
+            uri: dependencyUri,
+            changeType: 'changed'
+        });
+
+        expect(diagnosticsSession.refresh).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(199);
+        expect(diagnosticsSession.refresh).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(1);
+
+        expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);
+        expect(diagnosticsSession.refresh).toHaveBeenCalledWith(ownerUri);
     });
 
     test('workspace config sync refreshes diagnostics for already open documents', async () => {
