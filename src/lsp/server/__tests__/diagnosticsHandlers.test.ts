@@ -416,6 +416,92 @@ describe('diagnostics session and handlers', () => {
         }));
     });
 
+    test('closing a maybe stale document drops queued refreshes before it is reopened', async () => {
+        jest.useFakeTimers();
+        const openHandlers: Array<(params: DidOpenTextDocumentParams) => void> = [];
+        const closeHandlers: Array<(params: DidCloseTextDocumentParams) => void> = [];
+        let sourceFileChangeHandler: ((payload: SourceFileChangePayload) => void) | undefined;
+        const diagnosticsSession = {
+            refresh: jest.fn(async () => []),
+            clear: jest.fn(() => [])
+        };
+        const connection = createConnectionStub({
+            onDidOpenTextDocument: jest.fn(handler => {
+                openHandlers.push(handler);
+                return Disposable.create(() => undefined);
+            }),
+            onDidCloseTextDocument: jest.fn(handler => {
+                closeHandlers.push(handler);
+                return Disposable.create(() => undefined);
+            }),
+            onNotification: jest.fn((type, handler) => {
+                if (type === SourceFileChangeNotification.type) {
+                    sourceFileChangeHandler = handler as any;
+                }
+                return Disposable.create(() => undefined);
+            })
+        });
+        const documentStore = new DocumentStore();
+        const changeIndex = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/adm/daemons/ownerd.c';
+        const dependencyUri = 'file:///D:/workspace/include/settings.h';
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace']
+        });
+        const logger = new ServerLogger({
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            log: jest.fn()
+        });
+
+        registerCapabilities({
+            connection,
+            changeIndex,
+            documentStore,
+            logger,
+            serverVersion: '0.40.0-test',
+            workspaceSession,
+            diagnosticsSession: diagnosticsSession as any
+        });
+
+        openHandlers[0]?.({
+            textDocument: {
+                uri: ownerUri,
+                languageId: 'lpc',
+                version: 7,
+                text: '#include "/include/settings.h"\nvoid create() {}'
+            }
+        });
+        await Promise.resolve();
+        changeIndex.recordDependencyFootprint(ownerUri, [dependencyUri]);
+        diagnosticsSession.refresh.mockClear();
+
+        sourceFileChangeHandler?.({
+            uri: dependencyUri,
+            changeType: 'changed'
+        });
+        closeHandlers[0]?.({
+            textDocument: {
+                uri: ownerUri
+            }
+        });
+        openHandlers[0]?.({
+            textDocument: {
+                uri: ownerUri,
+                languageId: 'lpc',
+                version: 8,
+                text: '#include "/include/settings.h"\nvoid create() { int fresh = 1; }'
+            }
+        });
+        await Promise.resolve();
+        jest.advanceTimersByTime(200);
+        await Promise.resolve();
+
+        expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);
+        expect(diagnosticsSession.refresh).toHaveBeenCalledWith(ownerUri);
+    });
+
     test('workspace config sync refreshes diagnostics for already open documents', async () => {
         let configSyncHandler: ((payload: WorkspaceConfigSyncPayload) => void) | undefined;
         const diagnosticsSession = {

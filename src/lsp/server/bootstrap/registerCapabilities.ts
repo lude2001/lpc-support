@@ -303,6 +303,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         __closeTextDocument(textDocument.uri);
         invalidateDocument(textDocument.uri);
         pendingDiagnosticRefreshes.delete(textDocument.uri);
+        pendingMaybeStaleDiagnosticRefreshes.delete(textDocument.uri);
         diagnosticsSession?.clear(textDocument.uri);
     });
 
