@@ -93,7 +93,7 @@ describe('registerCoreServices', () => {
         ((DocumentSemanticSnapshotService as any).getInstance as jest.Mock).mockReset().mockReturnValue(analysisService);
     });
 
-    test('registers core services, tracks disposables, and wires lifecycle invalidation', () => {
+    test('registers core services, tracks disposables, and wires lifecycle invalidation', async () => {
         registerCoreServices(registry, context);
 
         expect(createDefaultFunctionDocumentationService).toHaveBeenCalledTimes(1);
@@ -118,7 +118,8 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.Frontend)).toBe(frontendService);
         expect(registry.get(Services.ProjectConfig)).toBe(projectConfigService);
         expect(registry.get(Services.FunctionDocumentation)).toBe(documentationService);
-        expect(registry.get(Services.TextDocumentHost)).toEqual(expect.objectContaining({
+        const textDocumentHost = registry.get(Services.TextDocumentHost);
+        expect(textDocumentHost).toEqual(expect.objectContaining({
             openTextDocument: expect.any(Function)
         }));
         expect(registry.get(Services.DocumentPathSupport)).toBeDefined();
@@ -141,5 +142,18 @@ describe('registerCoreServices', () => {
         expect(parsedDocumentService.invalidate).toHaveBeenCalledWith(uri);
         expect(analysisService.clearCache).toHaveBeenCalledTimes(1);
         expect(analysisService.clearCache).toHaveBeenCalledWith(uri.toString());
+
+        frontendService.invalidate.mockClear();
+        parsedDocumentService.invalidate.mockClear();
+        analysisService.clearCache.mockClear();
+        const openedDocument = { uri } as vscode.TextDocument;
+        (vscode.workspace.openTextDocument as jest.Mock).mockResolvedValue(openedDocument);
+
+        await expect(textDocumentHost.openTextDocument(uri)).resolves.toBe(openedDocument);
+
+        expect(frontendService.invalidate).toHaveBeenCalledWith(uri);
+        expect(parsedDocumentService.invalidate).toHaveBeenCalledWith(uri);
+        expect(analysisService.clearCache).toHaveBeenCalledWith(uri.toString());
+        expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(uri);
     });
 });

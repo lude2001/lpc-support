@@ -29,7 +29,19 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     const documentationService = createDefaultFunctionDocumentationService();
     registry.register(Services.FunctionDocumentation, documentationService);
 
-    const textDocumentHost = createVsCodeWorkspaceDocumentHost();
+    const invalidateDocument = (uri: vscode.Uri): void => {
+        frontendService.invalidate(uri);
+        getGlobalParsedDocumentService().invalidate(uri);
+        analysisService.clearCache(uri.toString());
+    };
+    const baseTextDocumentHost = createVsCodeWorkspaceDocumentHost();
+    const textDocumentHost = {
+        ...baseTextDocumentHost,
+        openTextDocument: async (target: string | vscode.Uri) => {
+            invalidateDocument(toDocumentUri(target));
+            return baseTextDocumentHost.openTextDocument(target);
+        }
+    };
     registry.register(Services.TextDocumentHost, textDocumentHost);
 
     const documentPathSupport = new WorkspaceDocumentPathSupport({
@@ -71,12 +83,20 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     registry.register(Services.Lifecycle, lifecycle);
     context.subscriptions.push(lifecycle);
     lifecycle.onInvalidate(uri => {
-        frontendService.invalidate(uri);
-        getGlobalParsedDocumentService().invalidate(uri);
-        analysisService.clearCache(uri.toString());
+        invalidateDocument(uri);
     });
 }
 
 export function getRegisteredProjectConfigService(): LpcProjectConfigService | undefined {
     return registeredProjectConfigService;
+}
+
+function toDocumentUri(target: string | vscode.Uri): vscode.Uri {
+    if (typeof target !== 'string') {
+        return target;
+    }
+
+    return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(target)
+        ? vscode.Uri.parse(target)
+        : vscode.Uri.file(target);
 }
