@@ -4,7 +4,7 @@
 
 LPC 的静态形态高度动态：路径可以来自宏、字符串、函数返回值、配置、simul-efun、继承链和项目约定。`lpc-support` 不应把全局静态语义索引作为语言能力的权威真源，否则很容易产生“索引看似完整，但真实项目里经常过期或错误”的结果。
 
-当前更可靠的基础是现有单文件解析、include / inherit 链路递归扫描，以及对象推导服务在用户触发跳转、补全、悬停、诊断时做局部求解。因此后续架构目标是：全局只记录文件变化状态，实际语义仍在请求发生时按需解析并刷新。
+当前更可靠的基础是现有单文件解析、include / inherit 链路递归扫描，以及实例解析服务在用户触发跳转、补全、悬停、诊断时做局部求解。因此后续架构目标是：全局只记录文件变化状态，实际语义仍在请求发生时按需解析并刷新。
 
 ## 目标
 
@@ -64,7 +64,7 @@ request(document)
 - 若 workspace config generation 变化，清理与配置相关的缓存。
 - 若不新鲜，清理该 URI 的 parsed、frontend、semantic、readonly document 与相关临时索引记录，再重新构建。
 
-当前实现已先落地最小门面 `DocumentFreshnessService`，用于集中表达 LSP server 内的 freshness 边界：失效 runtime readonly document、调用生产缓存失效回调，并在诊断刷新完成后按 `lastChangedAt` 标记 clean。跨文件打开层 `WorkspaceDocumentPathSupport.tryOpenTextDocument` 支持可选的 `ensureFreshDocument(uri)` 钩子，生产 LSP 会在打开依赖文件前触发目标 URI 的 parsed / frontend / semantic / 临时索引失效。生产 LSP 的 direct `workspaceDocumentHost.openTextDocument` 也包了一层 freshness-aware host，用于覆盖对象推导、继承关系、scoped 补全和签名帮助文档渲染等未经过 `WorkspaceDocumentPathSupport` 的路径。VS Code 扩展侧通过 core module 注册的 `TextDocumentHost` 也会在打开文档前失效目标 URI 缓存，覆盖批量扫描、命令和面板类路径。它们不负责解析，也不维护语义事实。
+当前实现已先落地最小门面 `DocumentFreshnessService`，用于集中表达 LSP server 内的 freshness 边界：失效 runtime readonly document、调用生产缓存失效回调，并在诊断刷新完成后按 `lastChangedAt` 标记 clean。跨文件打开层 `WorkspaceDocumentPathSupport.tryOpenTextDocument` 支持可选的 `ensureFreshDocument(uri)` 钩子，生产 LSP 会在打开依赖文件前触发目标 URI 的 parsed / frontend / semantic / 临时索引失效。生产 LSP 的 direct `workspaceDocumentHost.openTextDocument` 也包了一层 freshness-aware host，用于覆盖实例解析、继承关系、scoped 补全和签名帮助文档渲染等未经过 `WorkspaceDocumentPathSupport` 的路径。VS Code 扩展侧通过 core module 注册的 `TextDocumentHost` 也会在打开文档前失效目标 URI 缓存，覆盖批量扫描、命令和面板类路径。它们不负责解析，也不维护语义事实。
 
 ## 请求路径
 
@@ -82,7 +82,7 @@ request(document)
 
 ### 补全、悬停与签名帮助
 
-补全、悬停和签名帮助可以继续使用现有对象推导、继承扫描、callable doc 链路，但访问当前文件和目标文件时必须走统一新鲜度判断。
+补全、悬停和签名帮助可以继续使用现有实例解析、继承扫描、callable doc 链路，但访问当前文件和目标文件时必须走统一新鲜度判断。
 
 补全可以保留性能友好的 best-available 行为，但如果候选依赖当前文件最新文本，当前文件必须强一致；跨文件候选可以按访问到的依赖逐个刷新。
 
@@ -112,7 +112,7 @@ request(document)
 - 当某个依赖文件变化时，只把上次足迹命中的打开文件标记为 `maybeStale`。
 - 对 `maybeStale` 的打开文件做 debounce 诊断刷新，或者在下一次用户请求时强制新鲜度检查。
 
-状态：已落地。诊断链路记录 include / inherit 足迹；`TargetMethodLookup` 和对象推导链路记录 object target、target include 和 target inherit 足迹；依赖变化只标记足迹命中的打开文件为 `maybeStale`，并以 debounce 方式刷新这些打开文件的诊断。刷新成功后会按状态版本清理 `maybeStale`，避免旧刷新覆盖新变化；关闭文档会丢弃已排队的 `maybeStale` 刷新。语言请求入口创建 capability context 前也会消费 `dirty` / `maybeStale` / workspace config generation 状态，必要时先失效当前请求文档缓存。
+状态：已落地。诊断链路记录 include / inherit 足迹；`TargetMethodLookup` 和实例解析链路记录 object target、target include 和 target inherit 足迹；依赖变化只标记足迹命中的打开文件为 `maybeStale`，并以 debounce 方式刷新这些打开文件的诊断。刷新成功后会按状态版本清理 `maybeStale`，避免旧刷新覆盖新变化；关闭文档会丢弃已排队的 `maybeStale` 刷新。语言请求入口创建 capability context 前也会消费 `dirty` / `maybeStale` / workspace config generation 状态，必要时先失效当前请求文档缓存。
 
 ## 持续约束
 

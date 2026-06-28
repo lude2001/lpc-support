@@ -129,7 +129,7 @@
 - 改进 LPC 语法识别覆盖，更多实际 mudlib 写法可以被稳定解析，减少正常代码被误报为语法错误的情况。
 - 改进变量与局部声明位置相关诊断，使未使用变量、全局变量和声明位置检查更贴近真实 LPC 代码结构。
 - 改进宏、include、inherit 与语义高亮相关能力的一致性，补全、跳转、诊断和高亮之间的结果更稳定。
-- 精简 `lpc-support.json` 的保存内容，只保留项目入口、对象推导和编译相关配置；include 目录与模拟函数入口继续从真实 driver 配置文件读取，减少项目配置文件被反复改写。
+- 精简 `lpc-support.json` 的保存内容，只保留项目入口、实例解析和编译相关配置；include 目录与模拟函数入口继续从真实 driver 配置文件读取，减少项目配置文件被反复改写。
 - 模拟函数入口命令现在会提示配置来源，避免把生成结果再次写回项目配置文件；旧的宏目录配置入口已移除。
 - 编译管理入口进一步收敛，旧的独立服务器管理命令不再暴露，统一从“编译管理”进入本地或远程编译配置。
 
@@ -197,12 +197,12 @@
 
 ## [0.45.4] - 2026-04-21
 
-### Syntax and Semantic Object Inference Hardening
+### Syntax and Semantic Instance Resolution Hardening
 
 - 新增显式 `EmptyStatement` 语法节点，合法空语句和 `if (flag);` 不再被表示为 `Missing`，formatter 也会保留可见分号而不是静默丢失空语句。
 - 将静态表达式求值拆分为更清晰的 literal、constant、container shape、object source、condition 和 type predicate 子模块，降低 `ExpressionEvaluator` 继续膨胀成临时规则集合的风险。
 - 新增保守的静态 `+`、`&&`、`||` 折叠：仅在可证明的 literal / truthiness 白区内产出结果，未知或混合风险表达式继续保持 `unknown`。
-- 对象推导现在可以消费 receiver 表达式的语义求值结果，支持局部 receiver 中的静态路径拼接和 `new("/std/" + "classify_pop")` 这类直接 receiver 场景。
+- 实例解析现在可以消费 receiver 表达式的语义求值结果，支持局部 receiver 中的静态路径拼接和 `new("/std/" + "classify_pop")` 这类直接 receiver 场景。
 - 保留 identifier 可见绑定与作用域优先级：内层 block 局部变量不会泄漏到外层，同名宏 fallback 不会被已离开作用域的局部绑定污染。
 - 补强 `PROTOCOL_D->model_get("navigation_popup")->create_action(...)`、concatenated `load_object`、folded `new(...)`、visible binding、non-static 和 provider integration 回归，确保 `@lpc-return-objects` 继续只是 fallback-only。
 
@@ -210,19 +210,19 @@
 
 ### Semantic Evaluation Foundation
 
-- 新增 LPC 受限语义求值基础层，面向对象方法推导提供统一的 Value Domain、函数内静态求值、callee return 推导和环境语义 provider，不再继续把复杂返回对象规则堆在对象推导器内部。
-- 对象方法链现在会优先消费自然语义推导结果；`model_get("login")` 这类静态 registry / mapping / `new` / `load_object` 返回链可以精确落到实际模型对象，`@lpc-return-objects` 保留为 fallback，而不再覆盖可证明结果。
-- `PROTOCOL_D->model_get("navigation_popup")->create_action(...)` 这类宏 receiver 调用现在也会先展开宏并进入自然 return 推导，避免回退到 `@lpc-return-objects` 的全量候选集合。
+- 新增 LPC 受限语义求值基础层，面向实例解析提供统一的 Value Domain、函数内静态求值、callee return 求值和环境语义 provider，不再继续把复杂返回对象规则堆在实例解析器内部。
+- 对象方法链现在会优先消费自然语义求值结果；`model_get("login")` 这类静态 registry / mapping / `new` / `load_object` 返回链可以精确落到实际模型对象，`@lpc-return-objects` 保留为 fallback，而不再覆盖可证明结果。
+- `PROTOCOL_D->model_get("navigation_popup")->create_action(...)` 这类宏 receiver 调用现在也会先展开宏并进入自然 return 求值，避免回退到 `@lpc-return-objects` 的全量候选集合。
 - 修正宏式函数调用语句的分号归属，`call_other(...);` 等调用不再额外生成 `Missing` 分号残片并打断函数内语义求值。
 - `this_player()` 已接入配置驱动的环境语义 provider，helper 包装返回 `this_player()` 的场景也能继续传播到对象方法跳转、悬停和补全链路。
 - `previous_object(...)` 现在被明确归类为 non-static 运行时调用栈来源，不会因为 `@lpc-return-objects` 注解而错误跳到静态候选对象。
-- 补强嵌套 `if / else if` 调用点、partial-return 分支合并、helper 包装 runtime provider、spawned runtime 和 provider integration 回归，确保自然语义推导不会在关键链路上退回旧 fallback。
+- 补强嵌套 `if / else if` 调用点、partial-return 分支合并、helper 包装 runtime provider、spawned runtime 和 provider integration 回归，确保自然语义求值不会在关键链路上退回旧 fallback。
 
 ## [0.45.2] - 2026-04-20
 
 ### Architecture Cleanup
 
-- 完成 analysis / documentation / completion / hover / signature help / navigation / object inference / runtime document source 的 ownership normalization，主要语言服务现在统一退回到 composition root + factory 装配，不再在主服务内部偷偷自组装依赖。
+- 完成 analysis / documentation / completion / hover / signature help / navigation / instance resolution / runtime document source 的 ownership normalization，主要语言服务现在统一退回到 composition root + factory 装配，不再在主服务内部偷偷自组装依赖。
 - 统一函数文档、scoped completion、hover renderer、document symbol snapshot、reference / rename adapter 和 document host/path support 的 owner，移除多条历史 fallback 与 self-assembly 路径。
 - 收紧 `ASTManager`、`WorkspaceSession`、`ParsedDocumentService`、`LspClientManager` 等基础设施入口，减少零参默认配置与隐式单例残影，主语言能力链的基础设施使用方式更加一致。
 - 这次发布不引入新的语言功能，重点是稳定现有能力、清理死代码和降低后续功能演进的结构阻力。
@@ -268,18 +268,18 @@
 
 ## [0.42.0] - 2026-04-17
 
-### 对象方法推导增强
+### 实例解析增强
 
-- 新增“继承链静态全局对象绑定”推导能力：子对象现在可以继承父对象中声明点可静态证明的文件级 `object` 绑定，并把它用于对象方法补全、定义跳转、悬停和签名帮助。
-- 对象推导优先级升级为：局部绑定 > 当前文件全局对象绑定 > 继承链全局对象绑定 > 宏 fallback，减少 inherited global 被同名宏错误抢走的情况。
+- 新增“继承链静态全局对象绑定”解析能力：子对象现在可以继承父对象中声明点可静态证明的文件级 `object` 绑定，并把它用于对象方法补全、定义跳转、悬停和签名帮助。
+- 实例解析优先级升级为：局部绑定 > 当前文件全局对象绑定 > 继承链全局对象绑定 > 宏 fallback，减少 inherited global 被同名宏错误抢走的情况。
 - 新增继承链中的全局别名链、对象方法 initializer、unsupported / no-initializer blocker 和跨文件 alias cycle 回归覆盖，继承分支下的保守降级语义更稳定。
-- 补充 inherited global 的 completion / definition / signature help consumer 回归，确保核心推导结果能稳定透传到语言服务入口。
+- 补充 inherited global 的 completion / definition / signature help consumer 回归，确保核心解析结果能稳定透传到语言服务入口。
 
 ## [0.41.0] - 2026-04-17
 
-### 对象方法推导增强
+### 实例解析增强
 
-- 新增“当前文件静态全局对象绑定”推导能力：`object COMBAT_D = load_object(...); COMBAT_D->method()` 这类写法现在可以稳定参与对象方法推导。
+- 新增“当前文件静态全局对象绑定”解析能力：`object COMBAT_D = load_object(...); COMBAT_D->method()` 这类写法现在可以稳定参与实例解析。
 - 当前文件中由声明点静态可证明的文件级 `object` 变量，现在会自动服务于成员补全、定义跳转、悬停和签名帮助。
 - 当前文件可见的全局 `object` 绑定现在优先于同名宏；当全局绑定存在但来源无法静态证明时，系统会保守保持 `unknown/unsupported`，不再错误回退到宏路径。
 - 新增文件级全局对象别名、documented-return initializer、对象方法 initializer 和相关 consumer 回归覆盖，进一步提升对象方法链路的稳定性。
@@ -292,7 +292,7 @@
 - 新增签名帮助能力，支持当前文件、继承文件、include 文件、模拟函数库、标准 efun 与对象方法调用。
 - 标准 efun 文档切换为完全本地、结构化的内置 bundle，运行时不再请求 `mud.wiki`。
 - 函数文档悬停、函数文档面板与 `@lpc-return-objects` 返回对象传播统一复用共享文档服务。
-- 补充 callable-documentation / signature help / formatter parity / object inference 回归覆盖，并修复全量测试中的 fixture 与缓存稳定性问题。
+- 补充 callable-documentation / signature help / formatter parity / instance resolution 回归覆盖，并修复全量测试中的 fixture 与缓存稳定性问题。
 
 ## [0.40.0] - 2026-04-12
 
@@ -329,11 +329,11 @@
 
 ## [0.33.0] - 2026-04-09
 
-### 对象方法智能推导
+### 实例智能解析
 
-- `obj->method()` 现在可以根据字符串路径、宏路径、内置函数和当前函数内变量赋值链推导对象来源。
-- 基于对象推导结果，成员补全、跳转到定义和悬停提示的准确性明显提升。
-- 新增 `playerObjectPath` 配置，用于支持 `this_player()` 的对象推导。
+- `obj->method()` 现在可以根据字符串路径、宏路径、内置函数和当前函数内变量赋值链解析对象来源。
+- 基于实例解析结果，成员补全、跳转到定义和悬停提示的准确性明显提升。
+- 新增 `playerObjectPath` 配置，用于支持 `this_player()` 的实例解析。
 - 支持通过 `@lpc-return-objects` 为自定义函数标注返回对象。
 
 ## [0.32.1] - 2026-04-08
