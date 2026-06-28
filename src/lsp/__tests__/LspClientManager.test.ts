@@ -13,6 +13,8 @@ import { LspClientManager } from '../client/LspClientManager';
 import { getRegisteredProjectConfigService } from '../../modules/coreModule';
 
 const mockLanguageClientSendNotification = jest.fn();
+const mockLanguageClientSendRequest = jest.fn();
+const mockLanguageClientOnNotification = jest.fn();
 const mockLanguageClientStart = jest.fn().mockResolvedValue(undefined);
 const mockLanguageClientStop = jest.fn().mockResolvedValue(undefined);
 const mockLanguageClientDispose = jest.fn();
@@ -27,7 +29,9 @@ jest.mock('vscode-languageclient/node', () => ({
         return {
             start: mockLanguageClientStart,
             stop: mockLanguageClientStop,
+            onNotification: mockLanguageClientOnNotification,
             sendNotification: mockLanguageClientSendNotification,
+            sendRequest: mockLanguageClientSendRequest,
             dispose: mockLanguageClientDispose
         };
     })
@@ -109,7 +113,9 @@ describe('LspClientManager activation', () => {
         });
         vscodeMock.window.createOutputChannel.mockReset().mockReturnValue({ dispose: jest.fn() });
         mockLanguageClientConstructor.mockReset();
+        mockLanguageClientOnNotification.mockReset().mockReturnValue({ dispose: jest.fn() });
         mockLanguageClientSendNotification.mockReset();
+        mockLanguageClientSendRequest.mockReset();
         mockLanguageClientStart.mockReset().mockResolvedValue(undefined);
         mockLanguageClientStop.mockReset().mockResolvedValue(undefined);
         mockLanguageClientDispose.mockReset();
@@ -191,7 +197,7 @@ describe('LspClientManager activation', () => {
             client: { sendNotification }
         });
 
-        expect(vscodeMock.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/*.{c,h,lpc,i}');
+        expect(vscodeMock.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/*.{c,h,lpc}');
         const watcher = vscodeMock.workspace.createFileSystemWatcher.mock.results[0].value as WatcherRegistration;
 
         watcher.__createHandler?.({ toString: () => 'file:///D:/workspace/new.c' } as vscode.Uri);
@@ -230,6 +236,42 @@ describe('LspClientManager activation', () => {
 
         expect(startSpy).toHaveBeenCalledTimes(1);
         expect(stopSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('sendRequest forwards custom LSP requests when the client supports them', async () => {
+        const manager = new LspClientManager({
+            client: {
+                sendRequest: mockLanguageClientSendRequest
+            }
+        });
+        mockLanguageClientSendRequest.mockResolvedValue({ status: 'ready' });
+
+        const result = await manager.sendRequest('lpc/workspaceIndex/rebuild', { workspaceRoots: [] });
+
+        expect(mockLanguageClientSendRequest).toHaveBeenCalledWith(
+            'lpc/workspaceIndex/rebuild',
+            { workspaceRoots: [] }
+        );
+        expect(result).toEqual({ status: 'ready' });
+    });
+
+    test('onNotification registers custom LSP notification handlers when the client supports them', () => {
+        const handler = jest.fn();
+        const disposable = { dispose: jest.fn() };
+        const manager = new LspClientManager({
+            client: {
+                onNotification: mockLanguageClientOnNotification
+            }
+        });
+        mockLanguageClientOnNotification.mockReturnValue(disposable);
+
+        const result = manager.onNotification('lpc/workspaceIndex/progress', handler);
+
+        expect(mockLanguageClientOnNotification).toHaveBeenCalledWith(
+            'lpc/workspaceIndex/progress',
+            handler
+        );
+        expect(result).toBe(disposable);
     });
 
     test('dispose waits for an in-flight start and shuts down exactly once', async () => {

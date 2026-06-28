@@ -11,6 +11,7 @@ import type { LanguageFormattingService } from '../../../language/services/forma
 import type { LanguageNavigationService } from '../../../language/services/navigation/LanguageHoverService';
 import type { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import type { LanguageStructureService } from '../../../language/services/structure/LanguageFoldingService';
+import type { LanguageWorkspaceIndexingService } from '../../../language/contracts/LanguageFeatureServices';
 import { registerCapabilities } from './registerCapabilities';
 import { DiagnosticsSession } from '../runtime/DiagnosticsSession';
 import { DocumentStore } from '../runtime/DocumentStore';
@@ -31,6 +32,7 @@ export interface CreateServerOptions {
     onWorkspaceConfigSync?: () => Promise<void>;
     signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
+    workspaceIndexingService?: LanguageWorkspaceIndexingService;
 }
 
 export interface LspServerRuntime {
@@ -76,7 +78,8 @@ export function createServer(options: CreateServerOptions = {}): LspServerRuntim
         onDocumentInvalidated: options.onDocumentInvalidated,
         signatureHelpService: options.signatureHelpService,
         structureService: options.structureService,
-        onWorkspaceConfigSync: options.onWorkspaceConfigSync
+        onWorkspaceConfigSync: options.onWorkspaceConfigSync,
+        workspaceIndexingService: options.workspaceIndexingService
     });
 
     return {

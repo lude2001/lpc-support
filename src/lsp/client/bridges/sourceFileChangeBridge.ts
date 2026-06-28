@@ -21,7 +21,7 @@ export function initializeSourceFileChangeBridge(
     options: SourceFileChangeBridgeOptions
 ): vscode.Disposable {
     const reportError = createErrorReporter(options.onError);
-    const watcher = vscode.workspace.createFileSystemWatcher('**/*.{c,h,lpc,i}');
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.{c,h,lpc}');
     const disposables: vscode.Disposable[] = [
         watcher.onDidCreate(uri => sendSourceFileChange(options.client, uri, 'created', reportError)),
         watcher.onDidChange(uri => sendSourceFileChange(options.client, uri, 'changed', reportError)),

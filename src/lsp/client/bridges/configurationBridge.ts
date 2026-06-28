@@ -57,7 +57,7 @@ async function syncWorkspaceConfiguration(
     return payload;
 }
 
-async function createWorkspaceConfigSyncPayload(
+export async function createWorkspaceConfigSyncPayload(
     projectConfigService: Pick<LpcProjectConfigService, 'getProjectConfigPath' | 'loadForWorkspace'>
 ): Promise<WorkspaceConfigSyncPayload> {
     const workspaceRoots = normalizeWorkspaceRoots(

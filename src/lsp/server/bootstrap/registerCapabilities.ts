@@ -33,6 +33,7 @@ import type { LanguageFormattingService } from '../../../language/services/forma
 import type { LanguageNavigationService } from '../../../language/services/navigation/LanguageHoverService';
 import type { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import type { LanguageStructureService } from '../../../language/services/structure/LanguageFoldingService';
+import type { LanguageWorkspaceIndexingService } from '../../../language/contracts/LanguageFeatureServices';
 import { HealthRequest } from '../../shared/protocol/health';
 import {
     SourceFileChangeNotification,
@@ -42,6 +43,10 @@ import {
     WorkspaceConfigSyncNotification,
     type WorkspaceConfigSyncPayload
 } from '../../shared/protocol/workspaceConfigSync';
+import {
+    WorkspaceIndexProgressNotification,
+    WorkspaceIndexRebuildRequest
+} from '../../shared/protocol/workspaceIndex';
 import { registerCompletionHandler } from '../handlers/completion/registerCompletionHandler';
 import { registerCodeActionHandler } from '../handlers/codeActions/registerCodeActionHandler';
 import { createHealthHandler } from '../handlers/health/healthHandler';
@@ -86,6 +91,7 @@ export type ServerConnection = Pick<
     | 'onCodeAction'
     | 'onDocumentSymbol'
     | 'onFoldingRanges'
+    | 'sendNotification'
     | 'languages'
 > & {
     onNotification: <T>(type: NotificationType<T>, handler: (params: T) => void) => unknown;
@@ -110,6 +116,7 @@ export interface ServerRegistrationContext {
     signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
     onWorkspaceConfigSync?: () => Promise<void>;
+    workspaceIndexingService?: LanguageWorkspaceIndexingService;
 }
 
 export function registerCapabilities(context: ServerRegistrationContext): void {
@@ -128,7 +135,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         signatureHelpService,
         structureService,
         onDocumentInvalidated,
-        onWorkspaceConfigSync
+        onWorkspaceConfigSync,
+        workspaceIndexingService
     } = context;
     __bindDocumentStore(documentStore);
     const effectiveCodeActionsService = codeActionsService;
@@ -221,6 +229,19 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             MAYBE_STALE_DIAGNOSTIC_REFRESH_DELAY_MS
         );
     };
+    const applyWorkspaceConfigSync = async (payload: WorkspaceConfigSyncPayload): Promise<void> => {
+        changeIndex?.nextWorkspaceConfigGeneration();
+        workspaceConfigReady = false;
+        workspaceSession.applyWorkspaceConfigSync(payload);
+        try {
+            await onWorkspaceConfigSync?.();
+        } catch (error) {
+            logger.error(`Failed to apply workspace configuration sync: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            workspaceConfigReady = true;
+            refreshPendingAndOpenDiagnostics();
+        }
+    };
 
     connection.onInitialize((_params: InitializeParams): InitializeResult => {
         logger.info('Initializing LPC Phase A language server');
@@ -307,19 +328,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     });
 
     connection.onNotification(WorkspaceConfigSyncNotification.type, (payload: WorkspaceConfigSyncPayload) => {
-        changeIndex?.nextWorkspaceConfigGeneration();
-        workspaceConfigReady = false;
-        workspaceSession.applyWorkspaceConfigSync(payload);
-        void (async () => {
-            try {
-                await onWorkspaceConfigSync?.();
-            } catch (error) {
-                logger.error(`Failed to apply workspace configuration sync: ${error instanceof Error ? error.message : String(error)}`);
-            } finally {
-                workspaceConfigReady = true;
-                refreshPendingAndOpenDiagnostics();
-            }
-        })();
+        void applyWorkspaceConfigSync(payload);
     });
 
     connection.onNotification(SourceFileChangeNotification.type, (payload: SourceFileChangePayload) => {
@@ -338,6 +347,15 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             serverVersion
         })
     );
+
+    if (workspaceIndexingService) {
+        connection.onRequest(WorkspaceIndexRebuildRequest.type, async (payload) => {
+            await applyWorkspaceConfigSync(payload);
+            return workspaceIndexingService.rebuild(payload, progress => {
+                void connection.sendNotification(WorkspaceIndexProgressNotification.type, progress);
+            });
+        });
+    }
 
     if (completionService) {
         registerCompletionHandler({

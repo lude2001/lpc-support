@@ -5,6 +5,18 @@ import type { LanguageFormattingService } from '../services/formatting/LanguageF
 import type { LanguageNavigationService } from '../services/navigation/LanguageHoverService';
 import type { LanguageSignatureHelpService } from '../services/signatureHelp/LanguageSignatureHelpService';
 import type { LanguageStructureService } from '../services/structure/LanguageFoldingService';
+import type {
+    WorkspaceIndexProgressPayload,
+    WorkspaceIndexRebuildParams,
+    WorkspaceIndexRebuildResult
+} from '../../lsp/shared/protocol/workspaceIndex';
+
+export interface LanguageWorkspaceIndexingService {
+    rebuild(
+        params: WorkspaceIndexRebuildParams,
+        onProgress?: (progress: WorkspaceIndexProgressPayload) => void | Promise<void>
+    ): Promise<WorkspaceIndexRebuildResult>;
+}
 
 export interface LanguageFeatureServices {
     codeActionsService?: LanguageCodeActionService;
@@ -16,4 +28,5 @@ export interface LanguageFeatureServices {
     onWorkspaceConfigSync?: () => Promise<void>;
     signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
+    workspaceIndexingService?: LanguageWorkspaceIndexingService;
 }

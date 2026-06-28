@@ -3,7 +3,9 @@ import * as vscode from 'vscode';
 export interface NotificationCapableLspClient {
     start?: () => Promise<void> | void;
     stop?: () => Promise<void> | void;
+    onNotification?: (method: string, handler: (payload: unknown) => void) => vscode.Disposable;
     sendNotification?: (method: string, payload: unknown) => Promise<void> | void;
+    sendRequest?: <T>(method: string, payload: unknown) => Promise<T>;
     dispose?: () => void;
 }
 
@@ -30,6 +32,22 @@ export class LspClientManager implements vscode.Disposable {
         if (this.lifecycle.client?.sendNotification) {
             await this.lifecycle.client.sendNotification(method, payload);
         }
+    }
+
+    public async sendRequest<T>(method: string, payload: unknown): Promise<T | undefined> {
+        if (this.lifecycle.client?.sendRequest) {
+            return this.lifecycle.client.sendRequest<T>(method, payload);
+        }
+
+        return undefined;
+    }
+
+    public onNotification(method: string, handler: (payload: unknown) => void): vscode.Disposable {
+        return this.lifecycle.client?.onNotification?.(method, handler) ?? {
+            dispose(): void {
+                // No client notification channel is available in unit tests or inactive clients.
+            }
+        };
     }
 
     public async start(): Promise<void> {

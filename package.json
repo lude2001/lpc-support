@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.47.14",
+  "version": "0.50.0",
   "publisher": "ludexiang",
   "author": {
     "name": "ludexiang",
@@ -75,8 +75,7 @@
         "extensions": [
           ".c",
           ".h",
-          ".lpc",
-          ".i"
+          ".lpc"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -137,6 +136,11 @@
           "light": "./media/function-doc-light.svg",
           "dark": "./media/function-doc-dark.svg"
         }
+      },
+      {
+        "command": "lpc.rebuildWorkspaceIndex",
+        "title": "重建 LPC 工作区索引",
+        "category": "LPC"
       },
       {
         "command": "lpc.generateJavadoc",

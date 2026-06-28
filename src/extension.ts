@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import { ServiceRegistry } from './core/ServiceRegistry';
 import { activateLspClient } from './lsp/client/activateLspClient';
+import { registerWorkspaceIndexController } from './lsp/client/workspaceIndexController';
 import { registerCommands } from './modules/commandModule';
-import { registerCoreServices } from './modules/coreModule';
+import { getRegisteredProjectConfigService, registerCoreServices } from './modules/coreModule';
 import { registerDiagnostics } from './modules/diagnosticsModule';
 import { registerUI } from './modules/uiModule';
 import { disposeGlobalParsedDocumentService } from './parser/ParsedDocumentService';
@@ -15,7 +16,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     registerDiagnostics(registry, context);
     registerUI(registry, context);
     registerCommands(registry, context);
-    await activateLspClient(context);
+    const lspClientManager = await activateLspClient(context);
+    const projectConfigService = getRegisteredProjectConfigService();
+    if (lspClientManager && projectConfigService) {
+        registerWorkspaceIndexController({
+            context,
+            manager: lspClientManager,
+            projectConfigService
+        });
+    }
 }
 
 export function deactivate(): void {

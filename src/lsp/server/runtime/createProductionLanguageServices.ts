@@ -61,6 +61,7 @@ import { createDefaultSemanticEvaluationService } from '../../../semanticEvaluat
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { setServerWorkspaceRoots } from './serverHostState';
 import type { WorkspaceChangeIndex } from './WorkspaceChangeIndex';
+import { WorkspaceIndexingService } from './WorkspaceIndexingService';
 
 export interface ProductionLanguageServicesOptions {
     changeIndex?: Pick<WorkspaceChangeIndex, 'addDependencyFootprint' | 'recordDependencyFootprint'>;
@@ -240,6 +241,11 @@ export function createProductionLanguageServices(
     });
     const foldingService = new DefaultLanguageFoldingService(analysisService);
     const semanticTokensService = new DefaultLanguageSemanticTokensService(analysisService);
+    const workspaceIndexingService = new WorkspaceIndexingService({
+        analysisService,
+        pathSupport: documentPathSupport,
+        projectSymbolIndex
+    });
 
     const navigationService: LanguageNavigationService = {
         provideHover: (request) => hoverService.provideHover(request),
@@ -273,13 +279,15 @@ export function createProductionLanguageServices(
             clearGlobalLpcFrontendService();
             clearGlobalParsedDocumentService();
             analysisService.clearAllCache();
+            projectSymbolIndex.clear();
             efunDocsManager.invalidateWorkspaceState();
         },
         onDocumentInvalidated: (uri) => {
             invalidateProductionDocument(uri);
         },
         signatureHelpService,
-        structureService
+        structureService,
+        workspaceIndexingService
     };
 }
 

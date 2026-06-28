@@ -113,7 +113,7 @@ export class WorkspaceDocumentPathSupport {
         return this.host.fileExists(this.normalizeFsPath(filePath));
     }
 
-    public async findWorkspaceSourceFiles(workspaceRoot: string, extension: '.c' | '.h'): Promise<string[]> {
+    public async findWorkspaceSourceFiles(workspaceRoot: string, extension: '.c' | '.h' | '.lpc'): Promise<string[]> {
         const normalizedRoot = this.normalizeFsPath(workspaceRoot);
         const findFiles = (this.host as Partial<WorkspaceDocumentHost>).findFiles;
         const pattern = `**/*${extension}`;
@@ -455,7 +455,7 @@ export class WorkspaceDocumentPathSupport {
         return this.resolveWorkspacePath(workspaceRoot, mudlibDirectory);
     }
 
-    private async findWorkspaceSourceFilesFromFs(workspaceRoot: string, extension: '.c' | '.h'): Promise<string[]> {
+    private async findWorkspaceSourceFilesFromFs(workspaceRoot: string, extension: '.c' | '.h' | '.lpc'): Promise<string[]> {
         const results: string[] = [];
         const visit = async (directory: string): Promise<void> => {
             let entries: fs.Dirent[];

@@ -19,6 +19,7 @@ import {
     WorkspaceConfigSyncNotification,
     type WorkspaceConfigSyncPayload
 } from '../../shared/protocol/workspaceConfigSync';
+import { WorkspaceIndexRebuildRequest } from '../../shared/protocol/workspaceIndex';
 
 describe('diagnostics session and handlers', () => {
     afterEach(() => {
@@ -575,6 +576,91 @@ describe('diagnostics session and handlers', () => {
         }));
     });
 
+    test('workspace index rebuild request applies workspace config freshness before rebuilding', async () => {
+        let rebuildHandler: ((payload: WorkspaceConfigSyncPayload) => Promise<unknown>) | undefined;
+        const diagnosticsSession = {
+            refresh: jest.fn(async () => []),
+            clear: jest.fn(() => [])
+        };
+        const workspaceIndexingService = {
+            rebuild: jest.fn(async () => ({
+                status: 'ready',
+                totalFiles: 0,
+                indexedFiles: 0,
+                skippedFiles: 0,
+                failedFiles: 0,
+                durationMs: 0
+            }))
+        };
+        const onWorkspaceConfigSync = jest.fn(async () => undefined);
+        const connection = createConnectionStub({
+            onRequest: jest.fn((type, handler) => {
+                if (type === WorkspaceIndexRebuildRequest.type) {
+                    rebuildHandler = handler as any;
+                }
+                return Disposable.create(() => undefined);
+            })
+        });
+        const documentStore = new DocumentStore();
+        const changeIndex = new WorkspaceChangeIndex();
+        const uri = 'file:///D:/workspace/diagnostics.c';
+        const workspaceSession = new WorkspaceSession({});
+        const logger = new ServerLogger({
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            log: jest.fn()
+        });
+        documentStore.open(uri, 1, 'new_bind("/x");');
+        changeIndex.markOpened(uri, 1);
+        changeIndex.markClean(uri);
+
+        registerCapabilities({
+            connection,
+            changeIndex,
+            documentStore,
+            logger,
+            serverVersion: '0.40.0-test',
+            workspaceSession,
+            diagnosticsSession: diagnosticsSession as any,
+            onWorkspaceConfigSync,
+            workspaceIndexingService
+        });
+
+        const payload = {
+            workspaceRoots: ['D:/workspace'],
+            workspaces: [{
+                workspaceRoot: 'D:/workspace',
+                projectConfigPath: 'D:/workspace/lpc-support.json',
+                configHellPath: 'config/config.dev',
+                resolvedConfig: {
+                    simulatedEfunFile: '/adm/single/simul_efun'
+                },
+                lastSyncedAt: '2026-06-08T00:00:00.000Z'
+            }]
+        };
+        await rebuildHandler?.(payload);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(onWorkspaceConfigSync).toHaveBeenCalledTimes(1);
+        expect(workspaceIndexingService.rebuild).toHaveBeenCalledWith(payload, expect.any(Function));
+        const progressReporter = workspaceIndexingService.rebuild.mock.calls[0][1] as (payload: unknown) => void;
+        progressReporter({
+            status: 'building',
+            totalFiles: 10,
+            processedFiles: 4,
+            indexedFiles: 3,
+            skippedFiles: 1,
+            failedFiles: 0
+        });
+        expect(connection.sendNotification).toHaveBeenCalled();
+        expect(diagnosticsSession.refresh).toHaveBeenCalledWith(uri);
+        expect(changeIndex.get(uri)).toEqual(expect.objectContaining({
+            workspaceConfigGeneration: 1
+        }));
+    });
+
     test('defers diagnostics opened before the first workspace config sync is ready', async () => {
         const openHandlers: Array<(params: DidOpenTextDocumentParams) => void> = [];
         let configSyncHandler: ((payload: WorkspaceConfigSyncPayload) => void) | undefined;
@@ -741,6 +827,7 @@ function createConnectionStub(overrides: Partial<ServerConnection> = {}): Server
         onRenameRequest: jest.fn(() => Disposable.create(() => undefined)),
         onDocumentSymbol: jest.fn(() => Disposable.create(() => undefined)),
         onFoldingRanges: jest.fn(() => Disposable.create(() => undefined)),
+        sendNotification: jest.fn(() => Promise.resolve()),
         languages: {
             semanticTokens: {
                 on: jest.fn(() => Disposable.create(() => undefined))
