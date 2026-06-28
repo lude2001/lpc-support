@@ -62,7 +62,8 @@ import {
     SERVER_LANGUAGE_SEMANTIC_TOKEN_TYPES
 } from '../runtime/semanticTokenLegend';
 import { ServerLogger } from '../runtime/ServerLogger';
-import { __bindDocumentStore, __closeTextDocument, __emitTextDocumentChange, __invalidateTextDocument, __syncTextDocument } from '../runtime/vscodeShim';
+import { DocumentFreshnessService } from '../runtime/DocumentFreshnessService';
+import { __bindDocumentStore, __closeTextDocument, __emitTextDocumentChange, __syncTextDocument } from '../runtime/vscodeShim';
 import { WorkspaceChangeIndex } from '../runtime/WorkspaceChangeIndex';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
@@ -136,6 +137,11 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     const formattingConnection = supportsFormattingHandlers
         ? connection as Pick<Connection, 'onDocumentFormatting' | 'onDocumentRangeFormatting'>
         : undefined;
+    const freshnessService = new DocumentFreshnessService({
+        changeIndex,
+        logger,
+        onDocumentInvalidated
+    });
     let workspaceConfigReady = !onWorkspaceConfigSync;
     const pendingDiagnosticRefreshes = new Set<string>();
     const pendingMaybeStaleDiagnosticRefreshes = new Set<string>();
@@ -151,21 +157,12 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             return;
         }
 
-        const expectedLastChangedAt = changeIndex?.get(uri)?.lastChangedAt;
+        const freshnessToken = freshnessService.createDiagnosticFreshnessToken(uri);
         void diagnosticsSession.refresh(uri)
-            .then(() => changeIndex?.markClean(uri, expectedLastChangedAt))
+            .then(() => freshnessService.markDiagnosticsClean(freshnessToken))
             .catch((error) => {
                 logger.error(`Failed to refresh diagnostics for ${uri}: ${error instanceof Error ? error.message : String(error)}`);
             });
-    };
-
-    const invalidateDocument = (uri: string): void => {
-        __invalidateTextDocument(uri);
-        try {
-            onDocumentInvalidated?.(uri);
-        } catch (error) {
-            logger.error(`Failed to invalidate ${uri}: ${error instanceof Error ? error.message : String(error)}`);
-        }
     };
 
     const refreshPendingAndOpenDiagnostics = (): void => {
@@ -280,7 +277,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         changeIndex?.markOpened(textDocument.uri, textDocument.version);
         documentStore.open(textDocument.uri, textDocument.version, textDocument.text);
         __syncTextDocument(textDocument.uri, textDocument.text, textDocument.version);
-        invalidateDocument(textDocument.uri);
+        freshnessService.invalidateDocument(textDocument.uri);
         refreshDiagnosticsWhenReady(textDocument.uri);
     });
 
@@ -293,7 +290,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         documentStore.applyFullChange(textDocument.uri, textDocument.version, nextText);
         __syncTextDocument(textDocument.uri, nextText, textDocument.version);
         __emitTextDocumentChange(textDocument.uri);
-        invalidateDocument(textDocument.uri);
+        freshnessService.invalidateDocument(textDocument.uri);
         refreshDiagnosticsWhenReady(textDocument.uri);
     });
 
@@ -301,7 +298,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         changeIndex?.markClosed(textDocument.uri);
         documentStore.close(textDocument.uri);
         __closeTextDocument(textDocument.uri);
-        invalidateDocument(textDocument.uri);
+        freshnessService.invalidateDocument(textDocument.uri);
         pendingDiagnosticRefreshes.delete(textDocument.uri);
         pendingMaybeStaleDiagnosticRefreshes.delete(textDocument.uri);
         diagnosticsSession?.clear(textDocument.uri);
@@ -325,7 +322,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
 
     connection.onNotification(SourceFileChangeNotification.type, (payload: SourceFileChangePayload) => {
         changeIndex?.markDiskChanged(payload.uri, payload.changeType);
-        invalidateDocument(payload.uri);
+        freshnessService.invalidateDocument(payload.uri);
         scheduleMaybeStaleDiagnosticRefreshes(changeIndex?.getMaybeStaleOpenUris() ?? []);
         if (payload.changeType === 'deleted') {
             diagnosticsSession?.clear(payload.uri);

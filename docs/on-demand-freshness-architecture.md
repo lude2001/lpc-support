@@ -64,6 +64,8 @@ request(document)
 - 若 workspace config generation 变化，清理与配置相关的缓存。
 - 若不新鲜，清理该 URI 的 parsed、frontend、semantic、readonly document 与相关临时索引记录，再重新构建。
 
+当前实现已先落地最小门面 `DocumentFreshnessService`，用于集中表达 LSP server 内的 freshness 边界：失效 runtime readonly document、调用生产缓存失效回调，并在诊断刷新完成后按 `lastChangedAt` 标记 clean。它不负责解析，也不维护语义事实。
+
 ## 请求路径
 
 ### 诊断
@@ -94,7 +96,7 @@ request(document)
 - 让定义跳转和对象方法 hover 在跨文件查找时使用 fresh snapshot。
 - 增加回归测试：同一 LSP 会话内修改目标文件后，跳转/诊断不再读取旧快照。
 
-状态：已落地。生产 LSP server 使用统一失效入口清理 parsed / frontend / semantic / readonly document / 临时 project symbol 记录；未打开磁盘文档按 `mtimeMs` / `size` 维护 readonly document 版本；object method definition / hover / signature-help target lookup 已使用 fresh snapshots。
+状态：已落地。生产 LSP server 使用 `DocumentFreshnessService` 统一触发 parsed / frontend / semantic / readonly document / 临时 project symbol 失效；未打开磁盘文档按 `mtimeMs` / `size` 维护 readonly document 版本；object method definition / hover / signature-help target lookup 已使用 fresh snapshots。
 
 ### 阶段二：磁盘文件变化桥接
 
@@ -114,7 +116,7 @@ request(document)
 
 ## 当前剩余边界
 
-- 尚未引入独立的 `ensureFreshDocument` 门面；当前实现通过 LSP 同步、server shim 的 readonly 文档版本、缓存失效入口和 fresh snapshot 选项形成分散的新鲜度闭环。
+- 已引入最小 `DocumentFreshnessService` 门面，但尚未把所有语言能力访问依赖前的动作升级为显式 `ensureFreshDocument(dependency)` 调用。
 - `maybeStale` 当前只触发诊断刷新；跳转、补全、悬停和签名帮助依赖 fresh snapshot 与访问时缓存失效，不直接消费 `maybeStale`。
 - `WorkspaceChangeIndex` 仍只维护轻量状态和足迹，不应扩展成全项目语义索引。
 
