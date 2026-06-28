@@ -60,6 +60,64 @@ describe('DocumentFreshnessService', () => {
             dirty: true
         }));
     });
+
+    test('invalidates a maybe stale request document before language features run', () => {
+        const changeIndex = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/room.c';
+        const dependencyUri = 'file:///D:/workspace/include/settings.h';
+        const invalidateRuntimeDocument = jest.fn();
+        const onDocumentInvalidated = jest.fn();
+        const service = new DocumentFreshnessService({
+            changeIndex,
+            invalidateRuntimeDocument,
+            logger: createLogger().logger,
+            onDocumentInvalidated
+        });
+
+        changeIndex.markOpened(ownerUri, 1);
+        changeIndex.recordDependencyFootprint(ownerUri, [dependencyUri]);
+        changeIndex.markClean(ownerUri);
+        changeIndex.markDiskChanged(dependencyUri, 'changed');
+        service.ensureFreshRequestDocument(ownerUri);
+
+        expect(invalidateRuntimeDocument).toHaveBeenCalledWith(ownerUri);
+        expect(onDocumentInvalidated).toHaveBeenCalledWith(ownerUri);
+    });
+
+    test('invalidates a request document when workspace config generation changed', () => {
+        const changeIndex = new WorkspaceChangeIndex();
+        const uri = 'file:///D:/workspace/room.c';
+        const invalidateRuntimeDocument = jest.fn();
+        const service = new DocumentFreshnessService({
+            changeIndex,
+            invalidateRuntimeDocument,
+            logger: createLogger().logger
+        });
+
+        changeIndex.markOpened(uri, 1);
+        changeIndex.markClean(uri);
+        changeIndex.nextWorkspaceConfigGeneration();
+        service.ensureFreshRequestDocument(uri);
+
+        expect(invalidateRuntimeDocument).toHaveBeenCalledWith(uri);
+    });
+
+    test('does not invalidate a clean request document', () => {
+        const changeIndex = new WorkspaceChangeIndex();
+        const uri = 'file:///D:/workspace/room.c';
+        const invalidateRuntimeDocument = jest.fn();
+        const service = new DocumentFreshnessService({
+            changeIndex,
+            invalidateRuntimeDocument,
+            logger: createLogger().logger
+        });
+
+        changeIndex.markOpened(uri, 1);
+        changeIndex.markClean(uri);
+        service.ensureFreshRequestDocument(uri);
+
+        expect(invalidateRuntimeDocument).not.toHaveBeenCalled();
+    });
 });
 
 function createLogger(): {

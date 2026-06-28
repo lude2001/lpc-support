@@ -131,7 +131,6 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         onWorkspaceConfigSync
     } = context;
     __bindDocumentStore(documentStore);
-    const contextFactory = new ServerLanguageContextFactory(documentStore, workspaceSession);
     const effectiveCodeActionsService = codeActionsService;
     const supportsFormattingHandlers = Boolean(connection.onDocumentFormatting && connection.onDocumentRangeFormatting);
     const formattingConnection = supportsFormattingHandlers
@@ -141,6 +140,9 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         changeIndex,
         logger,
         onDocumentInvalidated
+    });
+    const contextFactory = new ServerLanguageContextFactory(documentStore, workspaceSession, {
+        ensureFreshDocument: (uri) => freshnessService.ensureFreshRequestDocument(uri)
     });
     let workspaceConfigReady = !onWorkspaceConfigSync;
     const pendingDiagnosticRefreshes = new Set<string>();

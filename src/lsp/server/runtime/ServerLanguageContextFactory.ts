@@ -7,13 +7,19 @@ import { DocumentStore } from './DocumentStore';
 import { fromFileUri, resolveWorkspaceRootFromRoots } from './serverPathUtils';
 import { WorkspaceSession } from './WorkspaceSession';
 
+export interface ServerLanguageContextFactoryOptions {
+    ensureFreshDocument?: (uri: string) => void;
+}
+
 export class ServerLanguageContextFactory {
     public constructor(
         private readonly documentStore: DocumentStore,
-        private readonly workspaceSession: WorkspaceSession
+        private readonly workspaceSession: WorkspaceSession,
+        private readonly options: ServerLanguageContextFactoryOptions = {}
     ) {}
 
     public createCapabilityContext(documentUri?: string): LanguageCapabilityContext {
+        this.ensureFreshDocument(documentUri);
         const storedDocument = documentUri ? this.documentStore.get(documentUri) : undefined;
         const resolvedUri = documentUri ?? storedDocument?.uri ?? '';
         const workspaceRoot = resolveWorkspaceRootFromRoots(resolvedUri || undefined, this.workspaceSession.getWorkspaceRoots());
@@ -33,6 +39,7 @@ export class ServerLanguageContextFactory {
         document: LanguageDocument;
         workspace: LanguageWorkspaceContext;
     } {
+        this.ensureFreshDocument(documentUri);
         const storedDocument = this.documentStore.get(documentUri);
         const resolvedUri = storedDocument?.uri ?? documentUri;
         const workspaceRoot = resolveWorkspaceRootFromRoots(resolvedUri, this.workspaceSession.getWorkspaceRoots());
@@ -137,6 +144,14 @@ export class ServerLanguageContextFactory {
                 return createHostPosition(line, safeOffset - lineStarts[line]);
             }
         } as unknown as LanguageCapabilityContext['document'], workspace.projectConfig);
+    }
+
+    private ensureFreshDocument(documentUri: string | undefined): void {
+        if (!documentUri) {
+            return;
+        }
+
+        this.options.ensureFreshDocument?.(documentUri);
     }
 }
 

@@ -112,12 +112,12 @@ request(document)
 - 当某个依赖文件变化时，只把上次足迹命中的打开文件标记为 `maybeStale`。
 - 对 `maybeStale` 的打开文件做 debounce 诊断刷新，或者在下一次用户请求时强制新鲜度检查。
 
-状态：已落地。诊断链路记录 include / inherit 足迹；`TargetMethodLookup` 和对象推导链路记录 object target、target include 和 target inherit 足迹；依赖变化只标记足迹命中的打开文件为 `maybeStale`，并以 debounce 方式刷新这些打开文件的诊断。刷新成功后会按状态版本清理 `maybeStale`，避免旧刷新覆盖新变化；关闭文档会丢弃已排队的 `maybeStale` 刷新。
+状态：已落地。诊断链路记录 include / inherit 足迹；`TargetMethodLookup` 和对象推导链路记录 object target、target include 和 target inherit 足迹；依赖变化只标记足迹命中的打开文件为 `maybeStale`，并以 debounce 方式刷新这些打开文件的诊断。刷新成功后会按状态版本清理 `maybeStale`，避免旧刷新覆盖新变化；关闭文档会丢弃已排队的 `maybeStale` 刷新。语言请求入口创建 capability context 前也会消费 `dirty` / `maybeStale` / workspace config generation 状态，必要时先失效当前请求文档缓存。
 
 ## 当前剩余边界
 
 - 已引入最小 `DocumentFreshnessService` 门面，并让 `WorkspaceDocumentPathSupport.tryOpenTextDocument` 与生产 LSP direct host 在打开跨文件依赖前调用 `ensureFreshDocument(dependency)`；仍需继续评估非生产 LSP 或批量扫描类直接 `openTextDocument` 路径是否需要同样策略。
-- `maybeStale` 当前只触发诊断刷新；跳转、补全、悬停和签名帮助依赖 fresh snapshot 与访问时缓存失效，不直接消费 `maybeStale`。
+- `maybeStale` 已在语言请求入口消费，用于失效当前请求文档缓存；诊断仍负责成功刷新后按状态版本清理 `maybeStale`。
 - `WorkspaceChangeIndex` 仍只维护轻量状态和足迹，不应扩展成全项目语义索引。
 
 ## 验证门槛

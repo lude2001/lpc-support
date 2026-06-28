@@ -8,14 +8,14 @@ export interface DiagnosticFreshnessToken {
 }
 
 export interface DocumentFreshnessServiceOptions {
-    readonly changeIndex?: Pick<WorkspaceChangeIndex, 'get' | 'markClean'>;
+    readonly changeIndex?: Pick<WorkspaceChangeIndex, 'get' | 'getWorkspaceConfigGeneration' | 'markClean'>;
     readonly invalidateRuntimeDocument?: (uri: string) => void;
     readonly logger: ServerLogger;
     readonly onDocumentInvalidated?: (uri: string) => void;
 }
 
 export class DocumentFreshnessService {
-    private readonly changeIndex?: Pick<WorkspaceChangeIndex, 'get' | 'markClean'>;
+    private readonly changeIndex?: Pick<WorkspaceChangeIndex, 'get' | 'getWorkspaceConfigGeneration' | 'markClean'>;
     private readonly invalidateRuntimeDocument: (uri: string) => void;
     private readonly logger: ServerLogger;
     private readonly onDocumentInvalidated?: (uri: string) => void;
@@ -41,6 +41,25 @@ export class DocumentFreshnessService {
             uri,
             expectedLastChangedAt: this.changeIndex?.get(uri)?.lastChangedAt
         };
+    }
+
+    public ensureFreshRequestDocument(uri: string | undefined): void {
+        if (!uri || !this.changeIndex) {
+            return;
+        }
+
+        const state = this.changeIndex.get(uri);
+        if (!state) {
+            return;
+        }
+
+        if (
+            state.dirty
+            || state.maybeStale
+            || state.workspaceConfigGeneration !== this.changeIndex.getWorkspaceConfigGeneration()
+        ) {
+            this.invalidateDocument(uri);
+        }
     }
 
     public markDiagnosticsClean(token: DiagnosticFreshnessToken): void {

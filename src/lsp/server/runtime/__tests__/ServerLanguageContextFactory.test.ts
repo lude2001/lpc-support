@@ -1,4 +1,4 @@
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
 import { DocumentStore } from '../DocumentStore';
 import { ServerLanguageContextFactory } from '../ServerLanguageContextFactory';
@@ -19,6 +19,21 @@ describe('ServerLanguageContextFactory', () => {
             new vscode.Range(1, 4, 1, 10)
         );
         expect(context.document.positionAt(17)).toEqual(expect.objectContaining({ line: 1, character: 4 }));
+    });
+
+    test('ensures freshness before creating a capability context', () => {
+        const store = new DocumentStore();
+        const uri = 'file:///D:/workspace/test.c';
+        store.open(uri, 7, 'int main() { return 1; }');
+        const ensureFreshDocument = jest.fn();
+
+        const session = new WorkspaceSession({ workspaceRoots: ['D:/workspace'] });
+        const factory = new ServerLanguageContextFactory(store, session, {
+            ensureFreshDocument
+        });
+        factory.createCapabilityContext(uri);
+
+        expect(ensureFreshDocument).toHaveBeenCalledWith(uri);
     });
 
     test('creates a diagnostics-light context from the same shared roots', () => {
