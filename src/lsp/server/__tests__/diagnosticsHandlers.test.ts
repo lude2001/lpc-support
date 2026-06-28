@@ -500,6 +500,15 @@ describe('diagnostics session and handlers', () => {
 
         expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);
         expect(diagnosticsSession.refresh).toHaveBeenCalledWith(ownerUri);
+
+        sourceFileChangeHandler?.({
+            uri: 'file:///D:/workspace/include/unrelated.h',
+            changeType: 'changed'
+        });
+        jest.advanceTimersByTime(200);
+        await Promise.resolve();
+
+        expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);
     });
 
     test('workspace config sync refreshes diagnostics for already open documents', async () => {

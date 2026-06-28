@@ -132,6 +132,33 @@ describe('WorkspaceChangeIndex', () => {
         expect(index.getMaybeStaleOpenUris()).toEqual([]);
     });
 
+    test('clears dependency stale state when the owner lifecycle changes directly', () => {
+        const index = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/room.c';
+        const dependencyUri = 'file:///D:/workspace/include/helper.h';
+
+        index.markOpened(ownerUri, 3);
+        index.recordDependencyFootprint(ownerUri, [dependencyUri]);
+        index.markDiskChanged(dependencyUri, 'changed');
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            maybeStale: true
+        }));
+
+        index.markClosed(ownerUri);
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            openVersion: undefined,
+            dirty: true,
+            maybeStale: false
+        }));
+
+        index.markOpened(ownerUri, 4);
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            openVersion: 4,
+            maybeStale: false
+        }));
+        expect(index.getMaybeStaleOpenUris()).toEqual([]);
+    });
+
     test('deduplicates dependency footprints and clears maybe stale state when clean', () => {
         const index = new WorkspaceChangeIndex();
         const ownerUri = 'file:///D:/workspace/room.c';
