@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
     __closeTextDocument,
+    __invalidateTextDocument,
     Disposable,
     type DidChangeTextDocumentParams,
     type DidOpenTextDocumentParams,
@@ -9,6 +13,7 @@ import {
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLogger } from '../runtime/ServerLogger';
+import { WorkspaceChangeIndex } from '../runtime/WorkspaceChangeIndex';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 describe('document sync runtime bridge', () => {
@@ -50,7 +55,7 @@ describe('document sync runtime bridge', () => {
 
     test('didChange emits a runtime change event after the mirror update', () => {
         const uri = 'file:///D:/workspace/runtime-bridge-change-test.c';
-        const { openHandlers, changeHandlers, listener, cleanup } = createBridgeHarness(uri);
+        const { openHandlers, changeHandlers, listener, changeIndex, onDocumentInvalidated, cleanup } = createBridgeHarness(uri);
 
         try {
             openHandlers[0]?.({
@@ -80,6 +85,12 @@ describe('document sync runtime bridge', () => {
                 text: 'int main() { return 1; }',
                 version: 2
             });
+            expect(changeIndex.get(uri)).toEqual(expect.objectContaining({
+                openVersion: 2,
+                dirty: true,
+                deleted: false
+            }));
+            expect(onDocumentInvalidated).toHaveBeenCalledWith(uri);
         } finally {
             cleanup();
         }
@@ -173,12 +184,36 @@ describe('document sync runtime bridge', () => {
             cleanup();
         }
     });
+
+    test('readonly disk documents are reloaded when file stats change', async () => {
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-support-readonly-'));
+        const filePath = path.join(tempDir, 'target.c');
+        const uri = `file:///${filePath.replace(/\\/g, '/')}`;
+
+        try {
+            fs.writeFileSync(filePath, 'int old_name() { return 1; }\n', 'utf8');
+            const first = await workspace.openTextDocument(filePath);
+            expect(first.getText()).toContain('old_name');
+
+            await new Promise(resolve => setTimeout(resolve, 5));
+            fs.writeFileSync(filePath, 'int new_name() { return 2; }\n', 'utf8');
+
+            const second = await workspace.openTextDocument(filePath);
+            expect(second.getText()).toContain('new_name');
+            expect(second.version).toBeGreaterThanOrEqual(first.version);
+        } finally {
+            __invalidateTextDocument(uri);
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+    });
 });
 
 function createBridgeHarness(uri: string): {
     openHandlers: Array<(params: DidOpenTextDocumentParams) => void>;
     changeHandlers: Array<(params: DidChangeTextDocumentParams) => void>;
     documentStore: DocumentStore;
+    changeIndex: WorkspaceChangeIndex;
+    onDocumentInvalidated: jest.Mock;
     listener: {
         changeEvents: Array<{ uri: string; text: string; version: number }>;
         dispose(): void;
@@ -198,6 +233,8 @@ function createBridgeHarness(uri: string): {
         })
     });
     const documentStore = new DocumentStore();
+    const changeIndex = new WorkspaceChangeIndex();
+    const onDocumentInvalidated = jest.fn();
     const workspaceSession = new WorkspaceSession({
         workspaceRoots: ['D:/workspace']
     });
@@ -218,16 +255,20 @@ function createBridgeHarness(uri: string): {
 
     registerCapabilities({
         connection,
+        changeIndex,
         documentStore,
         logger,
         serverVersion: '0.40.0-test',
-        workspaceSession
+        workspaceSession,
+        onDocumentInvalidated
     });
 
     return {
         openHandlers,
         changeHandlers,
         documentStore,
+        changeIndex,
+        onDocumentInvalidated,
         listener: {
             changeEvents,
             dispose: () => listener.dispose()

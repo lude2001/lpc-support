@@ -58,7 +58,8 @@ import {
     SERVER_LANGUAGE_SEMANTIC_TOKEN_TYPES
 } from '../runtime/semanticTokenLegend';
 import { ServerLogger } from '../runtime/ServerLogger';
-import { __bindDocumentStore, __closeTextDocument, __emitTextDocumentChange, __syncTextDocument } from '../runtime/vscodeShim';
+import { __bindDocumentStore, __closeTextDocument, __emitTextDocumentChange, __invalidateTextDocument, __syncTextDocument } from '../runtime/vscodeShim';
+import { WorkspaceChangeIndex } from '../runtime/WorkspaceChangeIndex';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 export type ServerConnection = Pick<
@@ -91,6 +92,7 @@ export type ServerConnection = Pick<
 
 export interface ServerRegistrationContext {
     connection: ServerConnection;
+    changeIndex?: WorkspaceChangeIndex;
     documentStore: DocumentStore;
     diagnosticsSession?: DiagnosticsSession;
     logger: ServerLogger;
@@ -100,6 +102,7 @@ export interface ServerRegistrationContext {
     completionService?: LanguageCompletionService;
     codeActionsService?: LanguageCodeActionService;
     formattingService?: LanguageFormattingService;
+    onDocumentInvalidated?: (uri: string) => void;
     signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
     onWorkspaceConfigSync?: () => Promise<void>;
@@ -108,6 +111,7 @@ export interface ServerRegistrationContext {
 export function registerCapabilities(context: ServerRegistrationContext): void {
     const {
         connection,
+        changeIndex,
         documentStore,
         diagnosticsSession,
         logger,
@@ -119,6 +123,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         formattingService,
         signatureHelpService,
         structureService,
+        onDocumentInvalidated,
         onWorkspaceConfigSync
     } = context;
     __bindDocumentStore(documentStore);
@@ -142,6 +147,15 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         }
 
         void diagnosticsSession.refresh(uri);
+    };
+
+    const invalidateDocument = (uri: string): void => {
+        __invalidateTextDocument(uri);
+        try {
+            onDocumentInvalidated?.(uri);
+        } catch (error) {
+            logger.error(`Failed to invalidate ${uri}: ${error instanceof Error ? error.message : String(error)}`);
+        }
     };
 
     const refreshPendingAndOpenDiagnostics = (): void => {
@@ -217,8 +231,10 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     });
 
     connection.onDidOpenTextDocument(({ textDocument }: DidOpenTextDocumentParams) => {
+        changeIndex?.markOpened(textDocument.uri, textDocument.version);
         documentStore.open(textDocument.uri, textDocument.version, textDocument.text);
         __syncTextDocument(textDocument.uri, textDocument.text, textDocument.version);
+        invalidateDocument(textDocument.uri);
         refreshDiagnosticsWhenReady(textDocument.uri);
     });
 
@@ -227,20 +243,25 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             ? contentChanges[contentChanges.length - 1].text
             : documentStore.get(textDocument.uri)?.text ?? '';
 
+        changeIndex?.markChanged(textDocument.uri, textDocument.version);
         documentStore.applyFullChange(textDocument.uri, textDocument.version, nextText);
         __syncTextDocument(textDocument.uri, nextText, textDocument.version);
         __emitTextDocumentChange(textDocument.uri);
+        invalidateDocument(textDocument.uri);
         refreshDiagnosticsWhenReady(textDocument.uri);
     });
 
     connection.onDidCloseTextDocument(({ textDocument }: DidCloseTextDocumentParams) => {
+        changeIndex?.markClosed(textDocument.uri);
         documentStore.close(textDocument.uri);
         __closeTextDocument(textDocument.uri);
+        invalidateDocument(textDocument.uri);
         pendingDiagnosticRefreshes.delete(textDocument.uri);
         diagnosticsSession?.clear(textDocument.uri);
     });
 
     connection.onNotification(WorkspaceConfigSyncNotification.type, (payload: WorkspaceConfigSyncPayload) => {
+        changeIndex?.nextWorkspaceConfigGeneration();
         workspaceConfigReady = false;
         workspaceSession.applyWorkspaceConfigSync(payload);
         void (async () => {

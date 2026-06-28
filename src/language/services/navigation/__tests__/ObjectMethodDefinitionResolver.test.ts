@@ -37,6 +37,9 @@ describe('ObjectMethodDefinitionResolver', () => {
             vscode.Uri.file('D:/workspace/obj/npc.c'),
             new vscode.Range(4, 0, 4, 10)
         );
+        const findMethod = jest.fn()
+            .mockResolvedValueOnce({ location: sharedLocation })
+            .mockResolvedValueOnce({ location: sharedLocation });
         const resolver = new ObjectMethodDefinitionResolver({
             support: createSupport(),
             objectInferenceService: {
@@ -52,19 +55,24 @@ describe('ObjectMethodDefinitionResolver', () => {
                 })
             },
             targetMethodLookup: {
-                findMethod: jest.fn()
-                    .mockResolvedValueOnce({ location: sharedLocation })
-                    .mockResolvedValueOnce({ location: sharedLocation })
+                findMethod
             }
         } as any);
+        const document = createTextDocument('D:/workspace/cmds/test.c', 'target->query_hp();');
 
         const result = await resolver.resolve(
-            createTextDocument('D:/workspace/cmds/test.c', 'target->query_hp();'),
+            document,
             new vscode.Position(0, 10),
             'query_hp'
         );
 
         expect(result).toEqual([sharedLocation]);
+        expect(findMethod).toHaveBeenCalledWith(
+            document,
+            'D:/workspace/obj/npc.c',
+            'query_hp',
+            { projectConfig: undefined, useFreshSnapshots: true }
+        );
     });
 
     test('returns undefined for unknown or unsupported object inference', async () => {

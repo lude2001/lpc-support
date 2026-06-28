@@ -53,7 +53,10 @@ import { createDefaultObjectInferenceService } from '../../../objectInference/Ob
 import { createDefaultScopedMethodDiscoveryService } from '../../../objectInference/ScopedMethodDiscoveryService';
 import { ScopedMethodResolver } from '../../../objectInference/ScopedMethodResolver';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
-import { clearGlobalParsedDocumentService } from '../../../parser/ParsedDocumentService';
+import {
+    clearGlobalParsedDocumentService,
+    getGlobalParsedDocumentService
+} from '../../../parser/ParsedDocumentService';
 import { createDefaultSemanticEvaluationService } from '../../../semanticEvaluation/SemanticEvaluationService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { setServerWorkspaceRoots } from './serverHostState';
@@ -248,6 +251,13 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
             clearGlobalParsedDocumentService();
             analysisService.clearAllCache();
             efunDocsManager.invalidateWorkspaceState();
+        },
+        onDocumentInvalidated: (uri) => {
+            headerOwnerContextService.clear();
+            const parsedUri = vscode.Uri.parse(uri);
+            getGlobalParsedDocumentService().invalidate(parsedUri);
+            analysisService.clearCache(uri);
+            projectSymbolIndex.removeFile(uri);
         },
         signatureHelpService,
         structureService

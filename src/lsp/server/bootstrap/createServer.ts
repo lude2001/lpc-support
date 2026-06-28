@@ -15,6 +15,7 @@ import { registerCapabilities } from './registerCapabilities';
 import { DiagnosticsSession } from '../runtime/DiagnosticsSession';
 import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLogger } from '../runtime/ServerLogger';
+import { WorkspaceChangeIndex } from '../runtime/WorkspaceChangeIndex';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 const PHASE_A_SERVER_VERSION = 'phase-a';
@@ -25,6 +26,7 @@ export interface CreateServerOptions {
     diagnosticsService?: LanguageDiagnosticsService;
     formattingService?: LanguageFormattingService;
     navigationService?: LanguageNavigationService;
+    onDocumentInvalidated?: (uri: string) => void;
     onWorkspaceConfigSync?: () => Promise<void>;
     signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
@@ -41,6 +43,7 @@ export interface LspServerRuntime {
 export function createServer(options: CreateServerOptions = {}): LspServerRuntime {
     const connection = createConnection(ProposedFeatures.all);
     const documentStore = new DocumentStore();
+    const changeIndex = new WorkspaceChangeIndex();
     const logger = new ServerLogger(connection.console);
     const workspaceSession = new WorkspaceSession({});
     const diagnosticsSession = options.diagnosticsService
@@ -59,6 +62,7 @@ export function createServer(options: CreateServerOptions = {}): LspServerRuntim
 
     registerCapabilities({
         connection,
+        changeIndex,
         documentStore,
         diagnosticsSession,
         logger,
@@ -68,6 +72,7 @@ export function createServer(options: CreateServerOptions = {}): LspServerRuntim
         codeActionsService: options.codeActionsService,
         completionService: options.completionService,
         formattingService: options.formattingService,
+        onDocumentInvalidated: options.onDocumentInvalidated,
         signatureHelpService: options.signatureHelpService,
         structureService: options.structureService,
         onWorkspaceConfigSync: options.onWorkspaceConfigSync

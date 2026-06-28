@@ -36,7 +36,7 @@ export class ObjectMethodDefinitionResolver {
                 document,
                 candidate.path,
                 objectAccess.memberName,
-                { projectConfig }
+                { projectConfig, useFreshSnapshots: true }
             );
             if (!resolvedMethod?.location) {
                 continue;

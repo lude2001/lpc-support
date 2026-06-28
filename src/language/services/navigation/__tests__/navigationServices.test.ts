@@ -19,6 +19,7 @@ import {
     createDefaultObjectInferenceLanguageHoverService,
     ObjectInferenceLanguageHoverService,
     VsCodeHoverDocumentAdapter,
+    VsCodeHoverMethodResolver,
     type LanguageHoverService
 } from '../LanguageHoverService';
 import { UnifiedLanguageHoverService } from '../UnifiedLanguageHoverService';
@@ -268,6 +269,45 @@ describe('navigation services', () => {
         expect(hover).toBeDefined();
         expect(hover?.contents[0].value).toContain('string query_name()');
         expect(hover?.contents[0].value).toContain('返回名字');
+    });
+
+    test('VsCodeHoverMethodResolver requests fresh snapshots for target lookup', async () => {
+        const projectConfig = { projectConfigPath: 'D:/workspace/lpc-support.json' } as any;
+        const targetDocument = createVsCodeTextDocument('D:/workspace/obj/npc.c', 'string query_name() { return "npc"; }');
+        const findMethod = jest.fn().mockResolvedValue({
+            path: targetDocument.fileName,
+            document: targetDocument
+        });
+        const resolver = new VsCodeHoverMethodResolver({ findMethod } as any);
+        const document = createVsCodeTextDocument('D:/workspace/cmd/test.c', 'target->query_name();');
+
+        await resolver.findMethod(
+            {
+                document: document as any,
+                workspace: {
+                    workspaceRoot: 'D:/workspace',
+                    projectConfig
+                },
+                mode: 'lsp'
+            },
+            {
+                uri: document.uri.toString(),
+                path: document.fileName,
+                version: document.version,
+                raw: document,
+                getText: () => document.getText(),
+                getWordRangeAtPosition: () => undefined
+            } as any,
+            targetDocument.fileName,
+            'query_name'
+        );
+
+        expect(findMethod).toHaveBeenCalledWith(
+            document,
+            targetDocument.fileName,
+            'query_name',
+            { projectConfig, useFreshSnapshots: true }
+        );
     });
 
     test('hover service can rely on injected hover resolvers without requiring documentation service', async () => {

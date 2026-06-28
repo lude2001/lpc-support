@@ -183,7 +183,7 @@ export class VsCodeHoverMethodResolver implements HoverMethodResolver {
             ensureVsCodeBackedDocument(document),
             targetPath,
             methodName,
-            { projectConfig: context.workspace.projectConfig }
+            { projectConfig: context.workspace.projectConfig, useFreshSnapshots: true }
         );
         if (!resolvedMethod) {
             return undefined;

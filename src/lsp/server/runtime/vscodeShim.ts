@@ -322,6 +322,7 @@ interface TextDocumentLike {
 type SyncedDocumentSource = Pick<DocumentStore, 'get' | 'list'>;
 
 const openedReadonlyDocuments = new Map<string, TextDocumentLike>();
+const openedReadonlyDocumentStats = new Map<string, { mtimeMs: number; size: number }>();
 let syncedDocumentSource: SyncedDocumentSource | undefined;
 const configurationValues = new Map<string, unknown>();
 const textDocumentChangedEmitter = new EventEmitter<{ document: TextDocumentLike }>();
@@ -516,14 +517,25 @@ export const workspace = {
             return createProjectedSyncedDocument(syncedDocument);
         }
 
+        const currentStats = await fs.promises.stat(uri.fsPath);
         const existingReadonly = openedReadonlyDocuments.get(cacheKey);
-        if (existingReadonly) {
+        const existingStats = openedReadonlyDocumentStats.get(cacheKey);
+        if (
+            existingReadonly
+            && existingStats
+            && existingStats.mtimeMs === currentStats.mtimeMs
+            && existingStats.size === currentStats.size
+        ) {
             return existingReadonly;
         }
 
         const content = await fs.promises.readFile(uri.fsPath, 'utf8');
-        const document = createTextDocument(uri, content, 1);
+        const document = createTextDocument(uri, content, toDocumentVersion(currentStats));
         openedReadonlyDocuments.set(cacheKey, document);
+        openedReadonlyDocumentStats.set(cacheKey, {
+            mtimeMs: currentStats.mtimeMs,
+            size: currentStats.size
+        });
         return document;
     }
 };
@@ -540,6 +552,7 @@ export function __syncTextDocument(uri: string, text: string, version: number): 
     if (!syncedDocumentSource) {
         const parsedUri = Uri.parse(uri);
         openedReadonlyDocuments.set(parsedUri.toString(), createTextDocument(parsedUri, text, version));
+        openedReadonlyDocumentStats.delete(parsedUri.toString());
     }
 }
 
@@ -558,8 +571,14 @@ export function __emitTextDocumentChange(uri: string): void {
 
 export function __closeTextDocument(uri: string): void {
     if (!syncedDocumentSource) {
-        openedReadonlyDocuments.delete(Uri.parse(uri).toString());
+        __invalidateTextDocument(uri);
     }
+}
+
+export function __invalidateTextDocument(uri: string): void {
+    const key = Uri.parse(uri).toString();
+    openedReadonlyDocuments.delete(key);
+    openedReadonlyDocumentStats.delete(key);
 }
 
 function createTextDocument(uri: Uri, content: string, version: number): TextDocumentLike {
@@ -713,4 +732,8 @@ function isWordCharacter(char: string | undefined): boolean {
 
 function createProjectedSyncedDocument(document: Readonly<StoredDocument>): TextDocumentLike {
     return createTextDocument(Uri.parse(document.uri), document.text, document.version);
+}
+
+function toDocumentVersion(stats: fs.Stats): number {
+    return Math.max(1, Math.trunc(stats.mtimeMs));
 }
