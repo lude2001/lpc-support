@@ -87,7 +87,7 @@ export class WorkspaceChangeIndex {
             openVersion: existing?.openVersion,
             workspaceConfigGeneration: this.workspaceConfigGeneration,
             dirty: existing?.dirty ?? false,
-            maybeStale: false,
+            maybeStale: existing?.maybeStale ?? false,
             deleted: existing?.deleted ?? false,
             lastChangedAt: existing?.lastChangedAt ?? this.nextLastChangedAt(),
             lastDiagnosticDependencyFootprint: normalizeUniqueUris(dependencies),

@@ -191,7 +191,7 @@ describe('LspClientManager activation', () => {
             client: { sendNotification }
         });
 
-        expect(vscodeMock.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/*.{c,h}');
+        expect(vscodeMock.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/*.{c,h,lpc,i}');
         const watcher = vscodeMock.workspace.createFileSystemWatcher.mock.results[0].value as WatcherRegistration;
 
         watcher.__createHandler?.({ toString: () => 'file:///D:/workspace/new.c' } as vscode.Uri);

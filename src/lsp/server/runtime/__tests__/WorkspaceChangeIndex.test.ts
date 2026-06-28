@@ -180,6 +180,25 @@ describe('WorkspaceChangeIndex', () => {
         expect(index.getMaybeStaleOpenUris()).toEqual([]);
     });
 
+    test('preserves maybe stale state while replacing diagnostics footprints before clean', () => {
+        const index = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/room.c';
+        const oldDependencyUri = 'file:///D:/workspace/include/old.h';
+        const nextDependencyUri = 'file:///D:/workspace/include/next.h';
+
+        index.markOpened(ownerUri, 3);
+        index.recordDependencyFootprint(ownerUri, [oldDependencyUri]);
+        index.markDiskChanged(oldDependencyUri, 'changed');
+        index.recordDependencyFootprint(ownerUri, [nextDependencyUri]);
+
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            maybeStale: true,
+            lastDiagnosticDependencyFootprint: [nextDependencyUri],
+            lastDependencyFootprint: [nextDependencyUri]
+        }));
+        expect(index.getMaybeStaleOpenUris()).toEqual([ownerUri]);
+    });
+
     test('does not mark clean when the file changed after diagnostics refresh started', () => {
         const index = new WorkspaceChangeIndex();
         const uri = 'file:///D:/workspace/room.c';
