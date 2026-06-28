@@ -8,6 +8,8 @@ export interface LpcResolvedConfig {
     globalIncludeFile?: string;
 }
 
+export type InstanceResolutionFunctionMap = Record<string, string[]>;
+
 export interface LpcCompileLocalConfig {
     useSystemCommand?: boolean;
     lpccpPath?: string;
@@ -35,7 +37,7 @@ export interface LpcCompileConfig {
 export interface LpcProjectConfig {
     version: 1;
     configHellPath: string;
-    playerObjectPath?: string;
+    instanceResolutionFunctions?: InstanceResolutionFunctionMap;
     compile?: LpcCompileConfig;
     resolved?: LpcResolvedConfig;
     lastSyncedAt?: string;

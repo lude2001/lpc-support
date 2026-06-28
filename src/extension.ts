@@ -12,7 +12,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const registry = new ServiceRegistry();
     context.subscriptions.push(registry);
 
-    registerCoreServices(registry, context);
+    await registerCoreServices(registry, context);
     registerDiagnostics(registry, context);
     registerUI(registry, context);
     registerCommands(registry, context);

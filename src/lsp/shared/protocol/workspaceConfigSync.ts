@@ -1,5 +1,8 @@
 import { NotificationType } from 'vscode-languageserver/node';
-import type { LpcResolvedConfig } from '../../../projectConfig/LpcProjectConfig';
+import type {
+    InstanceResolutionFunctionMap,
+    LpcResolvedConfig
+} from '../../../projectConfig/LpcProjectConfig';
 
 export const WORKSPACE_CONFIG_SYNC_NOTIFICATION = 'lpc/workspaceConfigSync';
 
@@ -7,7 +10,7 @@ export interface WorkspaceConfigSyncSnapshot {
     workspaceRoot: string;
     projectConfigPath: string;
     configHellPath?: string;
-    playerObjectPath?: string;
+    instanceResolutionFunctions?: InstanceResolutionFunctionMap;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
     searchEfunDefinitionInInheritanceChain?: boolean;

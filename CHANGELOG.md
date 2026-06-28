@@ -2,6 +2,14 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [Unreleased]
+
+### 实例解析
+
+- `lpc-support.json` 新增 `instanceResolutionFunctions`，可按函数名配置 `this_player()`、`environment()` 等运行时函数可能返回的对象文件，用于提升补全、悬停和跳转定义准确性。
+- `master()` 现在可根据 driver 配置中的 `master file` 参与实例解析；未配置返回对象的运行时 object efun 会被明确视为运行时动态来源，减少错误跳转。
+- `clone_object()` 的返回对象现在可在更多静态语义链路中继续传播。
+
 ## [0.50.0] - 2026-06-28
 
 ### LSP 刷新

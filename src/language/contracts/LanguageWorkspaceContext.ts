@@ -1,8 +1,11 @@
-import type { LpcResolvedConfig } from '../../projectConfig/LpcProjectConfig';
+import type {
+    InstanceResolutionFunctionMap,
+    LpcResolvedConfig
+} from '../../projectConfig/LpcProjectConfig';
 export interface LanguageWorkspaceProjectConfig {
     projectConfigPath: string;
     configHellPath?: string;
-    playerObjectPath?: string;
+    instanceResolutionFunctions?: InstanceResolutionFunctionMap;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
     searchEfunDefinitionInInheritanceChain?: boolean;

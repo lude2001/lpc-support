@@ -1,4 +1,7 @@
-import type { LpcResolvedConfig } from '../../../projectConfig/LpcProjectConfig';
+import type {
+    InstanceResolutionFunctionMap,
+    LpcResolvedConfig
+} from '../../../projectConfig/LpcProjectConfig';
 import type {
     LanguageWorkspaceContext,
     LanguageWorkspaceProjectConfig
@@ -13,7 +16,7 @@ import {
 export interface WorkspaceConfigSnapshot {
     projectConfigPath: string;
     configHellPath?: string;
-    playerObjectPath?: string;
+    instanceResolutionFunctions?: InstanceResolutionFunctionMap;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
     searchEfunDefinitionInInheritanceChain?: boolean;
@@ -63,7 +66,7 @@ export class WorkspaceSession {
             this.updateWorkspaceConfig(workspace.workspaceRoot, {
                 projectConfigPath: workspace.projectConfigPath,
                 configHellPath: workspace.configHellPath,
-                playerObjectPath: workspace.playerObjectPath,
+                instanceResolutionFunctions: workspace.instanceResolutionFunctions,
                 resolvedConfig: workspace.resolvedConfig,
                 lastSyncedAt: workspace.lastSyncedAt,
                 searchEfunDefinitionInInheritanceChain: workspace.searchEfunDefinitionInInheritanceChain
@@ -89,8 +92,23 @@ function cloneWorkspaceConfigSnapshot(snapshot: WorkspaceConfigSnapshot): Worksp
     return {
         ...snapshot,
         projectConfigPath: normalizeServerWorkspaceRoot(snapshot.projectConfigPath),
+        instanceResolutionFunctions: cloneInstanceResolutionFunctions(snapshot.instanceResolutionFunctions),
         resolvedConfig: cloneResolvedConfig(snapshot.resolvedConfig)
     };
+}
+
+function cloneInstanceResolutionFunctions(
+    functions: InstanceResolutionFunctionMap | undefined
+): InstanceResolutionFunctionMap | undefined {
+    if (!functions) {
+        return undefined;
+    }
+
+    return Object.fromEntries(
+        Object.entries(functions)
+            .filter(([, objectPaths]) => Array.isArray(objectPaths))
+            .map(([functionName, objectPaths]) => [functionName, [...objectPaths]])
+    );
 }
 
 function cloneResolvedConfig(resolvedConfig: LpcResolvedConfig | undefined): LpcResolvedConfig | undefined {

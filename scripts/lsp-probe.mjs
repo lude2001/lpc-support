@@ -178,7 +178,7 @@ function loadProject(projectRoot) {
         configPath,
         configHellPath,
         configHellAbsolutePath,
-        playerObjectPath: config.playerObjectPath,
+        instanceResolutionFunctions: config.instanceResolutionFunctions,
         resolvedConfig,
         mudlibRoot
     };
@@ -329,7 +329,7 @@ async function startServer(project) {
                     workspaceRoot: project.root,
                     projectConfigPath: project.configPath,
                     configHellPath: project.configHellPath,
-                    playerObjectPath: project.playerObjectPath,
+                    instanceResolutionFunctions: project.instanceResolutionFunctions,
                     resolvedConfig: project.resolvedConfig,
                     lastSyncedAt: new Date().toISOString()
                 }

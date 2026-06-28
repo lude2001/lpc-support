@@ -395,7 +395,9 @@ describe('SemanticEvaluationService', () => {
         const semanticEvaluationService = createDefaultSemanticEvaluationService({
             analysisService,
             pathSupport,
-            playerObjectPath: '/adm/objects/player'
+            instanceResolutionFunctions: {
+                this_player: ['/adm/objects/player']
+            }
         });
         const callExpression = getIdentifierCallExpression(callerSource, 'file:///D:/workspace/demo.c', 'current_actor');
         const expectedPlayerPath = pathSupport.resolveObjectFilePath(callerDocument, '"/adm/objects/player"');
@@ -406,7 +408,7 @@ describe('SemanticEvaluationService', () => {
         const result = await semanticEvaluationService.evaluateCallExpression(callerDocument, callExpression);
 
         expect(result).toEqual({
-            value: configuredCandidateSetValue('this_player', [
+            value: configuredCandidateSetValue('configured-function-return:this_player', [
                 objectValue(expectedPlayerPath)
             ]),
             source: 'natural'

@@ -71,7 +71,7 @@ export async function createWorkspaceConfigSyncPayload(
             workspaceRoot,
             projectConfigPath: normalizeWorkspacePath(projectConfigService.getProjectConfigPath(workspaceRoot)),
             configHellPath: projectConfig?.configHellPath,
-            playerObjectPath: projectConfig?.playerObjectPath,
+            instanceResolutionFunctions: projectConfig?.instanceResolutionFunctions,
             resolvedConfig: projectConfig?.resolved,
             lastSyncedAt: projectConfig?.lastSyncedAt,
             searchEfunDefinitionInInheritanceChain

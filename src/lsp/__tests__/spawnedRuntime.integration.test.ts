@@ -1058,7 +1058,9 @@ describe('spawned LSP runtime integration', () => {
             JSON.stringify({
                 version: 1,
                 configHellPath: 'config.hell',
-                playerObjectPath: '/adm/objects/player'
+                instanceResolutionFunctions: {
+                    this_player: ['/adm/objects/player']
+                }
             }, null, 2),
             'utf8'
         );
@@ -1242,7 +1244,7 @@ class SpawnedServerHarness {
                         workspaceRoot,
                         projectConfigPath: projectConfigService.getProjectConfigPath(workspaceRoot),
                         configHellPath: projectConfig?.configHellPath,
-                        playerObjectPath: projectConfig?.playerObjectPath,
+                        instanceResolutionFunctions: projectConfig?.instanceResolutionFunctions,
                         resolvedConfig: projectConfig?.resolved,
                         lastSyncedAt: projectConfig?.lastSyncedAt ?? new Date('2026-04-11T00:00:00.000Z').toISOString()
                     }

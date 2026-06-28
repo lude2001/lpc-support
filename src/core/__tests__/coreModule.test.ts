@@ -11,6 +11,7 @@ import { LpcFrontendService } from '../../frontend/LpcFrontendService';
 import { DocumentLifecycleService } from '../DocumentLifecycleService';
 import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
+import { LpcProjectConfigSnapshotService } from '../../projectConfig/LpcProjectConfigSnapshotService';
 import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
 
 jest.mock('../../efunDocs', () => ({
@@ -37,6 +38,10 @@ jest.mock('../../projectConfig/LpcProjectConfigService', () => ({
     LpcProjectConfigService: jest.fn()
 }));
 
+jest.mock('../../projectConfig/LpcProjectConfigSnapshotService', () => ({
+    LpcProjectConfigSnapshotService: jest.fn()
+}));
+
 jest.mock('../DocumentLifecycleService', () => ({
     DocumentLifecycleService: jest.fn()
 }));
@@ -60,6 +65,7 @@ describe('registerCoreServices', () => {
     let compiler: { id: string };
     let frontendService: { id: string; invalidate: jest.Mock; clear: jest.Mock };
     let projectConfigService: { id: string };
+    let projectConfigSnapshotService: vscode.Disposable & { id: string; start: jest.Mock };
     let lifecycle: vscode.Disposable & { id: string; onInvalidate: jest.Mock };
     let parsedDocumentService: { invalidate: jest.Mock };
     let analysisService: { clearCache: jest.Mock };
@@ -78,6 +84,11 @@ describe('registerCoreServices', () => {
         compiler = { id: 'compiler' };
         frontendService = { id: 'frontendService', invalidate: jest.fn(), clear: jest.fn() };
         projectConfigService = { id: 'projectConfigService' };
+        projectConfigSnapshotService = {
+            id: 'projectConfigSnapshotService',
+            start: jest.fn().mockResolvedValue(undefined),
+            dispose: jest.fn()
+        };
         lifecycle = { id: 'lifecycle', dispose: jest.fn(), onInvalidate: jest.fn() };
         parsedDocumentService = { invalidate: jest.fn() };
         analysisService = { clearCache: jest.fn() };
@@ -88,13 +99,16 @@ describe('registerCoreServices', () => {
         (LPCCompiler as unknown as jest.Mock).mockReset().mockImplementation(() => compiler);
         (LpcFrontendService as unknown as jest.Mock).mockReset().mockImplementation(() => frontendService);
         (LpcProjectConfigService as unknown as jest.Mock).mockReset().mockImplementation(() => projectConfigService);
+        (LpcProjectConfigSnapshotService as unknown as jest.Mock)
+            .mockReset()
+            .mockImplementation(() => projectConfigSnapshotService);
         (DocumentLifecycleService as unknown as jest.Mock).mockReset().mockImplementation(() => lifecycle);
         (getGlobalParsedDocumentService as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
         ((DocumentSemanticSnapshotService as any).getInstance as jest.Mock).mockReset().mockReturnValue(analysisService);
     });
 
     test('registers core services, tracks disposables, and wires lifecycle invalidation', async () => {
-        registerCoreServices(registry, context);
+        await registerCoreServices(registry, context);
 
         expect(createDefaultFunctionDocumentationService).toHaveBeenCalledTimes(1);
         expect(EfunDocsManager).toHaveBeenCalledTimes(1);
@@ -111,6 +125,8 @@ describe('registerCoreServices', () => {
         expect(LPCCompiler).toHaveBeenCalledWith(projectConfigService);
         expect(LpcFrontendService).toHaveBeenCalledTimes(1);
         expect(LpcProjectConfigService).toHaveBeenCalledTimes(1);
+        expect(LpcProjectConfigSnapshotService).toHaveBeenCalledWith(projectConfigService);
+        expect(projectConfigSnapshotService.start).toHaveBeenCalledTimes(1);
         expect(DocumentLifecycleService).toHaveBeenCalledTimes(1);
 
         expect(registry.get(Services.EfunDocs)).toBe(efunDocsManager);
@@ -128,9 +144,10 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.Analysis)).toBe(analysisService);
         expect(DocumentSemanticSnapshotService.getInstance).toHaveBeenCalledTimes(1);
 
-        expect(context.subscriptions).toEqual([completionInstrumentation, lifecycle]);
+        expect(context.subscriptions).toEqual([projectConfigSnapshotService, completionInstrumentation, lifecycle]);
         expect(typeof context.subscriptions[0].dispose).toBe('function');
         expect(typeof context.subscriptions[1].dispose).toBe('function');
+        expect(typeof context.subscriptions[2].dispose).toBe('function');
 
         expect(lifecycle.onInvalidate).toHaveBeenCalledTimes(1);
 

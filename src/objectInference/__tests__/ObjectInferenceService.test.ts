@@ -108,21 +108,21 @@ describe('ObjectInferenceService', () => {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     let documentationService: FunctionDocumentationService;
     const documentHost = createVsCodeTextDocumentHost();
-    const createService = (_playerObjectPathOrProjectConfig?: unknown, overrideSemanticEvaluationService?: unknown) => {
-        const projectConfigService = typeof _playerObjectPathOrProjectConfig === 'string'
+    const createService = (_instanceResolutionOrProjectConfig?: unknown, overrideSemanticEvaluationService?: unknown) => {
+        const projectConfigProvider = typeof _instanceResolutionOrProjectConfig === 'string'
             ? undefined
-            : _playerObjectPathOrProjectConfig as any;
+            : _instanceResolutionOrProjectConfig as any;
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: documentHost,
             analysisService,
-            projectConfigService
+            projectConfigService: projectConfigProvider
         });
         const semanticEvaluationService = overrideSemanticEvaluationService ?? createDefaultSemanticEvaluationService({
             analysisService,
             pathSupport,
-            ...(typeof _playerObjectPathOrProjectConfig === 'string'
-                ? { playerObjectPath: _playerObjectPathOrProjectConfig }
-                : { projectConfigService })
+            ...(typeof _instanceResolutionOrProjectConfig === 'string'
+                ? { instanceResolutionFunctions: { this_player: [_instanceResolutionOrProjectConfig] } }
+                : { projectConfigProvider })
         });
         const semanticEvaluationServiceWithDefaults =
             typeof (semanticEvaluationService as { evaluateExpressionAtPosition?: unknown }).evaluateExpressionAtPosition === 'function'
@@ -242,7 +242,7 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('this_player() resolves when playerObjectPath is configured', async () => {
+    test('this_player() resolves when instanceResolutionFunctions is configured', async () => {
         const playerService = createService('/adm/objects/player');
         const source = [
             'void demo() {',
@@ -268,7 +268,7 @@ describe('ObjectInferenceService', () => {
         });
     });
 
-    test('this_player() resolves playerObjectPath using the current document workspace', async () => {
+    test('this_player() resolves instanceResolutionFunctions using the current document workspace', async () => {
         const secondFixtureRoot = path.join(process.cwd(), '.tmp-object-inference-second');
         fs.rmSync(secondFixtureRoot, { recursive: true, force: true });
         fs.mkdirSync(path.join(secondFixtureRoot, 'adm', 'objects'), { recursive: true });
@@ -279,17 +279,19 @@ describe('ObjectInferenceService', () => {
             uri: { fsPath: secondFixtureRoot }
         });
 
-        const projectConfigService = {
-            loadForWorkspace: jest.fn(async (workspaceRoot: string) => ({
-                version: 1 as const,
-                configHellPath: 'config.hell',
-                playerObjectPath: workspaceRoot === secondFixtureRoot
-                    ? '/adm/objects/second_player'
-                    : '/adm/objects/player'
+        const projectConfigProvider = {
+            getWorkspaceProjectConfig: jest.fn((workspaceRoot: string) => ({
+                instanceResolutionFunctions: {
+                    this_player: [
+                        workspaceRoot === secondFixtureRoot
+                            ? '/adm/objects/second_player'
+                            : '/adm/objects/player'
+                    ]
+                }
             }))
         };
 
-        const playerService = createService(projectConfigService);
+        const playerService = createService(projectConfigProvider);
         const source = [
             'void demo() {',
             '    this_player()->query_name();',
@@ -299,7 +301,7 @@ describe('ObjectInferenceService', () => {
 
         const result = await playerService.inferObjectAccess(document, positionAfter(source, 'query_name'));
 
-        expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith(secondFixtureRoot);
+        expect(projectConfigProvider.getWorkspaceProjectConfig).toHaveBeenCalledWith(secondFixtureRoot);
         expect(result?.inference).toEqual({
             status: 'resolved',
             candidates: [
@@ -313,7 +315,7 @@ describe('ObjectInferenceService', () => {
         fs.rmSync(secondFixtureRoot, { recursive: true, force: true });
     });
 
-    test('this_player() without playerObjectPath returns empty candidates', async () => {
+    test('this_player() without instanceResolutionFunctions is non-static', async () => {
         const source = [
             'void demo() {',
             '    this_player()->query_name();',
@@ -325,11 +327,13 @@ describe('ObjectInferenceService', () => {
 
         expect(result?.inference).toEqual({
             status: 'unknown',
-            candidates: []
+            reason: 'non-static',
+            candidates: [],
+            diagnostics: undefined
         });
     });
 
-    test('this_player with arguments does not resolve', async () => {
+    test('configured this_player with arguments resolves by efun name', async () => {
         const playerService = createService('/adm/objects/player');
         const source = [
             'void demo() {',
@@ -341,9 +345,91 @@ describe('ObjectInferenceService', () => {
         const result = await playerService.inferObjectAccess(document, positionAfter(source, 'query_name'));
 
         expect(result?.inference).toEqual({
-            status: 'unsupported',
-            reason: 'unsupported-expression',
-            candidates: []
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'player.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('configured environment() resolves by efun name', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'inherit', 'room'), { recursive: true });
+        fs.writeFileSync(path.join(fixtureRoot, 'inherit', 'room', 'room.c'), 'void query_room_title() {}\n', 'utf8');
+        const environmentService = createService({
+            getWorkspaceProjectConfig: jest.fn(() => ({
+                instanceResolutionFunctions: {
+                    environment: ['/inherit/room/room']
+                }
+            }))
+        });
+        const source = [
+            'void demo(object me) {',
+            '    environment(me)->query_room_title();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'environment-config.c'), source);
+
+        const result = await environmentService.inferObjectAccess(document, positionAfter(source, 'query_room_title'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'inherit', 'room', 'room.c'),
+                    source: 'builtin-call'
+                }
+            ]
+        });
+    });
+
+    test('environment() without configured return objects remains non-static', async () => {
+        const source = [
+            'void demo(object me) {',
+            '    environment(me)->query_room_title();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'environment-runtime.c'), source);
+
+        const result = await service.inferObjectAccess(document, positionAfter(source, 'query_room_title'));
+
+        expect(result?.inference).toEqual({
+            status: 'unknown',
+            reason: 'non-static',
+            candidates: [],
+            diagnostics: undefined
+        });
+    });
+
+    test('master() resolves from config.hell master file facts', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'adm', 'obj'), { recursive: true });
+        fs.writeFileSync(path.join(fixtureRoot, 'adm', 'obj', 'master.c'), 'void valid_apply() {}\n', 'utf8');
+        const masterService = createService({
+            getWorkspaceProjectConfig: jest.fn(() => ({
+                resolvedConfig: {
+                    masterFile: '/adm/obj/master'
+                }
+            }))
+        });
+        const source = [
+            'void demo() {',
+            '    master()->valid_apply();',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'master-config.c'), source);
+
+        const result = await masterService.inferObjectAccess(document, positionAfter(source, 'valid_apply'));
+
+        expect(result?.inference).toEqual({
+            status: 'resolved',
+            candidates: [
+                {
+                    path: path.join(fixtureRoot, 'adm', 'obj', 'master.c'),
+                    source: 'builtin-call'
+                }
+            ]
         });
     });
 
@@ -1408,7 +1494,8 @@ describe('ObjectInferenceService', () => {
                     path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
                     source: 'doc'
                 }
-            ]
+            ],
+            diagnostics: undefined
         });
     });
 
@@ -1723,9 +1810,10 @@ describe('ObjectInferenceService', () => {
             candidates: [
                 {
                     path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
-                    source: 'doc'
+                    source: 'builtin-call'
                 }
-            ]
+            ],
+            diagnostics: undefined
         });
     });
 
@@ -1760,13 +1848,14 @@ describe('ObjectInferenceService', () => {
             candidates: [
                 {
                     path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
-                    source: 'doc'
+                    source: 'builtin-call'
                 }
-            ]
+            ],
+            diagnostics: undefined
         });
     });
 
-    test('single-candidate object method return tracing reports missing return annotations', async () => {
+    test('single-candidate object method return tracing resolves natural clone_object returns without annotations', async () => {
         fs.writeFileSync(
             path.join(fixtureRoot, 'adm', 'objects', 'factory-no-doc.c'),
             [
@@ -1789,14 +1878,14 @@ describe('ObjectInferenceService', () => {
         const result = await service.inferObjectAccess(document, positionAfter(source, 'weapon->query'));
 
         expect(result?.inference).toEqual({
-            status: 'unknown',
-            candidates: [],
-            diagnostics: [
+            status: 'resolved',
+            candidates: [
                 {
-                    code: 'missing-return-annotation',
-                    methodName: 'method'
+                    path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
+                    source: 'builtin-call'
                 }
-            ]
+            ],
+            diagnostics: undefined
         });
     });
 
@@ -1893,9 +1982,10 @@ describe('ObjectInferenceService', () => {
             candidates: [
                 {
                     path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
-                    source: 'doc'
+                    source: 'builtin-call'
                 }
-            ]
+            ],
+            diagnostics: undefined
         });
 
         fs.writeFileSync(
@@ -1920,9 +2010,10 @@ describe('ObjectInferenceService', () => {
             candidates: [
                 {
                     path: path.join(fixtureRoot, 'adm', 'objects', 'shield.c'),
-                    source: 'doc'
+                    source: 'builtin-call'
                 }
-            ]
+            ],
+            diagnostics: undefined
         });
     });
 
@@ -2083,9 +2174,10 @@ describe('ObjectInferenceService', () => {
             candidates: [
                 {
                     path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
-                    source: 'doc'
+                    source: 'builtin-call'
                 }
-            ]
+            ],
+            diagnostics: undefined
         });
     });
 
@@ -2128,9 +2220,10 @@ describe('ObjectInferenceService', () => {
             candidates: [
                 {
                     path: path.join(fixtureRoot, 'adm', 'objects', 'sword.c'),
-                    source: 'doc'
+                    source: 'builtin-call'
                 }
-            ]
+            ],
+            diagnostics: undefined
         });
     });
 

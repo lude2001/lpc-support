@@ -22,18 +22,21 @@ export class EnvironmentSemanticRegistry {
     ) {}
 
     public async evaluate(request: EnvironmentSemanticRequest) {
-        const matchedProvider = this.providers
+        const matchedProviders = this.providers
             .map((provider) => ({
                 provider,
                 match: provider.match(request)
             }))
             .filter((entry) => entry.match)
-            .sort((left, right) => matchRank(right.match) - matchRank(left.match))[0]?.provider;
+            .sort((left, right) => matchRank(right.match) - matchRank(left.match));
 
-        if (!matchedProvider) {
-            return undefined;
+        for (const entry of matchedProviders) {
+            const value = await entry.provider.evaluate(request);
+            if (value.kind !== 'unknown') {
+                return value;
+            }
         }
 
-        return matchedProvider.evaluate(request);
+        return undefined;
     }
 }

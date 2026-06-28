@@ -51,6 +51,10 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
             return cached;
         }
 
+        if (!useCache) {
+            getGlobalParsedDocumentService().invalidate(document.uri);
+        }
+
         return this.buildAndStoreAnalysis(document);
     }
 

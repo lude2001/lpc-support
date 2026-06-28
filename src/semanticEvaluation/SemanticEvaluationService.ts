@@ -10,7 +10,7 @@ import { unknownValue } from './valueFactories';
 import type { CalleeReturnEvaluator } from './calls/CalleeReturnEvaluator';
 import { CallTargetResolver } from './calls/CallTargetResolver';
 import type { EnvironmentSemanticRegistry } from './environment/EnvironmentSemanticRegistry';
-import { ThisPlayerProvider } from './environment/ThisPlayerProvider';
+import { ConfiguredFunctionReturnProvider } from './environment/ConfiguredFunctionReturnProvider';
 import { RuntimeNonStaticProvider } from './environment/RuntimeNonStaticProvider';
 import {
     createStaticEvaluationContext,
@@ -26,7 +26,10 @@ import { StatementTransfer } from './static/StatementTransfer';
 import { ExpressionEvaluator } from './static/ExpressionEvaluator';
 import { CalleeReturnEvaluator as DefaultCalleeReturnEvaluator } from './calls/CalleeReturnEvaluator';
 import { EnvironmentSemanticRegistry as DefaultEnvironmentSemanticRegistry } from './environment/EnvironmentSemanticRegistry';
-import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
+import type { InstanceResolutionFunctionMap } from '../projectConfig/LpcProjectConfig';
+import type {
+    ConfiguredFunctionReturnProjectConfigProvider
+} from './environment/ConfiguredFunctionReturnProvider';
 
 export interface SemanticEvaluationOutcome {
     value: SemanticValue;
@@ -43,8 +46,8 @@ export interface SemanticEvaluationServiceOptions {
 export interface DefaultSemanticEvaluationServiceDependencies {
     analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
     pathSupport?: WorkspaceDocumentPathSupport;
-    playerObjectPath?: string;
-    projectConfigService?: Pick<LpcProjectConfigService, 'loadForWorkspace'>;
+    instanceResolutionFunctions?: InstanceResolutionFunctionMap;
+    projectConfigProvider?: ConfiguredFunctionReturnProjectConfigProvider;
 }
 
 interface ContainingFunctionEvaluation {
@@ -389,9 +392,9 @@ export function createDefaultSemanticEvaluationService(
         pathSupport
     });
     const environmentRegistry = new DefaultEnvironmentSemanticRegistry([
-        new ThisPlayerProvider({
-            playerObjectPath: dependencies.playerObjectPath,
-            projectConfigService: dependencies.projectConfigService
+        new ConfiguredFunctionReturnProvider({
+            instanceResolutionFunctions: dependencies.instanceResolutionFunctions,
+            projectConfigProvider: dependencies.projectConfigProvider
         }),
         new RuntimeNonStaticProvider()
     ]);

@@ -9,7 +9,10 @@ describe('LpcProjectConfigService', () => {
         const config: LpcProjectConfig = {
             version: 1,
             configHellPath: 'config.hell',
-            playerObjectPath: '/clone/user/user',
+            instanceResolutionFunctions: {
+                this_player: ['/clone/user/user'],
+                environment: ['/inherit/room/room']
+            },
             compile: {
                 mode: 'local',
                 local: {
@@ -27,7 +30,8 @@ describe('LpcProjectConfigService', () => {
 
         expect(config.version).toBe(1);
         expect(config.configHellPath).toBe('config.hell');
-        expect(config.playerObjectPath).toBe('/clone/user/user');
+        expect(config.instanceResolutionFunctions?.this_player).toEqual(['/clone/user/user']);
+        expect(config.instanceResolutionFunctions?.environment).toEqual(['/inherit/room/room']);
         expect(config.compile?.mode).toBe('local');
         expect(config.compile?.local?.driverConfigPath).toBe('etc/config.test');
         expect(config.compile?.remote?.activeServer).toBe('Alpha');
@@ -42,6 +46,9 @@ describe('LpcProjectConfigService', () => {
         fs.writeFileSync(configPath, JSON.stringify({
             version: 1,
             configHellPath: 'config.hell',
+            instanceResolutionFunctions: {
+                this_player: ['/clone/user/user']
+            },
             compile: {
                 mode: 'local',
                 local: {
@@ -72,6 +79,9 @@ describe('LpcProjectConfigService', () => {
         expect(result?.lastSyncedAt).toBeDefined();
         expect(written.resolved).toBeUndefined();
         expect(written.lastSyncedAt).toBeUndefined();
+        expect(written.instanceResolutionFunctions).toEqual({
+            this_player: ['/clone/user/user']
+        });
         expect(written.compile.mode).toBe('local');
     });
 

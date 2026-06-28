@@ -226,6 +226,12 @@ describe('ExpressionEvaluator', () => {
         expect(result).toEqual(objectValue('/adm/model/login'));
     });
 
+    test('evaluates clone_object("/x/y") to an exact object value', () => {
+        const result = evaluateReturnedExpression('mixed demo() { return clone_object("/adm/model/login"); }');
+
+        expect(result).toEqual(objectValue('/adm/model/login'));
+    });
+
     test('evaluates mapping literals into static mapping shapes', () => {
         const result = evaluateReturnedExpression([
             'mixed demo() {',

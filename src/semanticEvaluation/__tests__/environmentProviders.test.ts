@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { EnvironmentSemanticRegistry } from '../environment/EnvironmentSemanticRegistry';
 import { RuntimeNonStaticProvider } from '../environment/RuntimeNonStaticProvider';
-import { ThisPlayerProvider } from '../environment/ThisPlayerProvider';
+import { ConfiguredFunctionReturnProvider } from '../environment/ConfiguredFunctionReturnProvider';
 import type {
     EnvironmentSemanticProvider,
     EnvironmentSemanticRequest
@@ -49,24 +49,45 @@ function createRequest(
 }
 
 describe('environment semantic providers', () => {
-    test('this_player() returns a configured candidate set when playerObjectPath is configured', async () => {
-        const provider = new ThisPlayerProvider({
-            playerObjectPath: '/adm/objects/player'
+    test('configured efun returns a configured candidate set', async () => {
+        const provider = new ConfiguredFunctionReturnProvider({
+            instanceResolutionFunctions: {
+                this_player: ['/adm/objects/player']
+            }
         });
 
         const result = await provider.evaluate(createRequest());
 
         expect(result).toEqual(
-            configuredCandidateSetValue('this_player', [
+            configuredCandidateSetValue('configured-function-return:this_player', [
                 objectValue(path.join('D:\\workspace', 'adm', 'objects', 'player.c'))
             ])
         );
     });
 
-    test('this_player() returns unknown when playerObjectPath is missing', async () => {
-        const provider = new ThisPlayerProvider();
+    test('configured efun provider returns unknown when no function mapping exists', async () => {
+        const provider = new ConfiguredFunctionReturnProvider();
 
         const result = await provider.evaluate(createRequest());
+
+        expect(result).toEqual(unknownValue());
+    });
+
+    test('configured efun provider ignores invalid builtin efun arity', async () => {
+        const provider = new ConfiguredFunctionReturnProvider({
+            projectConfigProvider: {
+                getWorkspaceProjectConfig: jest.fn(() => ({
+                    resolvedConfig: {
+                        masterFile: '/adm/obj/master'
+                    }
+                }))
+            }
+        });
+
+        const result = await provider.evaluate(createRequest({
+            calleeName: 'master',
+            argumentCount: 1
+        }));
 
         expect(result).toEqual(unknownValue());
     });
@@ -83,40 +104,38 @@ describe('environment semantic providers', () => {
         );
     });
 
-    test('this_player() resolves project config only when workspaceRoot is explicitly provided', async () => {
-        const projectConfigService = {
-            loadForWorkspace: jest.fn(async (workspaceRoot: string) => ({
-                version: 1 as const,
-                configHellPath: 'config.hell',
-                playerObjectPath: workspaceRoot === 'D:\\workspace'
-                    ? '/adm/objects/player'
+    test('configured efun provider resolves project config snapshot only when workspaceRoot is explicitly provided', async () => {
+        const projectConfigProvider = {
+            getWorkspaceProjectConfig: jest.fn((workspaceRoot: string) => ({
+                instanceResolutionFunctions: workspaceRoot === 'D:\\workspace'
+                    ? { this_player: ['/adm/objects/player'] }
                     : undefined
             }))
         };
-        const provider = new ThisPlayerProvider({
-            projectConfigService
+        const provider = new ConfiguredFunctionReturnProvider({
+            projectConfigProvider
         });
 
         const result = await provider.evaluate(createRequest());
 
         expect(result).toEqual(
-            configuredCandidateSetValue('this_player', [
+            configuredCandidateSetValue('configured-function-return:this_player', [
                 objectValue(path.join('D:\\workspace', 'adm', 'objects', 'player.c'))
             ])
         );
-        expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('D:\\workspace');
+        expect(projectConfigProvider.getWorkspaceProjectConfig).toHaveBeenCalledWith('D:\\workspace');
     });
 
-    test('this_player() does not fall back to ambient workspace state when workspaceRoot is absent', async () => {
-        const projectConfigService = {
-            loadForWorkspace: jest.fn(async () => ({
-                version: 1 as const,
-                configHellPath: 'config.hell',
-                playerObjectPath: '/adm/objects/player'
+    test('configured efun provider does not fall back to ambient workspace state when workspaceRoot is absent', async () => {
+        const projectConfigProvider = {
+            getWorkspaceProjectConfig: jest.fn(() => ({
+                instanceResolutionFunctions: {
+                    this_player: ['/adm/objects/player']
+                }
             }))
         };
-        const provider = new ThisPlayerProvider({
-            projectConfigService
+        const provider = new ConfiguredFunctionReturnProvider({
+            projectConfigProvider
         });
 
         const result = await provider.evaluate(createRequest({
@@ -124,12 +143,12 @@ describe('environment semantic providers', () => {
         }));
 
         expect(result).toEqual(unknownValue());
-        expect(projectConfigService.loadForWorkspace).not.toHaveBeenCalled();
+        expect(projectConfigProvider.getWorkspaceProjectConfig).not.toHaveBeenCalled();
     });
 
     test('this_object() is outside the provider registry and remains a core builtin concern', async () => {
         const registry = new EnvironmentSemanticRegistry([
-            new ThisPlayerProvider(),
+            new ConfiguredFunctionReturnProvider(),
             new RuntimeNonStaticProvider()
         ]);
 
@@ -138,6 +157,116 @@ describe('environment semantic providers', () => {
         }));
 
         expect(result).toBeUndefined();
+    });
+
+    test('registry falls through from missing configured values to runtime non-static efuns', async () => {
+        const registry = new EnvironmentSemanticRegistry([
+            new ConfiguredFunctionReturnProvider(),
+            new RuntimeNonStaticProvider()
+        ]);
+
+        const result = await registry.evaluate(createRequest({
+            calleeName: 'environment'
+        }));
+
+        expect(result).toEqual(
+            nonStaticValue('environment() depends on runtime object state')
+        );
+    });
+
+    test('registry ignores unrelated calls that are absent from the config snapshot', async () => {
+        const projectConfigProvider = {
+            getWorkspaceProjectConfig: jest.fn(() => ({
+                instanceResolutionFunctions: {
+                    this_player: ['/adm/objects/player']
+                }
+            }))
+        };
+        const registry = new EnvironmentSemanticRegistry([
+            new ConfiguredFunctionReturnProvider({
+                projectConfigProvider
+            }),
+            new RuntimeNonStaticProvider()
+        ]);
+
+        const result = await registry.evaluate(createRequest({
+            calleeName: 'plain_helper'
+        }));
+
+        expect(result).toBeUndefined();
+        expect(projectConfigProvider.getWorkspaceProjectConfig).toHaveBeenCalledWith('D:\\workspace');
+    });
+
+    test('registry resolves custom project-configured function names through project config snapshot', async () => {
+        const workspaceRoot = path.join(process.cwd(), '.tmp-environment-provider-config');
+        const projectConfigProvider = {
+            getWorkspaceProjectConfig: jest.fn(() => ({
+                instanceResolutionFunctions: {
+                    get_actor: ['/adm/objects/player']
+                }
+            }))
+        };
+        const registry = new EnvironmentSemanticRegistry([
+            new ConfiguredFunctionReturnProvider({
+                projectConfigProvider
+            }),
+            new RuntimeNonStaticProvider()
+        ]);
+
+        const result = await registry.evaluate(createRequest({
+            workspaceRoot,
+            document: createDocument(path.join(workspaceRoot, 'room', 'demo.c')),
+            pathSupport: createPathSupport(workspaceRoot),
+            calleeName: 'get_actor'
+        }));
+
+        expect(result).toEqual(
+            configuredCandidateSetValue('configured-function-return:get_actor', [
+                objectValue(path.join(workspaceRoot, 'adm', 'objects', 'player.c'))
+            ])
+        );
+        expect(projectConfigProvider.getWorkspaceProjectConfig).toHaveBeenCalledWith(workspaceRoot);
+    });
+
+    test('configured provider does not treat object-array efuns as single object receivers', async () => {
+        const registry = new EnvironmentSemanticRegistry([
+            new ConfiguredFunctionReturnProvider({
+                instanceResolutionFunctions: {
+                    all_inventory: ['/obj/item']
+                }
+            }),
+            new RuntimeNonStaticProvider()
+        ]);
+
+        const result = await registry.evaluate(createRequest({
+            calleeName: 'all_inventory'
+        }));
+
+        expect(result).toEqual(
+            nonStaticValue('all_inventory() depends on runtime object state')
+        );
+    });
+
+    test('master() resolves from synced config.hell facts when explicit mapping is absent', async () => {
+        const provider = new ConfiguredFunctionReturnProvider({
+            projectConfigProvider: {
+                getWorkspaceProjectConfig: jest.fn(() => ({
+                    resolvedConfig: {
+                        masterFile: '/adm/obj/master'
+                    }
+                }))
+            }
+        });
+
+        const result = await provider.evaluate(createRequest({
+            calleeName: 'master'
+        }));
+
+        expect(result).toEqual(
+            configuredCandidateSetValue('configured-function-return:master', [
+                objectValue(path.join('D:\\workspace', 'adm', 'obj', 'master.c'))
+            ])
+        );
     });
 
     test('registry dispatch prefers exact matching provider', async () => {

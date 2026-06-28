@@ -917,7 +917,9 @@ describe('language-service integration regression', () => {
                     ? {
                         version: 1 as const,
                         configHellPath: 'config.hell',
-                        playerObjectPath: '/adm/objects/player'
+                        instanceResolutionFunctions: {
+                            this_player: ['/adm/objects/player']
+                        }
                     }
                     : undefined
             )

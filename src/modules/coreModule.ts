@@ -11,17 +11,21 @@ import { createDefaultFunctionDocumentationService } from '../language/documenta
 import { createVsCodeWorkspaceDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
+import { LpcProjectConfigSnapshotService } from '../projectConfig/LpcProjectConfigSnapshotService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { createDefaultSemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
 
 let registeredProjectConfigService: LpcProjectConfigService | undefined;
 
-export function registerCoreServices(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
+export async function registerCoreServices(registry: ServiceRegistry, context: vscode.ExtensionContext): Promise<void> {
     const analysisService = DocumentSemanticSnapshotService.getInstance();
     registry.register(Services.Analysis, analysisService);
     const projectConfigService = new LpcProjectConfigService();
     registeredProjectConfigService = projectConfigService;
     registry.register(Services.ProjectConfig, projectConfigService);
+    const projectConfigSnapshotService = new LpcProjectConfigSnapshotService(projectConfigService);
+    await projectConfigSnapshotService.start();
+    context.subscriptions.push(projectConfigSnapshotService);
 
     const frontendService = new LpcFrontendService();
     registry.register(Services.Frontend, frontendService);
@@ -53,7 +57,7 @@ export function registerCoreServices(registry: ServiceRegistry, context: vscode.
     const semanticEvaluationService = createDefaultSemanticEvaluationService({
         analysisService,
         pathSupport: documentPathSupport,
-        projectConfigService
+        projectConfigProvider: projectConfigSnapshotService
     });
     registry.register(Services.SemanticEvaluation, semanticEvaluationService);
     const functionDocLookupBuilder = new FunctionDocLookupBuilder({

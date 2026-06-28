@@ -291,8 +291,8 @@ export class LpcProjectConfigService {
             configHellPath: config.configHellPath
         };
 
-        if (config.playerObjectPath) {
-            authored.playerObjectPath = config.playerObjectPath;
+        if (config.instanceResolutionFunctions) {
+            authored.instanceResolutionFunctions = cloneInstanceResolutionFunctions(config.instanceResolutionFunctions);
         }
 
         if (config.compile) {
@@ -306,4 +306,18 @@ export class LpcProjectConfigService {
         return config.resolved !== undefined
             || config.lastSyncedAt !== undefined;
     }
+}
+
+function cloneInstanceResolutionFunctions(
+    functions: LpcProjectConfig['instanceResolutionFunctions']
+): LpcProjectConfig['instanceResolutionFunctions'] {
+    if (!functions) {
+        return undefined;
+    }
+
+    return Object.fromEntries(
+        Object.entries(functions)
+            .filter(([, objectPaths]) => Array.isArray(objectPaths))
+            .map(([functionName, objectPaths]) => [functionName, [...objectPaths]])
+    );
 }

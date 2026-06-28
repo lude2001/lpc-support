@@ -59,7 +59,7 @@ describe('extension entrypoint', () => {
         registrationOrder = [];
 
         (ServiceRegistry as unknown as jest.Mock).mockReset().mockImplementation(() => registry);
-        (registerCoreServices as jest.Mock).mockReset().mockImplementation(() => {
+        (registerCoreServices as jest.Mock).mockReset().mockImplementation(async () => {
             registrationOrder.push('core');
         });
         (getRegisteredProjectConfigService as jest.Mock).mockReset().mockReturnValue(projectConfigService);
