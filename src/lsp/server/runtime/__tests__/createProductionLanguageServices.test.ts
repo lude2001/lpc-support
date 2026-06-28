@@ -474,6 +474,7 @@ describe('createProductionLanguageServices', () => {
             diagnosticsService: { collectDiagnostics: jest.fn() }
         };
         const createDiagnosticsStack = jest.fn(() => diagnosticsStack);
+        const changeIndex = { recordDependencyFootprint: jest.fn() };
 
         jest.isolateModules(() => {
             jest.doMock('../../../../projectConfig/LpcProjectConfigService', () => ({
@@ -547,7 +548,7 @@ describe('createProductionLanguageServices', () => {
                 createProductionLanguageServices
             } = require('../createProductionLanguageServices') as typeof import('../createProductionLanguageServices');
 
-            const services = createProductionLanguageServices();
+            const services = createProductionLanguageServices({ changeIndex });
 
             expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
             expect(createDiagnosticsStack).toHaveBeenCalledWith(
@@ -556,6 +557,8 @@ describe('createProductionLanguageServices', () => {
                     symbolResolver: expect.anything()
                 })
             );
+            const diagnosticsOptions = createDiagnosticsStack.mock.calls[0][1] as any;
+            expect(diagnosticsOptions.symbolResolver.options.dependencyFootprintRecorder).toBe(changeIndex);
             expect(services.diagnosticsService).toBe(diagnosticsStack.diagnosticsService);
         });
     });

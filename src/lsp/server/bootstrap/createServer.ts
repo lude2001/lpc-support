@@ -21,6 +21,7 @@ import { WorkspaceSession } from '../runtime/WorkspaceSession';
 const PHASE_A_SERVER_VERSION = 'phase-a';
 
 export interface CreateServerOptions {
+    changeIndex?: WorkspaceChangeIndex;
     codeActionsService?: LanguageCodeActionService;
     completionService?: LanguageCompletionService;
     diagnosticsService?: LanguageDiagnosticsService;
@@ -43,7 +44,7 @@ export interface LspServerRuntime {
 export function createServer(options: CreateServerOptions = {}): LspServerRuntime {
     const connection = createConnection(ProposedFeatures.all);
     const documentStore = new DocumentStore();
-    const changeIndex = new WorkspaceChangeIndex();
+    const changeIndex = options.changeIndex ?? new WorkspaceChangeIndex();
     const logger = new ServerLogger(connection.console);
     const workspaceSession = new WorkspaceSession({});
     const diagnosticsSession = options.diagnosticsService

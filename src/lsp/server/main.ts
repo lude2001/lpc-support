@@ -1,4 +1,10 @@
 import { createServer } from './bootstrap/createServer';
 import { createProductionLanguageServices } from './runtime/createProductionLanguageServices';
+import { WorkspaceChangeIndex } from './runtime/WorkspaceChangeIndex';
 
-createServer(createProductionLanguageServices()).start();
+const changeIndex = new WorkspaceChangeIndex();
+
+createServer({
+    ...createProductionLanguageServices({ changeIndex }),
+    changeIndex
+}).start();

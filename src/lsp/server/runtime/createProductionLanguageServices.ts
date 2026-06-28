@@ -60,8 +60,15 @@ import {
 import { createDefaultSemanticEvaluationService } from '../../../semanticEvaluation/SemanticEvaluationService';
 import { TargetMethodLookup } from '../../../targetMethodLookup';
 import { setServerWorkspaceRoots } from './serverHostState';
+import type { WorkspaceChangeIndex } from './WorkspaceChangeIndex';
 
-export function createProductionLanguageServices(): LanguageFeatureServices {
+export interface ProductionLanguageServicesOptions {
+    changeIndex?: Pick<WorkspaceChangeIndex, 'recordDependencyFootprint'>;
+}
+
+export function createProductionLanguageServices(
+    options: ProductionLanguageServicesOptions = {}
+): LanguageFeatureServices {
     setServerWorkspaceRoots([process.cwd()]);
 
     const analysisService = DocumentSemanticSnapshotService.getInstance();
@@ -156,7 +163,8 @@ export function createProductionLanguageServices(): LanguageFeatureServices {
         pathSupport: documentPathSupport,
         projectSymbolIndex,
         efunDocsManager,
-        headerOwnerContextResolver: headerOwnerContextService
+        headerOwnerContextResolver: headerOwnerContextService,
+        dependencyFootprintRecorder: options.changeIndex
     });
     const { diagnosticsService } = createDiagnosticsStack(analysisService, { symbolResolver: diagnosticSymbolResolver });
     const formattingService = createLanguageFormattingService(new FormattingService());

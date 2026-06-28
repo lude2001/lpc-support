@@ -45,6 +45,10 @@ export interface DiagnosticSymbolResolver {
     ): Promise<VisibleDiagnosticSymbols> | VisibleDiagnosticSymbols;
 }
 
+export interface DependencyFootprintRecorder {
+    recordDependencyFootprint(ownerUri: string, dependencies: readonly string[]): void;
+}
+
 type DiagnosticResolverAnalysisService = Pick<
     DocumentAnalysisService,
     'getSemanticSnapshot' | 'getBestAvailableSemanticSnapshot'
@@ -62,6 +66,7 @@ export interface DefaultDiagnosticSymbolResolverOptions {
         | 'getSimulatedDoc'
     > & Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent' | 'isSimulatedEfunReady'>>;
     headerOwnerContextResolver?: Pick<HeaderOwnerContextService, 'resolveOwnerContext'>;
+    dependencyFootprintRecorder?: DependencyFootprintRecorder;
 }
 
 interface DependencySymbolCollection {
@@ -84,8 +89,17 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         semantic: SemanticSnapshot,
         workspace?: LanguageDiagnosticsWorkspaceContext
     ): Promise<VisibleDiagnosticSymbols> {
-        const dependencyState = await this.indexDocument(document, semantic, new Set<string>(), 'root', workspace);
+        const dependencyFootprint = new Set<string>();
+        const dependencyState = await this.indexDocument(
+            document,
+            semantic,
+            new Set<string>(),
+            'root',
+            workspace,
+            dependencyFootprint
+        );
         const uri = document.uri.toString();
+        this.options.dependencyFootprintRecorder?.recordDependencyFootprint(uri, [...dependencyFootprint]);
         const included = this.options.projectSymbolIndex.getIncludedSymbols(uri);
         const inherited = this.options.projectSymbolIndex.getInheritedSymbols(uri);
         const efunSignatures = await this.collectEfunSignatures(document, workspace?.projectConfig);
@@ -140,7 +154,8 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         semantic: SemanticSnapshot,
         visitedUris: Set<string>,
         relation: 'root' | 'include' | 'inherited',
-        workspace?: LanguageDiagnosticsWorkspaceContext
+        workspace?: LanguageDiagnosticsWorkspaceContext,
+        dependencyFootprint?: Set<string>
     ): Promise<DependencyIndexResult> {
         if (visitedUris.has(semantic.uri)) {
             return emptyDependencyIndexResult();
@@ -169,11 +184,13 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
                 continue;
             }
 
+            dependencyFootprint?.add(includeStatement.resolvedUri);
             const childResult = await this.indexDependencyFile(
                 vscode.Uri.parse(includeStatement.resolvedUri).fsPath,
                 visitedUris,
                 relation === 'inherited' ? 'inherited' : 'include',
-                workspace
+                workspace,
+                dependencyFootprint
             );
             hasUnresolved = hasUnresolved || childResult.hasUnresolved;
             mergeCollection(included, childResult.included);
@@ -192,7 +209,14 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
                 continue;
             }
 
-            const childResult = await this.indexDependencyFile(inheritedFile, visitedUris, 'inherited', workspace);
+            dependencyFootprint?.add(vscode.Uri.file(inheritedFile).toString());
+            const childResult = await this.indexDependencyFile(
+                inheritedFile,
+                visitedUris,
+                'inherited',
+                workspace,
+                dependencyFootprint
+            );
             hasUnresolved = hasUnresolved || childResult.hasUnresolved;
             mergeCollection(inherited, childResult.inherited);
         }
@@ -255,7 +279,8 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
         filePath: string,
         visitedUris: Set<string>,
         relation: 'include' | 'inherited',
-        workspace?: LanguageDiagnosticsWorkspaceContext
+        workspace?: LanguageDiagnosticsWorkspaceContext,
+        dependencyFootprint?: Set<string>
     ): Promise<DependencyIndexResult> {
         const dependencyDocument = await this.options.pathSupport.tryOpenTextDocument(filePath);
         if (!dependencyDocument) {
@@ -277,7 +302,7 @@ export class DefaultDiagnosticSymbolResolver implements DiagnosticSymbolResolver
             return unresolvedDependencyIndexResult();
         }
 
-        return this.indexDocument(dependencyDocument, dependencySemantic, visitedUris, relation, workspace);
+        return this.indexDocument(dependencyDocument, dependencySemantic, visitedUris, relation, workspace, dependencyFootprint);
     }
 
     private async collectEfunSignatures(

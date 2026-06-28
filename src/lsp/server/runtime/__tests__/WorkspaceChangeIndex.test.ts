@@ -80,4 +80,59 @@ describe('WorkspaceChangeIndex', () => {
             deleted: true
         }));
     });
+
+    test('marks open owners maybe stale when a recorded dependency changes on disk', () => {
+        const index = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/room.c';
+        const dependencyUri = 'file:///D:/workspace/include/helper.h';
+
+        index.markOpened(ownerUri, 3);
+        index.recordDependencyFootprint(ownerUri, [dependencyUri]);
+        index.markDiskChanged(dependencyUri, 'changed');
+
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            openVersion: 3,
+            maybeStale: true,
+            lastDependencyFootprint: [dependencyUri]
+        }));
+        expect(index.getMaybeStaleOpenUris()).toEqual([ownerUri]);
+    });
+
+    test('keeps closed owners out of maybe stale open files', () => {
+        const index = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/room.c';
+        const dependencyUri = 'file:///D:/workspace/include/helper.h';
+
+        index.markOpened(ownerUri, 3);
+        index.recordDependencyFootprint(ownerUri, [dependencyUri]);
+        index.markClosed(ownerUri);
+        index.markDiskChanged(dependencyUri, 'changed');
+
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            openVersion: undefined,
+            maybeStale: false
+        }));
+        expect(index.getMaybeStaleOpenUris()).toEqual([]);
+    });
+
+    test('deduplicates dependency footprints and clears maybe stale state when clean', () => {
+        const index = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/room.c';
+        const dependencyUri = 'file:///D:/workspace/include/helper.h';
+
+        index.markOpened(ownerUri, 3);
+        index.recordDependencyFootprint(ownerUri, [
+            dependencyUri,
+            'file:///d:/workspace/include/helper.h'
+        ]);
+        index.markDiskChanged(dependencyUri, 'changed');
+        index.markClean(ownerUri);
+
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            dirty: false,
+            maybeStale: false,
+            lastDependencyFootprint: [dependencyUri]
+        }));
+        expect(index.getMaybeStaleOpenUris()).toEqual([]);
+    });
 });

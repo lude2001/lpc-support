@@ -15,6 +15,8 @@ describe('production LSP server entry', () => {
             codeActionsService: { provideCodeActions: jest.fn() }
         };
         const createProductionLanguageServices = jest.fn(() => services);
+        const changeIndex = { recordDependencyFootprint: jest.fn() };
+        const WorkspaceChangeIndex = jest.fn(() => changeIndex);
 
         jest.isolateModules(() => {
             jest.doMock('../bootstrap/createServer', () => ({
@@ -23,12 +25,19 @@ describe('production LSP server entry', () => {
             jest.doMock('../runtime/createProductionLanguageServices', () => ({
                 createProductionLanguageServices
             }));
+            jest.doMock('../runtime/WorkspaceChangeIndex', () => ({
+                WorkspaceChangeIndex
+            }));
 
             require('../main');
         });
 
-        expect(createProductionLanguageServices).toHaveBeenCalledTimes(1);
-        expect(createServer).toHaveBeenCalledWith(services);
+        expect(WorkspaceChangeIndex).toHaveBeenCalledTimes(1);
+        expect(createProductionLanguageServices).toHaveBeenCalledWith({ changeIndex });
+        expect(createServer).toHaveBeenCalledWith({
+            ...services,
+            changeIndex
+        });
         expect(start).toHaveBeenCalledTimes(1);
     });
 });

@@ -90,7 +90,13 @@ function normalizeTestPath(filePath: string): string {
     return path.normalize(filePath).replace(/^[\\/]+([A-Za-z]:[\\/])/, '$1');
 }
 
-function createResolver(snapshots: Map<string, SemanticSnapshot>, root: string): {
+function createResolver(
+    snapshots: Map<string, SemanticSnapshot>,
+    root: string,
+    options: {
+        dependencyFootprintRecorder?: { recordDependencyFootprint: jest.Mock };
+    } = {}
+): {
     resolver: DefaultDiagnosticSymbolResolver;
     pathSupport: any;
     analysisService: any;
@@ -197,7 +203,8 @@ function createResolver(snapshots: Map<string, SemanticSnapshot>, root: string):
                         sourceKind: 'simulEfun'
                     }
                     : undefined
-            }
+            },
+            dependencyFootprintRecorder: options.dependencyFootprintRecorder
         }),
         pathSupport,
         analysisService,
@@ -276,6 +283,68 @@ describe('DefaultDiagnosticSymbolResolver', () => {
             requiredParameterCount: 1,
             isVariadic: true
         });
+    });
+
+    test('records the include and inherit dependency footprint used by diagnostics', async () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-diagnostic-footprint-'));
+        const mainPath = path.join(tempRoot, 'room.c');
+        const includePath = path.join(tempRoot, 'include', 'helper.h');
+        const nestedIncludePath = path.join(tempRoot, 'include', 'nested.h');
+        const inheritPath = path.join(tempRoot, 'inherit', 'base.c');
+        fs.mkdirSync(path.dirname(includePath), { recursive: true });
+        fs.mkdirSync(path.dirname(inheritPath), { recursive: true });
+        fs.writeFileSync(mainPath, '', 'utf8');
+        fs.writeFileSync(includePath, '', 'utf8');
+        fs.writeFileSync(nestedIncludePath, '', 'utf8');
+        fs.writeFileSync(inheritPath, '', 'utf8');
+
+        const mainDocument = createDocument(mainPath);
+        const includeDocument = createDocument(includePath);
+        const nestedIncludeDocument = createDocument(nestedIncludePath);
+        const inheritDocument = createDocument(inheritPath);
+        const snapshots = new Map<string, SemanticSnapshot>();
+        snapshots.set(mainDocument.uri.toString(), createSnapshot(mainDocument, {
+            includeStatements: [{
+                rawText: '#include "/include/helper.h"',
+                value: '/include/helper.h',
+                range: new vscode.Range(0, 0, 0, 0),
+                isSystemInclude: false
+            }],
+            inheritStatements: [{
+                rawText: 'inherit "inherit/base";',
+                expressionKind: 'string',
+                value: 'inherit/base',
+                range: new vscode.Range(1, 0, 1, 0),
+                isResolved: false
+            }]
+        }));
+        snapshots.set(includeDocument.uri.toString(), createSnapshot(includeDocument, {
+            includeStatements: [{
+                rawText: '#include "/include/nested.h"',
+                value: '/include/nested.h',
+                range: new vscode.Range(0, 0, 0, 0),
+                isSystemInclude: false
+            }]
+        }));
+        snapshots.set(nestedIncludeDocument.uri.toString(), createSnapshot(nestedIncludeDocument));
+        snapshots.set(inheritDocument.uri.toString(), createSnapshot(inheritDocument));
+
+        const dependencyFootprintRecorder = { recordDependencyFootprint: jest.fn() };
+        const { resolver } = createResolver(snapshots, tempRoot, { dependencyFootprintRecorder });
+
+        await resolver.resolveVisibleSymbols(mainDocument, snapshots.get(mainDocument.uri.toString())!);
+
+        expect(dependencyFootprintRecorder.recordDependencyFootprint).toHaveBeenCalledTimes(1);
+        expect(dependencyFootprintRecorder.recordDependencyFootprint).toHaveBeenCalledWith(
+            mainDocument.uri.toString(),
+            expect.arrayContaining([
+                includeDocument.uri.toString(),
+                nestedIncludeDocument.uri.toString(),
+                inheritDocument.uri.toString()
+            ])
+        );
+        const recordedDependencies = dependencyFootprintRecorder.recordDependencyFootprint.mock.calls[0][1] as string[];
+        expect(recordedDependencies).toHaveLength(3);
     });
 
     test('exposes file globals inherited through the inherit chain', async () => {

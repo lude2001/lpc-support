@@ -3,8 +3,10 @@ export interface WorkspaceFileState {
     readonly openVersion?: number;
     readonly workspaceConfigGeneration: number;
     readonly dirty: boolean;
+    readonly maybeStale: boolean;
     readonly deleted: boolean;
     readonly lastChangedAt: number;
+    readonly lastDependencyFootprint: readonly string[];
 }
 
 export type WorkspaceDiskChangeType = 'created' | 'changed' | 'deleted';
@@ -39,11 +41,13 @@ export class WorkspaceChangeIndex {
 
     public markDiskChanged(uri: string, changeType: WorkspaceDiskChangeType): WorkspaceFileState {
         const existing = this.states.get(uri);
-        return this.update(uri, {
+        const state = this.update(uri, {
             openVersion: existing?.openVersion,
             dirty: true,
             deleted: changeType === 'deleted'
         });
+        this.markAffectedOpenDocumentsMaybeStale(uri);
+        return state;
     }
 
     public markDeleted(uri: string): WorkspaceFileState {
@@ -62,10 +66,33 @@ export class WorkspaceChangeIndex {
 
         const next = {
             ...existing,
-            dirty: false
+            dirty: false,
+            maybeStale: false
         };
         this.states.set(uri, next);
         return next;
+    }
+
+    public recordDependencyFootprint(ownerUri: string, dependencies: readonly string[]): WorkspaceFileState {
+        const existing = this.states.get(ownerUri);
+        const next: WorkspaceFileState = {
+            uri: ownerUri,
+            openVersion: existing?.openVersion,
+            workspaceConfigGeneration: this.workspaceConfigGeneration,
+            dirty: existing?.dirty ?? false,
+            maybeStale: false,
+            deleted: existing?.deleted ?? false,
+            lastChangedAt: existing?.lastChangedAt ?? Date.now(),
+            lastDependencyFootprint: normalizeUniqueUris(dependencies)
+        };
+        this.states.set(ownerUri, next);
+        return next;
+    }
+
+    public getMaybeStaleOpenUris(): string[] {
+        return Array.from(this.states.values())
+            .filter(state => state.openVersion !== undefined && state.maybeStale)
+            .map(state => state.uri);
     }
 
     public get(uri: string): WorkspaceFileState | undefined {
@@ -95,15 +122,57 @@ export class WorkspaceChangeIndex {
             deleted: boolean;
         }
     ): WorkspaceFileState {
+        const existing = this.states.get(uri);
         const next: WorkspaceFileState = {
             uri,
             openVersion: patch.openVersion,
             workspaceConfigGeneration: this.workspaceConfigGeneration,
             dirty: patch.dirty,
+            maybeStale: existing?.maybeStale ?? false,
             deleted: patch.deleted,
-            lastChangedAt: Date.now()
+            lastChangedAt: Date.now(),
+            lastDependencyFootprint: existing?.lastDependencyFootprint ?? []
         };
         this.states.set(uri, next);
         return next;
     }
+
+    private markAffectedOpenDocumentsMaybeStale(changedUri: string): void {
+        const normalizedChangedUri = normalizeUri(changedUri);
+        for (const state of this.states.values()) {
+            if (
+                state.openVersion === undefined
+                || normalizeUri(state.uri) === normalizedChangedUri
+                || !state.lastDependencyFootprint.some(dependencyUri => normalizeUri(dependencyUri) === normalizedChangedUri)
+            ) {
+                continue;
+            }
+
+            this.states.set(state.uri, {
+                ...state,
+                maybeStale: true
+            });
+        }
+    }
+}
+
+function normalizeUniqueUris(uris: readonly string[]): string[] {
+    const result: string[] = [];
+    const seen = new Set<string>();
+
+    for (const uri of uris) {
+        const normalized = normalizeUri(uri);
+        if (seen.has(normalized)) {
+            continue;
+        }
+
+        seen.add(normalized);
+        result.push(uri);
+    }
+
+    return result;
+}
+
+function normalizeUri(uri: string): string {
+    return uri.replace(/\\/g, '/').toLowerCase();
 }
