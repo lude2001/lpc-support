@@ -4,7 +4,7 @@ import { ServiceRegistry } from '../core/ServiceRegistry';
 import { activate, deactivate } from '../extension';
 import { activateLspClient } from '../lsp/client/activateLspClient';
 import { registerWorkspaceIndexController } from '../lsp/client/workspaceIndexController';
-import { registerCommands } from '../modules/commandModule';
+import { registerCommands, registerWorkspaceIndexRebuildCommand } from '../modules/commandModule';
 import { getRegisteredProjectConfigService, registerCoreServices } from '../modules/coreModule';
 import { registerDiagnostics } from '../modules/diagnosticsModule';
 import { registerUI } from '../modules/uiModule';
@@ -28,7 +28,8 @@ jest.mock('../modules/uiModule', () => ({
 }));
 
 jest.mock('../modules/commandModule', () => ({
-    registerCommands: jest.fn()
+    registerCommands: jest.fn(),
+    registerWorkspaceIndexRebuildCommand: jest.fn()
 }));
 
 jest.mock('../parser/ParsedDocumentService', () => ({
@@ -71,6 +72,7 @@ describe('extension entrypoint', () => {
         (registerCommands as jest.Mock).mockReset().mockImplementation(() => {
             registrationOrder.push('commands');
         });
+        (registerWorkspaceIndexRebuildCommand as jest.Mock).mockReset().mockReturnValue({ dispose: jest.fn() });
         (activateLspClient as jest.Mock).mockReset().mockResolvedValue(undefined);
         (registerWorkspaceIndexController as jest.Mock).mockReset();
         (disposeGlobalParsedDocumentService as jest.Mock).mockReset();
@@ -99,8 +101,13 @@ describe('extension entrypoint', () => {
         expect(registerWorkspaceIndexController).toHaveBeenCalledWith({
             context,
             manager,
-            projectConfigService
+            projectConfigService,
+            registerRebuildCommand: expect.any(Function)
         });
+        const options = (registerWorkspaceIndexController as jest.Mock).mock.calls[0][0];
+        const handler = jest.fn(async () => undefined);
+        options.registerRebuildCommand(handler);
+        expect(registerWorkspaceIndexRebuildCommand).toHaveBeenCalledWith(context, handler);
     });
 
     test('deactivate disposes the global parsed document service', () => {

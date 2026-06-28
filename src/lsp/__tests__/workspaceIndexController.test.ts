@@ -10,9 +10,6 @@ jest.mock('vscode', () => ({
     StatusBarAlignment: {
         Right: 2
     },
-    commands: {
-        registerCommand: jest.fn(() => ({ dispose: jest.fn() }))
-    },
     window: {
         createStatusBarItem: jest.fn(() => ({
             show: jest.fn(),
@@ -31,9 +28,6 @@ jest.mock('vscode', () => ({
 }), { virtual: true });
 
 const vscodeMock = jest.requireMock('vscode') as {
-    commands: {
-        registerCommand: jest.Mock;
-    };
     window: {
         createStatusBarItem: jest.Mock;
         showInformationMessage: jest.Mock;
@@ -47,7 +41,6 @@ const vscodeMock = jest.requireMock('vscode') as {
 
 describe('workspace index controller', () => {
     beforeEach(() => {
-        vscodeMock.commands.registerCommand.mockClear().mockReturnValue({ dispose: jest.fn() });
         vscodeMock.window.createStatusBarItem.mockClear().mockReturnValue({
             show: jest.fn(),
             dispose: jest.fn(),
@@ -87,11 +80,13 @@ describe('workspace index controller', () => {
             getProjectConfigPath: jest.fn(() => 'D:/mud/lpc-support.json'),
             loadForWorkspace: jest.fn(async () => ({ version: 1, configHellPath: 'config.hell' }))
         };
+        const registerRebuildCommand = jest.fn(() => ({ dispose: jest.fn() }));
 
         registerWorkspaceIndexController({
             context,
             manager: manager as any,
-            projectConfigService: projectConfigService as any
+            projectConfigService: projectConfigService as any,
+            registerRebuildCommand
         });
         await flushPromises();
 
@@ -133,7 +128,8 @@ describe('workspace index controller', () => {
             projectConfigService: {
                 getProjectConfigPath: jest.fn(() => 'D:/plain/lpc-support.json'),
                 loadForWorkspace: jest.fn(async () => undefined)
-            } as any
+            } as any,
+            registerRebuildCommand: jest.fn(() => ({ dispose: jest.fn() }))
         });
         await flushPromises();
 
@@ -172,14 +168,19 @@ describe('workspace index controller', () => {
                 : undefined
             )
         };
+        let rebuild: (() => Promise<void>) | undefined;
+        const registerRebuildCommand = jest.fn((handler: () => Promise<void>) => {
+            rebuild = handler;
+            return { dispose: jest.fn() };
+        });
 
         registerWorkspaceIndexController({
             context,
             manager: manager as any,
-            projectConfigService: projectConfigService as any
+            projectConfigService: projectConfigService as any,
+            registerRebuildCommand
         });
-        const rebuild = vscodeMock.commands.registerCommand.mock.calls[0][1] as () => Promise<void>;
-        await rebuild();
+        await rebuild?.();
 
         expect(manager.sendRequest).toHaveBeenCalledWith(
             WORKSPACE_INDEX_REBUILD_REQUEST,
@@ -225,14 +226,19 @@ describe('workspace index controller', () => {
             getProjectConfigPath: jest.fn(() => 'D:/mud/lpc-support.json'),
             loadForWorkspace: jest.fn(async () => ({ version: 1, configHellPath: 'config.hell' }))
         };
+        let rebuild: (() => Promise<void>) | undefined;
+        const registerRebuildCommand = jest.fn((handler: () => Promise<void>) => {
+            rebuild = handler;
+            return { dispose: jest.fn() };
+        });
 
         registerWorkspaceIndexController({
             context,
             manager: manager as any,
-            projectConfigService: projectConfigService as any
+            projectConfigService: projectConfigService as any,
+            registerRebuildCommand
         });
-        const rebuild = vscodeMock.commands.registerCommand.mock.calls[0][1] as () => Promise<void>;
-        const rebuildPromise = rebuild();
+        const rebuildPromise = rebuild?.() ?? Promise.resolve();
         await flushPromises();
         progressHandler?.({
             status: 'building',
@@ -263,6 +269,7 @@ describe('workspace index controller', () => {
                 update: jest.fn()
             }
         } as unknown as vscode.ExtensionContext;
+        const registerRebuildCommand = jest.fn(() => ({ dispose: jest.fn() }));
 
         registerWorkspaceIndexController({
             context,
@@ -273,11 +280,11 @@ describe('workspace index controller', () => {
             projectConfigService: {
                 getProjectConfigPath: jest.fn(),
                 loadForWorkspace: jest.fn()
-            } as any
+            } as any,
+            registerRebuildCommand
         });
 
-        expect(vscodeMock.commands.registerCommand).toHaveBeenCalledWith(
-            'lpc.rebuildWorkspaceIndex',
+        expect(registerRebuildCommand).toHaveBeenCalledWith(
             expect.any(Function)
         );
     });

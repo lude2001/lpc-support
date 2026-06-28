@@ -209,6 +209,15 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     });
 }
 
+export function registerWorkspaceIndexRebuildCommand(
+    context: vscode.ExtensionContext,
+    handler: () => Promise<void>
+): vscode.Disposable {
+    const disposable = vscode.commands.registerCommand('lpc.rebuildWorkspaceIndex', handler);
+    context.subscriptions.push(disposable);
+    return disposable;
+}
+
 function register(
     context: vscode.ExtensionContext,
     commandId: string,

@@ -18,6 +18,7 @@ export interface WorkspaceIndexControllerOptions {
     readonly context: vscode.ExtensionContext;
     readonly manager: LspClientManager;
     readonly projectConfigService: Pick<LpcProjectConfigService, 'getProjectConfigPath' | 'loadForWorkspace'>;
+    readonly registerRebuildCommand: (handler: () => Promise<void>) => vscode.Disposable;
 }
 
 export function registerWorkspaceIndexController(options: WorkspaceIndexControllerOptions): vscode.Disposable {
@@ -38,7 +39,7 @@ class WorkspaceIndexController implements vscode.Disposable {
         this.statusBarItem.show();
 
         this.disposables.push(this.statusBarItem);
-        this.disposables.push(vscode.commands.registerCommand(REBUILD_COMMAND, () => this.rebuild()));
+        this.disposables.push(this.options.registerRebuildCommand(() => this.rebuild()));
         this.disposables.push(this.options.manager.onNotification(
             WORKSPACE_INDEX_PROGRESS_NOTIFICATION,
             (payload) => this.updateProgressStatus(payload)
