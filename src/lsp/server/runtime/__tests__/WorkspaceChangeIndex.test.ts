@@ -152,4 +152,23 @@ describe('WorkspaceChangeIndex', () => {
             lastDependencyFootprint: [includeUri, targetUri]
         }));
     });
+
+    test('replaces diagnostics footprints without dropping object target footprints', () => {
+        const index = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/room.c';
+        const oldIncludeUri = 'file:///D:/workspace/include/old.h';
+        const nextIncludeUri = 'file:///D:/workspace/include/next.h';
+        const targetUri = 'file:///D:/workspace/obj/npc.c';
+
+        index.markOpened(ownerUri, 3);
+        index.recordDependencyFootprint(ownerUri, [oldIncludeUri]);
+        index.addDependencyFootprint(ownerUri, [targetUri]);
+        index.recordDependencyFootprint(ownerUri, [nextIncludeUri]);
+
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            lastDiagnosticDependencyFootprint: [nextIncludeUri],
+            lastDependencyFootprint: [nextIncludeUri, targetUri],
+            lastTargetDependencyFootprint: [targetUri]
+        }));
+    });
 });

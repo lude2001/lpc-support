@@ -6,7 +6,9 @@ export interface WorkspaceFileState {
     readonly maybeStale: boolean;
     readonly deleted: boolean;
     readonly lastChangedAt: number;
+    readonly lastDiagnosticDependencyFootprint: readonly string[];
     readonly lastDependencyFootprint: readonly string[];
+    readonly lastTargetDependencyFootprint: readonly string[];
 }
 
 export type WorkspaceDiskChangeType = 'created' | 'changed' | 'deleted';
@@ -83,7 +85,12 @@ export class WorkspaceChangeIndex {
             maybeStale: false,
             deleted: existing?.deleted ?? false,
             lastChangedAt: existing?.lastChangedAt ?? Date.now(),
-            lastDependencyFootprint: normalizeUniqueUris(dependencies)
+            lastDiagnosticDependencyFootprint: normalizeUniqueUris(dependencies),
+            lastDependencyFootprint: normalizeUniqueUris([
+                ...dependencies,
+                ...(existing?.lastTargetDependencyFootprint ?? [])
+            ]),
+            lastTargetDependencyFootprint: existing?.lastTargetDependencyFootprint ?? []
         };
         this.states.set(ownerUri, next);
         return next;
@@ -91,6 +98,10 @@ export class WorkspaceChangeIndex {
 
     public addDependencyFootprint(ownerUri: string, dependencies: readonly string[]): WorkspaceFileState {
         const existing = this.states.get(ownerUri);
+        const targetDependencies = normalizeUniqueUris([
+            ...(existing?.lastTargetDependencyFootprint ?? []),
+            ...dependencies
+        ]);
         const next: WorkspaceFileState = {
             uri: ownerUri,
             openVersion: existing?.openVersion,
@@ -99,10 +110,12 @@ export class WorkspaceChangeIndex {
             maybeStale: existing?.maybeStale ?? false,
             deleted: existing?.deleted ?? false,
             lastChangedAt: existing?.lastChangedAt ?? Date.now(),
+            lastDiagnosticDependencyFootprint: existing?.lastDiagnosticDependencyFootprint ?? [],
             lastDependencyFootprint: normalizeUniqueUris([
-                ...(existing?.lastDependencyFootprint ?? []),
-                ...dependencies
-            ])
+                ...(existing?.lastDiagnosticDependencyFootprint ?? []),
+                ...targetDependencies
+            ]),
+            lastTargetDependencyFootprint: targetDependencies
         };
         this.states.set(ownerUri, next);
         return next;
@@ -150,7 +163,9 @@ export class WorkspaceChangeIndex {
             maybeStale: existing?.maybeStale ?? false,
             deleted: patch.deleted,
             lastChangedAt: Date.now(),
-            lastDependencyFootprint: existing?.lastDependencyFootprint ?? []
+            lastDiagnosticDependencyFootprint: existing?.lastDiagnosticDependencyFootprint ?? [],
+            lastDependencyFootprint: existing?.lastDependencyFootprint ?? [],
+            lastTargetDependencyFootprint: existing?.lastTargetDependencyFootprint ?? []
         };
         this.states.set(uri, next);
         return next;
