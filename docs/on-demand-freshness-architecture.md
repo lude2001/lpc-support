@@ -114,7 +114,7 @@ request(document)
 
 状态：已落地。诊断链路记录 include / inherit 足迹；`TargetMethodLookup` 和对象推导链路记录 object target、target include 和 target inherit 足迹；依赖变化只标记足迹命中的打开文件为 `maybeStale`，并以 debounce 方式刷新这些打开文件的诊断。刷新成功后会按状态版本清理 `maybeStale`，避免旧刷新覆盖新变化；关闭文档会丢弃已排队的 `maybeStale` 刷新。语言请求入口创建 capability context 前也会消费 `dirty` / `maybeStale` / workspace config generation 状态，必要时先失效当前请求文档缓存。
 
-## 当前剩余边界
+## 持续约束
 
 - 已引入最小 `DocumentFreshnessService` 门面，并让 `WorkspaceDocumentPathSupport.tryOpenTextDocument`、生产 LSP direct host、扩展侧 core `TextDocumentHost` 在打开跨文件依赖前调用 `ensureFreshDocument(dependency)` 或等价缓存失效；后续新增文件打开路径应继续复用这些入口。
 - `maybeStale` 已在语言请求入口消费，用于失效当前请求文档缓存；诊断仍负责成功刷新后按状态版本清理 `maybeStale`。

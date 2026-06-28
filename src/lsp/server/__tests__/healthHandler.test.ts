@@ -10,6 +10,7 @@ import {
     type InitializeResult
 } from 'vscode-languageserver/node';
 import { HealthRequest } from '../../shared/protocol/health';
+import { SourceFileChangeNotification, type SourceFileChangePayload } from '../../shared/protocol/sourceFileChange';
 import { WorkspaceConfigSyncNotification, type WorkspaceConfigSyncPayload } from '../../shared/protocol/workspaceConfigSync';
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { createHealthHandler } from '../handlers/health/healthHandler';
@@ -63,8 +64,11 @@ describe('registerCapabilities', () => {
                 return Disposable.create(() => undefined);
             }),
             onNotification: jest.fn((type, handler) => {
-                expect(type).toBe(WorkspaceConfigSyncNotification.type as NotificationType<WorkspaceConfigSyncPayload>);
-                workspaceConfigSyncHandler = handler;
+                if (type === WorkspaceConfigSyncNotification.type as NotificationType<WorkspaceConfigSyncPayload>) {
+                    workspaceConfigSyncHandler = handler;
+                } else {
+                    expect(type).toBe(SourceFileChangeNotification.type as NotificationType<SourceFileChangePayload>);
+                }
                 return Disposable.create(() => undefined);
             }),
             onRequest: jest.fn((type, handler) => {
