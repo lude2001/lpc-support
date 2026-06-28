@@ -64,7 +64,7 @@ request(document)
 - 若 workspace config generation 变化，清理与配置相关的缓存。
 - 若不新鲜，清理该 URI 的 parsed、frontend、semantic、readonly document 与相关临时索引记录，再重新构建。
 
-当前实现已先落地最小门面 `DocumentFreshnessService`，用于集中表达 LSP server 内的 freshness 边界：失效 runtime readonly document、调用生产缓存失效回调，并在诊断刷新完成后按 `lastChangedAt` 标记 clean。跨文件打开层 `WorkspaceDocumentPathSupport.tryOpenTextDocument` 支持可选的 `ensureFreshDocument(uri)` 钩子，生产 LSP 会在打开依赖文件前触发目标 URI 的 parsed / frontend / semantic / 临时索引失效。它们不负责解析，也不维护语义事实。
+当前实现已先落地最小门面 `DocumentFreshnessService`，用于集中表达 LSP server 内的 freshness 边界：失效 runtime readonly document、调用生产缓存失效回调，并在诊断刷新完成后按 `lastChangedAt` 标记 clean。跨文件打开层 `WorkspaceDocumentPathSupport.tryOpenTextDocument` 支持可选的 `ensureFreshDocument(uri)` 钩子，生产 LSP 会在打开依赖文件前触发目标 URI 的 parsed / frontend / semantic / 临时索引失效。生产 LSP 的 direct `workspaceDocumentHost.openTextDocument` 也包了一层 freshness-aware host，用于覆盖对象推导、继承关系、scoped 补全和签名帮助文档渲染等未经过 `WorkspaceDocumentPathSupport` 的路径。它们不负责解析，也不维护语义事实。
 
 ## 请求路径
 
@@ -116,7 +116,7 @@ request(document)
 
 ## 当前剩余边界
 
-- 已引入最小 `DocumentFreshnessService` 门面，并让 `WorkspaceDocumentPathSupport.tryOpenTextDocument` 在打开跨文件依赖前调用 `ensureFreshDocument(dependency)`；仍需继续检查未经过 `WorkspaceDocumentPathSupport` 的直接 `openTextDocument` 路径。
+- 已引入最小 `DocumentFreshnessService` 门面，并让 `WorkspaceDocumentPathSupport.tryOpenTextDocument` 与生产 LSP direct host 在打开跨文件依赖前调用 `ensureFreshDocument(dependency)`；仍需继续评估非生产 LSP 或批量扫描类直接 `openTextDocument` 路径是否需要同样策略。
 - `maybeStale` 当前只触发诊断刷新；跳转、补全、悬停和签名帮助依赖 fresh snapshot 与访问时缓存失效，不直接消费 `maybeStale`。
 - `WorkspaceChangeIndex` 仍只维护轻量状态和足迹，不应扩展成全项目语义索引。
 

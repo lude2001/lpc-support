@@ -73,12 +73,16 @@ export function createProductionLanguageServices(
 
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
-    const workspaceDocumentHost = createVsCodeWorkspaceDocumentHost();
+    const baseWorkspaceDocumentHost = createVsCodeWorkspaceDocumentHost();
     const documentationService = createDefaultFunctionDocumentationService();
     const completionInstrumentation = new CompletionInstrumentation();
     let ensureFreshDocument: ((uri: vscode.Uri) => void) | undefined;
+    const workspaceDocumentHost = createFreshnessAwareWorkspaceDocumentHost(
+        baseWorkspaceDocumentHost,
+        (uri) => ensureFreshDocument?.(uri)
+    );
     const documentPathSupport = new WorkspaceDocumentPathSupport({
-        host: workspaceDocumentHost,
+        host: baseWorkspaceDocumentHost,
         analysisService,
         ensureFreshDocument: (uri) => ensureFreshDocument?.(uri)
     });
@@ -284,6 +288,33 @@ function createServerExtensionContext(): ExtensionContext {
         subscriptions: [],
         extensionPath: resolveServerExtensionPath()
     } as unknown as ExtensionContext;
+}
+
+function createFreshnessAwareWorkspaceDocumentHost(
+    host: ReturnType<typeof createVsCodeWorkspaceDocumentHost>,
+    ensureFreshDocument: (uri: vscode.Uri) => void | Promise<void>
+): ReturnType<typeof createVsCodeWorkspaceDocumentHost> {
+    return {
+        ...host,
+        openTextDocument: async (target) => {
+            try {
+                await ensureFreshDocument(toDocumentUri(target));
+            } catch {
+                // Freshness invalidation is best-effort; opening the document still gives callers the latest host view.
+            }
+            return host.openTextDocument(target);
+        }
+    };
+}
+
+function toDocumentUri(target: string | vscode.Uri): vscode.Uri {
+    if (typeof target !== 'string') {
+        return target;
+    }
+
+    return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(target)
+        ? vscode.Uri.parse(target)
+        : vscode.Uri.file(target);
 }
 
 export function resolveServerExtensionPath(startDir: string = __dirname): string {

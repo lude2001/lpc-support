@@ -470,7 +470,7 @@ describe('createProductionLanguageServices', () => {
         });
     });
 
-    test('creates diagnostics services through the shared diagnostics stack factory', () => {
+    test('creates diagnostics services through the shared diagnostics stack factory', async () => {
         const diagnosticsStack = {
             collectors: ['diagnostics-collector'],
             diagnosticsService: { collectDiagnostics: jest.fn() }
@@ -481,6 +481,10 @@ describe('createProductionLanguageServices', () => {
             recordDependencyFootprint: jest.fn()
         };
         const targetMethodLookupCtor = jest.fn(() => ({ kind: 'target-method-lookup' }));
+        const dependencyUri = vscode.Uri.file('D:/workspace/obj/target.c');
+        const openedDocument = { uri: dependencyUri } as vscode.TextDocument;
+        (vscode.workspace.openTextDocument as jest.Mock).mockResolvedValue(openedDocument);
+        let directOpenHost: { openTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument> } | undefined;
 
         jest.isolateModules(() => {
             jest.doMock('../../../../projectConfig/LpcProjectConfigService', () => ({
@@ -571,6 +575,8 @@ describe('createProductionLanguageServices', () => {
                     dependencyFootprintRecorder: changeIndex
                 })
             );
+            const objectInferenceOptions = (createDefaultObjectInferenceService as jest.Mock).mock.calls[0][0] as any;
+            directOpenHost = objectInferenceOptions.host;
             expect(targetMethodLookupCtor).toHaveBeenCalledWith(
                 analysisService,
                 expect.anything(),
@@ -578,11 +584,17 @@ describe('createProductionLanguageServices', () => {
             );
             const pathSupport = targetMethodLookupCtor.mock.calls[0][1] as any;
             expect(pathSupport.options.ensureFreshDocument).toEqual(expect.any(Function));
-            const dependencyUri = vscode.Uri.file('D:/workspace/obj/target.c');
             pathSupport.options.ensureFreshDocument(dependencyUri);
             expect(analysisService.clearCache).toHaveBeenCalledWith(dependencyUri.toString());
             expect(services.diagnosticsService).toBe(diagnosticsStack.diagnosticsService);
         });
+
+        expect(directOpenHost).toEqual(expect.objectContaining({
+            openTextDocument: expect.any(Function)
+        }));
+        analysisService.clearCache.mockClear();
+        await directOpenHost!.openTextDocument(dependencyUri);
+        expect(analysisService.clearCache).toHaveBeenCalledWith(dependencyUri.toString());
     });
 
     test('resolves the extension root from both src and dist-style runtime directories', () => {
