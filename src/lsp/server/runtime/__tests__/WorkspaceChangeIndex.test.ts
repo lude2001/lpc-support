@@ -39,6 +39,23 @@ describe('WorkspaceChangeIndex', () => {
         }));
     });
 
+    test('marks clean files against the current workspace config generation', () => {
+        const index = new WorkspaceChangeIndex();
+        const uri = 'file:///D:/workspace/room.c';
+
+        index.markOpened(uri, 1);
+        index.markClean(uri);
+        index.nextWorkspaceConfigGeneration();
+        index.markChanged(uri, 2);
+        index.markClean(uri);
+
+        expect(index.get(uri)).toEqual(expect.objectContaining({
+            dirty: false,
+            openVersion: 2,
+            workspaceConfigGeneration: 1
+        }));
+    });
+
     test('marks closed and deleted files as dirty state changes', () => {
         const index = new WorkspaceChangeIndex();
         const uri = 'file:///D:/workspace/room.c';

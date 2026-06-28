@@ -518,6 +518,8 @@ describe('diagnostics session and handlers', () => {
             })
         });
         const documentStore = new DocumentStore();
+        const changeIndex = new WorkspaceChangeIndex();
+        const uri = 'file:///D:/workspace/diagnostics.c';
         const workspaceSession = new WorkspaceSession({});
         const loggerOutput = {
             info: jest.fn(),
@@ -526,10 +528,13 @@ describe('diagnostics session and handlers', () => {
             log: jest.fn()
         };
         const logger = new ServerLogger(loggerOutput);
-        documentStore.open('file:///D:/workspace/diagnostics.c', 1, 'new_bind("/x");');
+        documentStore.open(uri, 1, 'new_bind("/x");');
+        changeIndex.markOpened(uri, 1);
+        changeIndex.markClean(uri);
 
         registerCapabilities({
             connection,
+            changeIndex,
             documentStore,
             logger,
             serverVersion: '0.40.0-test',
@@ -554,7 +559,11 @@ describe('diagnostics session and handlers', () => {
         await Promise.resolve();
 
         expect(onWorkspaceConfigSync).toHaveBeenCalledTimes(1);
-        expect(diagnosticsSession.refresh).toHaveBeenCalledWith('file:///D:/workspace/diagnostics.c');
+        expect(diagnosticsSession.refresh).toHaveBeenCalledWith(uri);
+        expect(changeIndex.get(uri)).toEqual(expect.objectContaining({
+            dirty: false,
+            workspaceConfigGeneration: 1
+        }));
     });
 
     test('defers diagnostics opened before the first workspace config sync is ready', async () => {

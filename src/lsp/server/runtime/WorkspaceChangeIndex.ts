@@ -72,6 +72,7 @@ export class WorkspaceChangeIndex {
 
         const next = {
             ...existing,
+            workspaceConfigGeneration: this.workspaceConfigGeneration,
             dirty: false,
             maybeStale: false
         };
