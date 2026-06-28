@@ -59,7 +59,7 @@ describe('LpcObjectSourceEvaluator', () => {
     test('recognizes only the current object source call names', () => {
         expect(isLpcObjectSourceCallName('load_object')).toBe(true);
         expect(isLpcObjectSourceCallName('find_object')).toBe(true);
-        expect(isLpcObjectSourceCallName('clone_object')).toBe(false);
+        expect(isLpcObjectSourceCallName('clone_object')).toBe(true);
         expect(isLpcObjectSourceCallName(undefined)).toBe(false);
     });
 });

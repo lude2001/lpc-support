@@ -197,11 +197,11 @@ describe('language-service integration regression', () => {
     let documentHost: ReturnType<typeof createVsCodeTextDocumentHost>;
     let pathSupport: WorkspaceDocumentPathSupport;
 
-    const createObjectInference = (projectConfig?: unknown) => {
+    const createObjectInference = (projectConfigProvider?: unknown) => {
         const semanticEvaluationService = createDefaultSemanticEvaluationService({
             analysisService,
             pathSupport,
-            projectConfigService: projectConfig as any
+            projectConfigProvider: projectConfigProvider as any
         });
 
         return createDefaultObjectInferenceService({
@@ -911,16 +911,22 @@ describe('language-service integration regression', () => {
         );
         installWorkspaceOpenTextDocumentFixture();
 
+        const projectConfig = {
+            version: 1 as const,
+            configHellPath: 'config.hell',
+            instanceResolutionFunctions: {
+                this_player: ['/adm/objects/player']
+            }
+        };
         const projectConfigService = {
             loadForWorkspace: jest.fn(async (workspaceRoot: string) =>
                 workspaceRoot === fixtureRoot
-                    ? {
-                        version: 1 as const,
-                        configHellPath: 'config.hell',
-                        instanceResolutionFunctions: {
-                            this_player: ['/adm/objects/player']
-                        }
-                    }
+                    ? projectConfig
+                    : undefined
+            ),
+            getWorkspaceProjectConfig: jest.fn((workspaceRoot: string) =>
+                workspaceRoot === fixtureRoot
+                    ? projectConfig
                     : undefined
             )
         };
