@@ -76,9 +76,11 @@ export function createProductionLanguageServices(
     const workspaceDocumentHost = createVsCodeWorkspaceDocumentHost();
     const documentationService = createDefaultFunctionDocumentationService();
     const completionInstrumentation = new CompletionInstrumentation();
+    let ensureFreshDocument: ((uri: vscode.Uri) => void) | undefined;
     const documentPathSupport = new WorkspaceDocumentPathSupport({
         host: workspaceDocumentHost,
-        analysisService
+        analysisService,
+        ensureFreshDocument: (uri) => ensureFreshDocument?.(uri)
     });
     const functionDocLookupBuilder = new FunctionDocLookupBuilder({
         documentationService,
@@ -247,6 +249,14 @@ export function createProductionLanguageServices(
         provideFoldingRanges: (request) => foldingService.provideFoldingRanges(request),
         provideSemanticTokens: (request) => semanticTokensService.provideSemanticTokens(request)
     };
+    const invalidateProductionDocument = (uri: string): void => {
+        headerOwnerContextService.clear();
+        const parsedUri = vscode.Uri.parse(uri);
+        getGlobalParsedDocumentService().invalidate(parsedUri);
+        analysisService.clearCache(uri);
+        projectSymbolIndex.removeFile(uri);
+    };
+    ensureFreshDocument = (uri) => invalidateProductionDocument(uri.toString());
 
     return {
         completionService,
@@ -262,11 +272,7 @@ export function createProductionLanguageServices(
             efunDocsManager.invalidateWorkspaceState();
         },
         onDocumentInvalidated: (uri) => {
-            headerOwnerContextService.clear();
-            const parsedUri = vscode.Uri.parse(uri);
-            getGlobalParsedDocumentService().invalidate(parsedUri);
-            analysisService.clearCache(uri);
-            projectSymbolIndex.removeFile(uri);
+            invalidateProductionDocument(uri);
         },
         signatureHelpService,
         structureService

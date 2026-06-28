@@ -25,6 +25,7 @@ export interface WorkspaceDocumentHost extends TextDocumentHost {
 export interface WorkspaceDocumentPathSupportOptions {
     host?: TextDocumentHost;
     analysisService?: Pick<DocumentAnalysisService, 'getSemanticSnapshot'>;
+    ensureFreshDocument?: (uri: vscode.Uri) => void | Promise<void>;
     projectConfigService?: Pick<
         LpcProjectConfigService,
         'getIncludeDirectoriesForWorkspace' | 'getPrimaryIncludeDirectoryForWorkspace' | 'getSimulatedEfunFileForWorkspace'
@@ -100,6 +101,7 @@ export class WorkspaceDocumentPathSupport {
     }
 
     public async tryOpenTextDocument(target: string | vscode.Uri): Promise<vscode.TextDocument | undefined> {
+        await this.ensureFreshDocument(target);
         try {
             return await this.host.openTextDocument(target);
         } catch {
@@ -417,6 +419,27 @@ export class WorkspaceDocumentPathSupport {
 
     private normalizeFsPath(filePath: string): string {
         return filePath.replace(/^\/([A-Za-z]:[\\/])/, '$1');
+    }
+
+    private async ensureFreshDocument(target: string | vscode.Uri): Promise<void> {
+        if (!this.options.ensureFreshDocument) {
+            return;
+        }
+
+        const uri = typeof target === 'string'
+            ? this.toDocumentUri(target)
+            : target;
+        try {
+            await this.options.ensureFreshDocument(uri);
+        } catch {
+            return;
+        }
+    }
+
+    private toDocumentUri(target: string): vscode.Uri {
+        return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(target)
+            ? vscode.Uri.parse(target)
+            : vscode.Uri.file(target);
     }
 
     private resolveMudlibRoot(workspaceRoot: string, mudlibDirectory: string, configHellPath?: string): string {

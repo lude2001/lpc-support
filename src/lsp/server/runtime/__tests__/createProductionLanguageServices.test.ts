@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 
 const analysisService = {
@@ -575,6 +576,11 @@ describe('createProductionLanguageServices', () => {
                 expect.anything(),
                 changeIndex
             );
+            const pathSupport = targetMethodLookupCtor.mock.calls[0][1] as any;
+            expect(pathSupport.options.ensureFreshDocument).toEqual(expect.any(Function));
+            const dependencyUri = vscode.Uri.file('D:/workspace/obj/target.c');
+            pathSupport.options.ensureFreshDocument(dependencyUri);
+            expect(analysisService.clearCache).toHaveBeenCalledWith(dependencyUri.toString());
             expect(services.diagnosticsService).toBe(diagnosticsStack.diagnosticsService);
         });
     });

@@ -11,6 +11,65 @@ function createDocument(filePath: string): vscode.TextDocument {
 }
 
 describe('WorkspaceDocumentPathSupport', () => {
+    test('ensures freshness before opening a workspace document', async () => {
+        const openedDocument = createDocument('D:/workspace/obj/room.c');
+        const calls: string[] = [];
+        const support = new WorkspaceDocumentPathSupport({
+            host: {
+                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
+                    calls.push(`open:${typeof target === 'string' ? target : target.toString()}`);
+                    return openedDocument;
+                }),
+                fileExists: jest.fn(() => true),
+                getWorkspaceFolder: jest.fn(() => undefined)
+            },
+            ensureFreshDocument: jest.fn(async (uri: vscode.Uri) => {
+                calls.push(`fresh:${uri.toString()}`);
+            })
+        });
+
+        await expect(support.tryOpenTextDocument('D:/workspace/obj/room.c')).resolves.toBe(openedDocument);
+
+        expect(calls).toEqual([
+            `fresh:${vscode.Uri.file('D:/workspace/obj/room.c').toString()}`,
+            'open:D:/workspace/obj/room.c'
+        ]);
+    });
+
+    test('continues opening a workspace document when freshness invalidation fails', async () => {
+        const openedDocument = createDocument('D:/workspace/obj/room.c');
+        const support = new WorkspaceDocumentPathSupport({
+            host: {
+                openTextDocument: jest.fn(async () => openedDocument),
+                fileExists: jest.fn(() => true),
+                getWorkspaceFolder: jest.fn(() => undefined)
+            },
+            ensureFreshDocument: jest.fn(async () => {
+                throw new Error('invalidate failed');
+            })
+        });
+
+        await expect(support.tryOpenTextDocument('D:/workspace/obj/room.c')).resolves.toBe(openedDocument);
+    });
+
+    test('passes URI string targets through freshness unchanged', async () => {
+        const openedDocument = createDocument('D:/workspace/obj/room.c');
+        const ensureFreshDocument = jest.fn();
+        const uri = vscode.Uri.file('D:/workspace/obj/room.c').toString();
+        const support = new WorkspaceDocumentPathSupport({
+            host: {
+                openTextDocument: jest.fn(async () => openedDocument),
+                fileExists: jest.fn(() => true),
+                getWorkspaceFolder: jest.fn(() => undefined)
+            },
+            ensureFreshDocument
+        });
+
+        await expect(support.tryOpenTextDocument(uri)).resolves.toBe(openedDocument);
+
+        expect(ensureFreshDocument).toHaveBeenCalledWith(vscode.Uri.parse(uri));
+    });
+
     test('tryOpenTextDocument returns undefined when the host throws', async () => {
         const support = new WorkspaceDocumentPathSupport({
             host: {
