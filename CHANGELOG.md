@@ -2,31 +2,20 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
-## [Unreleased]
+## [0.47.14] - 2026-06-28
 
-### 架构与诊断稳定性
+### 诊断稳定性
 
-- 修复 header owner 前缀分析复用真实 owner URI 污染语义缓存的问题，避免后台刷新后 `.h`/owner `.c` 语义快照互相覆盖。
-- LSP 诊断请求现在会携带 workspace project config，include / inherit 递归解析可使用 config.hell 的 mudlib root 与 include dirs。
-- LSP spawned runtime 现在以 `WorkspaceSession` 同步的 project config 作为 simulated efun 与 `this_player` 等运行期能力的单一配置来源，避免后台刷新或多文件打开后重新出现模拟函数未定义误报。
-- header owner 文件发现改为通过 `ProjectSymbolIndex` 的反向 include owner 关系查询，避免上下文服务自行维护 `.c` owner 扫描索引，并保持 owner 文件变更后的 `.h` 语境刷新。
-- frontend include 解析与 diagnostics pathSupport 现在共用 include candidate 规则，`lpc-support.json` / `config.hell` 中的 include dirs 只作为显式 `#include` 搜索路径，不会被当作全局宏来源。
-- 基础语义诊断会优先使用本轮递归解析到的 fresh dependency symbols，并允许 same-version 依赖快照刷新覆盖旧索引记录。
-- 宏引用只在当前 range 被视为已知宏名；`#undef` 后同名普通标识符不再被旧 macro reference 静默放行。
-- function-like 宏现在支持表达式级 `NAME(...)` token 范围展开；无法解析的调用仍会让基础语义诊断保守抑制 undefined 类提示，避免半展开代码产生噪声。
+- 减少 `.h` 文件与其 owner `.c` 文件在后台刷新后互相串扰导致的误报。
+- 修复 LSP 模式下 include / inherit 路径、simul-efun 与 `this_player` 配置偶发未生效的问题，减少真实项目打开多文件后的未定义误报。
+- 修复 `#undef` 后同名普通标识符仍被当作宏引用的问题。
+- 改进 function-like 宏调用的识别，减少 `NAME(...)` 宏展开附近的语法和未定义符号噪声。
 
 ### 导航
 
+- 修复宏展开后的链式对象方法跳转定义坐标偏移问题；`PROTOCOL_D->model_get("popup")->render_msg299(...)` 等调用现在可从方法名起始位置稳定跳到真实模型方法定义。
 - "转到定义"对标准 efun（驱动内置函数）调用默认不再遍历继承链，避免此前等待十余秒后才返回"未找到"的延迟；模拟函数库（simul-efun）重写、继承链重写与当前文件内同名函数定义仍可正常跳转。
 - 新增设置 `lpc.searchEfunDefinitionInInheritanceChain`（默认关闭），开启后恢复对 efun 调用的继承链定义搜索，适用于在继承链（而非 simul-efun）中重写 efun 的项目。
-
-### 工程与发布
-
-- CI 增加 FluffOS checkout 与严格 efun arity audit，避免 efun 文档参数范围漂移。
-- 修复测试分组脚本空跑问题；未配置的 e2e / performance 脚本会明确失败而不是报告 0 tests。
-- 打包改为使用锁定的本地 `@vscode/vsce`，并避免 package 脚本与 `vscode:prepublish` 重复 build。
-- 生产打包不再生成 sourcemap，并继续通过 package `files` 白名单控制 VSIX 内容。
-- `@types/vscode` 移入 devDependencies 并对齐最低 VS Code engine；移除已跟踪的本地/临时配置文件。
 
 ## [0.47.10] - 2026-06-09
 
