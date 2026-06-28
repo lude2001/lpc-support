@@ -124,6 +124,7 @@ export class ObjectInferenceService {
             .filter((node) => node.range.contains(position))
             .filter((node) => node.children.length >= 2)
             .filter((node) => node.children[1].kind === SyntaxKind.Identifier)
+            .filter((node) => node.children[1].range.contains(position))
             .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range))[0];
     }
 

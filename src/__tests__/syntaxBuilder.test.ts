@@ -125,6 +125,53 @@ describe('SyntaxBuilder', () => {
         expect(alphaNodes[1].range.start.character).toBeLessThan(alphaNodes[2].range.start.character);
     });
 
+    test('maps macro-expanded postfix member ranges back to source text', () => {
+        const source = [
+            '#define PROTOCOL_D "/adm/protocol/protocol_server"',
+            'void demo() {',
+            '    return PROTOCOL_D->model_get("popup")->render_msg299("title", "msg");',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/macro-postfix-range.c');
+        const syntaxDocument = getAstManagerForTests().parseDocument(document, false).syntax!;
+        const memberNames = new Set(['model_get', 'render_msg299']);
+        const memberIdentifiers = syntaxDocument.nodes.filter((node) =>
+            node.kind === SyntaxKind.MemberAccessExpression
+            && node.children[1]?.kind === SyntaxKind.Identifier
+            && memberNames.has(node.children[1].name ?? '')
+        ).map((node) => node.children[1])
+            .sort((left, right) => left.range.start.compareTo(right.range.start));
+
+        expect(memberIdentifiers.map((node) => document.getText(node.range))).toEqual([
+            'model_get',
+            'render_msg299'
+        ]);
+    });
+
+    test('keeps ranges after multi-line macro expansion on original source lines', () => {
+        const source = [
+            '#define MAKE_HELPER(name) int name() { \\',
+            '    return 1; \\',
+            '}',
+            'MAKE_HELPER(generated)',
+            'void demo(object target) {',
+            '    target->query_name();',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/multiline-macro-range.c');
+        const syntaxDocument = getAstManagerForTests().parseDocument(document, false).syntax!;
+        const memberAccess = syntaxDocument.nodes.find((node) =>
+            node.kind === SyntaxKind.MemberAccessExpression
+            && node.children[1]?.kind === SyntaxKind.Identifier
+            && node.children[1].name === 'query_name'
+        );
+
+        expect(memberAccess?.children[1].range.start.line).toBe(5);
+        expect(document.getText(memberAccess!.children[1].range)).toBe('query_name');
+        expect(syntaxDocument.root.range.end.line).toBe(6);
+        expect(Number.isNaN(syntaxDocument.root.range.end.character)).toBe(false);
+    });
+
     test('represents preprocessor directives as syntax nodes from frontend facts', () => {
         const source = [
             '#include <globals.h>',

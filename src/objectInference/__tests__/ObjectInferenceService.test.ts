@@ -90,6 +90,17 @@ function positionAfter(source: string, marker: string): vscode.Position {
     return new vscode.Position(lines.length - 1, lines[lines.length - 1].length);
 }
 
+function positionAt(source: string, marker: string): vscode.Position {
+    const offset = source.indexOf(marker);
+    if (offset < 0) {
+        throw new Error(`Marker not found: ${marker}`);
+    }
+
+    const prefix = source.slice(0, offset);
+    const lines = prefix.split('\n');
+    return new vscode.Position(lines.length - 1, lines[lines.length - 1].length);
+}
+
 describe('ObjectInferenceService', () => {
     let fixtureRoot: string;
     let service: ObjectInferenceService;
@@ -1628,7 +1639,12 @@ describe('ObjectInferenceService', () => {
             exactDocument,
             positionAfter(exactSource, 'error_result')
         );
+        const exactResultAtStart = await service.inferObjectAccess(
+            exactDocument,
+            positionAt(exactSource, 'error_result')
+        );
 
+        expect(exactResult?.memberName).toBe('error_result');
         expect(exactResult?.inference).toEqual({
             status: 'resolved',
             candidates: [
@@ -1638,6 +1654,8 @@ describe('ObjectInferenceService', () => {
                 }
             ]
         });
+        expect(exactResultAtStart?.memberName).toBe('error_result');
+        expect(exactResultAtStart?.inference).toEqual(exactResult?.inference);
 
         const multipleSource = [
             'void demo(int flag) {',

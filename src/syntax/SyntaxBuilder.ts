@@ -766,13 +766,15 @@ export class SyntaxBuilder {
     }
 
     private positionAt(offset: number): vscode.Position {
-        const normalizedOffset = Math.max(0, Math.min(offset, this.parsed.parseText.length));
+        const normalizedOffset = this.mapActiveOffsetToOriginalOffset(
+            Math.max(0, Math.min(offset, this.parsed.parseText.length))
+        );
         let low = 0;
-        let high = this.lineStartOffsets.length - 1;
+        let high = this.originalLineStartOffsets.length - 1;
 
         while (low <= high) {
             const mid = Math.floor((low + high) / 2);
-            if (this.lineStartOffsets[mid] > normalizedOffset) {
+            if (this.originalLineStartOffsets[mid] > normalizedOffset) {
                 high = mid - 1;
             } else {
                 low = mid + 1;
@@ -780,7 +782,41 @@ export class SyntaxBuilder {
         }
 
         const line = Math.max(0, high);
-        return new vscode.Position(line, normalizedOffset - this.lineStartOffsets[line]);
+        return new vscode.Position(line, normalizedOffset - this.originalLineStartOffsets[line]);
+    }
+
+    private mapActiveOffsetToOriginalOffset(activeOffset: number): number {
+        const sourceMap = this.parsed.frontend?.preprocessor.activeView.sourceMap;
+        if (!sourceMap || sourceMap.length === 0) {
+            return activeOffset;
+        }
+
+        const containingEntry = sourceMap.find((entry) =>
+            activeOffset >= entry.activeStartOffset
+            && activeOffset <= entry.activeStartOffset + entry.length
+        );
+        if (containingEntry) {
+            return containingEntry.originalStartOffset + activeOffset - containingEntry.activeStartOffset;
+        }
+
+        const expandedRange = this.parsed.frontend?.preprocessor.activeView.expandedRanges?.find((range) =>
+            activeOffset >= range.activeStartOffset
+            && activeOffset <= range.activeEndOffset
+        );
+        if (expandedRange) {
+            const originalLength = Math.max(1, expandedRange.originalEndOffset - expandedRange.originalStartOffset);
+            const relativeOffset = Math.min(activeOffset - expandedRange.activeStartOffset, originalLength);
+            return expandedRange.originalStartOffset + relativeOffset;
+        }
+
+        const previousEntry = [...sourceMap]
+            .filter((entry) => entry.activeStartOffset + entry.length <= activeOffset)
+            .sort((left, right) => right.activeStartOffset - left.activeStartOffset)[0];
+        if (previousEntry) {
+            return previousEntry.originalStartOffset + previousEntry.length;
+        }
+
+        return activeOffset;
     }
 
     private offsetFromLineAndCharacter(line: number, character: number): number {
