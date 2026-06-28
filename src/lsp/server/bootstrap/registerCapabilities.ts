@@ -151,7 +151,12 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             return;
         }
 
-        void diagnosticsSession.refresh(uri);
+        const expectedLastChangedAt = changeIndex?.get(uri)?.lastChangedAt;
+        void diagnosticsSession.refresh(uri)
+            .then(() => changeIndex?.markClean(uri, expectedLastChangedAt))
+            .catch((error) => {
+                logger.error(`Failed to refresh diagnostics for ${uri}: ${error instanceof Error ? error.message : String(error)}`);
+            });
     };
 
     const invalidateDocument = (uri: string): void => {
@@ -178,7 +183,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
 
         for (const uri of uris) {
             if (documentStore.get(uri)) {
-                void diagnosticsSession.refresh(uri);
+                refreshDiagnosticsWhenReady(uri);
             }
         }
     };

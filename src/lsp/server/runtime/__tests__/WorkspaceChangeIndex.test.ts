@@ -136,6 +136,36 @@ describe('WorkspaceChangeIndex', () => {
         expect(index.getMaybeStaleOpenUris()).toEqual([]);
     });
 
+    test('does not mark clean when the file changed after diagnostics refresh started', () => {
+        const index = new WorkspaceChangeIndex();
+        const uri = 'file:///D:/workspace/room.c';
+
+        const opened = index.markOpened(uri, 1);
+        index.markChanged(uri, 2);
+        index.markClean(uri, opened.lastChangedAt);
+
+        expect(index.get(uri)).toEqual(expect.objectContaining({
+            openVersion: 2,
+            dirty: true
+        }));
+    });
+
+    test('advances owner freshness when a dependency marks it maybe stale again', () => {
+        const index = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/room.c';
+        const dependencyUri = 'file:///D:/workspace/include/helper.h';
+
+        index.markOpened(ownerUri, 3);
+        index.recordDependencyFootprint(ownerUri, [dependencyUri]);
+        const beforeDependencyChange = index.get(ownerUri)!.lastChangedAt;
+        index.markDiskChanged(dependencyUri, 'changed');
+
+        expect(index.get(ownerUri)).toEqual(expect.objectContaining({
+            maybeStale: true
+        }));
+        expect(index.get(ownerUri)!.lastChangedAt).toBeGreaterThan(beforeDependencyChange);
+    });
+
     test('appends dependency footprints without replacing existing diagnostics dependencies', () => {
         const index = new WorkspaceChangeIndex();
         const ownerUri = 'file:///D:/workspace/room.c';

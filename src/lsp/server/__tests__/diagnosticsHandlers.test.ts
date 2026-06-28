@@ -268,7 +268,7 @@ describe('diagnostics session and handlers', () => {
         expect(diagnosticsSession.clear).toHaveBeenCalledWith('file:///D:/workspace/include/settings.h');
     });
 
-    test('source file changes debounce diagnostics refreshes for maybe stale open owners', () => {
+    test('source file changes debounce diagnostics refreshes for maybe stale open owners', async () => {
         jest.useFakeTimers();
         let sourceFileChangeHandler: ((payload: SourceFileChangePayload) => void) | undefined;
         const diagnosticsSession = {
@@ -323,9 +323,97 @@ describe('diagnostics session and handlers', () => {
         jest.advanceTimersByTime(199);
         expect(diagnosticsSession.refresh).not.toHaveBeenCalled();
         jest.advanceTimersByTime(1);
+        await Promise.resolve();
 
         expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);
         expect(diagnosticsSession.refresh).toHaveBeenCalledWith(ownerUri);
+        expect(changeIndex.get(ownerUri)).toEqual(expect.objectContaining({
+            dirty: false,
+            maybeStale: false
+        }));
+
+        sourceFileChangeHandler?.({
+            uri: 'file:///D:/workspace/include/unrelated.h',
+            changeType: 'changed'
+        });
+        jest.advanceTimersByTime(200);
+        await Promise.resolve();
+
+        expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    test('stale diagnostics refresh completion does not clear newer maybe stale state', async () => {
+        jest.useFakeTimers();
+        let sourceFileChangeHandler: ((payload: SourceFileChangePayload) => void) | undefined;
+        const refreshResolvers: Array<() => void> = [];
+        const diagnosticsSession = {
+            refresh: jest.fn(() => new Promise<void>((resolve) => {
+                refreshResolvers.push(resolve);
+            })),
+            clear: jest.fn(() => [])
+        };
+        const connection = createConnectionStub({
+            onNotification: jest.fn((type, handler) => {
+                if (type === SourceFileChangeNotification.type) {
+                    sourceFileChangeHandler = handler as any;
+                }
+                return Disposable.create(() => undefined);
+            })
+        });
+        const documentStore = new DocumentStore();
+        const changeIndex = new WorkspaceChangeIndex();
+        const ownerUri = 'file:///D:/workspace/adm/daemons/ownerd.c';
+        const dependencyUri = 'file:///D:/workspace/include/settings.h';
+        documentStore.open(ownerUri, 7, '#include "/include/settings.h"\nvoid create() {}');
+        changeIndex.markOpened(ownerUri, 7);
+        changeIndex.recordDependencyFootprint(ownerUri, [dependencyUri]);
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace']
+        });
+        const logger = new ServerLogger({
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            log: jest.fn()
+        });
+
+        registerCapabilities({
+            connection,
+            changeIndex,
+            documentStore,
+            logger,
+            serverVersion: '0.40.0-test',
+            workspaceSession,
+            diagnosticsSession: diagnosticsSession as any
+        });
+
+        sourceFileChangeHandler?.({
+            uri: dependencyUri,
+            changeType: 'changed'
+        });
+        jest.advanceTimersByTime(200);
+        expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);
+
+        sourceFileChangeHandler?.({
+            uri: dependencyUri,
+            changeType: 'changed'
+        });
+        refreshResolvers[0]?.();
+        await Promise.resolve();
+
+        expect(changeIndex.get(ownerUri)).toEqual(expect.objectContaining({
+            maybeStale: true
+        }));
+
+        jest.advanceTimersByTime(200);
+        expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(2);
+        refreshResolvers[1]?.();
+        await Promise.resolve();
+
+        expect(changeIndex.get(ownerUri)).toEqual(expect.objectContaining({
+            dirty: false,
+            maybeStale: false
+        }));
     });
 
     test('workspace config sync refreshes diagnostics for already open documents', async () => {

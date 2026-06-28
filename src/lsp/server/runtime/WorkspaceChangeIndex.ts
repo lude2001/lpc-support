@@ -15,6 +15,7 @@ export type WorkspaceDiskChangeType = 'created' | 'changed' | 'deleted';
 
 export class WorkspaceChangeIndex {
     private readonly states = new Map<string, WorkspaceFileState>();
+    private lastChangeTimestamp = 0;
     private workspaceConfigGeneration = 0;
 
     public markOpened(uri: string, version: number): WorkspaceFileState {
@@ -60,10 +61,13 @@ export class WorkspaceChangeIndex {
         });
     }
 
-    public markClean(uri: string): WorkspaceFileState | undefined {
+    public markClean(uri: string, expectedLastChangedAt?: number): WorkspaceFileState | undefined {
         const existing = this.states.get(uri);
         if (!existing) {
             return undefined;
+        }
+        if (expectedLastChangedAt !== undefined && existing.lastChangedAt !== expectedLastChangedAt) {
+            return existing;
         }
 
         const next = {
@@ -84,7 +88,7 @@ export class WorkspaceChangeIndex {
             dirty: existing?.dirty ?? false,
             maybeStale: false,
             deleted: existing?.deleted ?? false,
-            lastChangedAt: existing?.lastChangedAt ?? Date.now(),
+            lastChangedAt: existing?.lastChangedAt ?? this.nextLastChangedAt(),
             lastDiagnosticDependencyFootprint: normalizeUniqueUris(dependencies),
             lastDependencyFootprint: normalizeUniqueUris([
                 ...dependencies,
@@ -109,7 +113,7 @@ export class WorkspaceChangeIndex {
             dirty: existing?.dirty ?? false,
             maybeStale: existing?.maybeStale ?? false,
             deleted: existing?.deleted ?? false,
-            lastChangedAt: existing?.lastChangedAt ?? Date.now(),
+            lastChangedAt: existing?.lastChangedAt ?? this.nextLastChangedAt(),
             lastDiagnosticDependencyFootprint: existing?.lastDiagnosticDependencyFootprint ?? [],
             lastDependencyFootprint: normalizeUniqueUris([
                 ...(existing?.lastDiagnosticDependencyFootprint ?? []),
@@ -143,6 +147,7 @@ export class WorkspaceChangeIndex {
 
     public clear(): void {
         this.states.clear();
+        this.lastChangeTimestamp = 0;
         this.workspaceConfigGeneration = 0;
     }
 
@@ -162,7 +167,7 @@ export class WorkspaceChangeIndex {
             dirty: patch.dirty,
             maybeStale: existing?.maybeStale ?? false,
             deleted: patch.deleted,
-            lastChangedAt: Date.now(),
+            lastChangedAt: this.nextLastChangedAt(),
             lastDiagnosticDependencyFootprint: existing?.lastDiagnosticDependencyFootprint ?? [],
             lastDependencyFootprint: existing?.lastDependencyFootprint ?? [],
             lastTargetDependencyFootprint: existing?.lastTargetDependencyFootprint ?? []
@@ -184,9 +189,15 @@ export class WorkspaceChangeIndex {
 
             this.states.set(state.uri, {
                 ...state,
-                maybeStale: true
+                maybeStale: true,
+                lastChangedAt: this.nextLastChangedAt()
             });
         }
+    }
+
+    private nextLastChangedAt(): number {
+        this.lastChangeTimestamp = Math.max(Date.now(), this.lastChangeTimestamp + 1);
+        return this.lastChangeTimestamp;
     }
 }
 
