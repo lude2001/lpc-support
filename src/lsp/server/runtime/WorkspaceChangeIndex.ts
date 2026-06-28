@@ -7,6 +7,8 @@ export interface WorkspaceFileState {
     readonly lastChangedAt: number;
 }
 
+export type WorkspaceDiskChangeType = 'created' | 'changed' | 'deleted';
+
 export class WorkspaceChangeIndex {
     private readonly states = new Map<string, WorkspaceFileState>();
     private workspaceConfigGeneration = 0;
@@ -32,6 +34,15 @@ export class WorkspaceChangeIndex {
             openVersion: undefined,
             dirty: true,
             deleted: false
+        });
+    }
+
+    public markDiskChanged(uri: string, changeType: WorkspaceDiskChangeType): WorkspaceFileState {
+        const existing = this.states.get(uri);
+        return this.update(uri, {
+            openVersion: existing?.openVersion,
+            dirty: true,
+            deleted: changeType === 'deleted'
         });
     }
 

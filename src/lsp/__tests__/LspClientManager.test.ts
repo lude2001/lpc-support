@@ -5,6 +5,10 @@ import {
     initializeConfigurationBridge,
     WORKSPACE_CONFIG_SYNC_NOTIFICATION
 } from '../client/bridges/configurationBridge';
+import {
+    initializeSourceFileChangeBridge,
+    SOURCE_FILE_CHANGE_NOTIFICATION
+} from '../client/bridges/sourceFileChangeBridge';
 import { LspClientManager } from '../client/LspClientManager';
 import { getRegisteredProjectConfigService } from '../../modules/coreModule';
 
@@ -34,11 +38,17 @@ jest.mock('../client/bridges/configurationBridge', () => ({
     initializeConfigurationBridge: jest.fn()
 }));
 
+jest.mock('../client/bridges/sourceFileChangeBridge', () => ({
+    SOURCE_FILE_CHANGE_NOTIFICATION: 'lpc/sourceFileChange',
+    initializeSourceFileChangeBridge: jest.fn()
+}));
+
 jest.mock('../../modules/coreModule', () => ({
     getRegisteredProjectConfigService: jest.fn()
 }));
 
 const actualConfigurationBridge = jest.requireActual('../client/bridges/configurationBridge') as typeof import('../client/bridges/configurationBridge');
+const actualSourceFileChangeBridge = jest.requireActual('../client/bridges/sourceFileChangeBridge') as typeof import('../client/bridges/sourceFileChangeBridge');
 
 jest.mock('vscode', () => ({
     workspace: {
@@ -57,9 +67,9 @@ type WatcherRegistration = {
     onDidCreate: jest.Mock;
     onDidDelete: jest.Mock;
     dispose: jest.Mock;
-    __changeHandler?: () => void;
-    __createHandler?: () => void;
-    __deleteHandler?: () => void;
+    __changeHandler?: (uri?: vscode.Uri) => void;
+    __createHandler?: (uri?: vscode.Uri) => void;
+    __deleteHandler?: (uri?: vscode.Uri) => void;
 };
 
 const vscodeMock = jest.requireMock('vscode') as {
@@ -104,6 +114,7 @@ describe('LspClientManager activation', () => {
         mockLanguageClientStop.mockReset().mockResolvedValue(undefined);
         mockLanguageClientDispose.mockReset();
         (initializeConfigurationBridge as jest.Mock).mockReset().mockImplementation(async () => ({ dispose: jest.fn() }));
+        (initializeSourceFileChangeBridge as jest.Mock).mockReset().mockReturnValue({ dispose: jest.fn() });
         (getRegisteredProjectConfigService as jest.Mock).mockReset().mockReturnValue({
             getProjectConfigPath: jest.fn(),
             loadForWorkspace: jest.fn()
@@ -147,6 +158,9 @@ describe('LspClientManager activation', () => {
 
         expect(manager).toBeInstanceOf(LspClientManager);
         expect(mockLanguageClientConstructor).toHaveBeenCalledTimes(1);
+        expect(initializeSourceFileChangeBridge).toHaveBeenCalledWith({
+            client: expect.any(Object)
+        });
         expect(initializeConfigurationBridge).toHaveBeenCalledWith({
             client: expect.any(Object),
             projectConfigService
@@ -166,7 +180,40 @@ describe('LspClientManager activation', () => {
 
         await manager?.stop();
         expect(mockLanguageClientStop).toHaveBeenCalledTimes(1);
+        expect((initializeSourceFileChangeBridge as jest.Mock).mock.results[0].value.dispose).toHaveBeenCalledTimes(1);
         expect(bridgeDisposable.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    test('initializeSourceFileChangeBridge sends lightweight source file change notifications', async () => {
+        const sendNotification = jest.fn();
+
+        const disposable = actualSourceFileChangeBridge.initializeSourceFileChangeBridge({
+            client: { sendNotification }
+        });
+
+        expect(vscodeMock.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/*.{c,h}');
+        const watcher = vscodeMock.workspace.createFileSystemWatcher.mock.results[0].value as WatcherRegistration;
+
+        watcher.__createHandler?.({ toString: () => 'file:///D:/workspace/new.c' } as vscode.Uri);
+        watcher.__changeHandler?.({ toString: () => 'file:///D:/workspace/changed.h' } as vscode.Uri);
+        watcher.__deleteHandler?.({ toString: () => 'file:///D:/workspace/deleted.c' } as vscode.Uri);
+        await Promise.resolve();
+
+        expect(sendNotification).toHaveBeenCalledWith(SOURCE_FILE_CHANGE_NOTIFICATION, {
+            uri: 'file:///D:/workspace/new.c',
+            changeType: 'created'
+        });
+        expect(sendNotification).toHaveBeenCalledWith(SOURCE_FILE_CHANGE_NOTIFICATION, {
+            uri: 'file:///D:/workspace/changed.h',
+            changeType: 'changed'
+        });
+        expect(sendNotification).toHaveBeenCalledWith(SOURCE_FILE_CHANGE_NOTIFICATION, {
+            uri: 'file:///D:/workspace/deleted.c',
+            changeType: 'deleted'
+        });
+
+        disposable.dispose();
+        expect(watcher.dispose).toHaveBeenCalled();
     });
 
     test('manager stop is idempotent after start', async () => {

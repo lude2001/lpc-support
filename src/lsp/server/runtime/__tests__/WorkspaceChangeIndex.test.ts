@@ -59,4 +59,25 @@ describe('WorkspaceChangeIndex', () => {
             deleted: true
         }));
     });
+
+    test('marks disk changes without replacing an open document version', () => {
+        const index = new WorkspaceChangeIndex();
+        const uri = 'file:///D:/workspace/room.c';
+
+        index.markOpened(uri, 9);
+        index.markDiskChanged(uri, 'changed');
+
+        expect(index.get(uri)).toEqual(expect.objectContaining({
+            openVersion: 9,
+            dirty: true,
+            deleted: false
+        }));
+
+        index.markDiskChanged(uri, 'deleted');
+        expect(index.get(uri)).toEqual(expect.objectContaining({
+            openVersion: 9,
+            dirty: true,
+            deleted: true
+        }));
+    });
 });

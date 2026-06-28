@@ -35,6 +35,10 @@ import type { LanguageSignatureHelpService } from '../../../language/services/si
 import type { LanguageStructureService } from '../../../language/services/structure/LanguageFoldingService';
 import { HealthRequest } from '../../shared/protocol/health';
 import {
+    SourceFileChangeNotification,
+    type SourceFileChangePayload
+} from '../../shared/protocol/sourceFileChange';
+import {
     WorkspaceConfigSyncNotification,
     type WorkspaceConfigSyncPayload
 } from '../../shared/protocol/workspaceConfigSync';
@@ -81,10 +85,7 @@ export type ServerConnection = Pick<
     | 'onFoldingRanges'
     | 'languages'
 > & {
-    onNotification: (
-        type: NotificationType<WorkspaceConfigSyncPayload>,
-        handler: (params: WorkspaceConfigSyncPayload) => void
-    ) => unknown;
+    onNotification: <T>(type: NotificationType<T>, handler: (params: T) => void) => unknown;
     onSignatureHelp?: Connection['onSignatureHelp'];
     onDocumentFormatting?: Connection['onDocumentFormatting'];
     onDocumentRangeFormatting?: Connection['onDocumentRangeFormatting'];
@@ -274,6 +275,14 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
                 refreshPendingAndOpenDiagnostics();
             }
         })();
+    });
+
+    connection.onNotification(SourceFileChangeNotification.type, (payload: SourceFileChangePayload) => {
+        changeIndex?.markDiskChanged(payload.uri, payload.changeType);
+        invalidateDocument(payload.uri);
+        if (payload.changeType === 'deleted') {
+            diagnosticsSession?.clear(payload.uri);
+        }
     });
 
     connection.onRequest(

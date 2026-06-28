@@ -9,7 +9,12 @@ import { createLanguageDiagnosticsService, type LanguageDiagnostic } from '../..
 import { registerCapabilities, type ServerConnection } from '../bootstrap/registerCapabilities';
 import { DocumentStore } from '../runtime/DocumentStore';
 import { ServerLogger } from '../runtime/ServerLogger';
+import { WorkspaceChangeIndex } from '../runtime/WorkspaceChangeIndex';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
+import {
+    SourceFileChangeNotification,
+    type SourceFileChangePayload
+} from '../../shared/protocol/sourceFileChange';
 import {
     WorkspaceConfigSyncNotification,
     type WorkspaceConfigSyncPayload
@@ -197,6 +202,69 @@ describe('diagnostics session and handlers', () => {
         expect(diagnosticsSession.refresh).toHaveBeenNthCalledWith(2, 'file:///D:/workspace/diagnostics.c');
         expect(diagnosticsSession.clear).toHaveBeenCalledWith('file:///D:/workspace/diagnostics.c');
         expect(documentStore.get('file:///D:/workspace/diagnostics.c')).toBeUndefined();
+    });
+
+    test('source file change notification marks one URI dirty and invalidates its caches', () => {
+        let sourceFileChangeHandler: ((payload: SourceFileChangePayload) => void) | undefined;
+        const diagnosticsSession = {
+            refresh: jest.fn(async () => []),
+            clear: jest.fn(() => [])
+        };
+        const connection = createConnectionStub({
+            onNotification: jest.fn((type, handler) => {
+                if (type === SourceFileChangeNotification.type) {
+                    sourceFileChangeHandler = handler as any;
+                }
+                return Disposable.create(() => undefined);
+            })
+        });
+        const documentStore = new DocumentStore();
+        const changeIndex = new WorkspaceChangeIndex();
+        const onDocumentInvalidated = jest.fn();
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace']
+        });
+        const logger = new ServerLogger({
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            log: jest.fn()
+        });
+
+        registerCapabilities({
+            connection,
+            changeIndex,
+            documentStore,
+            logger,
+            serverVersion: '0.40.0-test',
+            workspaceSession,
+            diagnosticsSession: diagnosticsSession as any,
+            onDocumentInvalidated
+        });
+
+        sourceFileChangeHandler?.({
+            uri: 'file:///D:/workspace/include/settings.h',
+            changeType: 'changed'
+        });
+
+        expect(changeIndex.get('file:///D:/workspace/include/settings.h')).toEqual(expect.objectContaining({
+            dirty: true,
+            deleted: false
+        }));
+        expect(onDocumentInvalidated).toHaveBeenCalledWith('file:///D:/workspace/include/settings.h');
+        expect(diagnosticsSession.refresh).not.toHaveBeenCalled();
+        expect(diagnosticsSession.clear).not.toHaveBeenCalled();
+
+        sourceFileChangeHandler?.({
+            uri: 'file:///D:/workspace/include/settings.h',
+            changeType: 'deleted'
+        });
+
+        expect(changeIndex.get('file:///D:/workspace/include/settings.h')).toEqual(expect.objectContaining({
+            dirty: true,
+            deleted: true
+        }));
+        expect(diagnosticsSession.clear).toHaveBeenCalledWith('file:///D:/workspace/include/settings.h');
     });
 
     test('workspace config sync refreshes diagnostics for already open documents', async () => {

@@ -7,6 +7,7 @@ import {
     TransportKind
 } from 'vscode-languageclient/node';
 import { initializeConfigurationBridge } from './bridges/configurationBridge';
+import { initializeSourceFileChangeBridge } from './bridges/sourceFileChangeBridge';
 import { LspClientManager } from './LspClientManager';
 import { getRegisteredProjectConfigService } from '../../modules/coreModule';
 
@@ -24,11 +25,16 @@ export async function activateLspClient(
 
 function createPhaseAClientManager(context: vscode.ExtensionContext): LspClientManager {
     let configurationBridgeDisposable: vscode.Disposable | undefined;
+    let sourceFileChangeBridgeDisposable: vscode.Disposable | undefined;
     const client = createPhaseALanguageClient(context);
 
     return new LspClientManager({
         client,
         start: async () => {
+            sourceFileChangeBridgeDisposable = initializeSourceFileChangeBridge({
+                client
+            });
+
             const projectConfigService = getRegisteredProjectConfigService();
             if (!projectConfigService) {
                 return;
@@ -40,6 +46,8 @@ function createPhaseAClientManager(context: vscode.ExtensionContext): LspClientM
             });
         },
         stop: async () => {
+            sourceFileChangeBridgeDisposable?.dispose();
+            sourceFileChangeBridgeDisposable = undefined;
             configurationBridgeDisposable?.dispose();
             configurationBridgeDisposable = undefined;
         }
