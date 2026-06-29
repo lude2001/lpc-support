@@ -1,8 +1,8 @@
 # LPC Support
 
-[![Version](https://img.shields.io/visual-studio-marketplace/v/ludexiang.lpc-support?color=blue&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=ludexiang.lpc-support)
+[![Version](https://img.shields.io/visual-studio-marketplace/v/easyCat.lpc-support?color=blue&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=easyCat.lpc-support)
 [![CI](https://github.com/lude2001/lpc-support/actions/workflows/ci.yml/badge.svg)](https://github.com/lude2001/lpc-support/actions/workflows/ci.yml)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/ludexiang.lpc-support?color=success)](https://marketplace.visualstudio.com/items?itemName=ludexiang.lpc-support)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/easyCat.lpc-support?color=success)](https://marketplace.visualstudio.com/items?itemName=easyCat.lpc-support)
 [![License](https://img.shields.io/github/license/lude2001/lpc-support?color=orange)](https://github.com/lude2001/lpc-support/blob/main/LICENSE)
 
 LPC Support 是一个面向 VS Code 的 LPC / FluffOS 开发扩展，当前版本为 `0.47.9`。
@@ -160,7 +160,7 @@ LPC Support 是一个面向 VS Code 的 LPC / FluffOS 开发扩展，当前版�
 你可以通过以下方式安装：
 
 1. 在 VS Code 扩展市场搜索 `LPC[FluffOS]`
-2. 命令行安装：`code --install-extension ludexiang.lpc-support`
+2. 命令行安装：`code --install-extension easyCat.lpc-support`
 3. 使用本地 `.vsix` 文件安装
 
 ## 开发环境支持
@@ -737,7 +737,7 @@ ob->query_damage();
 
 **核心开发**
 
-- @ludexiang
+- @easyCat
 - 武侠黎明团队
 
 **技术支持**
@@ -754,7 +754,7 @@ ob->query_damage();
 
 - [GitHub](https://github.com/lude2001/lpc-support)
 - [问题反馈](https://github.com/lude2001/lpc-support/issues)
-- [VS Code 市场](https://marketplace.visualstudio.com/items?itemName=ludexiang.lpc-support)
+- [VS Code 市场](https://marketplace.visualstudio.com/items?itemName=easyCat.lpc-support)
 - [FluffOS 文档](https://www.fluffos.info)
 
 ## 许可证

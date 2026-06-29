@@ -21,7 +21,7 @@
 - **项目名称**: LPC Support
 - **版本**: 0.1.0
 - **开发团队**: 武侠黎明团队
-- **开发者**: ludexiang
+- **开发者**: easyCat
 - **项目类型**: Visual Studio Code 扩展
 - **目标语言**: LPC (LPMud Creation Language)
 - **兼容驱动**: FluffOS
@@ -485,7 +485,7 @@ interface GLM4Request {
 
 #### 配置文件位置
 ```
-~/.vscode/extensions/ludexiang.lpc-support-0.1.0/
+~/.vscode/extensions/easyCat.lpc-support-0.1.0/
 └── globalStorage/
     └── lpc-servers.json
 ```
@@ -696,7 +696,7 @@ describe('LPCDiagnostics', () => {
 // 测试扩展激活
 suite('Extension Test Suite', () => {
     test('Extension should activate', async () => {
-        const ext = vscode.extensions.getExtension('ludexiang.lpc-support');
+        const ext = vscode.extensions.getExtension('easyCat.lpc-support');
         await ext?.activate();
         assert.ok(ext?.isActive);
     });
@@ -785,5 +785,5 @@ bugfix/parser-error-handling
 
 **文档版本**: 1.0.0  
 **最后更新**: 2024年12月  
-**维护者**: ludexiang  
+**维护者**: easyCat
 **联系方式**: https://github.com/lude2001/lpc-support

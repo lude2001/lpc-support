@@ -3,7 +3,7 @@
         "version": "1.0.0",
         "description": "A simple HTTP server controller for the external system package.",
         "preload_object": "/external_system_package/http/controller/httpd",
-        "author": "ludexiang"
+        "author": "easyCat"
     },
     "lints": {
         "version": "1.0.0",
@@ -11,6 +11,6 @@
         "macro definition": {
             "LINT_D": "external_system_package/lints/lints"
         },
-        "author": "ludexiang"
+        "author": "easyCat"
     }
 }

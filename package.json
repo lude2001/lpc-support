@@ -3,9 +3,9 @@
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
   "version": "0.51.1",
-  "publisher": "ludexiang",
+  "publisher": "easyCat",
   "author": {
-    "name": "ludexiang",
+    "name": "easyCat",
     "url": "https://github.com/lude2001"
   },
   "homepage": "https://github.com/lude2001/lpc-support#readme",
