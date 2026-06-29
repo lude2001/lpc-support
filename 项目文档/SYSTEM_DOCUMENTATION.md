@@ -485,7 +485,7 @@ interface GLM4Request {
 
 #### 配置文件位置
 ```
-~/.vscode/extensions/easyCat.lpc-support-0.1.0/
+~/.vscode/extensions/ludexiang.lpc-support-0.1.0/
 └── globalStorage/
     └── lpc-servers.json
 ```
@@ -696,7 +696,7 @@ describe('LPCDiagnostics', () => {
 // 测试扩展激活
 suite('Extension Test Suite', () => {
     test('Extension should activate', async () => {
-        const ext = vscode.extensions.getExtension('easyCat.lpc-support');
+        const ext = vscode.extensions.getExtension('ludexiang.lpc-support');
         await ext?.activate();
         assert.ok(ext?.isActive);
     });
