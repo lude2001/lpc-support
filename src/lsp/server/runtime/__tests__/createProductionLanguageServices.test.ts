@@ -588,8 +588,9 @@ describe('createProductionLanguageServices', () => {
             const pathSupport = targetMethodLookupCtor.mock.calls[0][1] as any;
             expect(pathSupport.options.ensureFreshDocument).toEqual(expect.any(Function));
             changeIndex.get.mockReturnValue({
-                dirty: true,
-                maybeStale: false,
+                dirty: false,
+                maybeStale: true,
+                openVersion: 1,
                 workspaceConfigGeneration: 3
             });
             pathSupport.options.ensureFreshDocument(dependencyUri);
@@ -602,9 +603,23 @@ describe('createProductionLanguageServices', () => {
             openTextDocument: expect.any(Function)
         }));
         analysisService.clearCache.mockClear();
+        changeIndex.markClean.mockClear();
         changeIndex.get.mockReturnValue({
-            dirty: false,
+            dirty: true,
             maybeStale: false,
+            openVersion: undefined,
+            workspaceConfigGeneration: 3
+        });
+        await directOpenHost!.openTextDocument(dependencyUri);
+        expect(analysisService.clearCache).toHaveBeenCalledWith(dependencyUri.toString());
+        expect(changeIndex.markClean).toHaveBeenCalledWith(dependencyUri.toString(), undefined);
+
+        analysisService.clearCache.mockClear();
+        changeIndex.markClean.mockClear();
+        changeIndex.get.mockReturnValue({
+            dirty: true,
+            maybeStale: false,
+            openVersion: 2,
             workspaceConfigGeneration: 3
         });
         await directOpenHost!.openTextDocument(dependencyUri);

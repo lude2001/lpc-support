@@ -277,7 +277,7 @@ export function createProductionLanguageServices(
         }
 
         if (
-            state.dirty
+            (state.dirty && state.openVersion === undefined)
             || state.maybeStale
             || state.workspaceConfigGeneration !== options.changeIndex?.getWorkspaceConfigGeneration()
         ) {

@@ -54,7 +54,7 @@ export class DocumentFreshnessService {
         }
 
         if (
-            state.dirty
+            (state.dirty && state.openVersion === undefined)
             || state.maybeStale
             || state.workspaceConfigGeneration !== this.changeIndex.getWorkspaceConfigGeneration()
         ) {

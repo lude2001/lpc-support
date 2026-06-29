@@ -77,7 +77,8 @@ import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 const MAYBE_STALE_DIAGNOSTIC_REFRESH_DELAY_MS = 200;
 const OPEN_PREWARM_DELAY_MS = 350;
-const OPEN_DIAGNOSTIC_REFRESH_DELAY_MS = 1000;
+const OPEN_DIAGNOSTIC_REFRESH_DELAY_MS = 2500;
+const CHANGE_DIAGNOSTIC_REFRESH_DELAY_MS = 300;
 
 export type ServerConnection = Pick<
     Connection,
@@ -297,12 +298,18 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             }
         }
     };
-    const scheduleOpenDiagnosticRefresh = (uri: string): void => {
+    const scheduleDiagnosticRefresh = (uri: string, delayMs: number): void => {
         clearPendingOpenDiagnosticRefresh(uri);
         pendingOpenDiagnosticRefreshTimers.set(uri, setTimeout(() => {
             pendingOpenDiagnosticRefreshTimers.delete(uri);
             refreshDiagnosticsWhenReady(uri);
-        }, OPEN_DIAGNOSTIC_REFRESH_DELAY_MS));
+        }, delayMs));
+    };
+    const scheduleOpenDiagnosticRefresh = (uri: string): void => {
+        scheduleDiagnosticRefresh(uri, OPEN_DIAGNOSTIC_REFRESH_DELAY_MS);
+    };
+    const scheduleChangedDiagnosticRefresh = (uri: string): void => {
+        scheduleDiagnosticRefresh(uri, CHANGE_DIAGNOSTIC_REFRESH_DELAY_MS);
     };
     const applyWorkspaceConfigSync = async (payload: WorkspaceConfigSyncPayload): Promise<void> => {
         changeIndex?.nextWorkspaceConfigGeneration();
@@ -392,8 +399,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         documentStore.applyFullChange(textDocument.uri, textDocument.version, nextText);
         __syncTextDocument(textDocument.uri, nextText, textDocument.version);
         __emitTextDocumentChange(textDocument.uri);
-        freshnessService.invalidateDocument(textDocument.uri);
-        refreshDiagnosticsWhenReady(textDocument.uri);
+        scheduleChangedDiagnosticRefresh(textDocument.uri);
     });
 
     connection.onDidCloseTextDocument(({ textDocument }: DidCloseTextDocumentParams) => {

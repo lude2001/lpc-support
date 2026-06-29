@@ -128,6 +128,7 @@ describe('diagnostics session and handlers', () => {
     });
 
     test('registerCapabilities wires diagnostics publication through document lifecycle events', async () => {
+        jest.useFakeTimers();
         const openHandlers: Array<(params: DidOpenTextDocumentParams) => void> = [];
         const changeHandlers: Array<(params: DidChangeTextDocumentParams) => void> = [];
         const closeHandlers: Array<(params: DidCloseTextDocumentParams) => void> = [];
@@ -192,6 +193,12 @@ describe('diagnostics session and handlers', () => {
                 ]
             });
         }
+        expect(diagnosticsSession.refresh).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(299);
+        expect(diagnosticsSession.refresh).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(1);
+        await Promise.resolve();
+
         for (const closeHandler of closeHandlers) {
             closeHandler({
                 textDocument: {
@@ -646,7 +653,11 @@ describe('diagnostics session and handlers', () => {
         await Promise.resolve();
 
         expect(diagnosticsSession.refresh).not.toHaveBeenCalled();
-        jest.advanceTimersByTime(800);
+        jest.advanceTimersByTime(2299);
+        await Promise.resolve();
+
+        expect(diagnosticsSession.refresh).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(1);
         await Promise.resolve();
 
         expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);

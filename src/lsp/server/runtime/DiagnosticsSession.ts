@@ -5,6 +5,8 @@ import { DocumentStore } from './DocumentStore';
 import { ServerLanguageContextFactory } from './ServerLanguageContextFactory';
 import { WorkspaceSession } from './WorkspaceSession';
 
+const LSP_DIAGNOSTIC_BATCH_SIZE = 3;
+
 export interface DiagnosticsSessionOptions {
     documentStore: DocumentStore;
     workspaceSession: WorkspaceSession;
@@ -34,7 +36,10 @@ export class DiagnosticsSession {
             return this.clear(uri);
         }
 
-        const diagnostics = await this.options.diagnosticsService.collectDiagnostics(request);
+        const diagnostics = await this.options.diagnosticsService.collectDiagnostics(request, {
+            batchSize: LSP_DIAGNOSTIC_BATCH_SIZE,
+            yieldToMainThread: () => new Promise(resolve => setTimeout(resolve, 0))
+        });
 
         this.latestDiagnostics.set(uri, diagnostics);
         this.options.publishDiagnostics(uri, diagnostics);

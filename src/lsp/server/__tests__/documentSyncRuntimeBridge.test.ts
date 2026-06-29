@@ -66,6 +66,7 @@ describe('document sync runtime bridge', () => {
                     text: 'int main() { return 0; }'
                 }
             });
+            onDocumentInvalidated.mockClear();
 
             changeHandlers[0]?.({
                 textDocument: {
@@ -90,7 +91,7 @@ describe('document sync runtime bridge', () => {
                 dirty: true,
                 deleted: false
             }));
-            expect(onDocumentInvalidated).toHaveBeenCalledWith(uri);
+            expect(onDocumentInvalidated).not.toHaveBeenCalled();
         } finally {
             cleanup();
         }

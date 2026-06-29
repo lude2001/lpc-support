@@ -84,7 +84,7 @@ describe('DocumentFreshnessService', () => {
         expect(onDocumentInvalidated).toHaveBeenCalledWith(ownerUri);
     });
 
-    test('marks a refreshed request document clean so repeated language requests reuse caches', () => {
+    test('leaves locally edited request documents to feature cache policy', () => {
         const changeIndex = new WorkspaceChangeIndex();
         const uri = 'file:///D:/workspace/room.c';
         const invalidateRuntimeDocument = jest.fn();
@@ -99,7 +99,30 @@ describe('DocumentFreshnessService', () => {
         service.ensureFreshRequestDocument(uri);
         service.ensureFreshRequestDocument(uri);
 
-        expect(invalidateRuntimeDocument).toHaveBeenCalledTimes(1);
+        expect(invalidateRuntimeDocument).not.toHaveBeenCalled();
+        expect(changeIndex.get(uri)).toEqual(expect.objectContaining({
+            dirty: true,
+            maybeStale: false
+        }));
+    });
+
+    test('invalidates dirty closed request documents before language features run', () => {
+        const changeIndex = new WorkspaceChangeIndex();
+        const uri = 'file:///D:/workspace/include/settings.h';
+        const invalidateRuntimeDocument = jest.fn();
+        const onDocumentInvalidated = jest.fn();
+        const service = new DocumentFreshnessService({
+            changeIndex,
+            invalidateRuntimeDocument,
+            logger: createLogger().logger,
+            onDocumentInvalidated
+        });
+
+        changeIndex.markDiskChanged(uri, 'changed');
+        service.ensureFreshRequestDocument(uri);
+
+        expect(invalidateRuntimeDocument).toHaveBeenCalledWith(uri);
+        expect(onDocumentInvalidated).toHaveBeenCalledWith(uri);
         expect(changeIndex.get(uri)).toEqual(expect.objectContaining({
             dirty: false,
             maybeStale: false
