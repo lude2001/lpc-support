@@ -78,8 +78,7 @@ export class ObjectInferenceService {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<InferredObjectAccess | undefined> {
-        const syntax = this.analysisService.getSyntaxDocument(document, false)
-            ?? this.analysisService.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             return undefined;
         }

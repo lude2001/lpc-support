@@ -63,7 +63,7 @@ export class GlobalObjectBindingResolver {
         identifierName: string,
         options?: FileScopeBindingResolveOptions
     ): Promise<GlobalBindingResolution | undefined> {
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         return this.resolveNamedBindingInSnapshot({
             document,
             snapshot,
@@ -286,7 +286,7 @@ export class GlobalObjectBindingResolver {
         identifierName: string,
         visitedUris: Set<string> = new Set([document.uri.toString()])
     ): Promise<boolean> {
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const resolvedTargets = this.inheritanceResolver.resolveInheritTargets(snapshot);
 
         for (const target of resolvedTargets) {
@@ -301,7 +301,7 @@ export class GlobalObjectBindingResolver {
                 const parentDocument = await this.host.openTextDocument(
                     this.toWorkspaceFilePath(target.resolvedUri)
                 );
-                const parentSnapshot = this.analysisService.getSemanticSnapshot(parentDocument, false);
+                const parentSnapshot = this.analysisService.getSemanticSnapshot(parentDocument, 'cacheFirst');
                 const parentSymbol = this.findGlobalScopeSymbol(parentSnapshot, identifierName);
                 const globalScope = parentSnapshot.symbolTable.getGlobalScope();
                 if (

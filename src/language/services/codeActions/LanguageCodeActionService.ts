@@ -70,7 +70,7 @@ class DefaultLanguageCodeActionService implements LanguageCodeActionService {
             return undefined;
         }
 
-        return this.analysisService.getSyntaxDocument(document as unknown as Parameters<CodeActionAnalysisService['getSyntaxDocument']>[0], false)
+        return this.analysisService.getSyntaxDocument(document as unknown as Parameters<CodeActionAnalysisService['getSyntaxDocument']>[0], 'cacheFirst')
             ?? this.analysisService.getSyntaxDocument(document as unknown as Parameters<CodeActionAnalysisService['getSyntaxDocument']>[0], true);
     }
 }

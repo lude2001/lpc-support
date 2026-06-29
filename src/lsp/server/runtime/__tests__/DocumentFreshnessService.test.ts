@@ -84,6 +84,28 @@ describe('DocumentFreshnessService', () => {
         expect(onDocumentInvalidated).toHaveBeenCalledWith(ownerUri);
     });
 
+    test('marks a refreshed request document clean so repeated language requests reuse caches', () => {
+        const changeIndex = new WorkspaceChangeIndex();
+        const uri = 'file:///D:/workspace/room.c';
+        const invalidateRuntimeDocument = jest.fn();
+        const service = new DocumentFreshnessService({
+            changeIndex,
+            invalidateRuntimeDocument,
+            logger: createLogger().logger
+        });
+
+        changeIndex.markOpened(uri, 1);
+
+        service.ensureFreshRequestDocument(uri);
+        service.ensureFreshRequestDocument(uri);
+
+        expect(invalidateRuntimeDocument).toHaveBeenCalledTimes(1);
+        expect(changeIndex.get(uri)).toEqual(expect.objectContaining({
+            dirty: false,
+            maybeStale: false
+        }));
+    });
+
     test('invalidates a request document when workspace config generation changed', () => {
         const changeIndex = new WorkspaceChangeIndex();
         const uri = 'file:///D:/workspace/room.c';

@@ -24,10 +24,11 @@ interface CachedDocumentDocsEntry extends MaterializedFunctionDocLookup {
 
 export class FileFunctionDocTracker {
     private readonly lookupBuilder: Pick<FunctionDocLookupBuilder, 'buildLookup'>;
+    private readonly documentationService: FunctionDocumentationService;
     private readonly documentLookupCache = new Map<string, CachedDocumentDocsEntry>();
 
     public constructor(options: FileFunctionDocTrackerOptions) {
-        assertDocumentationService('FileFunctionDocTracker', options.documentationService);
+        this.documentationService = assertDocumentationService('FileFunctionDocTracker', options.documentationService);
         this.lookupBuilder = options.lookupBuilder
             ?? (() => {
                 throw new Error('FileFunctionDocTracker requires an injected FunctionDocLookupBuilder');
@@ -55,7 +56,17 @@ export class FileFunctionDocTracker {
         name: string,
         options?: FunctionDocLookupBuildOptions
     ): Promise<CallableDoc | undefined> {
-        return (await this.getOrBuildDocumentLookup(document, options)).currentFileDocs.get(name);
+        if (options?.forceFresh) {
+            this.documentationService.invalidate(document.uri.toString());
+        }
+
+        const currentDoc = this.documentationService.getDocsByName(document, name)[0];
+        return currentDoc
+            ? {
+                ...currentDoc,
+                sourceKind: 'local'
+            }
+            : undefined;
     }
 
     public async getDocFromInheritedForDocument(

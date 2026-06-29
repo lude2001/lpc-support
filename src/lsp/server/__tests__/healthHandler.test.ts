@@ -91,7 +91,19 @@ describe('registerCapabilities', () => {
             documentStore,
             logger,
             serverVersion: '0.40.0-test',
-            workspaceSession
+            workspaceSession,
+            healthPerformanceProviders: {
+                getParserStats: () => ({
+                    parseCount: 3,
+                    totalParseTime: 12,
+                    avgParseTime: 4
+                }),
+                getSemanticStats: () => ({
+                    totalSnapshots: 2,
+                    buildCount: 5,
+                    totalBuildTimeMs: 20
+                })
+            }
         });
 
         expect(initializeHandler?.({} as InitializeParams)).toEqual({
@@ -159,12 +171,24 @@ describe('registerCapabilities', () => {
             text: 'two'
         });
 
-        expect(await registeredHealthHandler?.()).toEqual({
+        expect(await registeredHealthHandler?.()).toEqual(expect.objectContaining({
             status: 'ok',
             mode: 'phase-a',
             serverVersion: '0.40.0-test',
-            documentCount: 1
-        });
+            documentCount: 1,
+            performance: {
+                parser: expect.objectContaining({
+                    parseCount: expect.any(Number),
+                    totalParseTime: expect.any(Number),
+                    avgParseTime: expect.any(Number)
+                }),
+                semantic: expect.objectContaining({
+                    totalSnapshots: expect.any(Number),
+                    buildCount: expect.any(Number),
+                    totalBuildTimeMs: expect.any(Number)
+                })
+            }
+        }));
 
         closeHandler?.({
             textDocument: {

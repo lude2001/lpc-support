@@ -71,7 +71,7 @@ export class ScopedMethodDiscoveryService {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<ScopedMethodDiscoveryResult> {
-        const syntax = this.analysisService.getSyntaxDocument(document, false)
+        const syntax = this.analysisService.getSyntaxDocument(document, 'cacheFirst')
             ?? this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             return {
@@ -97,7 +97,7 @@ export class ScopedMethodDiscoveryService {
             };
         }
 
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return {

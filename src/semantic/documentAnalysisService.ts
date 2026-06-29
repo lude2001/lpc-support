@@ -20,13 +20,15 @@ export interface CompleteDocumentSemanticAnalysis extends DocumentSemanticAnalys
     semantic: SemanticSnapshot;
 }
 
+export type SnapshotAccessMode = 'cacheFirst' | 'refreshIfStale' | 'forceRefresh';
+
 export interface DocumentAnalysisService {
-    parseDocument(document: vscode.TextDocument, useCache?: boolean): DocumentSemanticAnalysis;
-    getAnalysis(document: vscode.TextDocument, useCache?: boolean): DocumentSemanticAnalysis;
+    parseDocument(document: vscode.TextDocument, mode?: boolean | SnapshotAccessMode): DocumentSemanticAnalysis;
+    getAnalysis(document: vscode.TextDocument, mode?: boolean | SnapshotAccessMode): DocumentSemanticAnalysis;
     getBestAvailableAnalysis(document: vscode.TextDocument): DocumentSemanticAnalysis;
-    getSyntaxDocument(document: vscode.TextDocument, useCache?: boolean): SyntaxDocument | undefined;
-    getSemanticSnapshot(document: vscode.TextDocument, useCache?: boolean): SemanticSnapshot;
-    getSnapshot(document: vscode.TextDocument, useCache?: boolean): DocumentSemanticSnapshot;
+    getSyntaxDocument(document: vscode.TextDocument, mode?: boolean | SnapshotAccessMode): SyntaxDocument | undefined;
+    getSemanticSnapshot(document: vscode.TextDocument, mode?: boolean | SnapshotAccessMode): SemanticSnapshot;
+    getSnapshot(document: vscode.TextDocument, mode?: boolean | SnapshotAccessMode): DocumentSemanticSnapshot;
     getBestAvailableSnapshot(document: vscode.TextDocument): DocumentSemanticSnapshot;
     getBestAvailableSemanticSnapshot(document: vscode.TextDocument): SemanticSnapshot;
     scheduleRefresh(document: vscode.TextDocument, onReady?: (snapshot: DocumentSemanticSnapshot) => void): void;

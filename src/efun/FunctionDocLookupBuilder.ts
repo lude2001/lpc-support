@@ -39,7 +39,7 @@ export class FunctionDocLookupBuilder {
         document: vscode.TextDocument,
         options?: FunctionDocLookupBuildOptions
     ): Promise<RawFunctionDocLookup> {
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, options?.forceFresh === true ? false : true);
         const inheritedFiles = snapshot.inheritStatements.map((statement) => statement.value);
 
         return {

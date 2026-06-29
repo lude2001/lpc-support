@@ -7,7 +7,8 @@ import { SyntaxDocument } from '../syntax/types';
 import {
     CompleteDocumentSemanticAnalysis,
     DocumentAnalysisService,
-    DocumentSemanticAnalysis
+    DocumentSemanticAnalysis,
+    SnapshotAccessMode
 } from './documentAnalysisService';
 import { DocumentSemanticSnapshot, SnapshotStats } from './documentSemanticTypes';
 import { SemanticModelBuilder } from './SemanticModelBuilder';
@@ -23,6 +24,9 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
     private readonly maxEntries: number;
     private readonly refreshDebounceMs: number;
     private lastUpdatedAt?: number;
+    private buildCount = 0;
+    private totalBuildTimeMs = 0;
+    private readonly buildStatsByUri = new Map<string, { count: number; totalTimeMs: number }>();
 
     private constructor() {
         const config = vscode.workspace.getConfiguration('lpc.performance');
@@ -38,20 +42,24 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
         return DocumentSemanticSnapshotService.instance;
     }
 
-    public parseDocument(document: vscode.TextDocument, useCache: boolean = true): DocumentSemanticAnalysis {
-        return this.getAnalysis(document, useCache);
+    public parseDocument(
+        document: vscode.TextDocument,
+        mode: boolean | SnapshotAccessMode = 'cacheFirst'
+    ): DocumentSemanticAnalysis {
+        return this.getAnalysis(document, mode);
     }
 
     public getAnalysis(
         document: vscode.TextDocument,
-        useCache: boolean = true
+        mode: boolean | SnapshotAccessMode = 'cacheFirst'
     ): DocumentSemanticAnalysis {
+        const useCache = this.shouldUseCache(mode);
         const cached = this.getCachedAnalysis(document);
-        if (useCache && cached && cached.snapshot.version === document.version) {
+        if (useCache && cached && this.isAnalysisFresh(cached, document)) {
             return cached;
         }
 
-        if (!useCache) {
+        if (this.shouldInvalidateParsedDocument(mode) || this.hasSameVersionWithDifferentText(cached, document)) {
             getGlobalParsedDocumentService().invalidate(document.uri);
         }
 
@@ -64,7 +72,7 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
             return this.buildAndStoreAnalysis(document);
         }
 
-        if (cached.snapshot.version !== document.version) {
+        if (!this.isAnalysisFresh(cached, document)) {
             this.scheduleRefresh(document);
         }
 
@@ -73,23 +81,23 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
 
     public getSyntaxDocument(
         document: vscode.TextDocument,
-        useCache: boolean = true
+        mode: boolean | SnapshotAccessMode = 'cacheFirst'
     ): SyntaxDocument | undefined {
-        return this.getAnalysis(document, useCache).syntax;
+        return this.getAnalysis(document, mode).syntax;
     }
 
     public getSnapshot(
         document: vscode.TextDocument,
-        useCache: boolean = true
+        mode: boolean | SnapshotAccessMode = 'cacheFirst'
     ): DocumentSemanticSnapshot {
-        return this.getAnalysis(document, useCache).snapshot;
+        return this.getAnalysis(document, mode).snapshot;
     }
 
     public getSemanticAnalysis(
         document: vscode.TextDocument,
-        useCache: boolean = true
+        mode: boolean | SnapshotAccessMode = 'cacheFirst'
     ): CompleteDocumentSemanticAnalysis {
-        const analysis = this.getAnalysis(document, useCache);
+        const analysis = this.getAnalysis(document, mode);
         if (!analysis.parsed || !analysis.syntax || !analysis.semantic) {
             throw new Error(`Semantic analysis is unavailable for ${document.uri.toString()}`);
         }
@@ -99,9 +107,9 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
 
     public getSemanticSnapshot(
         document: vscode.TextDocument,
-        useCache: boolean = true
+        mode: boolean | SnapshotAccessMode = 'cacheFirst'
     ): SemanticSnapshot {
-        return this.getSemanticAnalysis(document, useCache).semantic;
+        return this.getSemanticAnalysis(document, mode).semantic;
     }
 
     public getBestAvailableSnapshot(document: vscode.TextDocument): DocumentSemanticSnapshot {
@@ -114,7 +122,7 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
             return this.getSemanticSnapshot(document, false);
         }
 
-        if (cached.snapshot.version !== document.version) {
+        if (!this.isAnalysisFresh(cached, document)) {
             this.scheduleRefresh(document);
         }
 
@@ -130,7 +138,8 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
     }
 
     public hasFreshSnapshot(document: vscode.TextDocument): boolean {
-        return this.getCachedAnalysis(document)?.snapshot.version === document.version;
+        const cached = this.getCachedAnalysis(document);
+        return cached ? this.isAnalysisFresh(cached, document) : false;
     }
 
     public scheduleRefresh(
@@ -146,7 +155,7 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
             this.refreshCallbacks.set(uri, callbacks);
         }
 
-        if (cached && cached.snapshot.version === document.version) {
+        if (cached && this.isAnalysisFresh(cached, document)) {
             this.flushRefreshCallbacks(uri, cached.snapshot);
             return;
         }
@@ -164,7 +173,7 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
             this.pendingRefreshVersions.delete(uri);
 
             const latest = this.analyses.get(uri);
-            if (latest && latest.snapshot.version >= document.version) {
+            if (latest && this.isAnalysisFresh(latest, document)) {
                 this.flushRefreshCallbacks(uri, latest.snapshot);
                 return;
             }
@@ -201,13 +210,23 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
         this.analyses.clear();
         this.trackedUris.clear();
         this.lastUpdatedAt = undefined;
+        this.buildCount = 0;
+        this.totalBuildTimeMs = 0;
+        this.buildStatsByUri.clear();
     }
 
     public getStats(): SnapshotStats {
         return {
             totalSnapshots: this.trackedUris.size,
             activeDocumentUris: Array.from(this.trackedUris),
-            lastUpdatedAt: this.lastUpdatedAt
+            lastUpdatedAt: this.lastUpdatedAt,
+            buildCount: this.buildCount,
+            totalBuildTimeMs: this.totalBuildTimeMs,
+            buildFiles: Array.from(this.buildStatsByUri.entries()).map(([uri, stats]) => ({
+                uri,
+                count: stats.count,
+                totalTimeMs: stats.totalTimeMs
+            }))
         };
     }
 
@@ -227,8 +246,53 @@ export class DocumentSemanticSnapshotService implements DocumentAnalysisService 
         return this.analyses.get(this.getDocumentUri(document));
     }
 
+    private isAnalysisFresh(analysis: DocumentSemanticAnalysis, document: vscode.TextDocument): boolean {
+        return analysis.snapshot.version === document.version
+            && !this.hasSameVersionWithDifferentText(analysis, document);
+    }
+
+    private hasSameVersionWithDifferentText(
+        analysis: DocumentSemanticAnalysis | undefined,
+        document: vscode.TextDocument
+    ): boolean {
+        return Boolean(
+            analysis?.parsed
+            && analysis.snapshot.version === document.version
+            && analysis.parsed.text !== document.getText()
+        );
+    }
+
+    private shouldUseCache(mode: boolean | SnapshotAccessMode): boolean {
+        if (typeof mode === 'boolean') {
+            return mode;
+        }
+
+        return mode !== 'forceRefresh';
+    }
+
+    private shouldInvalidateParsedDocument(mode: boolean | SnapshotAccessMode): boolean {
+        if (typeof mode === 'boolean') {
+            return !mode;
+        }
+
+        return mode === 'forceRefresh';
+    }
+
     private buildAndStoreAnalysis(document: vscode.TextDocument): DocumentSemanticAnalysis {
-        return this.storeAnalysis(document, this.createAnalysis(document));
+        const startedAt = performance.now();
+        const analysis = this.storeAnalysis(document, this.createAnalysis(document));
+        const elapsedMs = performance.now() - startedAt;
+        this.buildCount += 1;
+        this.totalBuildTimeMs += elapsedMs;
+        this.recordBuild(document.uri.toString(), elapsedMs);
+        return analysis;
+    }
+
+    private recordBuild(uri: string, elapsedMs: number): void {
+        const stats = this.buildStatsByUri.get(uri) ?? { count: 0, totalTimeMs: 0 };
+        stats.count += 1;
+        stats.totalTimeMs += elapsedMs;
+        this.buildStatsByUri.set(uri, stats);
     }
 
     private storeAnalysis(

@@ -79,7 +79,7 @@ export async function collectScopedBranchItems<TItem>(
     try {
         const host = assertTextDocumentHost('collectScopedBranchItems', options.host as TextDocumentHost | undefined);
         const document = await host.openTextDocument(vscode.Uri.parse(normalizedUri));
-        const snapshot = options.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = options.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const items = options.collectFromDocument(document, snapshot);
         const nestedSeeds = resolveScopedDirectInheritSeeds(options.inheritanceResolver, snapshot);
 

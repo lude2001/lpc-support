@@ -34,8 +34,7 @@ export class FunctionInfoExtractor {
     }
 
     private getSyntaxDocument(document: vscode.TextDocument): SyntaxDocument {
-        const syntax = this.analysisService.getSyntaxDocument(document, false)
-            ?? this.analysisService.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             throw new Error('无法解析当前 LPC 文档');
         }

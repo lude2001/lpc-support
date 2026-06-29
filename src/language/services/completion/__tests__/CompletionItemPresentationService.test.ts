@@ -98,6 +98,57 @@ describe('CompletionItemPresentationService', () => {
         });
     });
 
+    test('createCompletionItem serializes local symbol candidate data without scope cycles', () => {
+        const CompletionItemPresentationService = loadService();
+        const service = new CompletionItemPresentationService(
+            {
+                getStandardCallableDoc: jest.fn(),
+                getSimulatedDoc: jest.fn()
+            },
+            new ProjectSymbolIndex(new InheritanceResolver()),
+            { applyScopedDocumentation: jest.fn() }
+        );
+        const document = createDocument(path.join(process.cwd(), '.tmp-completion-presentation', 'local.c'), 'void helper() {}\n', 2);
+        const cyclicScope: Record<string, unknown> = {};
+        cyclicScope.self = cyclicScope;
+        const candidate = {
+            key: 'symbol:global:helper',
+            label: 'helper',
+            kind: vscode.CompletionItemKind.Function,
+            detail: 'void helper',
+            sortGroup: 'scope',
+            metadata: {
+                sourceType: 'local',
+                scope: cyclicScope,
+                symbol: {
+                    name: 'helper',
+                    type: 'function',
+                    dataType: 'void',
+                    definition: 'void helper()',
+                    documentation: 'Local helper.',
+                    parameters: []
+                }
+            }
+        };
+        const result = {
+            context: {
+                kind: 'identifier',
+                receiverChain: [],
+                currentWord: 'hel',
+                linePrefix: 'hel'
+            }
+        };
+
+        const item = service.createCompletionItem(candidate as any, result as any, document);
+
+        expect(() => JSON.stringify(item.data)).not.toThrow();
+        expect(item.data?.candidate.metadata.scope).toBeUndefined();
+        expect(item.data?.candidate.metadata.symbol).toEqual(expect.objectContaining({
+            name: 'helper',
+            definition: 'void helper()'
+        }));
+    });
+
     test('resolveCompletionItem attaches efun docs', async () => {
         const CompletionItemPresentationService = loadService();
         const document = createDocument(path.join(process.cwd(), '.tmp-completion-presentation', 'efun.c'), 'write("");\n');

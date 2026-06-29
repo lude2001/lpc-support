@@ -71,7 +71,7 @@ describe('ObjectMethodDefinitionResolver', () => {
             document,
             'D:/workspace/obj/npc.c',
             'query_hp',
-            { projectConfig: undefined, useFreshSnapshots: true }
+            { projectConfig: undefined, snapshotMode: 'cacheFirst' }
         );
     });
 

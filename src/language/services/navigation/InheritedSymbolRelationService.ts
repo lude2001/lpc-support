@@ -71,7 +71,7 @@ export class InheritedSymbolRelationService {
             return { kind: 'unsupported' };
         }
 
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const resolvedSymbol = resolveVisibleSymbol(snapshot.symbolTable, symbolName, targetPosition);
         if (resolvedSymbol?.type === SymbolType.PARAMETER) {
             return { kind: 'current-file-only' };

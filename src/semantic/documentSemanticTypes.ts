@@ -187,6 +187,13 @@ export interface SnapshotStats {
     totalSnapshots: number;
     activeDocumentUris: string[];
     lastUpdatedAt?: number;
+    buildCount?: number;
+    totalBuildTimeMs?: number;
+    buildFiles?: Array<{
+        uri: string;
+        count: number;
+        totalTimeMs: number;
+    }>;
 }
 
 export type DocumentSemanticSymbol = Symbol;

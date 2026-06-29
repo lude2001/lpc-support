@@ -33,6 +33,8 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
     private readonly inheritanceResolver: InheritanceResolver;
     private readonly records = new Map<string, FileSymbolRecord>();
     private readonly resolvedTargets = new Map<string, ResolvedInheritTarget[]>();
+    private readonly normalizedRecordKeys = new Map<string, string>();
+    private readonly normalizedResolvedTargetKeys = new Map<string, string>();
     private readonly typeLookup = new Map<string, TypeDefinitionSummary[]>();
 
     constructor(inheritanceResolver: InheritanceResolver) {
@@ -57,6 +59,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
             resolvedUriByValue.set(`${target.expressionKind}:${target.rawValue}`, target);
         }
 
+        this.removeNormalizedRecordCollision(snapshot.uri);
         this.records.set(snapshot.uri, {
             uri: snapshot.uri,
             version: snapshot.version,
@@ -86,6 +89,8 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
         });
 
         this.resolvedTargets.set(snapshot.uri, resolvedTargets.map(target => ({ ...target })));
+        this.normalizedRecordKeys.set(normalizeUriKey(snapshot.uri), snapshot.uri);
+        this.normalizedResolvedTargetKeys.set(normalizeUriKey(snapshot.uri), snapshot.uri);
         this.rebuildTypeLookup();
     }
 
@@ -94,19 +99,30 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
     }
 
     public removeFile(uri: string): void {
-        this.records.delete(uri);
-        this.resolvedTargets.delete(uri);
+        const recordKey = this.findRecordKey(uri);
+        if (recordKey) {
+            this.records.delete(recordKey);
+            this.normalizedRecordKeys.delete(normalizeUriKey(recordKey));
+        }
+
+        const targetKey = this.findResolvedTargetKey(uri);
+        if (targetKey) {
+            this.resolvedTargets.delete(targetKey);
+            this.normalizedResolvedTargetKeys.delete(normalizeUriKey(targetKey));
+        }
         this.rebuildTypeLookup();
     }
 
     public clear(): void {
         this.records.clear();
         this.resolvedTargets.clear();
+        this.normalizedRecordKeys.clear();
+        this.normalizedResolvedTargetKeys.clear();
         this.typeLookup.clear();
     }
 
     public getRecord(uri: string): FileSymbolRecord | undefined {
-        const record = this.records.get(uri);
+        const record = this.records.get(this.findRecordKey(uri) ?? uri);
         return record ? cloneFileSymbolRecord(record) : undefined;
     }
 
@@ -128,7 +144,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
     }
 
     public getResolvedInheritTargets(uri: string): ResolvedInheritTarget[] {
-        return this.resolvedTargets.get(uri)?.map(target => ({ ...target })) || [];
+        return this.resolvedTargets.get(this.findResolvedTargetKey(uri) ?? uri)?.map(target => ({ ...target })) || [];
     }
 
     public getInheritedSymbols(uri: string): InheritedSymbolSet {
@@ -157,7 +173,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
 
                 visited.add(target.resolvedUri);
 
-                const record = this.records.get(target.resolvedUri);
+                const record = this.records.get(this.findRecordKey(target.resolvedUri) ?? target.resolvedUri);
                 if (!record) {
                     unresolvedTargets.push({ ...target, isResolved: false });
                     continue;
@@ -234,7 +250,7 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
             }
 
             visited.add(includeStatement.resolvedUri);
-            const includeRecord = this.records.get(includeStatement.resolvedUri);
+            const includeRecord = this.records.get(this.findRecordKey(includeStatement.resolvedUri) ?? includeStatement.resolvedUri);
             if (!includeRecord) {
                 unresolvedIncludes.push({ ...includeStatement });
                 continue;
@@ -264,6 +280,37 @@ export class ProjectSymbolIndex implements InheritanceIndexView {
 
     public getAllRecords(): FileSymbolRecord[] {
         return Array.from(this.records.values()).map(record => cloneFileSymbolRecord(record));
+    }
+
+    private findRecordKey(uri: string): string | undefined {
+        if (this.records.has(uri)) {
+            return uri;
+        }
+
+        return this.normalizedRecordKeys.get(normalizeUriKey(uri));
+    }
+
+    private findResolvedTargetKey(uri: string): string | undefined {
+        if (this.resolvedTargets.has(uri)) {
+            return uri;
+        }
+
+        return this.normalizedResolvedTargetKeys.get(normalizeUriKey(uri));
+    }
+
+    private removeNormalizedRecordCollision(uri: string): void {
+        const normalizedUri = normalizeUriKey(uri);
+        const previousRecordKey = this.normalizedRecordKeys.get(normalizedUri);
+        if (previousRecordKey && previousRecordKey !== uri) {
+            this.records.delete(previousRecordKey);
+            this.normalizedRecordKeys.delete(normalizedUri);
+        }
+
+        const previousTargetKey = this.normalizedResolvedTargetKeys.get(normalizedUri);
+        if (previousTargetKey && previousTargetKey !== uri) {
+            this.resolvedTargets.delete(previousTargetKey);
+            this.normalizedResolvedTargetKeys.delete(normalizedUri);
+        }
     }
 
     private rebuildTypeLookup(): void {

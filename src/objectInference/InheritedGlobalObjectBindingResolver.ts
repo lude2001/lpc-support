@@ -27,7 +27,7 @@ export class InheritedGlobalObjectBindingResolver {
         visitedUris: Set<string> = new Set([document.uri.toString()]),
         visitedBindings: Set<string> = new Set()
     ): Promise<GlobalBindingResolution | undefined> {
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const resolvedTargets = this.inheritanceResolver.resolveInheritTargets(snapshot);
 
         for (const target of resolvedTargets) {

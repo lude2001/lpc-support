@@ -195,6 +195,33 @@ describe('DirectSymbolDefinitionResolver', () => {
         ));
     });
 
+    test('returns current-file function definitions before simulated efun lookup', async () => {
+        const document = createDocument('D:/workspace/cmds/test.c', [
+            'void helper() {}',
+            'void main() { helper(); }'
+        ].join('\n'));
+        const support = createAnalysisBackedSupport([document]);
+        const getSimulatedDoc = jest.fn().mockReturnValue(undefined);
+        const resolver = new DirectSymbolDefinitionResolver({
+            support,
+            efunDocsManager: { getSimulatedDoc } as any,
+            semanticAdapter: {
+                resolveVisibleVariableLocation: jest.fn().mockReturnValue(undefined)
+            }
+        } as any);
+
+        const result = await resolver.resolve(
+            document,
+            new vscode.Position(1, 14),
+            'helper',
+            'D:/workspace'
+        );
+
+        expect(result?.uri.toString()).toBe(document.uri.toString());
+        expect(result?.range).toEqual(new vscode.Range(0, 5, 0, 11));
+        expect(getSimulatedDoc).not.toHaveBeenCalled();
+    });
+
     test('returns header owner context function and global definitions', async () => {
         const document = createDocument('D:/workspace/adm/daemons/combat/combat_do_attack.h', [
             'void demo() {',

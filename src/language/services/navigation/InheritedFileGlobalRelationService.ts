@@ -61,7 +61,7 @@ export class InheritedFileGlobalRelationService {
         const cache = new Map<string, FileGlobalBindingResolution>();
 
         for (const chainDocument of binding.pathDocuments) {
-            const parseResult = this.analysisService.parseDocument(chainDocument, false);
+            const parseResult = this.analysisService.parseDocument(chainDocument, 'cacheFirst');
             const tokenStream = parseResult.parsed?.tokens;
             if (!tokenStream) {
                 continue;
@@ -116,7 +116,7 @@ export class InheritedFileGlobalRelationService {
         position: vscode.Position,
         cache: Map<string, FileGlobalBindingResolution>
     ): Promise<FileGlobalBindingResolution> {
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const resolvedSymbol = resolveVisibleSymbol(snapshot.symbolTable, symbolName, position);
         if (resolvedSymbol) {
             if (resolvedSymbol.type === SymbolType.VARIABLE && resolvedSymbol.scope === snapshot.symbolTable.getGlobalScope()) {
@@ -149,7 +149,7 @@ export class InheritedFileGlobalRelationService {
             return cached;
         }
 
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const localSymbol = this.findFileGlobalSymbol(snapshot, symbolName);
         if (localSymbol) {
             const resolved = {

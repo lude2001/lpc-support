@@ -17,6 +17,7 @@ export class ParsedDocumentService {
     private readonly documentCache: DocumentCache<ParsedDocument>;
     private parseCount = 0;
     private totalParseTime = 0;
+    private readonly parseStatsByUri = new Map<string, { count: number; totalTimeMs: number }>();
 
     constructor(
         config: ParsedDocumentServiceConfig,
@@ -59,6 +60,7 @@ export class ParsedDocumentService {
         this.frontendService.clear();
         this.parseCount = 0;
         this.totalParseTime = 0;
+        this.parseStatsByUri.clear();
     }
 
     public cleanup(): void {
@@ -77,7 +79,12 @@ export class ParsedDocumentService {
             ...cacheStats,
             parseCount: this.parseCount,
             avgParseTime,
-            totalParseTime: this.totalParseTime
+            totalParseTime: this.totalParseTime,
+            parseFiles: Array.from(this.parseStatsByUri.entries()).map(([uri, stats]) => ({
+                uri,
+                count: stats.count,
+                totalTimeMs: stats.totalTimeMs
+            }))
         };
     }
 
@@ -113,6 +120,7 @@ export class ParsedDocumentService {
             const parseTimeMs = performance.now() - startTime;
             this.parseCount++;
             this.totalParseTime += parseTimeMs;
+            this.recordParse(document.uri.toString(), parseTimeMs);
 
             const allTokens = this.readTokens(tokenStream);
             const visibleTokens = allTokens.filter((token) => token.channel === LPCLexer.DEFAULT_TOKEN_CHANNEL);
@@ -168,6 +176,7 @@ export class ParsedDocumentService {
         const parseTimeMs = performance.now() - startTime;
         this.parseCount++;
         this.totalParseTime += parseTimeMs;
+        this.recordParse(document.uri.toString(), parseTimeMs);
 
         const diagnostics = this.safeDiagnostics(errorListener);
         const failureReason = error instanceof Error ? error.message : String(error);
@@ -215,6 +224,13 @@ export class ParsedDocumentService {
 
     private createEmptyParseTree(): ReturnType<LPCParser['sourceFile']> {
         return new LPCParser(new CommonTokenStream(new LPCLexer(CharStreams.fromString('')))).sourceFile();
+    }
+
+    private recordParse(uri: string, parseTimeMs: number): void {
+        const stats = this.parseStatsByUri.get(uri) ?? { count: 0, totalTimeMs: 0 };
+        stats.count += 1;
+        stats.totalTimeMs += parseTimeMs;
+        this.parseStatsByUri.set(uri, stats);
     }
 
     private readTokens(tokenStream: CommonTokenStream) {

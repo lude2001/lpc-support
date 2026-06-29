@@ -19,8 +19,15 @@ export interface ResolvedCallTarget {
     functionSummary: FunctionSummary;
 }
 
+interface CachedDocumentAnalysis {
+    version: number;
+    syntax: SyntaxDocument;
+    semantic: SemanticSnapshot;
+}
+
 export interface CallTargetResolverOptions {
-    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
+    analysisService?: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'> &
+        Partial<Pick<DocumentAnalysisService, 'getAnalysis'>>;
     pathSupport?: WorkspaceDocumentPathSupport;
 }
 
@@ -134,7 +141,8 @@ function collectInheritValues(
 }
 
 export class CallTargetResolver {
-    private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'>;
+    private readonly analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument' | 'getSemanticSnapshot'> &
+        Partial<Pick<DocumentAnalysisService, 'getAnalysis'>>;
     private readonly pathSupport: WorkspaceDocumentPathSupport;
 
     public constructor(options: CallTargetResolverOptions) {
@@ -235,20 +243,19 @@ export class CallTargetResolver {
 
         visitedDocuments.add(documentKey);
 
-        const directTarget = this.resolveInDocument(document, functionName);
+        const analysis = this.getDocumentAnalysis(document);
+        if (!analysis) {
+            return undefined;
+        }
+
+        const directTarget = this.resolveInDocument(document, functionName, analysis);
         if (directTarget) {
             return directTarget;
         }
 
         const workspaceRoot = this.pathSupport.getWorkspaceFolderRoot(document);
-        const syntax = this.analysisService.getSyntaxDocument(document, false);
-        if (!syntax) {
-            return undefined;
-        }
 
-        const semantic = this.analysisService.getSemanticSnapshot(document, false);
-
-        for (const includeStatement of collectIncludeSpecs(syntax, semantic)) {
+        for (const includeStatement of collectIncludeSpecs(analysis.syntax, analysis.semantic)) {
             const includeFiles = await this.pathSupport.resolveIncludeFilePaths(
                 document,
                 includeStatement.value,
@@ -277,7 +284,7 @@ export class CallTargetResolver {
             }
         }
 
-        for (const inheritValue of collectInheritValues(syntax, semantic)) {
+        for (const inheritValue of collectInheritValues(analysis.syntax, analysis.semantic)) {
             const inheritedFile = this.pathSupport.resolveInheritedFilePath(
                 document,
                 inheritValue,
@@ -307,24 +314,19 @@ export class CallTargetResolver {
 
     private resolveInDocument(
         document: vscode.TextDocument,
-        functionName: string
+        functionName: string,
+        analysis: CachedDocumentAnalysis
     ): ResolvedCallTarget | undefined {
-        const syntax = this.analysisService.getSyntaxDocument(document, false);
-        if (!syntax) {
+        if (!analysis.semantic.exportedFunctions) {
             return undefined;
         }
 
-        const semantic = this.analysisService.getSemanticSnapshot(document, false);
-        if (!semantic?.exportedFunctions) {
-            return undefined;
-        }
-
-        const functionSummary = semantic.exportedFunctions.find((entry) => entry.name === functionName);
+        const functionSummary = analysis.semantic.exportedFunctions.find((entry) => entry.name === functionName);
         if (!functionSummary) {
             return undefined;
         }
 
-        const candidateNodes = syntax.nodes.filter(
+        const candidateNodes = analysis.syntax.nodes.filter(
             (node) => node.kind === SyntaxKind.FunctionDeclaration
                 && node.name === functionName
         );
@@ -337,10 +339,33 @@ export class CallTargetResolver {
 
         return {
             document,
-            syntax,
-            semantic,
+            syntax: analysis.syntax,
+            semantic: analysis.semantic,
             functionNode,
             functionSummary
+        };
+    }
+
+    private getDocumentAnalysis(document: vscode.TextDocument): CachedDocumentAnalysis | undefined {
+        const completeAnalysis = this.analysisService.getAnalysis?.(document, 'cacheFirst');
+        if (completeAnalysis?.syntax && completeAnalysis.semantic) {
+            return {
+                version: document.version,
+                syntax: completeAnalysis.syntax,
+                semantic: completeAnalysis.semantic
+            };
+        }
+
+        const syntax = this.analysisService.getSyntaxDocument(document, 'cacheFirst');
+        if (!syntax) {
+            return undefined;
+        }
+
+        const semantic = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
+        return {
+            version: document.version,
+            syntax,
+            semantic
         };
     }
 }

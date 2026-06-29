@@ -59,6 +59,7 @@ export class DocumentFreshnessService {
             || state.workspaceConfigGeneration !== this.changeIndex.getWorkspaceConfigGeneration()
         ) {
             this.invalidateDocument(uri);
+            this.changeIndex.markClean(uri, state.lastChangedAt);
         }
     }
 

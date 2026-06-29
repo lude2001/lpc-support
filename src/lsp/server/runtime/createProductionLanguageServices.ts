@@ -64,7 +64,10 @@ import type { WorkspaceChangeIndex } from './WorkspaceChangeIndex';
 import { WorkspaceIndexingService } from './WorkspaceIndexingService';
 
 export interface ProductionLanguageServicesOptions {
-    changeIndex?: Pick<WorkspaceChangeIndex, 'addDependencyFootprint' | 'recordDependencyFootprint'>;
+    changeIndex?: Pick<
+        WorkspaceChangeIndex,
+        'addDependencyFootprint' | 'recordDependencyFootprint' | 'get' | 'getWorkspaceConfigGeneration' | 'markClean'
+    >;
 }
 
 export function createProductionLanguageServices(
@@ -266,7 +269,22 @@ export function createProductionLanguageServices(
         analysisService.clearCache(uri);
         projectSymbolIndex.removeFile(uri);
     };
-    ensureFreshDocument = (uri) => invalidateProductionDocument(uri.toString());
+    ensureFreshDocument = (uri) => {
+        const uriString = uri.toString();
+        const state = options.changeIndex?.get(uriString);
+        if (!state) {
+            return;
+        }
+
+        if (
+            state.dirty
+            || state.maybeStale
+            || state.workspaceConfigGeneration !== options.changeIndex?.getWorkspaceConfigGeneration()
+        ) {
+            invalidateProductionDocument(uriString);
+            options.changeIndex?.markClean(uriString, state.lastChangedAt);
+        }
+    };
 
     return {
         completionService,
@@ -287,7 +305,27 @@ export function createProductionLanguageServices(
         },
         signatureHelpService,
         structureService,
-        workspaceIndexingService
+        workspaceIndexingService,
+        healthPerformanceProviders: {
+            getParserStats: () => {
+                const stats = getGlobalParsedDocumentService().getStats();
+                return {
+                    parseCount: stats.parseCount,
+                    totalParseTime: stats.totalParseTime,
+                    avgParseTime: stats.avgParseTime,
+                    parseFiles: stats.parseFiles
+                };
+            },
+            getSemanticStats: () => {
+                const stats = analysisService.getStats();
+                return {
+                    totalSnapshots: stats.totalSnapshots,
+                    buildCount: stats.buildCount,
+                    totalBuildTimeMs: stats.totalBuildTimeMs,
+                    buildFiles: stats.buildFiles
+                };
+            }
+        }
     };
 }
 

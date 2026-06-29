@@ -66,4 +66,9 @@ export interface ParsedDocumentStats {
     parseCount: number;
     avgParseTime: number;
     totalParseTime: number;
+    parseFiles?: Array<{
+        uri: string;
+        count: number;
+        totalTimeMs: number;
+    }>;
 }

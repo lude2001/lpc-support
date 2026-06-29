@@ -43,6 +43,12 @@ export class CompletionInheritedIndexService {
         return indexSnapshot;
     }
 
+    public indexDocumentSnapshot(document: vscode.TextDocument): IndexSnapshot {
+        const indexSnapshot = this.getBestAvailableIndexSnapshot(document);
+        this.projectSymbolIndex.updateFromSnapshot(indexSnapshot);
+        return indexSnapshot;
+    }
+
     public getDocumentForUri(uri: string): vscode.TextDocument | undefined {
         return this.getOpenDocument(uri) || this.createReadonlyDocumentFromUri(uri);
     }

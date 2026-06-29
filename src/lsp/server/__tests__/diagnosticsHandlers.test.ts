@@ -200,8 +200,8 @@ describe('diagnostics session and handlers', () => {
             });
         }
 
-        expect(diagnosticsSession.refresh).toHaveBeenNthCalledWith(1, 'file:///D:/workspace/diagnostics.c');
-        expect(diagnosticsSession.refresh).toHaveBeenNthCalledWith(2, 'file:///D:/workspace/diagnostics.c');
+        expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);
+        expect(diagnosticsSession.refresh).toHaveBeenCalledWith('file:///D:/workspace/diagnostics.c');
         expect(diagnosticsSession.clear).toHaveBeenCalledWith('file:///D:/workspace/diagnostics.c');
         expect(documentStore.get('file:///D:/workspace/diagnostics.c')).toBeUndefined();
     });
@@ -267,6 +267,152 @@ describe('diagnostics session and handlers', () => {
             deleted: true
         }));
         expect(diagnosticsSession.clear).toHaveBeenCalledWith('file:///D:/workspace/include/settings.h');
+    });
+
+    test('didOpen schedules semantic token prewarm after the first interaction window', async () => {
+        jest.useFakeTimers();
+        const openHandlers: Array<(params: DidOpenTextDocumentParams) => void> = [];
+        const structureService = {
+            provideFoldingRanges: jest.fn(),
+            provideSemanticTokens: jest.fn(async () => ({
+                legend: { tokenTypes: [], tokenModifiers: [] },
+                tokens: []
+            }))
+        };
+        const connection = createConnectionStub({
+            onDidOpenTextDocument: jest.fn(handler => {
+                openHandlers.push(handler);
+                return Disposable.create(() => undefined);
+            })
+        });
+        const documentStore = new DocumentStore();
+        const workspaceSession = new WorkspaceSession({
+            workspaceRoots: ['D:/workspace']
+        });
+        const logger = new ServerLogger({
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            log: jest.fn()
+        });
+
+        registerCapabilities({
+            connection,
+            documentStore,
+            logger,
+            serverVersion: '0.40.0-test',
+            workspaceSession,
+            structureService: structureService as any
+        });
+
+        openHandlers[0]?.({
+            textDocument: {
+                uri: 'file:///D:/workspace/prewarm.c',
+                languageId: 'lpc',
+                version: 1,
+                text: 'void create() {}'
+            }
+        });
+
+        jest.advanceTimersByTime(349);
+        expect(structureService.provideSemanticTokens).not.toHaveBeenCalled();
+
+        jest.advanceTimersByTime(1);
+        await Promise.resolve();
+
+        expect(structureService.provideSemanticTokens).toHaveBeenCalledTimes(1);
+        expect(structureService.provideSemanticTokens).toHaveBeenCalledWith({
+            context: expect.objectContaining({
+                document: expect.objectContaining({
+                    uri: expect.objectContaining({
+                        toString: expect.any(Function)
+                    })
+                })
+            })
+        });
+    });
+
+    test('semantic token prewarm waits for the first workspace config sync', async () => {
+        jest.useFakeTimers();
+        const openHandlers: Array<(params: DidOpenTextDocumentParams) => void> = [];
+        let configSyncHandler: ((payload: WorkspaceConfigSyncPayload) => void) | undefined;
+        let finishWorkspaceConfigSync: (() => void) | undefined;
+        const structureService = {
+            provideFoldingRanges: jest.fn(),
+            provideSemanticTokens: jest.fn(async () => ({
+                legend: { tokenTypes: [], tokenModifiers: [] },
+                tokens: []
+            }))
+        };
+        const onWorkspaceConfigSync = jest.fn(() => new Promise<void>((resolve) => {
+            finishWorkspaceConfigSync = resolve;
+        }));
+        const connection = createConnectionStub({
+            onDidOpenTextDocument: jest.fn(handler => {
+                openHandlers.push(handler);
+                return Disposable.create(() => undefined);
+            }),
+            onNotification: jest.fn((type, handler) => {
+                if (type === WorkspaceConfigSyncNotification.type) {
+                    configSyncHandler = handler as any;
+                }
+                return Disposable.create(() => undefined);
+            })
+        });
+        const documentStore = new DocumentStore();
+        const workspaceSession = new WorkspaceSession({});
+        const logger = new ServerLogger({
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            log: jest.fn()
+        });
+
+        registerCapabilities({
+            connection,
+            documentStore,
+            logger,
+            serverVersion: '0.40.0-test',
+            workspaceSession,
+            structureService: structureService as any,
+            onWorkspaceConfigSync
+        });
+
+        openHandlers[0]?.({
+            textDocument: {
+                uri: 'file:///D:/workspace/prewarm.c',
+                languageId: 'lpc',
+                version: 1,
+                text: 'void create() {}'
+            }
+        });
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+        expect(structureService.provideSemanticTokens).not.toHaveBeenCalled();
+
+        configSyncHandler?.({
+            workspaceRoots: ['D:/workspace'],
+            workspaces: [{
+                workspaceRoot: 'D:/workspace',
+                projectConfigPath: 'D:/workspace/lpc-support.json',
+                configHellPath: 'config/config.dev',
+                resolvedConfig: {
+                    simulatedEfunFile: '/adm/single/simul_efun'
+                },
+                lastSyncedAt: '2026-06-08T00:00:00.000Z'
+            }]
+        });
+        await Promise.resolve();
+        finishWorkspaceConfigSync?.();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        jest.advanceTimersByTime(349);
+        expect(structureService.provideSemanticTokens).not.toHaveBeenCalled();
+
+        jest.advanceTimersByTime(1);
+        await Promise.resolve();
+        expect(structureService.provideSemanticTokens).toHaveBeenCalledTimes(1);
     });
 
     test('source file changes debounce diagnostics refreshes for maybe stale open owners', async () => {
@@ -497,6 +643,10 @@ describe('diagnostics session and handlers', () => {
         });
         await Promise.resolve();
         jest.advanceTimersByTime(200);
+        await Promise.resolve();
+
+        expect(diagnosticsSession.refresh).not.toHaveBeenCalled();
+        jest.advanceTimersByTime(800);
         await Promise.resolve();
 
         expect(diagnosticsSession.refresh).toHaveBeenCalledTimes(1);

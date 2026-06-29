@@ -241,7 +241,7 @@ export class HeaderOwnerContextService {
 
     private getSemanticSnapshot(document: vscode.TextDocument): SemanticSnapshot | undefined {
         try {
-            return this.analysisService.getSemanticSnapshot(document, false);
+            return this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         } catch {
             return undefined;
         }

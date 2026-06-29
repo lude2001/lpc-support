@@ -119,6 +119,7 @@ describe('CompletionCandidateResolver', () => {
     });
 
     afterEach(() => {
+        jest.useRealTimers();
         fs.rmSync(workspaceRoot, { recursive: true, force: true });
     });
 
@@ -140,12 +141,14 @@ describe('CompletionCandidateResolver', () => {
         projectSymbolIndex.updateFromSnapshot(rootSnapshot);
         projectSymbolIndex.updateFromSnapshot(parentSnapshot);
 
+        const refreshInheritedIndex = jest.fn();
         const resolver = new CompletionCandidateResolver(
             { inferObjectAccess: jest.fn() } as any,
             { discoverAt: jest.fn() } as any,
             { buildCandidates: jest.fn() } as any,
             {
-                refreshInheritedIndex: jest.fn(),
+                refreshInheritedIndex,
+                indexDocumentSnapshot: jest.fn(),
                 getInheritedSymbols: jest.fn((uri: string) => projectSymbolIndex.getInheritedSymbols(uri)),
                 getRecord: jest.fn((uri: string) => projectSymbolIndex.getRecord(uri)),
                 getResolvedInheritTargets: jest.fn((uri: string) => projectSymbolIndex.getResolvedInheritTargets(uri)),
@@ -169,7 +172,8 @@ describe('CompletionCandidateResolver', () => {
             ])
         );
 
-        expect(resolved.map(candidate => candidate.label)).toEqual(['duplicated_name', 'inherited_only']);
+        expect(resolved.candidates.map(candidate => candidate.label)).toEqual(['duplicated_name', 'inherited_only']);
+        expect(refreshInheritedIndex).not.toHaveBeenCalled();
     });
 
     test('object-member candidates rank shared implementations ahead of specific duplicates', async () => {
@@ -204,6 +208,7 @@ describe('CompletionCandidateResolver', () => {
             { buildCandidates: jest.fn() } as any,
             {
                 refreshInheritedIndex: jest.fn(),
+                indexDocumentSnapshot: jest.fn(),
                 getInheritedSymbols: jest.fn((uri: string) => projectSymbolIndex.getInheritedSymbols(uri)),
                 getRecord: jest.fn((uri: string) => projectSymbolIndex.getRecord(uri)),
                 getResolvedInheritTargets: jest.fn((uri: string) => projectSymbolIndex.getResolvedInheritTargets(uri)),
@@ -218,8 +223,118 @@ describe('CompletionCandidateResolver', () => {
             createResult('member', [])
         );
 
-        expect(resolved.map(candidate => candidate.label)).toEqual(['query_name', 'shield_only', 'sword_only']);
-        expect(resolved[0].key).toContain('shared');
+        expect(resolved.candidates.map(candidate => candidate.label)).toEqual(['query_name', 'shield_only', 'sword_only']);
+        expect(resolved.candidates[0].key).toContain('shared');
+    });
+
+    test('object-member completion indexes only the direct target before scheduling inherited refresh', async () => {
+        jest.useFakeTimers();
+        const CompletionCandidateResolver = loadResolver();
+        const playerPath = path.join(workspaceRoot, 'player.c');
+        const parentPath = path.join(workspaceRoot, 'living.c');
+        const ownerDocument = createDocument(path.join(workspaceRoot, 'controller.c'), 'object player;\nplayer->\n', 1);
+        const playerDocument = createDocument(playerPath, 'inherit "living";\nvoid query() {}\n', 1);
+        fs.writeFileSync(playerPath, playerDocument.getText());
+        fs.writeFileSync(parentPath, 'void inherited_query() {}\n');
+
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([workspaceRoot]));
+        const playerSnapshot = createSnapshot(playerDocument, {
+            functionNames: ['query'],
+            inherits: ['living']
+        });
+        const refreshInheritedIndex = jest.fn();
+        const indexDocumentSnapshot = jest.fn(() => {
+            projectSymbolIndex.updateFromSnapshot(playerSnapshot);
+            return playerSnapshot;
+        });
+        const resolver = new CompletionCandidateResolver(
+            {
+                inferObjectAccess: jest.fn(async () => ({
+                    inference: {
+                        status: 'resolved',
+                        candidates: [{ path: playerPath, source: 'builtin-call' }]
+                    }
+                }))
+            } as any,
+            { discoverAt: jest.fn() } as any,
+            { buildCandidates: jest.fn() } as any,
+            {
+                refreshInheritedIndex,
+                indexDocumentSnapshot,
+                getInheritedSymbols: jest.fn((uri: string) => projectSymbolIndex.getInheritedSymbols(uri)),
+                getRecord: jest.fn((uri: string) => projectSymbolIndex.getRecord(uri)),
+                getResolvedInheritTargets: jest.fn((uri: string) => projectSymbolIndex.getResolvedInheritTargets(uri)),
+                getDocumentForUri: jest.fn((uri: string) => uri === vscode.Uri.file(playerPath).toString()
+                    ? playerDocument
+                    : undefined)
+            } as any
+        );
+
+        const resolved = await resolver.resolveCompletionCandidates(
+            ownerDocument,
+            new vscode.Position(1, 8),
+            { isCancellationRequested: false },
+            createResult('member', [])
+        );
+
+        expect(resolved.candidates.map(candidate => candidate.label)).toEqual(['query']);
+        expect(resolved.isIncomplete).toBe(true);
+        expect(indexDocumentSnapshot).toHaveBeenCalledWith(playerDocument);
+        expect(refreshInheritedIndex).not.toHaveBeenCalled();
+
+        jest.advanceTimersByTime(1000);
+        expect(refreshInheritedIndex).toHaveBeenCalledWith(playerDocument);
+    });
+
+    test('object-member completion coalesces repeated inherited index refreshes', async () => {
+        jest.useFakeTimers();
+        const CompletionCandidateResolver = loadResolver();
+        const playerPath = path.join(workspaceRoot, 'player.c');
+        const ownerDocument = createDocument(path.join(workspaceRoot, 'controller.c'), 'object player;\nplayer->\n', 1);
+        const playerDocument = createDocument(playerPath, 'inherit "living";\nvoid query() {}\n', 1);
+        fs.writeFileSync(playerPath, playerDocument.getText());
+
+        const refreshInheritedIndex = jest.fn();
+        const resolver = new CompletionCandidateResolver(
+            {
+                inferObjectAccess: jest.fn(async () => ({
+                    inference: {
+                        status: 'resolved',
+                        candidates: [{ path: playerPath, source: 'builtin-call' }]
+                    }
+                }))
+            } as any,
+            { discoverAt: jest.fn() } as any,
+            { buildCandidates: jest.fn() } as any,
+            {
+                refreshInheritedIndex,
+                indexDocumentSnapshot: jest.fn(),
+                getInheritedSymbols: jest.fn(() => ({ chain: [], functions: [], types: [], fileGlobals: [], unresolvedTargets: [] })),
+                getRecord: jest.fn(() => undefined),
+                getResolvedInheritTargets: jest.fn(() => []),
+                getDocumentForUri: jest.fn((uri: string) => uri === vscode.Uri.file(playerPath).toString()
+                    ? playerDocument
+                    : undefined)
+            } as any
+        );
+
+        await resolver.resolveCompletionCandidates(
+            ownerDocument,
+            new vscode.Position(1, 8),
+            { isCancellationRequested: false },
+            createResult('member', [])
+        );
+        await resolver.resolveCompletionCandidates(
+            ownerDocument,
+            new vscode.Position(1, 8),
+            { isCancellationRequested: false },
+            createResult('member', [])
+        );
+
+        jest.advanceTimersByTime(1000);
+
+        expect(refreshInheritedIndex).toHaveBeenCalledTimes(1);
+        expect(refreshInheritedIndex).toHaveBeenCalledWith(playerDocument);
     });
 
     test('scoped-member resolution returns only scoped candidates and bypasses object inference merging', async () => {
@@ -241,6 +356,7 @@ describe('CompletionCandidateResolver', () => {
             { buildCandidates } as any,
             {
                 refreshInheritedIndex: jest.fn(),
+                indexDocumentSnapshot: jest.fn(),
                 getInheritedSymbols: jest.fn(() => ({ chain: [], functions: [], types: [], fileGlobals: [], unresolvedTargets: [] })),
                 getRecord: jest.fn(),
                 getResolvedInheritTargets: jest.fn(() => []),
@@ -264,7 +380,7 @@ describe('CompletionCandidateResolver', () => {
             ], 'cr')
         );
 
-        expect(resolved.map(candidate => candidate.label)).toEqual(['create']);
+        expect(resolved.candidates.map(candidate => candidate.label)).toEqual(['create']);
         expect(discoverAt).toHaveBeenCalledWith(document, expect.any(vscode.Position));
         expect(buildCandidates).toHaveBeenCalled();
         expect(inferObjectAccess).not.toHaveBeenCalled();
@@ -294,6 +410,7 @@ describe('CompletionCandidateResolver', () => {
             { buildCandidates: jest.fn() } as any,
             {
                 refreshInheritedIndex: jest.fn(),
+                indexDocumentSnapshot: jest.fn(),
                 getInheritedSymbols: jest.fn((uri: string) => projectSymbolIndex.getInheritedSymbols(uri)),
                 getRecord: jest.fn((uri: string) => projectSymbolIndex.getRecord(uri)),
                 getResolvedInheritTargets: jest.fn((uri: string) => projectSymbolIndex.getResolvedInheritTargets(uri)),
@@ -333,7 +450,7 @@ describe('CompletionCandidateResolver', () => {
             ], 'qu')
         );
 
-        expect(resolvedWithoutPrefix.map(candidate => candidate.label)).toEqual(['query_name', 'fallback_choice']);
-        expect(resolvedWithPrefix.map(candidate => candidate.label)).toEqual(['query_name']);
+        expect(resolvedWithoutPrefix.candidates.map(candidate => candidate.label)).toEqual(['query_name', 'fallback_choice']);
+        expect(resolvedWithPrefix.candidates.map(candidate => candidate.label)).toEqual(['query_name']);
     });
 });

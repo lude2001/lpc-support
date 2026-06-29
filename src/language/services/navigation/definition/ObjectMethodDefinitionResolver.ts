@@ -36,7 +36,7 @@ export class ObjectMethodDefinitionResolver {
                 document,
                 candidate.path,
                 objectAccess.memberName,
-                { projectConfig, useFreshSnapshots: true }
+                { projectConfig, snapshotMode: 'cacheFirst' }
             );
             if (!resolvedMethod?.location) {
                 continue;

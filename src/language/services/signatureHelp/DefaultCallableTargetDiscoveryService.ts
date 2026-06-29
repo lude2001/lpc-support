@@ -42,7 +42,6 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
             request.document,
             request.calleeName,
             {
-                forceFresh: true,
                 projectConfig: request.projectConfig
             }
         );
@@ -71,7 +70,6 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
             request.document,
             request.calleeName,
             {
-                forceFresh: true,
                 projectConfig: request.projectConfig
             }
         );
@@ -109,7 +107,7 @@ export class DefaultCallableTargetDiscoveryService implements CallableTargetDisc
                 candidate.path,
                 request.calleeName,
                 {
-                    useFreshSnapshots: true,
+                    snapshotMode: 'cacheFirst',
                     projectConfig: request.projectConfig
                 }
             );

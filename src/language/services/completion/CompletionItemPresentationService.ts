@@ -29,11 +29,34 @@ export class CompletionItemPresentationService {
             detail: candidate.detail,
             sortText: `${this.getSortPrefix(candidate.sortGroup)}_${this.getCandidateSortBucket(candidate)}_${candidate.label}`,
             data: {
-                candidate,
+                candidate: this.toSerializableCandidate(candidate),
                 context: result.context,
                 documentUri: document.uri.toString(),
                 documentVersion: document.version,
                 resolved: false
+            }
+        };
+    }
+
+    private toSerializableCandidate(candidate: CompletionCandidate): CompletionCandidate {
+        const symbol = candidate.metadata.symbol;
+        return {
+            ...candidate,
+            metadata: {
+                ...candidate.metadata,
+                scope: undefined,
+                symbol: symbol
+                    ? {
+                        name: symbol.name,
+                        type: symbol.type,
+                        dataType: symbol.dataType,
+                        definition: symbol.definition,
+                        documentation: symbol.documentation,
+                        parameters: symbol.parameters?.map((parameter) => ({
+                            name: parameter.name
+                        }))
+                    } as CompletionCandidate['metadata']['symbol']
+                    : undefined
             }
         };
     }

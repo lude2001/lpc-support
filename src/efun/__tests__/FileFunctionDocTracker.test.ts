@@ -111,4 +111,41 @@ describe('FileFunctionDocTracker', () => {
 
         expect(buildLookup).toHaveBeenCalledTimes(2);
     });
+
+    test('current-file doc lookup does not build inherited/include lookup', async () => {
+        const localDoc: CallableDoc = {
+            name: 'query_name',
+            declarationKey: 'file:///virtual/main.c#query_name',
+            signatures: [{
+                label: 'string query_name()',
+                parameters: [],
+                isVariadic: false
+            }],
+            sourceKind: 'local'
+        };
+        const buildLookup = jest.fn().mockResolvedValue(createLookup());
+        const invalidate = jest.fn();
+        const getDocsByName = jest.fn().mockReturnValue([localDoc]);
+        const tracker = new FileFunctionDocTracker({
+            lookupBuilder: { buildLookup },
+            documentationService: {
+                getDocsByName,
+                invalidate
+            } as any
+        });
+        const document = {
+            languageId: 'lpc',
+            version: 1,
+            fileName: '/virtual/main.c',
+            uri: { fsPath: '/virtual/main.c', toString: () => 'file:///virtual/main.c' },
+            getText: () => 'string query_name() { return "name"; }\n'
+        } as unknown as vscode.TextDocument;
+
+        const result = await tracker.getDocForDocument(document, 'query_name');
+
+        expect(result).toEqual(localDoc);
+        expect(getDocsByName).toHaveBeenCalledWith(document, 'query_name');
+        expect(buildLookup).not.toHaveBeenCalled();
+        expect(invalidate).not.toHaveBeenCalled();
+    });
 });

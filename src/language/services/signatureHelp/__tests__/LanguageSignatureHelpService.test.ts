@@ -564,7 +564,7 @@ describe('LanguageSignatureHelpService', () => {
         expect(getInheritedFileDocForDocument).toHaveBeenCalledWith(
             document,
             'local_call',
-            { forceFresh: true, projectConfig: undefined }
+            { projectConfig: undefined }
         );
         expect(getCurrentFileDoc).not.toHaveBeenCalled();
         expect(getInheritedFileDoc).not.toHaveBeenCalled();
@@ -1010,7 +1010,7 @@ describe('LanguageSignatureHelpService', () => {
             }));
             expect(result?.activeParameter).toBe(1);
             expect(inferObjectAccess).toHaveBeenCalledWith(document, document.positionAt(source.indexOf('query_name')));
-            expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', { useFreshSnapshots: true });
+            expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', { snapshotMode: 'cacheFirst' });
         } finally {
             fs.rmSync(fixtureRoot, { recursive: true, force: true });
         }
@@ -1103,7 +1103,7 @@ describe('LanguageSignatureHelpService', () => {
             }));
             expect(result?.activeParameter).toBe(1);
             expect(inferObjectAccess).toHaveBeenCalledWith(document, document.positionAt(source.indexOf('query_name')));
-            expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', { useFreshSnapshots: true });
+            expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', { snapshotMode: 'cacheFirst' });
         } finally {
             fs.rmSync(fixtureRoot, { recursive: true, force: true });
         }
@@ -1508,7 +1508,7 @@ describe('LanguageSignatureHelpService', () => {
             document,
             '/obj/npc.c',
             'query_name',
-            { useFreshSnapshots: true }
+            { snapshotMode: 'cacheFirst' }
         );
         expect(invalidate).toHaveBeenCalledWith(targetDocument.uri.toString());
         expect(getDocForDeclaration).toHaveBeenCalledWith(

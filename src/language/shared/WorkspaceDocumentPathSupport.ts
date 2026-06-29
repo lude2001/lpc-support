@@ -388,7 +388,7 @@ export class WorkspaceDocumentPathSupport {
     private resolveMacroValue(document: vscode.TextDocument | undefined, name: string): string | undefined {
         if (document && this.options.analysisService) {
             try {
-                const snapshot = this.options.analysisService.getSemanticSnapshot(document, false);
+                const snapshot = this.options.analysisService.getSemanticSnapshot(document, 'cacheFirst');
                 if (snapshot.degraded) {
                     return undefined;
                 }

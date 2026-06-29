@@ -8,6 +8,28 @@ export interface HealthStatusResponse {
     mode: 'phase-a';
     serverVersion: string;
     documentCount: number;
+    performance?: {
+        parser?: {
+            parseCount?: number;
+            totalParseTime?: number;
+            avgParseTime?: number;
+            parseFiles?: Array<{
+                uri: string;
+                count: number;
+                totalTimeMs: number;
+            }>;
+        };
+        semantic?: {
+            totalSnapshots?: number;
+            buildCount?: number;
+            totalBuildTimeMs?: number;
+            buildFiles?: Array<{
+                uri: string;
+                count: number;
+                totalTimeMs: number;
+            }>;
+        };
+    };
 }
 
 export const HealthRequest = {

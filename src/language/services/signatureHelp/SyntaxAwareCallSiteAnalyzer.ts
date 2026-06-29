@@ -24,7 +24,7 @@ export class SyntaxAwareCallSiteAnalyzer implements CallSiteAnalyzer {
     ) {}
 
     public analyze(document: vscode.TextDocument, position: vscode.Position): AnalyzedCallSite | undefined {
-        const syntax = this.analysisService.getSyntaxDocument(document, false)
+        const syntax = this.analysisService.getSyntaxDocument(document, 'cacheFirst')
             ?? this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             return undefined;

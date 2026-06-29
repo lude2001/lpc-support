@@ -75,7 +75,7 @@ export class EfunLanguageHoverService implements LanguageHoverService {
         const inheritedDoc = await this.efunDocsManager.getInheritedFileDocForDocument(
             document,
             word,
-            { forceFresh: true, projectConfig }
+            { projectConfig }
         );
         if (inheritedDoc) {
             return this.renderer.renderHover({ ...inheritedDoc, sourceKind: 'inherit' });
@@ -151,8 +151,7 @@ export class EfunLanguageHoverService implements LanguageHoverService {
     }
 
     private getSyntaxDocument(document: vscode.TextDocument): SyntaxDocument | undefined {
-        return this.analysisService.getSyntaxDocument(document, false)
-            ?? this.analysisService.getSyntaxDocument(document, true);
+        return this.analysisService.getSyntaxDocument(document, true);
     }
 
     private getContainingSyntaxNodes(syntax: SyntaxDocument, position: vscode.Position): SyntaxNode[] {

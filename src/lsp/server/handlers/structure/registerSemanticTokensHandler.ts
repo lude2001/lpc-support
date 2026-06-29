@@ -19,12 +19,14 @@ export interface SemanticTokensRegistrationContext {
     connection: SemanticTokensConnection;
     contextFactory: Pick<ServerLanguageContextFactory, 'createCapabilityContext'>;
     structureService: LanguageStructureService;
+    onSemanticTokensRequested?: (uri: string) => void;
 }
 
 export function registerSemanticTokensHandler(context: SemanticTokensRegistrationContext): void {
-    const { connection, contextFactory, structureService } = context;
+    const { connection, contextFactory, structureService, onSemanticTokensRequested } = context;
 
     connection.languages.semanticTokens.on(async (params: SemanticTokensParams): Promise<SemanticTokens> => {
+        onSemanticTokensRequested?.(params.textDocument.uri);
         const result = await structureService.provideSemanticTokens({
             context: contextFactory.createCapabilityContext(params.textDocument.uri)
         });

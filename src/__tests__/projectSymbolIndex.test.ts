@@ -199,6 +199,30 @@ describe('ProjectSymbolIndex', () => {
         expect(index.getRecord(firstSnapshot.uri)?.exportedFunctions.map(func => func.name)).toEqual(['fresh_helper']);
     });
 
+    test('normalizes URI keys for record lookup and removal without scanning all records', () => {
+        const snapshot = createSnapshot('/virtual/MixedCase.c');
+        snapshot.exportedFunctions = [{
+            name: 'query_name',
+            returnType: 'string',
+            parameters: [],
+            modifiers: [],
+            sourceUri: snapshot.uri,
+            range: new vscode.Range(0, 0, 0, 10),
+            origin: 'local'
+        }];
+
+        const lowerCaseUri = snapshot.uri.toLowerCase();
+        const index = new ProjectSymbolIndex(new InheritanceResolver(['/']));
+        index.updateFromSnapshot(snapshot);
+
+        expect(index.getRecord(lowerCaseUri)?.exportedFunctions.map(func => func.name)).toEqual(['query_name']);
+
+        index.removeFile(lowerCaseUri);
+
+        expect(index.getRecord(snapshot.uri)).toBeUndefined();
+        expect(index.getAllRecords()).toEqual([]);
+    });
+
     test('builds include-backed visible symbol sets from resolved include facts', () => {
         const headerSnapshot = createSnapshot('/virtual/include/helper.h');
         headerSnapshot.exportedFunctions = [{

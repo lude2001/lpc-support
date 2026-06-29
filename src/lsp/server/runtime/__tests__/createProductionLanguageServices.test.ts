@@ -478,7 +478,10 @@ describe('createProductionLanguageServices', () => {
         const createDiagnosticsStack = jest.fn(() => diagnosticsStack);
         const changeIndex = {
             addDependencyFootprint: jest.fn(),
-            recordDependencyFootprint: jest.fn()
+            recordDependencyFootprint: jest.fn(),
+            get: jest.fn(),
+            getWorkspaceConfigGeneration: jest.fn(() => 3),
+            markClean: jest.fn()
         };
         const targetMethodLookupCtor = jest.fn(() => ({ kind: 'target-method-lookup' }));
         const dependencyUri = vscode.Uri.file('D:/workspace/obj/target.c');
@@ -584,8 +587,14 @@ describe('createProductionLanguageServices', () => {
             );
             const pathSupport = targetMethodLookupCtor.mock.calls[0][1] as any;
             expect(pathSupport.options.ensureFreshDocument).toEqual(expect.any(Function));
+            changeIndex.get.mockReturnValue({
+                dirty: true,
+                maybeStale: false,
+                workspaceConfigGeneration: 3
+            });
             pathSupport.options.ensureFreshDocument(dependencyUri);
             expect(analysisService.clearCache).toHaveBeenCalledWith(dependencyUri.toString());
+            expect(changeIndex.markClean).toHaveBeenCalledWith(dependencyUri.toString(), undefined);
             expect(services.diagnosticsService).toBe(diagnosticsStack.diagnosticsService);
         });
 
@@ -593,8 +602,13 @@ describe('createProductionLanguageServices', () => {
             openTextDocument: expect.any(Function)
         }));
         analysisService.clearCache.mockClear();
+        changeIndex.get.mockReturnValue({
+            dirty: false,
+            maybeStale: false,
+            workspaceConfigGeneration: 3
+        });
         await directOpenHost!.openTextDocument(dependencyUri);
-        expect(analysisService.clearCache).toHaveBeenCalledWith(dependencyUri.toString());
+        expect(analysisService.clearCache).not.toHaveBeenCalled();
     });
 
     test('resolves the extension root from both src and dist-style runtime directories', () => {

@@ -16,6 +16,7 @@ const {
     InitializeRequest,
     InitializedNotification,
     PublishDiagnosticsNotification,
+    SemanticTokensRequest,
     ShutdownRequest
 } = require('vscode-languageserver-protocol/node');
 const { createProtocolConnection } = require('vscode-languageserver-protocol/node');
@@ -47,38 +48,69 @@ async function main() {
     const server = await startServer(project, uri);
     try {
         const diagnosticsPromise = server.waitForDiagnostics(uri, options.diagnosticTimeoutMs);
-        await server.connection.sendNotification(DidOpenTextDocumentNotification.type, {
+        const performanceStages = [];
+        const runStage = async (name, action, fallback, timeoutMs = options.requestTimeoutMs) => {
+            if (!options.perf) {
+                return withTimeout(action(), timeoutMs, fallback);
+            }
+
+            const measured = await measureStage(server.connection, name, action, timeoutMs, fallback);
+            performanceStages.push(measured.stage);
+            return measured.result;
+        };
+
+        await runStage('didOpen', () => server.connection.sendNotification(DidOpenTextDocumentNotification.type, {
             textDocument: {
                 uri,
                 languageId: 'lpc',
                 version: 1,
                 text: source
             }
-        });
+        }), { timedOut: true });
 
-        const diagnostics = await diagnosticsPromise;
-        const health = await server.connection.sendRequest(HEALTH_METHOD);
+        let semanticTokens;
+        if (options.perf && position) {
+            semanticTokens = await runStage(
+                'semanticTokens',
+                () => requestSemanticTokens(server.connection, uri),
+                { timedOut: true, dataLength: 0 }
+            );
+        }
+
         const definition = position
-            ? await withTimeout(
-                requestDefinition(server.connection, project, uri, position),
-                options.requestTimeoutMs,
+            ? await runStage(
+                'definition',
+                () => requestDefinition(server.connection, project, uri, position),
                 { timedOut: true, locationCount: 0, locations: [] }
             )
             : undefined;
         const hover = position
-            ? await withTimeout(
-                requestHover(server.connection, uri, position),
-                options.requestTimeoutMs,
+            ? await runStage(
+                'hover',
+                () => requestHover(server.connection, uri, position),
                 { timedOut: true, found: false, hasRange: false, contentKinds: [] }
             )
             : undefined;
         const completion = position
-            ? await withTimeout(
-                requestCompletion(server.connection, uri, position, options.includeCompletionLabels),
-                options.requestTimeoutMs,
+            ? await runStage(
+                'completion',
+                () => requestCompletion(server.connection, uri, position, options.includeCompletionLabels),
                 { timedOut: true, itemCount: 0, isIncomplete: false }
             )
             : undefined;
+
+        let diagnostics;
+        if (options.perf) {
+            diagnostics = await runStage(
+                'diagnostics.wait',
+                () => diagnosticsPromise,
+                [],
+                options.diagnosticTimeoutMs
+            );
+        } else {
+            diagnostics = await diagnosticsPromise;
+        }
+        const health = await server.connection.sendRequest(HEALTH_METHOD);
 
         const report = createReport({
             project,
@@ -88,7 +120,9 @@ async function main() {
             diagnostics,
             definition,
             hover,
-            completion
+            completion,
+            semanticTokens,
+            performanceStages: options.perf ? performanceStages : undefined
         });
 
         const jsonPath = path.join(options.outputDir, 'latest.json');
@@ -104,6 +138,13 @@ async function main() {
         }
         if (report.requests.completion) {
             console.log(`Completion items: ${report.requests.completion.itemCount}`);
+        }
+        if (Array.isArray(report.performance)) {
+            for (const stage of report.performance) {
+                console.log(
+                    `${stage.name}: ${formatDuration(stage.durationMs)}, parse +${stage.parser.count}, semantic +${stage.semantic.count}`
+                );
+            }
         }
     } finally {
         await server.dispose();
@@ -151,7 +192,8 @@ function parseOptions(args, env) {
             || DEFAULT_DIAGNOSTIC_TIMEOUT_MS,
         requestTimeoutMs: Number(values.get('request-timeout-ms') ?? env.LPC_PROBE_REQUEST_TIMEOUT_MS ?? DEFAULT_REQUEST_TIMEOUT_MS)
             || DEFAULT_REQUEST_TIMEOUT_MS,
-        includeCompletionLabels: parseBoolean(values.get('include-completion-labels') ?? env.LPC_PROBE_INCLUDE_COMPLETION_LABELS)
+        includeCompletionLabels: parseBoolean(values.get('include-completion-labels') ?? env.LPC_PROBE_INCLUDE_COMPLETION_LABELS),
+        perf: parseBoolean(values.get('perf') ?? env.LPC_PROBE_PERF)
     };
 }
 
@@ -457,6 +499,94 @@ async function requestCompletion(connection, uri, position, includeLabels) {
     return summary;
 }
 
+async function requestSemanticTokens(connection, uri) {
+    const result = await connection.sendRequest(SemanticTokensRequest.type, {
+        textDocument: { uri }
+    });
+
+    return {
+        dataLength: Array.isArray(result?.data) ? result.data.length : 0
+    };
+}
+
+async function measureStage(connection, name, action, timeoutMs, fallback) {
+    const before = await readPerformanceCounters(connection);
+    const startedAt = performance.now();
+    const result = await withTimeout(action(), timeoutMs, fallback);
+    const durationMs = performance.now() - startedAt;
+    const after = await readPerformanceCounters(connection);
+
+    return {
+        result,
+        stage: {
+            name,
+            durationMs,
+            timedOut: Boolean(result?.timedOut),
+            parser: diffCounters(before.parser, after.parser),
+            semantic: diffCounters(before.semantic, after.semantic)
+        }
+    };
+}
+
+async function readPerformanceCounters(connection) {
+    const health = await connection.sendRequest(HEALTH_METHOD);
+    return {
+        parser: {
+            count: Number(health?.performance?.parser?.parseCount ?? 0),
+            totalTimeMs: Number(health?.performance?.parser?.totalParseTime ?? 0),
+            files: normalizeFileCounters(health?.performance?.parser?.parseFiles)
+        },
+        semantic: {
+            count: Number(health?.performance?.semantic?.buildCount ?? 0),
+            totalTimeMs: Number(health?.performance?.semantic?.totalBuildTimeMs ?? 0),
+            files: normalizeFileCounters(health?.performance?.semantic?.buildFiles)
+        }
+    };
+}
+
+function diffCounters(before, after) {
+    return {
+        count: after.count - before.count,
+        totalTimeMs: after.totalTimeMs - before.totalTimeMs,
+        files: diffFileCounters(before.files, after.files)
+    };
+}
+
+function normalizeFileCounters(files) {
+    const result = new Map();
+    for (const file of Array.isArray(files) ? files : []) {
+        if (!file?.uri) {
+            continue;
+        }
+
+        result.set(file.uri, {
+            uri: file.uri,
+            count: Number(file.count ?? 0),
+            totalTimeMs: Number(file.totalTimeMs ?? 0)
+        });
+    }
+
+    return result;
+}
+
+function diffFileCounters(before, after) {
+    const result = [];
+    const uris = new Set([...before.keys(), ...after.keys()]);
+    for (const uri of uris) {
+        const previous = before.get(uri) ?? { count: 0, totalTimeMs: 0 };
+        const next = after.get(uri) ?? { count: 0, totalTimeMs: 0 };
+        const count = next.count - previous.count;
+        const totalTimeMs = next.totalTimeMs - previous.totalTimeMs;
+        if (count <= 0 && totalTimeMs <= 0) {
+            continue;
+        }
+
+        result.push({ uri, count, totalTimeMs });
+    }
+
+    return result.sort((left, right) => right.totalTimeMs - left.totalTimeMs || right.count - left.count);
+}
+
 async function withTimeout(promise, timeoutMs, fallback) {
     let timeout;
     try {
@@ -473,7 +603,18 @@ async function withTimeout(promise, timeoutMs, fallback) {
     }
 }
 
-function createReport({ project, targetFile, position, health, diagnostics, definition, hover, completion }) {
+function createReport({
+    project,
+    targetFile,
+    position,
+    health,
+    diagnostics,
+    definition,
+    hover,
+    completion,
+    semanticTokens,
+    performanceStages
+}) {
     return {
         generatedAt: new Date().toISOString(),
         privacy: {
@@ -497,14 +638,56 @@ function createReport({ project, targetFile, position, health, diagnostics, defi
             status: health?.status,
             mode: health?.mode,
             serverVersion: health?.serverVersion,
-            documentCount: health?.documentCount
+            documentCount: health?.documentCount,
+            performance: sanitizeHealthPerformance(health?.performance)
         },
         diagnostics: diagnostics.map((diagnostic) => sanitizeDiagnostic(project, diagnostic)),
         requests: {
+            semanticTokens,
             definition,
             hover,
             completion
-        }
+        },
+        performance: performanceStages?.map(stage => sanitizePerformanceStage(project, stage))
+    };
+}
+
+function sanitizeHealthPerformance(performance) {
+    if (!performance) {
+        return undefined;
+    }
+
+    return {
+        parser: performance.parser ? {
+            parseCount: performance.parser.parseCount,
+            totalParseTime: performance.parser.totalParseTime,
+            avgParseTime: performance.parser.avgParseTime
+        } : undefined,
+        semantic: performance.semantic ? {
+            totalSnapshots: performance.semantic.totalSnapshots,
+            buildCount: performance.semantic.buildCount,
+            totalBuildTimeMs: performance.semantic.totalBuildTimeMs
+        } : undefined
+    };
+}
+
+function sanitizePerformanceStage(project, stage) {
+    return {
+        ...stage,
+        parser: sanitizeCounter(project, stage.parser),
+        semantic: sanitizeCounter(project, stage.semantic)
+    };
+}
+
+function sanitizeCounter(project, counter) {
+    return {
+        count: counter.count,
+        totalTimeMs: counter.totalTimeMs,
+        files: counter.files.map(file => ({
+            file: uriToSafePath(project, file.uri),
+            count: file.count,
+            totalTimeMs: file.totalTimeMs
+        }))
     };
 }
 
@@ -607,6 +790,12 @@ function renderMarkdown(report) {
     }
 
     lines.push('', '## Requests', '');
+    if (report.requests.semanticTokens) {
+        lines.push(`- Semantic tokens data length: ${report.requests.semanticTokens.dataLength ?? 0}${report.requests.semanticTokens.timedOut ? ' (timed out)' : ''}`);
+    } else {
+        lines.push('- Semantic tokens: not requested');
+    }
+
     if (report.requests.definition) {
         lines.push(`- Definition locations: ${report.requests.definition.locationCount}${report.requests.definition.timedOut ? ' (timed out)' : ''}`);
         for (const location of report.requests.definition.locations) {
@@ -632,8 +821,42 @@ function renderMarkdown(report) {
         lines.push('- Completion: not requested');
     }
 
+    if (Array.isArray(report.performance) && report.performance.length > 0) {
+        lines.push('', '## Performance', '');
+        for (const stage of report.performance) {
+            lines.push(
+                `- ${stage.name}: ${formatDuration(stage.durationMs)}; parse +${stage.parser.count} (${formatDuration(stage.parser.totalTimeMs)}); semantic +${stage.semantic.count} (${formatDuration(stage.semantic.totalTimeMs)})${stage.timedOut ? ' (timed out)' : ''}`
+            );
+            for (const file of summarizePerformanceFiles(stage)) {
+                lines.push(`  - ${file.kind}: ${file.file} +${file.count} (${formatDuration(file.totalTimeMs)})`);
+            }
+        }
+    }
+
     lines.push('');
     return `${lines.join('\n')}\n`;
+}
+
+function formatDuration(value) {
+    if (!Number.isFinite(value)) {
+        return '0.0ms';
+    }
+
+    return `${value.toFixed(1)}ms`;
+}
+
+function summarizePerformanceFiles(stage) {
+    const files = [];
+    for (const file of stage.parser.files ?? []) {
+        files.push({ ...file, kind: 'parse' });
+    }
+    for (const file of stage.semantic.files ?? []) {
+        files.push({ ...file, kind: 'semantic' });
+    }
+
+    return files
+        .sort((left, right) => right.totalTimeMs - left.totalTimeMs || right.count - left.count)
+        .slice(0, 8);
 }
 
 function formatRange(range) {

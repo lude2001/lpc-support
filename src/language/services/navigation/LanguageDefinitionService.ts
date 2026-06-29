@@ -152,6 +152,12 @@ export class AstBackedLanguageDefinitionService implements LanguageDefinitionSer
             return this.toLanguageLocations(objectMethodDefinition);
         }
 
+        if (this.efunDocsManager.getStandardCallableDoc?.(word) && this.hasLocalFunctionDefinition(document, word)) {
+            return this.toLanguageLocations(
+                await this.functionFamilyDefinitionResolver.resolve(document, word, this.createRequestState(), projectConfig)
+            );
+        }
+
         const directDefinition = await this.directSymbolDefinitionResolver.resolve(
             document,
             position,

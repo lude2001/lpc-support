@@ -103,7 +103,7 @@ export class HeaderOwnerIndexService {
 
     private getSemanticSnapshot(document: vscode.TextDocument): SemanticSnapshot | undefined {
         try {
-            return this.analysisService.getSemanticSnapshot(document, false);
+            return this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         } catch {
             try {
                 return this.analysisService.getBestAvailableSemanticSnapshot?.(document);

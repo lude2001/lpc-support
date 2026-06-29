@@ -52,7 +52,7 @@ export class InheritedFunctionRelationService {
             return [];
         }
 
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const resolvedSymbol = resolveVisibleSymbol(snapshot.symbolTable, functionName, targetPosition);
 
         if (resolvedSymbol?.type === SymbolType.FUNCTION) {
@@ -108,7 +108,7 @@ export class InheritedFunctionRelationService {
         functionName: string,
         options: { includeDeclaration: boolean }
     ): Array<{ uri: string; range: vscode.Range }> {
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const symbol = this.findGlobalFunctionSymbol(snapshot, functionName);
         if (!symbol) {
             return [];
@@ -136,8 +136,8 @@ export class InheritedFunctionRelationService {
         functionName: string,
         familyUris: Set<string>
     ): Promise<Array<{ uri: string; range: vscode.Range }>> {
-        const syntax = this.analysisService.getSyntaxDocument(document, false)
-            ?? this.analysisService.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, 'cacheFirst')
+            ?? this.analysisService.getSyntaxDocument(document, 'refreshIfStale');
         if (!syntax || !this.scopedMethodResolver) {
             return [];
         }
@@ -228,7 +228,7 @@ export class InheritedFunctionRelationService {
         functionName: string,
         visitedUris: Set<string>
     ): Promise<{ documents: vscode.TextDocument[]; hasUnresolvedTargets: boolean }> {
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, 'cacheFirst');
         const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver as any, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return { documents: [], hasUnresolvedTargets: true };
@@ -245,7 +245,7 @@ export class InheritedFunctionRelationService {
 
             try {
                 const inheritedDocument = await this.host.openTextDocument(vscode.Uri.parse(seed.resolvedUri));
-                const inheritedSnapshot = this.analysisService.getSemanticSnapshot(inheritedDocument, false);
+                const inheritedSnapshot = this.analysisService.getSemanticSnapshot(inheritedDocument, 'cacheFirst');
                 if (this.findGlobalFunctionSymbol(inheritedSnapshot, functionName)) {
                     documents.set(targetUri, inheritedDocument);
                 }

@@ -33,7 +33,10 @@ import type { LanguageFormattingService } from '../../../language/services/forma
 import type { LanguageNavigationService } from '../../../language/services/navigation/LanguageHoverService';
 import type { LanguageSignatureHelpService } from '../../../language/services/signatureHelp/LanguageSignatureHelpService';
 import type { LanguageStructureService } from '../../../language/services/structure/LanguageFoldingService';
-import type { LanguageWorkspaceIndexingService } from '../../../language/contracts/LanguageFeatureServices';
+import type {
+    LanguageHealthPerformanceProviders,
+    LanguageWorkspaceIndexingService
+} from '../../../language/contracts/LanguageFeatureServices';
 import { HealthRequest } from '../../shared/protocol/health';
 import {
     SourceFileChangeNotification,
@@ -73,6 +76,8 @@ import { WorkspaceChangeIndex } from '../runtime/WorkspaceChangeIndex';
 import { WorkspaceSession } from '../runtime/WorkspaceSession';
 
 const MAYBE_STALE_DIAGNOSTIC_REFRESH_DELAY_MS = 200;
+const OPEN_PREWARM_DELAY_MS = 350;
+const OPEN_DIAGNOSTIC_REFRESH_DELAY_MS = 1000;
 
 export type ServerConnection = Pick<
     Connection,
@@ -117,6 +122,7 @@ export interface ServerRegistrationContext {
     structureService?: LanguageStructureService;
     onWorkspaceConfigSync?: () => Promise<void>;
     workspaceIndexingService?: LanguageWorkspaceIndexingService;
+    healthPerformanceProviders?: LanguageHealthPerformanceProviders;
 }
 
 export function registerCapabilities(context: ServerRegistrationContext): void {
@@ -136,7 +142,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         structureService,
         onDocumentInvalidated,
         onWorkspaceConfigSync,
-        workspaceIndexingService
+        workspaceIndexingService,
+        healthPerformanceProviders
     } = context;
     __bindDocumentStore(documentStore);
     const effectiveCodeActionsService = codeActionsService;
@@ -155,6 +162,9 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
     let workspaceConfigReady = !onWorkspaceConfigSync;
     const pendingDiagnosticRefreshes = new Set<string>();
     const pendingMaybeStaleDiagnosticRefreshes = new Set<string>();
+    const pendingOpenPrewarms = new Set<string>();
+    const pendingOpenPrewarmTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    const pendingOpenDiagnosticRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
     let maybeStaleDiagnosticRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
     const refreshDiagnosticsWhenReady = (uri: string): void => {
@@ -190,6 +200,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
 
         for (const uri of uris) {
             if (documentStore.get(uri)) {
+                clearPendingOpenDiagnosticRefresh(uri);
                 refreshDiagnosticsWhenReady(uri);
             }
         }
@@ -229,6 +240,70 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             MAYBE_STALE_DIAGNOSTIC_REFRESH_DELAY_MS
         );
     };
+    const clearPendingOpenDiagnosticRefresh = (uri: string): void => {
+        const timer = pendingOpenDiagnosticRefreshTimers.get(uri);
+        if (!timer) {
+            return;
+        }
+
+        clearTimeout(timer);
+        pendingOpenDiagnosticRefreshTimers.delete(uri);
+    };
+    const clearPendingOpenPrewarm = (uri: string): void => {
+        pendingOpenPrewarms.delete(uri);
+        const timer = pendingOpenPrewarmTimers.get(uri);
+        if (!timer) {
+            return;
+        }
+
+        clearTimeout(timer);
+        pendingOpenPrewarmTimers.delete(uri);
+    };
+    const scheduleOpenPrewarm = (uri: string): void => {
+        if (!structureService) {
+            return;
+        }
+
+        if (!workspaceConfigReady) {
+            pendingOpenPrewarms.add(uri);
+            return;
+        }
+
+        clearPendingOpenPrewarm(uri);
+        pendingOpenPrewarmTimers.set(uri, setTimeout(() => {
+            pendingOpenPrewarmTimers.delete(uri);
+            if (!documentStore.get(uri)) {
+                return;
+            }
+            if (!workspaceConfigReady) {
+                pendingOpenPrewarms.add(uri);
+                return;
+            }
+
+            void structureService.provideSemanticTokens({
+                context: contextFactory.createCapabilityContext(uri)
+            }).catch((error) => {
+                logger.error(`Failed to prewarm semantic tokens for ${uri}: ${error instanceof Error ? error.message : String(error)}`);
+            });
+        }, OPEN_PREWARM_DELAY_MS));
+    };
+    const schedulePendingOpenPrewarms = (): void => {
+        const uris = [...pendingOpenPrewarms];
+        pendingOpenPrewarms.clear();
+
+        for (const uri of uris) {
+            if (documentStore.get(uri)) {
+                scheduleOpenPrewarm(uri);
+            }
+        }
+    };
+    const scheduleOpenDiagnosticRefresh = (uri: string): void => {
+        clearPendingOpenDiagnosticRefresh(uri);
+        pendingOpenDiagnosticRefreshTimers.set(uri, setTimeout(() => {
+            pendingOpenDiagnosticRefreshTimers.delete(uri);
+            refreshDiagnosticsWhenReady(uri);
+        }, OPEN_DIAGNOSTIC_REFRESH_DELAY_MS));
+    };
     const applyWorkspaceConfigSync = async (payload: WorkspaceConfigSyncPayload): Promise<void> => {
         changeIndex?.nextWorkspaceConfigGeneration();
         workspaceConfigReady = false;
@@ -239,6 +314,7 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             logger.error(`Failed to apply workspace configuration sync: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
             workspaceConfigReady = true;
+            schedulePendingOpenPrewarms();
             refreshPendingAndOpenDiagnostics();
         }
     };
@@ -301,7 +377,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         documentStore.open(textDocument.uri, textDocument.version, textDocument.text);
         __syncTextDocument(textDocument.uri, textDocument.text, textDocument.version);
         freshnessService.invalidateDocument(textDocument.uri);
-        refreshDiagnosticsWhenReady(textDocument.uri);
+        scheduleOpenPrewarm(textDocument.uri);
+        scheduleOpenDiagnosticRefresh(textDocument.uri);
     });
 
     connection.onDidChangeTextDocument(({ textDocument, contentChanges }: DidChangeTextDocumentParams) => {
@@ -310,6 +387,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
             : documentStore.get(textDocument.uri)?.text ?? '';
 
         changeIndex?.markChanged(textDocument.uri, textDocument.version);
+        clearPendingOpenPrewarm(textDocument.uri);
+        clearPendingOpenDiagnosticRefresh(textDocument.uri);
         documentStore.applyFullChange(textDocument.uri, textDocument.version, nextText);
         __syncTextDocument(textDocument.uri, nextText, textDocument.version);
         __emitTextDocumentChange(textDocument.uri);
@@ -319,6 +398,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
 
     connection.onDidCloseTextDocument(({ textDocument }: DidCloseTextDocumentParams) => {
         changeIndex?.markClosed(textDocument.uri);
+        clearPendingOpenPrewarm(textDocument.uri);
+        clearPendingOpenDiagnosticRefresh(textDocument.uri);
         documentStore.close(textDocument.uri);
         __closeTextDocument(textDocument.uri);
         freshnessService.invalidateDocument(textDocument.uri);
@@ -344,7 +425,9 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         HealthRequest.type,
         createHealthHandler({
             documentStore,
-            serverVersion
+            serverVersion,
+            getParserStats: healthPerformanceProviders?.getParserStats,
+            getSemanticStats: healthPerformanceProviders?.getSemanticStats
         })
     );
 
@@ -428,7 +511,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         registerSemanticTokensHandler({
             connection,
             contextFactory,
-            structureService
+            structureService,
+            onSemanticTokensRequested: clearPendingOpenPrewarm
         });
     }
 }

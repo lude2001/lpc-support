@@ -183,7 +183,7 @@ export class VsCodeHoverMethodResolver implements HoverMethodResolver {
             ensureVsCodeBackedDocument(document),
             targetPath,
             methodName,
-            { projectConfig: context.workspace.projectConfig, useFreshSnapshots: true }
+            { projectConfig: context.workspace.projectConfig, snapshotMode: 'cacheFirst' }
         );
         if (!resolvedMethod) {
             return undefined;
@@ -212,7 +212,8 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
 
     public async provideHover(request: LanguageHoverRequest): Promise<LanguageHoverResult | undefined> {
         const document = this.documentAdapter.fromLanguageDocument(request.context.document);
-        if (this.scopedHoverResolver && isVsCodeBackedHoverDocument(document)) {
+        const targetShape = this.classifyTargetShape(document, request.position);
+        if (targetShape === 'scoped-method' && this.scopedHoverResolver && isVsCodeBackedHoverDocument(document)) {
             const scopedHover = await this.scopedHoverResolver.provideScopedHover(
                 ensureVsCodeBackedDocument(document),
                 toVsCodePosition(request.position)
@@ -222,11 +223,50 @@ export class ObjectInferenceLanguageHoverService implements LanguageHoverService
             }
         }
 
+        if (targetShape !== 'object-member') {
+            return undefined;
+        }
+
         return this.objectMethodHoverResolver.provideObjectHover(
             request.context,
             document,
             request.position
         );
+    }
+
+    private classifyTargetShape(document: HoverDocument, position: LanguagePosition): 'object-member' | 'scoped-method' | 'other' {
+        const range = document.getWordRangeAtPosition(position);
+        if (!range) {
+            return 'other';
+        }
+
+        const prefix = this.getTextBeforeRange(document, range).replace(/\s+$/u, '');
+        if (prefix.endsWith('->')) {
+            return 'object-member';
+        }
+
+        if (prefix.endsWith('::')) {
+            return 'scoped-method';
+        }
+
+        return 'other';
+    }
+
+    private getTextBeforeRange(document: HoverDocument, range: LanguageRange): string {
+        const linePrefixRange = {
+            start: { line: range.start.line, character: 0 },
+            end: { line: range.start.line, character: range.start.character }
+        };
+        const linePrefix = document.getText(linePrefixRange);
+        const trimmedLinePrefix = linePrefix.replace(/\s+$/u, '');
+        if (trimmedLinePrefix.endsWith('->') || trimmedLinePrefix.endsWith('::') || range.start.line === 0) {
+            return linePrefix;
+        }
+
+        return document.getText({
+            start: { line: range.start.line - 1, character: 0 },
+            end: { line: range.start.line, character: range.start.character }
+        });
     }
 }
 

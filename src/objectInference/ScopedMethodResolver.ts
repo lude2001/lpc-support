@@ -69,8 +69,7 @@ export class ScopedMethodResolver {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<ScopedMethodResolution | undefined> {
-        const syntax = this.analysisService.getSyntaxDocument(document, false)
-            ?? this.analysisService.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             return undefined;
         }
@@ -197,7 +196,7 @@ export class ScopedMethodResolver {
         document: vscode.TextDocument,
         methodName: string
     ): Promise<ScopedTargetCollection> {
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, true);
         const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return {
@@ -242,7 +241,7 @@ export class ScopedMethodResolver {
         qualifier: string,
         methodName: string
     ): Promise<ScopedTargetCollection> {
-        const snapshot = this.analysisService.getSemanticSnapshot(document, false);
+        const snapshot = this.analysisService.getSemanticSnapshot(document, true);
         const directSeeds = resolveScopedDirectInheritSeeds(this.inheritanceResolver, snapshot);
         if (directSeeds.hasUnresolvedTargets) {
             return {

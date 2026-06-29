@@ -62,7 +62,8 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         getStandardCallableDoc: jest.fn(() => undefined),
         getAllSimulatedFunctions: jest.fn(() => []),
         getSimulatedDoc: jest.fn(() => undefined),
-        ensureWorkspaceStateCurrent: jest.fn(async () => undefined)
+        ensureWorkspaceStateCurrent: jest.fn(async () => undefined),
+        isSimulatedEfunReady: jest.fn(() => true)
     };
     const analysisService = DocumentSemanticSnapshotService.getInstance();
 
@@ -72,6 +73,7 @@ describe('LanguageCompletionService scoped completion resolve', () => {
         efunDocsManager.getAllSimulatedFunctions.mockReturnValue([]);
         efunDocsManager.getSimulatedDoc.mockReturnValue(undefined);
         efunDocsManager.ensureWorkspaceStateCurrent.mockResolvedValue(undefined);
+        efunDocsManager.isSimulatedEfunReady.mockReturnValue(true);
     });
 
     afterEach(() => {
@@ -207,18 +209,19 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             position: { line: 0, character: 3 }
         });
 
-        expect(efunDocsManager.ensureWorkspaceStateCurrent).toHaveBeenCalledWith(document, undefined);
+        expect(efunDocsManager.ensureWorkspaceStateCurrent).not.toHaveBeenCalled();
         expect(efunDocsManager.getAllSimulatedFunctions).toHaveBeenCalledWith(document);
         expect(result.items.map((item: any) => item.label)).toContain('simul_call');
     });
 
-    test('provideCompletion does not block on a slow simulated efun workspace refresh', async () => {
+    test('provideCompletion schedules slow simulated efun workspace refresh after the first response', async () => {
         jest.useFakeTimers();
         const document = createDocument(
             path.join(process.cwd(), '.tmp-completion-service', 'workspace-a', 'slow-room.c'),
             'query'
         );
         efunDocsManager.ensureWorkspaceStateCurrent.mockImplementation(() => new Promise<void>(() => undefined));
+        efunDocsManager.isSimulatedEfunReady.mockReturnValue(false);
         const documentHost = createVsCodeTextDocumentHost();
         const service = createDefaultQueryBackedLanguageCompletionService({
             efunDocsManager: efunDocsManager as any,
@@ -253,12 +256,71 @@ describe('LanguageCompletionService scoped completion resolve', () => {
             position: { line: 0, character: 5 }
         });
 
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
         const result = await resultPromise;
 
-        expect(efunDocsManager.ensureWorkspaceStateCurrent).toHaveBeenCalledWith(document, undefined);
         expect(Array.isArray(result.items)).toBe(true);
+        expect(efunDocsManager.ensureWorkspaceStateCurrent).not.toHaveBeenCalled();
+
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+
+        expect(efunDocsManager.ensureWorkspaceStateCurrent).toHaveBeenCalledWith(document, undefined);
+    });
+
+    test('provideCompletion coalesces repeated simulated efun workspace refreshes', async () => {
+        jest.useFakeTimers();
+        const document = createDocument(
+            path.join(process.cwd(), '.tmp-completion-service', 'workspace-a', 'slow-room.c'),
+            'query'
+        );
+        efunDocsManager.ensureWorkspaceStateCurrent.mockImplementation(() => new Promise<void>(() => undefined));
+        efunDocsManager.isSimulatedEfunReady.mockReturnValue(false);
+        const documentHost = createVsCodeTextDocumentHost();
+        const service = createDefaultQueryBackedLanguageCompletionService({
+            efunDocsManager: efunDocsManager as any,
+            analysisService,
+            documentationService: { getDocForDeclaration: jest.fn() } as any,
+            objectInferenceService: {} as any,
+            instrumentation: new CompletionInstrumentation(),
+            inheritanceReporter: {
+                clear: jest.fn(),
+                show: jest.fn(),
+                appendLine: jest.fn()
+            } as any,
+            projectSymbolIndex: new ProjectSymbolIndex(new InheritanceResolver()),
+            contextAnalyzer: new CompletionContextAnalyzer(),
+            scopedMethodDiscoveryService: createDefaultScopedMethodDiscoveryService({
+                analysisService,
+                host: documentHost
+            }),
+            scopedCompletionSupport: createDefaultScopedMethodCompletionSupport({
+                documentationService: { getDocForDeclaration: jest.fn() } as any,
+                documentLoader: jest.fn(),
+                renderer: new CallableDocRenderer()
+            })
+        }) as any;
+
+        await service.provideCompletion({
+            context: {
+                document,
+                workspace: { workspaceRoot: process.cwd() },
+                cancellation: { isCancellationRequested: false }
+            } as any,
+            position: { line: 0, character: 5 }
+        });
+        await service.provideCompletion({
+            context: {
+                document,
+                workspace: { workspaceRoot: process.cwd() },
+                cancellation: { isCancellationRequested: false }
+            } as any,
+            position: { line: 0, character: 5 }
+        });
+
+        jest.advanceTimersByTime(1000);
+        await Promise.resolve();
+
+        expect(efunDocsManager.ensureWorkspaceStateCurrent).toHaveBeenCalledTimes(1);
     });
 
     test('scoped completion resolveCompletionItem does not fabricate docs for ambiguous merged candidates', async () => {

@@ -13,7 +13,14 @@ import { CompletionInheritedIndexService } from './CompletionInheritedIndexServi
 import { ScopedMethodCompletionSupport } from './ScopedMethodCompletionSupport';
 import { buildFunctionSnippet } from './completionSnippetUtils';
 
+export interface CompletionCandidateResolution {
+    candidates: CompletionCandidate[];
+    isIncomplete?: boolean;
+}
+
 export class CompletionCandidateResolver {
+    private readonly pendingInheritedIndexRefreshes = new Set<string>();
+
     constructor(
         private readonly objectInferenceService: Pick<ObjectInferenceService, 'inferObjectAccess'>,
         private readonly scopedMethodDiscoveryService: Pick<ScopedMethodDiscoveryService, 'discoverAt'>,
@@ -21,6 +28,7 @@ export class CompletionCandidateResolver {
         private readonly completionInheritedIndexService: Pick<
             CompletionInheritedIndexService,
             | 'refreshInheritedIndex'
+            | 'indexDocumentSnapshot'
             | 'getDocumentForUri'
             | 'getRecord'
             | 'getResolvedInheritTargets'
@@ -33,45 +41,51 @@ export class CompletionCandidateResolver {
         position: vscode.Position,
         token: { isCancellationRequested: boolean },
         result: CompletionQueryResult
-    ): Promise<CompletionCandidate[]> {
+    ): Promise<CompletionCandidateResolution> {
+        const deferredRefresh = { value: false };
         const baseCandidates = this.appendInheritedFallbackCandidates(document, result);
         if (result.context.kind === 'scoped-member') {
             const discovery = await this.scopedMethodDiscoveryService.discoverAt(document, position);
             if (token.isCancellationRequested) {
-                return [];
+                return { candidates: [] };
             }
 
-            return this.scopedCompletionSupport.buildCandidates(
-                discovery,
-                document,
-                result.context.currentWord
-            );
+            return {
+                candidates: this.scopedCompletionSupport.buildCandidates(
+                    discovery,
+                    document,
+                    result.context.currentWord
+                )
+            };
         }
 
         if (result.context.kind !== 'member') {
-            return baseCandidates;
+            return { candidates: baseCandidates };
         }
 
         const inferredAccess = await this.objectInferenceService.inferObjectAccess(document, position);
         if (!inferredAccess || token.isCancellationRequested) {
-            return baseCandidates;
+            return { candidates: baseCandidates };
         }
 
         const inference = inferredAccess.inference;
         if (inference.status === 'unknown' || inference.status === 'unsupported') {
-            return baseCandidates;
+            return { candidates: baseCandidates };
         }
 
-        const objectCandidates = await this.buildObjectMemberCandidates(document, result, inference, token);
+        const objectCandidates = await this.buildObjectMemberCandidates(document, result, inference, token, deferredRefresh);
         if (objectCandidates.length === 0) {
-            return baseCandidates;
+            return { candidates: baseCandidates, isIncomplete: deferredRefresh.value };
         }
 
         if (!result.context.currentWord) {
-            return this.mergeCandidatesByLabel(objectCandidates, baseCandidates);
+            return {
+                candidates: this.mergeCandidatesByLabel(objectCandidates, baseCandidates),
+                isIncomplete: deferredRefresh.value
+            };
         }
 
-        return objectCandidates;
+        return { candidates: objectCandidates, isIncomplete: deferredRefresh.value };
     }
 
     private appendInheritedFallbackCandidates(
@@ -81,8 +95,6 @@ export class CompletionCandidateResolver {
         if (result.context.kind !== 'identifier' && result.context.kind !== 'type-position') {
             return result.candidates;
         }
-
-        this.completionInheritedIndexService.refreshInheritedIndex(document);
 
         const inheritedSymbols = this.completionInheritedIndexService.getInheritedSymbols(document.uri.toString());
         if (inheritedSymbols.functions.length === 0 && inheritedSymbols.types.length === 0) {
@@ -147,7 +159,8 @@ export class CompletionCandidateResolver {
         document: vscode.TextDocument,
         result: CompletionQueryResult,
         inference: ObjectInferenceResult,
-        token: { isCancellationRequested: boolean }
+        token: { isCancellationRequested: boolean },
+        deferredRefresh: { value: boolean }
     ): Promise<CompletionCandidate[]> {
         const currentUri = document.uri.toString();
         const occurrenceCounts = new Map<string, number>();
@@ -158,7 +171,7 @@ export class CompletionCandidateResolver {
                 return [];
             }
 
-            const functions = await this.collectObjectFunctions(document, candidate.path, new Set<string>());
+            const functions = await this.collectObjectFunctions(document, candidate.path, new Set<string>(), true, deferredRefresh);
             const visibleFunctions = new Map<string, FunctionSummary>();
 
             for (const func of functions) {
@@ -209,7 +222,9 @@ export class CompletionCandidateResolver {
     private async collectObjectFunctions(
         ownerDocument: vscode.TextDocument,
         filePath: string,
-        visited: Set<string>
+        visited: Set<string>,
+        allowIndexMissing: boolean,
+        deferredRefresh: { value: boolean }
     ): Promise<FunctionSummary[]> {
         const targetUri = vscode.Uri.file(filePath).toString();
         if (visited.has(targetUri)) {
@@ -219,7 +234,7 @@ export class CompletionCandidateResolver {
         visited.add(targetUri);
 
         let record = this.completionInheritedIndexService.getRecord(targetUri);
-        if (!record) {
+        if (!record && allowIndexMissing) {
             const targetDocument = targetUri === ownerDocument.uri.toString()
                 ? ownerDocument
                 : this.completionInheritedIndexService.getDocumentForUri(targetUri);
@@ -227,11 +242,15 @@ export class CompletionCandidateResolver {
                 return [];
             }
 
-            this.completionInheritedIndexService.refreshInheritedIndex(targetDocument);
+            this.completionInheritedIndexService.indexDocumentSnapshot(targetDocument);
+            this.scheduleInheritedIndexRefresh(targetDocument);
+            deferredRefresh.value = true;
             record = this.completionInheritedIndexService.getRecord(targetUri);
             if (!record) {
                 return [];
             }
+        } else if (!record) {
+            return [];
         }
 
         const functions = [...record.exportedFunctions];
@@ -244,12 +263,32 @@ export class CompletionCandidateResolver {
                 ...await this.collectObjectFunctions(
                     ownerDocument,
                     vscode.Uri.parse(inheritTarget.resolvedUri).fsPath,
-                    visited
+                    visited,
+                    false,
+                    deferredRefresh
                 )
             );
         }
 
         return functions;
+    }
+
+    private scheduleInheritedIndexRefresh(document: vscode.TextDocument): void {
+        const uri = document.uri.toString();
+        if (this.pendingInheritedIndexRefreshes.has(uri)) {
+            return;
+        }
+
+        this.pendingInheritedIndexRefreshes.add(uri);
+        setTimeout(() => {
+            try {
+                this.completionInheritedIndexService.refreshInheritedIndex(document);
+            } catch {
+                // Background completion index refresh is opportunistic.
+            } finally {
+                this.pendingInheritedIndexRefreshes.delete(uri);
+            }
+        }, 1000);
     }
 
     private mergeCandidatesByLabel(

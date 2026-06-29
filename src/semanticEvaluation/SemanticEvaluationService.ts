@@ -205,13 +205,12 @@ export class SemanticEvaluationService {
         document: vscode.TextDocument,
         targetNode: SyntaxNode
     ): ContainingFunctionEvaluation | undefined {
-        const syntax = this.analysisService.getSyntaxDocument(document, false)
-            ?? this.analysisService.getSyntaxDocument(document, true);
+        const syntax = this.analysisService.getSyntaxDocument(document, true);
         if (!syntax) {
             return undefined;
         }
 
-        const semantic = this.analysisService.getSemanticSnapshot(document, false);
+        const semantic = this.analysisService.getSemanticSnapshot(document, true);
         const functionNode = syntax.nodes
             .filter((node) =>
                 node.kind === SyntaxKind.FunctionDeclaration

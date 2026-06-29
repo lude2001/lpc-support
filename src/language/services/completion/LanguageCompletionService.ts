@@ -105,7 +105,7 @@ interface QueryBackedLanguageCompletionOwnedServices {
     candidateResolver: CompletionCandidateResolver;
     presentationService: CompletionItemPresentationService;
     queryEngine: CompletionQueryEngine;
-    efunDocsManager: Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent'>>;
+    efunDocsManager: Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent' | 'isSimulatedEfunReady'>>;
 }
 
 const COMPLETION_WORKSPACE_STATE_WAIT_MS = 1000;
@@ -116,7 +116,8 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
     private readonly inheritedIndexService: CompletionInheritedIndexService;
     private readonly candidateResolver: CompletionCandidateResolver;
     private readonly presentationService: CompletionItemPresentationService;
-    private readonly efunDocsManager: Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent'>>;
+    private readonly efunDocsManager: Partial<Pick<EfunDocsManager, 'ensureWorkspaceStateCurrent' | 'isSimulatedEfunReady'>>;
+    private readonly pendingWorkspaceStateRefreshes = new Set<string>();
 
     constructor(services: QueryBackedLanguageCompletionOwnedServices) {
         this.instrumentation = services.instrumentation;
@@ -143,11 +144,10 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         });
 
         try {
-            await this.awaitWorkspaceStateForCompletion(
+            this.scheduleWorkspaceStateRefreshForCompletion(
                 document,
                 request.context.workspace.projectConfig
             );
-            this.inheritedIndexService.warmInheritedIndex(document);
 
             const result = this.queryEngine.query(
                 document,
@@ -161,15 +161,16 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
                 return { items: [] };
             }
 
-            const candidates = await this.candidateResolver.resolveCompletionCandidates(
+            const resolution = await this.candidateResolver.resolveCompletionCandidates(
                 document,
                 position,
                 cancellation,
                 result
             );
+            const candidates = resolution.candidates;
             const items = candidates.map(candidate => this.presentationService.createCompletionItem(candidate, result, document));
             trace.complete(result.context.kind, items.length);
-            return { items, isIncomplete: false };
+            return { items, isIncomplete: resolution.isIncomplete ?? false };
         } catch (error) {
             console.error('Error providing completions:', error);
             trace.complete('identifier', 0);
@@ -235,34 +236,44 @@ export class QueryBackedLanguageCompletionService implements LanguageCompletionS
         await this.inheritedIndexService.scanInheritance(document);
     }
 
-    private async awaitWorkspaceStateForCompletion(
+    private scheduleWorkspaceStateRefreshForCompletion(
         document: vscode.TextDocument,
         projectConfig: LanguageCapabilityContext['workspace']['projectConfig']
-    ): Promise<void> {
-        const statePromise = this.efunDocsManager.ensureWorkspaceStateCurrent?.(document, projectConfig);
-        if (!statePromise) {
+    ): void {
+        if (!this.efunDocsManager.ensureWorkspaceStateCurrent) {
             return;
         }
 
-        let timeoutHandle: NodeJS.Timeout | undefined;
-        const timeoutPromise = new Promise<void>((resolve) => {
-            timeoutHandle = setTimeout(resolve, COMPLETION_WORKSPACE_STATE_WAIT_MS);
-        });
-
-        try {
-            await Promise.race([
-                statePromise,
-                timeoutPromise
-            ]);
-        } finally {
-            if (timeoutHandle) {
-                clearTimeout(timeoutHandle);
-            }
+        if (this.efunDocsManager.isSimulatedEfunReady?.(document, projectConfig)) {
+            return;
         }
 
-        void statePromise.catch(error => {
-            console.error('Error refreshing simulated efun state for completion:', error);
-        });
+        const refreshKey = this.createWorkspaceStateRefreshKey(document, projectConfig);
+        if (this.pendingWorkspaceStateRefreshes.has(refreshKey)) {
+            return;
+        }
+
+        this.pendingWorkspaceStateRefreshes.add(refreshKey);
+        setTimeout(() => {
+            void this.efunDocsManager.ensureWorkspaceStateCurrent?.(document, projectConfig)
+                .catch(error => {
+                    console.error('Error refreshing simulated efun state for completion:', error);
+                })
+                .finally(() => {
+                    this.pendingWorkspaceStateRefreshes.delete(refreshKey);
+                });
+        }, COMPLETION_WORKSPACE_STATE_WAIT_MS);
+    }
+
+    private createWorkspaceStateRefreshKey(
+        document: vscode.TextDocument,
+        projectConfig: LanguageCapabilityContext['workspace']['projectConfig']
+    ): string {
+        return [
+            document.uri.toString(),
+            projectConfig?.projectConfigPath ?? '',
+            projectConfig?.configHellPath ?? ''
+        ].join('|');
     }
 
 }

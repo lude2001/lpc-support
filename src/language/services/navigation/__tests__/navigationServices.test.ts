@@ -271,7 +271,7 @@ describe('navigation services', () => {
         expect(hover?.contents[0].value).toContain('返回名字');
     });
 
-    test('VsCodeHoverMethodResolver requests fresh snapshots for target lookup', async () => {
+    test('VsCodeHoverMethodResolver requests cache-first snapshots for target lookup', async () => {
         const projectConfig = { projectConfigPath: 'D:/workspace/lpc-support.json' } as any;
         const targetDocument = createVsCodeTextDocument('D:/workspace/obj/npc.c', 'string query_name() { return "npc"; }');
         const findMethod = jest.fn().mockResolvedValue({
@@ -306,11 +306,11 @@ describe('navigation services', () => {
             document,
             targetDocument.fileName,
             'query_name',
-            { projectConfig, useFreshSnapshots: true }
+            { projectConfig, snapshotMode: 'cacheFirst' }
         );
     });
 
-    test('hover service can rely on injected hover resolvers without requiring documentation service', async () => {
+    test('hover service routes arrow members directly to object hover without requiring documentation service', async () => {
         const document = createVsCodeTextDocument('D:/workspace/test.c', 'target->query_name();');
         const scopedHoverResolver = {
             provideScopedHover: jest.fn().mockResolvedValue(undefined)
@@ -333,7 +333,7 @@ describe('navigation services', () => {
             position: { line: 0, character: 10 }
         });
 
-        expect(scopedHoverResolver.provideScopedHover).toHaveBeenCalled();
+        expect(scopedHoverResolver.provideScopedHover).not.toHaveBeenCalled();
         expect(objectMethodHoverResolver.provideObjectHover).toHaveBeenCalled();
         expect(hover).toEqual({
             contents: [
@@ -343,6 +343,36 @@ describe('navigation services', () => {
                 }
             ]
         });
+    });
+
+    test('hover service classifies member targets from the current line only', async () => {
+        const document = createVsCodeTextDocument(
+            'D:/workspace/test.c',
+            [
+                'void setup() {}',
+                'target->query_name();'
+            ].join('\n')
+        );
+        const objectMethodHoverResolver = {
+            provideObjectHover: jest.fn().mockResolvedValue({
+                contents: [{ kind: 'markdown', value: 'injected docs' }]
+            })
+        };
+        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+            {
+                documentAdapter: new VsCodeHoverDocumentAdapter(),
+                objectMethodHoverResolver
+            }
+        );
+
+        await service.provideHover({
+            context: createContext(document as any),
+            position: { line: 1, character: 10 }
+        });
+
+        expect(document.getText).toHaveBeenCalledWith(new vscode.Range(1, 0, 1, 8));
+        expect(document.getText).not.toHaveBeenCalledWith(new vscode.Range(0, 0, 1, 8));
+        expect(objectMethodHoverResolver.provideObjectHover).toHaveBeenCalled();
     });
 
     test('hover service can render bare ::create() docs through injected scoped boundaries', async () => {
@@ -815,6 +845,36 @@ describe('navigation services', () => {
                 }
             ]
         });
+    });
+
+    test('hover service skips scoped and object resolvers for ordinary identifiers', async () => {
+        const document = createVsCodeTextDocument('D:/workspace/test.c', 'get_player_all_families(me);');
+        const scopedHoverResolver = {
+            provideScopedHover: jest.fn().mockResolvedValue({
+                contents: [{ kind: 'markdown', value: 'scoped docs' }]
+            })
+        };
+        const objectMethodHoverResolver = {
+            provideObjectHover: jest.fn().mockResolvedValue({
+                contents: [{ kind: 'markdown', value: 'object docs' }]
+            })
+        };
+        const service: LanguageHoverService = new ObjectInferenceLanguageHoverService(
+            {
+                documentAdapter: new VsCodeHoverDocumentAdapter(),
+                scopedHoverResolver,
+                objectMethodHoverResolver
+            }
+        );
+
+        const hover = await service.provideHover({
+            context: createContext(document as any),
+            position: { line: 0, character: 5 }
+        });
+
+        expect(hover).toBeUndefined();
+        expect(scopedHoverResolver.provideScopedHover).not.toHaveBeenCalled();
+        expect(objectMethodHoverResolver.provideObjectHover).not.toHaveBeenCalled();
     });
 
     test('efun hover does not claim bare scoped calls as current-file functions', async () => {

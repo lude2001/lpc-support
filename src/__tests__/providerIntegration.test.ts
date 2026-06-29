@@ -433,6 +433,79 @@ describe('language-service integration regression', () => {
         );
     });
 
+    test('target method lookup reuses cached target results while preserving dependency footprints', async () => {
+        installWorkspaceOpenTextDocumentFixture();
+        const targetFile = path.join(fixtureRoot, 'lib', 'npc.c');
+        fs.writeFileSync(
+            targetFile,
+            [
+                'string query_name()',
+                '{',
+                '    return "npc";',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        const ownerDocument = createDocument(path.join(fixtureRoot, 'room.c'), 'void test() {}');
+        const dependencyFootprintRecorder = {
+            addDependencyFootprint: jest.fn(),
+            getWorkspaceConfigGeneration: jest.fn(() => 7)
+        };
+        const getSemanticSnapshot = jest.spyOn(analysisService, 'getSemanticSnapshot');
+        const lookup = new TargetMethodLookup(analysisService, pathSupport, dependencyFootprintRecorder);
+
+        const first = await lookup.findMethod(ownerDocument, targetFile, 'query_name');
+        getSemanticSnapshot.mockClear();
+        dependencyFootprintRecorder.addDependencyFootprint.mockClear();
+
+        const second = await lookup.findMethod(ownerDocument, targetFile, 'query_name');
+
+        expect(second?.location.range).toEqual(first?.location.range);
+        expect(getSemanticSnapshot).not.toHaveBeenCalled();
+        expect(dependencyFootprintRecorder.addDependencyFootprint).toHaveBeenCalledWith(
+            ownerDocument.uri.toString(),
+            [vscode.Uri.file(targetFile).toString()]
+        );
+        getSemanticSnapshot.mockRestore();
+    });
+
+    test('target method lookup invalidates cached results when include dependencies change', async () => {
+        installWorkspaceOpenTextDocumentFixture();
+        const targetFile = path.join(fixtureRoot, 'lib', 'npc.c');
+        const includeFile = path.join(fixtureRoot, 'include', 'npc_methods.h');
+        fs.mkdirSync(path.dirname(includeFile), { recursive: true });
+        fs.writeFileSync(targetFile, '#include "/include/npc_methods.h"', 'utf8');
+        fs.writeFileSync(
+            includeFile,
+            [
+                'string query_name()',
+                '{',
+                '    return "npc";',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        const ownerDocument = createDocument(path.join(fixtureRoot, 'room.c'), 'void test() {}');
+        const lookup = new TargetMethodLookup(analysisService, pathSupport);
+
+        const first = await lookup.findMethod(ownerDocument, targetFile, 'query_name');
+        fs.writeFileSync(
+            includeFile,
+            [
+                '// moved by edit',
+                'string query_name()',
+                '{',
+                '    return "npc";',
+                '}'
+            ].join('\n'),
+            'utf8'
+        );
+        const second = await lookup.findMethod(ownerDocument, targetFile, 'query_name');
+
+        expect(first?.location.range).toEqual(new vscode.Range(0, 7, 0, 17));
+        expect(second?.location.range).toEqual(new vscode.Range(1, 7, 1, 17));
+    });
+
     test('completion resolves file-scope global object receivers through inferred target files', async () => {
         const targetFile = path.join(fixtureRoot, 'adm', 'daemons', 'combat_d.c');
         fs.mkdirSync(path.dirname(targetFile), { recursive: true });
@@ -1101,7 +1174,7 @@ describe('language-service integration regression', () => {
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
         expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', {
             projectConfig: undefined,
-            useFreshSnapshots: true
+            snapshotMode: 'cacheFirst'
         });
     });
 
@@ -1156,7 +1229,7 @@ describe('language-service integration regression', () => {
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
         expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'query_name', {
             projectConfig: undefined,
-            useFreshSnapshots: true
+            snapshotMode: 'cacheFirst'
         });
     });
 
@@ -1200,7 +1273,7 @@ describe('language-service integration regression', () => {
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
         expect(findMethod).toHaveBeenCalledWith(document, targetFile, 'add_data_button', {
             projectConfig: undefined,
-            useFreshSnapshots: true
+            snapshotMode: 'cacheFirst'
         });
     });
 
@@ -1275,7 +1348,7 @@ describe('language-service integration regression', () => {
         expect(inferObjectAccess).toHaveBeenCalledWith(document, expect.any(vscode.Position));
         expect(findMethod).toHaveBeenCalledWith(document, loginModelFile, 'error_result', {
             projectConfig: undefined,
-            useFreshSnapshots: true
+            snapshotMode: 'cacheFirst'
         });
     });
 
@@ -1358,11 +1431,11 @@ describe('language-service integration regression', () => {
         expect(normalizeLocationUri(definition[0].uri)).toBe(navigationModelFile);
         expect(findMethod).toHaveBeenCalledWith(document, navigationModelFile, 'create_action', {
             projectConfig: undefined,
-            useFreshSnapshots: true
+            snapshotMode: 'cacheFirst'
         });
         expect(findMethod).not.toHaveBeenCalledWith(document, equipModelFile, 'create_action', {
             projectConfig: undefined,
-            useFreshSnapshots: true
+            snapshotMode: 'cacheFirst'
         });
     });
 

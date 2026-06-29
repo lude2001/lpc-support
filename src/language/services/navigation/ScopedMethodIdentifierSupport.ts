@@ -11,8 +11,7 @@ export function findScopedMethodIdentifierAtPosition(
     analysisService: ScopedMethodIdentifierAnalysisService
 ): SyntaxNode | undefined {
     const resolvedAnalysisService = assertAnalysisService('findScopedMethodIdentifierAtPosition', analysisService);
-    const syntax = resolvedAnalysisService.getSyntaxDocument(document, false)
-        ?? resolvedAnalysisService.getSyntaxDocument(document, true);
+    const syntax = resolvedAnalysisService.getSyntaxDocument(document, true);
     if (!syntax) {
         return undefined;
     }

@@ -44,6 +44,11 @@ export class DirectSymbolDefinitionResolver {
             return localMacroDefinition;
         }
 
+        const localFunctionDefinition = this.dependencies.support.findFunctionInSemanticSnapshot(document, word);
+        if (localFunctionDefinition) {
+            return localFunctionDefinition;
+        }
+
         const simulatedEfunDefinition = await this.findSimulatedEfunDefinition(document, word, workspaceRoot, projectConfig);
         if (simulatedEfunDefinition) {
             return simulatedEfunDefinition;

@@ -5,6 +5,7 @@ import type { LanguageFormattingService } from '../services/formatting/LanguageF
 import type { LanguageNavigationService } from '../services/navigation/LanguageHoverService';
 import type { LanguageSignatureHelpService } from '../services/signatureHelp/LanguageSignatureHelpService';
 import type { LanguageStructureService } from '../services/structure/LanguageFoldingService';
+import type { HealthStatusResponse } from '../../lsp/shared/protocol/health';
 import type {
     WorkspaceIndexProgressPayload,
     WorkspaceIndexRebuildParams,
@@ -18,6 +19,11 @@ export interface LanguageWorkspaceIndexingService {
     ): Promise<WorkspaceIndexRebuildResult>;
 }
 
+export interface LanguageHealthPerformanceProviders {
+    getParserStats?: () => NonNullable<HealthStatusResponse['performance']>['parser'];
+    getSemanticStats?: () => NonNullable<HealthStatusResponse['performance']>['semantic'];
+}
+
 export interface LanguageFeatureServices {
     codeActionsService?: LanguageCodeActionService;
     completionService?: LanguageCompletionService;
@@ -29,4 +35,5 @@ export interface LanguageFeatureServices {
     signatureHelpService?: LanguageSignatureHelpService;
     structureService?: LanguageStructureService;
     workspaceIndexingService?: LanguageWorkspaceIndexingService;
+    healthPerformanceProviders?: LanguageHealthPerformanceProviders;
 }
