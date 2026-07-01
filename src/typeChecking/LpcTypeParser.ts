@@ -16,8 +16,11 @@ export class LpcTypeParser {
         }
 
         const parsed = parseNormalizedLpcType(typeText);
-        const totalArrayDepth = parsed.pointerDepth + parsed.arrayDepth;
-        const baseType = this.createBaseType(parsed.qualifiedName, parsed.normalized);
+        const isBuiltinArray = parsed.qualifiedName === 'array';
+        const totalArrayDepth = parsed.pointerDepth + parsed.arrayDepth + (isBuiltinArray ? 1 : 0);
+        const baseType = isBuiltinArray
+            ? createPrimitiveType('mixed')
+            : this.createBaseType(parsed.qualifiedName, parsed.normalized);
 
         if (totalArrayDepth > 0) {
             return this.wrapArray(baseType, totalArrayDepth, parsed.normalized);

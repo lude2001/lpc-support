@@ -628,6 +628,36 @@ describe('syntax-backed diagnostic collectors', () => {
         await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
     });
 
+    test('TypeDiagnosticsCollector accepts bare array declarations for array literals', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo() {',
+            '    array values = ({ 1 });',
+            '    mixed *copy = values;',
+            '}'
+        ].join('\n'), 'type-diagnostics-bare-array.c');
+
+        await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
+    });
+
+    test('TypeDiagnosticsCollector ignores returns owned by anonymous functions', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'int demo() {',
+            '    function mapper = function(mixed value) {',
+            '        return "text";',
+            '    };',
+            '    return 1;',
+            '}'
+        ].join('\n'), 'type-diagnostics-anonymous-return.c');
+
+        await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
+    });
+
     test('TypeDiagnosticsCollector respects disabled options and unresolved dependency suppression', async () => {
         const disabledCollector = new TypeDiagnosticsCollector({
             diagnosticFactsProvider: {

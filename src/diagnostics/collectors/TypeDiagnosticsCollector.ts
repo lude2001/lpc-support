@@ -2,9 +2,10 @@ import * as vscode from 'vscode';
 import type { ParsedDocument } from '../../parser/types';
 import { SyntaxKind, type SyntaxNode } from '../../syntax/types';
 import {
+    CallableSignatureIndex,
+    type CallableSignatureLookup,
     ExpressionTypeEvaluator,
-    ScopeSymbolTypeResolver,
-    type ExpressionCallableSignature
+    ScopeSymbolTypeResolver
 } from '../../typeChecking';
 import type { LpcType } from '../../typeChecking/LpcType';
 import { LpcTypeRelation } from '../../typeChecking/LpcTypeRelation';
@@ -45,6 +46,7 @@ interface TypeCheckingSession {
     scopeResolver: ScopeSymbolTypeResolver;
     evaluator: ExpressionTypeEvaluator;
     relation: LpcTypeRelation;
+    callableSignatures: CallableSignatureLookup<DiagnosticCallableSignature>;
 }
 
 export class TypeDiagnosticsCollector implements IDiagnosticCollector {
@@ -87,15 +89,17 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
             visibleFileGlobals: facts.visibleSymbols.fileGlobals,
             visibleTypeDefinitions: facts.visibleSymbols.types
         });
+        const callableSignatureIndex = new CallableSignatureIndex(facts.visibleSymbols.callableSignatures);
         const evaluator = new ExpressionTypeEvaluator({
             scopeResolver,
-            callableSignatures: facts.visibleSymbols.callableSignatures as readonly ExpressionCallableSignature[],
+            callableSignatureIndex,
             typeRelation: relation
         });
         const session: TypeCheckingSession = {
             scopeResolver,
             evaluator,
-            relation
+            relation,
+            callableSignatures: callableSignatureIndex
         };
         const parentMap = buildParentMap(context.syntax.nodes);
         const diagnostics: vscode.Diagnostic[] = [];
@@ -103,7 +107,7 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         this.collectVariableInitializerDiagnostics(context.syntax.nodes, session, diagnostics);
         this.collectAssignmentDiagnostics(context.syntax.nodes, session, diagnostics);
         this.collectReturnDiagnostics(context.syntax.nodes, context.semantic.exportedFunctions, parentMap, session, diagnostics);
-        this.collectCallArgumentDiagnostics(context.syntax.nodes, facts.visibleSymbols.callableSignatures, session, diagnostics);
+        this.collectCallArgumentDiagnostics(context.syntax.nodes, session, diagnostics);
         this.collectMemberDiagnostics(context.syntax.nodes, session, diagnostics);
 
         return diagnostics;
@@ -168,10 +172,7 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
                 continue;
             }
 
-            const functionNode = findLastAncestor(
-                parentMap.get(returnStatement)?.ancestors ?? [],
-                SyntaxKind.FunctionDeclaration
-            );
+            const functionNode = findReturnOwnerFunction(parentMap.get(returnStatement)?.ancestors ?? []);
             const functionSummary = functionNode
                 ? functions.find((summary) =>
                     summary.name === functionNode.name
@@ -195,7 +196,6 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
 
     private collectCallArgumentDiagnostics(
         nodes: readonly SyntaxNode[],
-        signatures: readonly DiagnosticCallableSignature[],
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): void {
@@ -205,9 +205,8 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
                 continue;
             }
 
-            const acceptedSignatures = signatures.filter((signature) =>
-                signature.name === callSite.callee.name
-                && acceptsDiagnosticArgumentCount(signature, callSite.argumentCount)
+            const acceptedSignatures = session.callableSignatures.get(callSite.callee.name).filter((signature) =>
+                acceptsDiagnosticArgumentCount(signature, callSite.argumentCount)
             );
             if (acceptedSignatures.length === 0) {
                 continue;
@@ -447,9 +446,13 @@ function buildParentMap(nodes: readonly SyntaxNode[]): Map<SyntaxNode, ParentInf
     return map;
 }
 
-function findLastAncestor(ancestors: readonly SyntaxNode[], kind: SyntaxKind): SyntaxNode | undefined {
+function findReturnOwnerFunction(ancestors: readonly SyntaxNode[]): SyntaxNode | undefined {
     for (let index = ancestors.length - 1; index >= 0; index -= 1) {
-        if (ancestors[index].kind === kind) {
+        if (ancestors[index].kind === SyntaxKind.AnonymousFunctionExpression) {
+            return undefined;
+        }
+
+        if (ancestors[index].kind === SyntaxKind.FunctionDeclaration) {
             return ancestors[index];
         }
     }
@@ -457,7 +460,7 @@ function findLastAncestor(ancestors: readonly SyntaxNode[], kind: SyntaxKind): S
     return undefined;
 }
 
-function getParameterTypeAt(signature: ExpressionCallableSignature, index: number): string | undefined {
+function getParameterTypeAt(signature: DiagnosticCallableSignature, index: number): string | undefined {
     const parameters = signature.parameters ?? [];
     const parameter = parameters[index];
     if (parameter?.dataType) {

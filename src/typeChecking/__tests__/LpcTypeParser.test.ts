@@ -53,6 +53,18 @@ describe('LpcTypeParser', () => {
                 }
             }
         });
+
+        const builtinArray = parser.parse('array');
+        expect(builtinArray).toMatchObject({
+            kind: 'array',
+            name: 'mixed',
+            pointerDepth: 1,
+            sourceText: 'array',
+            elementType: {
+                kind: 'primitive',
+                name: 'mixed'
+            }
+        });
     });
 
     test('parses class, struct, mapping, and function-like types', () => {

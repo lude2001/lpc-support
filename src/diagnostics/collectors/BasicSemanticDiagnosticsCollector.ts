@@ -13,6 +13,10 @@ import type {
     VisibleDiagnosticSymbols
 } from '../semantic/DiagnosticSymbolResolver';
 import {
+    CallableSignatureIndex,
+    type CallableSignatureLookup
+} from '../../typeChecking';
+import {
     DefaultDiagnosticFactsProvider,
     createCurrentFileVisibleSymbols,
     hasUnexpandedFunctionLikeMacroReference,
@@ -126,8 +130,9 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
                 options: {
                     enabled: true
                 }
-            };
+        };
         const visibleSymbols = facts.visibleSymbols;
+        const callableSignatures = new CallableSignatureIndex(visibleSymbols.callableSignatures);
         const parentMap = buildParentMap(context.syntax.nodes);
         const diagnostics: vscode.Diagnostic[] = [];
         const callCalleeRanges = new Set<string>();
@@ -142,9 +147,9 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
 
             const calleeName = callSite.callee.name!;
             callCalleeRanges.add(getRangeKey(callSite.callee.range));
-            const signatures = visibleSymbols.callableSignatures.filter((signature) => signature.name === calleeName);
+            const signatures = callableSignatures.get(calleeName);
             if (signatures.length === 0) {
-                if (!suppressUndefinedDiagnostics && !isKnownName(calleeName, visibleSymbols, callSite.callee.range)) {
+                if (!suppressUndefinedDiagnostics && !isKnownName(calleeName, visibleSymbols, callSite.callee.range, callableSignatures)) {
                     diagnostics.push(createWarning(
                         callSite.callee.range,
                         `未定义函数: ${calleeName}`,
@@ -177,7 +182,7 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
                 continue;
             }
 
-            if (!isKnownName(identifier.name, visibleSymbols, identifier.range)) {
+            if (!isKnownName(identifier.name, visibleSymbols, identifier.range, callableSignatures)) {
                 diagnostics.push(createWarning(
                     identifier.range,
                     `未定义符号: ${identifier.name}`,
@@ -220,7 +225,7 @@ function isKind(node: SyntaxNode | undefined, kind: SyntaxKind): node is SyntaxN
 function formatArgumentCountMessage(
     name: string,
     argumentCount: number,
-    signatures: DiagnosticCallableSignature[]
+    signatures: readonly DiagnosticCallableSignature[]
 ): string {
     const expected = Array.from(new Set(signatures.map(formatExpectedCount))).join(' 或 ');
     return `函数 ${name} 参数数量不匹配: 当前 ${argumentCount} 个，期望 ${expected}`;
@@ -282,14 +287,19 @@ function isReferenceIdentifier(
     return identifier.category === 'expression';
 }
 
-function isKnownName(name: string, visibleSymbols: VisibleDiagnosticSymbols, range?: vscode.Range): boolean {
+function isKnownName(
+    name: string,
+    visibleSymbols: VisibleDiagnosticSymbols,
+    range?: vscode.Range,
+    callableSignatures?: CallableSignatureLookup<DiagnosticCallableSignature>
+): boolean {
     if (KNOWN_LPC_NAMES.has(name)) {
         return true;
     }
 
     return isFluffOSPredefinedMacro(name)
         || visibleSymbols.functions.some((entry) => entry.name === name)
-        || visibleSymbols.callableSignatures.some((entry) => entry.name === name)
+        || (callableSignatures?.has(name) ?? visibleSymbols.callableSignatures.some((entry) => entry.name === name))
         || visibleSymbols.fileGlobals.some((entry) => entry.name === name)
         || visibleSymbols.types.some((entry) => entry.name === name)
         || visibleSymbols.macros.some((entry) => entry.name === name)

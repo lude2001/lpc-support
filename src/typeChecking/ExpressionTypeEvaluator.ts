@@ -10,6 +10,7 @@ import {
     createZeroLiteralType
 } from './LpcType';
 import { LpcTypeRelation } from './LpcTypeRelation';
+import { CallableSignatureIndex, type CallableSignatureLookup } from './CallableSignatureIndex';
 import type { ScopeSymbolTypeResolver } from './ScopeSymbolTypeResolver';
 import type { TypeNarrowingLookup } from './TypeNarrowingLookup';
 
@@ -31,6 +32,7 @@ export interface ExpressionCallableSignature {
 export interface ExpressionTypeEvaluatorOptions {
     scopeResolver: ScopeSymbolTypeResolver;
     callableSignatures?: readonly ExpressionCallableSignature[];
+    callableSignatureIndex?: CallableSignatureLookup<ExpressionCallableSignature>;
     narrowingLookup?: TypeNarrowingLookup;
     typeRelation?: LpcTypeRelation;
 }
@@ -42,13 +44,14 @@ const ARITHMETIC_OPERATORS = new Set(['+', '-', '*', '/', '%']);
 
 export class ExpressionTypeEvaluator {
     private readonly scopeResolver: ScopeSymbolTypeResolver;
-    private readonly callableSignatures: readonly ExpressionCallableSignature[];
+    private readonly callableSignatureIndex: CallableSignatureLookup<ExpressionCallableSignature>;
     private readonly narrowingLookup?: TypeNarrowingLookup;
     private readonly typeRelation: LpcTypeRelation;
 
     public constructor(options: ExpressionTypeEvaluatorOptions) {
         this.scopeResolver = options.scopeResolver;
-        this.callableSignatures = options.callableSignatures ?? [];
+        this.callableSignatureIndex = options.callableSignatureIndex
+            ?? new CallableSignatureIndex(options.callableSignatures ?? []);
         this.narrowingLookup = options.narrowingLookup;
         this.typeRelation = options.typeRelation ?? new LpcTypeRelation();
     }
@@ -232,11 +235,17 @@ export class ExpressionTypeEvaluator {
             return createUnknownType();
         }
 
-        const returnTypes = this.callableSignatures
-            .filter((signature) => signature.name === callee.name && acceptsArgumentCount(signature, argumentCount))
-            .map((signature) => signature.returnType)
-            .filter((typeText): typeText is string => Boolean(typeText && typeText.trim()))
-            .map((typeText) => this.scopeResolver.parseType(typeText));
+        const acceptedSignatures = this.callableSignatureIndex.get(callee.name)
+            .filter((signature) => acceptsArgumentCount(signature, argumentCount));
+        if (
+            acceptedSignatures.length === 0
+            || acceptedSignatures.some((signature) => !signature.returnType?.trim())
+        ) {
+            return createUnknownType();
+        }
+
+        const returnTypes = acceptedSignatures
+            .map((signature) => this.scopeResolver.parseType(signature.returnType));
 
         return this.unifyAll(returnTypes);
     }

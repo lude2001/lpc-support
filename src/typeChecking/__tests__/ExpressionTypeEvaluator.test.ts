@@ -7,6 +7,7 @@ import { SyntaxBuilder } from '../../syntax/SyntaxBuilder';
 import type { SyntaxDocument, SyntaxNode } from '../../syntax/types';
 import { SyntaxKind } from '../../syntax/types';
 import { createPrimitiveType } from '../LpcType';
+import { CallableSignatureIndex } from '../CallableSignatureIndex';
 import { ExpressionCallableSignature, ExpressionTypeEvaluator } from '../ExpressionTypeEvaluator';
 import { ScopeSymbolTypeResolver } from '../ScopeSymbolTypeResolver';
 
@@ -184,6 +185,61 @@ describe('ExpressionTypeEvaluator', () => {
         expect(evaluator.evaluate(findInitializer(syntax, 'narrowed'))).toMatchObject({
             kind: 'primitive',
             name: 'string'
+        });
+    });
+
+    test('uses a prebuilt callable signature index for direct call returns', () => {
+        const { syntax, semantic } = buildAnalysis([
+            'void demo() {',
+            '    string value = indexed_name();',
+            '}'
+        ].join('\n'));
+        const scopeResolver = new ScopeSymbolTypeResolver({ semantic });
+        const evaluator = new ExpressionTypeEvaluator({
+            scopeResolver,
+            callableSignatureIndex: new CallableSignatureIndex<ExpressionCallableSignature>([{
+                name: 'indexed_name',
+                requiredParameterCount: 0,
+                maxParameterCount: 0,
+                isVariadic: false,
+                returnType: 'string'
+            }])
+        });
+
+        expect(evaluator.evaluate(findInitializer(syntax, 'value'))).toMatchObject({
+            kind: 'primitive',
+            name: 'string'
+        });
+    });
+
+    test('does not infer a call return when any accepted overload lacks a return type', () => {
+        const { syntax, semantic } = buildAnalysis([
+            'void demo() {',
+            '    mixed value = ambiguous_return(1);',
+            '}'
+        ].join('\n'));
+        const scopeResolver = new ScopeSymbolTypeResolver({ semantic });
+        const evaluator = new ExpressionTypeEvaluator({
+            scopeResolver,
+            callableSignatureIndex: new CallableSignatureIndex<ExpressionCallableSignature>([
+                {
+                    name: 'ambiguous_return',
+                    requiredParameterCount: 1,
+                    maxParameterCount: 1,
+                    isVariadic: false
+                },
+                {
+                    name: 'ambiguous_return',
+                    requiredParameterCount: 1,
+                    maxParameterCount: 1,
+                    isVariadic: false,
+                    returnType: 'string'
+                }
+            ])
+        });
+
+        expect(evaluator.evaluate(findInitializer(syntax, 'value'))).toMatchObject({
+            isUnknown: true
         });
     });
 });

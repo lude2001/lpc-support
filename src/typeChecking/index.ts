@@ -10,6 +10,11 @@ export {
 } from './LpcType';
 export { LpcTypeParser } from './LpcTypeParser';
 export { LpcTypeRelation } from './LpcTypeRelation';
+export { CallableSignatureIndex } from './CallableSignatureIndex';
+export type {
+    CallableSignatureLike,
+    CallableSignatureLookup
+} from './CallableSignatureIndex';
 export {
     ScopeSymbolTypeResolver
 } from './ScopeSymbolTypeResolver';
