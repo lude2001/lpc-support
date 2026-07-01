@@ -614,6 +614,20 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(diagnostics.every((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Warning)).toBe(true);
     });
 
+    test('TypeDiagnosticsCollector treats logical truthiness expressions as int results', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo() {',
+            '    int both = "a" && "b";',
+            '    int either = "a" || 0;',
+            '}'
+        ].join('\n'), 'type-diagnostics-logical.c');
+
+        await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
+    });
+
     test('TypeDiagnosticsCollector respects disabled options and unresolved dependency suppression', async () => {
         const disabledCollector = new TypeDiagnosticsCollector({
             diagnosticFactsProvider: {

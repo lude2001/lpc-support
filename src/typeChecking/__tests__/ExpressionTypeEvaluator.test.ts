@@ -120,6 +120,7 @@ describe('ExpressionTypeEvaluator', () => {
             '    int from_call = add(1, 2);',
             '    string from_return = name();',
             '    float numeric = 1 + 2.5;',
+            '    int logical = "a" && "b";',
             '    string joined = "a" "b";',
             '    string *list = ({ "a", "b" });',
             '    mapping table = ([ "hp": 1, "mp": 2 ]);',
@@ -135,6 +136,7 @@ describe('ExpressionTypeEvaluator', () => {
         expect(evaluator.evaluate(findInitializer(syntax, 'from_call'))).toMatchObject({ name: 'int' });
         expect(evaluator.evaluate(findInitializer(syntax, 'from_return'))).toMatchObject({ name: 'string' });
         expect(evaluator.evaluate(findInitializer(syntax, 'numeric'))).toMatchObject({ name: 'float' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'logical'))).toMatchObject({ name: 'int' });
         expect(evaluator.evaluate(findInitializer(syntax, 'joined'))).toMatchObject({ name: 'string' });
         expect(evaluator.evaluate(findInitializer(syntax, 'list'))).toMatchObject({
             kind: 'array',

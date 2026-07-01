@@ -63,11 +63,12 @@ export class DefaultDiagnosticFactsProvider implements DiagnosticFactsProvider {
 
         const pending = this.createFacts(document, semantic, workspace);
         this.cache.set(key, pending);
-        pending.catch(() => {
+        const clearPending = () => {
             if (this.cache.get(key) === pending) {
                 this.cache.delete(key);
             }
-        });
+        };
+        pending.then(clearPending, clearPending);
         this.trimCache();
         return pending;
     }

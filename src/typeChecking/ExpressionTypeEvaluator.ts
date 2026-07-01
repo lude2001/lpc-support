@@ -188,7 +188,11 @@ export class ExpressionTypeEvaluator {
             return createPrimitiveType('int');
         }
 
-        if (operator === '&&' || operator === '||' || operator === '??') {
+        if (operator === '&&' || operator === '||') {
+            return createPrimitiveType('int');
+        }
+
+        if (operator === '??') {
             return this.unifyTypes(left, right);
         }
 

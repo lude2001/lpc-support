@@ -61,6 +61,32 @@ describe('DefaultDiagnosticFactsProvider', () => {
         expect(first.options.enabled).toBe(true);
     });
 
+    test('does not reuse fulfilled visible symbol facts across diagnostic requests', async () => {
+        const document = createDocument();
+        const semantic = createSnapshot(document);
+        const firstSymbols: VisibleDiagnosticSymbols = {
+            ...createCurrentFileVisibleSymbols(semantic),
+            hasUnresolvedDependencies: false
+        };
+        const secondSymbols: VisibleDiagnosticSymbols = {
+            ...createCurrentFileVisibleSymbols(semantic),
+            hasUnresolvedDependencies: true
+        };
+        const resolver = {
+            resolveVisibleSymbols: jest.fn()
+                .mockResolvedValueOnce(firstSymbols)
+                .mockResolvedValueOnce(secondSymbols)
+        };
+        const provider = new DefaultDiagnosticFactsProvider({ resolver });
+
+        const first = await provider.getFacts(document, semantic, { workspaceRoot: '/workspace' });
+        const second = await provider.getFacts(document, semantic, { workspaceRoot: '/workspace' });
+
+        expect(resolver.resolveVisibleSymbols).toHaveBeenCalledTimes(2);
+        expect(first.visibleSymbols).toBe(firstSymbols);
+        expect(second.visibleSymbols).toBe(secondSymbols);
+    });
+
     test('keeps current-file fallback signatures typed', async () => {
         const document = createDocument();
         const semantic = createSnapshot(document);
