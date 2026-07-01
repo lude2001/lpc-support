@@ -51,7 +51,10 @@ describe('createDiagnosticsStack', () => {
             expect.objectContaining({
                 parseDocument: expect.any(Function)
             }),
-            stack.collectors
+            stack.collectors,
+            expect.objectContaining({
+                diagnosticFactsProvider: expect.any(Object)
+            })
         );
         expect(createSharedDiagnosticsService.mock.calls[0][0].parseDocument).toBeDefined();
         expect(stack.collectors).toHaveLength(8);
@@ -70,5 +73,12 @@ describe('createDiagnosticsStack', () => {
 
         expect(stack.collectors[7]).toBeInstanceOf(BasicSemanticDiagnosticsCollector);
         expect((stack.collectors[7] as any).resolver).toBe(symbolResolver);
+        expect(createSharedDiagnosticsService).toHaveBeenCalledWith(
+            expect.anything(),
+            stack.collectors,
+            expect.objectContaining({
+                diagnosticFactsProvider: (stack.collectors[7] as any).diagnosticFactsProvider
+            })
+        );
     });
 });

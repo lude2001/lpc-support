@@ -2,19 +2,22 @@ import * as vscode from 'vscode';
 import { SymbolType } from '../../ast/symbolTable';
 import type { ParsedDocument } from '../../parser/types';
 import type {
-    FileGlobalSummary,
-    FunctionSummary,
     MacroDefinitionSummary,
     SemanticSymbolSummary,
     TypeDefinitionSummary
 } from '../../semantic/documentSemanticTypes';
-import type { SemanticSnapshot } from '../../semantic/semanticSnapshot';
 import { SyntaxKind, SyntaxNode } from '../../syntax/types';
 import type {
     DiagnosticCallableSignature,
     DiagnosticSymbolResolver,
     VisibleDiagnosticSymbols
 } from '../semantic/DiagnosticSymbolResolver';
+import {
+    DefaultDiagnosticFactsProvider,
+    createCurrentFileVisibleSymbols,
+    hasUnexpandedFunctionLikeMacroReference,
+    type DiagnosticFactsProvider
+} from '../semantic/DiagnosticTypeFacts';
 import { isFluffOSPredefinedMacro } from '../semantic/FluffOSPredefinedMacros';
 import type { DiagnosticContext, IDiagnosticCollector } from '../types';
 
@@ -76,10 +79,27 @@ interface ParentInfo {
     ancestors: SyntaxNode[];
 }
 
+export interface BasicSemanticDiagnosticsCollectorOptions {
+    resolver?: DiagnosticSymbolResolver;
+    diagnosticFactsProvider?: DiagnosticFactsProvider;
+}
+
 export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
     public readonly name = 'BasicSemanticDiagnosticsCollector';
+    private readonly resolver?: DiagnosticSymbolResolver;
+    private readonly diagnosticFactsProvider?: DiagnosticFactsProvider;
 
-    public constructor(private readonly resolver?: DiagnosticSymbolResolver) {}
+    public constructor(optionsOrResolver?: DiagnosticSymbolResolver | BasicSemanticDiagnosticsCollectorOptions) {
+        if (optionsOrResolver && 'resolveVisibleSymbols' in optionsOrResolver) {
+            this.resolver = optionsOrResolver;
+            this.diagnosticFactsProvider = new DefaultDiagnosticFactsProvider({ resolver: optionsOrResolver });
+            return;
+        }
+
+        this.resolver = optionsOrResolver?.resolver;
+        this.diagnosticFactsProvider = optionsOrResolver?.diagnosticFactsProvider
+            ?? (this.resolver ? new DefaultDiagnosticFactsProvider({ resolver: this.resolver }) : undefined);
+    }
 
     public async collect(
         _document: vscode.TextDocument,
@@ -90,14 +110,25 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
             return [];
         }
 
-        const visibleSymbols = this.resolver
-            ? await this.resolver.resolveVisibleSymbols(_document, context.semantic, context.workspace)
-            : createCurrentFileVisibleSymbols(context.semantic);
+        const factsProvider = context.diagnosticFactsProvider
+            ?? this.diagnosticFactsProvider;
+        const facts = factsProvider
+            ? await factsProvider.getFacts(_document, context.semantic, context.workspace)
+            : {
+                visibleSymbols: createCurrentFileVisibleSymbols(context.semantic),
+                macroSuppression: {
+                    hasUnexpandedFunctionLikeMacroReference: hasUnexpandedFunctionLikeMacroReference(context.semantic)
+                },
+                options: {
+                    enabled: true
+                }
+            };
+        const visibleSymbols = facts.visibleSymbols;
         const parentMap = buildParentMap(context.syntax.nodes);
         const diagnostics: vscode.Diagnostic[] = [];
         const callCalleeRanges = new Set<string>();
         const suppressUndefinedDiagnostics = visibleSymbols.hasUnresolvedDependencies
-            || hasUnexpandedFunctionLikeMacroReference(context.semantic);
+            || facts.macroSuppression.hasUnexpandedFunctionLikeMacroReference;
 
         for (const callExpression of context.syntax.nodes.filter((node) => isKind(node, SyntaxKind.CallExpression))) {
             const callee = getDirectCallee(callExpression);
@@ -158,31 +189,6 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
 
         return diagnostics;
     }
-}
-
-function createCurrentFileVisibleSymbols(semantic: SemanticSnapshot): VisibleDiagnosticSymbols {
-    return {
-        functions: semantic.exportedFunctions,
-        symbols: semantic.symbols,
-        fileGlobals: semantic.fileGlobals ?? [],
-        types: semantic.typeDefinitions,
-        macros: semantic.macroDefinitions ?? [],
-        macroReferences: semantic.macroReferences,
-        callableSignatures: semantic.exportedFunctions.map((summary) => toCallableSignature(summary)),
-        hasUnresolvedDependencies: semantic.includeStatements.length > 0 || semantic.inheritStatements.length > 0
-    };
-}
-
-function toCallableSignature(summary: FunctionSummary): DiagnosticCallableSignature {
-    const isVariadic = Boolean(summary.isVariadic || summary.parameters.some((parameter) => parameter.isVariadic));
-    return {
-        name: summary.name,
-        requiredParameterCount: summary.requiredParameterCount
-            ?? summary.parameters.filter((parameter) => !parameter.hasDefaultValue && !parameter.isVariadic).length,
-        maxParameterCount: summary.maxParameterCount ?? (isVariadic ? undefined : summary.parameters.length),
-        isVariadic,
-        source: summary.origin
-    };
 }
 
 function buildParentMap(nodes: readonly SyntaxNode[]): Map<SyntaxNode, ParentInfo> {
@@ -341,24 +347,6 @@ function isKnownName(name: string, visibleSymbols: VisibleDiagnosticSymbols, ran
             entry.name === name && rangesEqual(entry.range, range)
         ))
         || visibleSymbols.symbols.some((entry) => isVisibleSemanticSymbol(entry) && entry.name === name);
-}
-
-function hasUnexpandedFunctionLikeMacroReference(semantic: SemanticSnapshot): boolean {
-    const expandedRanges = semantic.syntax.parsed.frontend?.preprocessor.activeView.expandedRanges ?? [];
-    return semantic.macroReferences.some((reference) => {
-        if (!reference.isFunctionLike) {
-            return false;
-        }
-
-        if (reference.startOffset === undefined || reference.endOffset === undefined) {
-            return true;
-        }
-
-        return !expandedRanges.some((range) =>
-            reference.startOffset! >= range.originalStartOffset
-            && reference.endOffset! <= range.originalEndOffset
-        );
-    });
 }
 
 function isVisibleSemanticSymbol(symbol: SemanticSymbolSummary): boolean {

@@ -10,6 +10,10 @@ import type {
 } from './LanguageDiagnosticsService';
 import { createLanguageDiagnosticsService } from './LanguageDiagnosticsService';
 
+export interface SharedDiagnosticsServiceOptions {
+    diagnosticFactsProvider?: DiagnosticContext['diagnosticFactsProvider'];
+}
+
 function toLanguageDiagnostic(diagnostic: vscode.Diagnostic): LanguageDiagnostic {
     return {
         range: {
@@ -120,13 +124,15 @@ function toHostDocument(document: { uri: string | vscode.Uri; version: number; g
 function toDiagnosticContext(
     parsed: ParsedDocument,
     analysis: { syntax?: unknown; semantic?: unknown },
-    workspace: DiagnosticContext['workspace']
+    workspace: DiagnosticContext['workspace'],
+    options: SharedDiagnosticsServiceOptions = {}
 ): DiagnosticContext {
     return {
         parsed,
         syntax: analysis.syntax as DiagnosticContext['syntax'],
         semantic: analysis.semantic as DiagnosticContext['semantic'],
-        workspace
+        workspace,
+        diagnosticFactsProvider: options.diagnosticFactsProvider
     };
 }
 
@@ -147,7 +153,10 @@ function toLanguageDiagnosticsAnalysis(
     };
 }
 
-function toLanguageDiagnosticsCollector(collector: IDiagnosticCollector): LanguageDiagnosticsCollector {
+function toLanguageDiagnosticsCollector(
+    collector: IDiagnosticCollector,
+    options: SharedDiagnosticsServiceOptions = {}
+): LanguageDiagnosticsCollector {
     return {
         async collect(document, analysis, context) {
             const parsed = (analysis as LanguageDiagnosticsAnalysis & { parsed?: ParsedDocument }).parsed;
@@ -159,7 +168,7 @@ function toLanguageDiagnosticsCollector(collector: IDiagnosticCollector): Langua
             const diagnosticContext = toDiagnosticContext(parsed, {
                 syntax: analysis.syntax,
                 semantic: analysis.semantic
-            }, context.workspace);
+            }, context.workspace, options);
             const result = await collector.collect(hostDocument, parsed, diagnosticContext);
             return toLanguageDiagnosticArray(result);
         }
@@ -168,12 +177,13 @@ function toLanguageDiagnosticsCollector(collector: IDiagnosticCollector): Langua
 
 export function createSharedDiagnosticsService(
     analysisService: DiagnosticsAnalysisService,
-    collectors: IDiagnosticCollector[]
+    collectors: IDiagnosticCollector[],
+    options: SharedDiagnosticsServiceOptions = {}
 ): LanguageDiagnosticsService {
     return createLanguageDiagnosticsService({
         analyzeDocument: {
             analyze: (document) => toLanguageDiagnosticsAnalysis(analysisService, document)
         },
-        collectors: collectors.map((collector) => toLanguageDiagnosticsCollector(collector))
+        collectors: collectors.map((collector) => toLanguageDiagnosticsCollector(collector, options))
     });
 }

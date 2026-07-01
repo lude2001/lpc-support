@@ -9,6 +9,11 @@ import type { DocumentAnalysisService } from '../semantic/documentAnalysisServic
 import { BasicSemanticDiagnosticsCollector } from './collectors/BasicSemanticDiagnosticsCollector';
 import { MacroUsageCollector } from './collectors/MacroUsageCollector';
 import { ObjectAccessCollector } from './collectors/ObjectAccessCollector';
+import {
+    DefaultDiagnosticFactsProvider,
+    type DiagnosticFactsProvider,
+    type TypeCheckingOptions
+} from './semantic/DiagnosticTypeFacts';
 import type { DiagnosticSymbolResolver } from './semantic/DiagnosticSymbolResolver';
 import type { IDiagnosticCollector } from './types';
 
@@ -21,11 +26,15 @@ type DiagnosticsAnalysisService = Pick<DocumentAnalysisService, 'parseDocument'>
 
 export interface CreateDiagnosticsStackOptions {
     symbolResolver?: DiagnosticSymbolResolver;
+    diagnosticFactsProvider?: DiagnosticFactsProvider;
+    typeChecking?: Partial<TypeCheckingOptions>;
 }
 
 export function createDefaultDiagnosticsCollectors(
     options: CreateDiagnosticsStackOptions = {}
 ): IDiagnosticCollector[] {
+    const diagnosticFactsProvider = createDiagnosticFactsProvider(options);
+
     return [
         new StringLiteralCollector(),
         new FileNamingCollector(),
@@ -34,7 +43,10 @@ export function createDefaultDiagnosticsCollectors(
         new LocalVariableDeclarationCollector(),
         new ObjectAccessCollector(),
         new MacroUsageCollector(),
-        new BasicSemanticDiagnosticsCollector(options.symbolResolver),
+        new BasicSemanticDiagnosticsCollector({
+            resolver: options.symbolResolver,
+            diagnosticFactsProvider
+        }),
     ];
 }
 
@@ -42,11 +54,25 @@ export function createDiagnosticsStack(
     analysisService: DiagnosticsAnalysisService,
     options: CreateDiagnosticsStackOptions = {}
 ): DiagnosticsStack {
-    const collectors = createDefaultDiagnosticsCollectors(options);
-    const diagnosticsService = createSharedDiagnosticsService(analysisService, collectors);
+    const diagnosticFactsProvider = createDiagnosticFactsProvider(options);
+    const collectors = createDefaultDiagnosticsCollectors({
+        ...options,
+        diagnosticFactsProvider
+    });
+    const diagnosticsService = createSharedDiagnosticsService(analysisService, collectors, {
+        diagnosticFactsProvider
+    });
 
     return {
         collectors,
         diagnosticsService
     };
+}
+
+function createDiagnosticFactsProvider(options: CreateDiagnosticsStackOptions): DiagnosticFactsProvider {
+    return options.diagnosticFactsProvider
+        ?? new DefaultDiagnosticFactsProvider({
+            resolver: options.symbolResolver,
+            typeChecking: options.typeChecking
+        });
 }
