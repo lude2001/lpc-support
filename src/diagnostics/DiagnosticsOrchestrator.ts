@@ -161,7 +161,8 @@ export class DiagnosticsOrchestrator {
                     getText: () => document.getText()
                 },
                 workspace: {
-                    workspaceRoot: this.resolveWorkspaceRoot(document)
+                    workspaceRoot: this.resolveWorkspaceRoot(document),
+                    typeChecking: this.getTypeCheckingSettings()
                 },
                 mode: 'lsp'
             }
@@ -199,6 +200,13 @@ export class DiagnosticsOrchestrator {
             debounceDelay: config.get<number>('debounceDelay', 300),
             enableAsyncDiagnostics: config.get<boolean>('enableAsyncDiagnostics', true),
             batchSize: config.get<number>('batchSize', 3)
+        };
+    }
+
+    private getTypeCheckingSettings(): { enabled: boolean } {
+        const config = vscode.workspace.getConfiguration('lpc');
+        return {
+            enabled: config.get<boolean>('enableTypeChecking', true)
         };
     }
 

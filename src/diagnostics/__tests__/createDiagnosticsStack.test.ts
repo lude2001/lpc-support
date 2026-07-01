@@ -8,6 +8,7 @@ import { createSharedDiagnosticsService } from '../../language/services/diagnost
 import { BasicSemanticDiagnosticsCollector } from '../collectors/BasicSemanticDiagnosticsCollector';
 import { MacroUsageCollector } from '../collectors/MacroUsageCollector';
 import { ObjectAccessCollector } from '../collectors/ObjectAccessCollector';
+import { TypeDiagnosticsCollector } from '../collectors/TypeDiagnosticsCollector';
 import {
     createDefaultDiagnosticsCollectors,
     createDiagnosticsStack
@@ -26,7 +27,7 @@ describe('createDiagnosticsStack', () => {
     test('creates the default collector set in the expected order', () => {
         const collectors = createDefaultDiagnosticsCollectors();
 
-        expect(collectors).toHaveLength(8);
+        expect(collectors).toHaveLength(9);
         expect(collectors[0]).toBeInstanceOf(StringLiteralCollector);
         expect(collectors[1]).toBeInstanceOf(FileNamingCollector);
         expect(collectors[2]).toBeInstanceOf(UnusedVariableCollector);
@@ -35,6 +36,7 @@ describe('createDiagnosticsStack', () => {
         expect(collectors[5]).toBeInstanceOf(ObjectAccessCollector);
         expect(collectors[6]).toBeInstanceOf(MacroUsageCollector);
         expect(collectors[7]).toBeInstanceOf(BasicSemanticDiagnosticsCollector);
+        expect(collectors[8]).toBeInstanceOf(TypeDiagnosticsCollector);
     });
 
     test('assembles diagnostics service from ASTManager and the default collector set', () => {
@@ -57,7 +59,7 @@ describe('createDiagnosticsStack', () => {
             })
         );
         expect(createSharedDiagnosticsService.mock.calls[0][0].parseDocument).toBeDefined();
-        expect(stack.collectors).toHaveLength(8);
+        expect(stack.collectors).toHaveLength(9);
         expect(stack.diagnosticsService).toBe(diagnosticsService);
     });
 
@@ -73,6 +75,9 @@ describe('createDiagnosticsStack', () => {
 
         expect(stack.collectors[7]).toBeInstanceOf(BasicSemanticDiagnosticsCollector);
         expect((stack.collectors[7] as any).resolver).toBe(symbolResolver);
+        expect(stack.collectors[8]).toBeInstanceOf(TypeDiagnosticsCollector);
+        expect((stack.collectors[8] as any).resolver).toBe(symbolResolver);
+        expect((stack.collectors[8] as any).diagnosticFactsProvider).toBe((stack.collectors[7] as any).diagnosticFactsProvider);
         expect(createSharedDiagnosticsService).toHaveBeenCalledWith(
             expect.anything(),
             stack.collectors,

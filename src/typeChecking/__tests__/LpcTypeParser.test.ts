@@ -73,4 +73,12 @@ describe('LpcTypeParser', () => {
             name: 'function'
         });
     });
+
+    test('downgrades ambiguous documented parameter text to unknown', () => {
+        expect(parser.parse('string substr | int')).toMatchObject({
+            kind: 'unknown',
+            isUnknown: true,
+            sourceText: 'string substr | int'
+        });
+    });
 });

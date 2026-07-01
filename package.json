@@ -261,6 +261,11 @@
           "default": false,
           "description": "对 efun（驱动内置函数）调用执行“转到定义”时是否搜索继承链。默认关闭：efun 调用直接返回“未找到”，避免遍历继承链带来的延迟。仅当你在继承链（而非模拟函数库 simul_efun）中重写了 efun 时才需要开启。"
         },
+        "lpc.enableTypeChecking": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用保守的 LPC 类型检查诊断。关闭后不会产生 lpc.type.* 诊断。"
+        },
         "lpc.performance.debounceDelay": {
           "type": "number",
           "default": 300,

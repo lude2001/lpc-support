@@ -93,4 +93,30 @@ describe('DefaultDiagnosticFactsProvider', () => {
             }]
         });
     });
+
+    test('uses workspace-scoped type checking options in facts and cache keys', async () => {
+        const document = createDocument();
+        const semantic = createSnapshot(document);
+        const resolver = {
+            resolveVisibleSymbols: jest.fn(async () => createCurrentFileVisibleSymbols(semantic))
+        };
+        const provider = new DefaultDiagnosticFactsProvider({ resolver });
+
+        const disabled = await provider.getFacts(document, semantic, {
+            workspaceRoot: '/workspace',
+            typeChecking: {
+                enabled: false
+            }
+        });
+        const enabled = await provider.getFacts(document, semantic, {
+            workspaceRoot: '/workspace',
+            typeChecking: {
+                enabled: true
+            }
+        });
+
+        expect(disabled.options.enabled).toBe(false);
+        expect(enabled.options.enabled).toBe(true);
+        expect(resolver.resolveVisibleSymbols).toHaveBeenCalledTimes(2);
+    });
 });

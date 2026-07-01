@@ -443,9 +443,12 @@ describe('diagnostics parity harness', () => {
             expect.objectContaining({
                 context: expect.objectContaining({
                     mode: 'lsp',
-                    workspace: {
-                        workspaceRoot: process.cwd()
-                    }
+                    workspace: expect.objectContaining({
+                        workspaceRoot: process.cwd(),
+                        typeChecking: {
+                            enabled: true
+                        }
+                    })
                 })
             }),
             expect.objectContaining({

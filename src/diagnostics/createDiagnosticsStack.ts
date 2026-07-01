@@ -9,6 +9,7 @@ import type { DocumentAnalysisService } from '../semantic/documentAnalysisServic
 import { BasicSemanticDiagnosticsCollector } from './collectors/BasicSemanticDiagnosticsCollector';
 import { MacroUsageCollector } from './collectors/MacroUsageCollector';
 import { ObjectAccessCollector } from './collectors/ObjectAccessCollector';
+import { TypeDiagnosticsCollector } from './collectors/TypeDiagnosticsCollector';
 import {
     DefaultDiagnosticFactsProvider,
     type DiagnosticFactsProvider,
@@ -44,6 +45,10 @@ export function createDefaultDiagnosticsCollectors(
         new ObjectAccessCollector(),
         new MacroUsageCollector(),
         new BasicSemanticDiagnosticsCollector({
+            resolver: options.symbolResolver,
+            diagnosticFactsProvider
+        }),
+        new TypeDiagnosticsCollector({
             resolver: options.symbolResolver,
             diagnosticFactsProvider
         }),

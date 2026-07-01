@@ -26,7 +26,10 @@ export interface LanguageDiagnosticsSemantic {
     parseDiagnostics: LanguageDiagnostic[];
 }
 
-export interface LanguageDiagnosticsWorkspaceContext extends Pick<LanguageWorkspaceContext, 'workspaceRoot' | 'projectConfig'> {}
+export interface LanguageDiagnosticsWorkspaceContext extends Pick<
+    LanguageWorkspaceContext,
+    'workspaceRoot' | 'projectConfig' | 'typeChecking'
+> {}
 
 export interface LanguageDiagnosticsContext {
     document: LanguageDocument;

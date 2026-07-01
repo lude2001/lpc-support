@@ -86,7 +86,16 @@ export class DefaultDiagnosticFactsProvider implements DiagnosticFactsProvider {
             macroSuppression: {
                 hasUnexpandedFunctionLikeMacroReference: hasUnexpandedFunctionLikeMacroReference(semantic)
             },
-            options: this.typeCheckingOptions
+            options: this.resolveTypeCheckingOptions(workspace)
+        };
+    }
+
+    private resolveTypeCheckingOptions(
+        workspace?: LanguageDiagnosticsWorkspaceContext
+    ): TypeCheckingOptions {
+        return {
+            ...this.typeCheckingOptions,
+            ...workspace?.typeChecking
         };
     }
 
@@ -99,7 +108,8 @@ export class DefaultDiagnosticFactsProvider implements DiagnosticFactsProvider {
             document.version,
             workspace?.workspaceRoot ?? '',
             stableStringify(workspace?.projectConfig),
-            this.typeCheckingOptions.enabled ? 'type:on' : 'type:off'
+            stableStringify(workspace?.typeChecking),
+            this.resolveTypeCheckingOptions(workspace).enabled ? 'type:on' : 'type:off'
         ].join('|');
     }
 

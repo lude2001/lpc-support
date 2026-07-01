@@ -275,7 +275,10 @@ describe('structure handlers', () => {
 
         expect(runtime.workspaceSession.toLanguageWorkspaceContext('')).toEqual({
             workspaceRoot: '',
-            projectConfig: undefined
+            projectConfig: undefined,
+            typeChecking: {
+                enabled: true
+            }
         });
         expect(registrationContext.structureService).toBe(structureService);
     });

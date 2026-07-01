@@ -19,6 +19,10 @@ import {
     type DiagnosticFactsProvider
 } from '../semantic/DiagnosticTypeFacts';
 import { isFluffOSPredefinedMacro } from '../semantic/FluffOSPredefinedMacros';
+import {
+    acceptsDiagnosticArgumentCount,
+    getDirectDiagnosticCallSite
+} from '../semantic/DiagnosticSyntaxFacts';
 import type { DiagnosticContext, IDiagnosticCollector } from '../types';
 
 const ARGUMENT_COUNT_CODE = 'lpc.argumentCountMismatch';
@@ -131,23 +135,18 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
             || facts.macroSuppression.hasUnexpandedFunctionLikeMacroReference;
 
         for (const callExpression of context.syntax.nodes.filter((node) => isKind(node, SyntaxKind.CallExpression))) {
-            const callee = getDirectCallee(callExpression);
-            if (!callee) {
+            const callSite = getDirectDiagnosticCallSite(callExpression);
+            if (!callSite) {
                 continue;
             }
 
-            const calleeName = callee.name!;
-            callCalleeRanges.add(getRangeKey(callee.range));
-            const argumentCount = getArgumentCount(callExpression);
-            if (argumentCount === undefined) {
-                continue;
-            }
-
+            const calleeName = callSite.callee.name!;
+            callCalleeRanges.add(getRangeKey(callSite.callee.range));
             const signatures = visibleSymbols.callableSignatures.filter((signature) => signature.name === calleeName);
             if (signatures.length === 0) {
-                if (!suppressUndefinedDiagnostics && !isKnownName(calleeName, visibleSymbols, callee.range)) {
+                if (!suppressUndefinedDiagnostics && !isKnownName(calleeName, visibleSymbols, callSite.callee.range)) {
                     diagnostics.push(createWarning(
-                        callee.range,
+                        callSite.callee.range,
                         `未定义函数: ${calleeName}`,
                         UNDEFINED_FUNCTION_CODE
                     ));
@@ -155,10 +154,10 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
                 continue;
             }
 
-            if (!signatures.some((signature) => acceptsArgumentCount(signature, argumentCount))) {
+            if (!signatures.some((signature) => acceptsDiagnosticArgumentCount(signature, callSite.argumentCount))) {
                 diagnostics.push(createWarning(
-                    callee.range,
-                    formatArgumentCountMessage(calleeName, argumentCount, signatures),
+                    callSite.callee.range,
+                    formatArgumentCountMessage(calleeName, callSite.argumentCount, signatures),
                     ARGUMENT_COUNT_CODE
                 ));
             }
@@ -214,57 +213,8 @@ function buildParentMap(nodes: readonly SyntaxNode[]): Map<SyntaxNode, ParentInf
     return map;
 }
 
-function getDirectCallee(callExpression: SyntaxNode): SyntaxNode | undefined {
-    const firstChild = callExpression.children[0];
-    if (
-        isKind(firstChild, SyntaxKind.Identifier)
-        && firstChild.name
-        && !firstChild.metadata?.scopeQualifier
-    ) {
-        return firstChild;
-    }
-
-    if (isKind(firstChild, SyntaxKind.MemberAccessExpression) || firstChild?.metadata?.scopeQualifier) {
-        return undefined;
-    }
-
-    if (typeof callExpression.name !== 'string') {
-        return undefined;
-    }
-
-    const namedCallee = callExpression.children.find((child) =>
-        isKind(child, SyntaxKind.Identifier)
-        && child.name === callExpression.name
-        && !child.metadata?.scopeQualifier
-    );
-    return namedCallee;
-}
-
 function isKind(node: SyntaxNode | undefined, kind: SyntaxKind): node is SyntaxNode {
     return Boolean(node && String(node.kind) === kind);
-}
-
-function getArgumentCount(callExpression: SyntaxNode): number | undefined {
-    const argumentList = callExpression.children.find((child) => child.kind === SyntaxKind.ArgumentList);
-    if (!argumentList) {
-        return 0;
-    }
-
-    if (argumentList.children.some((child) => child.kind === SyntaxKind.SpreadElement || child.isMissing || child.isOpaque)) {
-        return undefined;
-    }
-
-    return argumentList.children.length;
-}
-
-function acceptsArgumentCount(signature: DiagnosticCallableSignature, argumentCount: number): boolean {
-    if (argumentCount < signature.requiredParameterCount) {
-        return false;
-    }
-
-    return signature.maxParameterCount === undefined
-        || signature.isVariadic
-        || argumentCount <= signature.maxParameterCount;
 }
 
 function formatArgumentCountMessage(

@@ -49,6 +49,10 @@ export class LpcTypeParser {
             return createUnknownType(sourceText);
         }
 
+        if (!isSimpleTypeName(qualifiedName)) {
+            return createUnknownType(sourceText);
+        }
+
         return createPrimitiveType(qualifiedName || 'mixed', sourceText);
     }
 
@@ -59,4 +63,8 @@ export class LpcTypeParser {
         }
         return result;
     }
+}
+
+function isSimpleTypeName(typeName: string): boolean {
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(typeName);
 }
