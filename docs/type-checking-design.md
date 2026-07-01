@@ -289,8 +289,8 @@ if (stringp(value)) {
 | assignment expression | 返回 RHS 类型，同时由 collector 负责检查赋值兼容 |
 | binary arithmetic | 数值域推导；`+` 支持 string + string 和数值加法 |
 | comparison / equality | `int` |
-| logical `&&` / `||` | 参考 LPC 运行语义，结果可能是操作数值；首版仅在可证明时返回右侧或联合降级 |
-| nullish | 可证明时返回左右兼容类型，否则 `unknown` |
+| logical `&&` / `||` | 返回 `int`，与诊断实现保持一致，避免真值表达式被误报为操作数类型 |
+| nullish `??` | 可证明时返回左右兼容类型，否则 `unknown` |
 | conditional | 两分支类型一致或兼容时返回统一类型，否则 `unknown` |
 | member access | 已知 struct / class 成员时返回成员类型；动态成员返回 `unknown` |
 | index access | 已知数组元素或 mapping value 时返回对应类型；range / 多参数 mapping index 降级 |
