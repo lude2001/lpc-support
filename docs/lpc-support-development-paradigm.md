@@ -209,7 +209,7 @@
 
 第二条路，是直接使用本仓库里提供的预编译 Windows 开发驱动：
 
-- [`docs/Fluffos_Development_Drive/dist.zip`](D:/code/lpc-support/docs/Fluffos_Development_Drive/dist.zip)
+- [`docs/Fluffos_Development_Drive/dist.zip`](https://github.com/lude2001/lpc-support/raw/main/docs/Fluffos_Development_Drive/dist.zip)
 
 解压以后，真正要关心的是两个东西：
 

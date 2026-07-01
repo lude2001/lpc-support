@@ -552,6 +552,7 @@
     "config/**",
     "docs/efun-arity-audit.md",
     "README.md",
+    "README.en.md",
     "CHANGELOG.md",
     "icon.png",
     "LICENSE"

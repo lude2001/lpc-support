@@ -209,7 +209,7 @@ If you want to build the development driver yourself and do not want to interfer
 
 The second is to use the prebuilt Windows development driver shipped in this repository:
 
-- [`docs/Fluffos_Development_Drive/dist.zip`](D:/code/lpc-support/docs/Fluffos_Development_Drive/dist.zip)
+- [`docs/Fluffos_Development_Drive/dist.zip`](https://github.com/lude2001/lpc-support/raw/main/docs/Fluffos_Development_Drive/dist.zip)
 
 After extracting it, the two things that matter are:
 
