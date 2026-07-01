@@ -20,6 +20,7 @@ export interface WorkspaceConfigSnapshot {
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
     searchEfunDefinitionInInheritanceChain?: boolean;
+    enableTypeChecking?: boolean;
 }
 
 export interface WorkspaceSessionOptions {
@@ -69,7 +70,8 @@ export class WorkspaceSession {
                 instanceResolutionFunctions: workspace.instanceResolutionFunctions,
                 resolvedConfig: workspace.resolvedConfig,
                 lastSyncedAt: workspace.lastSyncedAt,
-                searchEfunDefinitionInInheritanceChain: workspace.searchEfunDefinitionInInheritanceChain
+                searchEfunDefinitionInInheritanceChain: workspace.searchEfunDefinitionInInheritanceChain,
+                enableTypeChecking: workspace.enableTypeChecking
             });
         }
     }
@@ -81,9 +83,13 @@ export class WorkspaceSession {
 
     public toLanguageWorkspaceContext(workspaceRoot: string): LanguageWorkspaceContext {
         const normalizedWorkspaceRoot = normalizeServerWorkspaceRoot(workspaceRoot);
+        const workspaceConfig = this.workspaceConfigs.get(normalizedWorkspaceRoot);
         return {
             workspaceRoot: normalizedWorkspaceRoot,
-            projectConfig: toLanguageWorkspaceProjectConfig(this.workspaceConfigs.get(normalizedWorkspaceRoot))
+            projectConfig: toLanguageWorkspaceProjectConfig(workspaceConfig),
+            typeChecking: {
+                enabled: workspaceConfig?.enableTypeChecking ?? true
+            }
         };
     }
 }
@@ -93,7 +99,8 @@ function cloneWorkspaceConfigSnapshot(snapshot: WorkspaceConfigSnapshot): Worksp
         ...snapshot,
         projectConfigPath: normalizeServerWorkspaceRoot(snapshot.projectConfigPath),
         instanceResolutionFunctions: cloneInstanceResolutionFunctions(snapshot.instanceResolutionFunctions),
-        resolvedConfig: cloneResolvedConfig(snapshot.resolvedConfig)
+        resolvedConfig: cloneResolvedConfig(snapshot.resolvedConfig),
+        enableTypeChecking: snapshot.enableTypeChecking
     };
 }
 

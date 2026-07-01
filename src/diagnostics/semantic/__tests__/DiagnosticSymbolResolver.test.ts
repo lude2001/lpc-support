@@ -182,6 +182,7 @@ function createResolver(
                         declarationKey: 'efun:write',
                         signatures: [{
                             label: 'void write(string message)',
+                            returnType: 'void',
                             parameters: [{ name: 'message', type: 'string' }],
                             isVariadic: false
                         }],
@@ -194,6 +195,7 @@ function createResolver(
                         declarationKey: 'simul:simul_log',
                         signatures: [{
                             label: 'void simul_log(string message, mixed *rest...)',
+                            returnType: 'void',
                             parameters: [
                                 { name: 'message', type: 'string' },
                                 { name: 'rest', type: 'mixed *', variadic: true }
@@ -273,15 +275,44 @@ describe('DefaultDiagnosticSymbolResolver', () => {
         ]));
         expect(visible.callableSignatures.find((signature) => signature.name === 'include_helper')).toMatchObject({
             requiredParameterCount: 1,
-            maxParameterCount: 1
+            maxParameterCount: 1,
+            returnType: 'void',
+            parameters: [{
+                name: 'arg0',
+                dataType: 'mixed'
+            }]
         });
         expect(visible.callableSignatures.find((signature) => signature.name === 'inherited_helper')).toMatchObject({
             requiredParameterCount: 2,
-            maxParameterCount: 2
+            maxParameterCount: 2,
+            returnType: 'void',
+            parameters: [{
+                name: 'arg0',
+                dataType: 'mixed'
+            }, {
+                name: 'arg1',
+                dataType: 'mixed'
+            }]
+        });
+        expect(visible.callableSignatures.find((signature) => signature.name === 'write')).toMatchObject({
+            returnType: 'void',
+            parameters: [{
+                name: 'message',
+                dataType: 'string'
+            }]
         });
         expect(visible.callableSignatures.find((signature) => signature.name === 'simul_log')).toMatchObject({
             requiredParameterCount: 1,
-            isVariadic: true
+            isVariadic: true,
+            returnType: 'void',
+            parameters: [{
+                name: 'message',
+                dataType: 'string'
+            }, {
+                name: 'rest',
+                dataType: 'mixed *',
+                variadic: true
+            }]
         });
     });
 

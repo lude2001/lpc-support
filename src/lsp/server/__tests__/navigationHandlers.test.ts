@@ -1372,7 +1372,10 @@ describe('navigation handlers', () => {
 
             expect(runtime.workspaceSession.toLanguageWorkspaceContext('')).toEqual({
                 workspaceRoot: '',
-                projectConfig: undefined
+                projectConfig: undefined,
+                typeChecking: {
+                    enabled: true
+                }
             });
             expect(registrationContext.navigationService).toBe(navigationService);
         });

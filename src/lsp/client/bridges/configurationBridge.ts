@@ -64,6 +64,7 @@ export async function createWorkspaceConfigSyncPayload(
         (vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.fsPath)
     );
     const searchEfunDefinitionInInheritanceChain = readSearchEfunDefinitionInInheritanceChain();
+    const enableTypeChecking = readEnableTypeChecking();
     const workspaces = await Promise.all(workspaceRoots.map(async workspaceRoot => {
         const projectConfig = await projectConfigService.loadForWorkspace(workspaceRoot);
 
@@ -74,7 +75,8 @@ export async function createWorkspaceConfigSyncPayload(
             instanceResolutionFunctions: projectConfig?.instanceResolutionFunctions,
             resolvedConfig: projectConfig?.resolved,
             lastSyncedAt: projectConfig?.lastSyncedAt,
-            searchEfunDefinitionInInheritanceChain
+            searchEfunDefinitionInInheritanceChain,
+            enableTypeChecking
         };
     }));
 
@@ -86,6 +88,10 @@ export async function createWorkspaceConfigSyncPayload(
 
 function readSearchEfunDefinitionInInheritanceChain(): boolean {
     return vscode.workspace.getConfiguration?.('lpc')?.get?.('searchEfunDefinitionInInheritanceChain') === true;
+}
+
+function readEnableTypeChecking(): boolean {
+    return vscode.workspace.getConfiguration?.('lpc')?.get?.<boolean>('enableTypeChecking', true) ?? true;
 }
 
 async function attemptResync(

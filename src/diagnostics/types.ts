@@ -3,12 +3,14 @@ import type { LanguageDiagnosticsWorkspaceContext } from '../language/services/d
 import { ParsedDocument } from '../parser/types';
 import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxDocument } from '../syntax/types';
+import type { DiagnosticFactsProvider } from './semantic/DiagnosticTypeFacts';
 
 export interface DiagnosticContext {
     parsed: ParsedDocument;
     syntax?: SyntaxDocument;
     semantic?: SemanticSnapshot;
     workspace?: LanguageDiagnosticsWorkspaceContext;
+    diagnosticFactsProvider?: DiagnosticFactsProvider;
 }
 
 /**

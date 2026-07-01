@@ -152,7 +152,7 @@ describe('WorkspaceSession', () => {
         expect(workspace.getWorkspaceFolder(Uri.file('D:/workspace-a/src/example.c'))).toBeUndefined();
     });
 
-    test('language workspace context contains only workspace identity and config state', () => {
+    test('language workspace context contains workspace identity, config state, and type checking options', () => {
         const workspaceRoot = 'D:/code/lpc-support';
         const session = new WorkspaceSession({
             workspaceRoots: [workspaceRoot]
@@ -160,7 +160,31 @@ describe('WorkspaceSession', () => {
 
         const context = session.toLanguageWorkspaceContext(workspaceRoot);
 
-        expect(Object.keys(context).sort()).toEqual(['projectConfig', 'workspaceRoot']);
+        expect(Object.keys(context).sort()).toEqual(['projectConfig', 'typeChecking', 'workspaceRoot']);
+        expect(context.typeChecking).toEqual({
+            enabled: true
+        });
+    });
+
+    test('language workspace context reflects synchronized type checking disablement', () => {
+        const workspaceRoot = 'D:/code/lpc-support';
+        const session = new WorkspaceSession({
+            workspaceRoots: [workspaceRoot]
+        });
+        session.applyWorkspaceConfigSync({
+            workspaceRoots: [workspaceRoot],
+            workspaces: [
+                {
+                    workspaceRoot,
+                    projectConfigPath: `${workspaceRoot}/lpc-support.json`,
+                    enableTypeChecking: false
+                }
+            ]
+        });
+
+        expect(session.toLanguageWorkspaceContext(workspaceRoot).typeChecking).toEqual({
+            enabled: false
+        });
     });
 
     test('runtime findFiles skips git metadata while scanning workspace files', async () => {

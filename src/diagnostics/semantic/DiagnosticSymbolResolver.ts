@@ -24,6 +24,15 @@ export interface DiagnosticCallableSignature {
     maxParameterCount?: number;
     isVariadic: boolean;
     source: 'local' | 'include' | 'inherited' | 'efun' | 'simul-efun';
+    returnType?: string;
+    parameters?: DiagnosticCallableParameter[];
+}
+
+export interface DiagnosticCallableParameter {
+    name?: string;
+    dataType?: string;
+    optional?: boolean;
+    variadic?: boolean;
 }
 
 export interface VisibleDiagnosticSymbols {
@@ -345,7 +354,14 @@ function toSignature(
         requiredParameterCount,
         maxParameterCount,
         isVariadic: Boolean(summary.isVariadic || summary.parameters.some((parameter) => parameter.isVariadic)),
-        source
+        source,
+        returnType: summary.returnType,
+        parameters: summary.parameters.map((parameter) => ({
+            name: parameter.name,
+            dataType: parameter.dataType,
+            optional: parameter.hasDefaultValue,
+            variadic: parameter.isVariadic
+        }))
     };
 }
 
@@ -454,7 +470,8 @@ function createUnknownCallableSignature(
         requiredParameterCount: 0,
         maxParameterCount: undefined,
         isVariadic: true,
-        source
+        source,
+        parameters: []
     };
 }
 
@@ -463,13 +480,22 @@ function fromCallableSignature(
     signature: CallableSignature,
     source: 'efun' | 'simul-efun'
 ): DiagnosticCallableSignature {
+    const parameters = signature.parameters.map((parameter) => ({
+        name: parameter.name,
+        dataType: parameter.type,
+        optional: parameter.optional,
+        variadic: parameter.variadic
+    }));
+
     if (signature.arity) {
         return {
             name,
             requiredParameterCount: signature.arity.min,
             maxParameterCount: signature.arity.max === null ? undefined : signature.arity.max,
             isVariadic: signature.arity.max === null,
-            source
+            source,
+            returnType: signature.returnType,
+            parameters
         };
     }
 
@@ -484,7 +510,9 @@ function fromCallableSignature(
         requiredParameterCount,
         maxParameterCount: hasVariadicParameter ? undefined : signature.parameters.length,
         isVariadic: hasVariadicParameter,
-        source
+        source,
+        returnType: signature.returnType,
+        parameters
     };
 }
 

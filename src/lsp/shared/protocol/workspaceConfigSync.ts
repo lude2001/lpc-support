@@ -14,6 +14,7 @@ export interface WorkspaceConfigSyncSnapshot {
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
     searchEfunDefinitionInInheritanceChain?: boolean;
+    enableTypeChecking?: boolean;
 }
 
 export interface WorkspaceConfigSyncPayload {

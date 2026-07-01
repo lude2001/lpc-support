@@ -9,11 +9,35 @@ export { DiagnosticsOrchestrator } from './diagnostics/DiagnosticsOrchestrator';
 export { createDiagnosticsStack } from './diagnostics/createDiagnosticsStack';
 export type { CreateDiagnosticsStackOptions, DiagnosticsStack } from './diagnostics/createDiagnosticsStack';
 export { DefaultDiagnosticSymbolResolver } from './diagnostics/semantic/DiagnosticSymbolResolver';
+export { TypeDiagnosticsCollector } from './diagnostics/collectors/TypeDiagnosticsCollector';
+export type { TypeDiagnosticsCollectorOptions } from './diagnostics/collectors/TypeDiagnosticsCollector';
 export type {
+    DiagnosticCallableParameter,
     DiagnosticCallableSignature,
     DiagnosticSymbolResolver,
     VisibleDiagnosticSymbols
 } from './diagnostics/semantic/DiagnosticSymbolResolver';
+export {
+    DefaultDiagnosticFactsProvider,
+    createCurrentFileVisibleSymbols,
+    hasUnexpandedFunctionLikeMacroReference
+} from './diagnostics/semantic/DiagnosticTypeFacts';
+export type {
+    DiagnosticFactsProvider,
+    DiagnosticMacroSuppressionFacts,
+    DiagnosticTypeFacts,
+    TypeCheckingOptions
+} from './diagnostics/semantic/DiagnosticTypeFacts';
+export {
+    acceptsDiagnosticArgumentCount,
+    getDirectDiagnosticCallSite
+} from './diagnostics/semantic/DiagnosticSyntaxFacts';
+export type { DirectDiagnosticCallSite } from './diagnostics/semantic/DiagnosticSyntaxFacts';
 
 // 导出类型定义
-export type { IDiagnosticCollector, DiagnosticCollectionOptions, CollectorResult } from './diagnostics/types';
+export type {
+    CollectorResult,
+    DiagnosticCollectionOptions,
+    DiagnosticContext,
+    IDiagnosticCollector
+} from './diagnostics/types';

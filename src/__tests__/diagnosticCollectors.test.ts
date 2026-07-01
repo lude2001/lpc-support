@@ -5,6 +5,11 @@ import { UnusedVariableCollector } from '../collectors/UnusedVariableCollector';
 import { ObjectAccessCollector } from '../diagnostics/collectors/ObjectAccessCollector';
 import { BasicSemanticDiagnosticsCollector } from '../diagnostics/collectors/BasicSemanticDiagnosticsCollector';
 import { MacroUsageCollector } from '../diagnostics/collectors/MacroUsageCollector';
+import { TypeDiagnosticsCollector } from '../diagnostics/collectors/TypeDiagnosticsCollector';
+import {
+    DefaultDiagnosticFactsProvider,
+    createCurrentFileVisibleSymbols
+} from '../diagnostics/semantic/DiagnosticTypeFacts';
 import { isFluffOSPredefinedMacro } from '../diagnostics/semantic/FluffOSPredefinedMacros';
 import { DiagnosticContext } from '../diagnostics/types';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
@@ -569,6 +574,126 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['lpc.argumentCountMismatch']);
         expect(diagnostics[0].message).toContain('tell_room');
         expect(diagnostics[0].message).toContain('期望 2-3 个');
+    });
+
+    test('TypeDiagnosticsCollector reports only provable first-pass type mismatches', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'class Payload {',
+            '    string title;',
+            '}',
+            '',
+            'int add(int a, int b) { return a + b; }',
+            'string name() { return "x"; }',
+            'int query_count() { return "many"; }',
+            '',
+            'void demo(class Payload payload) {',
+            '    string bad_init = 123;',
+            '    int bad_assign;',
+            '    bad_assign = "abc";',
+            '    int from_name = name();',
+            '    add("x", 1);',
+            '    string *bad_array = ({ "ok", 1 });',
+            '    payload->missing;',
+            '}'
+        ].join('\n'), 'type-diagnostics-provable.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining([
+            'lpc.type.variableInitializerMismatch',
+            'lpc.type.assignmentMismatch',
+            'lpc.type.returnMismatch',
+            'lpc.type.argumentMismatch',
+            'lpc.type.arrayElementMismatch',
+            'lpc.type.memberNotFound'
+        ]));
+        expect(diagnostics.filter((diagnostic) => diagnostic.code === 'lpc.type.variableInitializerMismatch')).toHaveLength(2);
+        expect(diagnostics.every((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Warning)).toBe(true);
+    });
+
+    test('TypeDiagnosticsCollector treats logical truthiness expressions as int results', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo() {',
+            '    int both = "a" && "b";',
+            '    int either = "a" || 0;',
+            '}'
+        ].join('\n'), 'type-diagnostics-logical.c');
+
+        await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
+    });
+
+    test('TypeDiagnosticsCollector accepts bare array declarations for array literals', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo() {',
+            '    array values = ({ 1 });',
+            '    mixed *copy = values;',
+            '}'
+        ].join('\n'), 'type-diagnostics-bare-array.c');
+
+        await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
+    });
+
+    test('TypeDiagnosticsCollector ignores returns owned by anonymous functions', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'int demo() {',
+            '    function mapper = function(mixed value) {',
+            '        return "text";',
+            '    };',
+            '    return 1;',
+            '}'
+        ].join('\n'), 'type-diagnostics-anonymous-return.c');
+
+        await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
+    });
+
+    test('TypeDiagnosticsCollector respects disabled options and unresolved dependency suppression', async () => {
+        const disabledCollector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: {
+                async getFacts(_document, semantic) {
+                    return {
+                        visibleSymbols: createCurrentFileVisibleSymbols(semantic),
+                        macroSuppression: {
+                            hasUnexpandedFunctionLikeMacroReference: false
+                        },
+                        options: {
+                            enabled: false
+                        }
+                    };
+                }
+            }
+        });
+        const disabled = analyzeCollectorSource([
+            'void demo() {',
+            '    string bad = 123;',
+            '}'
+        ].join('\n'), 'type-diagnostics-disabled.c');
+
+        await expect(disabledCollector.collect(disabled.document, disabled.parsed, disabled.context)).resolves.toEqual([]);
+
+        const defaultCollector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const unresolved = analyzeCollectorSource([
+            'inherit ROOM;',
+            '',
+            'void demo() {',
+            '    string bad = 123;',
+            '}'
+        ].join('\n'), 'type-diagnostics-unresolved.c');
+
+        await expect(defaultCollector.collect(unresolved.document, unresolved.parsed, unresolved.context)).resolves.toEqual([]);
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

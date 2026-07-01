@@ -333,7 +333,8 @@ describe('LspClientManager activation', () => {
                             includeDirectories: ['include']
                         },
                         lastSyncedAt: '2026-04-10T00:00:00.000Z',
-                        searchEfunDefinitionInInheritanceChain: false
+                        searchEfunDefinitionInInheritanceChain: false,
+                        enableTypeChecking: true
                     }
                 ]
             }
@@ -377,7 +378,9 @@ describe('LspClientManager activation', () => {
                     configHellPath: 'config.hell',
                     resolvedConfig: undefined,
                     lastSyncedAt: undefined,
-                    searchEfunDefinitionInInheritanceChain: false
+                    searchEfunDefinitionInInheritanceChain: false,
+                    enableTypeChecking: true,
+                    instanceResolutionFunctions: undefined
                 }
             ]
         });
@@ -421,7 +424,9 @@ describe('LspClientManager activation', () => {
                     configHellPath: 'config.hell',
                     resolvedConfig: undefined,
                     lastSyncedAt: undefined,
-                    searchEfunDefinitionInInheritanceChain: false
+                    searchEfunDefinitionInInheritanceChain: false,
+                    enableTypeChecking: true,
+                    instanceResolutionFunctions: undefined
                 },
                 {
                     workspaceRoot: 'D:/workspace-a/nested',
@@ -429,7 +434,9 @@ describe('LspClientManager activation', () => {
                     configHellPath: '.vscode\\nested.hell',
                     resolvedConfig: undefined,
                     lastSyncedAt: undefined,
-                    searchEfunDefinitionInInheritanceChain: false
+                    searchEfunDefinitionInInheritanceChain: false,
+                    enableTypeChecking: true,
+                    instanceResolutionFunctions: undefined
                 }
             ]
         });
