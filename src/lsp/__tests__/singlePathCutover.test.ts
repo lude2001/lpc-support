@@ -22,14 +22,18 @@ describe('single-path LSP cutover', () => {
         expect(commands.some((command: { command: string }) => command.command === 'lpc.migrateProjectConfig')).toBe(false);
     });
 
-    test('README documents a single LSP runtime path', () => {
+    test('README keeps runtime mode details out of public release documentation', () => {
         const readme = fs.readFileSync(readmePath, 'utf8');
 
-        expect(readme).toContain('单一路径 LSP');
-        expect(readme).toContain('主语言能力链、诊断与格式化都通过这条路径提供');
-        expect(readme).toContain('少量宿主侧 affordances 保留在 VS Code 扩展宿主中');
-        expect(readme).toContain('函数文档面板、错误树视图、编译管理与启动驱动命令');
+        expect(readme).toContain('LPC Support 是面向 VS Code 的 LPC / FluffOS 语言扩展');
+        expect(readme).toContain('## 语言能力边界');
+        expect(readme).toContain('静态可证明原则');
+        expect(readme).toContain('函数文档面板');
+        expect(readme).not.toContain('单一路径 LSP');
+        expect(readme).not.toContain('主语言能力链、诊断与格式化都通过这条路径提供');
+        expect(readme).not.toContain('少量宿主侧 affordances 保留在 VS Code 扩展宿主中');
         expect(readme).not.toContain('语言能力、诊断与格式化都通过这条路径提供');
+        expect(readme).not.toContain('lpc.experimental.lspMode');
         expect(readme).not.toContain('Experimental LSP Runtime');
     });
 });
