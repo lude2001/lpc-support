@@ -5,6 +5,7 @@ export {
     createMappingType,
     createNamedType,
     createPrimitiveType,
+    createUnionType,
     createUnknownType,
     createZeroLiteralType
 } from './LpcType';

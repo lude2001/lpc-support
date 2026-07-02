@@ -86,6 +86,41 @@ describe('LpcTypeParser', () => {
         });
     });
 
+    test('parses documented union types into alternatives', () => {
+        expect(parser.parse('string | string *')).toMatchObject({
+            kind: 'union',
+            sourceText: 'string | string *',
+            alternatives: [
+                {
+                    kind: 'primitive',
+                    name: 'string'
+                },
+                {
+                    kind: 'array',
+                    name: 'string',
+                    elementType: {
+                        kind: 'primitive',
+                        name: 'string'
+                    }
+                }
+            ]
+        });
+        expect(parser.parse('void | object *')).toMatchObject({
+            kind: 'union',
+            sourceText: 'void | object *',
+            alternatives: [
+                {
+                    kind: 'primitive',
+                    name: 'void'
+                },
+                {
+                    kind: 'array',
+                    name: 'object'
+                }
+            ]
+        });
+    });
+
     test('downgrades ambiguous documented parameter text to unknown', () => {
         expect(parser.parse('string substr | int')).toMatchObject({
             kind: 'unknown',

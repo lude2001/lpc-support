@@ -614,18 +614,130 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(diagnostics.every((diagnostic) => diagnostic.severity === vscode.DiagnosticSeverity.Warning)).toBe(true);
     });
 
-    test('TypeDiagnosticsCollector treats logical truthiness expressions as int results', async () => {
+    test('TypeDiagnosticsCollector models logical operators as value-producing expressions', async () => {
         const collector = new TypeDiagnosticsCollector({
             diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
         });
         const { document, parsed, context } = analyzeCollectorSource([
-            'void demo() {',
-            '    int both = "a" && "b";',
-            '    int either = "a" || 0;',
+            'void demo(object ob, mixed dynamic) {',
+            '    object *guarded;',
+            '    guarded = ob->query_temp("guarded") || ({ });',
+            '    string ok_and = "a" && "b";',
+            '    int ok_false = 0 && "b";',
+            '    int bad_and = "a" && "b";',
+            '    int bad_or = "a" || 0;',
             '}'
         ].join('\n'), 'type-diagnostics-logical.c');
 
-        await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+            'lpc.type.variableInitializerMismatch',
+            'lpc.type.variableInitializerMismatch'
+        ]);
+        expect(diagnostics.map((diagnostic) => diagnostic.message)).toEqual([
+            '变量 bad_and 初始化类型不匹配: 期望 int，实际 "b"',
+            '变量 bad_or 初始化类型不匹配: 期望 int，实际 "a"'
+        ]);
+    });
+
+    test('TypeDiagnosticsCollector respects documented union parameter types', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: {
+                getFacts: jest.fn((_document, semantic) => ({
+                    visibleSymbols: {
+                        ...createCurrentFileVisibleSymbols(semantic),
+                        callableSignatures: [{
+                            name: 'add_action',
+                            requiredParameterCount: 2,
+                            maxParameterCount: 3,
+                            isVariadic: false,
+                            source: 'efun' as const,
+                            returnType: 'void',
+                            parameters: [
+                                { name: 'fun', dataType: 'string | function' },
+                                { name: 'cmd', dataType: 'string | string *' },
+                                { name: 'flag', dataType: 'int', optional: true }
+                            ]
+                        }],
+                        hasUnresolvedDependencies: false
+                    },
+                    macroSuppression: {
+                        hasUnexpandedFunctionLikeMacroReference: false
+                    },
+                    options: {
+                        enabled: true
+                    }
+                }))
+            }
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo() {',
+            '    add_action("do_halt", "halt");',
+            '    add_action("do_look", ({ "look", "l" }));',
+            '    add_action("do_mixed", ({ "look", 1 }));',
+            '    add_action("do_bad", 123);',
+            '}'
+        ].join('\n'), 'type-diagnostics-union-parameter.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+            'lpc.type.arrayElementMismatch',
+            'lpc.type.argumentMismatch'
+        ]);
+        expect(diagnostics.map((diagnostic) => diagnostic.message)).toEqual([
+            '数组元素类型不匹配: 期望 string *，实际 1',
+            '函数 add_action 第 2 个参数类型不匹配: 期望 string | string *，实际 123'
+        ]);
+    });
+
+    test('TypeDiagnosticsCollector keeps array union alternatives consistent for literals', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: {
+                getFacts: jest.fn((_document, semantic) => ({
+                    visibleSymbols: {
+                        ...createCurrentFileVisibleSymbols(semantic),
+                        callableSignatures: [{
+                            name: 'message',
+                            requiredParameterCount: 3,
+                            maxParameterCount: 3,
+                            isVariadic: false,
+                            source: 'efun' as const,
+                            returnType: 'void',
+                            parameters: [
+                                { name: 'class', dataType: 'mixed' },
+                                { name: 'message', dataType: 'mixed' },
+                                { name: 'target', dataType: 'string | string * | object | object *' }
+                            ]
+                        }],
+                        hasUnresolvedDependencies: false
+                    },
+                    macroSuppression: {
+                        hasUnexpandedFunctionLikeMacroReference: false
+                    },
+                    options: {
+                        enabled: true
+                    }
+                }))
+            }
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'void demo(object ob) {',
+            '    message("info", "ok", ({ "look", "l" }));',
+            '    message("info", "ok", ({ ob }));',
+            '    message("info", "bad", ({ "look", ob }));',
+            '}'
+        ].join('\n'), 'type-diagnostics-union-array-consistency.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+            'lpc.type.arrayElementMismatch'
+        ]);
+        expect(diagnostics[0].message).toBe(
+            '数组字面量类型不匹配: 期望 string * 或 object *，实际包含 "look" 或 object'
+        );
     });
 
     test('TypeDiagnosticsCollector accepts bare array declarations for array literals', async () => {

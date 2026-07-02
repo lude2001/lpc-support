@@ -6,6 +6,7 @@ import {
     createMappingType,
     createNamedType,
     createPrimitiveType,
+    createUnionType,
     createUnknownType
 } from './LpcType';
 
@@ -15,6 +16,33 @@ export class LpcTypeParser {
             return createUnknownType();
         }
 
+        const unionType = this.tryParseUnionType(typeText);
+        if (unionType) {
+            return unionType;
+        }
+
+        return this.parseSingleType(typeText);
+    }
+
+    private tryParseUnionType(typeText: string): LpcType | undefined {
+        if (!typeText.includes('|')) {
+            return undefined;
+        }
+
+        const alternatives = typeText.split('|').map((part) => part.trim());
+        if (alternatives.length < 2 || alternatives.some((part) => part.length === 0)) {
+            return createUnknownType(typeText.trim() || 'unknown');
+        }
+
+        const parsedAlternatives = alternatives.map((part) => this.parseSingleType(part));
+        if (parsedAlternatives.some((type) => type.isUnknown)) {
+            return createUnknownType(typeText.trim());
+        }
+
+        return createUnionType(parsedAlternatives, parsedAlternatives.map((type) => type.sourceText).join(' | '));
+    }
+
+    private parseSingleType(typeText: string): LpcType {
         const parsed = parseNormalizedLpcType(typeText);
         const isBuiltinArray = parsed.qualifiedName === 'array';
         const totalArrayDepth = parsed.pointerDepth + parsed.arrayDepth + (isBuiltinArray ? 1 : 0);

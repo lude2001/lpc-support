@@ -325,8 +325,8 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): boolean {
-        const arrayTargets = targetTypes.filter((targetType) => targetType.kind === 'array' && targetType.elementType);
-        if (arrayTargets.length !== targetTypes.length || arrayTargets.some((targetType) => isNotCheckable(targetType.elementType!))) {
+        const arrayTargets = collectArrayTargets(targetTypes);
+        if (arrayTargets.length === 0 || arrayTargets.some((targetType) => isNotCheckable(targetType.elementType!))) {
             return false;
         }
 
@@ -335,7 +335,7 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
             return true;
         }
 
-        let reported = false;
+        const checkedElements: Array<{ node: SyntaxNode; type: LpcType }> = [];
         for (const element of elements) {
             if (hasUnsafeSyntax(element)) {
                 continue;
@@ -346,17 +346,42 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
                 continue;
             }
 
-            const decisions = arrayTargets.map((targetType) =>
-                session.relation.isAssignable(sourceType, targetType.elementType!)
-            );
-            if (decisions.every((decision) => decision === false)) {
+            checkedElements.push({ node: element, type: sourceType });
+        }
+
+        if (checkedElements.length === 0) {
+            return false;
+        }
+
+        if (arrayTargets.some((targetType) =>
+            checkedElements.every((element) =>
+                session.relation.isAssignable(element.type, targetType.elementType!)
+            )
+        )) {
+            return false;
+        }
+
+        let reported = false;
+        for (const element of checkedElements) {
+            if (arrayTargets.every((targetType) =>
+                !session.relation.isAssignable(element.type, targetType.elementType!)
+            )) {
                 reported = true;
                 diagnostics.push(createWarning(
-                    element.range,
-                    `数组元素类型不匹配: 期望 ${formatExpectedTypes(arrayTargets.map((targetType) => targetType.elementType!))}，实际 ${sourceType.sourceText}`,
+                    element.node.range,
+                    `数组元素类型不匹配: 期望 ${formatExpectedTypes(arrayTargets.map((targetType) => targetType.elementType!))}，实际 ${element.type.sourceText}`,
                     ARRAY_ELEMENT_CODE
                 ));
             }
+        }
+
+        if (!reported) {
+            diagnostics.push(createWarning(
+                sourceExpression.range,
+                `数组字面量类型不匹配: 期望 ${formatExpectedTypes(arrayTargets)}，实际包含 ${formatExpectedTypes(checkedElements.map((element) => element.type))}`,
+                ARRAY_ELEMENT_CODE
+            ));
+            reported = true;
         }
 
         return reported;
@@ -368,14 +393,16 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): boolean {
-        const mappingTargets = targetTypes.filter((targetType) =>
-            targetType.kind === 'mapping'
-            && targetType.keyType
-            && targetType.valueType
-            && !isNotCheckable(targetType.keyType)
-            && !isNotCheckable(targetType.valueType)
-        );
-        if (mappingTargets.length !== targetTypes.length) {
+        const mappingTargets = collectMappingTargets(targetTypes);
+        if (
+            mappingTargets.length === 0
+            || mappingTargets.some((targetType) =>
+                !targetType.keyType
+                || !targetType.valueType
+                || isNotCheckable(targetType.keyType)
+                || isNotCheckable(targetType.valueType)
+            )
+        ) {
             return false;
         }
 
@@ -497,6 +524,48 @@ function hasUnsafeSyntax(node: SyntaxNode): boolean {
 
 function isNotCheckable(type: LpcType): boolean {
     return type.isUnknown || type.isMixed;
+}
+
+function collectArrayTargets(types: readonly LpcType[]): LpcType[] {
+    const result: LpcType[] = [];
+    for (const type of types) {
+        appendArrayTargets(type, result);
+    }
+    return result;
+}
+
+function appendArrayTargets(type: LpcType, result: LpcType[]): void {
+    if (type.kind === 'union') {
+        for (const alternative of type.alternatives ?? []) {
+            appendArrayTargets(alternative, result);
+        }
+        return;
+    }
+
+    if (type.kind === 'array' && type.elementType) {
+        result.push(type);
+    }
+}
+
+function collectMappingTargets(types: readonly LpcType[]): LpcType[] {
+    const result: LpcType[] = [];
+    for (const type of types) {
+        appendMappingTargets(type, result);
+    }
+    return result;
+}
+
+function appendMappingTargets(type: LpcType, result: LpcType[]): void {
+    if (type.kind === 'union') {
+        for (const alternative of type.alternatives ?? []) {
+            appendMappingTargets(alternative, result);
+        }
+        return;
+    }
+
+    if (type.kind === 'mapping') {
+        result.push(type);
+    }
 }
 
 function samePosition(left: vscode.Position, right: vscode.Position): boolean {

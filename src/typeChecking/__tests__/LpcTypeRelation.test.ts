@@ -54,4 +54,14 @@ describe('LpcTypeRelation', () => {
             createMappingType('mapping<string,string>', createPrimitiveType('string'), createPrimitiveType('string'))
         )).toBe(false);
     });
+
+    test('checks union targets and sources structurally', () => {
+        expect(relation.isAssignable(parser.parse('string'), parser.parse('string | string *'))).toBe(true);
+        expect(relation.isAssignable(parser.parse('string *'), parser.parse('string | string *'))).toBe(true);
+        expect(relation.isAssignable(parser.parse('int'), parser.parse('string | string *'))).toBe(false);
+
+        expect(relation.isAssignable(parser.parse('int | float'), parser.parse('float'))).toBe(true);
+        expect(relation.isAssignable(parser.parse('int | string'), parser.parse('int'))).toBe(false);
+        expect(relation.isAssignable(parser.parse('void | int'), parser.parse('int'))).toBe(false);
+    });
 });

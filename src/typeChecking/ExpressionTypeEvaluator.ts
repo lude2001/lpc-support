@@ -191,8 +191,16 @@ export class ExpressionTypeEvaluator {
             return createPrimitiveType('int');
         }
 
-        if (operator === '&&' || operator === '||') {
-            return createPrimitiveType('int');
+        if (operator === '&&') {
+            return left.isZeroLiteral
+                ? left
+                : this.unifyTypes(createZeroLiteralType(), right);
+        }
+
+        if (operator === '||') {
+            return left.isZeroLiteral
+                ? right
+                : this.unifyTypes(left, right);
         }
 
         if (operator === '??') {

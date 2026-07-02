@@ -5,6 +5,7 @@ export type LpcTypeKind =
     | 'array'
     | 'mapping'
     | 'function'
+    | 'union'
     | 'unknown';
 
 export interface LpcType {
@@ -15,6 +16,7 @@ export interface LpcType {
     elementType?: LpcType;
     keyType?: LpcType;
     valueType?: LpcType;
+    alternatives?: readonly LpcType[];
     isMixed: boolean;
     isUnknown: boolean;
     isVoid: boolean;
@@ -114,6 +116,20 @@ export function createFunctionType(sourceText = 'function'): LpcType {
         sourceText,
         isMixed: false,
         isUnknown: false,
+        isVoid: false,
+        isZeroLiteral: false
+    };
+}
+
+export function createUnionType(alternatives: readonly LpcType[], sourceText: string): LpcType {
+    return {
+        kind: 'union',
+        name: 'union',
+        pointerDepth: 0,
+        sourceText,
+        alternatives: [...alternatives],
+        isMixed: alternatives.some((type) => type.isMixed),
+        isUnknown: alternatives.some((type) => type.isUnknown),
         isVoid: false,
         isZeroLiteral: false
     };

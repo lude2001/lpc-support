@@ -121,7 +121,7 @@ describe('ExpressionTypeEvaluator', () => {
             '    int from_call = add(1, 2);',
             '    string from_return = name();',
             '    float numeric = 1 + 2.5;',
-            '    int logical = "a" && "b";',
+            '    string logical = "a" && "b";',
             '    string joined = "a" "b";',
             '    string *list = ({ "a", "b" });',
             '    mapping table = ([ "hp": 1, "mp": 2 ]);',
@@ -137,7 +137,7 @@ describe('ExpressionTypeEvaluator', () => {
         expect(evaluator.evaluate(findInitializer(syntax, 'from_call'))).toMatchObject({ name: 'int' });
         expect(evaluator.evaluate(findInitializer(syntax, 'from_return'))).toMatchObject({ name: 'string' });
         expect(evaluator.evaluate(findInitializer(syntax, 'numeric'))).toMatchObject({ name: 'float' });
-        expect(evaluator.evaluate(findInitializer(syntax, 'logical'))).toMatchObject({ name: 'int' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'logical'))).toMatchObject({ name: 'string' });
         expect(evaluator.evaluate(findInitializer(syntax, 'joined'))).toMatchObject({ name: 'string' });
         expect(evaluator.evaluate(findInitializer(syntax, 'list'))).toMatchObject({
             kind: 'array',
@@ -240,6 +240,38 @@ describe('ExpressionTypeEvaluator', () => {
 
         expect(evaluator.evaluate(findInitializer(syntax, 'value'))).toMatchObject({
             isUnknown: true
+        });
+    });
+
+    test('models logical operators as value-producing expressions', () => {
+        const { syntax, semantic } = buildAnalysis([
+            'void demo(mixed dynamic) {',
+            '    string and_value = "left" && "right";',
+            '    int and_false = 0 && "right";',
+            '    string or_fallback = 0 || "right";',
+            '    string *array_fallback = ({ "left" }) || ({ "right" });',
+            '    mixed dynamic_array = dynamic || ({ });',
+            '}'
+        ].join('\n'));
+        const evaluator = createEvaluator(semantic);
+
+        expect(evaluator.evaluate(findInitializer(syntax, 'and_value'))).toMatchObject({
+            name: 'string'
+        });
+        expect(evaluator.evaluate(findInitializer(syntax, 'and_false'))).toMatchObject({
+            isZeroLiteral: true
+        });
+        expect(evaluator.evaluate(findInitializer(syntax, 'or_fallback'))).toMatchObject({
+            name: 'string'
+        });
+        expect(evaluator.evaluate(findInitializer(syntax, 'array_fallback'))).toMatchObject({
+            kind: 'array',
+            elementType: {
+                name: 'string'
+            }
+        });
+        expect(evaluator.evaluate(findInitializer(syntax, 'dynamic_array'))).toMatchObject({
+            isMixed: true
         });
     });
 });

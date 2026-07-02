@@ -24,6 +24,14 @@ export class LpcTypeRelation {
             return true;
         }
 
+        if (source.kind === 'union') {
+            return this.isSourceUnionAssignable(source, target);
+        }
+
+        if (target.kind === 'union') {
+            return this.isTargetUnionAssignable(source, target);
+        }
+
         if (source.kind === 'array' || target.kind === 'array') {
             return this.isArrayAssignable(source, target);
         }
@@ -45,6 +53,20 @@ export class LpcTypeRelation {
         }
 
         return source.kind === target.kind && source.name === target.name;
+    }
+
+    private isSourceUnionAssignable(source: LpcType, target: LpcType): boolean {
+        const alternatives = source.alternatives ?? [];
+        return alternatives.length > 0 && alternatives.every((alternative) =>
+            this.isAssignable(alternative, target)
+        );
+    }
+
+    private isTargetUnionAssignable(source: LpcType, target: LpcType): boolean {
+        const alternatives = target.alternatives ?? [];
+        return alternatives.some((alternative) =>
+            this.isAssignable(source, alternative)
+        );
     }
 
     private isArrayAssignable(source: LpcType, target: LpcType): boolean {
