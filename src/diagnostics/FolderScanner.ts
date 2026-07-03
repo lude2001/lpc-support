@@ -95,7 +95,6 @@ export class FolderScanner {
 
     private async findLPCFiles(folderPath: string): Promise<string[]> {
         const files: string[] = [];
-        const fileExtensions = ['.c', '.h'];
         const ignoreDirs = ['node_modules', '.git', '.vscode'];
 
         const walk = async (dir: string): Promise<void> => {
@@ -116,7 +115,7 @@ export class FolderScanner {
                     if (!ignoreDirs.includes(entry.name)) {
                         directories.push(fullPath);
                     }
-                } else if (entry.isFile() && fileExtensions.some(ext => entry.name.endsWith(ext))) {
+                } else if (entry.isFile() && (entry.name.endsWith('.c') || entry.name.endsWith('.h'))) {
                     files.push(fullPath);
                 }
             }
