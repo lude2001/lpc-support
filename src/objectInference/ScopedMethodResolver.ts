@@ -186,10 +186,14 @@ export class ScopedMethodResolver {
         nodes: readonly SyntaxNode[],
         position: vscode.Position
     ): SyntaxNode[] {
-        return [...nodes]
-            .filter((node) => node.kind === SyntaxKind.CallExpression)
-            .filter((node) => node.range.contains(position))
-            .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range));
+        const candidates: SyntaxNode[] = [];
+        for (const node of nodes) {
+            if (node.kind === SyntaxKind.CallExpression && node.range.contains(position)) {
+                candidates.push(node);
+            }
+        }
+
+        return candidates.sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range));
     }
 
     private async resolveBareScopedTargets(

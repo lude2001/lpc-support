@@ -26,12 +26,15 @@ export class ObjectAccessCollector implements IDiagnosticCollector {
         // 获取配置
         const config = vscode.workspace.getConfiguration('lpc.performance');
         const batchSize = config.get<number>('batchSize', 50);
-        const memberAccesses = syntax.nodes.filter((node) => node.kind === SyntaxKind.MemberAccessExpression);
         const diagnostics: vscode.Diagnostic[] = [];
 
         // 分批处理匹配项
         let processedCount = 0;
-        for (const memberAccess of memberAccesses) {
+        for (const memberAccess of syntax.nodes) {
+            if (memberAccess.kind !== SyntaxKind.MemberAccessExpression) {
+                continue;
+            }
+
             const receiver = this.extractReceiver(memberAccess);
             if (!receiver) {
                 continue;
