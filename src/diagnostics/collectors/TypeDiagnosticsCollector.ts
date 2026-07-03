@@ -118,8 +118,12 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): void {
-        for (const declaration of nodes.filter((node) => node.kind === SyntaxKind.VariableDeclaration)) {
-            for (const declarator of declaration.children.filter((child) => child.kind === SyntaxKind.VariableDeclarator)) {
+        for (const declaration of nodes) {
+            if (declaration.kind !== SyntaxKind.VariableDeclaration) continue;
+
+            for (const declarator of declaration.children) {
+                if (declarator.kind !== SyntaxKind.VariableDeclarator) continue;
+
                 const initializer = declarator.children[1];
                 if (!initializer || !declarator.name) {
                     continue;
