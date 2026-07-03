@@ -23,7 +23,7 @@ describe('formatting parity', () => {
     });
 
     test('shared formatting service and LSP formatting handlers produce the same document and range output', async () => {
-        let initializeHandler: ((params: InitializeParams) => InitializeResult) | undefined;
+        let initializeHandler: ((params: InitializeParams) => InitializeResult | Promise<InitializeResult>) | undefined;
         let documentFormattingHandler:
             | ((params: DocumentFormattingParams) => Promise<unknown[]> | unknown[])
             | undefined;
@@ -82,7 +82,7 @@ describe('formatting parity', () => {
             formattingService
         });
 
-        expect(initializeHandler?.({} as InitializeParams)).toEqual({
+        expect(await initializeHandler?.({} as InitializeParams)).toEqual({
             capabilities: {
                 documentFormattingProvider: true,
                 documentRangeFormattingProvider: true,

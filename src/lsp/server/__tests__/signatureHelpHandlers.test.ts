@@ -104,7 +104,7 @@ describe('signature help handlers', () => {
         });
     });
 
-    test('registerCapabilities advertises signature help capability and registers the handler when the shared service is present', () => {
+    test('registerCapabilities advertises signature help capability and registers the handler when the shared service is present', async () => {
         let initializeHandler: ((params: InitializeParams) => InitializeResult) | undefined;
         let signatureHelpHandler:
             | ((params: SignatureHelpParams) => Promise<SignatureHelp | undefined> | SignatureHelp | undefined)
@@ -144,7 +144,7 @@ describe('signature help handlers', () => {
             signatureHelpService: signatureHelpService as any
         });
 
-        expect(initializeHandler?.({} as InitializeParams)).toEqual({
+        expect(await initializeHandler?.({} as InitializeParams, {} as any)).toEqual({
             capabilities: {
                 signatureHelpProvider: {
                     triggerCharacters: ['(', ','],

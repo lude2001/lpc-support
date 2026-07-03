@@ -25,6 +25,7 @@ export interface LanguageHealthPerformanceProviders {
 }
 
 export interface LanguageFeatureServices {
+    onServerInitialize?: () => Promise<void>;
     codeActionsService?: LanguageCodeActionService;
     completionService?: LanguageCompletionService;
     diagnosticsService?: LanguageDiagnosticsService;

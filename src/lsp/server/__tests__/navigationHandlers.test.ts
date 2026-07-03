@@ -1163,7 +1163,7 @@ describe('navigation handlers', () => {
             navigationService
         });
 
-        expect(initializeHandler?.({} as InitializeParams)).toEqual({
+        expect(await initializeHandler?.({} as InitializeParams, {} as any)).toEqual({
             capabilities: {
                 hoverProvider: true,
                 definitionProvider: true,
@@ -1274,7 +1274,7 @@ describe('navigation handlers', () => {
             codeActionsService: codeActionsService as any
         });
 
-        expect(initializeHandler?.({} as InitializeParams)).toEqual(expect.objectContaining({
+        expect(await initializeHandler?.({} as InitializeParams, {} as any)).toEqual(expect.objectContaining({
             capabilities: expect.objectContaining({
                 codeActionProvider: {
                     codeActionKinds: [CodeActionKind.QuickFix]

@@ -25,6 +25,7 @@ import { WorkspaceSession } from '../runtime/WorkspaceSession';
 const PHASE_A_SERVER_VERSION = 'phase-a';
 
 export interface CreateServerOptions {
+    onServerInitialize?: () => Promise<void>;
     changeIndex?: WorkspaceChangeIndex;
     codeActionsService?: LanguageCodeActionService;
     completionService?: LanguageCompletionService;
@@ -75,6 +76,7 @@ export function createServer(options: CreateServerOptions = {}): LspServerRuntim
         logger,
         serverVersion: PHASE_A_SERVER_VERSION,
         workspaceSession,
+        onServerInitialize: options.onServerInitialize,
         navigationService: options.navigationService,
         codeActionsService: options.codeActionsService,
         completionService: options.completionService,

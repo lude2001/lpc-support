@@ -399,6 +399,7 @@ describe('LanguageSignatureHelpService', () => {
             analysisService,
             pathSupport
         }));
+        await efunDocsManager.bundledDocsReady;
         const service = createSignatureHelpService({
             documentationService,
             efunDocsManager,

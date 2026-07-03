@@ -287,6 +287,7 @@ export function createProductionLanguageServices(
     };
 
     return {
+        onServerInitialize: () => efunDocsManager.bundledDocsReady,
         completionService,
         codeActionsService,
         diagnosticsService,

@@ -106,7 +106,7 @@ describe('registerCapabilities', () => {
             }
         });
 
-        expect(initializeHandler?.({} as InitializeParams)).toEqual({
+        expect(await initializeHandler?.({} as InitializeParams, {} as any)).toEqual({
             capabilities: {
                 textDocumentSync: TextDocumentSyncKind.Full
             },
