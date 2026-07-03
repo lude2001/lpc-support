@@ -6,7 +6,7 @@ import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathS
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import { isGeneratedToken, isIdentifierToken, isScopeToken } from '../parser/LpcTokenFacts';
-import { SyntaxDocument, SyntaxKind } from '../syntax/types';
+import { SyntaxDocument, SyntaxKind, type SyntaxNode } from '../syntax/types';
 import {
     collectScopedBranchItems,
     matchesScopedQualifier,
@@ -155,9 +155,13 @@ export class ScopedMethodDiscoveryService {
         syntax: SyntaxDocument,
         position: vscode.Position
     ): ScopedDiscoveryShape | undefined {
-        const candidates = [...syntax.nodes]
-            .filter((node) => this.rangeTouchesPosition(node.range, position))
-            .sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range));
+        const candidates: SyntaxNode[] = [];
+        for (const node of syntax.nodes) {
+            if (this.rangeTouchesPosition(node.range, position)) {
+                candidates.push(node);
+            }
+        }
+        candidates.sort((left, right) => this.getRangeSize(left.range) - this.getRangeSize(right.range));
 
         for (const node of candidates) {
             if (node.kind === SyntaxKind.Identifier && node.metadata?.scopeQualifier === '::' && node.name) {

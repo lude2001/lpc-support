@@ -30,9 +30,15 @@ export class SyntaxAwareCallSiteAnalyzer implements CallSiteAnalyzer {
             return undefined;
         }
         const parsed = syntax.parsed;
-        const candidates = [...syntax.nodes]
-            .filter((node) => node.kind === SyntaxKind.CallExpression && node.range.contains(position))
-            .sort((left, right) => compareRangeSize(left.range, right.range));
+        const candidates: SyntaxNode[] = [];
+        for (const candidate of syntax.nodes) {
+            if (candidate.kind !== SyntaxKind.CallExpression || !candidate.range.contains(position)) {
+                continue;
+            }
+
+            candidates.push(candidate);
+        }
+        candidates.sort((left, right) => compareRangeSize(left.range, right.range));
 
         for (const candidate of candidates) {
             const callee = candidate.children[0];
@@ -150,12 +156,21 @@ function getCallBoundaryTokens(
     callExpression: SyntaxNode,
     callee: SyntaxNode
 ): { openParen: SyntaxDocument['parsed']['visibleTokens'][number]; closeParen: SyntaxDocument['parsed']['visibleTokens'][number] } | undefined {
-    const candidateTokens = parsed.visibleTokens.filter((token) =>
-        token.tokenIndex > callee.tokenRange.end
-        && token.tokenIndex <= callExpression.tokenRange.end
-    );
-    const openParen = candidateTokens.find((token) => token.text === '(');
-    const closeParen = [...candidateTokens].reverse().find((token) => token.text === ')');
+    let openParen: SyntaxDocument['parsed']['visibleTokens'][number] | undefined;
+    let closeParen: SyntaxDocument['parsed']['visibleTokens'][number] | undefined;
+    for (const token of parsed.visibleTokens) {
+        if (token.tokenIndex <= callee.tokenRange.end || token.tokenIndex > callExpression.tokenRange.end) {
+            continue;
+        }
+
+        if (!openParen && token.text === '(') {
+            openParen = token;
+        }
+
+        if (token.text === ')') {
+            closeParen = token;
+        }
+    }
 
     return openParen && closeParen ? { openParen, closeParen } : undefined;
 }
