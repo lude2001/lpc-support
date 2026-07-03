@@ -38,7 +38,7 @@ export class EfunDocsManager {
             ?? (() => {
                 throw new Error('EfunDocsManager requires an injected FunctionDocLookupBuilder');
             })();
-        this.bundledLoader = new BundledEfunLoader(context);
+        this.bundledLoader = new BundledEfunLoader();
         this.fileFunctionDocTracker = new FileFunctionDocTracker({
             documentationService: resolvedDocumentationService,
             lookupBuilder: resolvedLookupBuilder
@@ -48,8 +48,14 @@ export class EfunDocsManager {
             resolvedAnalysisService,
             resolvedDocumentationService
         );
-        this.efunDocs = this.createBundledDocsMap();
-        this.efunCategories = this.createBundledCategoriesMap();
+
+        this.runBackgroundTask(
+            this.bundledLoader.load(context).then(() => {
+                this.efunDocs = this.createBundledDocsMap();
+                this.efunCategories = this.createBundledCategoriesMap();
+            }),
+            '加载内置 Efun 文档失败'
+        );
 
         this.runBackgroundTask(this.simulatedEfunScanner.load(), '加载模拟函数库文档失败');
     }

@@ -89,12 +89,14 @@ describe('EfunDocsManager', () => {
         } as unknown as vscode.ExtensionContext;
     }
 
-    function createManager(extensionPath: string): EfunDocsManager {
+    async function createManager(extensionPath: string): Promise<EfunDocsManager> {
+        // Wait a short moment to ensure async load finishes
+        const delay = () => new Promise(resolve => setTimeout(resolve, 50));
         const documentationService = createDefaultFunctionDocumentationService();
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: createVsCodeTextDocumentHost()
         });
-        return new EfunDocsManager(
+        const manager = new EfunDocsManager(
             createContext(extensionPath),
             undefined,
             DocumentSemanticSnapshotService.getInstance(),
@@ -102,6 +104,8 @@ describe('EfunDocsManager', () => {
             pathSupport,
             createLookupBuilder(documentationService, pathSupport)
         );
+        await delay();
+        return manager;
     }
 
     function writeBundleFile(extensionPath: string, value: unknown | string): void {
@@ -257,7 +261,7 @@ describe('EfunDocsManager', () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-structured-'));
         writeBundleFile(extensionPath, createStructuredBundle());
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
         const allocateDoc = manager.getStandardCallableDoc('allocate');
         const callOtherDoc = manager.getStandardCallableDoc('call_other');
         const callOutDoc = manager.getStandardCallableDoc('call_out');
@@ -302,7 +306,7 @@ describe('EfunDocsManager', () => {
         expect(errorSpy).not.toHaveBeenCalled();
     });
 
-    test('prefers split bundled efun docs over the legacy single bundle', () => {
+    test('prefers split bundled efun docs over the legacy single bundle', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-split-'));
         writeBundleFile(extensionPath, createStructuredBundle({
             docs: {
@@ -345,7 +349,7 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
         const allocateDoc = manager.getStandardCallableDoc('allocate');
 
         expect(allocateDoc?.summary).toBe('split bundle doc');
@@ -359,7 +363,7 @@ describe('EfunDocsManager', () => {
         expect(manager.getCategories().get('数组相关函数（Arrays）')).toEqual(['allocate']);
     });
 
-    test('bundled split efun docs declare explicit arity for every signature', () => {
+    test('bundled split efun docs declare explicit arity for every signature', async () => {
         const docsDir = path.join(process.cwd(), 'config', 'efun-docs', 'docs');
         const missingArity: string[] = [];
 
@@ -432,7 +436,7 @@ describe('EfunDocsManager', () => {
         ]);
     });
 
-    test('bundled efun docs match FluffOS arity declarations when checkout is available', () => {
+    test('bundled efun docs match FluffOS arity declarations when checkout is available', async () => {
         const fluffosRoot = process.env.FLUFFOS_ROOT ?? 'D:/code/fluffos';
         if (!fs.existsSync(path.join(fluffosRoot, 'src', 'packages'))) {
             return;
@@ -474,7 +478,7 @@ describe('EfunDocsManager', () => {
         expect(result.missingDoc).toEqual([]);
     });
 
-    test('keeps legacy arity on standard callable doc signatures', () => {
+    test('keeps legacy arity on standard callable doc signatures', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-legacy-arity-'));
         writeBundleFile(extensionPath, createStructuredBundle({
             docs: {
@@ -498,7 +502,7 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
 
         const legacyDoc = manager.getStandardCallableDoc('legacy_arity');
 
@@ -511,14 +515,14 @@ describe('EfunDocsManager', () => {
         });
     });
 
-    test('re-export shim exposes the facade manager class', () => {
+    test('re-export shim exposes the facade manager class', async () => {
         expect(EfunDocsManager).toBe(FacadeEfunDocsManager);
     });
 
     test('should build bundled efun completion documentation through the shared completion service', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-completion-'));
         writeBundleFile(extensionPath, createStructuredBundle());
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
         const documentHost = createVsCodeTextDocumentHost();
         const documentationService = createDefaultFunctionDocumentationService();
         const objectInferenceService = { inferObjectAccess: jest.fn() } as any;
@@ -591,7 +595,7 @@ describe('EfunDocsManager', () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-malformed-'));
         writeBundleFile(extensionPath, '{ invalid json');
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().size).toBe(0);
@@ -599,7 +603,7 @@ describe('EfunDocsManager', () => {
         expect(errorSpy).toHaveBeenCalled();
     });
 
-    test('returns empty docs and categories when docs is missing', () => {
+    test('returns empty docs and categories when docs is missing', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-missing-docs-'));
         writeBundleFile(extensionPath, {
             generatedAt: '2026-04-14T00:00:00.000Z',
@@ -608,14 +612,14 @@ describe('EfunDocsManager', () => {
             }
         });
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().size).toBe(0);
         expect(errorSpy).toHaveBeenCalled();
     });
 
-    test('loads docs but returns empty categories when categories is missing', () => {
+    test('loads docs but returns empty categories when categories is missing', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-missing-categories-'));
         writeBundleFile(extensionPath, {
             generatedAt: '2026-04-14T00:00:00.000Z',
@@ -640,7 +644,7 @@ describe('EfunDocsManager', () => {
             }
         });
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual(['call_out']);
         expect(manager.getStandardCallableDoc('call_out')).toMatchObject({
@@ -655,7 +659,7 @@ describe('EfunDocsManager', () => {
         expect(errorSpy).toHaveBeenCalled();
     });
 
-    test('ignores missing category references and keeps unreferenced docs loadable', () => {
+    test('ignores missing category references and keeps unreferenced docs loadable', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-missing-category-ref-'));
         writeBundleFile(extensionPath, createStructuredBundle({
             categories: {
@@ -663,7 +667,7 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
 
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual(['call_out']);
         expect(manager.getAllFunctions()).toEqual(expect.arrayContaining(['call_out', 'allocate', 'orphan_doc']));
@@ -671,7 +675,7 @@ describe('EfunDocsManager', () => {
         expect(warnSpy).toHaveBeenCalled();
     });
 
-    test('rejects docs whose key does not match the declared name', () => {
+    test('rejects docs whose key does not match the declared name', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-key-name-mismatch-'));
         writeBundleFile(extensionPath, createStructuredBundle({
             docs: {
@@ -694,7 +698,7 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getStandardCallableDoc('wrong_key')).toBeUndefined();
@@ -749,7 +753,7 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
         const mixedReturnsDoc = manager.getStandardCallableDoc('mixed_returns');
         const lateOnlyDoc = manager.getStandardCallableDoc('late_only_return_type');
 
@@ -765,7 +769,7 @@ describe('EfunDocsManager', () => {
         ]);
     });
 
-    test('drops invalid docs when a signature is missing label', () => {
+    test('drops invalid docs when a signature is missing label', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-invalid-signature-'));
         writeBundleFile(extensionPath, createStructuredBundle({
             docs: {
@@ -786,13 +790,13 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
     });
 
-    test('rejects invalid signature arity and warns', () => {
+    test('rejects invalid signature arity and warns', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-invalid-arity-'));
         writeBundleFile(extensionPath, createStructuredBundle({
             docs: {
@@ -816,14 +820,14 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
 
         expect(manager.getStandardCallableDoc('invalid_arity')).toBeUndefined();
         expect(manager.getAllFunctions()).toEqual([]);
         expect(warnSpy).toHaveBeenCalled();
     });
 
-    test('drops invalid docs when a parameter is missing name', () => {
+    test('drops invalid docs when a parameter is missing name', async () => {
         const extensionPath = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-efun-invalid-param-'));
         writeBundleFile(extensionPath, createStructuredBundle({
             docs: {
@@ -850,13 +854,13 @@ describe('EfunDocsManager', () => {
             }
         }));
 
-        const manager = createManager(extensionPath);
+        const manager = await createManager(extensionPath);
 
         expect(manager.getAllFunctions()).toEqual([]);
         expect(manager.getCategories().get('调用相关函数（Calls）')).toEqual([]);
     });
 
-    test('callable renderer preserves pointer-like parameter types in the table', () => {
+    test('callable renderer preserves pointer-like parameter types in the table', async () => {
         const markdown = new CallableDocRenderer().renderHover({
             name: 'demo',
             declarationKey: 'test:demo',
@@ -876,7 +880,7 @@ describe('EfunDocsManager', () => {
         expect(markdown).toContain('| `label` | `string*` | label text |');
     });
 
-    test('callable renderer escapes markdown-breaking pipe characters', () => {
+    test('callable renderer escapes markdown-breaking pipe characters', async () => {
         const markdown = new CallableDocRenderer().renderHover({
             name: 'demo',
             declarationKey: 'test:demo',
@@ -1468,7 +1472,7 @@ describe('SimulatedEfunScanner', () => {
         expect(analysis.parseErrors).toEqual([]);
     });
 
-    test('semantic snapshot exposes include directives for simulated efun entry files', () => {
+    test('semantic snapshot exposes include directives for simulated efun entry files', async () => {
         const document = TestHelper.createMockDocument('#include "/adm/simul_efun/helper.c"\n', 'lpc', 'simul_efun.c');
         const analysis = getAstManagerForTests().parseDocument(document, false);
 

@@ -19,8 +19,11 @@ export class BundledEfunLoader {
     private structuredDocs: Map<string, StructuredEfunDoc> = new Map();
     private categories: Map<string, string[]> = new Map();
 
-    constructor(context: vscode.ExtensionContext) {
-        this.loadBundledDocs(context);
+    constructor() {
+    }
+
+    public async load(context: vscode.ExtensionContext): Promise<void> {
+        await this.loadBundledDocsAsync(context);
     }
 
     public getStructuredDoc(name: string): StructuredEfunDoc | undefined {
@@ -35,17 +38,17 @@ export class BundledEfunLoader {
         return this.categories;
     }
 
-    private loadBundledDocs(context: vscode.ExtensionContext): void {
+    private async loadBundledDocsAsync(context: vscode.ExtensionContext): Promise<void> {
         const bundledDocsDir = this.getBundledDocsDir(context);
         if (fs.existsSync(bundledDocsDir) && fs.statSync(bundledDocsDir).isDirectory()) {
-            this.loadSplitBundledDocs(bundledDocsDir);
+            await this.loadSplitBundledDocsAsync(bundledDocsDir);
             return;
         }
 
-        this.loadLegacyBundledDocs(this.getLegacyBundledDocsPath(context));
+        await this.loadLegacyBundledDocsAsync(this.getLegacyBundledDocsPath(context));
     }
 
-    private loadSplitBundledDocs(bundledDocsDir: string): void {
+    private async loadSplitBundledDocsAsync(bundledDocsDir: string): Promise<void> {
         const categoriesPath = path.join(bundledDocsDir, BUNDLED_CATEGORIES_FILE);
         const docsDir = path.join(bundledDocsDir, BUNDLED_DOCS_SUBDIR);
 
@@ -71,31 +74,40 @@ export class BundledEfunLoader {
             .filter(fileName => fileName.endsWith('.json'))
             .sort((left, right) => left.localeCompare(right));
 
-        for (const fileName of docFiles) {
-            const docKey = path.basename(fileName, '.json');
-            const docPath = path.join(docsDir, fileName);
+        const loadedDocs = await Promise.all(
+            docFiles.map(async (fileName) => {
+                const docKey = path.basename(fileName, '.json');
+                const docPath = path.join(docsDir, fileName);
 
-            let docValue: unknown;
-            try {
-                docValue = JSON.parse(fs.readFileSync(docPath, 'utf8'));
-            } catch (error) {
-                console.warn(`忽略无法加载的 Efun 文档文件: ${docPath}`, error);
+                try {
+                    const content = await fs.promises.readFile(docPath, 'utf8');
+                    const docValue = JSON.parse(content);
+                    return { docKey, docValue };
+                } catch (error) {
+                    console.warn(`忽略无法加载的 Efun 文档文件: ${docPath}`, error);
+                    return null;
+                }
+            })
+        );
+
+        for (const item of loadedDocs) {
+            if (!item) {
                 continue;
             }
 
-            const normalized = normalizeStructuredDoc(docKey, docValue);
+            const normalized = normalizeStructuredDoc(item.docKey, item.docValue);
             if (!normalized) {
                 continue;
             }
 
-            structuredDocs.set(docKey, cloneStructuredDoc(normalized));
+            structuredDocs.set(item.docKey, cloneStructuredDoc(normalized));
         }
 
         this.structuredDocs = structuredDocs;
         this.categories = this.loadCategories(rawCategories, structuredDocs);
     }
 
-    private loadLegacyBundledDocs(bundledDocsPath: string): void {
+    private async loadLegacyBundledDocsAsync(bundledDocsPath: string): Promise<void> {
 
         if (!fs.existsSync(bundledDocsPath)) {
             console.error(`未找到内置 Efun 文档文件: ${bundledDocsPath}`);
@@ -106,7 +118,8 @@ export class BundledEfunLoader {
 
         let parsedBundle: unknown;
         try {
-            parsedBundle = JSON.parse(fs.readFileSync(bundledDocsPath, 'utf8'));
+            const content = await fs.promises.readFile(bundledDocsPath, 'utf8');
+            parsedBundle = JSON.parse(content);
         } catch (error) {
             console.error('加载内置 Efun 文档失败: JSON 解析错误', error);
             this.structuredDocs = new Map();
