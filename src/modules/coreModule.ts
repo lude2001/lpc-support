@@ -74,6 +74,7 @@ export async function registerCoreServices(registry: ServiceRegistry, context: v
         documentPathSupport,
         functionDocLookupBuilder
     );
+    await efunDocsManager.bundledDocsReady;
     registry.register(Services.EfunDocs, efunDocsManager);
 
     const completionInstrumentation = new CompletionInstrumentation();

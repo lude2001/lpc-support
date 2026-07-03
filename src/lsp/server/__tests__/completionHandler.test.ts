@@ -120,7 +120,7 @@ describe('registerCompletionHandler', () => {
             completionService
         });
 
-        expect(initializeHandler?.({} as InitializeParams)).toEqual({
+        expect(await initializeHandler?.({} as InitializeParams, {} as any)).toEqual({
             capabilities: {
                 completionProvider: {
                     resolveProvider: true

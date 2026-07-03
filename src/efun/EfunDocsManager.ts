@@ -17,6 +17,8 @@ import type { DocumentAnalysisService } from '../semantic/documentAnalysisServic
 import type { LanguageWorkspaceProjectConfig } from '../language/contracts/LanguageWorkspaceContext';
 
 export class EfunDocsManager {
+    public readonly bundledDocsReady: Promise<void>;
+
     private bundledLoader: BundledEfunLoader;
     private fileFunctionDocTracker: FileFunctionDocTracker;
     private simulatedEfunScanner: SimulatedEfunScanner;
@@ -49,14 +51,12 @@ export class EfunDocsManager {
             resolvedDocumentationService
         );
 
-        this.runBackgroundTask(
-            this.bundledLoader.load(context).then(() => {
-                this.efunDocs = this.createBundledDocsMap();
-                this.efunCategories = this.createBundledCategoriesMap();
-            }),
-            '加载内置 Efun 文档失败'
-        );
+        this.bundledDocsReady = this.bundledLoader.load(context).then(() => {
+            this.efunDocs = this.createBundledDocsMap();
+            this.efunCategories = this.createBundledCategoriesMap();
+        });
 
+        this.runBackgroundTask(this.bundledDocsReady, '加载内置 Efun 文档失败');
         this.runBackgroundTask(this.simulatedEfunScanner.load(), '加载模拟函数库文档失败');
     }
 

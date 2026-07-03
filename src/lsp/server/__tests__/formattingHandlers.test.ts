@@ -103,7 +103,7 @@ describe('formatting handlers', () => {
             formattingService
         });
 
-        expect(initializeHandler?.({} as InitializeParams)).toEqual({
+        expect(await initializeHandler?.({} as InitializeParams, {} as any)).toEqual({
             capabilities: {
                 documentFormattingProvider: true,
                 documentRangeFormattingProvider: true,
@@ -148,7 +148,7 @@ describe('formatting handlers', () => {
         ]);
     });
 
-    test('registerCapabilities omits formatting capabilities when no formatting service is available', () => {
+    test('registerCapabilities omits formatting capabilities when no formatting service is available', async () => {
         let initializeHandler: ((params: InitializeParams) => InitializeResult) | undefined;
         const connection = createConnectionStub({
             onInitialize: jest.fn(handler => {
@@ -174,7 +174,7 @@ describe('formatting handlers', () => {
             workspaceSession
         });
 
-        expect(initializeHandler?.({} as InitializeParams)).toEqual({
+        expect(await initializeHandler?.({} as InitializeParams, {} as any)).toEqual({
             capabilities: {
                 textDocumentSync: TextDocumentSyncKind.Full
             },

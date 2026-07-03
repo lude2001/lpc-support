@@ -114,6 +114,7 @@ export interface ServerRegistrationContext {
     logger: ServerLogger;
     serverVersion: string;
     workspaceSession: WorkspaceSession;
+    onServerInitialize?: () => Promise<void>;
     navigationService?: LanguageNavigationService;
     completionService?: LanguageCompletionService;
     codeActionsService?: LanguageCodeActionService;
@@ -326,8 +327,16 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
         }
     };
 
-    connection.onInitialize((_params: InitializeParams): InitializeResult => {
+    connection.onInitialize(async (_params: InitializeParams): Promise<InitializeResult> => {
         logger.info('Initializing LPC Phase A language server');
+
+        if (context.onServerInitialize) {
+            try {
+                await context.onServerInitialize();
+            } catch (error) {
+                logger.error(`Failed during server initialization: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
 
         return {
             capabilities: {

@@ -90,8 +90,6 @@ describe('EfunDocsManager', () => {
     }
 
     async function createManager(extensionPath: string): Promise<EfunDocsManager> {
-        // Wait a short moment to ensure async load finishes
-        const delay = () => new Promise(resolve => setTimeout(resolve, 50));
         const documentationService = createDefaultFunctionDocumentationService();
         const pathSupport = new WorkspaceDocumentPathSupport({
             host: createVsCodeTextDocumentHost()
@@ -104,7 +102,7 @@ describe('EfunDocsManager', () => {
             pathSupport,
             createLookupBuilder(documentationService, pathSupport)
         );
-        await delay();
+        await manager.bundledDocsReady;
         return manager;
     }
 

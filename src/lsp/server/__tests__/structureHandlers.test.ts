@@ -191,7 +191,7 @@ describe('structure handlers', () => {
         expect(result?.resultId).toEqual(expect.any(String));
     });
 
-    test('registerCapabilities and createServer expose only structure capabilities when structure service is provided', () => {
+    test('registerCapabilities and createServer expose only structure capabilities when structure service is provided', async () => {
         let initializeHandler: ((params: InitializeParams) => InitializeResult) | undefined;
         const connection = createStructureConnection({
             onInitialize: jest.fn(handler => {
@@ -222,7 +222,7 @@ describe('structure handlers', () => {
             structureService
         });
 
-        expect(initializeHandler?.({} as InitializeParams)).toEqual({
+        expect(await initializeHandler?.({} as InitializeParams, {} as any)).toEqual({
             capabilities: {
                 foldingRangeProvider: true,
                 semanticTokensProvider: {
