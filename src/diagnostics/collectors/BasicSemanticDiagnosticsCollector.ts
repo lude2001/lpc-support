@@ -139,7 +139,10 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
         const suppressUndefinedDiagnostics = visibleSymbols.hasUnresolvedDependencies
             || facts.macroSuppression.hasUnexpandedFunctionLikeMacroReference;
 
-        for (const callExpression of context.syntax.nodes.filter((node) => isKind(node, SyntaxKind.CallExpression))) {
+        for (const callExpression of context.syntax.nodes) {
+            if (!isKind(callExpression, SyntaxKind.CallExpression)) {
+                continue;
+            }
             const callSite = getDirectDiagnosticCallSite(callExpression);
             if (!callSite) {
                 continue;
@@ -172,7 +175,10 @@ export class BasicSemanticDiagnosticsCollector implements IDiagnosticCollector {
             return diagnostics;
         }
 
-        for (const identifier of context.syntax.nodes.filter((node) => isKind(node, SyntaxKind.Identifier))) {
+        for (const identifier of context.syntax.nodes) {
+            if (!isKind(identifier, SyntaxKind.Identifier)) {
+                continue;
+            }
             if (!identifier.name || callCalleeRanges.has(getRangeKey(identifier.range))) {
                 continue;
             }
