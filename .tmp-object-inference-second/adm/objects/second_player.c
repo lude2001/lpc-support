@@ -1,0 +1,1 @@
+void query_name() {}

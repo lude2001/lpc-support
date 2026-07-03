@@ -118,8 +118,16 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): void {
-        for (const declaration of nodes.filter((node) => node.kind === SyntaxKind.VariableDeclaration)) {
-            for (const declarator of declaration.children.filter((child) => child.kind === SyntaxKind.VariableDeclarator)) {
+        for (let i = 0; i < nodes.length; i++) {
+            const declaration = nodes[i];
+            if (declaration.kind !== SyntaxKind.VariableDeclaration) {
+                continue;
+            }
+            for (let j = 0; j < declaration.children.length; j++) {
+                const declarator = declaration.children[j];
+                if (declarator.kind !== SyntaxKind.VariableDeclarator) {
+                    continue;
+                }
                 const initializer = declarator.children[1];
                 if (!initializer || !declarator.name) {
                     continue;
@@ -143,7 +151,11 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): void {
-        for (const assignment of nodes.filter((node) => node.kind === SyntaxKind.AssignmentExpression)) {
+        for (let i = 0; i < nodes.length; i++) {
+            const assignment = nodes[i];
+            if (assignment.kind !== SyntaxKind.AssignmentExpression) {
+                continue;
+            }
             if (assignment.metadata?.operator !== '=') {
                 continue;
             }
@@ -166,7 +178,11 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): void {
-        for (const returnStatement of nodes.filter((node) => node.kind === SyntaxKind.ReturnStatement)) {
+        for (let i = 0; i < nodes.length; i++) {
+            const returnStatement = nodes[i];
+            if (returnStatement.kind !== SyntaxKind.ReturnStatement) {
+                continue;
+            }
             const expression = returnStatement.children[0];
             if (!expression) {
                 continue;
@@ -199,7 +215,11 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): void {
-        for (const callExpression of nodes.filter((node) => node.kind === SyntaxKind.CallExpression)) {
+        for (let i = 0; i < nodes.length; i++) {
+            const callExpression = nodes[i];
+            if (callExpression.kind !== SyntaxKind.CallExpression) {
+                continue;
+            }
             const callSite = getDirectDiagnosticCallSite(callExpression);
             if (!callSite?.callee.name) {
                 continue;
@@ -249,7 +269,11 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): void {
-        for (const memberAccess of nodes.filter((node) => node.kind === SyntaxKind.MemberAccessExpression)) {
+        for (let i = 0; i < nodes.length; i++) {
+            const memberAccess = nodes[i];
+            if (memberAccess.kind !== SyntaxKind.MemberAccessExpression) {
+                continue;
+            }
             const receiverType = session.evaluator.evaluate(memberAccess.children[0]);
             if (receiverType.kind !== 'class' && receiverType.kind !== 'struct') {
                 continue;
