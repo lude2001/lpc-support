@@ -249,7 +249,11 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         session: TypeCheckingSession,
         diagnostics: vscode.Diagnostic[]
     ): void {
-        for (const memberAccess of nodes.filter((node) => node.kind === SyntaxKind.MemberAccessExpression)) {
+        for (const memberAccess of nodes) {
+            if (memberAccess.kind !== SyntaxKind.MemberAccessExpression) {
+                continue;
+            }
+
             const receiverType = session.evaluator.evaluate(memberAccess.children[0]);
             if (receiverType.kind !== 'class' && receiverType.kind !== 'struct') {
                 continue;
