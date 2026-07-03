@@ -58,7 +58,7 @@ interface RuntimeResult {
 }
 
 interface CapturedHandlers {
-    initialize?: (params: InitializeParams) => InitializeResult;
+    initialize?: (params: InitializeParams) => InitializeResult | Promise<InitializeResult>;
     completion?: (params: CompletionParams) => Promise<CompletionList> | CompletionList;
     hover?: (params: HoverParams) => Promise<Hover | undefined> | Hover | undefined;
     definition?: (params: DefinitionParams) => Promise<Definition> | Definition;
@@ -631,7 +631,7 @@ async function buildRuntime(): Promise<RuntimeResult> {
         structureService
     });
 
-    const initializeResult = handlers.initialize?.({} as InitializeParams);
+    const initializeResult = await handlers.initialize?.({} as InitializeParams);
     if (!initializeResult) {
         throw new Error('Expected LSP initialize handler to be registered');
     }
