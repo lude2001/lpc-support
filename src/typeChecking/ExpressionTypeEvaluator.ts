@@ -1,5 +1,6 @@
 import type { SyntaxNode } from '../syntax/types';
 import { SyntaxKind } from '../syntax/types';
+import { getFluffOSPredefinedMacroValueType } from '../fluffos/FluffOSPredefinedMacros';
 import type { LpcType } from './LpcType';
 import {
     createArrayType,
@@ -152,6 +153,11 @@ export class ExpressionTypeEvaluator {
         }
 
         const name = node.name;
+        const predefinedMacroType = name ? getFluffOSPredefinedMacroValueType(name) : undefined;
+        if (predefinedMacroType) {
+            return createPrimitiveType(predefinedMacroType, name);
+        }
+
         const narrowed = name ? this.narrowingLookup?.getNarrowedType(name, node.range.start) : undefined;
         return narrowed ?? this.scopeResolver.resolveIdentifierType(name, node.range.start);
     }
@@ -327,6 +333,14 @@ export class ExpressionTypeEvaluator {
         }
 
         if (first.kind === SyntaxKind.TypeReference) {
+            const typeReferenceText = getMetadataString(first, 'text') ?? first.name;
+            const predefinedMacroType = typeReferenceText
+                ? getFluffOSPredefinedMacroValueType(typeReferenceText)
+                : undefined;
+            if (predefinedMacroType === 'string') {
+                return createPrimitiveType('object');
+            }
+
             return this.parseTypeReference(first);
         }
 

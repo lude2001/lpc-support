@@ -641,6 +641,25 @@ describe('syntax-backed diagnostic collectors', () => {
         ]);
     });
 
+    test('TypeDiagnosticsCollector accepts new(__FILE__) as object assignment', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'private object new_test_object()',
+            '{',
+            '    object ob;',
+            '',
+            '    ob = new(__FILE__);',
+            '    return ob;',
+            '}'
+        ].join('\n'), 'type-diagnostics-new-file-macro.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics).toEqual([]);
+    });
+
     test('TypeDiagnosticsCollector respects documented union parameter types', async () => {
         const collector = new TypeDiagnosticsCollector({
             diagnosticFactsProvider: {

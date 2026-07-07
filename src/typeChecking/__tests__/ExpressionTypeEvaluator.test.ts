@@ -129,6 +129,10 @@ describe('ExpressionTypeEvaluator', () => {
             '    string first = names[0];',
             '    class Payload fresh = new(class Payload, title : "x");',
             '    object ob = new("/std/object");',
+            '    string current_file = __FILE__;',
+            '    string current_dir = __DIR__;',
+            '    int current_line = __LINE__;',
+            '    object self_ob = new(__FILE__);',
             '    mixed unknown = dynamic->query();',
             '}'
         ].join('\n'));
@@ -161,6 +165,10 @@ describe('ExpressionTypeEvaluator', () => {
             name: 'Payload'
         });
         expect(evaluator.evaluate(findInitializer(syntax, 'ob'))).toMatchObject({ name: 'object' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'current_file'))).toMatchObject({ name: 'string' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'current_dir'))).toMatchObject({ name: 'string' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'current_line'))).toMatchObject({ name: 'int' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'self_ob'))).toMatchObject({ name: 'object' });
         expect(evaluator.evaluate(findInitializer(syntax, 'unknown'))).toMatchObject({
             isUnknown: true
         });
