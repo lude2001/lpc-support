@@ -383,6 +383,38 @@ describe('CompletionQueryEngine', () => {
         expect(chainedModifierResult.candidates.map((candidate) => candidate.label)).toContain('varargs');
     });
 
+    test('ranks matching declaration modifiers before efuns in identifier completion', () => {
+        const filePath = path.join(root, 'modifier-keyword-ranking.c');
+        const content = 'var';
+
+        fs.writeFileSync(filePath, content, 'utf8');
+
+        const document = createDocument(filePath, content);
+        const astManager = getAstManagerForTests();
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
+        const engine = new CompletionQueryEngine({
+            snapshotProvider: astManager,
+            projectSymbolIndex,
+            contextAnalyzer: new CompletionContextAnalyzer(),
+            efunProvider: {
+                getAllFunctions: () => ['variables'],
+                getAllSimulatedFunctions: () => []
+            }
+        });
+
+        const result = engine.query(
+            document,
+            new vscode.Position(0, 'var'.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+        const labels = result.candidates.map((candidate) => candidate.label);
+
+        expect(labels).toContain('varargs');
+        expect(labels).toContain('variables');
+        expect(labels.indexOf('varargs')).toBeLessThan(labels.indexOf('variables'));
+    });
+
     test('returns generic object methods for object-style member receivers', () => {
         const filePath = path.join(root, 'object-member.c');
         const content = [

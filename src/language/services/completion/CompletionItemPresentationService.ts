@@ -126,8 +126,8 @@ export class CompletionItemPresentationService {
             case 'scope': return '0';
             case 'type-member': return '1';
             case 'inherited': return '2';
-            case 'builtin': return '3';
-            case 'keyword': return '4';
+            case 'keyword': return '3';
+            case 'builtin': return '4';
             default: return '9';
         }
     }

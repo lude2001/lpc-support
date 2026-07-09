@@ -98,6 +98,46 @@ describe('CompletionItemPresentationService', () => {
         });
     });
 
+    test('createCompletionItem ranks keywords before builtin efuns for the same prefix', () => {
+        const CompletionItemPresentationService = loadService();
+        const service = new CompletionItemPresentationService(
+            {
+                getStandardCallableDoc: jest.fn(),
+                getSimulatedDoc: jest.fn()
+            },
+            new ProjectSymbolIndex(new InheritanceResolver()),
+            { applyScopedDocumentation: jest.fn() }
+        );
+        const document = createDocument(path.join(process.cwd(), '.tmp-completion-presentation', 'ranking.c'), 'var\n', 1);
+        const result = {
+            context: {
+                kind: 'identifier',
+                receiverChain: [],
+                currentWord: 'var',
+                linePrefix: 'var'
+            }
+        };
+
+        const keywordItem = service.createCompletionItem({
+            key: 'keyword:varargs',
+            label: 'varargs',
+            kind: vscode.CompletionItemKind.Keyword,
+            detail: 'LPC 关键字: varargs',
+            sortGroup: 'keyword',
+            metadata: { sourceType: 'keyword' }
+        } as any, result as any, document);
+        const efunItem = service.createCompletionItem({
+            key: 'efun:variables',
+            label: 'variables',
+            kind: vscode.CompletionItemKind.Function,
+            detail: 'LPC Efun: variables',
+            sortGroup: 'builtin',
+            metadata: { sourceType: 'efun', documentationRef: 'variables' }
+        } as any, result as any, document);
+
+        expect((keywordItem.sortText ?? '').localeCompare(efunItem.sortText ?? '')).toBeLessThan(0);
+    });
+
     test('createCompletionItem serializes local symbol candidate data without scope cycles', () => {
         const CompletionItemPresentationService = loadService();
         const service = new CompletionItemPresentationService(
