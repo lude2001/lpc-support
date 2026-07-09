@@ -821,7 +821,8 @@ describe('LSP capability matrix', () => {
                 },
                 documentSymbolProvider: true,
                 completionProvider: {
-                    resolveProvider: false
+                    resolveProvider: false,
+                    triggerCharacters: ['>', '.', ':', '#', '"', '<', '/']
                 },
                 foldingRangeProvider: true,
                 semanticTokensProvider: {

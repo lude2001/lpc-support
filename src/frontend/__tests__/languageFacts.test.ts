@@ -10,7 +10,9 @@ import {
     LPC_BUILTIN_TYPES,
     LPC_COMPLETION_KEYWORDS,
     LPC_CONTROL_KEYWORDS,
+    LPC_DECLARATION_KEYWORDS,
     LPC_DECLARATION_MODIFIERS,
+    LPC_EXPRESSION_KEYWORDS,
     LPC_PREPROCESSOR_DIRECTIVES,
     stripLeadingLpcDeclarationModifiers
 } from '../languageFacts';
@@ -20,7 +22,12 @@ describe('LPC language facts', () => {
         expect(LPC_BUILTIN_TYPES).toContain('function');
         expect(LPC_DECLARATION_MODIFIERS).toContain('nosave');
         expect(LPC_CONTROL_KEYWORDS).toContain('foreach');
-        expect(LPC_COMPLETION_KEYWORDS).toContain('inherit');
+        expect(LPC_COMPLETION_KEYWORDS).toEqual(expect.arrayContaining([
+            ...LPC_DECLARATION_MODIFIERS,
+            ...LPC_CONTROL_KEYWORDS,
+            ...LPC_DECLARATION_KEYWORDS,
+            ...LPC_EXPRESSION_KEYWORDS
+        ]));
         expect(LPC_PREPROCESSOR_DIRECTIVES).toEqual(expect.arrayContaining([
             'include',
             'define',

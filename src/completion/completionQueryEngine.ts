@@ -5,6 +5,7 @@ import { getTypeLookupName, normalizeLpcType } from '../ast/typeNormalization';
 import {
     LPC_BUILTIN_TYPES,
     LPC_COMPLETION_KEYWORDS,
+    LPC_DECLARATION_MODIFIERS,
     LPC_PREPROCESSOR_DIRECTIVES
 } from '../frontend/languageFacts';
 import { ProjectSymbolIndex } from './projectSymbolIndex';
@@ -245,6 +246,10 @@ export class CompletionQueryEngine {
         }
 
         for (const keyword of this.keywords) {
+            if (this.builtinTypes.includes(keyword)) {
+                continue;
+            }
+
             candidates.push({
                 key: `keyword:${keyword}`,
                 label: keyword,
@@ -405,6 +410,19 @@ export class CompletionQueryEngine {
         inheritedTypes: TypeDefinitionSummary[]
     ): CompletionCandidate[] {
         const candidates: CompletionCandidate[] = [];
+
+        for (const modifier of LPC_DECLARATION_MODIFIERS) {
+            candidates.push({
+                key: `type-position:modifier:${modifier}`,
+                label: modifier,
+                kind: vscode.CompletionItemKind.Keyword,
+                detail: `LPC 修饰符: ${modifier}`,
+                sortGroup: 'keyword',
+                metadata: {
+                    sourceType: 'keyword'
+                }
+            });
+        }
 
         for (const typeName of this.builtinTypes) {
             candidates.push({

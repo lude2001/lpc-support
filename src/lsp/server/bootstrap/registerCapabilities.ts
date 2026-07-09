@@ -78,6 +78,7 @@ import { WorkspaceSession } from '../runtime/WorkspaceSession';
 const MAYBE_STALE_DIAGNOSTIC_REFRESH_DELAY_MS = 200;
 const OPEN_PREWARM_DELAY_MS = 350;
 const OPEN_DIAGNOSTIC_REFRESH_DELAY_MS = 2500;
+const COMPLETION_TRIGGER_CHARACTERS = ['>', '.', ':', '#', '"', '<', '/'];
 const CHANGE_DIAGNOSTIC_REFRESH_DELAY_MS = 300;
 
 export type ServerConnection = Pick<
@@ -351,7 +352,8 @@ export function registerCapabilities(context: ServerRegistrationContext): void {
                 } : {}),
                 ...(completionService ? {
                     completionProvider: {
-                        resolveProvider: Boolean(completionService.resolveCompletionItem)
+                        resolveProvider: Boolean(completionService.resolveCompletionItem),
+                        triggerCharacters: COMPLETION_TRIGGER_CHARACTERS
                     }
                 } : {}),
                 ...(effectiveCodeActionsService ? {

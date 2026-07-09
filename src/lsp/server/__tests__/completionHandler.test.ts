@@ -123,7 +123,8 @@ describe('registerCompletionHandler', () => {
         expect(await initializeHandler?.({} as InitializeParams, {} as any)).toEqual({
             capabilities: {
                 completionProvider: {
-                    resolveProvider: true
+                    resolveProvider: true,
+                    triggerCharacters: ['>', '.', ':', '#', '"', '<', '/']
                 },
                 textDocumentSync: TextDocumentSyncKind.Full
             },

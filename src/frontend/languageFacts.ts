@@ -58,19 +58,12 @@ export const LPC_EXPRESSION_KEYWORDS = [
     'efun'
 ] as const;
 
-export const LPC_COMPLETION_KEYWORDS = [
-    'inherit',
-    'include',
-    'if',
-    'else',
-    'for',
-    'while',
-    'foreach',
-    'switch',
-    'return',
-    'new',
-    'catch'
-] as const;
+export const LPC_COMPLETION_KEYWORDS = uniqueLanguageFacts([
+    ...LPC_DECLARATION_MODIFIERS,
+    ...LPC_CONTROL_KEYWORDS,
+    ...LPC_DECLARATION_KEYWORDS,
+    ...LPC_EXPRESSION_KEYWORDS
+]);
 
 export const LPC_PREPROCESSOR_DIRECTIVES = [
     'include',
@@ -264,6 +257,10 @@ export function stripLeadingLpcDeclarationModifiers(typeName: string): string {
 
 function toReadonlySet(values: readonly string[]): ReadonlySet<string> {
     return new Set(values.map((value) => value.toLowerCase()));
+}
+
+function uniqueLanguageFacts<T extends string>(values: readonly T[]): readonly T[] {
+    return [...new Set(values)];
 }
 
 function hasLowercase(set: ReadonlySet<string>, value: string | undefined): boolean {

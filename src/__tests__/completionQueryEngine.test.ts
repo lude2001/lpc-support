@@ -341,8 +341,46 @@ describe('CompletionQueryEngine', () => {
         expect(result.candidates.map((candidate) => candidate.label)).toEqual(expect.arrayContaining([
             'array',
             'closure',
-            '__TREE__'
+            '__TREE__',
+            'varargs'
         ]));
+    });
+
+    test('returns declaration modifiers from identifier completion prefixes', () => {
+        const filePath = path.join(root, 'modifier-keywords.c');
+        const content = [
+            'var',
+            'public var',
+            'void demo() {',
+            '}'
+        ].join('\n');
+
+        fs.writeFileSync(filePath, content, 'utf8');
+
+        const document = createDocument(filePath, content);
+        const astManager = getAstManagerForTests();
+        const projectSymbolIndex = new ProjectSymbolIndex(new InheritanceResolver([root]));
+        const engine = new CompletionQueryEngine({
+            snapshotProvider: astManager,
+            projectSymbolIndex,
+            contextAnalyzer: new CompletionContextAnalyzer()
+        });
+
+        const topLevelResult = engine.query(
+            document,
+            new vscode.Position(0, 'var'.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+        const chainedModifierResult = engine.query(
+            document,
+            new vscode.Position(1, 'public var'.length),
+            {} as vscode.CompletionContext,
+            { isCancellationRequested: false } as vscode.CancellationToken
+        );
+
+        expect(topLevelResult.candidates.map((candidate) => candidate.label)).toContain('varargs');
+        expect(chainedModifierResult.candidates.map((candidate) => candidate.label)).toContain('varargs');
     });
 
     test('returns generic object methods for object-style member receivers', () => {
