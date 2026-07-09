@@ -161,6 +161,29 @@ describe('ScopedMethodDiscoveryService', () => {
         expect(result.methods.map((method: { name: string }) => method.name)).toEqual(['create']);
     });
 
+    test('discovers visible methods immediately after bare :: with an empty prefix', async () => {
+        writeFixture('/std/base_room.c', [
+            'void create() {}',
+            'void reset() {}'
+        ].join('\n'));
+
+        const source = [
+            'inherit "/std/base_room";',
+            '',
+            'void demo() {',
+            '    ::',
+            '}'
+        ].join('\n');
+
+        const document = createDocument(fixturePath('/d/city/room-empty-scoped.c'), source);
+        const service = createDiscoveryService(fixtureRoot, analysisService, documentHost);
+
+        const result = await service.discoverAt(document, positionAfter(source, '::'));
+
+        expect(result.status).toBe('resolved');
+        expect(result.methods.map((method: { name: string }) => method.name)).toEqual(['create', 'reset']);
+    });
+
     test('bare :: prefixes never leak current-file or include functions into scoped completion', async () => {
         writeFixture('/std/base_room.c', 'void create() {}\n');
         writeFixture('/include/helpers.h', 'void create_helper() {}\n');
@@ -204,6 +227,28 @@ describe('ScopedMethodDiscoveryService', () => {
 
         expect(result.status).toBe('resolved');
         expect(result.methods.map((method: { name: string }) => method.name)).toEqual(['init']);
+    });
+
+    test('discovers methods immediately after named :: with an empty prefix', async () => {
+        writeFixture('/std/room.c', 'void init() {}\nvoid create() {}\n');
+        writeFixture('/std/combat.c', 'void influence() {}\n');
+
+        const source = [
+            'inherit "/std/room";',
+            'inherit "/std/combat";',
+            '',
+            'void demo() {',
+            '    room::',
+            '}'
+        ].join('\n');
+
+        const document = createDocument(fixturePath('/d/city/named-empty-scoped.c'), source);
+        const service = createDiscoveryService(fixtureRoot, analysisService, documentHost);
+
+        const result = await service.discoverAt(document, positionAfter(source, 'room::'));
+
+        expect(result.status).toBe('resolved');
+        expect(result.methods.map((method: { name: string }) => method.name)).toEqual(['create', 'init']);
     });
 
     test('named scoped discovery returns unknown when the qualifier is ambiguous', async () => {

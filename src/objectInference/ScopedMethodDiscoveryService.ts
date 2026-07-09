@@ -5,7 +5,7 @@ import { InheritanceResolver } from '../completion/inheritanceResolver';
 import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import { assertAnalysisService } from '../semantic/assertAnalysisService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
-import { isGeneratedToken, isIdentifierToken, isScopeToken } from '../parser/LpcTokenFacts';
+import { isGeneratedToken, isIdentifierToken, isScopeToken, type LpcTokenLike } from '../parser/LpcTokenFacts';
 import { SyntaxDocument, SyntaxKind, type SyntaxNode } from '../syntax/types';
 import {
     collectScopedBranchItems,
@@ -225,6 +225,11 @@ export class ScopedMethodDiscoveryService {
     ): ScopedDiscoveryShape | undefined {
         const offset = document.offsetAt(position);
         const visibleTokens = syntax.parsed.allTokens.filter(isGeneratedToken);
+        const emptyPrefixShape = this.classifyEmptyScopedToken(visibleTokens, offset);
+        if (emptyPrefixShape) {
+            return emptyPrefixShape;
+        }
+
         let identifierIndex = -1;
 
         for (let index = visibleTokens.length - 1; index >= 0; index -= 1) {
@@ -268,6 +273,51 @@ export class ScopedMethodDiscoveryService {
         return {
             kind: 'unsupported',
             prefix: identifierToken.text ?? ''
+        };
+    }
+
+    private classifyEmptyScopedToken(
+        visibleTokens: readonly LpcTokenLike[],
+        offset: number
+    ): ScopedDiscoveryShape | undefined {
+        let scopeTokenIndex = -1;
+
+        for (let index = visibleTokens.length - 1; index >= 0; index -= 1) {
+            const token = visibleTokens[index];
+            if (!isScopeToken(token)) {
+                continue;
+            }
+
+            if (token.stopIndex + 1 === offset) {
+                scopeTokenIndex = index;
+                break;
+            }
+        }
+
+        if (scopeTokenIndex < 0) {
+            return undefined;
+        }
+
+        const scopeToken = visibleTokens[scopeTokenIndex];
+        const qualifierToken = visibleTokens[scopeTokenIndex - 1];
+        if (!qualifierToken || qualifierToken.line !== scopeToken.line || qualifierToken.stopIndex + 1 !== scopeToken.startIndex) {
+            return {
+                kind: 'bare',
+                prefix: ''
+            };
+        }
+
+        if (isIdentifierToken(qualifierToken)) {
+            return {
+                kind: 'named',
+                prefix: '',
+                qualifier: qualifierToken.text ?? ''
+            };
+        }
+
+        return {
+            kind: 'unsupported',
+            prefix: ''
         };
     }
 

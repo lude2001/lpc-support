@@ -627,6 +627,41 @@ describe('language-service integration regression', () => {
         expect(result.items[0].data?.candidate.metadata.declarationKey).toBeDefined();
     });
 
+    test('scoped completion resolves bare :: immediately after the trigger characters', async () => {
+        fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
+        fs.writeFileSync(
+            path.join(fixtureRoot, 'std', 'base_room.c'),
+            [
+                'object create() {',
+                '    return 0;',
+                '}',
+                'void reset() {',
+                '}'
+            ].join('\n')
+        );
+        installWorkspaceOpenTextDocumentFixture();
+
+        const source = [
+            'inherit "/std/base_room";',
+            '',
+            'void demo() {',
+            '    ::',
+            '}'
+        ].join('\n');
+        const document = createDocument(path.join(fixtureRoot, 'room', 'bare-empty-scoped-completion.c'), source);
+        const service = createCompletionService();
+
+        const result = await service.provideCompletion({
+            context: createLanguageContext(document, fixtureRoot),
+            position: positionAtSubstringEnd(document, source, '::'),
+            triggerKind: vscode.CompletionTriggerKind.TriggerCharacter,
+            triggerCharacter: ':'
+        });
+
+        expect(result.items.map((item) => item.label)).toEqual(['create', 'reset']);
+        expect(result.items.every((item) => item.data?.candidate.metadata.sourceType === 'scoped-method')).toBe(true);
+    });
+
     test('scoped completion resolves room::init from the uniquely matched direct inherit branch only', async () => {
         fs.mkdirSync(path.join(fixtureRoot, 'std'), { recursive: true });
         fs.writeFileSync(
