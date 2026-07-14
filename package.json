@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.52.7",
+  "version": "0.52.8",
   "publisher": "ludexiang",
   "author": {
     "name": "easyCat",
@@ -62,7 +62,7 @@
     "follow-redirects": "1.16.0",
     "handlebars": "4.7.9",
     "picomatch": "2.3.2",
-    "undici": "7.24.0"
+    "undici": "7.28.0"
   },
   "contributes": {
     "languages": [

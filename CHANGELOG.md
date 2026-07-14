@@ -2,6 +2,17 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.52.8] - 2026-07-14
+
+### 安全与依赖
+
+- 修复 GitHub Dependabot 报告的 npm 依赖安全告警，更新 `form-data`、`undici`、`js-yaml` 与 `@babel/core` 相关传递依赖到安全版本。
+- 依赖安全审计现在通过 `npm audit`，不再报告已知漏洞。
+
+### FluffOS 开发环境
+
+- GitHub Releases 现已发布 `fluffos-windows-install-1.2(official version)`，这是 FluffOS 开发环境正式版，集成了 FluffOS 最新且已经检验的稳定功能。
+
 ## [0.52.7] - 2026-07-14
 
 ### FluffOS 兼容
