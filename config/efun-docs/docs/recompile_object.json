@@ -1,0 +1,29 @@
+{
+  "name": "recompile_object",
+  "summary": "按当前 driver 语义原地重编译对象程序，并返回受影响对象数量。",
+  "details": "重新编译已加载对象的程序定义，用于开发期刷新对象代码。调用方应自行处理对象状态迁移、失败回滚和相关依赖对象的刷新顺序。",
+  "note": "testsuite 中的 hot_reload daemon 是开发示例，不代表所有项目都默认启用热重载。",
+  "reference": [
+    "reload_object",
+    "load_object",
+    "find_object"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "int recompile_object( object ob )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

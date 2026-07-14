@@ -1,7 +1,7 @@
 {
   "name": "http_decode_form",
   "summary": "FluffOS sockets package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:21\nmapping http_decode_form(string);",
+  "details": "解析表单编码的请求体字符串并返回键值 mapping。",
   "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {

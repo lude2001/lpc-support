@@ -1,0 +1,29 @@
+{
+  "name": "to_buffer",
+  "summary": "将字符串、已有 buffer 或整数数组转换为 buffer。整数数组元素必须是 0..255 的字节值。",
+  "details": "将字符串按字节内容转换为 buffer；传入 buffer 时返回对应 buffer 值；传入数组时按 0..255 的整数元素生成字节序列。",
+  "reference": [
+    "allocate_buffer",
+    "read_buffer",
+    "write_buffer",
+    "bufferp"
+  ],
+  "category": "缓冲区相关函数（Buffers）",
+  "signatures": [
+    {
+      "label": "buffer to_buffer( string | buffer | mixed * value )",
+      "returnType": "buffer",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "value",
+          "type": "string | buffer | mixed *"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

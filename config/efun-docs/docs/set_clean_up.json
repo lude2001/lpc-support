@@ -1,0 +1,32 @@
+{
+  "name": "set_clean_up",
+  "summary": "设置对象 clean_up 调度时间；第二个参数省略时使用 driver 默认行为。",
+  "details": "调整指定对象的 clean_up 调度。传入整数时设置调度延迟；省略第二个参数时恢复 driver 默认处理。",
+  "reference": [
+    "request_clean_up",
+    "set_reset"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "void set_clean_up( object ob, int | void delay )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object"
+        },
+        {
+          "name": "delay",
+          "type": "int",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 2
+      }
+    }
+  ]
+}

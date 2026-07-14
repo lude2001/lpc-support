@@ -1,0 +1,27 @@
+{
+  "name": "get_os_env",
+  "summary": "读取 driver 配置白名单允许的操作系统环境变量；未设置时返回 undefined。",
+  "details": "读取允许暴露给 LPC 的操作系统环境变量。可访问范围由 driver 配置控制；变量不存在或未被允许时不会返回可用字符串。",
+  "reference": [
+    "set_os_env",
+    "get_config"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "string get_os_env( string name )",
+      "returnType": "string",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

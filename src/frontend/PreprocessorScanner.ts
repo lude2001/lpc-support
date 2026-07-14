@@ -35,9 +35,15 @@ export class PreprocessorScanner {
             }
 
             const logicalLines = [firstLine];
-            while (endsWithContinuation(logicalLines[logicalLines.length - 1].text) && index + 1 < lines.length) {
+            let commentState = scanDirectiveCommentState(firstLine.text);
+            while (
+                (endsWithContinuation(logicalLines[logicalLines.length - 1].text) || commentState.inBlockComment)
+                && index + 1 < lines.length
+            ) {
                 index += 1;
-                logicalLines.push(lines[index]);
+                const nextLine = lines[index];
+                logicalLines.push(nextLine);
+                commentState = scanDirectiveCommentState(nextLine.text, commentState.inBlockComment);
             }
 
             const rawText = text.slice(
@@ -106,7 +112,7 @@ export class PreprocessorScanner {
     ): PreprocessorDirective {
         const firstLine = logicalLines[0];
         const lastLine = logicalLines[logicalLines.length - 1];
-        const body = normalizeDirectiveBody(rawText);
+        const body = stripDirectiveComments(normalizeDirectiveBody(rawText));
         const command = (body.match(/^([A-Za-z_][A-Za-z0-9_]*)/) || [])[1] || '';
         const kind = toDirectiveKind(command);
 
@@ -314,6 +320,69 @@ export function stripReplacementComments(text: string): string {
 
 function endsWithContinuation(line: string): boolean {
     return /\\\s*$/.test(line);
+}
+
+function scanDirectiveCommentState(text: string, initialInBlockComment = false): { inBlockComment: boolean } {
+    let inString = false;
+    let inChar = false;
+    let escaping = false;
+    let inBlockComment = initialInBlockComment;
+
+    for (let index = 0; index < text.length; index += 1) {
+        const current = text[index];
+        const next = text[index + 1];
+
+        if (inBlockComment) {
+            if (current === '*' && next === '/') {
+                inBlockComment = false;
+                index += 1;
+            }
+            continue;
+        }
+
+        if (escaping) {
+            escaping = false;
+            continue;
+        }
+
+        if (inString || inChar) {
+            if (current === '\\') {
+                escaping = true;
+                continue;
+            }
+            if (inString && current === '"') {
+                inString = false;
+            } else if (inChar && current === "'") {
+                inChar = false;
+            }
+            continue;
+        }
+
+        if (current === '"') {
+            inString = true;
+            continue;
+        }
+
+        if (current === "'") {
+            inChar = true;
+            continue;
+        }
+
+        if (current === '/' && next === '/') {
+            break;
+        }
+
+        if (current === '/' && next === '*') {
+            inBlockComment = true;
+            index += 1;
+        }
+    }
+
+    return { inBlockComment };
+}
+
+function stripDirectiveComments(text: string): string {
+    return stripReplacementComments(text);
 }
 
 function toDirectiveKind(command: string): PreprocessorDirectiveKind {

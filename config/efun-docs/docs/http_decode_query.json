@@ -1,7 +1,7 @@
 {
   "name": "http_decode_query",
   "summary": "FluffOS sockets package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:20\nmapping http_decode_query(string);",
+  "details": "解析 URL query 字符串并返回键值 mapping，适用于处理 HTTP 请求参数。",
   "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {

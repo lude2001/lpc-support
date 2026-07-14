@@ -160,9 +160,15 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
                 continue;
             }
 
+            const targetExpression = assignment.children[0];
+            const sourceExpression = assignment.children[1];
+            if (this.isAllowedBufferRangeAssignment(targetExpression, sourceExpression, session)) {
+                continue;
+            }
+
             this.checkExpressionAssignment({
-                targetType: session.evaluator.resolveAssignableTargetType(assignment.children[0]),
-                sourceExpression: assignment.children[1],
+                targetType: session.evaluator.resolveAssignableTargetType(targetExpression),
+                sourceExpression,
                 session,
                 diagnostics,
                 code: ASSIGNMENT_CODE,
@@ -411,6 +417,26 @@ export class TypeDiagnosticsCollector implements IDiagnosticCollector {
         return reported;
     }
 
+    private isAllowedBufferRangeAssignment(
+        targetExpression: SyntaxNode | undefined,
+        sourceExpression: SyntaxNode | undefined,
+        session: TypeCheckingSession
+    ): boolean {
+        if (!targetExpression || !sourceExpression || !isRangeIndexExpression(targetExpression)) {
+            return false;
+        }
+
+        const receiverType = session.evaluator.evaluate(targetExpression.children[0]);
+        if (receiverType.name !== 'buffer' || receiverType.kind !== 'primitive') {
+            return false;
+        }
+
+        const sourceType = session.evaluator.evaluate(unwrapParenthesized(sourceExpression));
+        return sourceType.name === 'string'
+            || sourceType.name === 'buffer'
+            || isIntArrayType(sourceType);
+    }
+
     private checkMappingLiteral(
         sourceExpression: SyntaxNode,
         targetTypes: readonly LpcType[],
@@ -536,6 +562,19 @@ function unwrapParenthesized(node: SyntaxNode | undefined): SyntaxNode | undefin
         current = current.children[0];
     }
     return current;
+}
+
+function isRangeIndexExpression(node: SyntaxNode): boolean {
+    const indexNode = node.kind === SyntaxKind.IndexExpression ? node.children[1] : undefined;
+    return Boolean(
+        indexNode?.kind === SyntaxKind.ExpressionList
+        && (indexNode.metadata?.source === 'slice' || indexNode.metadata?.hasRange === true)
+    );
+}
+
+function isIntArrayType(type: LpcType): boolean {
+    return type.kind === 'array'
+        && (type.elementType?.name === 'int' || type.elementType?.isZeroLiteral === true);
 }
 
 function hasUnsafeSyntax(node: SyntaxNode): boolean {

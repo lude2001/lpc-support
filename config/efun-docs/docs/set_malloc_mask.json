@@ -1,7 +1,7 @@
 {
   "name": "set_malloc_mask",
   "summary": "FluffOS develop package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/develop/develop.spec:19\nvoid set_malloc_mask(int);",
+  "details": "设置 malloc 调试掩码，用于控制 driver 内存调试信息的收集范围。",
   "category": "内部处理相关函数（Internals）",
   "signatures": [
     {

@@ -1,7 +1,7 @@
 {
   "name": "traceprefix",
   "summary": "FluffOS develop package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/develop/develop.spec:24\nstring traceprefix(string | int);",
+  "details": "查询或设置 trace 输出的路径前缀过滤条件，用于限制调试跟踪信息范围。",
   "category": "内部处理相关函数（Internals）",
   "signatures": [
     {

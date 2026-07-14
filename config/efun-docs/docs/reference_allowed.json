@@ -1,7 +1,7 @@
 {
   "name": "reference_allowed",
   "summary": "FluffOS dwlib package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:2\nint reference_allowed(object, string | object | void);",
+  "details": "检查指定对象引用在当前上下文中是否允许被暴露或引用，常用于输出和调试辅助逻辑。",
   "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {

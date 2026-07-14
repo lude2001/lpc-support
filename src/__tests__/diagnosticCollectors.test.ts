@@ -773,6 +773,45 @@ describe('syntax-backed diagnostic collectors', () => {
         await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
     });
 
+    test('TypeDiagnosticsCollector accepts FluffOS buffer byte, range, concat, and foreach ref semantics', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'buffer to_buffer(mixed value) {',
+            '    buffer b;',
+            '    return b;',
+            '}',
+            '',
+            'void demo(string text) {',
+            '    buffer b = to_buffer("AB");',
+            '    int byte_value = b[0];',
+            '',
+            '    b[0] = 0;',
+            '    b[1] = 255;',
+            '    b[1..2] = "AB";',
+            '    b[1..2] = ({ 200, 255 });',
+            '    b[1..2] = ({ 0 });',
+            '    b[0..1] = to_buffer("xy");',
+            '    b = b + "C";',
+            '    b = b + to_buffer("D");',
+            '    b = b + ({ 1 });',
+            '    b = b + ({ 0 });',
+            '',
+            '    foreach(int ref c in b) {',
+            '        c++;',
+            '    }',
+            '',
+            '    foreach(int ref c in text) {',
+            '        c++;',
+            '    }',
+            '}'
+        ].join('\n'), 'type-diagnostics-buffer-semantics.c');
+
+        await expect(collector.collect(document, parsed, context)).resolves.toEqual([]);
+        expect(parsed.diagnostics).toEqual([]);
+    });
+
     test('TypeDiagnosticsCollector ignores returns owned by anonymous functions', async () => {
         const collector = new TypeDiagnosticsCollector({
             diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()

@@ -1,0 +1,32 @@
+{
+  "name": "set_os_env",
+  "summary": "设置或清除 driver 配置白名单允许写入的操作系统环境变量。",
+  "details": "设置允许由 LPC 修改的操作系统环境变量。省略 value 时表示清除该变量；是否允许写入由 driver 配置控制。",
+  "reference": [
+    "get_os_env",
+    "set_config"
+  ],
+  "category": "FluffOS新增函数（Contrib）",
+  "signatures": [
+    {
+      "label": "int set_os_env( string name, string | void value )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 2
+      }
+    }
+  ]
+}

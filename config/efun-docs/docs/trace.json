@@ -1,7 +1,7 @@
 {
   "name": "trace",
   "summary": "FluffOS develop package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/develop/develop.spec:25\nint trace(int);",
+  "details": "设置 driver trace 调试级别，并返回此前的 trace 设置。",
   "category": "内部处理相关函数（Internals）",
   "signatures": [
     {

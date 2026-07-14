@@ -282,4 +282,34 @@ describe('ExpressionTypeEvaluator', () => {
             isMixed: true
         });
     });
+
+    test('models buffer byte indexing, ranges, and concatenation results', () => {
+        const { syntax, semantic } = buildAnalysis([
+            'buffer to_buffer(mixed value) {',
+            '    buffer b;',
+            '    return b;',
+            '}',
+            '',
+            'void demo() {',
+            '    buffer buf = to_buffer("abc");',
+            '    int byte_value = buf[0];',
+            '    buffer slice = buf[0..1];',
+            '    buffer joined_text = buf + "d";',
+            '    buffer joined_buffer = buf + to_buffer("e");',
+            '    buffer joined_array = buf + ({ 1, 2, 255 });',
+            '    buffer joined_zero = buf + ({ 0 });',
+            '    mixed unrelated = "x" + ({ 1 });',
+            '}'
+        ].join('\n'));
+        const evaluator = createEvaluator(semantic);
+
+        expect(evaluator.evaluate(findInitializer(syntax, 'buf'))).toMatchObject({ name: 'buffer' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'byte_value'))).toMatchObject({ name: 'int' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'slice'))).toMatchObject({ name: 'buffer' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'joined_text'))).toMatchObject({ name: 'buffer' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'joined_buffer'))).toMatchObject({ name: 'buffer' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'joined_array'))).toMatchObject({ name: 'buffer' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'joined_zero'))).toMatchObject({ name: 'buffer' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'unrelated'))).toMatchObject({ isUnknown: true });
+    });
 });

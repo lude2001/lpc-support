@@ -1,7 +1,7 @@
 {
   "name": "query_multiple_short",
   "summary": "FluffOS dwlib package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:1\nstring query_multiple_short(mixed *, int | string | void, int | void, int | void, int | void);",
+  "details": "把一组对象或短描述组合成人类可读的列表文本，可通过可选参数控制冠词、数量和列表格式。",
   "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {

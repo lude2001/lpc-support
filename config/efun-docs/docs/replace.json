@@ -1,7 +1,7 @@
 {
   "name": "replace",
   "summary": "FluffOS dwlib package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:6\nstring replace(string, string *|string, string|void);",
+  "details": "在字符串中执行文本替换。第二个参数可指定替换表或单个匹配文本，第三个参数用于提供替换值。",
   "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {

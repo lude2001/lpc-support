@@ -1,7 +1,7 @@
 {
   "name": "url_decode",
   "summary": "FluffOS sockets package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:18\nstring url_decode(string);",
+  "details": "对 URL 编码字符串进行解码，还原被转义的字符。",
   "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {

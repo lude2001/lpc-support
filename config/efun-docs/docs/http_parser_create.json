@@ -1,7 +1,7 @@
 {
   "name": "http_parser_create",
   "summary": "FluffOS sockets package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:23\nmixed http_parser_create();",
+  "details": "创建一个 HTTP 请求解析器状态对象，用于分段解析 HTTP 请求数据。",
   "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {

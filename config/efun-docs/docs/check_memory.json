@@ -1,7 +1,7 @@
 {
   "name": "check_memory",
   "summary": "FluffOS develop package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/develop/develop.spec:20\nstring check_memory(int default: 0);",
+  "details": "检查 driver 内存分配状态并返回调试信息。可选参数用于控制检查或输出细节，主要面向开发和排障场景。",
   "category": "内部处理相关函数（Internals）",
   "signatures": [
     {

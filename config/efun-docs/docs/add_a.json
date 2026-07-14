@@ -1,7 +1,7 @@
 {
   "name": "add_a",
   "summary": "FluffOS dwlib package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:4\nstring add_a( string );",
+  "details": "根据英文单词发音为字符串添加不定冠词，返回带有 a/an 前缀的短语。",
   "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {

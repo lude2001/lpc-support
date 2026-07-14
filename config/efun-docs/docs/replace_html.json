@@ -1,7 +1,7 @@
 {
   "name": "replace_html",
   "summary": "FluffOS dwlib package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:7\nstring replace_html(string);",
+  "details": "转义或替换字符串中的 HTML 特殊字符，使文本适合安全地嵌入 HTML 输出。",
   "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {

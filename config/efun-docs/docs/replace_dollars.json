@@ -1,7 +1,7 @@
 {
   "name": "replace_dollars",
   "summary": "FluffOS dwlib package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/dwlib/dwlib.spec:11\nstring replace_dollars(string, string *);",
+  "details": "按参数列表替换字符串中的 dollar 占位符，用于生成带变量插值的文本。",
   "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {

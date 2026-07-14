@@ -434,6 +434,42 @@ describe('EfunDocsManager', () => {
         ]);
     });
 
+    test('bundled docs include local FluffOS efuns without promoting compile-time master applies', async () => {
+        const docsDir = path.join(process.cwd(), 'config', 'efun-docs', 'docs');
+        const readDoc = (name: string) =>
+            JSON.parse(fs.readFileSync(path.join(docsDir, `${name}.json`), 'utf8')) as {
+                name: string;
+                signatures: Array<{ returnType?: string; arity?: { min?: number; max?: number } }>;
+            };
+
+        expect(readDoc('request_clean_up').signatures[0]).toMatchObject({
+            returnType: 'int',
+            arity: { min: 0, max: 1 }
+        });
+        expect(readDoc('set_clean_up').signatures[0]).toMatchObject({
+            returnType: 'void',
+            arity: { min: 1, max: 2 }
+        });
+        expect(readDoc('get_os_env').signatures[0]).toMatchObject({
+            returnType: 'string',
+            arity: { min: 1, max: 1 }
+        });
+        expect(readDoc('set_os_env').signatures[0]).toMatchObject({
+            returnType: 'int',
+            arity: { min: 1, max: 2 }
+        });
+        expect(readDoc('to_buffer').signatures[0]).toMatchObject({
+            returnType: 'buffer',
+            arity: { min: 1, max: 1 }
+        });
+        expect(readDoc('recompile_object').signatures[0]).toMatchObject({
+            returnType: 'int',
+            arity: { min: 1, max: 1 }
+        });
+        expect(fs.existsSync(path.join(docsDir, 'inherit_program.json'))).toBe(false);
+        expect(fs.existsSync(path.join(docsDir, 'include_file.json'))).toBe(false);
+    });
+
     test('bundled efun docs match FluffOS arity declarations when checkout is available', async () => {
         const fluffosRoot = process.env.FLUFFOS_ROOT ?? 'D:/code/fluffos';
         if (!fs.existsSync(path.join(fluffosRoot, 'src', 'packages'))) {
@@ -466,9 +502,9 @@ describe('EfunDocsManager', () => {
             missingDoc: unknown[];
         };
 
-        expect(result.docCount).toBe(405);
-        expect(result.specCount).toBe(405);
-        expect(result.entries).toHaveLength(405);
+        expect(result.docCount).toBe(411);
+        expect(result.specCount).toBe(411);
+        expect(result.entries).toHaveLength(411);
         expect(result.entries.filter(entry => entry.sources.length === 0)).toEqual([]);
         expect(result.tooNarrow).toEqual([]);
         expect(result.tooBroad).toEqual([]);

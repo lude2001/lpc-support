@@ -1,0 +1,28 @@
+{
+  "name": "request_clean_up",
+  "summary": "请求对象进入 clean_up 调度；未传对象时默认使用 this_object()。",
+  "details": "请求 driver 对指定对象安排 clean_up 检查。省略参数时作用于当前对象，返回值表示请求是否被接受。",
+  "reference": [
+    "set_clean_up",
+    "set_reset"
+  ],
+  "category": "对象相关函数（Objects）",
+  "signatures": [
+    {
+      "label": "int request_clean_up( object ob | void )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "ob",
+          "type": "object",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -223,6 +223,10 @@ export class ExpressionTypeEvaluator {
             return createPrimitiveType('string');
         }
 
+        if (operator === '+' && this.isBufferConcat(left, right)) {
+            return createPrimitiveType('buffer');
+        }
+
         if (ARITHMETIC_OPERATORS.has(operator ?? '')) {
             return this.evaluateNumericBinary(left, right);
         }
@@ -312,11 +316,17 @@ export class ExpressionTypeEvaluator {
             indexNode?.kind === SyntaxKind.ExpressionList
             && (indexNode.metadata?.source === 'slice' || indexNode.metadata?.hasRange === true)
         ) {
-            return createUnknownType();
+            return targetType.name === 'buffer' && targetType.kind === 'primitive'
+                ? createPrimitiveType('buffer')
+                : createUnknownType();
         }
 
         if (targetType.kind === 'array') {
             return targetType.elementType ?? createUnknownType();
+        }
+
+        if (targetType.name === 'buffer' && targetType.kind === 'primitive') {
+            return createPrimitiveType('int');
         }
 
         if (targetType.kind === 'mapping') {
@@ -365,6 +375,26 @@ export class ExpressionTypeEvaluator {
 
     private areNumeric(left: LpcType, right: LpcType): boolean {
         return NUMERIC_TYPES.has(left.name) && NUMERIC_TYPES.has(right.name);
+    }
+
+    private isBufferConcat(left: LpcType, right: LpcType): boolean {
+        return (this.isBufferType(left) && this.isBufferConcatSource(right))
+            || (this.isBufferType(right) && this.isBufferConcatSource(left));
+    }
+
+    private isBufferType(type: LpcType): boolean {
+        return type.kind === 'primitive' && type.name === 'buffer';
+    }
+
+    private isBufferConcatSource(type: LpcType): boolean {
+        return this.isBufferType(type)
+            || type.name === 'string'
+            || this.isIntArrayType(type);
+    }
+
+    private isIntArrayType(type: LpcType): boolean {
+        return type.kind === 'array'
+            && (type.elementType?.name === 'int' || type.elementType?.isZeroLiteral === true);
     }
 
     private parseTypeReference(typeReference: SyntaxNode | undefined): LpcType {

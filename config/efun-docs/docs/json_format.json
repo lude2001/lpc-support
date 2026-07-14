@@ -1,7 +1,7 @@
 {
   "name": "json_format",
   "summary": "FluffOS json package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/json/json.spec:3\nstring json_format(string, int | void);",
+  "details": "格式化 JSON 字符串，返回更易阅读的文本。可选整数参数用于控制缩进或格式化选项。",
   "category": "常规函数（General）",
   "signatures": [
     {

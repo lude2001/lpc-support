@@ -2,6 +2,15 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.52.7] - 2026-07-14
+
+### FluffOS 兼容
+
+- 内置 efun 文档新增 `request_clean_up`、`set_clean_up`、`get_os_env`、`set_os_env`、`to_buffer` 与 `recompile_object`，补全、签名帮助、悬停与参数数量诊断会识别这些当前 FluffOS 分支能力。
+- 避免将 `inherit_program` 与 `include_file` 误识别为普通 efun；它们仍属于 driver 编译期 master hook。
+- 类型检查现在识别 `buffer` 与 `string`、`buffer`、`int array` 的拼接和 range 写入语义，避免合法的 byte/range 操作与 `foreach(int ref ... in buffer)` 被误报。
+- 预处理器现在按 driver 语义处理 `#define`、`#ifdef`、`#undef`、`#if`、`#include` 行内与跨行 block comment，减少 directive 注释泄漏造成的错误 token 或诊断噪声。
+
 ## [0.52.6] - 2026-07-09
 
 ### 补全

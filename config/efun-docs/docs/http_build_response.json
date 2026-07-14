@@ -1,7 +1,7 @@
 {
   "name": "http_build_response",
   "summary": "FluffOS sockets package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/sockets/sockets.spec:22\nstring http_build_response(int, mapping, string);",
+  "details": "根据 HTTP 状态码、响应头 mapping 和正文内容构造完整 HTTP 响应字符串。",
   "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {

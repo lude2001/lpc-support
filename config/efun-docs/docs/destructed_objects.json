@@ -1,7 +1,7 @@
 {
   "name": "destructed_objects",
   "summary": "FluffOS develop package efun.",
-  "details": "Source: D:/code/fluffos/src/packages/develop/develop.spec:5\nmixed *destructed_objects();",
+  "details": "返回 driver 当前记录的已析构对象调试信息，用于检查对象生命周期和析构相关问题。",
   "category": "内部处理相关函数（Internals）",
   "signatures": [
     {
