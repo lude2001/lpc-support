@@ -222,6 +222,7 @@
     "getuid",
     "living",
     "livings",
+    "mapping_origin_stats",
     "query_privs",
     "set_author",
     "set_light",

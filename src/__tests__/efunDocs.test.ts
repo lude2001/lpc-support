@@ -466,6 +466,10 @@ describe('EfunDocsManager', () => {
             returnType: 'int',
             arity: { min: 1, max: 1 }
         });
+        expect(readDoc('mapping_origin_stats').signatures[0]).toMatchObject({
+            returnType: 'mapping',
+            arity: { min: 0, max: 0 }
+        });
         expect(fs.existsSync(path.join(docsDir, 'inherit_program.json'))).toBe(false);
         expect(fs.existsSync(path.join(docsDir, 'include_file.json'))).toBe(false);
     });
@@ -502,9 +506,9 @@ describe('EfunDocsManager', () => {
             missingDoc: unknown[];
         };
 
-        expect(result.docCount).toBe(411);
-        expect(result.specCount).toBe(411);
-        expect(result.entries).toHaveLength(411);
+        expect(result.docCount).toBe(412);
+        expect(result.specCount).toBe(412);
+        expect(result.entries).toHaveLength(412);
         expect(result.entries.filter(entry => entry.sources.length === 0)).toEqual([]);
         expect(result.tooNarrow).toEqual([]);
         expect(result.tooBroad).toEqual([]);

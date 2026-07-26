@@ -1,0 +1,21 @@
+{
+  "name": "mapping_origin_stats",
+  "summary": "mapping_origin_stats() 返回按分配来源（mapping origin）归因的映射（mapping）分配统计信息。该外部函数仅在驱动程序编译时开启了映射来源跟踪时有效。\n\n   返回的映射以来源名称（通常是分配映射的对象/文件）为键，对应的值为包含 mapping_count（该来源累计分配的映射数量）等字段的映射；如果没有可用的统计信息则返回 0。\n\n   与 domain_stats()、author_stats() 类似，但按映射分配来源进行归因，而不是按域或作者。",
+  "reference": [
+    "domain_stats",
+    "author_stats"
+  ],
+  "category": "MUDLIB相关函数（Mudlib）",
+  "signatures": [
+    {
+      "label": "mapping mapping_origin_stats()",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

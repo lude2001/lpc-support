@@ -8,6 +8,10 @@
 
 - 修复使用 `new(path)`、`new(new_path)` 等「以字符串变量作为对象路径」调用 `new()` 创建对象时，被误报为返回值或赋值类型不匹配（如「期望 object，实际 path」）的问题。这类写法现在被正确识别为返回 `object`，与 `new(__FILE__)`、`new("/std/object")` 等已有的对象创建形式保持一致。
 
+### FluffOS 兼容
+
+- 内置 efun 文档新增 `mapping_origin_stats`，补全、签名帮助与悬停会识别该映射分配来源统计函数，同时让严格模式的 efun arity 审计与最新 FluffOS 保持一致。
+
 ## [0.52.8] - 2026-07-14
 
 ### 安全与依赖
