@@ -117,7 +117,7 @@ describe('ExpressionTypeEvaluator', () => {
             'int add(int a, int b) { return a + b; }',
             'string name() { return "ok"; }',
             '',
-            'void demo(mixed dynamic, class Payload payload, string *names) {',
+            'void demo(mixed dynamic, class Payload payload, string *names, string path) {',
             '    int from_call = add(1, 2);',
             '    string from_return = name();',
             '    float numeric = 1 + 2.5;',
@@ -133,6 +133,7 @@ describe('ExpressionTypeEvaluator', () => {
             '    string current_dir = __DIR__;',
             '    int current_line = __LINE__;',
             '    object self_ob = new(__FILE__);',
+            '    object from_path_var = new(path);',
             '    mixed unknown = dynamic->query();',
             '}'
         ].join('\n'));
@@ -169,6 +170,7 @@ describe('ExpressionTypeEvaluator', () => {
         expect(evaluator.evaluate(findInitializer(syntax, 'current_dir'))).toMatchObject({ name: 'string' });
         expect(evaluator.evaluate(findInitializer(syntax, 'current_line'))).toMatchObject({ name: 'int' });
         expect(evaluator.evaluate(findInitializer(syntax, 'self_ob'))).toMatchObject({ name: 'object' });
+        expect(evaluator.evaluate(findInitializer(syntax, 'from_path_var'))).toMatchObject({ name: 'object' });
         expect(evaluator.evaluate(findInitializer(syntax, 'unknown'))).toMatchObject({
             isUnknown: true
         });

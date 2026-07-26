@@ -660,6 +660,29 @@ describe('syntax-backed diagnostic collectors', () => {
         expect(diagnostics).toEqual([]);
     });
 
+    test('TypeDiagnosticsCollector accepts new(stringVar) as object in return and assignment', async () => {
+        const collector = new TypeDiagnosticsCollector({
+            diagnosticFactsProvider: new DefaultDiagnosticFactsProvider()
+        });
+        const { document, parsed, context } = analyzeCollectorSource([
+            'object new_bind(string path)',
+            '{',
+            '    string new_path;',
+            '    object obj;',
+            '',
+            '    new_path = "/common/bind_obj" + path;',
+            '    if (new_path == "")',
+            '        return new(path);',
+            '    obj = new(new_path);',
+            '    return obj;',
+            '}'
+        ].join('\n'), 'type-diagnostics-new-string-var.c');
+
+        const diagnostics = await collector.collect(document, parsed, context);
+
+        expect(diagnostics).toEqual([]);
+    });
+
     test('TypeDiagnosticsCollector respects documented union parameter types', async () => {
         const collector = new TypeDiagnosticsCollector({
             diagnosticFactsProvider: {

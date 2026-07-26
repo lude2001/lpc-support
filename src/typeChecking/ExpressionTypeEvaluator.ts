@@ -351,7 +351,12 @@ export class ExpressionTypeEvaluator {
                 return createPrimitiveType('object');
             }
 
-            return this.parseTypeReference(first);
+            const instanceType = this.parseTypeReference(first);
+            if (instanceType.kind === 'class' || instanceType.kind === 'struct') {
+                return instanceType;
+            }
+
+            return createPrimitiveType('object');
         }
 
         const sourceType = this.evaluate(first);
