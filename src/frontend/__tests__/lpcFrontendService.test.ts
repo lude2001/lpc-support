@@ -216,4 +216,48 @@ describe('LpcFrontendService', () => {
         expect(snapshot.preprocessor.macros.map((macro) => macro.name)).toContain('PROTOCOL_D');
         expect(snapshot.preprocessor.activeView.text).toContain('object protocol = "/adm/protocol/protocol_server";');
     });
+
+    test('uses attached project preprocessor defines for driver-provided macros', () => {
+        tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-frontend-driver-macro-'));
+        fs.writeFileSync(path.join(tempRoot, 'lpc-support.json'), JSON.stringify({
+            version: 1,
+            configHellPath: 'config.hell'
+        }), 'utf8');
+        const document = attachDocumentWorkspaceProjectConfig(
+            TestHelper.createMockDocument([
+                '#ifdef __PACKAGE_DB__',
+                'int database_enabled = 1;',
+                '#else',
+                'int disabled = ;',
+                '#endif'
+            ].join('\n'), 'lpc', path.join(tempRoot, 'database.c')),
+            {
+                projectConfigPath: path.join(tempRoot, 'lpc-support.json'),
+                configHellPath: 'config.hell',
+                preprocessorDefines: ['__PACKAGE_DB__'],
+                resolvedConfig: {
+                    mudlibDirectory: './'
+                }
+            }
+        );
+
+        const snapshot = new LpcFrontendService().get(document);
+
+        expect(snapshot.preprocessor.macros).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                name: '__PACKAGE_DB__',
+                replacement: '',
+                source: 'config'
+            })
+        ]));
+        expect(snapshot.preprocessor.activeView.text).toContain('int database_enabled = 1;');
+        expect(snapshot.preprocessor.activeView.text).not.toContain('int disabled = ;');
+        expect(snapshot.preprocessor.inactiveRanges).toEqual([
+            expect.objectContaining({
+                range: expect.objectContaining({
+                    start: expect.objectContaining({ line: 3, character: 0 })
+                })
+            })
+        ]);
+    });
 });

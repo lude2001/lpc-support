@@ -220,6 +220,7 @@ function loadProject(projectRoot) {
         configPath,
         configHellPath,
         configHellAbsolutePath,
+        preprocessorDefines: config.preprocessorDefines,
         instanceResolutionFunctions: config.instanceResolutionFunctions,
         resolvedConfig,
         mudlibRoot
@@ -371,6 +372,7 @@ async function startServer(project) {
                     workspaceRoot: project.root,
                     projectConfigPath: project.configPath,
                     configHellPath: project.configHellPath,
+                    preprocessorDefines: project.preprocessorDefines,
                     instanceResolutionFunctions: project.instanceResolutionFunctions,
                     resolvedConfig: project.resolvedConfig,
                     lastSyncedAt: new Date().toISOString()
@@ -627,6 +629,7 @@ function createReport({
             root: '<redacted-project-root>',
             configPath: toProjectRelativePath(project, project.configPath),
             configHellPath: project.configHellPath,
+            preprocessorDefines: sanitizePreprocessorDefines(project.preprocessorDefines),
             mudlibRoot: toProjectRelativePath(project, project.mudlibRoot),
             resolvedConfig: sanitizeResolvedConfig(project)
         },
@@ -650,6 +653,12 @@ function createReport({
         },
         performance: performanceStages?.map(stage => sanitizePerformanceStage(project, stage))
     };
+}
+
+function sanitizePreprocessorDefines(defines) {
+    return Array.isArray(defines)
+        ? defines.filter((define) => typeof define === 'string')
+        : [];
 }
 
 function sanitizeHealthPerformance(performance) {

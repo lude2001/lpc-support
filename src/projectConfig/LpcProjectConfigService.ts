@@ -295,6 +295,10 @@ export class LpcProjectConfigService {
             authored.instanceResolutionFunctions = cloneInstanceResolutionFunctions(config.instanceResolutionFunctions);
         }
 
+        if (config.preprocessorDefines) {
+            authored.preprocessorDefines = clonePreprocessorDefines(config.preprocessorDefines);
+        }
+
         if (config.compile) {
             authored.compile = config.compile;
         }
@@ -320,4 +324,12 @@ function cloneInstanceResolutionFunctions(
             .filter(([, objectPaths]) => Array.isArray(objectPaths))
             .map(([functionName, objectPaths]) => [functionName, [...objectPaths]])
     );
+}
+
+function clonePreprocessorDefines(
+    defines: LpcProjectConfig['preprocessorDefines']
+): LpcProjectConfig['preprocessorDefines'] {
+    return Array.isArray(defines)
+        ? defines.filter((define): define is string => typeof define === 'string')
+        : undefined;
 }

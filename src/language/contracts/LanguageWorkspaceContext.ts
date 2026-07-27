@@ -1,10 +1,12 @@
 import type {
     InstanceResolutionFunctionMap,
-    LpcResolvedConfig
+    LpcResolvedConfig,
+    PreprocessorDefineList
 } from '../../projectConfig/LpcProjectConfig';
 export interface LanguageWorkspaceProjectConfig {
     projectConfigPath: string;
     configHellPath?: string;
+    preprocessorDefines?: PreprocessorDefineList;
     instanceResolutionFunctions?: InstanceResolutionFunctionMap;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;

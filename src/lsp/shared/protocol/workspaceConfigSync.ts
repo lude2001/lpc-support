@@ -1,7 +1,8 @@
 import { NotificationType } from 'vscode-languageserver/node';
 import type {
     InstanceResolutionFunctionMap,
-    LpcResolvedConfig
+    LpcResolvedConfig,
+    PreprocessorDefineList
 } from '../../../projectConfig/LpcProjectConfig';
 
 export const WORKSPACE_CONFIG_SYNC_NOTIFICATION = 'lpc/workspaceConfigSync';
@@ -10,6 +11,7 @@ export interface WorkspaceConfigSyncSnapshot {
     workspaceRoot: string;
     projectConfigPath: string;
     configHellPath?: string;
+    preprocessorDefines?: PreprocessorDefineList;
     instanceResolutionFunctions?: InstanceResolutionFunctionMap;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;

@@ -80,6 +80,7 @@ describe('WorkspaceSession', () => {
                     workspaceRoot: 'D:/workspace-b',
                     projectConfigPath: 'D:/workspace-b/lpc-support.json',
                     configHellPath: 'config.hell',
+                    preprocessorDefines: ['__PACKAGE_DB__'],
                     resolvedConfig: {
                         includeDirectories: ['include']
                     },
@@ -95,6 +96,7 @@ describe('WorkspaceSession', () => {
         expect(session.getWorkspaceConfig('D:/workspace-b')).toEqual({
             projectConfigPath: 'D:/workspace-b/lpc-support.json',
             configHellPath: 'config.hell',
+            preprocessorDefines: ['__PACKAGE_DB__'],
             resolvedConfig: {
                 includeDirectories: ['include']
             },

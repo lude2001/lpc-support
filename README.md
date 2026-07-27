@@ -66,6 +66,7 @@ LPC Support 是面向 VS Code 的 LPC / FluffOS 语言扩展，提供日常 mudl
 {
   "version": 1,
   "configHellPath": "config/config.dev",
+  "preprocessorDefines": ["__PACKAGE_DB__"],
   "instanceResolutionFunctions": {
     "this_player": ["/clone/user/user"],
     "environment": ["/inherit/room/room"]
@@ -101,6 +102,7 @@ LPC Support 是面向 VS Code 的 LPC / FluffOS 语言扩展，提供日常 mudl
 
 - `version`
 - `configHellPath`
+- `preprocessorDefines`
 - `instanceResolutionFunctions`
 - `compile.mode`
 - `compile.local.useSystemCommand`
@@ -120,6 +122,33 @@ LPC Support 是面向 VS Code 的 LPC / FluffOS 语言扩展，提供日常 mudl
 - global include 文件
 
 这些信息会用于宏解析、include 解析、模拟函数库文档、对象解析和部分语言能力。
+
+### `preprocessorDefines`
+
+`config.hell` 不会列出所有由 driver 编译时注入的宏。对于当前 driver 已启用、但不在全局 include 文件中声明的宏，可以在 mudlib 根目录的 `lpc-support.json` 顶层通过 `preprocessorDefines` 显式列出，避免对应的条件编译代码被静态分析和语义高亮误判为未启用。
+
+```json
+{
+  "version": 1,
+  "configHellPath": "config/config.dev",
+  "preprocessorDefines": [
+    "__PACKAGE_DB__",
+    "__SOME_OTHER_MACRO__"
+  ]
+}
+```
+
+数组中的每一项只填写宏名，不要写 `#define`，也不要填写宏值。例如 FluffOS 编译时启用了数据库 package，通常会提供 `__PACKAGE_DB__`，此时扩展会正确识别以下条件：
+
+```c
+#ifdef __PACKAGE_DB__
+#if defined(__PACKAGE_DB__)
+#ifndef __PACKAGE_DB__
+```
+
+保存 `lpc-support.json` 后，扩展会自动重新读取项目配置；如果已经打开的文件没有立即刷新，可以执行 VS Code 的“开发人员: 重新加载窗口”。
+
+只应填写当前 driver 实际定义的宏。`preprocessorDefines` 只影响扩展的静态分析、语义高亮、悬停、跳转和补全，不会为 FluffOS 启用数据库或其他编译功能，也不会改变 LPC 运行时行为。
 
 ### `instanceResolutionFunctions`
 

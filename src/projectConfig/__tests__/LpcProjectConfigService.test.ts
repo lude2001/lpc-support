@@ -9,6 +9,7 @@ describe('LpcProjectConfigService', () => {
         const config: LpcProjectConfig = {
             version: 1,
             configHellPath: 'config.hell',
+            preprocessorDefines: ['__PACKAGE_DB__'],
             instanceResolutionFunctions: {
                 this_player: ['/clone/user/user'],
                 environment: ['/inherit/room/room']
@@ -30,6 +31,7 @@ describe('LpcProjectConfigService', () => {
 
         expect(config.version).toBe(1);
         expect(config.configHellPath).toBe('config.hell');
+        expect(config.preprocessorDefines).toEqual(['__PACKAGE_DB__']);
         expect(config.instanceResolutionFunctions?.this_player).toEqual(['/clone/user/user']);
         expect(config.instanceResolutionFunctions?.environment).toEqual(['/inherit/room/room']);
         expect(config.compile?.mode).toBe('local');
@@ -46,6 +48,7 @@ describe('LpcProjectConfigService', () => {
         fs.writeFileSync(configPath, JSON.stringify({
             version: 1,
             configHellPath: 'config.hell',
+            preprocessorDefines: ['__PACKAGE_DB__'],
             instanceResolutionFunctions: {
                 this_player: ['/clone/user/user']
             },
@@ -82,6 +85,7 @@ describe('LpcProjectConfigService', () => {
         expect(written.instanceResolutionFunctions).toEqual({
             this_player: ['/clone/user/user']
         });
+        expect(written.preprocessorDefines).toEqual(['__PACKAGE_DB__']);
         expect(written.compile.mode).toBe('local');
     });
 

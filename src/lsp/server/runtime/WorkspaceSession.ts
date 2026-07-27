@@ -1,6 +1,7 @@
 import type {
     InstanceResolutionFunctionMap,
-    LpcResolvedConfig
+    LpcResolvedConfig,
+    PreprocessorDefineList
 } from '../../../projectConfig/LpcProjectConfig';
 import type {
     LanguageWorkspaceContext,
@@ -16,6 +17,7 @@ import {
 export interface WorkspaceConfigSnapshot {
     projectConfigPath: string;
     configHellPath?: string;
+    preprocessorDefines?: PreprocessorDefineList;
     instanceResolutionFunctions?: InstanceResolutionFunctionMap;
     resolvedConfig?: LpcResolvedConfig;
     lastSyncedAt?: string;
@@ -67,6 +69,7 @@ export class WorkspaceSession {
             this.updateWorkspaceConfig(workspace.workspaceRoot, {
                 projectConfigPath: workspace.projectConfigPath,
                 configHellPath: workspace.configHellPath,
+                preprocessorDefines: workspace.preprocessorDefines,
                 instanceResolutionFunctions: workspace.instanceResolutionFunctions,
                 resolvedConfig: workspace.resolvedConfig,
                 lastSyncedAt: workspace.lastSyncedAt,
@@ -98,6 +101,7 @@ function cloneWorkspaceConfigSnapshot(snapshot: WorkspaceConfigSnapshot): Worksp
     return {
         ...snapshot,
         projectConfigPath: normalizeServerWorkspaceRoot(snapshot.projectConfigPath),
+        preprocessorDefines: clonePreprocessorDefines(snapshot.preprocessorDefines),
         instanceResolutionFunctions: cloneInstanceResolutionFunctions(snapshot.instanceResolutionFunctions),
         resolvedConfig: cloneResolvedConfig(snapshot.resolvedConfig),
         enableTypeChecking: snapshot.enableTypeChecking
@@ -116,6 +120,12 @@ function cloneInstanceResolutionFunctions(
             .filter(([, objectPaths]) => Array.isArray(objectPaths))
             .map(([functionName, objectPaths]) => [functionName, [...objectPaths]])
     );
+}
+
+function clonePreprocessorDefines(
+    defines: PreprocessorDefineList | undefined
+): PreprocessorDefineList | undefined {
+    return defines ? [...defines] : undefined;
 }
 
 function cloneResolvedConfig(resolvedConfig: LpcResolvedConfig | undefined): LpcResolvedConfig | undefined {

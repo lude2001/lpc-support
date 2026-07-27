@@ -9,6 +9,7 @@ export interface LpcResolvedConfig {
 }
 
 export type InstanceResolutionFunctionMap = Record<string, string[]>;
+export type PreprocessorDefineList = string[];
 
 export interface LpcCompileLocalConfig {
     useSystemCommand?: boolean;
@@ -37,6 +38,7 @@ export interface LpcCompileConfig {
 export interface LpcProjectConfig {
     version: 1;
     configHellPath: string;
+    preprocessorDefines?: PreprocessorDefineList;
     instanceResolutionFunctions?: InstanceResolutionFunctionMap;
     compile?: LpcCompileConfig;
     resolved?: LpcResolvedConfig;

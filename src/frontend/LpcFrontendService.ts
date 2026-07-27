@@ -20,6 +20,7 @@ export interface LpcFrontendServiceOptions {
 interface ConfiguredPreprocessorConfig {
     includeDirectories: string[];
     globalIncludeFile?: string;
+    preprocessorDefines: string[];
 }
 
 export class LpcFrontendService {
@@ -49,19 +50,21 @@ export class LpcFrontendService {
         const scanned = this.scanner.scan(document.uri.toString(), document.version, text);
         const preprocessorConfig = this.getPreprocessorConfigForDocument(document);
         const includeResolver = new IncludeResolver(preprocessorConfig);
+        const configuredMacros = this.createConfiguredMacroFacts(preprocessorConfig.preprocessorDefines);
         const includes = includeResolver.resolve(document.uri.toString(), scanned.includeReferences);
         const globalIncludeMacros = this.collectGlobalIncludeMacros(
             document.uri.toString(),
             preprocessorConfig.globalIncludeFile,
-            includeResolver
+            includeResolver,
+            configuredMacros
         );
         const includeMacros = this.collectIncludeMacros(
             includes.includeReferences,
             includeResolver,
             new Set(),
-            globalIncludeMacros
+            [...configuredMacros, ...globalIncludeMacros]
         );
-        const initialMacros = [...globalIncludeMacros, ...includeMacros];
+        const initialMacros = [...configuredMacros, ...globalIncludeMacros, ...includeMacros];
         const conditional = this.conditionEvaluator.evaluate(text, scanned.directives, initialMacros);
         const macroFacts = this.macroFactResolver.resolve(
             text,
@@ -117,6 +120,7 @@ export class LpcFrontendService {
         includeDirectories: string[];
         workspaceRoot?: string;
         globalIncludeFile?: string;
+        preprocessorDefines: string[];
     } {
         const documentUri = document.uri.toString();
         const documentPath = normalizeFsPath(vscode.Uri.parse(documentUri).fsPath);
@@ -138,7 +142,8 @@ export class LpcFrontendService {
                         .filter((includeDirectory) => fs.existsSync(includeDirectory))
                 ],
                 workspaceRoot,
-                globalIncludeFile: attachedResolved.globalIncludeFile
+                globalIncludeFile: attachedResolved.globalIncludeFile,
+                preprocessorDefines: normalizePreprocessorDefines(attachedConfig.preprocessorDefines)
             };
         }
 
@@ -149,16 +154,14 @@ export class LpcFrontendService {
                 ...configured.includeDirectories
             ],
             workspaceRoot,
-            globalIncludeFile: configured.globalIncludeFile
+            globalIncludeFile: configured.globalIncludeFile,
+            preprocessorDefines: configured.preprocessorDefines
         };
     }
 
-    private collectConfiguredPreprocessorConfig(workspaceRoot: string | undefined): {
-        includeDirectories: string[];
-        globalIncludeFile?: string;
-    } {
+    private collectConfiguredPreprocessorConfig(workspaceRoot: string | undefined): ConfiguredPreprocessorConfig {
         if (!workspaceRoot) {
-            return { includeDirectories: [] };
+            return { includeDirectories: [], preprocessorDefines: [] };
         }
 
         const cached = this.configuredPreprocessorConfigCache.get(workspaceRoot);
@@ -192,26 +195,27 @@ export class LpcFrontendService {
         }
     }
 
-    private readConfiguredPreprocessorConfig(workspaceRoot: string): {
-        includeDirectories: string[];
-        globalIncludeFile?: string;
-    } {
+    private readConfiguredPreprocessorConfig(workspaceRoot: string): ConfiguredPreprocessorConfig {
         const projectConfigPath = path.join(workspaceRoot, 'lpc-support.json');
         if (!fs.existsSync(projectConfigPath)) {
-            return { includeDirectories: [] };
+            return { includeDirectories: [], preprocessorDefines: [] };
         }
 
         try {
-            const projectConfig = JSON.parse(fs.readFileSync(projectConfigPath, 'utf8')) as { configHellPath?: string };
+            const projectConfig = JSON.parse(fs.readFileSync(projectConfigPath, 'utf8')) as {
+                configHellPath?: string;
+                preprocessorDefines?: unknown;
+            };
+            const preprocessorDefines = normalizePreprocessorDefines(projectConfig.preprocessorDefines);
             if (!projectConfig.configHellPath) {
-                return { includeDirectories: [] };
+                return { includeDirectories: [], preprocessorDefines };
             }
 
             const configHellPath = path.isAbsolute(projectConfig.configHellPath)
                 ? projectConfig.configHellPath
                 : path.resolve(workspaceRoot, projectConfig.configHellPath);
             if (!fs.existsSync(configHellPath)) {
-                return { includeDirectories: [] };
+                return { includeDirectories: [], preprocessorDefines };
             }
 
             const resolved = parseConfigHell(fs.readFileSync(configHellPath, 'utf8'));
@@ -220,10 +224,11 @@ export class LpcFrontendService {
                 includeDirectories: (resolved.includeDirectories ?? [])
                     .map((includeDirectory) => this.resolveProjectPath(mudlibRoot, includeDirectory))
                     .filter((includeDirectory) => fs.existsSync(includeDirectory)),
-                globalIncludeFile: resolved.globalIncludeFile
+                globalIncludeFile: resolved.globalIncludeFile,
+                preprocessorDefines
             };
         } catch {
-            return { includeDirectories: [] };
+            return { includeDirectories: [], preprocessorDefines: [] };
         }
     }
 
@@ -308,7 +313,8 @@ export class LpcFrontendService {
     private collectGlobalIncludeMacros(
         documentUri: string,
         globalIncludeFile: string | undefined,
-        includeResolver: IncludeResolver
+        includeResolver: IncludeResolver,
+        inheritedMacros: MacroDefinitionFact[]
     ): MacroDefinitionFact[] {
         const implicitInclude = this.createImplicitGlobalIncludeReference(globalIncludeFile);
         if (!implicitInclude) {
@@ -320,7 +326,19 @@ export class LpcFrontendService {
             return [];
         }
 
-        return this.collectIncludeMacros([resolved], includeResolver);
+        return this.collectIncludeMacros([resolved], includeResolver, new Set(), inheritedMacros);
+    }
+
+    private createConfiguredMacroFacts(defines: string[]): MacroDefinitionFact[] {
+        return defines.map((name) => ({
+            name,
+            replacement: '',
+            isFunctionLike: false,
+            source: 'config' as const,
+            startOffset: 0,
+            endOffset: 0,
+            range: new vscode.Range(0, 0, 0, 0)
+        }));
     }
 
     private createImplicitGlobalIncludeReference(globalIncludeFile: string | undefined): IncludeReferenceFact | undefined {
@@ -351,6 +369,17 @@ export class LpcFrontendService {
 
 function normalizeFsPath(fsPath: string): string {
     return fsPath.replace(/^\/+([A-Za-z]:[\\/])/, '$1');
+}
+
+function normalizePreprocessorDefines(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return [...new Set(value
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter((entry) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(entry)))];
 }
 
 let globalLpcFrontendService: LpcFrontendService | undefined;

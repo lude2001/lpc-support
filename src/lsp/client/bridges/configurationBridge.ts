@@ -72,6 +72,7 @@ export async function createWorkspaceConfigSyncPayload(
             workspaceRoot,
             projectConfigPath: normalizeWorkspacePath(projectConfigService.getProjectConfigPath(workspaceRoot)),
             configHellPath: projectConfig?.configHellPath,
+            preprocessorDefines: projectConfig?.preprocessorDefines,
             instanceResolutionFunctions: projectConfig?.instanceResolutionFunctions,
             resolvedConfig: projectConfig?.resolved,
             lastSyncedAt: projectConfig?.lastSyncedAt,

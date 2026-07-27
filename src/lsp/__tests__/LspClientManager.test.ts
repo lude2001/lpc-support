@@ -307,6 +307,7 @@ describe('LspClientManager activation', () => {
             loadForWorkspace: jest.fn().mockResolvedValue({
                 version: 1,
                 configHellPath: 'config.hell',
+                preprocessorDefines: ['__PACKAGE_DB__'],
                 resolved: {
                     includeDirectories: ['include']
                 },
@@ -329,6 +330,7 @@ describe('LspClientManager activation', () => {
                         workspaceRoot: 'D:/workspace',
                         projectConfigPath: 'D:/workspace/lpc-support.json',
                         configHellPath: 'config.hell',
+                        preprocessorDefines: ['__PACKAGE_DB__'],
                         resolvedConfig: {
                             includeDirectories: ['include']
                         },
@@ -380,7 +382,8 @@ describe('LspClientManager activation', () => {
                     lastSyncedAt: undefined,
                     searchEfunDefinitionInInheritanceChain: false,
                     enableTypeChecking: true,
-                    instanceResolutionFunctions: undefined
+                    instanceResolutionFunctions: undefined,
+                    preprocessorDefines: undefined
                 }
             ]
         });
@@ -426,7 +429,8 @@ describe('LspClientManager activation', () => {
                     lastSyncedAt: undefined,
                     searchEfunDefinitionInInheritanceChain: false,
                     enableTypeChecking: true,
-                    instanceResolutionFunctions: undefined
+                    instanceResolutionFunctions: undefined,
+                    preprocessorDefines: undefined
                 },
                 {
                     workspaceRoot: 'D:/workspace-a/nested',
@@ -436,7 +440,8 @@ describe('LspClientManager activation', () => {
                     lastSyncedAt: undefined,
                     searchEfunDefinitionInInheritanceChain: false,
                     enableTypeChecking: true,
-                    instanceResolutionFunctions: undefined
+                    instanceResolutionFunctions: undefined,
+                    preprocessorDefines: undefined
                 }
             ]
         });
