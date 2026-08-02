@@ -83,6 +83,7 @@ describe('registerCommands', () => {
         refresh: jest.Mock;
         clearErrors: jest.Mock;
     };
+    let projectConfigSnapshotService: { getWorkspaceProjectConfig: jest.Mock };
     let parsedDocumentService: { getStats: jest.Mock };
     let lpcprj: {
         hasLpcprjCommand: jest.Mock;
@@ -162,6 +163,9 @@ describe('registerCommands', () => {
         parsedDocumentService = {
             getStats: jest.fn().mockReturnValue({ size: 2, memory: 2048 })
         };
+        projectConfigSnapshotService = {
+            getWorkspaceProjectConfig: jest.fn()
+        };
         lpcprj = jest.requireMock('../../utils/lpcprj') as {
             hasLpcprjCommand: jest.Mock;
             getLpcprjStartCommand: jest.Mock;
@@ -175,6 +179,7 @@ describe('registerCommands', () => {
         registry.register(Services.CompletionInstrumentation, completionInstrumentation as any);
         registry.register(Services.Compiler, compiler as any);
         registry.register(Services.ProjectConfig, projectConfigService as any);
+        registry.register(Services.ProjectConfigSnapshot, projectConfigSnapshotService as any);
         registry.register(Services.ErrorTree, errorTreeProvider as any);
         registry.register(Services.TextDocumentHost, {
             openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
@@ -273,7 +278,8 @@ describe('registerCommands', () => {
             efunDocsManager,
             expect.objectContaining({
                 openTextDocument: expect.any(Function)
-            })
+            }),
+            projectConfigSnapshotService
         );
         expect(compiler.compileFile).toHaveBeenCalledWith(activeDocument.fileName);
         expect((compiler as any).compileFolder).toHaveBeenCalledWith('D:/workspace/project');

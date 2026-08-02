@@ -20,9 +20,11 @@ const copyTemplatesPlugin = {
         // 复制模板文件到dist目录
         copyFile('src/templates/functionDocPanel.html', 'dist/templates/functionDocPanel.html');
         copyFile('src/templates/functionDocPanel.js', 'dist/templates/functionDocPanel.js');
+        copyFile('src/templates/functionDocPanel.css', 'dist/templates/functionDocPanel.css');
         console.log('✅ Template files copied successfully');
       } catch (error) {
         console.error('❌ Failed to copy template files:', error);
+        throw error;
       }
     });
   }

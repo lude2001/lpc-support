@@ -61,7 +61,9 @@ describe('DocCommentTagParser', () => {
                 type: 'int',
                 description: 'Returns the computed value.'
             },
-            returnObjects: ['/obj/alpha', '/obj/beta']
+            returnObjects: ['/obj/alpha', '/obj/beta'],
+            duplicateReturnTagCount: 1,
+            malformedParamTagCount: 1
         });
     });
 
@@ -80,5 +82,37 @@ describe('DocCommentTagParser', () => {
         expect(parsed.summary).toBe('Broken objects summary');
         expect(parsed.details).toBe('Details still survive.');
         expect(parsed.returnObjects).toBeUndefined();
+    });
+
+    test('normalizes pointer declarators into the parameter type instead of the parameter name', () => {
+        const parser = new DocCommentTagParser();
+        const attachedDocComment = createAttachedDocComment([
+            '/**',
+            ' * @param string *parts 路径键数组',
+            ' * @param object **objects 二级对象指针',
+            ' * @param mixed * values 分隔书写的指针',
+            ' */'
+        ]);
+
+        expect(parser.parse(attachedDocComment, 'void').params).toEqual([
+            { type: 'string *', name: 'parts', description: '路径键数组' },
+            { type: 'object **', name: 'objects', description: '二级对象指针' },
+            { type: 'mixed *', name: 'values', description: '分隔书写的指针' }
+        ]);
+    });
+
+    test('counts duplicate return tags even when the retained first tag is empty', () => {
+        const parser = new DocCommentTagParser();
+        const attachedDocComment = createAttachedDocComment([
+            '/**',
+            ' * @return',
+            ' * @return Later description.',
+            ' */'
+        ]);
+
+        const parsed = parser.parse(attachedDocComment, 'int');
+
+        expect(parsed.returns).toBeUndefined();
+        expect(parsed.duplicateReturnTagCount).toBe(1);
     });
 });

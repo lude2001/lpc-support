@@ -25,6 +25,7 @@ export async function registerCoreServices(registry: ServiceRegistry, context: v
     registry.register(Services.ProjectConfig, projectConfigService);
     const projectConfigSnapshotService = new LpcProjectConfigSnapshotService(projectConfigService);
     await projectConfigSnapshotService.start();
+    registry.register(Services.ProjectConfigSnapshot, projectConfigSnapshotService);
     context.subscriptions.push(projectConfigSnapshotService);
 
     const frontendService = new LpcFrontendService();

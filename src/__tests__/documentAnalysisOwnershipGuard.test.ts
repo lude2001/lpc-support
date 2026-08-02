@@ -397,7 +397,7 @@ describe('document analysis ownership guards', () => {
 
         expect(lookupBuilderSource).toContain('loadInheritedFileDocs(');
         expect(lookupBuilderSource).toContain('loadIncludeFileDocs(');
-        expect(lookupBuilderSource).toContain('getIncludeFiles(');
+        expect(lookupBuilderSource).toContain('resolveIncludeFile(');
         expect(lookupBuilderSource).not.toContain('parseInheritStatements(');
         expect(lookupBuilderSource).not.toContain('document.getText()');
         expect(lookupBuilderSource).not.toContain('includeRegex');

@@ -29,7 +29,15 @@ export function cloneCallableDoc(callableDoc: CallableDoc): CallableDoc {
         })),
         returns: callableDoc.returns ? { ...callableDoc.returns } : undefined,
         returnObjects: callableDoc.returnObjects ? [...callableDoc.returnObjects] : undefined,
-        sourceRange: callableDoc.sourceRange ? cloneDocumentRange(callableDoc.sourceRange) : undefined
+        sourceRange: callableDoc.sourceRange ? cloneDocumentRange(callableDoc.sourceRange) : undefined,
+        selectionRange: callableDoc.selectionRange ? cloneDocumentRange(callableDoc.selectionRange) : undefined,
+        attachedCommentRange: callableDoc.attachedCommentRange
+            ? cloneDocumentRange(callableDoc.attachedCommentRange)
+            : undefined,
+        modifiers: callableDoc.modifiers ? [...callableDoc.modifiers] : undefined,
+        documentationIssues: callableDoc.documentationIssues
+            ? callableDoc.documentationIssues.map((issue) => ({ ...issue }))
+            : undefined
     };
 }
 

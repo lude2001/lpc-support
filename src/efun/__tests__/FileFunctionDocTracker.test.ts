@@ -112,6 +112,85 @@ describe('FileFunctionDocTracker', () => {
         expect(buildLookup).toHaveBeenCalledTimes(2);
     });
 
+    test('invalidates lookup reuse when project configuration facts change without resolved config', async () => {
+        const buildLookup = jest.fn().mockResolvedValue(createLookup());
+        const tracker = new FileFunctionDocTracker({
+            lookupBuilder: { buildLookup },
+            documentationService: createDefaultFunctionDocumentationService()
+        });
+        const document = {
+            languageId: 'lpc',
+            version: 1,
+            fileName: '/virtual/main.c',
+            uri: { fsPath: '/virtual/main.c', toString: () => 'file:///virtual/main.c' },
+            getText: () => 'inherit BASE_OBJECT;\n'
+        } as unknown as vscode.TextDocument;
+
+        await tracker.getFunctionDocLookup(document, {
+            projectConfig: {
+                projectConfigPath: '/virtual/lpc-support.json',
+                preprocessorDefines: ['BASE_OBJECT']
+            }
+        });
+        await tracker.getFunctionDocLookup(document, {
+            projectConfig: {
+                projectConfigPath: '/virtual/lpc-support.json',
+                preprocessorDefines: ['BASE_OBJECT', 'SECOND_OBJECT']
+            }
+        });
+
+        expect(buildLookup).toHaveBeenCalledTimes(2);
+    });
+
+    test('does not cache a cancelled dependency lookup', async () => {
+        const buildLookup = jest.fn()
+            .mockResolvedValueOnce(createLookup({
+                diagnostics: [{
+                    stage: 'analysis', code: 'analysis-cancelled', sourceFilePath: '/virtual/main.c',
+                    target: '', message: 'cancelled'
+                }]
+            }))
+            .mockResolvedValueOnce(createLookup());
+        const tracker = new FileFunctionDocTracker({
+            lookupBuilder: { buildLookup },
+            documentationService: createDefaultFunctionDocumentationService()
+        });
+        const document = {
+            languageId: 'lpc', version: 1, fileName: '/virtual/main.c',
+            uri: { fsPath: '/virtual/main.c', toString: () => 'file:///virtual/main.c' },
+            getText: () => 'int test();\n'
+        } as unknown as vscode.TextDocument;
+
+        await tracker.getFunctionDocLookup(document);
+        await tracker.getFunctionDocLookup(document);
+
+        expect(buildLookup).toHaveBeenCalledTimes(2);
+    });
+
+    test('does not cache a lookup if the root document version changes while it is building', async () => {
+        let resolveFirst: ((lookup: RawFunctionDocLookup) => void) | undefined;
+        const buildLookup = jest.fn()
+            .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+            .mockResolvedValueOnce(createLookup());
+        const tracker = new FileFunctionDocTracker({
+            lookupBuilder: { buildLookup },
+            documentationService: createDefaultFunctionDocumentationService()
+        });
+        const document = {
+            languageId: 'lpc', version: 1, fileName: '/virtual/main.c',
+            uri: { fsPath: '/virtual/main.c', toString: () => 'file:///virtual/main.c' },
+            getText: () => 'int test();\n'
+        } as unknown as vscode.TextDocument;
+
+        const first = tracker.getFunctionDocLookup(document);
+        (document as any).version = 2;
+        resolveFirst!(createLookup());
+        await first;
+        await tracker.getFunctionDocLookup(document);
+
+        expect(buildLookup).toHaveBeenCalledTimes(2);
+    });
+
     test('current-file doc lookup does not build inherited/include lookup', async () => {
         const localDoc: CallableDoc = {
             name: 'query_name',

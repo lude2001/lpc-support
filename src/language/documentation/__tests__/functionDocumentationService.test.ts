@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { afterEach, describe, expect, test } from '@jest/globals';
 import { ASTManager } from '../../../ast/astManager';
 import { DocumentSemanticSnapshotService } from '../../../semantic/documentSemanticSnapshotService';
@@ -327,5 +329,79 @@ describe('FunctionDocumentationService', () => {
         expect(docs.declarationOrder).toHaveLength(2);
         expect(wrapperDocs[0]?.summary).toBe('Wrapper summary');
         expect(laterDocs[0]?.summary).toBe('Later summary');
+    });
+
+    test('preserves the source-faithful die fixture parameter and function-level varargs facts', () => {
+        const fileName = path.resolve(
+            __dirname,
+            '..',
+            '..',
+            '..',
+            'functionDocs',
+            '__tests__',
+            'fixtures',
+            'function-doc-die.c'
+        );
+        const document = createDocument(fs.readFileSync(fileName, 'utf8'), fileName);
+        const docs = createDefaultFunctionDocumentationService().getDocsByName(document, 'die');
+
+        expect(docs).toHaveLength(1);
+        expect(docs[0]).toMatchObject({
+            summary: '处理角色死亡逻辑',
+            details: '处理角色死亡的全部流程。',
+            modifiers: ['varargs'],
+            signatures: [{
+                returnType: 'void',
+                parameters: [{ name: 'killer', type: 'object', description: '杀死角色的对象' }]
+            }],
+            returns: { type: 'void', description: '无返回值。' }
+        });
+    });
+
+    test('matches pointer-style param tags to signature names without false quality issues', () => {
+        const source = [
+            '/**',
+            ' * @brief 沿路径键列表逐层删除嵌套映射中的叶子节点',
+            ' * @param mapping map 目标映射',
+            ' * @param string *parts 路径键数组',
+            ' * @return int 成功删除返回 1，路径不可达返回 0',
+            ' */',
+            'protected nomask int _delete(mapping map, string *parts)',
+            '{',
+            '    return 1;',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/treemap.c');
+        const docs = createDefaultFunctionDocumentationService().getDocsByName(document, '_delete');
+
+        expect(docs).toHaveLength(1);
+        expect(docs[0].signatures[0].parameters).toEqual([
+            { name: 'map', type: 'mapping', description: '目标映射' },
+            { name: 'parts', type: 'string *', description: '路径键数组' }
+        ]);
+        expect(docs[0].documentationIssues).toBeUndefined();
+    });
+
+    test('projects the first duplicate param description to match safe-update semantics', () => {
+        const source = [
+            '/**',
+            ' * @brief 删除路径。',
+            ' * @param string *parts 首个说明。',
+            ' * @param string *parts 后续重复说明。',
+            ' * @return int 删除结果。',
+            ' */',
+            'int remove_path(string *parts)',
+            '{',
+            '    return 1;',
+            '}'
+        ].join('\n');
+        const document = createDocument(source, '/virtual/duplicate-pointer-param.c');
+        const docs = createDefaultFunctionDocumentationService().getDocsByName(document, 'remove_path');
+
+        expect(docs[0].signatures[0].parameters[0].description).toBe('首个说明。');
+        expect(docs[0].documentationIssues).toContainEqual({
+            code: 'duplicate-param-tag',
+            parameterName: 'parts'
+        });
     });
 });

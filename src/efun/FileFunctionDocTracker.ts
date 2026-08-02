@@ -99,39 +99,47 @@ export class FileFunctionDocTracker {
         options?: FunctionDocLookupBuildOptions
     ): Promise<MaterializedFunctionDocLookup> {
         const uri = this.getCacheKey(document, options);
+        const version = document.version;
         const text = document.getText();
         const cached = this.documentLookupCache.get(uri);
-        if (!options?.forceFresh && cached && cached.version === document.version && cached.text === text) {
+        if (!options?.forceFresh && cached && cached.version === version && cached.text === text) {
             return {
                 inheritedFiles: [...cached.inheritedFiles],
                 currentFileDocs: cached.currentFileDocs,
                 inheritedFileDocs: cached.inheritedFileDocs,
                 includeFileDocs: cached.includeFileDocs,
+                diagnostics: cached.diagnostics ? [...cached.diagnostics] : undefined,
                 lookup: cached.lookup
             };
         }
 
         const lookup = this.materializeLookup(await this.lookupBuilder.buildLookup(document, options));
-        this.documentLookupCache.set(uri, {
-            version: document.version,
-            text,
-            ...lookup
-        });
+        const wasCancelled = lookup.diagnostics?.some((diagnostic) => diagnostic.code === 'analysis-cancelled') === true;
+        if (!wasCancelled && document.version === version && document.getText() === text) {
+            this.documentLookupCache.set(uri, {
+                version,
+                text,
+                ...lookup
+            });
+        }
 
         return lookup;
     }
 
     private getCacheKey(document: vscode.TextDocument, options?: FunctionDocLookupBuildOptions): string {
-        const resolvedConfig = options?.projectConfig?.resolvedConfig;
-        if (!resolvedConfig) {
+        const projectConfig = options?.projectConfig;
+        if (!projectConfig) {
             return `${document.uri.toString()}::default`;
         }
 
         return `${document.uri.toString()}::${JSON.stringify({
-            configHellPath: options.projectConfig?.configHellPath,
-            mudlibDirectory: resolvedConfig.mudlibDirectory,
-            includeDirectories: resolvedConfig.includeDirectories ?? [],
-            simulatedEfunFile: resolvedConfig.simulatedEfunFile
+            projectConfigPath: projectConfig.projectConfigPath,
+            configHellPath: projectConfig.configHellPath,
+            preprocessorDefines: projectConfig.preprocessorDefines ?? [],
+            instanceResolutionFunctions: projectConfig.instanceResolutionFunctions ?? {},
+            resolvedConfig: projectConfig.resolvedConfig,
+            lastSyncedAt: projectConfig.lastSyncedAt,
+            searchEfunDefinitionInInheritanceChain: projectConfig.searchEfunDefinitionInInheritanceChain
         })}`;
     }
 
@@ -145,42 +153,51 @@ export class FileFunctionDocTracker {
             currentFileDocs: currentFile.docs,
             inheritedFileDocs: materializeGroupedMaps(inheritedGroups),
             includeFileDocs: materializeGroupedMaps(includeGroups),
+            diagnostics: rawLookup.diagnostics ? [...rawLookup.diagnostics] : undefined,
             lookup: {
                 currentFile,
                 inheritedGroups,
-                includeGroups
+                includeGroups,
+                diagnostics: rawLookup.diagnostics ? [...rawLookup.diagnostics] : undefined
             }
         };
     }
 }
 
 function materializeSourceGroup(source: RawFunctionDocLookup['currentFile']): FunctionDocSourceGroup {
+    const entries = materializeDocEntries(source.docs, source.sourceKind);
     return {
         source: source.source,
         filePath: source.filePath,
-        docs: materializeDocMap(source.docs, source.sourceKind)
+        sourceKind: source.sourceKind,
+        entries,
+        docs: materializeDocMap(entries),
+        depth: source.depth,
+        parentFilePath: source.parentFilePath
     };
 }
 
-function materializeDocMap(
+function materializeDocEntries(
     documentDocs: DocumentCallableDocs,
     sourceKind: RawFunctionDocLookup['currentFile']['sourceKind']
-): Map<string, CallableDoc> {
+): CallableDoc[] {
+    return documentDocs.declarationOrder
+        .map((declarationKey) => documentDocs.byDeclaration.get(declarationKey))
+        .filter((callableDoc): callableDoc is CallableDoc => Boolean(callableDoc))
+        .map((callableDoc) => ({
+            ...callableDoc,
+            sourceKind
+        }));
+}
+
+function materializeDocMap(entries: CallableDoc[]): Map<string, CallableDoc> {
     const docs = new Map<string, CallableDoc>();
 
-    for (const [name, declarationKeys] of documentDocs.byName.entries()) {
-        const preferredDeclarationKey = declarationKeys[0];
-        if (!preferredDeclarationKey || docs.has(name)) {
+    for (const callableDoc of entries) {
+        if (docs.has(callableDoc.name)) {
             continue;
         }
-
-        const callableDoc = documentDocs.byDeclaration.get(preferredDeclarationKey);
-        if (callableDoc) {
-            docs.set(name, {
-                ...callableDoc,
-                sourceKind
-            });
-        }
+        docs.set(callableDoc.name, callableDoc);
     }
 
     return docs;

@@ -19,6 +19,8 @@ export interface ParsedDocTags {
     params: ParsedParamTag[];
     returns?: CallableReturnDoc;
     returnObjects?: CallableReturnObjects;
+    duplicateReturnTagCount: number;
+    malformedParamTagCount: number;
 }
 
 interface PendingTag {
@@ -34,14 +36,17 @@ export class DocCommentTagParser {
         returnType: string | undefined
     ): ParsedDocTags {
         if (!attachedDocComment) {
-            return { params: [] };
+            return { params: [], duplicateReturnTagCount: 0, malformedParamTagCount: 0 };
         }
 
         const lines = normalizeDocCommentLines(attachedDocComment.text);
         const parsedDocTags: ParsedDocTags = {
-            params: []
+            params: [],
+            duplicateReturnTagCount: 0,
+            malformedParamTagCount: 0
         };
         let pendingTag: PendingTag | undefined;
+        let seenReturnTag = false;
 
         const finalizePendingTag = (): void => {
             if (!pendingTag) {
@@ -67,11 +72,16 @@ export class DocCommentTagParser {
                     }
                     break;
                 case 'return':
-                    if (parsedDocTags.returns === undefined && normalizedText) {
-                        parsedDocTags.returns = {
-                            type: returnType,
-                            description: normalizedText
-                        };
+                    if (seenReturnTag) {
+                        parsedDocTags.duplicateReturnTagCount += 1;
+                    } else {
+                        seenReturnTag = true;
+                        if (normalizedText) {
+                            parsedDocTags.returns = {
+                                type: returnType,
+                                description: normalizedText
+                            };
+                        }
                     }
                     break;
                 case 'param':
@@ -105,15 +115,16 @@ export class DocCommentTagParser {
                 const [, tagName, remainder = ''] = tagMatch;
                 if (isSupportedTag(tagName)) {
                     if (tagName === 'param') {
-                        const paramMatch = remainder.match(/^(\S+)\s+(\S+)(?:\s+([\s\S]*))?$/u);
-                        if (paramMatch) {
+                        const parsedParam = parseParamTagHeader(remainder);
+                        if (parsedParam) {
                             pendingTag = {
                                 tag: 'param',
-                                paramType: paramMatch[1],
-                                paramName: paramMatch[2],
-                                lines: paramMatch[3] ? [paramMatch[3]] : []
+                                paramType: parsedParam.type,
+                                paramName: parsedParam.name,
+                                lines: parsedParam.description ? [parsedParam.description] : []
                             };
                         } else {
+                            parsedDocTags.malformedParamTagCount += 1;
                             pendingTag = {
                                 tag: 'unknown',
                                 lines: []
@@ -143,6 +154,44 @@ export class DocCommentTagParser {
         finalizePendingTag();
         return parsedDocTags;
     }
+}
+
+export function parseParamTagHeader(value: string): ParsedParamTag | undefined {
+    const match = value.match(/^(\S+)\s+(\S+)(?:\s+([\s\S]*))?$/u);
+    if (!match) {
+        return undefined;
+    }
+
+    const [, baseType, declarator, trailingText] = match;
+    const attachedPointer = declarator.match(/^(\*+)([A-Za-z_][A-Za-z0-9_]*)$/u);
+    if (attachedPointer) {
+        return {
+            type: appendPointerDeclarator(baseType, attachedPointer[1]),
+            name: attachedPointer[2],
+            description: trailingText
+        };
+    }
+
+    if (/^\*+$/u.test(declarator) && trailingText) {
+        const separatedPointer = trailingText.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+([\s\S]*))?$/u);
+        if (separatedPointer) {
+            return {
+                type: appendPointerDeclarator(baseType, declarator),
+                name: separatedPointer[1],
+                description: separatedPointer[2]
+            };
+        }
+    }
+
+    return {
+        type: baseType,
+        name: declarator,
+        description: trailingText
+    };
+}
+
+function appendPointerDeclarator(baseType: string, pointer: string): string {
+    return `${baseType} ${pointer}`;
 }
 
 function normalizeDocCommentLines(commentText: string): string[] {

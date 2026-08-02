@@ -4,6 +4,26 @@
  */
 
 // 基本类型
+export class CancellationTokenSource {
+    private cancelled = false;
+    public readonly token: { readonly isCancellationRequested: boolean };
+
+    public constructor() {
+        const owner = this;
+        this.token = {
+            get isCancellationRequested(): boolean {
+                return owner.cancelled;
+            }
+        };
+    }
+
+    public cancel(): void {
+        this.cancelled = true;
+    }
+
+    public dispose(): void {}
+}
+
 export class Uri {
     constructor(
         public scheme: string,
@@ -33,6 +53,13 @@ export class Uri {
             '',
             ''
         );
+    }
+
+    static joinPath(base: Uri, ...pathSegments: string[]): Uri {
+        const joined = [base.path.replace(/\/+$/, ''), ...pathSegments.map((segment) => segment.replace(/^\/+|\/+$/g, ''))]
+            .filter(Boolean)
+            .join('/');
+        return new Uri(base.scheme, base.authority, joined.startsWith('/') ? joined : `/${joined}`, base.query, base.fragment);
     }
 
     toString(): string {

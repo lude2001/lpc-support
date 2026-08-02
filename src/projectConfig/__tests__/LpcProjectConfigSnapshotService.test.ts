@@ -45,6 +45,7 @@ describe('LpcProjectConfigSnapshotService', () => {
                 .mockResolvedValueOnce({
                     version: 1 as const,
                     configHellPath: 'config.hell',
+                    preprocessorDefines: ['BASE_OBJECT'],
                     instanceResolutionFunctions: {
                         this_player: ['/clone/user/user']
                     },
@@ -57,6 +58,7 @@ describe('LpcProjectConfigSnapshotService', () => {
                 .mockResolvedValueOnce({
                     version: 1 as const,
                     configHellPath: 'config.hell',
+                    preprocessorDefines: ['NEXT_OBJECT'],
                     instanceResolutionFunctions: {
                         get_actor: ['/adm/objects/player']
                     },
@@ -67,6 +69,8 @@ describe('LpcProjectConfigSnapshotService', () => {
                 })
         };
         const service = new LpcProjectConfigSnapshotService(projectConfigService);
+        const onDidChange = jest.fn();
+        service.onDidChange(onDidChange);
 
         await service.refreshAllWorkspaceSnapshots();
 
@@ -75,8 +79,11 @@ describe('LpcProjectConfigSnapshotService', () => {
             this_player: ['/clone/user/user']
         });
         expect(firstSnapshot?.resolvedConfig?.includeDirectories).toEqual(['include']);
+        expect(firstSnapshot?.preprocessorDefines).toEqual(['BASE_OBJECT']);
+        firstSnapshot?.preprocessorDefines?.push('MUTATED_OBJECT');
         firstSnapshot?.instanceResolutionFunctions?.this_player.push('/mutated');
 
+        expect(service.getWorkspaceProjectConfig('D:/workspace')?.preprocessorDefines).toEqual(['BASE_OBJECT']);
         expect(service.getWorkspaceProjectConfig('D:/workspace')?.instanceResolutionFunctions).toEqual({
             this_player: ['/clone/user/user']
         });
@@ -90,6 +97,8 @@ describe('LpcProjectConfigSnapshotService', () => {
         expect(service.getWorkspaceProjectConfig('D:/workspace')?.instanceResolutionFunctions).toEqual({
             get_actor: ['/adm/objects/player']
         });
+        expect(service.getWorkspaceProjectConfig('D:/workspace')?.preprocessorDefines).toEqual(['NEXT_OBJECT']);
         expect(projectConfigService.loadForWorkspace).toHaveBeenCalledTimes(2);
+        expect(onDidChange).toHaveBeenCalledWith('D:/workspace');
     });
 });

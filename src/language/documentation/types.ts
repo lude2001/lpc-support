@@ -51,6 +51,17 @@ export interface CallableReturnDoc {
     description?: string;
 }
 
+export type CallableDocumentationIssueCode =
+    | 'orphan-param-tag'
+    | 'stale-parameter-name'
+    | 'duplicate-param-tag'
+    | 'duplicate-return-tag';
+
+export interface CallableDocumentationIssue {
+    code: CallableDocumentationIssueCode;
+    parameterName?: string;
+}
+
 export interface CallableDoc {
     name: string;
     declarationKey: string;
@@ -69,6 +80,11 @@ export interface CallableDoc {
     sourceKind: CallableSourceKind;
     sourcePath?: string;
     sourceRange?: DocumentRange;
+    selectionRange?: DocumentRange;
+    attachedCommentRange?: DocumentRange;
+    declarationKind?: 'implementation' | 'prototype' | 'external';
+    modifiers?: string[];
+    documentationIssues?: CallableDocumentationIssue[];
 }
 
 export interface DocumentCallableDocs {

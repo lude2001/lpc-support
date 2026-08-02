@@ -7,6 +7,7 @@ export class LpcProjectConfigSnapshotService implements vscode.Disposable {
     private readonly snapshots = new Map<string, LanguageWorkspaceProjectConfig>();
     private readonly disposables: vscode.Disposable[] = [];
     private readonly watcherDisposables = new Map<string, vscode.Disposable[]>();
+    private readonly changeListeners = new Set<(workspaceRoot: string) => void>();
 
     constructor(
         private readonly projectConfigService: Pick<LpcProjectConfigService, 'getProjectConfigPath' | 'loadForWorkspace'>
@@ -25,6 +26,11 @@ export class LpcProjectConfigSnapshotService implements vscode.Disposable {
     public getWorkspaceProjectConfig(workspaceRoot: string): LanguageWorkspaceProjectConfig | undefined {
         const snapshot = this.snapshots.get(normalizeWorkspacePath(workspaceRoot));
         return snapshot ? cloneProjectConfig(snapshot) : undefined;
+    }
+
+    public onDidChange(listener: (workspaceRoot: string) => void): vscode.Disposable {
+        this.changeListeners.add(listener);
+        return { dispose: () => this.changeListeners.delete(listener) };
     }
 
     public async refreshAllWorkspaceSnapshots(): Promise<void> {
@@ -52,6 +58,9 @@ export class LpcProjectConfigSnapshotService implements vscode.Disposable {
             this.snapshots.set(normalizedWorkspaceRoot, {
                 projectConfigPath,
                 configHellPath: projectConfig?.configHellPath,
+                preprocessorDefines: projectConfig?.preprocessorDefines
+                    ? [...projectConfig.preprocessorDefines]
+                    : undefined,
                 instanceResolutionFunctions: cloneInstanceResolutionFunctions(projectConfig?.instanceResolutionFunctions),
                 resolvedConfig: projectConfig?.resolved,
                 lastSyncedAt: projectConfig?.lastSyncedAt
@@ -60,6 +69,9 @@ export class LpcProjectConfigSnapshotService implements vscode.Disposable {
             this.snapshots.set(normalizedWorkspaceRoot, {
                 projectConfigPath
             });
+        }
+        for (const listener of this.changeListeners) {
+            listener(normalizedWorkspaceRoot);
         }
     }
 
@@ -73,6 +85,7 @@ export class LpcProjectConfigSnapshotService implements vscode.Disposable {
         }
         this.watcherDisposables.clear();
         this.snapshots.clear();
+        this.changeListeners.clear();
     }
 
     private refreshWatchers(workspaceRoots: string[]): void {
@@ -150,6 +163,7 @@ function getWorkspaceRoots(): string[] {
 function cloneProjectConfig(config: LanguageWorkspaceProjectConfig): LanguageWorkspaceProjectConfig {
     return {
         ...config,
+        preprocessorDefines: config.preprocessorDefines ? [...config.preprocessorDefines] : undefined,
         instanceResolutionFunctions: cloneInstanceResolutionFunctions(config.instanceResolutionFunctions),
         resolvedConfig: config.resolvedConfig
             ? {

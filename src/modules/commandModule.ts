@@ -76,6 +76,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     const diagnostics = registry.get(Services.Diagnostics);
     const compiler = registry.get(Services.Compiler);
     const projectConfigService = registry.get(Services.ProjectConfig) as ProjectConfigServiceLike;
+    const projectConfigSnapshotService = registry.get(Services.ProjectConfigSnapshot);
     const errorTreeProvider = registry.get(Services.ErrorTree);
     const textDocumentHost = registry.get(Services.TextDocumentHost) as TextDocumentHost;
 
@@ -86,7 +87,12 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     register(context, 'lpc.showVariables', () => diagnostics.showVariables());
 
     register(context, 'lpc.showFunctionDoc', () => {
-        FunctionDocPanel.createOrShow(context, efunDocsManager, textDocumentHost);
+        FunctionDocPanel.createOrShow(
+            context,
+            efunDocsManager,
+            textDocumentHost,
+            projectConfigSnapshotService
+        );
     });
 
     register(context, 'lpc.configureSimulatedEfuns', () => {

@@ -83,6 +83,8 @@ export class CallableDocDocumentBuilder {
     ): CallableDoc {
         const signature = this.buildSignature(document, functionNode);
         const parsedDocTags = this.tagParser.parse(functionNode.attachedDocComment, signature.returnType);
+        const hasBody = this.hasFunctionBody(functionNode);
+        const identifierNode = functionNode.children.find((child) => child.kind === SyntaxKind.Identifier);
 
         return {
             name: functionNode.name ?? inferCallableName(functionNode) ?? signature.label,
@@ -95,7 +97,12 @@ export class CallableDocDocumentBuilder {
             returnObjects: parsedDocTags.returnObjects,
             sourceKind: 'local',
             sourcePath: document.fileName,
-            sourceRange: toDocumentRange(functionNode.range)
+            sourceRange: toDocumentRange(functionNode.range),
+            selectionRange: identifierNode ? toDocumentRange(identifierNode.range) : toDocumentRange(functionNode.range),
+            attachedCommentRange: functionNode.attachedDocComment?.range,
+            declarationKind: hasBody ? 'implementation' : 'prototype',
+            modifiers: getModifiers(functionNode),
+            documentationIssues: buildDocumentationIssues(signature, parsedDocTags)
         };
     }
 
@@ -173,6 +180,33 @@ function buildCallableParameters(parametersNode: SyntaxNode | undefined): Callab
         });
 }
 
+function buildDocumentationIssues(
+    signature: CallableSignature,
+    parsedDocTags: ReturnType<DocCommentTagParser['parse']>
+): CallableDoc['documentationIssues'] {
+    const issues: NonNullable<CallableDoc['documentationIssues']> = [];
+    const parameterNames = new Set(signature.parameters.map((parameter) => parameter.name));
+    const seenTags = new Set<string>();
+
+    for (const parsedParam of parsedDocTags.params) {
+        if (seenTags.has(parsedParam.name)) {
+            issues.push({ code: 'duplicate-param-tag', parameterName: parsedParam.name });
+        }
+        seenTags.add(parsedParam.name);
+        if (!parameterNames.has(parsedParam.name)) {
+            issues.push({ code: 'stale-parameter-name', parameterName: parsedParam.name });
+        }
+    }
+    for (let index = 0; index < parsedDocTags.malformedParamTagCount; index += 1) {
+        issues.push({ code: 'orphan-param-tag' });
+    }
+    for (let index = 0; index < parsedDocTags.duplicateReturnTagCount; index += 1) {
+        issues.push({ code: 'duplicate-return-tag' });
+    }
+
+    return issues.length > 0 ? issues : undefined;
+}
+
 function readNodeText(node: SyntaxNode): string {
     const metadataText = node.metadata?.rawBody;
     if (typeof metadataText === 'string' && metadataText.trim()) {
@@ -201,8 +235,12 @@ function applyParamDescriptions(
     }
 
     const parameters = signature.parameters.map((parameter) => ({ ...parameter }));
+    const appliedParameterNames = new Set<string>();
 
     for (const parsedParam of parsedParams) {
+        if (appliedParameterNames.has(parsedParam.name)) {
+            continue;
+        }
         const matchingParameter = parameters.find((parameter) => parameter.name === parsedParam.name);
         if (!matchingParameter) {
             continue;
@@ -212,6 +250,7 @@ function applyParamDescriptions(
             matchingParameter.type = parsedParam.type;
         }
         matchingParameter.description = parsedParam.description;
+        appliedParameterNames.add(parsedParam.name);
     }
 
     return {
@@ -250,6 +289,18 @@ function hasModifier(functionNode: SyntaxNode, modifier: string): boolean {
     }
 
     return modifierList?.children.some((child) => child.name === modifier) ?? false;
+}
+
+function getModifiers(functionNode: SyntaxNode): string[] {
+    const modifierList = functionNode.children.find((child) => child.kind === SyntaxKind.ModifierList);
+    const metadataModifiers = modifierList?.metadata?.modifiers;
+    if (Array.isArray(metadataModifiers)) {
+        return metadataModifiers.filter((value): value is string => typeof value === 'string');
+    }
+
+    return modifierList?.children
+        .map((child) => child.name)
+        .filter((name): name is string => Boolean(name)) ?? [];
 }
 
 function toDocumentRange(range: vscode.Range): DocumentRange {
