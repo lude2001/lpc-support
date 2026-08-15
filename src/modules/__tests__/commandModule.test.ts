@@ -53,6 +53,7 @@ describe('registerCommands', () => {
         'lpc.compileFile',
         'lpc.startDriver',
         'lpc.configureSimulatedEfuns',
+        'lpc.initProjectConfig',
         'lpc.renameVarToSnakeCase',
         'lpc.renameVarToCamelCase',
         'lpc.generateJavadoc'
@@ -84,6 +85,7 @@ describe('registerCommands', () => {
         clearErrors: jest.Mock;
     };
     let projectConfigSnapshotService: { getWorkspaceProjectConfig: jest.Mock };
+    let projectConfigOnboardingService: { generateProjectConfig: jest.Mock };
     let parsedDocumentService: { getStats: jest.Mock };
     let lpcprj: {
         hasLpcprjCommand: jest.Mock;
@@ -166,6 +168,9 @@ describe('registerCommands', () => {
         projectConfigSnapshotService = {
             getWorkspaceProjectConfig: jest.fn()
         };
+        projectConfigOnboardingService = {
+            generateProjectConfig: jest.fn().mockResolvedValue(true)
+        };
         lpcprj = jest.requireMock('../../utils/lpcprj') as {
             hasLpcprjCommand: jest.Mock;
             getLpcprjStartCommand: jest.Mock;
@@ -180,6 +185,7 @@ describe('registerCommands', () => {
         registry.register(Services.Compiler, compiler as any);
         registry.register(Services.ProjectConfig, projectConfigService as any);
         registry.register(Services.ProjectConfigSnapshot, projectConfigSnapshotService as any);
+        registry.register(Services.ProjectConfigOnboarding, projectConfigOnboardingService as any);
         registry.register(Services.ErrorTree, errorTreeProvider as any);
         registry.register(Services.TextDocumentHost, {
             openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
@@ -297,6 +303,17 @@ describe('registerCommands', () => {
 
         expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('请先打开一个工作区');
         expect((compiler as any).compileFolder).not.toHaveBeenCalled();
+    });
+
+    test('initProjectConfig generates project config for the single workspace root', async () => {
+        registerCommands(registry, context);
+        const handlers = getRegisteredHandlers();
+        (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
+
+        await handlers.get('lpc.initProjectConfig')?.();
+
+        expect(projectConfigOnboardingService.generateProjectConfig).toHaveBeenCalledWith('D:/workspace');
+        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining('lpc-support.json'));
     });
 
     test('manageCompilation toggles local system command in project config', async () => {

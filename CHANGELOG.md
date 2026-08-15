@@ -2,6 +2,14 @@
 
 所有 LPC Support 扩展的重要用户可见变更都会记录在此文件中。
 
+## [0.52.13] - 2026-08-15
+
+### 激活与新手引导
+
+- 优化扩展激活时机：打开 LPC 文件（`.c`/`.h`/`.lpc`），或工作区中存在 `lpc-support.json`、`config.hell`、`.lpc` 文件时，扩展会立即激活并显示状态栏入口。
+- 新增项目配置引导：当检测到当前工作区是典型 MUD 目录结构（如 `config.hell`、`adm/single/simul_efun.c` 或多个 MUD 标准目录）但尚未创建 `lpc-support.json` 时，会弹出引导提示，支持【一键生成配置】、【查看文档】、【不再提示】三种操作。
+- 新增命令 `lpc.initProjectConfig`（初始化 LPC 项目配置），可为当前或多选工作区一键生成 `lpc-support.json`，自动探测并写入 `config.hell` 相对路径。
+
 ## [0.52.12] - 2026-08-15
 
 ### 诊断与代码分析

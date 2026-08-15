@@ -10,6 +10,7 @@ import type { ErrorTreeDataProvider } from '../errorTreeDataProvider';
 import type { SemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import type { LpcProjectConfigSnapshotService } from '../projectConfig/LpcProjectConfigSnapshotService';
+import type { ProjectConfigOnboardingService } from '../projectConfig/ProjectConfigOnboardingService';
 import type { LpcFrontendService } from '../frontend/LpcFrontendService';
 import { ServiceKey } from './ServiceRegistry';
 
@@ -19,6 +20,7 @@ export const Services = {
     Compiler: new ServiceKey<LPCCompiler>('Compiler'),
     ProjectConfig: new ServiceKey<LpcProjectConfigService>('ProjectConfig'),
     ProjectConfigSnapshot: new ServiceKey<LpcProjectConfigSnapshotService>('ProjectConfigSnapshot'),
+    ProjectConfigOnboarding: new ServiceKey<ProjectConfigOnboardingService>('ProjectConfigOnboarding'),
     Analysis: new ServiceKey<DocumentAnalysisService>('Analysis'),
     FunctionDocumentation: new ServiceKey<FunctionDocumentationService>('FunctionDocumentation'),
     TextDocumentHost: new ServiceKey<TextDocumentHost>('TextDocumentHost'),

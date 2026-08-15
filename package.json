@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.52.12",
+  "version": "0.52.13",
   "publisher": "ludexiang",
   "author": {
     "name": "easyCat",
@@ -33,7 +33,13 @@
     "Programming Languages"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:lpc",
+    "workspaceContains:**/lpc-support.json",
+    "workspaceContains:config.hell",
+    "workspaceContains:**/config.hell",
+    "workspaceContains:**/*.lpc"
+  ],
   "dependencies": {
     "antlr4ts": "^0.5.0-alpha.4",
     "axios": "^1.16.0",
@@ -128,6 +134,11 @@
       {
         "command": "lpc.configureSimulatedEfuns",
         "title": "查看模拟函数入口配置来源",
+        "category": "LPC"
+      },
+      {
+        "command": "lpc.initProjectConfig",
+        "title": "初始化 LPC 项目配置",
         "category": "LPC"
       },
       {

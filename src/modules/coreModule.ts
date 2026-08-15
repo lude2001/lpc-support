@@ -12,6 +12,7 @@ import { createVsCodeWorkspaceDocumentHost, WorkspaceDocumentPathSupport } from 
 import { getGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import { LpcProjectConfigSnapshotService } from '../projectConfig/LpcProjectConfigSnapshotService';
+import { ProjectConfigOnboardingService } from '../projectConfig/ProjectConfigOnboardingService';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
 import { createDefaultSemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
 
@@ -27,6 +28,15 @@ export async function registerCoreServices(registry: ServiceRegistry, context: v
     await projectConfigSnapshotService.start();
     registry.register(Services.ProjectConfigSnapshot, projectConfigSnapshotService);
     context.subscriptions.push(projectConfigSnapshotService);
+
+    const projectConfigOnboardingService = new ProjectConfigOnboardingService({
+        projectConfigService,
+        snapshotService: projectConfigSnapshotService,
+        memento: context.workspaceState
+    });
+    projectConfigOnboardingService.start();
+    registry.register(Services.ProjectConfigOnboarding, projectConfigOnboardingService);
+    context.subscriptions.push(projectConfigOnboardingService);
 
     const frontendService = new LpcFrontendService();
     registry.register(Services.Frontend, frontendService);

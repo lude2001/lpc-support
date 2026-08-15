@@ -77,6 +77,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
     const compiler = registry.get(Services.Compiler);
     const projectConfigService = registry.get(Services.ProjectConfig) as ProjectConfigServiceLike;
     const projectConfigSnapshotService = registry.get(Services.ProjectConfigSnapshot);
+    const projectConfigOnboardingService = registry.get(Services.ProjectConfigOnboarding);
     const errorTreeProvider = registry.get(Services.ErrorTree);
     const textDocumentHost = registry.get(Services.TextDocumentHost) as TextDocumentHost;
 
@@ -97,6 +98,20 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
     register(context, 'lpc.configureSimulatedEfuns', () => {
         return efunDocsManager.configureSimulatedEfuns();
+    });
+
+    register(context, 'lpc.initProjectConfig', async () => {
+        const workspaceRoot = await resolveProjectConfigWorkspaceRoot();
+        if (!workspaceRoot) {
+            return;
+        }
+
+        const created = await projectConfigOnboardingService.generateProjectConfig(workspaceRoot);
+        if (created) {
+            vscode.window.showInformationMessage(`已生成 lpc-support.json：${workspaceRoot}`);
+        } else {
+            vscode.window.showErrorMessage('生成 lpc-support.json 失败，请稍后重试。');
+        }
     });
 
     for (const command of createLpcCodeActionCommandHandlers(registry.get(Services.Analysis))) {
@@ -243,6 +258,29 @@ function requireWorkspaceRoot(): string | undefined {
     }
 
     return workspaceRoot;
+}
+
+async function resolveProjectConfigWorkspaceRoot(): Promise<string | undefined> {
+    const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+    if (workspaceFolders.length === 0) {
+        vscode.window.showErrorMessage('请先打开一个工作区');
+        return undefined;
+    }
+
+    if (workspaceFolders.length === 1) {
+        return workspaceFolders[0].uri.fsPath;
+    }
+
+    const selected = await vscode.window.showQuickPick(
+        workspaceFolders.map((folder) => ({
+            label: folder.name,
+            description: folder.uri.fsPath,
+            fsPath: folder.uri.fsPath
+        })),
+        { placeHolder: '选择要初始化配置的工作区' }
+    );
+
+    return selected?.fsPath;
 }
 
 async function resolveCompileFolderTarget(uri?: vscode.Uri): Promise<{ targetFolder: string; workspaceRoot?: string } | undefined> {

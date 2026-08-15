@@ -75,8 +75,12 @@ describe('registerCoreServices', () => {
         context = {
             subscriptions: [],
             extensionPath: '/mock/extension',
-            globalStoragePath: '/mock/storage'
-        } as vscode.ExtensionContext;
+            globalStoragePath: '/mock/storage',
+            workspaceState: {
+                get: jest.fn().mockReturnValue(undefined),
+                update: jest.fn().mockResolvedValue(undefined)
+            }
+        } as unknown as vscode.ExtensionContext;
 
         efunDocsManager = { id: 'efunDocsManager' };
         documentationService = { id: 'documentationService' };
@@ -133,6 +137,8 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.Compiler)).toBe(compiler);
         expect(registry.get(Services.Frontend)).toBe(frontendService);
         expect(registry.get(Services.ProjectConfig)).toBe(projectConfigService);
+        expect(registry.get(Services.ProjectConfigSnapshot)).toBe(projectConfigSnapshotService);
+        expect(registry.get(Services.ProjectConfigOnboarding)).toBeDefined();
         expect(registry.get(Services.FunctionDocumentation)).toBe(documentationService);
         const textDocumentHost = registry.get(Services.TextDocumentHost);
         expect(textDocumentHost).toEqual(expect.objectContaining({
@@ -144,10 +150,16 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.Analysis)).toBe(analysisService);
         expect(DocumentSemanticSnapshotService.getInstance).toHaveBeenCalledTimes(1);
 
-        expect(context.subscriptions).toEqual([projectConfigSnapshotService, completionInstrumentation, lifecycle]);
+        expect(context.subscriptions).toEqual([
+            projectConfigSnapshotService,
+            expect.anything(),
+            completionInstrumentation,
+            lifecycle
+        ]);
         expect(typeof context.subscriptions[0].dispose).toBe('function');
         expect(typeof context.subscriptions[1].dispose).toBe('function');
         expect(typeof context.subscriptions[2].dispose).toBe('function');
+        expect(typeof context.subscriptions[3].dispose).toBe('function');
 
         expect(lifecycle.onInvalidate).toHaveBeenCalledTimes(1);
 

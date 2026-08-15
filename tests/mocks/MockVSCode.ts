@@ -520,6 +520,7 @@ export const commands = {
 };
 
 export const env = {
+    openExternal: jest.fn().mockResolvedValue(true),
     clipboard: {
         writeText: jest.fn().mockResolvedValue(undefined)
     }
