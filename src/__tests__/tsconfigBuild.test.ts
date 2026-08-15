@@ -3,7 +3,7 @@ import * as ts from 'typescript';
 import { describe, expect, test } from '@jest/globals';
 
 function loadBuildConfig() {
-    const projectPath = path.resolve(__dirname, '../../tsconfig.json');
+    const projectPath = path.resolve(__dirname, '../../tsconfig.build.json');
     const configFile = ts.readConfigFile(projectPath, ts.sys.readFile);
     if (configFile.error) {
         throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n'));

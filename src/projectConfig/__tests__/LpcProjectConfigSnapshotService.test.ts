@@ -41,7 +41,7 @@ describe('LpcProjectConfigSnapshotService', () => {
 
         const projectConfigService = {
             getProjectConfigPath: jest.fn(() => 'D:\\workspace\\lpc-support.json'),
-            loadForWorkspace: jest.fn()
+            loadForWorkspace: (jest.fn() as any)
                 .mockResolvedValueOnce({
                     version: 1 as const,
                     configHellPath: 'config.hell',

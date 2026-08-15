@@ -13,6 +13,7 @@ import {
 import { isFluffOSPredefinedMacro } from '../diagnostics/semantic/FluffOSPredefinedMacros';
 import { DiagnosticContext } from '../diagnostics/types';
 import { DocumentSemanticSnapshotService } from '../semantic/documentSemanticSnapshotService';
+import { SemanticSnapshot } from '../semantic/semanticSnapshot';
 import { SyntaxKind, SyntaxNode } from '../syntax/types';
 import { TestHelper } from './utils/TestHelper';
 
@@ -303,6 +304,51 @@ describe('syntax-backed diagnostic collectors', () => {
 
         expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain('unusedGlobalVar');
         expect(diagnostics[0].range).toEqual(new vscode.Range(0, 4, 0, 10));
+        expect(diagnostics[0].severity).toBe(vscode.DiagnosticSeverity.Hint);
+        expect(diagnostics[0].tags).toContain(vscode.DiagnosticTag.Unnecessary);
+    });
+
+    test('GlobalVariableCollector skips .h header files even when enabled', () => {
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((key: string, defaultValue?: unknown) => {
+                if (key === 'enableUnusedGlobalVarCheck') {
+                    return true;
+                }
+                return defaultValue;
+            })
+        });
+        const collector = new GlobalVariableCollector();
+        const document = TestHelper.createMockDocument([
+            'int amount;'
+        ].join('\n'), 'lpc', 'header.h');
+        const analysis = DocumentSemanticSnapshotService.getInstance().parseDocument(document, false);
+        const context: DiagnosticContext = {
+            parsed: analysis.parsed!,
+            syntax: analysis.syntax,
+            semantic: analysis.semantic
+        };
+
+        const diagnostics = collector.collect(document, analysis.parsed!, context);
+        expect(diagnostics).toHaveLength(0);
+    });
+
+    test('GlobalVariableCollector is disabled by default', () => {
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: jest.fn((_key: string, defaultValue?: unknown) => defaultValue)
+        });
+        const collector = new GlobalVariableCollector();
+        const document = TestHelper.createMockDocument([
+            'int amount;'
+        ].join('\n'), 'lpc', 'file.c');
+        const analysis = DocumentSemanticSnapshotService.getInstance().parseDocument(document, false);
+        const context: DiagnosticContext = {
+            parsed: analysis.parsed!,
+            syntax: analysis.syntax,
+            semantic: analysis.semantic
+        };
+
+        const diagnostics = collector.collect(document, analysis.parsed!, context);
+        expect(diagnostics).toHaveLength(0);
     });
 
     test('BasicSemanticDiagnosticsCollector reports current-file argument count mismatches', async () => {
@@ -479,7 +525,7 @@ describe('syntax-backed diagnostic collectors', () => {
 
     test('BasicSemanticDiagnosticsCollector consumes injected callable signatures for efun-style targets', async () => {
         const collector = new BasicSemanticDiagnosticsCollector({
-            resolveVisibleSymbols: jest.fn((_document, semantic) => ({
+            resolveVisibleSymbols: jest.fn((_document: vscode.TextDocument, semantic: SemanticSnapshot) => ({
                 functions: semantic.exportedFunctions,
                 symbols: semantic.symbols,
                 fileGlobals: semantic.fileGlobals ?? [],
@@ -491,7 +537,7 @@ describe('syntax-backed diagnostic collectors', () => {
                     requiredParameterCount: 1,
                     maxParameterCount: 1,
                     isVariadic: false,
-                    source: 'efun'
+                    source: 'efun' as const
                 }],
                 hasUnresolvedDependencies: false
             }))
@@ -511,7 +557,7 @@ describe('syntax-backed diagnostic collectors', () => {
 
     test('BasicSemanticDiagnosticsCollector accepts efun optional argument ranges', async () => {
         const collector = new BasicSemanticDiagnosticsCollector({
-            resolveVisibleSymbols: jest.fn((_document, semantic) => ({
+            resolveVisibleSymbols: jest.fn((_document: vscode.TextDocument, semantic: SemanticSnapshot) => ({
                 functions: semantic.exportedFunctions,
                 symbols: semantic.symbols,
                 fileGlobals: semantic.fileGlobals ?? [],
@@ -523,7 +569,7 @@ describe('syntax-backed diagnostic collectors', () => {
                     requiredParameterCount: 2,
                     maxParameterCount: 4,
                     isVariadic: false,
-                    source: 'efun'
+                    source: 'efun' as const
                 }],
                 hasUnresolvedDependencies: false
             }))
@@ -544,7 +590,7 @@ describe('syntax-backed diagnostic collectors', () => {
 
     test('BasicSemanticDiagnosticsCollector accepts tell_room without exclude argument', async () => {
         const collector = new BasicSemanticDiagnosticsCollector({
-            resolveVisibleSymbols: jest.fn((_document, semantic) => ({
+            resolveVisibleSymbols: jest.fn((_document: vscode.TextDocument, semantic: SemanticSnapshot) => ({
                 functions: semantic.exportedFunctions,
                 symbols: semantic.symbols,
                 fileGlobals: semantic.fileGlobals ?? [],
@@ -556,7 +602,7 @@ describe('syntax-backed diagnostic collectors', () => {
                     requiredParameterCount: 2,
                     maxParameterCount: 3,
                     isVariadic: false,
-                    source: 'efun'
+                    source: 'efun' as const
                 }],
                 hasUnresolvedDependencies: false
             }))
@@ -686,7 +732,7 @@ describe('syntax-backed diagnostic collectors', () => {
     test('TypeDiagnosticsCollector respects documented union parameter types', async () => {
         const collector = new TypeDiagnosticsCollector({
             diagnosticFactsProvider: {
-                getFacts: jest.fn((_document, semantic) => ({
+                getFacts: jest.fn(async (_document: vscode.TextDocument, semantic: SemanticSnapshot) => ({
                     visibleSymbols: {
                         ...createCurrentFileVisibleSymbols(semantic),
                         callableSignatures: [{
@@ -694,7 +740,7 @@ describe('syntax-backed diagnostic collectors', () => {
                             requiredParameterCount: 2,
                             maxParameterCount: 3,
                             isVariadic: false,
-                            source: 'efun' as const,
+                            source: 'efun' as const as const,
                             returnType: 'void',
                             parameters: [
                                 { name: 'fun', dataType: 'string | function' },
@@ -737,7 +783,7 @@ describe('syntax-backed diagnostic collectors', () => {
     test('TypeDiagnosticsCollector keeps array union alternatives consistent for literals', async () => {
         const collector = new TypeDiagnosticsCollector({
             diagnosticFactsProvider: {
-                getFacts: jest.fn((_document, semantic) => ({
+                getFacts: jest.fn(async (_document: vscode.TextDocument, semantic: SemanticSnapshot) => ({
                     visibleSymbols: {
                         ...createCurrentFileVisibleSymbols(semantic),
                         callableSignatures: [{
@@ -745,7 +791,7 @@ describe('syntax-backed diagnostic collectors', () => {
                             requiredParameterCount: 3,
                             maxParameterCount: 3,
                             isVariadic: false,
-                            source: 'efun' as const,
+                            source: 'efun' as const as const,
                             returnType: 'void',
                             parameters: [
                                 { name: 'class', dataType: 'mixed' },

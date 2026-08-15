@@ -184,7 +184,7 @@ Boundaries:
 Common settings:
 
 - `lpc.enableTypeChecking`: enable or disable `lpc.type.*` type-checking diagnostics
-- `lpc.enableUnusedGlobalVarCheck`: enable or disable unused global variable checks
+- `lpc.enableUnusedGlobalVarCheck`: enable or disable unused global variable checks (disabled by default to avoid false positives from inheritance and header files)
 - `lpc.enforceLocalVariableDeclarationAtBlockStart`: enable or disable the declaration-at-block-start check
 - `lpc.format.indentSize`: formatter indentation size
 - `lpc.performance.debounceDelay`: diagnostics debounce delay

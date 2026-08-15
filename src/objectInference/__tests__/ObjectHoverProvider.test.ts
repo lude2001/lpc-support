@@ -22,7 +22,7 @@ jest.mock('../../ast/astManager', () => ({
 }));
 
 jest.mock('fs', () => ({
-    existsSync: jest.fn().mockReturnValue(true)
+    existsSync: (jest.fn() as any).mockReturnValue(true)
 }));
 
 function createProviderHoverService(
@@ -65,7 +65,7 @@ describe('ObjectHoverProvider', () => {
 
     test('delegates hover requests through LanguageHoverService without changing the returned markdown', async () => {
         const stubService: LanguageHoverService = {
-            provideHover: jest.fn().mockResolvedValue({
+            provideHover: (jest.fn() as any).mockResolvedValue({
                 contents: [
                     {
                         kind: 'markdown',
@@ -102,7 +102,7 @@ describe('ObjectHoverProvider', () => {
             }
         });
         expect(hover).toBeInstanceOf(vscode.Hover);
-        const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        const hoverContent = (hover as vscode.Hover).contents as unknown as vscode.MarkdownString;
         expect(hoverContent.value).toContain('string query_name()');
         expect(hoverContent.value).toContain('shared docs');
     });
@@ -111,7 +111,7 @@ describe('ObjectHoverProvider', () => {
         const documentationService = createDefaultFunctionDocumentationService();
         const content = 'USER_D->query_name();';
         const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
+            inferObjectAccess: (jest.fn() as any).mockResolvedValue({
                 receiver: 'USER_D',
                 memberName: 'query_name',
                 inference: {
@@ -131,7 +131,7 @@ describe('ObjectHoverProvider', () => {
             ].join('\n')
         });
         const targetMethodLookup = {
-            findMethod: jest.fn().mockResolvedValue({
+            findMethod: (jest.fn() as any).mockResolvedValue({
                 path: 'D:/code/lpc/obj/userd.c',
                 document: {
                     uri: vscode.Uri.file('D:/code/lpc/obj/userd.c'),
@@ -172,7 +172,7 @@ describe('ObjectHoverProvider', () => {
         const content = 'target->query_name();';
         const getDocsByNameSpy = jest.spyOn(FunctionDocumentationService.prototype, 'getDocsByName');
         const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
+            inferObjectAccess: (jest.fn() as any).mockResolvedValue({
                 receiver: 'target',
                 memberName: 'query_name',
                 inference: {
@@ -198,7 +198,7 @@ describe('ObjectHoverProvider', () => {
                     '}'
                 ].join('\n')
             },
-            findMethod: jest.fn().mockResolvedValue({
+            findMethod: (jest.fn() as any).mockResolvedValue({
                 path: 'D:/code/lpc/obj/npc.c',
                 document: undefined,
                 location: new vscode.Location(vscode.Uri.file('D:/code/lpc/obj/npc.c'), new vscode.Position(3, 0))
@@ -230,7 +230,7 @@ describe('ObjectHoverProvider', () => {
         expect(hover).toBeInstanceOf(vscode.Hover);
         expect(getDocsByNameSpy).toHaveBeenCalledWith(targetMethodLookup.resolvedDocument, 'query_name');
 
-        const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        const hoverContent = (hover as vscode.Hover).contents as unknown as vscode.MarkdownString;
         expect(hoverContent.value).toContain('string query_name(');
         expect(hoverContent.value).toContain('返回名字。');
         expect(hoverContent.value).toContain('#### Parameters');
@@ -245,7 +245,7 @@ describe('ObjectHoverProvider', () => {
         const documentationService = createDefaultFunctionDocumentationService();
         const content = 'ob->start();';
         const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
+            inferObjectAccess: (jest.fn() as any).mockResolvedValue({
                 receiver: 'ob',
                 memberName: 'start',
                 inference: {
@@ -258,7 +258,7 @@ describe('ObjectHoverProvider', () => {
             })
         };
         const targetMethodLookup = {
-            findMethod: jest.fn().mockResolvedValue(undefined)
+            findMethod: (jest.fn() as any).mockResolvedValue(undefined)
         };
 
         const provider = new ObjectHoverProvider(
@@ -277,7 +277,7 @@ describe('ObjectHoverProvider', () => {
         } as unknown as vscode.TextDocument, new vscode.Position(0, 5));
 
         expect(hover).toBeInstanceOf(vscode.Hover);
-        const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        const hoverContent = (hover as vscode.Hover).contents as unknown as vscode.MarkdownString;
         expect(hoverContent.value).toContain('可能来自多个对象');
     });
 
@@ -285,7 +285,7 @@ describe('ObjectHoverProvider', () => {
         const documentationService = createDefaultFunctionDocumentationService();
         const content = 'factory->method();';
         const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
+            inferObjectAccess: (jest.fn() as any).mockResolvedValue({
                 receiver: 'factory',
                 memberName: 'method',
                 inference: {
@@ -295,7 +295,7 @@ describe('ObjectHoverProvider', () => {
             })
         };
         const targetMethodLookup = {
-            findMethod: jest.fn().mockResolvedValue({
+            findMethod: (jest.fn() as any).mockResolvedValue({
                 path: 'D:/code/lpc/include/factory-method.c',
                 document: {
                     uri: vscode.Uri.file('D:/code/lpc/include/factory-method.c'),
@@ -329,7 +329,7 @@ describe('ObjectHoverProvider', () => {
         const hover = await provider.provideHover(document, new vscode.Position(0, 10));
 
         expect(hover).toBeInstanceOf(vscode.Hover);
-        const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        const hoverContent = (hover as vscode.Hover).contents as unknown as vscode.MarkdownString;
         expect(hoverContent.value).toContain('object method()');
         expect(hoverContent.value).toContain('include-backed hover docs');
         expect(targetMethodLookup.findMethod).toHaveBeenCalledWith(document, 'D:/code/lpc/obj/child.c', 'method');
@@ -339,7 +339,7 @@ describe('ObjectHoverProvider', () => {
         const documentationService = createDefaultFunctionDocumentationService();
         const content = 'child->quest_info();';
         const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
+            inferObjectAccess: (jest.fn() as any).mockResolvedValue({
                 receiver: 'child',
                 memberName: 'quest_info',
                 inference: {
@@ -350,7 +350,7 @@ describe('ObjectHoverProvider', () => {
         };
 
         const targetMethodLookup = {
-            findMethod: jest.fn().mockResolvedValue({
+            findMethod: (jest.fn() as any).mockResolvedValue({
                 path: 'D:/code/lpc/obj/parent.c',
                 document: {
                     uri: vscode.Uri.file('D:/code/lpc/obj/parent.c'),
@@ -382,7 +382,7 @@ describe('ObjectHoverProvider', () => {
         const hover = await provider.provideHover(document, new vscode.Position(0, 10));
 
         expect(hover).toBeInstanceOf(vscode.Hover);
-        const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        const hoverContent = (hover as vscode.Hover).contents as unknown as vscode.MarkdownString;
         expect(hoverContent.value).toContain('string quest_info()');
         expect(hoverContent.value).toContain('父类任务描述');
     });
@@ -391,7 +391,7 @@ describe('ObjectHoverProvider', () => {
         const documentationService = createDefaultFunctionDocumentationService();
         const content = 'ob->shared_method();';
         const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
+            inferObjectAccess: (jest.fn() as any).mockResolvedValue({
                 receiver: 'ob',
                 memberName: 'shared_method',
                 inference: {
@@ -411,7 +411,7 @@ describe('ObjectHoverProvider', () => {
             'void shared_method() {}'
         ].join('\n');
         const targetMethodLookup = {
-            findMethod: jest.fn().mockResolvedValue({
+            findMethod: (jest.fn() as any).mockResolvedValue({
                 path: 'D:/code/lpc/obj/parent.c',
                 document: {
                     uri: vscode.Uri.file('D:/code/lpc/obj/parent.c'),
@@ -438,7 +438,7 @@ describe('ObjectHoverProvider', () => {
         const hover = await provider.provideHover(document, new vscode.Position(0, 5));
 
         expect(hover).toBeInstanceOf(vscode.Hover);
-        const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        const hoverContent = (hover as vscode.Hover).contents as unknown as unknown as vscode.MarkdownString;
         expect(hoverContent.value).toContain('shared_method');
         expect(hoverContent.value).toContain('共享实现');
         expect(hoverContent.value).not.toContain('可能来自多个对象');
@@ -448,7 +448,7 @@ describe('ObjectHoverProvider', () => {
         const documentationService = createDefaultFunctionDocumentationService();
         const content = 'ob->start();';
         const objectInferenceService = {
-            inferObjectAccess: jest.fn().mockResolvedValue({
+            inferObjectAccess: (jest.fn() as any).mockResolvedValue({
                 receiver: 'ob',
                 memberName: 'start',
                 inference: {
@@ -470,7 +470,7 @@ describe('ObjectHoverProvider', () => {
             ].join('\n')
         });
         const targetMethodLookup = {
-            findMethod: jest.fn(async (_document: vscode.TextDocument, targetFilePath: string) => ({
+            findMethod: jest.fn(async (_document: any, targetFilePath: string) => ({
                 path: targetFilePath,
                 document: createMethodDocument(targetFilePath),
                 location: new vscode.Location(vscode.Uri.file(targetFilePath), new vscode.Position(3, 0))
@@ -494,7 +494,7 @@ describe('ObjectHoverProvider', () => {
         const hover = await provider.provideHover(document, new vscode.Position(0, 5));
 
         expect(hover).toBeInstanceOf(vscode.Hover);
-        const hoverContent = (hover as vscode.Hover).contents as vscode.MarkdownString;
+        const hoverContent = (hover as vscode.Hover).contents as unknown as unknown as vscode.MarkdownString;
         expect(hoverContent.value).toContain('D:/code/lpc/obj/a.c');
         expect(hoverContent.value).toContain('D:/code/lpc/obj/b.c');
         expect(hoverContent.value).toContain('void start()');

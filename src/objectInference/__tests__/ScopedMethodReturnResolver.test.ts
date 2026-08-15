@@ -148,7 +148,7 @@ describe('ScopedMethodReturnResolver', () => {
             scopedTarget(fixturePath('/std/room.c'), 'factory')
         ];
 
-        const resolveDocumentedReturnOutcome = jest.fn().mockResolvedValue({
+        const resolveDocumentedReturnOutcome = (jest.fn() as any).mockResolvedValue({
             candidates: [{ path: fixturePath('/obj/room_item.c'), source: 'doc' }]
         });
         const resolver = new ScopedMethodReturnResolver(resolveDocumentedReturnOutcome);

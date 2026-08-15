@@ -95,7 +95,7 @@ describe('ReturnObjectResolver', () => {
             uri: vscode.Uri.file('D:/code/lpc')
         });
         pathSupport = {
-            resolveObjectFilePath: jest.fn()
+            resolveObjectFilePath: jest.fn() as any
         };
     });
 
@@ -185,7 +185,7 @@ describe('ReturnObjectResolver', () => {
         const documentationService = createDefaultFunctionDocumentationService();
         const getDocsByNameSpy = jest.spyOn(documentationService, 'getDocsByName');
         const scopedMethodResolver = {
-            resolveCallAt: jest.fn().mockResolvedValue({
+            resolveCallAt: (jest.fn() as any).mockResolvedValue({
                 status: 'resolved',
                 methodName: 'factory',
                 targets: [{
@@ -204,7 +204,7 @@ describe('ReturnObjectResolver', () => {
             pathSupport
         );
         const scopedMethodReturnResolver = {
-            resolveScopedMethodReturnOutcome: jest.fn().mockResolvedValue({
+            resolveScopedMethodReturnOutcome: (jest.fn() as any).mockResolvedValue({
                 candidates: [{ path: 'D:/code/lpc/obj/sword.c', source: 'doc' }]
             })
         };
@@ -223,7 +223,7 @@ describe('ReturnObjectResolver', () => {
         const documentationService = createDefaultFunctionDocumentationService();
         const getDocsByNameSpy = jest.spyOn(documentationService, 'getDocsByName');
         const scopedMethodResolver = {
-            resolveCallAt: jest.fn().mockResolvedValue({
+            resolveCallAt: (jest.fn() as any).mockResolvedValue({
                 status: 'resolved',
                 methodName: 'factory',
                 qualifier: 'room',
@@ -243,7 +243,7 @@ describe('ReturnObjectResolver', () => {
             pathSupport
         );
         const scopedMethodReturnResolver = {
-            resolveScopedMethodReturnOutcome: jest.fn().mockResolvedValue({
+            resolveScopedMethodReturnOutcome: (jest.fn() as any).mockResolvedValue({
                 candidates: [{ path: 'D:/code/lpc/obj/room_item.c', source: 'doc' }]
             })
         };

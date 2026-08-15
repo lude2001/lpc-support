@@ -12,8 +12,13 @@ export class GlobalVariableCollector implements IDiagnosticCollector {
     public readonly name = 'GlobalVariableCollector';
 
     collect(document: vscode.TextDocument, _parsed: ParsedDocument, context?: DiagnosticContext): vscode.Diagnostic[] {
+        const fileName = document.fileName || document.uri?.fsPath || document.uri?.path || '';
+        if (/\.h$/i.test(fileName)) {
+            return [];
+        }
+
         const cfg = vscode.workspace.getConfiguration('lpc');
-        if (cfg.get<boolean>('enableUnusedGlobalVarCheck') === false) {
+        if (!cfg.get<boolean>('enableUnusedGlobalVarCheck', false)) {
             return [];
         }
 
@@ -40,9 +45,10 @@ export class GlobalVariableCollector implements IDiagnosticCollector {
             const diag = new vscode.Diagnostic(
                 range,
                 `全局变量 '${symbol.name}' 未被使用`,
-                vscode.DiagnosticSeverity.Warning
+                vscode.DiagnosticSeverity.Hint
             );
             diag.code = 'unusedGlobalVar';
+            diag.tags = [vscode.DiagnosticTag.Unnecessary];
             attachSymbolDiagnosticData(diag, 'global', createOffsetData(document, range));
             diagnostics.push(diag);
         }

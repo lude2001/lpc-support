@@ -272,12 +272,12 @@ describe('environment semantic providers', () => {
     test('registry dispatch prefers exact matching provider', async () => {
         const exactProvider: EnvironmentSemanticProvider = {
             id: 'exact-provider',
-            match: jest.fn((request) => request.calleeName === 'this_player' ? 'exact' : undefined),
+            match: jest.fn((request: any) => request.calleeName === 'this_player' ? 'exact' : undefined) as any,
             evaluate: jest.fn(async () => configuredCandidateSetValue('exact-provider', [objectValue('/exact.c')]))
         };
         const compatibleProvider: EnvironmentSemanticProvider = {
             id: 'compatible-provider',
-            match: jest.fn(() => 'compatible'),
+            match: jest.fn(() => 'compatible') as any,
             evaluate: jest.fn(async () => configuredCandidateSetValue('compatible-provider', [objectValue('/fallback.c')]))
         };
         const registry = new EnvironmentSemanticRegistry([compatibleProvider, exactProvider]);

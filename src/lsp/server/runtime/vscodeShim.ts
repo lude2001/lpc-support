@@ -186,6 +186,11 @@ export enum DiagnosticSeverity {
     Hint = 3
 }
 
+export enum DiagnosticTag {
+    Unnecessary = 1,
+    Deprecated = 2
+}
+
 export class Diagnostic {
     public code?: string | number;
     public source?: string;

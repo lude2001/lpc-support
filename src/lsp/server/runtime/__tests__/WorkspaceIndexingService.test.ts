@@ -117,7 +117,7 @@ describe('WorkspaceIndexingService', () => {
         };
         const service = new WorkspaceIndexingService({
             analysisService: {
-                getSemanticSnapshot: jest.fn()
+                getSemanticSnapshot: (jest.fn() as any)
             },
             pathSupport: pathSupport as any,
             projectSymbolIndex: projectSymbolIndex as any

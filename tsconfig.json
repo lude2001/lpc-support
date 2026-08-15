@@ -6,11 +6,12 @@
         "lib": ["ES2020", "DOM"],
         "sourceMap": true,
         "rootDir": "src",
-        "strict": true,
+        "strict": false,
         "isolatedModules": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "downlevelIteration": true
+        "downlevelIteration": true,
+        "types": ["jest", "node", "@types/vscode"]
     },
     "include": [
         "src/**/*"
@@ -19,9 +20,6 @@
         "node_modules",
         ".vscode-test",
         "tests/**/*",
-        "test-formatter.ts",
-        "**/*.test.ts",
-        "**/*.spec.ts",
-        "src/**/__tests__/**/*"
+        "test-formatter.ts"
     ]
 }

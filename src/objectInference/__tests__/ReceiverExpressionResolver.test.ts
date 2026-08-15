@@ -34,19 +34,19 @@ describe('ReceiverExpressionResolver', () => {
         const resolvedCandidates: ObjectCandidate[] = [{ path: '/obj/product.c', source: 'doc' }];
 
         const identifierTracer = {
-            traceIdentifierInFunction: jest.fn().mockResolvedValue({
+            traceIdentifierInFunction: (jest.fn() as any).mockResolvedValue({
                 candidates: tracedCandidates,
                 hasVisibleBinding: true
             })
         };
         const objectMethodReturnResolver = {
-            resolveMethodReturnOutcome: jest.fn().mockResolvedValue({
+            resolveMethodReturnOutcome: (jest.fn() as any).mockResolvedValue({
                 candidates: resolvedCandidates
             })
         };
         const resolver = new ReceiverExpressionResolver({
             returnObjectResolver: {
-                resolveExpressionOutcome: jest.fn().mockResolvedValue({ candidates: [] })
+                resolveExpressionOutcome: (jest.fn() as any).mockResolvedValue({ candidates: [] })
             } as any,
             objectMethodReturnResolver: objectMethodReturnResolver as any,
             globalBindingResolver: {
@@ -55,7 +55,7 @@ describe('ReceiverExpressionResolver', () => {
             inheritedGlobalBindingResolver: {
                 resolveInheritedBinding: jest.fn()
             } as any,
-            identifierTracer
+            identifierTracer: identifierTracer as any
         });
 
         const result = await resolver.resolveSourceExpression(
@@ -103,7 +103,7 @@ describe('ReceiverExpressionResolver', () => {
         };
         const resolver = new ReceiverExpressionResolver({
             returnObjectResolver: {
-                resolveExpressionOutcome: jest.fn().mockResolvedValue({
+                resolveExpressionOutcome: (jest.fn() as any).mockResolvedValue({
                     candidates: naturalCandidates
                 })
             } as any,
@@ -114,7 +114,7 @@ describe('ReceiverExpressionResolver', () => {
             inheritedGlobalBindingResolver: {
                 resolveInheritedBinding: jest.fn()
             } as any,
-            identifierTracer
+            identifierTracer: identifierTracer as any
         });
 
         const result = await resolver.resolveSourceExpression(

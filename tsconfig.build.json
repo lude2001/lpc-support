@@ -1,0 +1,19 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "rootDir": "src",
+        "strict": true
+    },
+    "include": [
+        "src/**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        ".vscode-test",
+        "tests/**/*",
+        "test-formatter.ts",
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "src/**/__tests__/**/*"
+    ]
+}

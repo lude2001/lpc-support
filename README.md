@@ -213,7 +213,7 @@ get_actor(id)->query_name();
 常用设置：
 
 - `lpc.enableTypeChecking`：启用或关闭 `lpc.type.*` 类型检查诊断
-- `lpc.enableUnusedGlobalVarCheck`：启用或关闭未使用全局变量检查
+- `lpc.enableUnusedGlobalVarCheck`：启用或关闭未使用全局变量检查（默认关闭，以避免继承与头文件误报）
 - `lpc.enforceLocalVariableDeclarationAtBlockStart`：启用或关闭局部变量必须声明在块开头的检查
 - `lpc.format.indentSize`：格式化缩进宽度
 - `lpc.performance.debounceDelay`：诊断防抖延迟
