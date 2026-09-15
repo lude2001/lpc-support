@@ -249,6 +249,7 @@ fn index_file_with_parser(
         &source,
         &processed.macro_directives,
         &processed.initial_definitions,
+        &processed.includes,
     );
     IndexOutcome::Indexed
 }

@@ -5,9 +5,15 @@ use std::{
     time::Instant,
 };
 
-use lpc_preprocessor::{MacroDirectiveFact, MacroDirectiveKind};
+use lpc_preprocessor::{IncludeFact, MacroDirectiveFact, MacroDirectiveKind};
 use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, Parser, Tree};
+
+type PreprocessedEnvironment<'a> = (
+    &'a [MacroDirectiveFact],
+    &'a HashMap<String, String>,
+    &'a [IncludeFact],
+);
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Position {
@@ -132,6 +138,7 @@ struct Symbol {
     value_expressions: Vec<ExpressionFact>,
     has_body: bool,
     local: bool,
+    check_unused: bool,
     parameters: Vec<String>,
 }
 
@@ -179,6 +186,7 @@ struct FileAnalysis {
     symbols: Vec<Symbol>,
     type_definitions: Vec<TypeDefinition>,
     identifiers: Vec<std::ops::Range<usize>>,
+    value_references: Vec<std::ops::Range<usize>>,
     diagnostics: Vec<Diagnostic>,
     folding_ranges: Vec<FoldingRange>,
     calls: Vec<CallSite>,
@@ -267,6 +275,7 @@ pub struct AnalysisDatabase {
     simulated_efun_files: Vec<String>,
     instance_resolution_functions: HashMap<String, Vec<String>>,
     dependency_graph: RefCell<Option<DependencyGraph>>,
+    dependency_resolution_cache: RefCell<HashMap<String, bool>>,
     metrics: AnalysisMetrics,
 }
 
@@ -316,6 +325,7 @@ impl AnalysisDatabase {
 
     pub fn set_simulated_efun_files(&mut self, files: Vec<String>) {
         self.simulated_efun_files = files;
+        self.dependency_resolution_cache.borrow_mut().clear();
     }
 
     pub fn semantic_token_facts(&mut self, uri: &str) -> SemanticTokenFacts {
@@ -381,7 +391,7 @@ impl AnalysisDatabase {
         revision: u64,
         tree: &Tree,
         source: &str,
-        macro_environment: (&[MacroDirectiveFact], &HashMap<String, String>),
+        preprocessed_environment: PreprocessedEnvironment<'_>,
     ) {
         self.update_with_macro_environment(
             uri,
@@ -389,7 +399,7 @@ impl AnalysisDatabase {
             revision,
             tree,
             source,
-            Some(macro_environment),
+            Some(preprocessed_environment),
         );
     }
 
@@ -400,7 +410,7 @@ impl AnalysisDatabase {
         revision: u64,
         tree: &Tree,
         source: &str,
-        macro_environment: Option<(&[MacroDirectiveFact], &HashMap<String, String>)>,
+        preprocessed_environment: Option<PreprocessedEnvironment<'_>>,
     ) {
         if version < 0 && self.files.get(uri).is_some_and(|file| file.version >= 0) {
             return;
@@ -418,12 +428,14 @@ impl AnalysisDatabase {
         let type_definitions = collect_type_definitions(tree.root_node(), source);
         let mut identifiers = Vec::new();
         collect_identifiers(tree.root_node(), &mut identifiers);
+        let mut value_references = Vec::new();
+        collect_value_references(tree.root_node(), source, &mut value_references);
         let diagnostics = collect_diagnostics(tree, source);
         let folding_ranges = collect_folding_ranges(tree, source);
         let mut calls = Vec::new();
         collect_calls(tree.root_node(), source, &mut calls);
-        let macro_directives = macro_environment.map(|environment| environment.0);
-        let predefined_macros = macro_environment.map(|environment| environment.1);
+        let macro_directives = preprocessed_environment.map(|environment| environment.0);
+        let predefined_macros = preprocessed_environment.map(|environment| environment.1);
         let mut initial_macro_hashes = predefined_macros
             .into_iter()
             .flat_map(|definitions| definitions.keys().map(|name| macro_name_hash(name)))
@@ -448,7 +460,8 @@ impl AnalysisDatabase {
             collect_macro_generated_symbols(source, &calls, &expansion_macros, &mut symbols);
         let mut assignments = Vec::new();
         collect_assignments(tree.root_node(), source, &mut assignments);
-        let dependencies = collect_dependencies(tree.root_node(), source);
+        let active_includes = preprocessed_environment.map(|environment| environment.2);
+        let dependencies = collect_dependencies(tree.root_node(), source, active_includes);
         let inherits = collect_inherits(tree.root_node(), source);
         self.files.insert(
             uri.to_owned(),
@@ -459,6 +472,7 @@ impl AnalysisDatabase {
                 symbols,
                 type_definitions,
                 identifiers,
+                value_references,
                 diagnostics,
                 folding_ranges,
                 calls,
@@ -476,7 +490,7 @@ impl AnalysisDatabase {
                     })
                     .collect(),
                 initial_macro_hashes,
-                macro_tracking_precise: macro_environment.is_some(),
+                macro_tracking_precise: preprocessed_environment.is_some(),
                 macro_generated_symbols,
             },
         );
@@ -499,6 +513,7 @@ impl AnalysisDatabase {
         source: &str,
         macro_directives: &[MacroDirectiveFact],
         predefined_macros: &HashMap<String, String>,
+        active_includes: &[IncludeFact],
     ) {
         self.update_preprocessed(
             uri,
@@ -506,7 +521,7 @@ impl AnalysisDatabase {
             0,
             tree,
             source,
-            (macro_directives, predefined_macros),
+            (macro_directives, predefined_macros, active_includes),
         );
     }
 
@@ -559,6 +574,23 @@ impl AnalysisDatabase {
             return Vec::new();
         };
         let visible = self.visible_uris(uri);
+        let mut known_symbol_uris = visible.clone();
+        for path in &self.simulated_efun_files {
+            for entry_uri in self.path_target_uris(uri, path) {
+                known_symbol_uris.extend(self.visible_uris(&entry_uri));
+            }
+        }
+        let suppress_undefined_diagnostics = uri_path_ends_with(uri, ".h")
+            || self.is_textually_included_file(uri)
+            || !self.dependencies_fully_resolved(uri)
+            || file.calls.iter().any(|call| {
+                file.macros.iter().any(|definition| {
+                    definition.function_like
+                        && definition.name == call.name
+                        && definition.selection.start <= call.range.start
+                        && call.range.start < definition.active_until
+                })
+            });
         let mut diagnostics = file.diagnostics.clone();
         diagnostics.extend(file_name_diagnostics(uri));
         if self.type_checking_enabled == Some(false) {
@@ -570,6 +602,7 @@ impl AnalysisDatabase {
         for symbol in file.symbols.iter().filter(|symbol| {
             symbol.local
                 && !symbol.name.starts_with('_')
+                && symbol.check_unused
                 && (symbol.kind == SymbolKind::Variable
                     || (self.unused_parameter_check_enabled
                         && symbol.kind == SymbolKind::Parameter))
@@ -640,6 +673,32 @@ impl AnalysisDatabase {
             } else {
                 &[]
             };
+            let known_non_callable_symbol = self
+                .files
+                .iter()
+                .filter(|(candidate_uri, _)| known_symbol_uris.contains(candidate_uri.as_str()))
+                .flat_map(|(_, candidate)| candidate.symbols.iter())
+                .any(|symbol| symbol.name == call.name);
+            let known_macro = self
+                .resolve_macro_definition(uri, &call.name, call.range.start)
+                .is_some()
+                || self.predefined_macros.contains_key(&call.name);
+            if signatures.is_empty()
+                && external_signatures.is_empty()
+                && !known_non_callable_symbol
+                && !known_macro
+                && !is_known_lpc_name(&call.name)
+                && !suppress_undefined_diagnostics
+            {
+                diagnostics.push(Diagnostic {
+                    range: byte_range_to_lsp(&file.source, call.range.clone()),
+                    severity: 2,
+                    code: "lpc.undefinedFunction",
+                    source: "lpc-support",
+                    message: format!("未定义函数: {}", call.name),
+                });
+                continue;
+            }
             let accepts_source_signature = signatures
                 .iter()
                 .any(|signature| accepts_arguments(signature, call.argument_count));
@@ -665,7 +724,110 @@ impl AnalysisDatabase {
                 });
             }
         }
+        if !suppress_undefined_diagnostics {
+            let known_nonlocal_names = known_symbol_uris
+                .iter()
+                .filter_map(|candidate_uri| self.files.get(candidate_uri))
+                .flat_map(|candidate| candidate.symbols.iter())
+                .filter(|symbol| !symbol.local)
+                .map(|symbol| symbol.name.as_str())
+                .collect::<HashSet<_>>();
+            for reference in &file.value_references {
+                if file.calls.iter().any(|call| call.range == *reference) {
+                    continue;
+                }
+                let Some(name) = file.source.get(reference.clone()) else {
+                    continue;
+                };
+                let known_workspace_macro = self
+                    .dependency_graph()
+                    .macro_locations
+                    .get(name)
+                    .is_some_and(|locations| {
+                        locations
+                            .iter()
+                            .any(|(macro_uri, _)| uri_path_ends_with(macro_uri, ".h"))
+                    });
+                if is_known_lpc_name(name)
+                    || is_fluffos_predefined_macro(name)
+                    || self.external_functions.contains_key(name)
+                    || known_nonlocal_names.contains(name)
+                    || !resolved_symbols(file, name, reference.start).is_empty()
+                    || self
+                        .resolve_macro_definition(uri, name, reference.start)
+                        .is_some()
+                    || self.predefined_macros.contains_key(name)
+                    || (known_workspace_macro
+                        && !self.macro_is_locally_undefined(uri, name, reference.start))
+                {
+                    continue;
+                }
+                diagnostics.push(Diagnostic {
+                    range: byte_range_to_lsp(&file.source, reference.clone()),
+                    severity: 2,
+                    code: "lpc.undefinedSymbol",
+                    source: "lpc-support",
+                    message: format!("未定义符号: {name}"),
+                });
+            }
+        }
         diagnostics
+    }
+
+    fn dependencies_fully_resolved(&self, origin_uri: &str) -> bool {
+        let mut roots = vec![origin_uri.to_owned()];
+        for path in &self.simulated_efun_files {
+            let targets = self.path_target_uris(origin_uri, path);
+            if targets.is_empty() {
+                return false;
+            }
+            roots.extend(targets);
+        }
+        let mut visiting = HashSet::new();
+        roots
+            .iter()
+            .all(|uri| self.file_dependencies_fully_resolved(uri, &mut visiting))
+    }
+
+    fn is_textually_included_file(&self, uri: &str) -> bool {
+        let graph = self.dependency_graph();
+        graph.reverse.get(uri).is_some_and(|consumers| {
+            consumers.iter().any(|consumer| {
+                !graph
+                    .inherit_forward
+                    .get(consumer)
+                    .is_some_and(|inherited| inherited.contains(uri))
+            })
+        })
+    }
+
+    fn file_dependencies_fully_resolved(&self, uri: &str, visiting: &mut HashSet<String>) -> bool {
+        if let Some(resolved) = self.dependency_resolution_cache.borrow().get(uri) {
+            return *resolved;
+        }
+        if !visiting.insert(uri.to_owned()) {
+            return true;
+        }
+        let resolved = self.files.get(uri).is_some_and(|file| {
+            file.dependencies
+                .iter()
+                .chain(&self.global_includes)
+                .all(|dependency| {
+                    let resolved_path = self
+                        .resolve_path_token(dependency)
+                        .unwrap_or_else(|| dependency.clone());
+                    let targets = self.path_target_uris(uri, &resolved_path);
+                    !targets.is_empty()
+                        && targets
+                            .iter()
+                            .all(|target| self.file_dependencies_fully_resolved(target, visiting))
+                })
+        });
+        visiting.remove(uri);
+        self.dependency_resolution_cache
+            .borrow_mut()
+            .insert(uri.to_owned(), resolved);
+        resolved
     }
 
     pub fn document_variables(&mut self, uri: &str) -> Vec<VariableEntry> {
@@ -692,6 +854,7 @@ impl AnalysisDatabase {
                     range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
                     local: symbol.local,
                     unused: symbol.local
+                        && symbol.check_unused
                         && symbol.kind == SymbolKind::Variable
                         && !symbol.name.starts_with('_')
                         && reference_count <= 1,
@@ -1823,6 +1986,7 @@ impl AnalysisDatabase {
 
     fn invalidate_dependency_graph(&self) {
         *self.dependency_graph.borrow_mut() = None;
+        self.dependency_resolution_cache.borrow_mut().clear();
     }
 
     fn dependency_graph(&self) -> Ref<'_, DependencyGraph> {
@@ -3254,9 +3418,24 @@ fn common_object_method_snippet(name: &str) -> String {
     }
 }
 
-fn collect_dependencies(root: Node<'_>, source: &str) -> Vec<String> {
+fn collect_dependencies(
+    root: Node<'_>,
+    source: &str,
+    active_includes: Option<&[IncludeFact]>,
+) -> Vec<String> {
     let mut dependencies = Vec::new();
     collect_syntax_dependencies(root, source, &mut dependencies);
+    if let Some(active_includes) = active_includes {
+        dependencies.extend(active_includes.iter().map(|include| include.path.clone()));
+    } else {
+        collect_raw_include_dependencies(source, &mut dependencies);
+    }
+    dependencies.sort();
+    dependencies.dedup();
+    dependencies
+}
+
+fn collect_raw_include_dependencies(source: &str, dependencies: &mut Vec<String>) {
     for line in source.lines() {
         let trimmed = line.trim_start();
         let Some(arguments) = trimmed.strip_prefix("#include") else {
@@ -3275,9 +3454,6 @@ fn collect_dependencies(root: Node<'_>, source: &str) -> Vec<String> {
             dependencies.push(value.to_owned());
         }
     }
-    dependencies.sort();
-    dependencies.dedup();
-    dependencies
 }
 
 fn collect_syntax_dependencies(node: Node<'_>, source: &str, output: &mut Vec<String>) {
@@ -3870,6 +4046,7 @@ fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                         value_expressions: Vec::new(),
                         has_body: false,
                         local: false,
+                        check_unused: false,
                         parameters: Vec::new(),
                     });
                 }
@@ -3961,6 +4138,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
         value_expressions: Vec::new(),
         has_body,
         local: false,
+        check_unused: false,
         parameters: parameter_details,
     });
 
@@ -3982,6 +4160,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                     value_expressions: Vec::new(),
                     has_body,
                     local: true,
+                    check_unused: true,
                     parameters: Vec::new(),
                 });
             }
@@ -4022,6 +4201,15 @@ fn collect_local_variables(
     scope: std::ops::Range<usize>,
     output: &mut Vec<Symbol>,
 ) {
+    if node.kind() == "anonymous_function" {
+        collect_anonymous_function_parameters(node, source, output);
+        let anonymous_scope = node.byte_range();
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            collect_local_variables(child, source, anonymous_scope.clone(), output);
+        }
+        return;
+    }
     if node.kind() == "foreach_statement" {
         collect_foreach_variables(node, source, output);
     }
@@ -4036,6 +4224,37 @@ fn collect_local_variables(
     }
 }
 
+fn collect_anonymous_function_parameters(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
+    let Some(parameters) = node
+        .named_child(0)
+        .filter(|child| child.kind() == "parameter_list")
+    else {
+        return;
+    };
+    let mut cursor = parameters.walk();
+    for parameter in parameters.named_children(&mut cursor) {
+        let Some(name) = parameter.child_by_field_name("name") else {
+            continue;
+        };
+        output.push(Symbol {
+            name: text(name, source),
+            kind: SymbolKind::Parameter,
+            selection: name.byte_range(),
+            declaration: parameter.byte_range(),
+            scope: node.byte_range(),
+            detail: text(parameter, source),
+            documentation: None,
+            return_objects: Vec::new(),
+            return_expressions: Vec::new(),
+            value_expressions: Vec::new(),
+            has_body: true,
+            local: true,
+            check_unused: false,
+            parameters: Vec::new(),
+        });
+    }
+}
+
 fn collect_foreach_variables(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
     let mut cursor = node.walk();
     let children = node.named_children(&mut cursor).collect::<Vec<_>>();
@@ -4044,7 +4263,7 @@ fn collect_foreach_variables(node: Node<'_>, source: &str, output: &mut Vec<Symb
         .filter(|child| child.kind() == "foreach_variable")
         .copied()
         .collect::<Vec<_>>();
-    if variables.len() != 1 {
+    if variables.is_empty() {
         return;
     }
     let Some(iterable) = children
@@ -4054,31 +4273,38 @@ fn collect_foreach_variables(node: Node<'_>, source: &str, output: &mut Vec<Symb
     else {
         return;
     };
-    let variable = variables[0];
-    let mut variable_cursor = variable.walk();
-    let Some(name) = variable
-        .named_children(&mut variable_cursor)
-        .find(|child| child.kind() == "identifier")
-    else {
-        return;
-    };
-    output.push(Symbol {
-        name: text(name, source),
-        kind: SymbolKind::Variable,
-        selection: name.byte_range(),
-        declaration: variable.byte_range(),
-        scope: node.byte_range(),
-        detail: text(variable, source),
-        documentation: None,
-        return_objects: Vec::new(),
-        return_expressions: Vec::new(),
-        value_expressions: vec![ExpressionFact {
-            range: iterable.byte_range(),
-        }],
-        has_body: false,
-        local: true,
-        parameters: Vec::new(),
-    });
+    let single_variable = variables.len() == 1;
+    for variable in variables {
+        let mut variable_cursor = variable.walk();
+        let Some(name) = variable
+            .named_children(&mut variable_cursor)
+            .filter(|child| child.kind() == "identifier")
+            .last()
+        else {
+            continue;
+        };
+        output.push(Symbol {
+            name: text(name, source),
+            kind: SymbolKind::Variable,
+            selection: name.byte_range(),
+            declaration: variable.byte_range(),
+            scope: node.byte_range(),
+            detail: text(variable, source),
+            documentation: None,
+            return_objects: Vec::new(),
+            return_expressions: Vec::new(),
+            value_expressions: single_variable
+                .then(|| ExpressionFact {
+                    range: iterable.byte_range(),
+                })
+                .into_iter()
+                .collect(),
+            has_body: false,
+            local: true,
+            check_unused: single_variable,
+            parameters: Vec::new(),
+        });
+    }
 }
 
 fn collect_variable_declaration(
@@ -4120,6 +4346,7 @@ fn collect_variable_declaration(
                     || node
                         .parent()
                         .is_some_and(|parent| parent.kind() != "source_file"),
+                check_unused: true,
                 parameters: Vec::new(),
             });
         }
@@ -4134,6 +4361,51 @@ fn collect_identifiers(node: Node<'_>, output: &mut Vec<std::ops::Range<usize>>)
     for child in node.named_children(&mut cursor) {
         collect_identifiers(child, output);
     }
+}
+
+fn collect_value_references(
+    node: Node<'_>,
+    source: &str,
+    output: &mut Vec<std::ops::Range<usize>>,
+) {
+    if node.kind() == "identifier" && identifier_is_value_reference(node, source) {
+        output.push(node.byte_range());
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_value_references(child, source, output);
+    }
+}
+
+fn identifier_is_value_reference(identifier: Node<'_>, source: &str) -> bool {
+    let Some(parent) = identifier.parent() else {
+        return false;
+    };
+    if parent.is_error() {
+        return false;
+    }
+    if source
+        .get(identifier.end_byte()..)
+        .is_some_and(|tail| tail.trim_start().starts_with("::"))
+    {
+        return false;
+    }
+    !matches!(
+        parent.kind(),
+        "function_declaration"
+            | "variable_declaration"
+            | "variable_declarator"
+            | "parameter"
+            | "struct_declaration"
+            | "class_declaration"
+            | "field_declaration"
+            | "foreach_variable"
+            | "member_suffix"
+            | "struct_initializer"
+            | "inherit_declaration"
+            | "include_declaration"
+            | "macro_concatenation"
+    )
 }
 
 fn collect_calls(node: Node<'_>, source: &str, output: &mut Vec<CallSite>) {
@@ -4382,6 +4654,142 @@ fn accepts_arguments(symbol: &Symbol, argument_count: usize) -> bool {
         .iter()
         .any(|parameter| parameter.contains("..."));
     argument_count >= required && (variadic || argument_count <= symbol.parameters.len())
+}
+
+fn is_known_lpc_name(name: &str) -> bool {
+    matches!(
+        name,
+        "array"
+            | "buffer"
+            | "class"
+            | "closure"
+            | "float"
+            | "function"
+            | "int"
+            | "lwobject"
+            | "mapping"
+            | "mixed"
+            | "object"
+            | "status"
+            | "string"
+            | "struct"
+            | "symbol"
+            | "void"
+            | "any"
+            | "bytes"
+            | "unknown"
+            | "true"
+            | "false"
+            | "null"
+            | "undefined"
+            | "this_object"
+            | "this_player"
+            | "previous_object"
+            | "environment"
+            | "call_other"
+    )
+}
+
+fn is_fluffos_predefined_macro(name: &str) -> bool {
+    if name.ends_with("__")
+        && ["__CFG_", "__HAVE_", "__PACKAGE_"]
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+    {
+        return true;
+    }
+    matches!(
+        name,
+        "FLUFFOS"
+            | "HAS_DEBUG_LEVEL"
+            | "HAS_ED"
+            | "HAS_PRINTF"
+            | "HAS_RUSAGE"
+            | "MAX_FLOAT"
+            | "MAX_INT"
+            | "MIN_FLOAT"
+            | "MIN_INT"
+            | "MUDOS"
+            | "MUD_NAME"
+            | "SIZEOFINT"
+            | "__ARCH__"
+            | "__ARGUMENTS_IN_TRACEBACK__"
+            | "__ARRAY_STATS__"
+            | "__AUTO_SETEUID__"
+            | "__CACHE_STATS__"
+            | "__CALLOUT_HANDLES__"
+            | "__CALL_OTHER_TYPE_CHECK__"
+            | "__CALL_OTHER_WARN__"
+            | "__CLASS_STATS__"
+            | "__COMMAND_BUF_SIZE__"
+            | "__COMPILER__"
+            | "__CXXFLAGS__"
+            | "__DEBUG_MACRO__"
+            | "__DEBUG__"
+            | "__DEFAULT_DB__"
+            | "__DEFAULT_PRAGMAS__"
+            | "__DIR__"
+            | "__DSLIB__"
+            | "__DWLIB__"
+            | "__ED_INDENT_SPACES__"
+            | "__ED_TAB_WIDTH__"
+            | "__FILE__"
+            | "__GET_CHAR_IS_BUFFERED__"
+            | "__HAS_CONSOLE__"
+            | "__INTERACTIVE_CATCH_TELL__"
+            | "__LARGEST_PRINTABLE_STRING__"
+            | "__LARGE_STRING_SIZE__"
+            | "__LAZY_RESETS__"
+            | "__LINE__"
+            | "__LOCALS_IN_TRACEBACK__"
+            | "__MAX_SAVE_SVALUE_DEPTH__"
+            | "__MUDLIB_ERROR_HANDLER__"
+            | "__NONINTERACTIVE_STDERR_WRITE__"
+            | "__NO_RESETS__"
+            | "__OLD_ED__"
+            | "__OLD_RANGE_BEHAVIOR__"
+            | "__OLD_TYPE_BEHAVIOR__"
+            | "__PACKAGES_PACKAGES_H__"
+            | "__PARSE_DEBUG__"
+            | "__PORT__"
+            | "__PRIVS__"
+            | "__PROJECT_VERSION__"
+            | "__RANDOMIZED_RESETS__"
+            | "__RECEIVE_SNOOP__"
+            | "__REF_RESERVED_WORD__"
+            | "__RESTRICTED_ED__"
+            | "__REVERSE_DEFER__"
+            | "__REVERSIBLE_EXPLODE_STRING__"
+            | "__SANE_EXPLODE_STRING__"
+            | "__SANE_SORTING__"
+            | "__SAVE_EXTENSION__"
+            | "__SAVE_GZ_EXTENSION__"
+            | "__SENSIBLE_MODIFIERS__"
+            | "__SMALL_STRING_SIZE__"
+            | "__SNOOP_SHADOWED__"
+            | "__STRING_STATS__"
+            | "__STRUCT_CLASS__"
+            | "__STRUCT_STRUCT__"
+            | "__SUPPRESS_ARGUMENT_WARNINGS__"
+            | "__THIS_PLAYER_IN_CALL_OUT__"
+            | "__TIME_WITH_SYS_TIME__"
+            | "__TRACE_CODE__"
+            | "__TRACE__"
+            | "__TRAP_CRASHES__"
+            | "__USE_32BIT_ADDRESSES__"
+            | "__USE_MYSQL__"
+            | "__USE_POSTGRES__"
+            | "__USE_SQLITE3__"
+            | "__VERSION__"
+            | "__WARN_OLD_RANGE_BEHAVIOR__"
+            | "__WOMBLES__"
+    )
+}
+
+fn uri_path_ends_with(uri: &str, suffix: &str) -> bool {
+    uri.split(['?', '#'])
+        .next()
+        .is_some_and(|path| path.to_ascii_lowercase().ends_with(suffix))
 }
 
 fn collect_diagnostics(tree: &Tree, source: &str) -> Vec<Diagnostic> {
@@ -6509,7 +6917,11 @@ mod tests {
             1,
             &tree,
             source,
-            (&processed.macro_directives, &processed.initial_definitions),
+            (
+                &processed.macro_directives,
+                &processed.initial_definitions,
+                &processed.includes,
+            ),
         );
         let header_source = "#define HEADER_FLAG 1\n";
         let header_tree = parser.parse(header_source, None).unwrap();
@@ -6533,6 +6945,60 @@ mod tests {
         assert_eq!(scopes.len(), 1);
         assert_eq!(scopes[0].start, source.find("flags.h").unwrap());
         assert_eq!(scopes[0].end, source.len());
+    }
+
+    #[test]
+    fn excludes_inactive_includes_from_the_dependency_graph() {
+        let source = concat!(
+            "#if 0\n",
+            "#include <disabled.h>\n",
+            "#endif\n",
+            "#include <active.h>\n",
+            "void demo() {}\n",
+        );
+        let processed = lpc_preprocessor::Preprocessor::default().process(source);
+        assert_eq!(processed.includes.len(), 1);
+        assert_eq!(processed.includes[0].path, "active.h");
+
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(&processed.text, None).unwrap();
+        let mut database = AnalysisDatabase::default();
+        database.set_workspace_resolution(Vec::new(), vec!["include".to_owned()], HashMap::new());
+        database.update_preprocessed(
+            "file:///demo.c",
+            1,
+            1,
+            &tree,
+            source,
+            (
+                &processed.macro_directives,
+                &processed.initial_definitions,
+                &processed.includes,
+            ),
+        );
+
+        for header in ["active.h", "disabled.h"] {
+            let header_source = "void helper() {}\n";
+            let header_tree = parser.parse(header_source, None).unwrap();
+            database.index_source(
+                &format!("file:///include/{header}"),
+                &header_tree,
+                header_source,
+            );
+        }
+
+        assert_eq!(
+            database.dependent_uris("file:///include/active.h"),
+            vec!["file:///demo.c"]
+        );
+        assert!(
+            database
+                .dependent_uris("file:///include/disabled.h")
+                .is_empty()
+        );
     }
 
     #[test]
@@ -6669,7 +7135,11 @@ mod tests {
             1,
             &tree,
             source,
-            (&processed.macro_directives, &processed.initial_definitions),
+            (
+                &processed.macro_directives,
+                &processed.initial_definitions,
+                &processed.includes,
+            ),
         );
 
         assert!(
@@ -6743,7 +7213,11 @@ mod tests {
             1,
             &tree,
             source,
-            (&processed.macro_directives, &processed.initial_definitions),
+            (
+                &processed.macro_directives,
+                &processed.initial_definitions,
+                &processed.includes,
+            ),
         );
 
         let before = source.find("ACTIVE;").unwrap();
@@ -7155,6 +7629,251 @@ mod tests {
             diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
+        );
+    }
+
+    #[test]
+    fn reports_only_genuinely_unknown_direct_function_calls() {
+        let source = concat!(
+            "void local_helper() {}\n",
+            "void demo(object target) {\n",
+            "    local_helper();\n",
+            "    sizeof(({ 1 }));\n",
+            "    target->missing_member();\n",
+            "    missing_call();\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        database.set_external_functions(vec![ExternalFunction {
+            name: "sizeof".to_owned(),
+            summary: None,
+            signatures: vec![ExternalSignature {
+                label: "int sizeof(mixed value)".to_owned(),
+                parameters: vec!["mixed value".to_owned()],
+                minimum_arguments: 1,
+                maximum_arguments: Some(1),
+            }],
+        }]);
+
+        let undefined = database
+            .diagnostics("file:///demo.c")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "lpc.undefinedFunction")
+            .collect::<Vec<_>>();
+        assert_eq!(undefined.len(), 1);
+        assert_eq!(undefined[0].message, "未定义函数: missing_call");
+    }
+
+    #[test]
+    fn reports_only_genuinely_unknown_value_symbols() {
+        let source = concat!(
+            "struct Payload { int value; }\n",
+            "int global_value;\n",
+            "void demo(object target) {\n",
+            "    struct Payload payload;\n",
+            "    int local_value = global_value;\n",
+            "    local_value;\n",
+            "    payload.value;\n",
+            "    target->missing_member;\n",
+            "    missing_value;\n",
+            "    missing_call();\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        let diagnostics = database.diagnostics("file:///demo.c");
+        let undefined_symbols = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "lpc.undefinedSymbol")
+            .collect::<Vec<_>>();
+        assert_eq!(undefined_symbols.len(), 1);
+        assert_eq!(undefined_symbols[0].message, "未定义符号: missing_value");
+        assert_eq!(
+            diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == "lpc.undefinedFunction")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn resolves_all_variables_in_mapping_foreach_bindings() {
+        let source = concat!(
+            "void demo(mapping values) {\n",
+            "    foreach (string key, int value in values) {\n",
+            "        key;\n",
+            "        value;\n",
+            "    }\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| {
+                    diagnostic.code != "lpc.undefinedSymbol" && diagnostic.code != "unusedVar"
+                })
+        );
+    }
+
+    #[test]
+    fn resolves_anonymous_function_parameters_and_named_inherit_qualifiers() {
+        let source = concat!(
+            "inherit char \"/std/char\";\n",
+            "void demo(object * items) {\n",
+            "    filter_array(items, function(object item, string kind) {\n",
+            "        return item && kind;\n",
+            "    }, \"weapon\");\n",
+            "    char::query(\"name\");\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let inherited_source = "mixed query(string name) { return 0; }\n";
+        let inherited_tree = parser.parse(inherited_source, None).unwrap();
+        database.index_source("file:///std/char.c", &inherited_tree, inherited_source);
+
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.undefinedSymbol")
+        );
+    }
+
+    #[test]
+    fn honors_macro_source_order_for_undefined_symbols() {
+        let source = concat!(
+            "#define TEMP_VALUE 1\n",
+            "void demo() {\n",
+            "    TEMP_VALUE;\n",
+            "#undef TEMP_VALUE\n",
+            "    TEMP_VALUE;\n",
+            "}\n",
+        );
+        let processed = lpc_preprocessor::Preprocessor::default().process(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(&processed.text, None).unwrap();
+        let mut database = AnalysisDatabase::default();
+        database.update_preprocessed(
+            "file:///demo.c",
+            1,
+            1,
+            &tree,
+            source,
+            (
+                &processed.macro_directives,
+                &processed.initial_definitions,
+                &processed.includes,
+            ),
+        );
+
+        let undefined = database
+            .diagnostics("file:///demo.c")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "lpc.undefinedSymbol")
+            .collect::<Vec<_>>();
+        assert_eq!(undefined.len(), 1);
+        assert_eq!(undefined[0].range.start.line, 4);
+    }
+
+    #[test]
+    fn recognizes_functions_from_resolved_include_dependencies() {
+        let source = "#include <helpers.h>\nvoid demo() { helper(); }\n";
+        let mut database = database(source);
+        database.set_workspace_resolution(Vec::new(), vec!["include".to_owned()], HashMap::new());
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let header_source = "void helper() {}\n";
+        let header_tree = parser.parse(header_source, None).unwrap();
+        database.index_source("file:///include/helpers.h", &header_tree, header_source);
+
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.undefinedFunction")
+        );
+    }
+
+    #[test]
+    fn suppresses_undefined_calls_while_dependencies_are_unresolved() {
+        let source = "inherit MISSING_BASE;\nvoid demo() { missing_call(); }\n";
+        let mut database = database(source);
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.undefinedFunction")
+        );
+    }
+
+    #[test]
+    fn suppresses_context_dependent_undefined_calls_in_headers() {
+        let source = "void configure() { consumer_supplied_helper(); }\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut database = AnalysisDatabase::default();
+        database.update("file:///include/mixin.h", 1, 1, &tree, source);
+
+        assert!(
+            database
+                .diagnostics("file:///include/mixin.h")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.undefinedFunction")
+        );
+    }
+
+    #[test]
+    fn suppresses_context_dependent_calls_in_textually_included_c_files() {
+        let mixin_source = "void configure() { consumer_supplied_helper(); }\n";
+        let consumer_source = "#include <mixin.c>\nvoid consumer_supplied_helper() {}\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let mut database = AnalysisDatabase::default();
+        database.set_workspace_resolution(Vec::new(), vec!["include".to_owned()], HashMap::new());
+        for (uri, source) in [
+            ("file:///include/mixin.c", mixin_source),
+            ("file:///consumer.c", consumer_source),
+        ] {
+            let tree = parser.parse(source, None).unwrap();
+            database.update(uri, 1, 1, &tree, source);
+        }
+
+        assert!(
+            database
+                .diagnostics("file:///include/mixin.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.undefinedFunction")
+        );
+    }
+
+    #[test]
+    fn suppresses_undefined_calls_around_unexpanded_function_macros() {
+        let source = concat!(
+            "#define Wrap(value) value\n",
+            "void demo() { Wrap(missing_symbol); missing_call(); }\n",
+        );
+        let mut database = database(source);
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.undefinedFunction")
         );
     }
 

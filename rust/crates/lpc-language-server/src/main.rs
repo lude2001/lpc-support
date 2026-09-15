@@ -475,7 +475,11 @@ fn run(
                                 document.revision,
                                 &snapshot.tree,
                                 &document.text,
-                                (&snapshot.macro_directives, &snapshot.predefined_macros),
+                                (
+                                    &snapshot.macro_directives,
+                                    &snapshot.predefined_macros,
+                                    &snapshot.includes,
+                                ),
                             );
                             publish_diagnostics(
                                 &connection,
@@ -522,7 +526,11 @@ fn run(
                                 document.revision,
                                 &snapshot.tree,
                                 &document.text,
-                                (&snapshot.macro_directives, &snapshot.predefined_macros),
+                                (
+                                    &snapshot.macro_directives,
+                                    &snapshot.predefined_macros,
+                                    &snapshot.includes,
+                                ),
                             );
                             publish_diagnostics(
                                 &connection,
@@ -968,7 +976,11 @@ fn handle_notification(
                 document.revision,
                 &snapshot.tree,
                 &document.text,
-                (&snapshot.macro_directives, &snapshot.predefined_macros),
+                (
+                    &snapshot.macro_directives,
+                    &snapshot.predefined_macros,
+                    &snapshot.includes,
+                ),
             );
             publish_diagnostics(
                 connection,
@@ -993,7 +1005,11 @@ fn handle_notification(
                 document.revision,
                 &snapshot.tree,
                 &document.text,
-                (&snapshot.macro_directives, &snapshot.predefined_macros),
+                (
+                    &snapshot.macro_directives,
+                    &snapshot.predefined_macros,
+                    &snapshot.includes,
+                ),
             );
             publish_diagnostics(connection, uri.clone(), version, analysis.diagnostics(&uri))?;
         }
