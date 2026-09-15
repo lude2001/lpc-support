@@ -71,6 +71,7 @@ struct FileAnalysis {
     diagnostics: Vec<Diagnostic>,
     folding_ranges: Vec<FoldingRange>,
     calls: Vec<CallSite>,
+    dependencies: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -139,6 +140,7 @@ impl AnalysisDatabase {
         let folding_ranges = collect_folding_ranges(tree, source);
         let mut calls = Vec::new();
         collect_calls(tree.root_node(), source, &mut calls);
+        let dependencies = collect_dependencies(tree.root_node(), source);
         self.files.insert(
             uri.to_owned(),
             FileAnalysis {
@@ -150,6 +152,7 @@ impl AnalysisDatabase {
                 diagnostics,
                 folding_ranges,
                 calls,
+                dependencies,
             },
         );
         self.metrics.snapshot_build_count += 1;
@@ -189,6 +192,7 @@ impl AnalysisDatabase {
         let Some(file) = self.files.get(uri) else {
             return Vec::new();
         };
+        let visible = self.visible_uris(uri);
         let mut diagnostics = file.diagnostics.clone();
         for symbol in file.symbols.iter().filter(|symbol| {
             symbol.local
@@ -222,9 +226,11 @@ impl AnalysisDatabase {
             }
         }
         for call in &file.calls {
-            let signatures: Vec<_> = file
-                .symbols
+            let signatures: Vec<_> = self
+                .files
                 .iter()
+                .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
+                .flat_map(|(_, candidate)| candidate.symbols.iter())
                 .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == call.name)
                 .collect();
             let has_workspace_override = self.files.values().any(|candidate| {
@@ -293,8 +299,11 @@ impl AnalysisDatabase {
             }];
         }
 
-        self.files
+        let visible = self.visible_uris(uri);
+        let visible_locations = self
+            .files
             .iter()
+            .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
             .flat_map(|(candidate_uri, file)| {
                 file.symbols
                     .iter()
@@ -311,7 +320,35 @@ impl AnalysisDatabase {
                         range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
                     })
             })
-            .collect()
+            .collect::<Vec<_>>();
+        if !visible_locations.is_empty() {
+            return visible_locations;
+        }
+        let workspace_locations = self
+            .files
+            .iter()
+            .flat_map(|(candidate_uri, file)| {
+                file.symbols
+                    .iter()
+                    .filter(|symbol| {
+                        symbol.name == name
+                            && symbol.scope.start == 0
+                            && matches!(
+                                symbol.kind,
+                                SymbolKind::Function | SymbolKind::Variable | SymbolKind::Type
+                            )
+                    })
+                    .map(|symbol| Location {
+                        uri: candidate_uri.clone(),
+                        range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
+                    })
+            })
+            .collect::<Vec<_>>();
+        if workspace_locations.len() == 1 {
+            workspace_locations
+        } else {
+            Vec::new()
+        }
     }
 
     pub fn hover(&mut self, uri: &str, position: Position) -> Option<HoverResult> {
@@ -319,12 +356,22 @@ impl AnalysisDatabase {
         let (name, offset) = self.identifier_at(uri, position)?;
         let file = self.files.get(uri)?;
         let symbols = resolved_symbols(file, &name, offset);
-        let workspace_symbols = self
+        let visible = self.visible_uris(uri);
+        let mut workspace_symbols = self
             .files
-            .values()
-            .flat_map(|candidate| candidate.symbols.iter())
+            .iter()
+            .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
+            .flat_map(|(_, candidate)| candidate.symbols.iter())
             .filter(|symbol| symbol.name == name && symbol.scope.start == 0)
             .collect::<Vec<_>>();
+        if workspace_symbols.is_empty() {
+            workspace_symbols = self
+                .files
+                .values()
+                .flat_map(|candidate| candidate.symbols.iter())
+                .filter(|symbol| symbol.name == name && symbol.scope.start == 0)
+                .collect();
+        }
         let symbol = symbols
             .first()
             .copied()
@@ -364,6 +411,10 @@ impl AnalysisDatabase {
             return Vec::new();
         };
         let resolved = resolved_symbols(origin, &name, offset).first().copied();
+        if resolved.is_none() {
+            return Vec::new();
+        }
+        let related = self.related_uris(uri);
         let local_scope = resolved
             .filter(|symbol| symbol.local)
             .map(|symbol| symbol.scope.clone());
@@ -373,7 +424,13 @@ impl AnalysisDatabase {
             .collect();
         self.files
             .iter()
-            .filter(|(candidate_uri, _)| local_scope.is_none() || candidate_uri.as_str() == uri)
+            .filter(|(candidate_uri, _)| {
+                if local_scope.is_some() {
+                    candidate_uri.as_str() == uri
+                } else {
+                    related.contains(candidate_uri.as_str())
+                }
+            })
             .flat_map(|(candidate_uri, file)| {
                 let declaration_ranges = &declaration_ranges;
                 let local_scope = local_scope.clone();
@@ -469,12 +526,22 @@ impl AnalysisDatabase {
             .symbols
             .iter()
             .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name);
-        let workspace_symbols = self
+        let visible = self.visible_uris(uri);
+        let mut workspace_symbols = self
             .files
-            .values()
-            .flat_map(|candidate| candidate.symbols.iter())
+            .iter()
+            .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
+            .flat_map(|(_, candidate)| candidate.symbols.iter())
             .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name)
             .collect::<Vec<_>>();
+        if workspace_symbols.is_empty() {
+            workspace_symbols = self
+                .files
+                .values()
+                .flat_map(|candidate| candidate.symbols.iter())
+                .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name)
+                .collect();
+        }
         let symbol =
             local_symbol.or_else(|| (workspace_symbols.len() == 1).then(|| workspace_symbols[0]));
         let signatures = if let Some(symbol) = symbol {
@@ -558,6 +625,27 @@ impl AnalysisDatabase {
                 );
             }
         }
+        let visible = self.visible_uris(uri);
+        for symbol in self
+            .files
+            .iter()
+            .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
+            .flat_map(|(_, file)| file.symbols.iter())
+            .filter(|symbol| symbol.scope.start == 0)
+        {
+            candidates
+                .entry(symbol.name.clone())
+                .or_insert_with(|| CompletionCandidate {
+                    label: symbol.name.clone(),
+                    kind: if symbol.kind == SymbolKind::Function {
+                        3
+                    } else {
+                        6
+                    },
+                    detail: Some(symbol.detail.clone()),
+                    documentation: None,
+                });
+        }
         if prefix.len() >= 2 {
             for symbol in self
                 .files
@@ -617,6 +705,37 @@ impl AnalysisDatabase {
         let offset = lsp_position_to_byte(&file.source, position)?;
         let range = identifier_range(file, offset)?;
         Some((file.source.get(range)?.to_owned(), offset))
+    }
+
+    fn visible_uris(&self, origin_uri: &str) -> HashSet<String> {
+        let mut visible = HashSet::from([origin_uri.to_owned()]);
+        let mut pending = vec![origin_uri.to_owned()];
+        while let Some(uri) = pending.pop() {
+            let Some(file) = self.files.get(&uri) else {
+                continue;
+            };
+            for dependency in &file.dependencies {
+                for candidate_uri in self.files.keys() {
+                    if !visible.contains(candidate_uri)
+                        && dependency_matches(&uri, dependency, candidate_uri)
+                    {
+                        visible.insert(candidate_uri.clone());
+                        pending.push(candidate_uri.clone());
+                    }
+                }
+            }
+        }
+        visible
+    }
+
+    fn related_uris(&self, origin_uri: &str) -> HashSet<String> {
+        let mut related = self.visible_uris(origin_uri);
+        for candidate_uri in self.files.keys() {
+            if self.visible_uris(candidate_uri).contains(origin_uri) {
+                related.insert(candidate_uri.clone());
+            }
+        }
+        related
     }
 }
 
@@ -697,6 +816,68 @@ const KEYWORDS: &[&str] = &[
     "void",
     "while",
 ];
+
+fn collect_dependencies(root: Node<'_>, source: &str) -> Vec<String> {
+    let mut dependencies = Vec::new();
+    collect_syntax_dependencies(root, source, &mut dependencies);
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        let Some(arguments) = trimmed.strip_prefix("#include") else {
+            continue;
+        };
+        let arguments = arguments.trim();
+        if let Some(value) = arguments
+            .strip_prefix('"')
+            .and_then(|value| value.split_once('"').map(|(path, _)| path))
+            .or_else(|| {
+                arguments
+                    .strip_prefix('<')
+                    .and_then(|value| value.split_once('>').map(|(path, _)| path))
+            })
+        {
+            dependencies.push(value.to_owned());
+        }
+    }
+    dependencies.sort();
+    dependencies.dedup();
+    dependencies
+}
+
+fn collect_syntax_dependencies(node: Node<'_>, source: &str, output: &mut Vec<String>) {
+    if matches!(node.kind(), "inherit_declaration" | "include_declaration") {
+        let mut cursor = node.walk();
+        if let Some(value) = node
+            .named_children(&mut cursor)
+            .find(|child| child.kind() == "string_literal")
+            .and_then(|child| child.utf8_text(source.as_bytes()).ok())
+            .and_then(|value| value.strip_prefix('"')?.strip_suffix('"'))
+        {
+            output.push(value.to_owned());
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_syntax_dependencies(child, source, output);
+    }
+}
+
+fn dependency_matches(origin_uri: &str, dependency: &str, candidate_uri: &str) -> bool {
+    let mut dependency = dependency.replace('\\', "/");
+    if !dependency.ends_with(".c") && !dependency.ends_with(".h") {
+        dependency.push_str(".c");
+    }
+    let candidate = candidate_uri.replace('\\', "/");
+    if dependency.starts_with('/') {
+        return candidate.ends_with(&dependency);
+    }
+    let origin = origin_uri.replace('\\', "/");
+    if let Some((directory, _)) = origin.rsplit_once('/')
+        && candidate == format!("{directory}/{dependency}")
+    {
+        return true;
+    }
+    candidate.ends_with(&format!("/{dependency}"))
+}
 
 fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
     let mut cursor = root.walk();
@@ -1265,6 +1446,41 @@ mod tests {
                 .diagnostics("file:///demo.c")
                 .iter()
                 .all(|diagnostic| diagnostic.code != "lpc.argumentCountMismatch")
+        );
+    }
+
+    #[test]
+    fn prefers_inherit_graph_symbols_over_unrelated_workspace_matches() {
+        let child_source = "inherit \"/std/base\"; int demo() { return inherited(); }\n";
+        let mut database = database(child_source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, source) in [
+            ("file:///mud/std/base.c", "int inherited() { return 1; }\n"),
+            (
+                "file:///mud/other.c",
+                "int inherited(int value) { return value; }\n",
+            ),
+        ] {
+            let tree = parser.parse(source, None).unwrap();
+            database.index_source(uri, &tree, source);
+        }
+
+        let call = child_source.rfind("inherited").unwrap();
+        let definitions =
+            database.definition("file:///demo.c", byte_to_lsp_position(child_source, call));
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/base.c");
+        let completion = database.completion_candidates(
+            "file:///demo.c",
+            byte_to_lsp_position(child_source, child_source.len() - 1),
+        );
+        assert!(
+            completion
+                .iter()
+                .any(|candidate| candidate.label == "inherited")
         );
     }
 
