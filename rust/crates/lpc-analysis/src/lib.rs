@@ -109,6 +109,7 @@ pub struct AnalysisMetrics {
 pub struct AnalysisDatabase {
     files: HashMap<String, FileAnalysis>,
     external_functions: HashMap<String, ExternalFunction>,
+    type_checking_enabled: Option<bool>,
     metrics: AnalysisMetrics,
 }
 
@@ -118,6 +119,10 @@ impl AnalysisDatabase {
             .into_iter()
             .map(|function| (function.name.clone(), function))
             .collect();
+    }
+
+    pub fn set_type_checking_enabled(&mut self, enabled: bool) {
+        self.type_checking_enabled = Some(enabled);
     }
 
     pub fn update(&mut self, uri: &str, version: i32, revision: u64, tree: &Tree, source: &str) {
@@ -194,6 +199,9 @@ impl AnalysisDatabase {
         };
         let visible = self.visible_uris(uri);
         let mut diagnostics = file.diagnostics.clone();
+        if self.type_checking_enabled == Some(false) {
+            diagnostics.retain(|diagnostic| diagnostic.code != "lpc.typeMismatch");
+        }
         for symbol in file.symbols.iter().filter(|symbol| {
             symbol.local
                 && !symbol.name.starts_with('_')
@@ -1067,7 +1075,105 @@ fn accepts_arguments(symbol: &Symbol, argument_count: usize) -> bool {
 fn collect_diagnostics(tree: &Tree, source: &str) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     collect_error_nodes(tree.root_node(), source, &mut diagnostics, false);
+    collect_type_diagnostics(tree.root_node(), source, None, &mut diagnostics);
     diagnostics
+}
+
+fn collect_type_diagnostics(
+    node: Node<'_>,
+    source: &str,
+    return_type: Option<&str>,
+    output: &mut Vec<Diagnostic>,
+) {
+    let function_return_type = if node.kind() == "function_declaration" {
+        node.child_by_field_name("return_type")
+            .and_then(|value| value.utf8_text(source.as_bytes()).ok())
+            .or(return_type)
+    } else {
+        return_type
+    };
+    if node.kind() == "variable_declaration"
+        && let Some(expected) = node
+            .child_by_field_name("type")
+            .and_then(|value| value.utf8_text(source.as_bytes()).ok())
+    {
+        let mut cursor = node.walk();
+        for declarator in node
+            .named_children(&mut cursor)
+            .filter(|child| child.kind() == "variable_declarator")
+        {
+            if let Some(value) = declarator.child_by_field_name("value") {
+                report_type_mismatch(expected, value, source, output, "变量初始化");
+            }
+        }
+    }
+    if node.kind() == "return_statement"
+        && let Some(expected) = function_return_type
+    {
+        let mut cursor = node.walk();
+        if let Some(value) = node.named_children(&mut cursor).next() {
+            report_type_mismatch(expected, value, source, output, "返回值");
+        } else if expected.trim() != "void" {
+            output.push(Diagnostic {
+                range: byte_range_to_lsp(source, node.byte_range()),
+                severity: 2,
+                code: "lpc.typeMismatch",
+                source: "lpc-support",
+                message: format!("返回值类型不匹配: 期望 {}，实际 void", expected.trim()),
+            });
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_type_diagnostics(child, source, function_return_type, output);
+    }
+}
+
+fn report_type_mismatch(
+    expected: &str,
+    value: Node<'_>,
+    source: &str,
+    output: &mut Vec<Diagnostic>,
+    context: &str,
+) {
+    let Some(actual) = literal_type(value, source) else {
+        return;
+    };
+    if types_compatible(expected.trim(), actual) {
+        return;
+    }
+    output.push(Diagnostic {
+        range: byte_range_to_lsp(source, value.byte_range()),
+        severity: 2,
+        code: "lpc.typeMismatch",
+        source: "lpc-support",
+        message: format!(
+            "{context}类型不匹配: 期望 {}，实际 {actual}",
+            expected.trim()
+        ),
+    });
+}
+
+fn literal_type<'a>(node: Node<'_>, source: &'a str) -> Option<&'a str> {
+    match node.kind() {
+        "string_literal" | "concatenated_string" | "heredoc_literal" => Some("string"),
+        "character_literal" => Some("int"),
+        "number_literal" => node
+            .utf8_text(source.as_bytes())
+            .ok()
+            .map(|value| if value.contains('.') { "float" } else { "int" }),
+        "array_literal" => Some("mixed*"),
+        "mapping_literal" => Some("mapping"),
+        _ => None,
+    }
+}
+
+fn types_compatible(expected: &str, actual: &str) -> bool {
+    expected == "mixed"
+        || expected == actual
+        || (matches!(expected, "int" | "float" | "status")
+            && matches!(actual, "int" | "float" | "status"))
+        || (expected.ends_with('*') && actual == "mixed*")
 }
 
 fn collect_error_nodes(
@@ -1427,6 +1533,31 @@ mod tests {
             diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
+        );
+    }
+
+    #[test]
+    fn reports_only_statically_proven_literal_type_mismatches() {
+        let source = concat!(
+            "int count = \"wrong\";\n",
+            "string label = unknown_value;\n",
+            "int query() { return \"wrong\"; }\n",
+        );
+        let mut database = database(source);
+        let diagnostics = database.diagnostics("file:///demo.c");
+        assert_eq!(
+            diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == "lpc.typeMismatch")
+                .count(),
+            2
+        );
+        database.set_type_checking_enabled(false);
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.typeMismatch")
         );
     }
 

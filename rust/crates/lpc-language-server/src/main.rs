@@ -120,6 +120,7 @@ struct WorkspaceConfigSyncParams {
 struct WorkspaceConfigSnapshot {
     #[serde(default)]
     preprocessor_defines: Vec<String>,
+    enable_type_checking: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -249,6 +250,10 @@ fn run(
                 }
                 if request.method == "lpc/workspaceIndex/rebuild" {
                     let params: WorkspaceConfigSyncParams = serde_json::from_value(request.params)?;
+                    let type_checking_enabled = params
+                        .workspaces
+                        .iter()
+                        .all(|workspace| workspace.enable_type_checking.unwrap_or(true));
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
@@ -261,6 +266,10 @@ fn run(
                         .into_iter()
                         .map(PathBuf::from)
                         .collect();
+                    analysis
+                        .lock()
+                        .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?
+                        .set_type_checking_enabled(type_checking_enabled);
                     connection
                         .sender
                         .send(Message::Notification(Notification::new(
@@ -300,6 +309,10 @@ fn run(
                 if notification.method == "lpc/workspaceConfigSync" {
                     let params: WorkspaceConfigSyncParams =
                         serde_json::from_value(notification.params)?;
+                    let type_checking_enabled = params
+                        .workspaces
+                        .iter()
+                        .all(|workspace| workspace.enable_type_checking.unwrap_or(true));
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
@@ -312,6 +325,7 @@ fn run(
                         let mut database = analysis
                             .lock()
                             .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                        database.set_type_checking_enabled(type_checking_enabled);
                         for document in documents.iter() {
                             let snapshot = syntax.open(document)?;
                             database.invalidate(&document.uri);
