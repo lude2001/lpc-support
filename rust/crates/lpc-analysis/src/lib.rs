@@ -1085,13 +1085,20 @@ fn collect_type_diagnostics(
     return_type: Option<&str>,
     output: &mut Vec<Diagnostic>,
 ) {
-    let function_return_type = if node.kind() == "function_declaration" {
-        node.child_by_field_name("return_type")
-            .and_then(|value| value.utf8_text(source.as_bytes()).ok())
-            .or(return_type)
-    } else {
-        return_type
-    };
+    let declared_return_type = (node.kind() == "function_declaration")
+        .then(|| {
+            let return_node = node.child_by_field_name("return_type")?;
+            let base = return_node.utf8_text(source.as_bytes()).ok()?;
+            let name = node.child_by_field_name("name")?;
+            let pointers = source
+                .get(return_node.end_byte()..name.start_byte())?
+                .bytes()
+                .filter(|byte| *byte == b'*')
+                .count();
+            Some(format!("{base}{}", "*".repeat(pointers)))
+        })
+        .flatten();
+    let function_return_type = declared_return_type.as_deref().or(return_type);
     if node.kind() == "variable_declaration"
         && let Some(expected) = node
             .child_by_field_name("type")
@@ -1103,7 +1110,14 @@ fn collect_type_diagnostics(
             .filter(|child| child.kind() == "variable_declarator")
         {
             if let Some(value) = declarator.child_by_field_name("value") {
-                report_type_mismatch(expected, value, source, output, "变量初始化");
+                let name = declarator.child_by_field_name("name");
+                let pointers = name
+                    .and_then(|name| source.get(declarator.start_byte()..name.start_byte()))
+                    .map_or(0, |prefix| {
+                        prefix.bytes().filter(|byte| *byte == b'*').count()
+                    });
+                let expected = format!("{}{}", expected.trim(), "*".repeat(pointers));
+                report_type_mismatch(&expected, value, source, output, "变量初始化");
             }
         }
     }
