@@ -251,3 +251,5 @@ rust/
 工作区 6753 个源文件的语法审计耗时约 1.28 秒。后台索引刻意使用单线程并在文件间让出执行预算，完整墙钟时间约 14 秒，换取低性能 CPU 上不持续占满所有核心。正式发布结论仍应在目标低性能设备上重复采样 cold/warm p50、p95、CPU time 与峰值内存。
 
 探针现支持 `--perf-iterations`，并从 Rust 健康状态读取当前与峰值常驻内存。对真实 `/adm/daemons/restart_d.c` 的 `prepare_shutdown` 包装器链进行 30 次 warm 采样：semantic tokens p95 1.2 ms、definition p95 0.9 ms、references p95 3.8 ms、hover p95 0.9 ms、completion p95 1.1 ms，全部 0 超时，采样期间 parse 与 semantic rebuild 增量均为 0；索引 6753 个文件后的进程峰值常驻内存为 100.7 MiB。这是当前 Windows 主机的数据，仍不替代目标低性能设备的最终验收。
+
+当前 Windows x64 平台已完成一次干净打包和两次强制安装（第二次覆盖同版本以验证升级路径）。`lpc-support-win32-x64-0.52.13.vsix` 的 SHA-256 为 `840a99e6666d60f7e428bb405f48a2aea55ae74519bd5e6907929b2e92588d70`；VSIX 及安装目录均只包含 `dist/extension.js`、模板和 Rust sidecar，不包含 `dist/lsp/server.js`。安装后的 `lpc-language-server.exe` SHA-256 与构建记录一致，为 `f0fb3c93868606d4c43b16c58423a4b6c3bc486841850a88edc7ebaae8625800`，随后 stdio smoke 再次通过 initialize、健康检查、请求、shutdown 和 exit。其他目标平台仍由 CI 构建矩阵覆盖，尚未在本机执行安装生命周期。
