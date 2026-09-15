@@ -167,7 +167,13 @@ fn index_roots(
     generation: u64,
 ) -> WorkspaceIndexResult {
     let started_at = Instant::now();
-    let files = source_files(&roots);
+    let Some(files) = source_files_for_generation(&roots, &generation_counter, generation) else {
+        return WorkspaceIndexResult {
+            status: "cancelled",
+            duration_ms: started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
+            ..WorkspaceIndexResult::default()
+        };
+    };
     let mut result = WorkspaceIndexResult {
         status: "ready",
         total_files: files.len(),
@@ -186,6 +192,7 @@ fn index_roots(
 
     for path in files {
         if generation_counter.load(Ordering::Acquire) != generation {
+            result.status = "cancelled";
             result.skipped_files = result
                 .total_files
                 .saturating_sub(result.indexed_files + result.failed_files);
@@ -254,14 +261,24 @@ fn index_file_with_parser(
     IndexOutcome::Indexed
 }
 
-fn source_files(roots: &[PathBuf]) -> Vec<PathBuf> {
+fn source_files_for_generation(
+    roots: &[PathBuf],
+    generation_counter: &AtomicU64,
+    generation: u64,
+) -> Option<Vec<PathBuf>> {
     let mut files = Vec::new();
     let mut pending: Vec<_> = roots.iter().rev().cloned().collect();
     while let Some(directory) = pending.pop() {
+        if generation_counter.load(Ordering::Acquire) != generation {
+            return None;
+        }
         let Ok(entries) = fs::read_dir(directory) else {
             continue;
         };
         for entry in entries.flatten() {
+            if generation_counter.load(Ordering::Acquire) != generation {
+                return None;
+            }
             let path = entry.path();
             let Ok(file_type) = entry.file_type() else {
                 continue;
@@ -279,7 +296,7 @@ fn source_files(roots: &[PathBuf]) -> Vec<PathBuf> {
         }
     }
     files.sort();
-    files
+    Some(files)
 }
 
 fn ignored_directory(path: &Path) -> bool {
@@ -325,6 +342,31 @@ mod tests {
         assert!(!is_lpc_source(Path::new("package.json")));
         assert!(ignored_directory(Path::new("node_modules")));
         assert!(ignored_directory(Path::new("TARGET")));
+    }
+
+    #[test]
+    fn cancels_workspace_discovery_before_indexing_stale_generations() {
+        let analysis = Arc::new(Mutex::new(AnalysisDatabase::default()));
+        let generation = Arc::new(AtomicU64::new(2));
+        let result = index_roots(
+            vec![std::env::temp_dir()],
+            Vec::new(),
+            Vec::new(),
+            analysis,
+            generation,
+            1,
+        );
+
+        assert_eq!(result.status, "cancelled");
+        assert_eq!(result.indexed_files, 0);
+    }
+
+    #[test]
+    fn controller_cancel_invalidates_the_active_generation() {
+        let controller = WorkspaceIndexController::default();
+        let before = controller.generation.load(Ordering::Acquire);
+        controller.cancel();
+        assert_eq!(controller.generation.load(Ordering::Acquire), before + 1);
     }
 
     #[test]
