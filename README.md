@@ -427,6 +427,8 @@ object get_equipment(string type);
 
 ## 常见问题
 
+完整的原生语言服务器启动、索引、诊断、性能和打包排查流程见 [Rust LSP 故障排查](docs/rust-lsp-troubleshooting.md)。
+
 ### 宏或 include 无法识别
 
 检查 `lpc-support.json` 的 `configHellPath` 是否指向真实 driver 配置文件，并确认该配置中的 include 目录可以找到对应头文件。

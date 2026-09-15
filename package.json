@@ -534,6 +534,7 @@
     "language-configuration.json",
     "config/**",
     "docs/efun-arity-audit.md",
+    "docs/rust-lsp-troubleshooting.md",
     "README.md",
     "README.en.md",
     "CHANGELOG.md",

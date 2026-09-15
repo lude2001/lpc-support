@@ -398,6 +398,8 @@ object get_equipment(string type);
 
 ## FAQ
 
+For the full native language-server startup, indexing, diagnostics, performance, and packaging checklist, see [Rust LSP troubleshooting](docs/rust-lsp-troubleshooting.md).
+
 ### Macros Or Includes Are Not Recognized
 
 Check that `configHellPath` in `lpc-support.json` points to the real driver configuration file, and that the include directories in that configuration can find the target header files.

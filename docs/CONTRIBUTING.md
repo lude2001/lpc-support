@@ -100,5 +100,6 @@ TypeScript 可以负责：
 
 - [README](../README.md)
 - [Rust LSP 一次性重构实施计划](rust-lsp-implementation-plan.md)
+- [Rust LSP 故障排查](rust-lsp-troubleshooting.md)
 - [.spec-workflow/steering/tech.md](../.spec-workflow/steering/tech.md)
 - [.spec-workflow/steering/structure.md](../.spec-workflow/steering/structure.md)
