@@ -212,6 +212,14 @@ pub struct AnalysisMetrics {
     pub indexed_file_count: u64,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SemanticTokenFacts {
+    pub local_functions: HashSet<String>,
+    pub visible_functions: HashSet<String>,
+    pub simulated_functions: HashSet<String>,
+    pub external_functions: HashSet<String>,
+}
+
 #[derive(Debug, Default)]
 pub struct AnalysisDatabase {
     files: HashMap<String, FileAnalysis>,
@@ -223,6 +231,7 @@ pub struct AnalysisDatabase {
     search_efun_definition_in_inheritance_chain: bool,
     global_includes: Vec<String>,
     include_directories: Vec<String>,
+    simulated_efun_files: Vec<String>,
     instance_resolution_functions: HashMap<String, Vec<String>>,
     dependency_graph: RefCell<Option<DependencyGraph>>,
     metrics: AnalysisMetrics,
@@ -266,6 +275,52 @@ impl AnalysisDatabase {
         self.include_directories = include_directories;
         self.instance_resolution_functions = instance_resolution_functions;
         self.invalidate_dependency_graph();
+    }
+
+    pub fn set_simulated_efun_files(&mut self, files: Vec<String>) {
+        self.simulated_efun_files = files;
+    }
+
+    pub fn semantic_token_facts(&mut self, uri: &str) -> SemanticTokenFacts {
+        self.metrics.query_count += 1;
+        let local_functions = self
+            .files
+            .get(uri)
+            .into_iter()
+            .flat_map(|file| file.symbols.iter())
+            .filter(|symbol| symbol.kind == SymbolKind::Function)
+            .map(|symbol| symbol.name.clone())
+            .collect();
+        let visible = self.visible_uris(uri);
+        let indexed_files = &self.files;
+        let visible_functions = visible
+            .iter()
+            .filter_map(|candidate_uri| indexed_files.get(candidate_uri))
+            .flat_map(|file| file.symbols.iter())
+            .filter(|symbol| symbol.kind == SymbolKind::Function)
+            .map(|symbol| symbol.name.clone())
+            .collect();
+
+        let mut simulated_uris = HashSet::new();
+        for path in &self.simulated_efun_files {
+            for entry_uri in self.path_target_uris(uri, path) {
+                simulated_uris.extend(self.visible_uris(&entry_uri));
+            }
+        }
+        let simulated_functions = simulated_uris
+            .iter()
+            .filter_map(|candidate_uri| indexed_files.get(candidate_uri))
+            .flat_map(|file| file.symbols.iter())
+            .filter(|symbol| symbol.kind == SymbolKind::Function && !symbol.local)
+            .map(|symbol| symbol.name.clone())
+            .collect();
+
+        SemanticTokenFacts {
+            local_functions,
+            visible_functions,
+            simulated_functions,
+            external_functions: self.external_functions.keys().cloned().collect(),
+        }
     }
 
     pub fn update(&mut self, uri: &str, version: i32, revision: u64, tree: &Tree, source: &str) {
@@ -5149,6 +5204,36 @@ mod tests {
             Some(1)
         );
         assert!(!edits.contains_key("file:///mud/other.c"));
+    }
+
+    #[test]
+    fn exposes_semantic_token_facts_for_simulated_and_external_functions() {
+        let source =
+            "void local_helper() {}\nvoid demo() { local_helper(); simul_call(); sizeof(1); }\n";
+        let mut database = database(source);
+        database.set_external_functions(vec![ExternalFunction {
+            name: "sizeof".to_owned(),
+            summary: None,
+            signatures: Vec::new(),
+        }]);
+        database.set_simulated_efun_files(vec!["/adm/single/simul_efun".to_owned()]);
+
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let simulated_source = "void simul_call() {}\n";
+        let simulated_tree = parser.parse(simulated_source, None).unwrap();
+        database.index_source(
+            "file:///mud/adm/single/simul_efun.c",
+            &simulated_tree,
+            simulated_source,
+        );
+
+        let facts = database.semantic_token_facts("file:///demo.c");
+        assert!(facts.local_functions.contains("local_helper"));
+        assert!(facts.simulated_functions.contains("simul_call"));
+        assert!(facts.external_functions.contains("sizeof"));
     }
 
     #[test]

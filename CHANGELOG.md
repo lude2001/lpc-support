@@ -6,6 +6,7 @@
 
 ### Rust 语言服务器
 
+- `sizeof` 按最新版 FluffOS 的普通 efun 语义解析，不再作为支持类型操作数的特殊语法；Rust 语义高亮恢复驱动 efun，并新增对项目 `simulated efun file` 及其 include 函数的区分高亮，同时保留本地/继承函数遮蔽 efun 的规则。
 - Rust LSP 现已兑现 `lpc.searchEfunDefinitionInInheritanceChain` 与 `lpc.format.indentSize`；移除仅服务于旧 TypeScript 解析缓存/异步诊断实现、迁移后已无意义的 `lpc.performance.*` 设置。
 - 默认语言分析内核改为原生 Rust 进程，TypeScript 保留为 VS Code 激活、配置、命令和 UI 装配层。
 - 文档编辑采用增量 CST；诊断、语义高亮、符号、跳转、引用、重命名、补全、悬停、签名帮助和格式化共享版本化分析快照，避免查询时重复解析工作区。

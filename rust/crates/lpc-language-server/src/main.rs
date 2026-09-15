@@ -138,6 +138,7 @@ struct ResolvedConfigSnapshot {
     #[serde(default)]
     include_directories: Vec<String>,
     global_include_file: Option<String>,
+    simulated_efun_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -501,6 +502,11 @@ fn apply_workspace_resolution(
         .filter_map(|workspace| workspace.resolved_config.as_ref())
         .flat_map(|config| config.include_directories.iter().cloned())
         .collect();
+    let simulated_efun_files = workspaces
+        .iter()
+        .filter_map(|workspace| workspace.resolved_config.as_ref())
+        .filter_map(|config| config.simulated_efun_file.clone())
+        .collect();
     let mut instance_resolution_functions = HashMap::<String, Vec<String>>::new();
     for workspace in workspaces {
         for (name, paths) in &workspace.instance_resolution_functions {
@@ -519,6 +525,7 @@ fn apply_workspace_resolution(
         include_directories,
         instance_resolution_functions,
     );
+    database.set_simulated_efun_files(simulated_efun_files);
 }
 
 fn workspace_roots(value: Value) -> Vec<PathBuf> {
@@ -612,13 +619,15 @@ fn handle_request(
         let snapshot = syntax
             .get(&uri)
             .with_context(|| format!("semantic tokens requested without syntax for {uri}"))?;
+        let facts = analysis.semantic_token_facts(&uri);
         return send_ok(
             connection,
             request.id,
             json!({
                 "data": lpc_language_server::semantic_tokens::encode(
                     &snapshot.tree,
-                    &document.text
+                    &document.text,
+                    &facts
                 )
             }),
         );

@@ -84,14 +84,20 @@ function lexingMessages(source: string): string[] {
 }
 
 describe('LPC grammar coverage baseline', () => {
-    test('accepts sizeof expressions and type operands', () => {
+    test('accepts sizeof as an ordinary efun call', () => {
         const diagnostics = parseDiagnostics([
             'int demo(mixed value) {',
-            '    return sizeof(value) + sizeof(int);',
+            '    return sizeof(value);',
             '}'
         ].join('\n'));
 
         expect(diagnostics).toEqual([]);
+    });
+
+    test('rejects the removed sizeof type-operand extension', () => {
+        const diagnostics = parseDiagnostics('int demo() { return sizeof(int); }');
+
+        expect(diagnostics.length).toBeGreaterThan(0);
     });
 
     test('accepts missing compound assignment operators from the LPC outline', () => {
@@ -395,16 +401,6 @@ describe('LPC grammar coverage baseline', () => {
         expect(diagnostics).toEqual([]);
     });
 
-    test('accepts pointer type operands for sizeof', () => {
-        const diagnostics = parseDiagnostics([
-            'int demo() {',
-            '    return sizeof(mixed *) + sizeof(object *) + sizeof(class Payload *);',
-            '}'
-        ].join('\n'));
-
-        expect(diagnostics).toEqual([]);
-    });
-
     test('accepts captured closure expressions with member calls', () => {
         const diagnostics = parseDiagnostics([
             'void demo(object me, mixed *args) {',
@@ -512,19 +508,17 @@ describe('LPC grammar coverage baseline', () => {
         expect(diagnostics).toEqual([]);
     });
 
-    test('represents sizeof as a structured unary expression', () => {
+    test('represents sizeof as an ordinary call expression', () => {
         const nodes = buildSyntaxNodes([
             'int demo(mixed value) {',
             '    return sizeof(value);',
             '}'
         ].join('\n'));
-        const sizeofNode = nodes.find((node) =>
-            node.kind === SyntaxKind.UnaryExpression
-            && node.metadata?.operator === 'sizeof'
-        );
+        const sizeofNode = nodes.find((node) => node.kind === SyntaxKind.CallExpression);
 
         expect(sizeofNode).toBeDefined();
-        expect(sizeofNode.children.map((child: any) => child.kind)).toEqual([SyntaxKind.Identifier]);
+        expect(sizeofNode.children[0].kind).toBe(SyntaxKind.Identifier);
+        expect(sizeofNode.children[0].name).toBe('sizeof');
     });
 
     test('preserves new compound assignment operators in syntax metadata', () => {

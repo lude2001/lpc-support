@@ -1525,10 +1525,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "sizeof_expression"
-        },
-        {
-          "type": "SYMBOL",
           "name": "catch_expression"
         },
         {
@@ -2280,40 +2276,6 @@
               "type": "SYMBOL",
               "name": "_expression"
             }
-          }
-        ]
-      }
-    },
-    "sizeof_expression": {
-      "type": "PREC",
-      "value": 15,
-      "content": {
-        "type": "SEQ",
-        "members": [
-          {
-            "type": "STRING",
-            "value": "sizeof"
-          },
-          {
-            "type": "STRING",
-            "value": "("
-          },
-          {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "_expression"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "_type"
-              }
-            ]
-          },
-          {
-            "type": "STRING",
-            "value": ")"
           }
         ]
       }

@@ -1,3 +1,4 @@
+use lpc_analysis::SemanticTokenFacts;
 use tree_sitter::{Node, Tree};
 
 pub const TOKEN_TYPES: &[&str] = &[
@@ -27,6 +28,7 @@ pub const TOKEN_MODIFIERS: &[&str] = &[
 ];
 
 const DECLARATION_MODIFIER: u32 = 1;
+const DEFAULT_LIBRARY_MODIFIER: u32 = 1 << 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Token {
@@ -37,10 +39,10 @@ struct Token {
     modifiers: u32,
 }
 
-pub fn encode(tree: &Tree, source: &str) -> Vec<u32> {
+pub fn encode(tree: &Tree, source: &str, facts: &SemanticTokenFacts) -> Vec<u32> {
     let line_index = LineIndex::new(source);
     let mut tokens = Vec::new();
-    collect_tokens(tree.root_node(), source, &line_index, &mut tokens);
+    collect_tokens(tree.root_node(), source, facts, &line_index, &mut tokens);
     tokens.sort_unstable();
     tokens.dedup();
 
@@ -67,19 +69,25 @@ pub fn encode(tree: &Tree, source: &str) -> Vec<u32> {
     encoded
 }
 
-fn collect_tokens(node: Node<'_>, source: &str, line_index: &LineIndex, tokens: &mut Vec<Token>) {
-    if let Some((token_type, modifiers)) = classify(node) {
+fn collect_tokens(
+    node: Node<'_>,
+    source: &str,
+    facts: &SemanticTokenFacts,
+    line_index: &LineIndex,
+    tokens: &mut Vec<Token>,
+) {
+    if let Some((token_type, modifiers)) = classify(node, source, facts) {
         push_node_tokens(node, source, line_index, token_type, modifiers, tokens);
         return;
     }
 
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_tokens(child, source, line_index, tokens);
+        collect_tokens(child, source, facts, line_index, tokens);
     }
 }
 
-fn classify(node: Node<'_>) -> Option<(u32, u32)> {
+fn classify(node: Node<'_>, source: &str, facts: &SemanticTokenFacts) -> Option<(u32, u32)> {
     match node.kind() {
         "primitive_type" => Some((1, 0)),
         "number_literal" => Some((10, 0)),
@@ -87,12 +95,16 @@ fn classify(node: Node<'_>) -> Option<(u32, u32)> {
         "comment" => Some((12, 0)),
         "preprocessor_directive" => Some((8, 0)),
         "modifier" => Some((0, 0)),
-        "identifier" => classify_identifier(node),
+        "identifier" => classify_identifier(node, source, facts),
         _ => None,
     }
 }
 
-fn classify_identifier(node: Node<'_>) -> Option<(u32, u32)> {
+fn classify_identifier(
+    node: Node<'_>,
+    source: &str,
+    facts: &SemanticTokenFacts,
+) -> Option<(u32, u32)> {
     let parent = node.parent()?;
     match parent.kind() {
         "function_declaration" if is_field(parent, "name", node) => Some((5, DECLARATION_MODIFIER)),
@@ -103,8 +115,47 @@ fn classify_identifier(node: Node<'_>) -> Option<(u32, u32)> {
         }
         "field_declaration" => Some((7, DECLARATION_MODIFIER)),
         "member_suffix" => Some((member_token_type(parent), 0)),
+        "postfix_expression" if is_direct_call(parent, node) => {
+            Some(classify_call(node, parent, source, facts))
+        }
         _ => Some((3, 0)),
     }
+}
+
+fn classify_call(
+    node: Node<'_>,
+    call: Node<'_>,
+    source: &str,
+    facts: &SemanticTokenFacts,
+) -> (u32, u32) {
+    let name = &source[node.byte_range()];
+    let prefix = &source[call.start_byte()..node.start_byte()];
+    if prefix.trim_end().ends_with("efun::") {
+        return (9, DEFAULT_LIBRARY_MODIFIER);
+    }
+    if facts.local_functions.contains(name) {
+        return (5, 0);
+    }
+    if facts.simulated_functions.contains(name) {
+        return (5, DEFAULT_LIBRARY_MODIFIER);
+    }
+    if facts.visible_functions.contains(name) {
+        return (5, 0);
+    }
+    if facts.external_functions.contains(name) {
+        return (9, DEFAULT_LIBRARY_MODIFIER);
+    }
+    (5, 0)
+}
+
+fn is_direct_call(parent: Node<'_>, identifier: Node<'_>) -> bool {
+    if !is_field(parent, "value", identifier) {
+        return false;
+    }
+    let mut cursor = parent.walk();
+    parent
+        .named_children(&mut cursor)
+        .any(|child| child.kind() == "call_suffix")
 }
 
 fn is_field(parent: Node<'_>, field_name: &str, child: Node<'_>) -> bool {
@@ -218,7 +269,7 @@ mod tests {
             .unwrap();
         let tree = parser.parse(source, None).unwrap();
 
-        let encoded = encode(&tree, source);
+        let encoded = encode(&tree, source, &SemanticTokenFacts::default());
         assert!(!encoded.is_empty());
         assert_eq!(encoded.len() % 5, 0);
         let chunks = encoded.as_chunks::<5>().0;
@@ -236,9 +287,41 @@ mod tests {
             .unwrap();
         let tree = parser.parse(source, None).unwrap();
 
-        let encoded = encode(&tree, source);
+        let encoded = encode(&tree, source, &SemanticTokenFacts::default());
         let absolute = decode(&encoded);
         assert!(absolute.iter().any(|token| token.1 == 21 && token.3 == 1));
+    }
+
+    #[test]
+    fn distinguishes_efuns_simulated_efuns_and_local_calls() {
+        let source = concat!(
+            "void local_call() {}\n",
+            "void demo(mixed value) { sizeof(value); simul_call(); local_call(); other(); }",
+        );
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let facts = SemanticTokenFacts {
+            local_functions: ["local_call".to_owned(), "demo".to_owned()].into(),
+            visible_functions: ["local_call".to_owned(), "demo".to_owned()].into(),
+            simulated_functions: ["simul_call".to_owned()].into(),
+            external_functions: ["sizeof".to_owned()].into(),
+        };
+
+        let tokens = decode_with_modifiers(&encode(&tree, source, &facts));
+        assert!(
+            tokens
+                .iter()
+                .any(|token| token.3 == 9 && token.4 == DEFAULT_LIBRARY_MODIFIER)
+        );
+        assert!(
+            tokens
+                .iter()
+                .any(|token| token.3 == 5 && token.4 == DEFAULT_LIBRARY_MODIFIER)
+        );
+        assert!(tokens.iter().any(|token| token.3 == 5 && token.4 == 0));
     }
 
     fn decode(encoded: &[u32]) -> Vec<(u32, u32, u32, u32)> {
@@ -256,6 +339,25 @@ mod tests {
                     token[1]
                 };
                 (line, character, token[2], token[3])
+            })
+            .collect()
+    }
+
+    fn decode_with_modifiers(encoded: &[u32]) -> Vec<(u32, u32, u32, u32, u32)> {
+        let mut line = 0;
+        let mut character = 0;
+        encoded
+            .as_chunks::<5>()
+            .0
+            .iter()
+            .map(|token| {
+                line += token[0];
+                character = if token[0] == 0 {
+                    character + token[1]
+                } else {
+                    token[1]
+                };
+                (line, character, token[2], token[3], token[4])
             })
             .collect()
     }

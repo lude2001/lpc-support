@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -49,13 +49,21 @@ try {
     }
     connection.sendNotification('initialized', {});
 
+    const callerSource = 'int caller(mixed value) { return helper() + sizeof(value) + simul_call(); }\n';
+    const simulatedDirectory = path.join(smokeWorkspace, 'adm', 'single');
+    mkdirSync(simulatedDirectory, { recursive: true });
     writeFileSync(path.join(smokeWorkspace, 'helper.c'), 'int helper() { return 1; }\n');
-    writeFileSync(path.join(smokeWorkspace, 'caller.c'), 'int caller() { return helper(); }\n');
+    writeFileSync(path.join(smokeWorkspace, 'caller.c'), callerSource);
+    writeFileSync(path.join(simulatedDirectory, 'simul_efun.c'), 'int simul_call() { return 1; }\n');
     const rebuild = await connection.sendRequest('lpc/workspaceIndex/rebuild', {
         workspaceRoots: [smokeWorkspace],
-        workspaces: [{ workspaceRoot: smokeWorkspace, preprocessorDefines: [] }]
+        workspaces: [{
+            workspaceRoot: smokeWorkspace,
+            preprocessorDefines: [],
+            resolvedConfig: { simulatedEfunFile: '/adm/single/simul_efun' }
+        }]
     });
-    if (rebuild?.status !== 'ready' || rebuild?.indexedFiles !== 2) {
+    if (rebuild?.status !== 'ready' || rebuild?.indexedFiles !== 3) {
         throw new Error(`Rust server returned unexpected workspace rebuild result: ${JSON.stringify(rebuild)}`);
     }
     const callerUri = pathToFileURL(path.join(smokeWorkspace, 'caller.c')).toString();
@@ -64,15 +72,41 @@ try {
             uri: callerUri,
             languageId: 'lpc',
             version: 1,
-            text: 'int caller() { return helper(); }\n'
+            text: callerSource
         }
     });
     const crossFileDefinition = await connection.sendRequest('textDocument/definition', {
         textDocument: { uri: callerUri },
-        position: { line: 0, character: 23 }
+        position: { line: 0, character: callerSource.indexOf('helper') + 1 }
     });
     if (!Array.isArray(crossFileDefinition) || !crossFileDefinition[0]?.uri?.endsWith('helper.c')) {
         throw new Error(`Rust server missed indexed definition: ${JSON.stringify(crossFileDefinition)}`);
+    }
+    const callerSemanticTokens = await connection.sendRequest('textDocument/semanticTokens/full', {
+        textDocument: { uri: callerUri }
+    });
+    const decodedCallerTokens = decodeSemanticTokens(callerSemanticTokens?.data ?? []);
+    const expectedCallTokens = [
+        ['helper', 5, 0],
+        ['sizeof', 9, 4],
+        ['simul_call', 5, 4]
+    ];
+    for (const [name, tokenType, modifiers] of expectedCallTokens) {
+        const character = callerSource.indexOf(name);
+        if (!decodedCallerTokens.some(token => token.line === 0
+            && token.character === character
+            && token.length === name.length
+            && token.tokenType === tokenType
+            && token.modifiers === modifiers)) {
+            throw new Error(`Rust server misclassified ${name}: ${JSON.stringify(decodedCallerTokens)}`);
+        }
+    }
+    const sizeofHover = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri: callerUri },
+        position: { line: 0, character: callerSource.indexOf('sizeof') + 1 }
+    });
+    if (!sizeofHover?.contents?.value?.includes('sizeof')) {
+        throw new Error(`Rust server missed sizeof efun hover: ${JSON.stringify(sizeofHover)}`);
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: callerUri } });
 
@@ -306,4 +340,22 @@ try {
         child.kill();
     }
     rmSync(smokeWorkspace, { recursive: true, force: true });
+}
+
+function decodeSemanticTokens(data) {
+    let line = 0;
+    let character = 0;
+    const tokens = [];
+    for (let index = 0; index + 4 < data.length; index += 5) {
+        line += data[index];
+        character = data[index] === 0 ? character + data[index + 1] : data[index + 1];
+        tokens.push({
+            line,
+            character,
+            length: data[index + 2],
+            tokenType: data[index + 3],
+            modifiers: data[index + 4]
+        });
+    }
+    return tokens;
 }

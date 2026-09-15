@@ -57,7 +57,6 @@ import { ShiftExpressionContext } from "./LPCParser";
 import { AdditiveExpressionContext } from "./LPCParser";
 import { MultiplicativeExpressionContext } from "./LPCParser";
 import { UnaryExpressionContext } from "./LPCParser";
-import { SizeofExpressionContext } from "./LPCParser";
 import { CastExpressionContext } from "./LPCParser";
 import { CastTypeContext } from "./LPCParser";
 import { CastBaseTypeContext } from "./LPCParser";
@@ -510,13 +509,6 @@ export interface LPCParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	 * @return the visitor result
 	 */
 	visitUnaryExpression?: (ctx: UnaryExpressionContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by `LPCParser.sizeofExpression`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitSizeofExpression?: (ctx: SizeofExpressionContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `LPCParser.castExpression`.

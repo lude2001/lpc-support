@@ -168,14 +168,9 @@ multiplicativeExpression
 unaryExpression
     :   (INC | DEC)? postfixExpression
     |   (PLUS | MINUS | NOT | BIT_NOT | STAR) unaryExpression
-    |   sizeofExpression
     |   CATCH LPAREN expression RPAREN
     |   CATCH block
     |   castExpression
-    ;
-
-sizeofExpression
-    :   KW_SIZEOF LPAREN (expression | typeSpec STAR*) RPAREN
     ;
 
 castExpression

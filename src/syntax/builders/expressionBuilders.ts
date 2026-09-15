@@ -37,7 +37,6 @@ import {
     RelationalExpressionContext,
     ScopeIdentifierContext,
     ShiftExpressionContext,
-    SizeofExpressionContext,
     StringConcatenationContext,
     StringPrimaryContext,
     UnaryExpressionContext,
@@ -215,10 +214,6 @@ export function buildUnaryExpression(b: SyntaxBuilder, ctx: UnaryExpressionConte
         }
     }
 
-    if (ctx.sizeofExpression()) {
-        return buildSizeofExpression(b, ctx.sizeofExpression()!);
-    }
-
     if (ctx.CATCH()) {
         const child = ctx.expression()
             ? b.buildExpression(ctx.expression()!)
@@ -236,16 +231,6 @@ export function buildUnaryExpression(b: SyntaxBuilder, ctx: UnaryExpressionConte
     }
 
     return b.createOpaqueNode(ctx, [], { reason: 'unary-fallback' });
-}
-
-export function buildSizeofExpression(b: SyntaxBuilder, ctx: SizeofExpressionContext): SyntaxNode {
-    const operand = ctx.expression()
-        ? b.buildExpression(ctx.expression()!)
-        : b.buildTypeReference(ctx.typeSpec()) ?? b.createMissingNode(ctx);
-
-    return b.createNode(SyntaxKind.UnaryExpression, ctx, [operand], {
-        metadata: { operator: 'sizeof', position: 'prefix' }
-    });
 }
 
 export function buildCastExpression(b: SyntaxBuilder, ctx: CastExpressionContext): SyntaxNode {

@@ -278,7 +278,6 @@ module.exports = grammar({
       $.unary_expression,
       $.update_expression,
       $.cast_expression,
-      $.sizeof_expression,
       $.catch_expression,
       $.postfix_expression,
       $.anonymous_function,
@@ -349,7 +348,6 @@ module.exports = grammar({
       field('value', $._expression),
     )),
 
-    sizeof_expression: $ => prec(PREC.UNARY, seq('sizeof', '(', choice($._expression, $._type), ')')),
     catch_expression: $ => prec(PREC.UNARY, seq('catch', choice(seq('(', $._expression, ')'), $.block))),
 
     postfix_expression: $ => prec.left(PREC.POSTFIX, seq(
