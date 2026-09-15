@@ -70,6 +70,14 @@ struct FileAnalysis {
     identifiers: Vec<std::ops::Range<usize>>,
     diagnostics: Vec<Diagnostic>,
     folding_ranges: Vec<FoldingRange>,
+    calls: Vec<CallSite>,
+}
+
+#[derive(Debug, Clone)]
+struct CallSite {
+    name: String,
+    range: std::ops::Range<usize>,
+    argument_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Default, PartialEq, Eq)]
@@ -106,6 +114,8 @@ impl AnalysisDatabase {
         collect_identifiers(tree.root_node(), &mut identifiers);
         let diagnostics = collect_diagnostics(tree, source);
         let folding_ranges = collect_folding_ranges(tree, source);
+        let mut calls = Vec::new();
+        collect_calls(tree.root_node(), source, &mut calls);
         self.files.insert(
             uri.to_owned(),
             FileAnalysis {
@@ -116,6 +126,7 @@ impl AnalysisDatabase {
                 identifiers,
                 diagnostics,
                 folding_ranges,
+                calls,
             },
         );
         self.metrics.snapshot_build_count += 1;
@@ -145,11 +156,73 @@ impl AnalysisDatabase {
         self.files.remove(uri);
     }
 
+    pub fn clear_indexed(&mut self) {
+        self.files.retain(|_, file| file.version >= 0);
+        self.metrics.indexed_file_count = 0;
+    }
+
     pub fn diagnostics(&mut self, uri: &str) -> Vec<Diagnostic> {
         self.metrics.query_count += 1;
-        self.files
-            .get(uri)
-            .map_or_else(Vec::new, |file| file.diagnostics.clone())
+        let Some(file) = self.files.get(uri) else {
+            return Vec::new();
+        };
+        let mut diagnostics = file.diagnostics.clone();
+        for symbol in file.symbols.iter().filter(|symbol| {
+            symbol.local
+                && !symbol.name.starts_with('_')
+                && matches!(symbol.kind, SymbolKind::Variable | SymbolKind::Parameter)
+        }) {
+            let reference_count = file
+                .identifiers
+                .iter()
+                .filter(|range| {
+                    symbol.scope.contains(&range.start)
+                        && file.source.get((*range).clone()) == Some(symbol.name.as_str())
+                })
+                .count();
+            if reference_count <= 1 {
+                diagnostics.push(Diagnostic {
+                    range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
+                    severity: 2,
+                    code: if symbol.kind == SymbolKind::Parameter {
+                        "unusedParam"
+                    } else {
+                        "unusedVar"
+                    },
+                    source: "lpc-support",
+                    message: if symbol.kind == SymbolKind::Parameter {
+                        format!("未使用的参数: {}", symbol.name)
+                    } else {
+                        format!("未使用的局部变量: {}", symbol.name)
+                    },
+                });
+            }
+        }
+        for call in &file.calls {
+            let signatures: Vec<_> = self
+                .files
+                .values()
+                .flat_map(|candidate| candidate.symbols.iter())
+                .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == call.name)
+                .collect();
+            if !signatures.is_empty()
+                && !signatures
+                    .iter()
+                    .any(|signature| accepts_arguments(signature, call.argument_count))
+            {
+                diagnostics.push(Diagnostic {
+                    range: byte_range_to_lsp(&file.source, call.range.clone()),
+                    severity: 2,
+                    code: "lpc.argumentCountMismatch",
+                    source: "lpc-support",
+                    message: format!(
+                        "函数 {} 参数数量不匹配: 当前 {} 个",
+                        call.name, call.argument_count
+                    ),
+                });
+            }
+        }
+        diagnostics
     }
 
     pub fn folding_ranges(&mut self, uri: &str) -> Vec<FoldingRange> {
@@ -558,6 +631,50 @@ fn collect_identifiers(node: Node<'_>, output: &mut Vec<std::ops::Range<usize>>)
     }
 }
 
+fn collect_calls(node: Node<'_>, source: &str, output: &mut Vec<CallSite>) {
+    if node.kind() == "postfix_expression"
+        && let Some(value) = node.child_by_field_name("value")
+        && value.kind() == "identifier"
+    {
+        let mut cursor = node.walk();
+        if let Some(call) = node
+            .named_children(&mut cursor)
+            .find(|child| child.kind() == "call_suffix")
+        {
+            let mut call_cursor = call.walk();
+            let argument_count = call
+                .named_children(&mut call_cursor)
+                .find(|child| child.kind() == "argument_list")
+                .map_or(0, |arguments| {
+                    let mut argument_cursor = arguments.walk();
+                    arguments.named_children(&mut argument_cursor).count()
+                });
+            output.push(CallSite {
+                name: text(value, source),
+                range: value.byte_range(),
+                argument_count,
+            });
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_calls(child, source, output);
+    }
+}
+
+fn accepts_arguments(symbol: &Symbol, argument_count: usize) -> bool {
+    let required = symbol
+        .parameters
+        .iter()
+        .filter(|parameter| !parameter.contains(':') && !parameter.contains("..."))
+        .count();
+    let variadic = symbol
+        .parameters
+        .iter()
+        .any(|parameter| parameter.contains("..."));
+    argument_count >= required && (variadic || argument_count <= symbol.parameters.len())
+}
+
 fn collect_diagnostics(tree: &Tree, source: &str) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     collect_error_nodes(tree.root_node(), source, &mut diagnostics, false);
@@ -892,5 +1009,25 @@ mod tests {
         assert_eq!(help.signatures[0].parameters.len(), 2);
         assert_eq!(help.active_parameter, 1);
         assert_eq!(database.metrics().snapshot_build_count, 1);
+    }
+
+    #[test]
+    fn reports_unused_locals_and_known_argument_count_mismatches() {
+        let source = concat!(
+            "int sum(int left, int right) { int unused = 1; return left + right; }\n",
+            "int demo() { return sum(1); }\n",
+        );
+        let mut database = database(source);
+        let diagnostics = database.diagnostics("file:///demo.c");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "unusedVar")
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
+        );
     }
 }

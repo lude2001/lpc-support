@@ -1,6 +1,8 @@
 import { spawn } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import {
     createMessageConnection,
     StreamMessageReader,
@@ -34,6 +36,7 @@ let latestDiagnostics;
 connection.onNotification('textDocument/publishDiagnostics', (params) => {
     latestDiagnostics = params;
 });
+const smokeWorkspace = mkdtempSync(path.join(tmpdir(), 'lpc-rust-smoke-'));
 
 try {
     const initialize = await connection.sendRequest('initialize', {
@@ -45,6 +48,33 @@ try {
         throw new Error(`Unexpected server info: ${JSON.stringify(initialize?.serverInfo)}`);
     }
     connection.sendNotification('initialized', {});
+
+    writeFileSync(path.join(smokeWorkspace, 'helper.c'), 'int helper() { return 1; }\n');
+    writeFileSync(path.join(smokeWorkspace, 'caller.c'), 'int caller() { return helper(); }\n');
+    const rebuild = await connection.sendRequest('lpc/workspaceIndex/rebuild', {
+        workspaceRoots: [smokeWorkspace],
+        workspaces: [{ workspaceRoot: smokeWorkspace, preprocessorDefines: [] }]
+    });
+    if (rebuild?.status !== 'ready' || rebuild?.indexedFiles !== 2) {
+        throw new Error(`Rust server returned unexpected workspace rebuild result: ${JSON.stringify(rebuild)}`);
+    }
+    const callerUri = pathToFileURL(path.join(smokeWorkspace, 'caller.c')).toString();
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: {
+            uri: callerUri,
+            languageId: 'lpc',
+            version: 1,
+            text: 'int caller() { return helper(); }\n'
+        }
+    });
+    const crossFileDefinition = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: callerUri },
+        position: { line: 0, character: 23 }
+    });
+    if (!Array.isArray(crossFileDefinition) || !crossFileDefinition[0]?.uri?.endsWith('helper.c')) {
+        throw new Error(`Rust server missed indexed definition: ${JSON.stringify(crossFileDefinition)}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: callerUri } });
 
     const uri = 'file:///rust-lsp-smoke.c';
     connection.sendNotification('textDocument/didOpen', {
@@ -154,21 +184,22 @@ try {
         throw new Error(`Incremental edit was not recorded: ${JSON.stringify(health)}`);
     }
     if (
-        health?.performance?.syntax?.fullParseCount !== 1
+        health?.performance?.syntax?.fullParseCount < 2
         || health?.performance?.syntax?.incrementalParseCount !== 1
     ) {
         throw new Error(`Incremental syntax parse was not recorded: ${JSON.stringify(health)}`);
     }
-    if (health?.performance?.analysisSnapshotBuildCount !== 2) {
+    if (health?.performance?.analysisSnapshotBuildCount < 3) {
         throw new Error(`Analysis snapshots were not versioned correctly: ${JSON.stringify(health)}`);
     }
 
     await connection.sendRequest('shutdown');
-    connection.sendNotification('exit');
+    await connection.sendNotification('exit');
     console.log(`Rust LSP smoke test passed (server ${health.serverVersion}).`);
 } finally {
     connection.dispose();
     if (!child.killed) {
         child.kill();
     }
+    rmSync(smokeWorkspace, { recursive: true, force: true });
 }

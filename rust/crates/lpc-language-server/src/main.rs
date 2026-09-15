@@ -149,6 +149,25 @@ struct FormattingOptions {
     insert_spaces: bool,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodeActionParams {
+    text_document: TextDocumentIdentifier,
+    context: CodeActionContext,
+}
+
+#[derive(Debug, Deserialize)]
+struct CodeActionContext {
+    diagnostics: Vec<InputDiagnostic>,
+}
+
+#[derive(Debug, Deserialize)]
+struct InputDiagnostic {
+    range: Range,
+    code: Option<Value>,
+    message: String,
+}
+
 fn main() -> Result<()> {
     let (connection, io_threads) = Connection::stdio();
     let initialize_result = json!({
@@ -181,6 +200,7 @@ fn main() -> Result<()> {
             },
             "documentFormattingProvider": true,
             "documentRangeFormattingProvider": true
+            ,"codeActionProvider": { "codeActionKinds": ["quickfix"] }
         },
         "serverInfo": {
             "name": "lpc-language-server",
@@ -213,6 +233,50 @@ fn run(connection: Connection, workspace_roots: Vec<PathBuf>) -> Result<()> {
             Message::Request(request) => {
                 if connection.handle_shutdown(&request)? {
                     break;
+                }
+                if request.method == "lpc/workspaceIndex/rebuild" {
+                    let params: WorkspaceConfigSyncParams = serde_json::from_value(request.params)?;
+                    let definitions = definitions_from_list(
+                        &params
+                            .workspaces
+                            .into_iter()
+                            .flat_map(|workspace| workspace.preprocessor_defines)
+                            .collect::<Vec<_>>(),
+                    );
+                    let roots: Vec<_> = params
+                        .workspace_roots
+                        .into_iter()
+                        .map(PathBuf::from)
+                        .collect();
+                    connection
+                        .sender
+                        .send(Message::Notification(Notification::new(
+                            "lpc/workspaceIndex/progress".to_owned(),
+                            json!({
+                                "status": "building",
+                                "totalFiles": 0,
+                                "processedFiles": 0,
+                                "indexedFiles": 0,
+                                "skippedFiles": 0,
+                                "failedFiles": 0
+                            }),
+                        )))?;
+                    let result = workspace_index.rebuild(roots, definitions, Arc::clone(&analysis));
+                    connection
+                        .sender
+                        .send(Message::Notification(Notification::new(
+                            "lpc/workspaceIndex/progress".to_owned(),
+                            json!({
+                                "status": "building",
+                                "totalFiles": result.total_files,
+                                "processedFiles": result.total_files,
+                                "indexedFiles": result.indexed_files,
+                                "skippedFiles": result.skipped_files,
+                                "failedFiles": result.failed_files
+                            }),
+                        )))?;
+                    send_ok(&connection, request.id, result)?;
+                    continue;
                 }
                 let mut database = analysis
                     .lock()
@@ -500,6 +564,46 @@ fn handle_request(
         })
         .unwrap_or_default();
         return send_ok(connection, request.id, edits);
+    }
+
+    if request.method == "textDocument/codeAction" {
+        let params: CodeActionParams = serde_json::from_value(request.params)?;
+        let Some(document) = documents.get(&params.text_document.uri) else {
+            return send_ok(connection, request.id, Vec::<Value>::new());
+        };
+        let actions: Vec<_> = params
+            .context
+            .diagnostics
+            .into_iter()
+            .filter_map(|diagnostic| {
+                let code = diagnostic.code.as_ref().and_then(|code| code.as_str())?;
+                if !matches!(code, "unusedVar" | "unusedParam" | "unusedGlobalVar") {
+                    return None;
+                }
+                let start = position_to_byte(&document.text, diagnostic.range.start)?;
+                let end = position_to_byte(&document.text, diagnostic.range.end)?;
+                let name = document.text.get(start..end)?;
+                Some(json!({
+                    "title": format!("将未使用的 `{name}` 标记为有意保留"),
+                    "kind": "quickfix",
+                    "diagnostics": [{
+                        "range": diagnostic.range,
+                        "code": code,
+                        "message": diagnostic.message
+                    }],
+                    "isPreferred": true,
+                    "edit": {
+                        "changes": {
+                            params.text_document.uri.clone(): [{
+                                "range": diagnostic.range,
+                                "newText": format!("_{name}")
+                            }]
+                        }
+                    }
+                }))
+            })
+            .collect();
+        return send_ok(connection, request.id, actions);
     }
 
     send_error(
