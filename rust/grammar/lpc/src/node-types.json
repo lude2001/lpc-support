@@ -1332,6 +1332,10 @@
           "named": true
         },
         {
+          "type": "macro_invocation",
+          "named": true
+        },
+        {
           "type": "modifier_section",
           "named": true
         },

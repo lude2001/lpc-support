@@ -9,6 +9,7 @@ use lpc_analysis::{AnalysisDatabase, Position, Range, byte_range_to_lsp, positio
 use lpc_formatter::FormatterConfig;
 use lpc_language_server::document_store::{ContentChange, DocumentStore};
 use lpc_language_server::efun_docs;
+use lpc_language_server::project_preprocessor::WorkspacePreprocessorConfig;
 use lpc_language_server::semantic_tokens::{TOKEN_MODIFIERS, TOKEN_TYPES};
 use lpc_language_server::syntax_store::SyntaxStore;
 use lpc_language_server::workspace_index::WorkspaceIndexController;
@@ -223,7 +224,8 @@ fn main() -> Result<()> {
             "referencesProvider": true,
             "renameProvider": { "prepareProvider": true },
             "signatureHelpProvider": {
-                "triggerCharacters": ["(", ","]
+                "triggerCharacters": ["(", ","],
+                "retriggerCharacters": [","]
             },
             "completionProvider": {
                 "resolveProvider": false,
@@ -269,7 +271,20 @@ fn run(
     let workspace_index = WorkspaceIndexController::default();
     let mut format_indent_size = 4_usize;
     if !workspace_roots.is_empty() {
-        workspace_index.start(workspace_roots, Vec::new(), Arc::clone(&analysis));
+        let preprocessor_workspaces = workspace_roots
+            .iter()
+            .cloned()
+            .map(|root| WorkspacePreprocessorConfig {
+                root,
+                ..WorkspacePreprocessorConfig::default()
+            })
+            .collect();
+        workspace_index.start(
+            workspace_roots,
+            Vec::new(),
+            preprocessor_workspaces,
+            Arc::clone(&analysis),
+        );
     }
 
     for message in &connection.receiver {
@@ -316,11 +331,17 @@ fn run(
                             .flat_map(|workspace| workspace.preprocessor_defines.iter().cloned())
                             .collect::<Vec<_>>(),
                     );
+                    let preprocessor_workspaces =
+                        preprocessor_workspace_configs(&params.workspace_roots, &params.workspaces);
                     let roots: Vec<_> = params
                         .workspace_roots
                         .into_iter()
                         .map(PathBuf::from)
                         .collect();
+                    syntax.configure_preprocessor(
+                        definitions.clone(),
+                        preprocessor_workspaces.clone(),
+                    );
                     {
                         let mut database = analysis
                             .lock()
@@ -350,7 +371,12 @@ fn run(
                                 "failedFiles": 0
                             }),
                         )))?;
-                    let result = workspace_index.rebuild(roots, definitions, Arc::clone(&analysis));
+                    let result = workspace_index.rebuild(
+                        roots,
+                        definitions,
+                        preprocessor_workspaces,
+                        Arc::clone(&analysis),
+                    );
                     connection
                         .sender
                         .send(Message::Notification(Notification::new(
@@ -419,7 +445,12 @@ fn run(
                             .flat_map(|workspace| workspace.preprocessor_defines.iter().cloned())
                             .collect::<Vec<_>>(),
                     );
-                    syntax.set_predefined(&definitions);
+                    let preprocessor_workspaces =
+                        preprocessor_workspace_configs(&params.workspace_roots, &params.workspaces);
+                    syntax.configure_preprocessor(
+                        definitions.clone(),
+                        preprocessor_workspaces.clone(),
+                    );
                     {
                         let mut database = analysis
                             .lock()
@@ -444,7 +475,7 @@ fn run(
                                 document.revision,
                                 &snapshot.tree,
                                 &document.text,
-                                &snapshot.macro_directives,
+                                (&snapshot.macro_directives, &snapshot.predefined_macros),
                             );
                             publish_diagnostics(
                                 &connection,
@@ -461,6 +492,7 @@ fn run(
                             .map(PathBuf::from)
                             .collect(),
                         definitions,
+                        preprocessor_workspaces,
                         Arc::clone(&analysis),
                     );
                     continue;
@@ -468,6 +500,38 @@ fn run(
                 if notification.method == "lpc/sourceFileChange" {
                     let params: SourceFileChangeParams =
                         serde_json::from_value(notification.params)?;
+                    let header_changed = Url::parse(&params.uri)
+                        .ok()
+                        .and_then(|uri| uri.to_file_path().ok())
+                        .is_some_and(|path| {
+                            path.extension()
+                                .and_then(|extension| extension.to_str())
+                                .is_some_and(|extension| extension.eq_ignore_ascii_case("h"))
+                        });
+                    if header_changed {
+                        syntax.invalidate_preprocessor_cache();
+                        let mut database = analysis
+                            .lock()
+                            .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                        for document in documents.iter() {
+                            let snapshot = syntax.open(document)?;
+                            database.invalidate(&document.uri);
+                            database.update_preprocessed(
+                                &document.uri,
+                                document.version,
+                                document.revision,
+                                &snapshot.tree,
+                                &document.text,
+                                (&snapshot.macro_directives, &snapshot.predefined_macros),
+                            );
+                            publish_diagnostics(
+                                &connection,
+                                document.uri.clone(),
+                                document.version,
+                                database.diagnostics(&document.uri),
+                            )?;
+                        }
+                    }
                     workspace_index.update_uri(params.uri, Arc::clone(&analysis));
                     continue;
                 }
@@ -488,6 +552,34 @@ fn run(
 
     workspace_index.cancel();
     Ok(())
+}
+
+fn preprocessor_workspace_configs(
+    roots: &[String],
+    workspaces: &[WorkspaceConfigSnapshot],
+) -> Vec<WorkspacePreprocessorConfig> {
+    roots
+        .iter()
+        .enumerate()
+        .map(|(index, root)| {
+            let resolved = workspaces
+                .get(index)
+                .and_then(|workspace| workspace.resolved_config.as_ref());
+            WorkspacePreprocessorConfig {
+                root: PathBuf::from(root),
+                include_directories: resolved
+                    .map(|config| {
+                        config
+                            .include_directories
+                            .iter()
+                            .map(PathBuf::from)
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                global_include_file: resolved.and_then(|config| config.global_include_file.clone()),
+            }
+        })
+        .collect()
 }
 
 fn apply_workspace_resolution(
@@ -645,11 +737,20 @@ fn handle_request(
         let snapshot = syntax
             .get(&uri)
             .with_context(|| format!("document symbols requested without syntax for {uri}"))?;
-        return send_ok(
-            connection,
-            request.id,
-            lpc_language_server::document_symbols::collect(&snapshot.tree, &document.text),
-        );
+        let mut symbols = serde_json::to_value(lpc_language_server::document_symbols::collect(
+            &snapshot.tree,
+            &document.text,
+        ))?;
+        if let Value::Array(items) = &mut symbols {
+            items.extend(
+                analysis
+                    .macro_generated_document_symbols(&uri)
+                    .into_iter()
+                    .map(serde_json::to_value)
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
+        }
+        return send_ok(connection, request.id, symbols);
     }
 
     if request.method == "textDocument/foldingRange" {
@@ -867,7 +968,7 @@ fn handle_notification(
                 document.revision,
                 &snapshot.tree,
                 &document.text,
-                &snapshot.macro_directives,
+                (&snapshot.macro_directives, &snapshot.predefined_macros),
             );
             publish_diagnostics(
                 connection,
@@ -892,7 +993,7 @@ fn handle_notification(
                 document.revision,
                 &snapshot.tree,
                 &document.text,
-                &snapshot.macro_directives,
+                (&snapshot.macro_directives, &snapshot.predefined_macros),
             );
             publish_diagnostics(connection, uri.clone(), version, analysis.diagnostics(&uri))?;
         }

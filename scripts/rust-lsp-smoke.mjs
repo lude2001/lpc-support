@@ -53,6 +53,10 @@ try {
             throw new Error(`Rust server missed completion trigger ${JSON.stringify(trigger)}: ${JSON.stringify(completionTriggers)}`);
         }
     }
+    const signatureRetriggers = initialize?.capabilities?.signatureHelpProvider?.retriggerCharacters ?? [];
+    if (!signatureRetriggers.includes(',')) {
+        throw new Error(`Rust server missed signature-help retrigger comma: ${JSON.stringify(signatureRetriggers)}`);
+    }
     connection.sendNotification('initialized', {});
 
     const callerSource = '#include "macros.h"\nstring root = ROOT_DIR;\nint package_enabled = __PACKAGE_DB__;\nint caller(mixed value) { return helper() + sizeof(value) + simul_call() + MAX(1, 2); }\n';
@@ -161,6 +165,75 @@ try {
         throw new Error(`Rust server missed predefined macro completion: ${JSON.stringify(predefinedCompletion)}`);
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: callerUri } });
+
+    const generatedMacroUri = 'file:///macro-generated.c';
+    const generatedMacroSource = '#define RequestType(name, method) string name##_request_type = method;\nRequestType(pay_add, "POST")\nstring read_method() { return pay_add_request_type; }\n';
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: {
+            uri: generatedMacroUri,
+            languageId: 'lpc',
+            version: 1,
+            text: generatedMacroSource
+        }
+    });
+    const generatedSymbols = await connection.sendRequest('textDocument/documentSymbol', {
+        textDocument: { uri: generatedMacroUri }
+    });
+    if (!Array.isArray(generatedSymbols)
+        || !generatedSymbols.some(symbol => symbol.name === 'pay_add_request_type')) {
+        throw new Error(`Rust server missed macro-generated document symbol: ${JSON.stringify(generatedSymbols)}`);
+    }
+    const generatedUsageLine = generatedMacroSource.split('\n')[2];
+    const generatedDefinition = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: generatedMacroUri },
+        position: { line: 2, character: generatedUsageLine.indexOf('pay_add_request_type') + 1 }
+    });
+    if (!Array.isArray(generatedDefinition) || generatedDefinition[0]?.range?.start?.line !== 1) {
+        throw new Error(`Rust server missed macro-generated definition: ${JSON.stringify(generatedDefinition)}`);
+    }
+    const generatedHover = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri: generatedMacroUri },
+        position: { line: 2, character: generatedUsageLine.indexOf('pay_add_request_type') + 1 }
+    });
+    if (!generatedHover?.contents?.value?.includes('pay_add_request_type')) {
+        throw new Error(`Rust server missed macro-generated hover: ${JSON.stringify(generatedHover)}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: generatedMacroUri } });
+
+    writeFileSync(path.join(smokeWorkspace, 'feature.h'), '#define INCLUDED_FEATURE 1\n#define RequestType(name, method) string name##_request_type = method;\n');
+    const importedConditionalUri = pathToFileURL(path.join(smokeWorkspace, 'conditional.c')).toString();
+    const importedConditionalSource = '#include "feature.h"\n#if INCLUDED_FEATURE\nint enabled_by_header() { return 1; }\n#else\nint disabled_by_header() { return 0; }\n#endif\nRequestType(imported_route, "GET")\nstring imported_method() { return imported_route_request_type; }\n';
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: {
+            uri: importedConditionalUri,
+            languageId: 'lpc',
+            version: 1,
+            text: importedConditionalSource
+        }
+    });
+    const importedConditionalSymbols = await connection.sendRequest('textDocument/documentSymbol', {
+        textDocument: { uri: importedConditionalUri }
+    });
+    if (!Array.isArray(importedConditionalSymbols)
+        || !importedConditionalSymbols.some(symbol => symbol.name === 'enabled_by_header')
+        || importedConditionalSymbols.some(symbol => symbol.name === 'disabled_by_header')
+        || !importedConditionalSymbols.some(symbol => symbol.name === 'imported_route_request_type')) {
+        throw new Error(`Rust server ignored imported macros in conditional compilation: ${JSON.stringify(importedConditionalSymbols)}`);
+    }
+    writeFileSync(path.join(smokeWorkspace, 'feature.h'), '#define INCLUDED_FEATURE 0\n#define RequestType(name, method) string name##_request_type = method;\n');
+    connection.sendNotification('lpc/sourceFileChange', {
+        uri: pathToFileURL(path.join(smokeWorkspace, 'feature.h')).toString(),
+        type: 'changed'
+    });
+    const refreshedConditionalSymbols = await connection.sendRequest('textDocument/documentSymbol', {
+        textDocument: { uri: importedConditionalUri }
+    });
+    if (!Array.isArray(refreshedConditionalSymbols)
+        || refreshedConditionalSymbols.some(symbol => symbol.name === 'enabled_by_header')
+        || !refreshedConditionalSymbols.some(symbol => symbol.name === 'disabled_by_header')) {
+        throw new Error(`Rust server kept stale imported macros after a header edit: ${JSON.stringify(refreshedConditionalSymbols)}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: importedConditionalUri } });
 
     const macroLifecycleUri = 'file:///macro-lifecycle.c';
     const macroLifecycleSource = '#if 0\n#define DISABLED 1\n#endif\n#define LOCAL_FLAG 1\nint before = LOCAL_FLAG;\n#undef LOCAL_FLAG\nint after = LOCAL_FLAG;\nint disabled = DISABLED;\n';

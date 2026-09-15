@@ -1,11 +1,13 @@
 use std::{collections::HashMap, time::Instant};
 
 use anyhow::{Context, Result};
-use lpc_preprocessor::{InactiveRegion, IncludeFact, MacroDirectiveFact, Preprocessor};
+use lpc_preprocessor::{InactiveRegion, IncludeFact, MacroDirectiveFact};
 use lpc_protocol::SyntaxPerformanceStatus;
 use tree_sitter::{InputEdit, Parser, Point, Tree};
+use url::Url;
 
 use crate::document_store::{AppliedEdit, DocumentSnapshot};
+use crate::project_preprocessor::{ProjectPreprocessor, WorkspacePreprocessorConfig};
 
 #[derive(Debug)]
 pub struct SyntaxSnapshot {
@@ -18,11 +20,12 @@ pub struct SyntaxSnapshot {
     pub includes: Vec<IncludeFact>,
     pub inactive_regions: Vec<InactiveRegion>,
     pub macro_directives: Vec<MacroDirectiveFact>,
+    pub predefined_macros: HashMap<String, String>,
 }
 
 pub struct SyntaxStore {
     parser: Parser,
-    preprocessor: Preprocessor,
+    preprocessor: ProjectPreprocessor,
     snapshots: HashMap<String, SyntaxSnapshot>,
     metrics: SyntaxPerformanceStatus,
 }
@@ -35,7 +38,7 @@ impl SyntaxStore {
             .context("failed to load the generated LPC grammar")?;
         Ok(Self {
             parser,
-            preprocessor: Preprocessor::default(),
+            preprocessor: ProjectPreprocessor::default(),
             snapshots: HashMap::new(),
             metrics: SyntaxPerformanceStatus::default(),
         })
@@ -58,8 +61,16 @@ impl SyntaxStore {
         self.snapshots.remove(uri);
     }
 
-    pub fn set_predefined(&mut self, definitions: &[(String, String)]) {
-        self.preprocessor = Preprocessor::with_predefined(definitions.iter().cloned());
+    pub fn configure_preprocessor(
+        &mut self,
+        definitions: Vec<(String, String)>,
+        workspaces: Vec<WorkspacePreprocessorConfig>,
+    ) {
+        self.preprocessor.configure(definitions, workspaces);
+    }
+
+    pub fn invalidate_preprocessor_cache(&mut self) {
+        self.preprocessor.clear_cache();
     }
 
     pub fn get(&self, uri: &str) -> Option<&SyntaxSnapshot> {
@@ -76,7 +87,10 @@ impl SyntaxStore {
         edits: &[AppliedEdit],
         force_full_parse: bool,
     ) -> Result<&SyntaxSnapshot> {
-        let preprocessed = self.preprocessor.process(&document.text);
+        let path = Url::parse(&document.uri)
+            .ok()
+            .and_then(|uri| uri.to_file_path().ok());
+        let preprocessed = self.preprocessor.process(path.as_deref(), &document.text);
         let can_increment = !force_full_parse
             && !edits.is_empty()
             && self
@@ -125,6 +139,7 @@ impl SyntaxStore {
                 includes: preprocessed.includes,
                 inactive_regions: preprocessed.inactive_regions,
                 macro_directives: preprocessed.macro_directives,
+                predefined_macros: preprocessed.initial_definitions,
             },
         );
         self.snapshots

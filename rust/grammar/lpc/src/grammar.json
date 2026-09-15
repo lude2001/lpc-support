@@ -38,6 +38,10 @@
           },
           {
             "type": "SYMBOL",
+            "name": "macro_invocation"
+          },
+          {
+            "type": "SYMBOL",
             "name": "macro_annotation"
           },
           {
@@ -3680,6 +3684,10 @@
     ],
     [
       "_type"
+    ],
+    [
+      "source_file",
+      "_expression"
     ]
   ],
   "precedences": [],

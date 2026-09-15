@@ -10,6 +10,4 @@ rust-version.workspace = true
 lpc-preprocessor.workspace = true
 serde.workspace = true
 tree-sitter.workspace = true
-
-[dev-dependencies]
 tree-sitter-lpc-support = { path = "../../grammar/lpc" }

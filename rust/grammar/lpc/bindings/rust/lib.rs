@@ -118,6 +118,21 @@ mod tests {
             "{}",
             tree.root_node().to_sexp()
         );
+
+        let generated_declarations = concat!(
+            "RequestType(pay_add, \"POST\")\n",
+            "MAKE_QUERY(score, 100)\n",
+            "string read_method() { return pay_add_request_type; }\n",
+            "int read_score() { return query_score(); }\n",
+        );
+        let generated_tree = parser
+            .parse(generated_declarations, None)
+            .expect("parser should return a tree");
+        assert!(
+            !generated_tree.root_node().has_error(),
+            "{}",
+            generated_tree.root_node().to_sexp()
+        );
     }
 
     #[test]

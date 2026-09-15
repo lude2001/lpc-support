@@ -48,6 +48,8 @@ pub struct PreprocessedDocument {
     pub includes: Vec<IncludeFact>,
     pub inactive_regions: Vec<InactiveRegion>,
     pub macro_directives: Vec<MacroDirectiveFact>,
+    pub initial_definitions: HashMap<String, String>,
+    pub final_definitions: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -71,7 +73,8 @@ impl Preprocessor {
 
     pub fn process(&self, source: &str) -> PreprocessedDocument {
         let mut output = source.as_bytes().to_vec();
-        let mut definitions = self.predefined.clone();
+        let initial_definitions = self.predefined.clone();
+        let mut definitions = initial_definitions.clone();
         let mut frames: Vec<ConditionalFrame> = Vec::new();
         let mut includes = Vec::new();
         let mut inactive_regions = Vec::new();
@@ -220,6 +223,8 @@ impl Preprocessor {
             includes,
             inactive_regions: merge_regions(inactive_regions),
             macro_directives,
+            initial_definitions,
+            final_definitions: definitions,
         }
     }
 }
@@ -501,5 +506,19 @@ mod tests {
                 ("LIMIT".to_owned(), "32".to_owned())
             ]
         );
+    }
+
+    #[test]
+    fn exposes_the_final_macro_environment_for_include_imports() {
+        let result = Preprocessor::with_predefined([("DRIVER".to_owned(), "1".to_owned())])
+            .process("#define HEADER_VALUE 7\n#undef DRIVER\n");
+        assert_eq!(
+            result
+                .final_definitions
+                .get("HEADER_VALUE")
+                .map(String::as_str),
+            Some("7")
+        );
+        assert!(!result.final_definitions.contains_key("DRIVER"));
     }
 }

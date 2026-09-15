@@ -10,10 +10,11 @@ use std::{
 };
 
 use lpc_analysis::AnalysisDatabase;
-use lpc_preprocessor::Preprocessor;
 use serde::Serialize;
 use tree_sitter::Parser;
 use url::Url;
+
+use crate::project_preprocessor::{ProjectPreprocessor, WorkspacePreprocessorConfig};
 
 const MAX_SOURCE_BYTES: u64 = 8 * 1024 * 1024;
 
@@ -39,6 +40,7 @@ enum IndexOutcome {
 pub struct WorkspaceIndexController {
     generation: Arc<AtomicU64>,
     definitions: Arc<Mutex<Vec<(String, String)>>>,
+    workspaces: Arc<Mutex<Vec<WorkspacePreprocessorConfig>>>,
 }
 
 impl WorkspaceIndexController {
@@ -46,10 +48,14 @@ impl WorkspaceIndexController {
         &self,
         roots: Vec<PathBuf>,
         definitions: Vec<(String, String)>,
+        workspaces: Vec<WorkspacePreprocessorConfig>,
         analysis: Arc<Mutex<AnalysisDatabase>>,
     ) {
         if let Ok(mut current) = self.definitions.lock() {
             current.clone_from(&definitions);
+        }
+        if let Ok(mut current) = self.workspaces.lock() {
+            current.clone_from(&workspaces);
         }
         let generation = self.generation.fetch_add(1, Ordering::AcqRel) + 1;
         if let Ok(mut database) = analysis.lock() {
@@ -59,7 +65,14 @@ impl WorkspaceIndexController {
         thread::Builder::new()
             .name("lpc-workspace-index".to_owned())
             .spawn(move || {
-                let _ = index_roots(roots, definitions, analysis, generation_counter, generation);
+                let _ = index_roots(
+                    roots,
+                    definitions,
+                    workspaces,
+                    analysis,
+                    generation_counter,
+                    generation,
+                );
             })
             .expect("failed to start LPC workspace index thread");
     }
@@ -68,10 +81,14 @@ impl WorkspaceIndexController {
         &self,
         roots: Vec<PathBuf>,
         definitions: Vec<(String, String)>,
+        workspaces: Vec<WorkspacePreprocessorConfig>,
         analysis: Arc<Mutex<AnalysisDatabase>>,
     ) -> WorkspaceIndexResult {
         if let Ok(mut current) = self.definitions.lock() {
             current.clone_from(&definitions);
+        }
+        if let Ok(mut current) = self.workspaces.lock() {
+            current.clone_from(&workspaces);
         }
         let generation = self.generation.fetch_add(1, Ordering::AcqRel) + 1;
         if let Ok(mut database) = analysis.lock() {
@@ -80,6 +97,7 @@ impl WorkspaceIndexController {
         index_roots(
             roots,
             definitions,
+            workspaces,
             analysis,
             Arc::clone(&self.generation),
             generation,
@@ -93,6 +111,10 @@ impl WorkspaceIndexController {
             .definitions
             .lock()
             .map_or_else(|_| Vec::new(), |current| current.clone());
+        let workspaces = self
+            .workspaces
+            .lock()
+            .map_or_else(|_| Vec::new(), |current| current.clone());
         thread::Builder::new()
             .name("lpc-workspace-file-update".to_owned())
             .spawn(move || {
@@ -101,17 +123,32 @@ impl WorkspaceIndexController {
                 }
                 let Ok(url) = Url::parse(&uri) else { return };
                 let Ok(path) = url.to_file_path() else { return };
+                let dependents = analysis
+                    .lock()
+                    .map_or_else(|_| Vec::new(), |mut database| database.dependent_uris(&uri));
+                let mut preprocessor = ProjectPreprocessor::default();
+                preprocessor.configure(definitions, workspaces);
                 if !path.exists() {
                     if let Ok(mut database) = analysis.lock() {
                         database.remove_indexed(&uri);
                     }
-                    return;
+                } else {
+                    index_file(&path, &mut preprocessor, &analysis);
                 }
-                index_file(
-                    &path,
-                    &Preprocessor::with_predefined(definitions),
-                    &analysis,
-                );
+                for dependent_uri in dependents {
+                    if generation_counter.load(Ordering::Acquire) != generation {
+                        return;
+                    }
+                    let Ok(dependent_url) = Url::parse(&dependent_uri) else {
+                        continue;
+                    };
+                    let Ok(dependent_path) = dependent_url.to_file_path() else {
+                        continue;
+                    };
+                    if dependent_path.is_file() {
+                        index_file(&dependent_path, &mut preprocessor, &analysis);
+                    }
+                }
             })
             .expect("failed to start LPC workspace file update thread");
     }
@@ -124,6 +161,7 @@ impl WorkspaceIndexController {
 fn index_roots(
     roots: Vec<PathBuf>,
     definitions: Vec<(String, String)>,
+    workspaces: Vec<WorkspacePreprocessorConfig>,
     analysis: Arc<Mutex<AnalysisDatabase>>,
     generation_counter: Arc<AtomicU64>,
     generation: u64,
@@ -143,7 +181,8 @@ fn index_roots(
         result.failed_files = result.total_files;
         return result;
     }
-    let preprocessor = Preprocessor::with_predefined(definitions);
+    let mut preprocessor = ProjectPreprocessor::default();
+    preprocessor.configure(definitions, workspaces);
 
     for path in files {
         if generation_counter.load(Ordering::Acquire) != generation {
@@ -152,7 +191,7 @@ fn index_roots(
                 .saturating_sub(result.indexed_files + result.failed_files);
             break;
         }
-        match index_file_with_parser(&path, &preprocessor, &analysis, &mut parser) {
+        match index_file_with_parser(&path, &mut preprocessor, &analysis, &mut parser) {
             IndexOutcome::Indexed => result.indexed_files += 1,
             IndexOutcome::Skipped => result.skipped_files += 1,
             IndexOutcome::Failed => result.failed_files += 1,
@@ -165,7 +204,11 @@ fn index_roots(
     result
 }
 
-fn index_file(path: &Path, preprocessor: &Preprocessor, analysis: &Arc<Mutex<AnalysisDatabase>>) {
+fn index_file(
+    path: &Path,
+    preprocessor: &mut ProjectPreprocessor,
+    analysis: &Arc<Mutex<AnalysisDatabase>>,
+) {
     let mut parser = Parser::new();
     if parser
         .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
@@ -177,7 +220,7 @@ fn index_file(path: &Path, preprocessor: &Preprocessor, analysis: &Arc<Mutex<Ana
 
 fn index_file_with_parser(
     path: &Path,
-    preprocessor: &Preprocessor,
+    preprocessor: &mut ProjectPreprocessor,
     analysis: &Arc<Mutex<AnalysisDatabase>>,
     parser: &mut Parser,
 ) -> IndexOutcome {
@@ -190,7 +233,7 @@ fn index_file_with_parser(
     let Ok(source) = fs::read_to_string(path) else {
         return IndexOutcome::Failed;
     };
-    let processed = preprocessor.process(&source);
+    let processed = preprocessor.process(Some(path), &source);
     let Some(tree) = parser.parse(&processed.text, None) else {
         return IndexOutcome::Failed;
     };
@@ -200,7 +243,13 @@ fn index_file_with_parser(
     let Ok(mut database) = analysis.lock() else {
         return IndexOutcome::Failed;
     };
-    database.index_preprocessed_source(uri.as_str(), &tree, &source, &processed.macro_directives);
+    database.index_preprocessed_source(
+        uri.as_str(),
+        &tree,
+        &source,
+        &processed.macro_directives,
+        &processed.initial_definitions,
+    );
     IndexOutcome::Indexed
 }
 
@@ -295,6 +344,10 @@ mod tests {
         index_roots(
             vec![root.clone()],
             Vec::new(),
+            vec![WorkspacePreprocessorConfig {
+                root: root.clone(),
+                ..WorkspacePreprocessorConfig::default()
+            }],
             Arc::clone(&analysis),
             generation,
             1,

@@ -6,7 +6,7 @@ use std::{
 
 use lpc_preprocessor::{MacroDirectiveFact, MacroDirectiveKind};
 use serde::{Deserialize, Serialize};
-use tree_sitter::{Node, Tree};
+use tree_sitter::{Node, Parser, Tree};
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Position {
@@ -48,6 +48,15 @@ pub struct WorkspaceDiagnosticsEntry {
 pub struct FunctionRange {
     pub name: String,
     pub range: Range,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedDocumentSymbol {
+    pub name: String,
+    pub kind: u32,
+    pub range: Range,
+    pub selection_range: Range,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -177,6 +186,7 @@ struct FileAnalysis {
     inherits: Vec<String>,
     macros: Vec<MacroDefinition>,
     macro_directives: Vec<MacroDirectiveFact>,
+    macro_generated_symbols: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -184,6 +194,7 @@ struct CallSite {
     name: String,
     range: std::ops::Range<usize>,
     argument_count: usize,
+    top_level: bool,
 }
 
 #[derive(Debug, Default)]
@@ -357,7 +368,7 @@ impl AnalysisDatabase {
     }
 
     pub fn update(&mut self, uri: &str, version: i32, revision: u64, tree: &Tree, source: &str) {
-        self.update_with_macro_directives(uri, version, revision, tree, source, None);
+        self.update_with_macro_environment(uri, version, revision, tree, source, None);
     }
 
     pub fn update_preprocessed(
@@ -367,26 +378,26 @@ impl AnalysisDatabase {
         revision: u64,
         tree: &Tree,
         source: &str,
-        macro_directives: &[MacroDirectiveFact],
+        macro_environment: (&[MacroDirectiveFact], &HashMap<String, String>),
     ) {
-        self.update_with_macro_directives(
+        self.update_with_macro_environment(
             uri,
             version,
             revision,
             tree,
             source,
-            Some(macro_directives),
+            Some(macro_environment),
         );
     }
 
-    fn update_with_macro_directives(
+    fn update_with_macro_environment(
         &mut self,
         uri: &str,
         version: i32,
         revision: u64,
         tree: &Tree,
         source: &str,
-        macro_directives: Option<&[MacroDirectiveFact]>,
+        macro_environment: Option<(&[MacroDirectiveFact], &HashMap<String, String>)>,
     ) {
         if version < 0 && self.files.get(uri).is_some_and(|file| file.version >= 0) {
             return;
@@ -408,11 +419,23 @@ impl AnalysisDatabase {
         let folding_ranges = collect_folding_ranges(tree, source);
         let mut calls = Vec::new();
         collect_calls(tree.root_node(), source, &mut calls);
+        let macro_directives = macro_environment.map(|environment| environment.0);
+        let predefined_macros = macro_environment.map(|environment| environment.1);
+        let macros = collect_macro_definitions(source, macro_directives);
+        let mut expansion_macros = predefined_macros.map_or_else(Vec::new, |predefined_macros| {
+            macro_definitions_from_environment(
+                source.len(),
+                predefined_macros,
+                macro_directives.unwrap_or_default(),
+            )
+        });
+        expansion_macros.extend(macros.clone());
+        let macro_generated_symbols =
+            collect_macro_generated_symbols(source, &calls, &expansion_macros, &mut symbols);
         let mut assignments = Vec::new();
         collect_assignments(tree.root_node(), source, &mut assignments);
         let dependencies = collect_dependencies(tree.root_node(), source);
         let inherits = collect_inherits(tree.root_node(), source);
-        let macros = collect_macro_definitions(source, macro_directives);
         self.files.insert(
             uri.to_owned(),
             FileAnalysis {
@@ -430,6 +453,7 @@ impl AnalysisDatabase {
                 inherits,
                 macros,
                 macro_directives: macro_directives.unwrap_or_default().to_vec(),
+                macro_generated_symbols,
             },
         );
         self.invalidate_dependency_graph();
@@ -450,8 +474,16 @@ impl AnalysisDatabase {
         tree: &Tree,
         source: &str,
         macro_directives: &[MacroDirectiveFact],
+        predefined_macros: &HashMap<String, String>,
     ) {
-        self.update_preprocessed(uri, -1, 0, tree, source, macro_directives);
+        self.update_preprocessed(
+            uri,
+            -1,
+            0,
+            tree,
+            source,
+            (macro_directives, predefined_macros),
+        );
     }
 
     pub fn remove(&mut self, uri: &str) {
@@ -465,6 +497,25 @@ impl AnalysisDatabase {
         if self.files.get(uri).is_some_and(|file| file.version < 0) {
             self.remove(uri);
         }
+    }
+
+    pub fn dependent_uris(&mut self, uri: &str) -> Vec<String> {
+        self.metrics.query_count += 1;
+        let graph = self.dependency_graph();
+        let mut visited = HashSet::new();
+        let mut pending = vec![uri.to_owned()];
+        while let Some(target) = pending.pop() {
+            if let Some(consumers) = graph.reverse.get(&target) {
+                for consumer in consumers {
+                    if visited.insert(consumer.clone()) {
+                        pending.push(consumer.clone());
+                    }
+                }
+            }
+        }
+        let mut dependents = visited.into_iter().collect::<Vec<_>>();
+        dependents.sort();
+        dependents
     }
 
     pub fn invalidate(&mut self, uri: &str) {
@@ -620,6 +671,28 @@ impl AnalysisDatabase {
                         && !symbol.name.starts_with('_')
                         && reference_count <= 1,
                 }
+            })
+            .collect()
+    }
+
+    pub fn macro_generated_document_symbols(&mut self, uri: &str) -> Vec<GeneratedDocumentSymbol> {
+        self.metrics.query_count += 1;
+        let Some(file) = self.files.get(uri) else {
+            return Vec::new();
+        };
+        file.symbols
+            .iter()
+            .filter(|symbol| file.macro_generated_symbols.contains(&symbol.name))
+            .map(|symbol| GeneratedDocumentSymbol {
+                name: symbol.name.clone(),
+                kind: match symbol.kind {
+                    SymbolKind::Function => 12,
+                    SymbolKind::Variable => 13,
+                    SymbolKind::Type => 5,
+                    SymbolKind::Parameter => 13,
+                },
+                range: byte_range_to_lsp(&file.source, symbol.declaration.clone()),
+                selection_range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
             })
             .collect()
     }
@@ -3427,6 +3500,277 @@ fn collect_macro_definitions(
     definitions
 }
 
+fn collect_macro_generated_symbols(
+    source: &str,
+    calls: &[CallSite],
+    macros: &[MacroDefinition],
+    output: &mut Vec<Symbol>,
+) -> HashSet<String> {
+    let mut generated_names = HashSet::new();
+    let mut parser = None;
+    for call in calls.iter().filter(|call| call.top_level) {
+        let Some(definition) = macros.iter().rev().find(|definition| {
+            definition.function_like
+                && definition.name == call.name
+                && (definition.selection.is_empty()
+                    || definition.selection.start < call.range.start)
+                && call.range.start < definition.active_until
+        }) else {
+            continue;
+        };
+        let Some((arguments, invocation_range)) = whole_line_macro_arguments(source, call) else {
+            continue;
+        };
+        if arguments.len() != definition.parameters.len() {
+            continue;
+        }
+        let expanded = expand_function_macro(&definition.value, &definition.parameters, &arguments);
+        let parser = parser.get_or_insert_with(|| {
+            let mut parser = Parser::new();
+            parser
+                .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+                .expect("generated LPC grammar must load");
+            parser
+        });
+        let Some(tree) = parser.parse(&expanded, None) else {
+            continue;
+        };
+        if tree.root_node().has_error() {
+            continue;
+        }
+        let mut generated = Vec::new();
+        collect_symbols(tree.root_node(), &expanded, &mut generated);
+        for mut symbol in generated.into_iter().filter(|symbol| !symbol.local) {
+            if output
+                .iter()
+                .any(|existing| existing.kind == symbol.kind && existing.name == symbol.name)
+            {
+                continue;
+            }
+            symbol.selection = call.range.clone();
+            symbol.declaration = invocation_range.clone();
+            symbol.scope = 0..source.len();
+            symbol.documentation = None;
+            symbol.return_expressions.clear();
+            symbol.value_expressions.clear();
+            generated_names.insert(symbol.name.clone());
+            output.push(symbol);
+        }
+    }
+    generated_names
+}
+
+fn macro_definitions_from_environment(
+    source_len: usize,
+    definitions: &HashMap<String, String>,
+    local_directives: &[MacroDirectiveFact],
+) -> Vec<MacroDefinition> {
+    definitions
+        .iter()
+        .filter_map(|(name, value)| {
+            let parameters_and_body = value.strip_prefix('(')?;
+            let close = parameters_and_body.find(')')?;
+            let body = parameters_and_body[close + 1..].trim();
+            if body.is_empty() {
+                return None;
+            }
+            let parameters = parameters_and_body[..close]
+                .split(',')
+                .map(str::trim)
+                .filter(|parameter| !parameter.is_empty())
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
+            let active_until = local_directives
+                .iter()
+                .filter(|directive| directive.name == *name)
+                .map(|directive| directive.range.start_byte)
+                .min()
+                .unwrap_or(source_len);
+            Some(MacroDefinition {
+                name: name.clone(),
+                value: body.to_owned(),
+                selection: 0..0,
+                function_like: true,
+                parameters,
+                documentation: None,
+                active_until,
+            })
+        })
+        .collect()
+}
+
+fn whole_line_macro_arguments(
+    source: &str,
+    call: &CallSite,
+) -> Option<(Vec<String>, std::ops::Range<usize>)> {
+    let line_start = source[..call.range.start]
+        .rfind('\n')
+        .map_or(0, |index| index + 1);
+    let line_end = source[call.range.end..]
+        .find('\n')
+        .map_or(source.len(), |index| call.range.end + index);
+    if !source[line_start..call.range.start].trim().is_empty() {
+        return None;
+    }
+    let mut open = call.range.end;
+    while source
+        .as_bytes()
+        .get(open)
+        .is_some_and(u8::is_ascii_whitespace)
+        && source.as_bytes().get(open) != Some(&b'\n')
+    {
+        open += 1;
+    }
+    if source.as_bytes().get(open) != Some(&b'(') {
+        return None;
+    }
+    let close = matching_paren(source, open)?;
+    let suffix = source[close + 1..line_end].trim();
+    if !suffix.is_empty() && suffix != ";" {
+        return None;
+    }
+    let arguments = split_top_level_commas(&source[open + 1..close])
+        .into_iter()
+        .map(str::trim)
+        .map(str::to_owned)
+        .collect();
+    Some((arguments, line_start..line_end))
+}
+
+fn matching_paren(source: &str, open: usize) -> Option<usize> {
+    let mut depth = 0_u32;
+    let mut quote = None;
+    let mut escaped = false;
+    for (relative, character) in source[open..].char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        match character {
+            '"' | '\'' => quote = Some(character),
+            '(' => depth += 1,
+            ')' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(open + relative);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn expand_function_macro(body: &str, parameters: &[String], arguments: &[String]) -> String {
+    let replacements = parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| (parameter.as_str(), argument.trim()))
+        .collect::<HashMap<_, _>>();
+    let mut stringized = String::with_capacity(body.len());
+    let bytes = body.as_bytes();
+    let mut index = 0_usize;
+    while index < bytes.len() {
+        if bytes[index] == b'#' && bytes.get(index + 1) == Some(&b'#') {
+            stringized.push_str("##");
+            index += 2;
+            continue;
+        }
+        if bytes[index] == b'#' {
+            let mut cursor = index + 1;
+            while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+                cursor += 1;
+            }
+            let identifier_end = ascii_identifier_end(bytes, cursor);
+            if let Some(argument) = body
+                .get(cursor..identifier_end)
+                .and_then(|parameter| replacements.get(parameter))
+            {
+                stringized.push('"');
+                for character in argument.chars() {
+                    if matches!(character, '\\' | '"') {
+                        stringized.push('\\');
+                    }
+                    stringized.push(character);
+                }
+                stringized.push('"');
+                index = identifier_end;
+                continue;
+            }
+        }
+        let character = body[index..].chars().next().expect("valid UTF-8 boundary");
+        stringized.push(character);
+        index += character.len_utf8();
+    }
+
+    let bytes = stringized.as_bytes();
+    let mut expanded = String::with_capacity(stringized.len());
+    let mut index = 0_usize;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let character = stringized[index..]
+            .chars()
+            .next()
+            .expect("valid UTF-8 boundary");
+        if let Some(active_quote) = quote {
+            expanded.push(character);
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == active_quote {
+                quote = None;
+            }
+            index += character.len_utf8();
+            continue;
+        }
+        if matches!(character, '"' | '\'') {
+            quote = Some(character);
+            expanded.push(character);
+            index += character.len_utf8();
+            continue;
+        }
+        if is_ascii_identifier_start(bytes[index]) {
+            let end = ascii_identifier_end(bytes, index);
+            let identifier = &stringized[index..end];
+            expanded.push_str(replacements.get(identifier).copied().unwrap_or(identifier));
+            index = end;
+            continue;
+        }
+        expanded.push(character);
+        index += character.len_utf8();
+    }
+    expanded.replace("##", "")
+}
+
+fn ascii_identifier_end(bytes: &[u8], start: usize) -> usize {
+    if !bytes
+        .get(start)
+        .is_some_and(|byte| is_ascii_identifier_start(*byte))
+    {
+        return start;
+    }
+    let mut end = start + 1;
+    while bytes
+        .get(end)
+        .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+    {
+        end += 1;
+    }
+    end
+}
+
+fn is_ascii_identifier_start(byte: u8) -> bool {
+    byte.is_ascii_alphabetic() || byte == b'_'
+}
+
 fn uri_path_without_extension(uri: &str) -> String {
     let normalized = uri.replace('\\', "/");
     normalized
@@ -3731,34 +4075,66 @@ fn collect_identifiers(node: Node<'_>, output: &mut Vec<std::ops::Range<usize>>)
 }
 
 fn collect_calls(node: Node<'_>, source: &str, output: &mut Vec<CallSite>) {
-    if node.kind() == "postfix_expression"
-        && let Some(value) = node.child_by_field_name("value")
-        && value.kind() == "identifier"
-    {
-        let mut cursor = node.walk();
-        if let Some(call) = node
-            .named_children(&mut cursor)
-            .find(|child| child.kind() == "call_suffix")
-        {
+    let direct_macro = matches!(node.kind(), "macro_annotation" | "macro_invocation")
+        .then(|| {
+            let name = node.child_by_field_name("name")?;
+            let mut cursor = node.walk();
+            let arguments = node
+                .named_children(&mut cursor)
+                .find(|child| child.kind() == "argument_list")?;
+            Some((name, Some(arguments)))
+        })
+        .flatten();
+    let postfix_call = (node.kind() == "postfix_expression")
+        .then(|| {
+            let value = node.child_by_field_name("value")?;
+            if value.kind() != "identifier" {
+                return None;
+            }
+            let mut cursor = node.walk();
+            let call = node
+                .named_children(&mut cursor)
+                .find(|child| child.kind() == "call_suffix")?;
             let mut call_cursor = call.walk();
-            let argument_count = call
+            let arguments = call
                 .named_children(&mut call_cursor)
-                .find(|child| child.kind() == "argument_list")
-                .map_or(0, |arguments| {
-                    let mut argument_cursor = arguments.walk();
-                    arguments.named_children(&mut argument_cursor).count()
-                });
-            output.push(CallSite {
-                name: text(value, source),
-                range: value.byte_range(),
-                argument_count,
-            });
-        }
+                .find(|child| child.kind() == "argument_list");
+            Some((value, arguments))
+        })
+        .flatten();
+    if let Some((name, arguments)) = direct_macro.or(postfix_call) {
+        let argument_count = arguments.map_or(0, |arguments| {
+            let mut argument_cursor = arguments.walk();
+            arguments.named_children(&mut argument_cursor).count()
+        });
+        output.push(CallSite {
+            name: text(name, source),
+            range: name.byte_range(),
+            argument_count,
+            top_level: is_top_level_macro_context(node),
+        });
     }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
         collect_calls(child, source, output);
     }
+}
+
+fn is_top_level_macro_context(node: Node<'_>) -> bool {
+    let mut ancestor = node.parent();
+    while let Some(current) = ancestor {
+        if current.kind() == "source_file" {
+            return true;
+        }
+        if matches!(
+            current.kind(),
+            "function_declaration" | "block" | "class_declaration" | "struct_declaration"
+        ) {
+            return false;
+        }
+        ancestor = current.parent();
+    }
+    false
 }
 
 fn collect_assignments(node: Node<'_>, source: &str, output: &mut Vec<AssignmentFact>) {
@@ -5807,6 +6183,10 @@ mod tests {
         );
         let header_tree = parser.parse(header_source, None).unwrap();
         database.index_source("file:///include/paths.h", &header_tree, header_source);
+        assert_eq!(
+            database.dependent_uris("file:///include/paths.h"),
+            vec!["file:///demo.c"]
+        );
 
         let root_offset = source.find("ROOT_DIR").unwrap();
         let definition = database.definition(
@@ -5837,6 +6217,111 @@ mod tests {
             candidate.label == "MAX"
                 && candidate.insert_text.as_deref() == Some("MAX(${1:left}, ${2:right})")
         }));
+    }
+
+    #[test]
+    fn indexes_declarations_generated_by_whole_line_function_macros() {
+        assert_eq!(
+            expand_function_macro(
+                "int query_##name() { return value; }",
+                &["name".to_owned(), "value".to_owned()],
+                &["score".to_owned(), "100".to_owned()],
+            ),
+            "int query_score() { return 100; }"
+        );
+        assert_eq!(
+            expand_function_macro(
+                "string name##_label = \"name\"; string title = #name;",
+                &["name".to_owned()],
+                &["score".to_owned()],
+            ),
+            "string score_label = \"name\"; string title = \"score\";"
+        );
+        let source = concat!(
+            "#define RequestType(name, method) string name##_request_type = method;\n",
+            "#define MAKE_QUERY(name, value) int query_##name() { return value; }\n",
+            "RequestType(pay_add, \"POST\")\n",
+            "MAKE_QUERY(score, 100)\n",
+            "string read_method() { return pay_add_request_type; }\n",
+            "int read_score() { return query_score(); }\n",
+        );
+        let mut database = database(source);
+
+        let variables = database.document_variables("file:///demo.c");
+        assert!(variables.iter().any(|variable| {
+            variable.name == "pay_add_request_type" && variable.detail.starts_with("string ")
+        }));
+        let generated = database.macro_generated_document_symbols("file:///demo.c");
+        assert_eq!(
+            generated
+                .iter()
+                .map(|symbol| symbol.name.as_str())
+                .collect::<HashSet<_>>(),
+            HashSet::from(["pay_add_request_type", "query_score"])
+        );
+
+        for name in ["pay_add_request_type", "query_score"] {
+            let usage = source.rfind(name).unwrap();
+            let definitions =
+                database.definition("file:///demo.c", byte_to_lsp_position(source, usage + 1));
+            assert_eq!(definitions.len(), 1, "missing definition for {name}");
+            assert_eq!(
+                definitions[0].range.start.line,
+                if name == "pay_add_request_type" { 2 } else { 3 }
+            );
+            let hover = database
+                .hover("file:///demo.c", byte_to_lsp_position(source, usage + 1))
+                .expect("generated declaration should have hover");
+            assert!(hover.contents.contains(name));
+        }
+
+        let completions = database
+            .completion_candidates("file:///demo.c", byte_to_lsp_position(source, source.len()));
+        assert!(
+            completions
+                .iter()
+                .any(|candidate| candidate.label == "pay_add_request_type")
+        );
+        assert!(
+            completions
+                .iter()
+                .any(|candidate| candidate.label == "query_score")
+        );
+    }
+
+    #[test]
+    fn indexes_declarations_generated_by_imported_function_macros() {
+        let source = concat!(
+            "RequestType(pay_add, \"POST\")\n",
+            "string read_method() { return pay_add_request_type; }\n",
+        );
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut database = AnalysisDatabase::default();
+        database.update_preprocessed(
+            "file:///demo.c",
+            1,
+            1,
+            &tree,
+            source,
+            (
+                &[],
+                &HashMap::from([(
+                    "RequestType".to_owned(),
+                    "(name, method) string name##_request_type = method;".to_owned(),
+                )]),
+            ),
+        );
+
+        assert!(
+            database
+                .macro_generated_document_symbols("file:///demo.c")
+                .iter()
+                .any(|symbol| symbol.name == "pay_add_request_type")
+        );
     }
 
     #[test]
@@ -5902,7 +6387,7 @@ mod tests {
             1,
             &tree,
             source,
-            &processed.macro_directives,
+            (&processed.macro_directives, &processed.initial_definitions),
         );
 
         let before = source.find("ACTIVE;").unwrap();

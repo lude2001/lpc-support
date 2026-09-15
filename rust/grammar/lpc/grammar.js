@@ -50,6 +50,7 @@ module.exports = grammar({
     [$.class_declaration, $._type],
     [$._type, $._expression],
     [$._type],
+    [$.source_file, $._expression],
   ],
 
   rules: {
@@ -61,6 +62,7 @@ module.exports = grammar({
       $.inherit_declaration,
       $.include_declaration,
       $.modifier_section,
+      $.macro_invocation,
       $.macro_annotation,
       $._statement,
     )),
