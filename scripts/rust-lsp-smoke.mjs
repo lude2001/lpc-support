@@ -49,21 +49,22 @@ try {
     }
     connection.sendNotification('initialized', {});
 
-    const callerSource = 'int caller(mixed value) { return helper() + sizeof(value) + simul_call(); }\n';
+    const callerSource = '#include "macros.h"\nstring root = ROOT_DIR;\nint package_enabled = __PACKAGE_DB__;\nint caller(mixed value) { return helper() + sizeof(value) + simul_call() + MAX(1, 2); }\n';
     const simulatedDirectory = path.join(smokeWorkspace, 'adm', 'single');
     mkdirSync(simulatedDirectory, { recursive: true });
     writeFileSync(path.join(smokeWorkspace, 'helper.c'), 'int helper() { return 1; }\n');
+    writeFileSync(path.join(smokeWorkspace, 'macros.h'), '/** Root directory. */\n#define ROOT_DIR "/data"\n#define MAX(left, right) ((left) > (right) ? (left) : (right))\n');
     writeFileSync(path.join(smokeWorkspace, 'caller.c'), callerSource);
     writeFileSync(path.join(simulatedDirectory, 'simul_efun.c'), 'int simul_call() { return 1; }\n');
     const rebuild = await connection.sendRequest('lpc/workspaceIndex/rebuild', {
         workspaceRoots: [smokeWorkspace],
         workspaces: [{
             workspaceRoot: smokeWorkspace,
-            preprocessorDefines: [],
+            preprocessorDefines: ['__PACKAGE_DB__=1'],
             resolvedConfig: { simulatedEfunFile: '/adm/single/simul_efun' }
         }]
     });
-    if (rebuild?.status !== 'ready' || rebuild?.indexedFiles !== 3) {
+    if (rebuild?.status !== 'ready' || rebuild?.indexedFiles !== 4) {
         throw new Error(`Rust server returned unexpected workspace rebuild result: ${JSON.stringify(rebuild)}`);
     }
     const callerUri = pathToFileURL(path.join(smokeWorkspace, 'caller.c')).toString();
@@ -77,7 +78,7 @@ try {
     });
     const crossFileDefinition = await connection.sendRequest('textDocument/definition', {
         textDocument: { uri: callerUri },
-        position: { line: 0, character: callerSource.indexOf('helper') + 1 }
+        position: { line: 3, character: callerSource.split('\n')[3].indexOf('helper') + 1 }
     });
     if (!Array.isArray(crossFileDefinition) || !crossFileDefinition[0]?.uri?.endsWith('helper.c')) {
         throw new Error(`Rust server missed indexed definition: ${JSON.stringify(crossFileDefinition)}`);
@@ -92,8 +93,9 @@ try {
         ['simul_call', 5, 4]
     ];
     for (const [name, tokenType, modifiers] of expectedCallTokens) {
-        const character = callerSource.indexOf(name);
-        if (!decodedCallerTokens.some(token => token.line === 0
+        const character = callerSource.indexOf(name) - callerSource.lastIndexOf('\n', callerSource.indexOf(name)) - 1;
+        const line = callerSource.slice(0, callerSource.indexOf(name)).split('\n').length - 1;
+        if (!decodedCallerTokens.some(token => token.line === line
             && token.character === character
             && token.length === name.length
             && token.tokenType === tokenType
@@ -103,10 +105,54 @@ try {
     }
     const sizeofHover = await connection.sendRequest('textDocument/hover', {
         textDocument: { uri: callerUri },
-        position: { line: 0, character: callerSource.indexOf('sizeof') + 1 }
+        position: { line: 3, character: callerSource.split('\n')[3].indexOf('sizeof') + 1 }
     });
     if (!sizeofHover?.contents?.value?.includes('sizeof')) {
         throw new Error(`Rust server missed sizeof efun hover: ${JSON.stringify(sizeofHover)}`);
+    }
+    const expectedMacros = ['ROOT_DIR', '__PACKAGE_DB__', 'MAX'];
+    for (const name of expectedMacros) {
+        const offset = callerSource.indexOf(name);
+        const line = callerSource.slice(0, offset).split('\n').length - 1;
+        const character = offset - callerSource.lastIndexOf('\n', offset) - 1;
+        if (!decodedCallerTokens.some(token => token.line === line
+            && token.character === character
+            && token.length === name.length
+            && token.tokenType === 8)) {
+            throw new Error(`Rust server missed macro semantic token ${name}: ${JSON.stringify(decodedCallerTokens)}`);
+        }
+    }
+    const rootOffset = callerSource.indexOf('ROOT_DIR');
+    const rootDefinition = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: callerUri },
+        position: { line: 1, character: rootOffset - callerSource.lastIndexOf('\n', rootOffset) }
+    });
+    if (!Array.isArray(rootDefinition) || !rootDefinition[0]?.uri?.endsWith('macros.h')) {
+        throw new Error(`Rust server missed macro definition: ${JSON.stringify(rootDefinition)}`);
+    }
+    const rootHover = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri: callerUri },
+        position: { line: 1, character: rootOffset - callerSource.lastIndexOf('\n', rootOffset) }
+    });
+    if (!rootHover?.contents?.value?.includes('#define ROOT_DIR "/data"')
+        || !rootHover.contents.value.includes('Root directory')) {
+        throw new Error(`Rust server missed macro hover documentation: ${JSON.stringify(rootHover)}`);
+    }
+    const macroCompletion = await connection.sendRequest('textDocument/completion', {
+        textDocument: { uri: callerUri },
+        position: { line: 3, character: callerSource.split('\n')[3].indexOf('MAX') + 1 }
+    });
+    if (!Array.isArray(macroCompletion)
+        || !macroCompletion.some(item => item.label === 'MAX' && item.insertTextFormat === 2)) {
+        throw new Error(`Rust server missed macro completion: ${JSON.stringify(macroCompletion)}`);
+    }
+    const predefinedCompletion = await connection.sendRequest('textDocument/completion', {
+        textDocument: { uri: callerUri },
+        position: { line: 2, character: callerSource.split('\n')[2].indexOf('__PACKAGE_DB__') + 3 }
+    });
+    if (!Array.isArray(predefinedCompletion)
+        || !predefinedCompletion.some(item => item.label === '__PACKAGE_DB__')) {
+        throw new Error(`Rust server missed predefined macro completion: ${JSON.stringify(predefinedCompletion)}`);
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: callerUri } });
 

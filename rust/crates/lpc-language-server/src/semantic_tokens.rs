@@ -42,6 +42,7 @@ struct Token {
 pub fn encode(tree: &Tree, source: &str, facts: &SemanticTokenFacts) -> Vec<u32> {
     let line_index = LineIndex::new(source);
     let mut tokens = Vec::new();
+    collect_directive_macro_tokens(source, facts, &line_index, &mut tokens);
     collect_tokens(tree.root_node(), source, facts, &line_index, &mut tokens);
     tokens.sort_unstable();
     tokens.dedup();
@@ -105,6 +106,16 @@ fn classify_identifier(
     source: &str,
     facts: &SemanticTokenFacts,
 ) -> Option<(u32, u32)> {
+    let name = &source[node.byte_range()];
+    if facts.macro_names.contains(name) {
+        let modifiers = facts
+            .macro_declarations
+            .iter()
+            .any(|range| *range == node.byte_range())
+            .then_some(DECLARATION_MODIFIER)
+            .unwrap_or_default();
+        return Some((8, modifiers));
+    }
     let parent = node.parent()?;
     match parent.kind() {
         "function_declaration" if is_field(parent, "name", node) => Some((5, DECLARATION_MODIFIER)),
@@ -119,6 +130,60 @@ fn classify_identifier(
             Some(classify_call(node, parent, source, facts))
         }
         _ => Some((3, 0)),
+    }
+}
+
+fn collect_directive_macro_tokens(
+    source: &str,
+    facts: &SemanticTokenFacts,
+    line_index: &LineIndex,
+    tokens: &mut Vec<Token>,
+) {
+    let mut line_offset = 0_usize;
+    for line in source.split_inclusive('\n') {
+        let content = line.trim_end_matches(['\r', '\n']);
+        if content.trim_start().starts_with('#') {
+            let bytes = content.as_bytes();
+            let mut index = 0_usize;
+            let mut quote = None;
+            while index < bytes.len() {
+                if matches!(bytes[index], b'"' | b'\'') {
+                    quote = if quote == Some(bytes[index]) {
+                        None
+                    } else if quote.is_none() {
+                        Some(bytes[index])
+                    } else {
+                        quote
+                    };
+                    index += 1;
+                    continue;
+                }
+                if quote.is_some() || !(bytes[index].is_ascii_alphabetic() || bytes[index] == b'_')
+                {
+                    index += 1;
+                    continue;
+                }
+                let start = index;
+                index += 1;
+                while index < bytes.len()
+                    && (bytes[index].is_ascii_alphanumeric() || bytes[index] == b'_')
+                {
+                    index += 1;
+                }
+                let name = &content[start..index];
+                if facts.macro_names.contains(name) {
+                    let range = line_offset + start..line_offset + index;
+                    let modifiers = facts
+                        .macro_declarations
+                        .iter()
+                        .any(|declaration| *declaration == range)
+                        .then_some(DECLARATION_MODIFIER)
+                        .unwrap_or_default();
+                    push_byte_range(range, source, line_index, 8, modifiers, tokens);
+                }
+            }
+        }
+        line_offset += line.len();
     }
 }
 
@@ -191,8 +256,26 @@ fn push_node_tokens(
     modifiers: u32,
     tokens: &mut Vec<Token>,
 ) {
-    let start = node.start_byte();
-    let end = node.end_byte();
+    push_byte_range(
+        node.byte_range(),
+        source,
+        line_index,
+        token_type,
+        modifiers,
+        tokens,
+    );
+}
+
+fn push_byte_range(
+    range: std::ops::Range<usize>,
+    source: &str,
+    line_index: &LineIndex,
+    token_type: u32,
+    modifiers: u32,
+    tokens: &mut Vec<Token>,
+) {
+    let start = range.start;
+    let end = range.end;
     for (line, segment_start, segment_end) in line_index.segments(start, end) {
         let start_character = line_index.utf16_column(source, line, segment_start);
         let end_character = line_index.utf16_column(source, line, segment_end);
@@ -308,6 +391,8 @@ mod tests {
             visible_functions: ["local_call".to_owned(), "demo".to_owned()].into(),
             simulated_functions: ["simul_call".to_owned()].into(),
             external_functions: ["sizeof".to_owned()].into(),
+            macro_names: std::collections::HashSet::new(),
+            macro_declarations: Vec::new(),
         };
 
         let tokens = decode_with_modifiers(&encode(&tree, source, &facts));
@@ -322,6 +407,41 @@ mod tests {
                 .any(|token| token.3 == 5 && token.4 == DEFAULT_LIBRARY_MODIFIER)
         );
         assert!(tokens.iter().any(|token| token.3 == 5 && token.4 == 0));
+    }
+
+    #[test]
+    fn highlights_macro_definitions_references_and_function_like_invocations() {
+        let source = "#define ROOT \"/data\"\n#define MAX(a, b) ((a) > (b) ? (a) : (b))\n#if defined(ROOT)\nstring path = ROOT; int value = MAX(1, 2);\n#endif\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let root_declaration = source.find("ROOT").unwrap();
+        let max_declaration = source.find("MAX").unwrap();
+        let facts = SemanticTokenFacts {
+            macro_names: ["ROOT".to_owned(), "MAX".to_owned()].into(),
+            macro_declarations: vec![
+                root_declaration..root_declaration + 4,
+                max_declaration..max_declaration + 3,
+            ],
+            ..SemanticTokenFacts::default()
+        };
+
+        let tokens = decode_with_modifiers(&encode(&tree, source, &facts));
+        assert!(tokens.iter().filter(|token| token.3 == 8).count() >= 5);
+        assert!(tokens.iter().any(|token| {
+            token.0 == 0
+                && token.1 == root_declaration as u32
+                && token.3 == 8
+                && token.4 == DECLARATION_MODIFIER
+        }));
+        assert!(tokens.iter().any(|token| {
+            token.0 == 1
+                && token.1 == max_declaration as u32 - (source.find('\n').unwrap() + 1) as u32
+                && token.3 == 8
+                && token.4 == DECLARATION_MODIFIER
+        }));
     }
 
     fn decode(encoded: &[u32]) -> Vec<(u32, u32, u32, u32)> {

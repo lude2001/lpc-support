@@ -68,10 +68,10 @@ describe('formatter printer', () => {
         ].join('\n'));
     });
 
-    test('sizeof 表达式格式化后保留括号形式', async () => {
-        const source = 'int demo(mixed value){return sizeof(value)+sizeof(int);}';
+    test('sizeof 普通 efun 调用格式化后保留括号形式', async () => {
+        const source = 'int demo(mixed value){return sizeof(value)+sizeof("x");}';
 
-        await expect(format(source)).resolves.toContain('return sizeof(value) + sizeof(int);');
+        await expect(format(source)).resolves.toContain('return sizeof(value) + sizeof("x");');
     });
 
     test('mapping 与嵌套数组按原始设计强制块状展开', async () => {

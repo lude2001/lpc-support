@@ -334,6 +334,7 @@ fn run(
                         database.set_search_efun_definition_in_inheritance_chain(
                             search_efun_definition_in_inheritance_chain,
                         );
+                        database.set_predefined_macros(definitions.clone());
                         apply_workspace_resolution(&mut database, &params.workspaces);
                     }
                     connection
@@ -432,6 +433,7 @@ fn run(
                         database.set_search_efun_definition_in_inheritance_chain(
                             search_efun_definition_in_inheritance_chain,
                         );
+                        database.set_predefined_macros(definitions.clone());
                         apply_workspace_resolution(&mut database, &params.workspaces);
                         for document in documents.iter() {
                             let snapshot = syntax.open(document)?;
