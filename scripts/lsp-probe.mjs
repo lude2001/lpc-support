@@ -150,6 +150,19 @@ async function main() {
             diagnostics = await diagnosticsPromise;
         }
         const health = await server.connection.sendRequest(HEALTH_METHOD);
+        const workspaceDiagnostics = options.workspaceDiagnostics && options.server === 'rust'
+            ? await runStage(
+                'workspaceDiagnostics',
+                async () => summarizeWorkspaceDiagnostics(
+                    project,
+                    await server.connection.sendRequest('lpc/workspaceDiagnostics', {
+                        uriPrefix: uriFromPath(project.mudlibRoot)
+                    })
+                ),
+                { timedOut: true, fileCount: 0, diagnosticCount: 0, byCode: {}, samples: [] },
+                Math.max(options.requestTimeoutMs, 30000)
+            )
+            : undefined;
         const performanceBenchmarks = options.perf && position && options.perfIterations > 0
             ? await benchmarkRequests(server.connection, [
                 ['semanticTokens', () => requestSemanticTokens(server.connection, uri), { timedOut: true }],
@@ -176,6 +189,7 @@ async function main() {
             completion,
             functionDocumentation,
             semanticTokens,
+            workspaceDiagnostics,
             performanceStages: options.perf ? performanceStages : undefined,
             performanceBenchmarks,
             processMetrics: {
@@ -201,6 +215,9 @@ async function main() {
         }
         if (report.requests.completion) {
             console.log(`Completion items: ${report.requests.completion.itemCount}`);
+        }
+        if (report.workspaceDiagnostics) {
+            console.log(`Workspace diagnostics: ${report.workspaceDiagnostics.diagnosticCount} in ${report.workspaceDiagnostics.fileCount} files`);
         }
         if (Array.isArray(report.performance)) {
             for (const stage of report.performance) {
@@ -296,6 +313,7 @@ function parseOptions(args, env) {
         perf: parseBoolean(values.get('perf') ?? env.LPC_PROBE_PERF),
         perfIterations: Math.max(0, Number(values.get('perf-iterations') ?? env.LPC_PROBE_PERF_ITERATIONS ?? 0) || 0),
         semanticTokens: parseBoolean(values.get('semantic-tokens') ?? env.LPC_PROBE_SEMANTIC_TOKENS),
+        workspaceDiagnostics: parseBoolean(values.get('workspace-diagnostics') ?? env.LPC_PROBE_WORKSPACE_DIAGNOSTICS),
         server: values.get('server') ?? env.LPC_PROBE_SERVER ?? 'typescript'
     };
 }
@@ -879,6 +897,7 @@ function createReport({
     completion,
     functionDocumentation,
     semanticTokens,
+    workspaceDiagnostics,
     performanceStages,
     performanceBenchmarks,
     processMetrics
@@ -912,6 +931,7 @@ function createReport({
         },
         processMetrics,
         diagnostics: diagnostics.map((diagnostic) => sanitizeDiagnostic(project, diagnostic)),
+        workspaceDiagnostics,
         requests: {
             semanticTokens,
             definition,
@@ -924,6 +944,32 @@ function createReport({
         },
         performance: performanceStages?.map(stage => sanitizePerformanceStage(project, stage)),
         performanceBenchmarks: performanceBenchmarks?.map(stage => sanitizePerformanceStage(project, stage))
+    };
+}
+
+function summarizeWorkspaceDiagnostics(project, entries) {
+    const safeEntries = Array.isArray(entries) ? entries : [];
+    const byCode = {};
+    const samples = [];
+    let diagnosticCount = 0;
+    for (const entry of safeEntries) {
+        for (const diagnostic of entry.diagnostics ?? []) {
+            diagnosticCount += 1;
+            const code = String(diagnostic.code ?? '(none)');
+            byCode[code] = (byCode[code] ?? 0) + 1;
+            if (samples.length < 50) {
+                samples.push({
+                    file: uriToSafePath(project, entry.uri),
+                    ...sanitizeDiagnostic(project, diagnostic)
+                });
+            }
+        }
+    }
+    return {
+        fileCount: safeEntries.length,
+        diagnosticCount,
+        byCode: Object.fromEntries(Object.entries(byCode).sort(([left], [right]) => left.localeCompare(right))),
+        samples
     };
 }
 
@@ -1107,6 +1153,19 @@ function renderMarkdown(report) {
     } else {
         for (const diagnostic of report.diagnostics) {
             lines.push(`- ${diagnostic.severity} ${formatRange(diagnostic.range)} ${diagnostic.message}`);
+        }
+    }
+
+    if (report.workspaceDiagnostics) {
+        const workspace = report.workspaceDiagnostics;
+        lines.push('', '## Workspace diagnostics', '');
+        lines.push(`- Files with diagnostics: ${workspace.fileCount}`);
+        lines.push(`- Diagnostics: ${workspace.diagnosticCount}${workspace.timedOut ? ' (timed out)' : ''}`);
+        for (const [code, count] of Object.entries(workspace.byCode ?? {})) {
+            lines.push(`- ${code}: ${count}`);
+        }
+        for (const sample of workspace.samples ?? []) {
+            lines.push(`  - ${sample.file} ${formatRange(sample.range)} ${sample.message}`);
         }
     }
 

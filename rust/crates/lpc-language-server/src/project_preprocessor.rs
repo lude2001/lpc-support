@@ -172,7 +172,15 @@ mod tests {
             "#ifndef GLOBAL_H\n#define GLOBAL_H 1\n#include <nested.h>\n#define GLOBAL_FLAG 1\n#endif\n",
         )
         .unwrap();
-        fs::write(include.join("feature.h"), "#define FEATURE_FLAG 1\n").unwrap();
+        fs::write(
+            include.join("feature.h"),
+            concat!(
+                "#define FEATURE_FLAG 1\n",
+                "#define RequestType(name, method) \\\n",
+                "    string name##_request_type = method;\n",
+            ),
+        )
+        .unwrap();
         let source_path = root.join("demo.c");
         let source = concat!(
             "#include <feature.h>\n",
@@ -195,6 +203,12 @@ mod tests {
         let processed = processor.process(Some(&source_path), source);
         assert!(processed.text.contains("int enabled;"));
         assert!(!processed.text.contains("int disabled;"));
+        let imported_function_macro = processed
+            .initial_definitions
+            .get("RequestType")
+            .expect("function macro should use its bare name as the environment key");
+        assert!(imported_function_macro.starts_with("(name, method)"));
+        assert!(imported_function_macro.ends_with("string name##_request_type = method;"));
 
         let global_source = fs::read_to_string(include.join("global.h")).unwrap();
         let global_processed = processor.process(Some(&include.join("global.h")), &global_source);

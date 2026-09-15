@@ -102,7 +102,12 @@ impl Preprocessor {
             } else if let Some(body) = trimmed.strip_prefix('#') {
                 directive = true;
                 directive_continuation = line.trim_end().ends_with('\\');
-                let body = body.trim_start();
+                let physical_arguments = split_directive(body.trim_start()).1;
+                let logical = splice_continued_directive(
+                    body.trim_start(),
+                    &source[offset + line_with_ending.len()..],
+                );
+                let body = logical.as_str();
                 let (name, arguments) = split_directive(body);
                 match name {
                     "if" => {
@@ -147,9 +152,9 @@ impl Preprocessor {
                         frames.pop();
                     }
                     "define" if current_active => {
-                        let key = first_word(arguments);
-                        if !key.is_empty() {
-                            let start_byte = offset + line.len().saturating_sub(arguments.len());
+                        if let Some((key, value)) = parse_define(arguments) {
+                            let start_byte =
+                                offset + line.len().saturating_sub(physical_arguments.len());
                             macro_directives.push(MacroDirectiveFact {
                                 name: key.to_owned(),
                                 kind: MacroDirectiveKind::Define,
@@ -158,7 +163,6 @@ impl Preprocessor {
                                     end_byte: start_byte + key.len(),
                                 },
                             });
-                            let value = arguments[key.len()..].trim();
                             definitions.insert(key.to_owned(), value.to_owned());
                         }
                     }
@@ -227,6 +231,47 @@ impl Preprocessor {
             final_definitions: definitions,
         }
     }
+}
+
+fn splice_continued_directive(first_line: &str, remaining_source: &str) -> String {
+    let mut logical = first_line.to_owned();
+    if !logical.trim_end().ends_with('\\') {
+        return logical;
+    }
+
+    for next_with_ending in remaining_source.split_inclusive('\n') {
+        let trimmed_end = logical.trim_end().len();
+        logical.truncate(trimmed_end.saturating_sub(1));
+        logical.push(' ');
+        let next = next_with_ending.trim_end_matches(['\r', '\n']);
+        logical.push_str(next.trim_start());
+        if !next.trim_end().ends_with('\\') {
+            break;
+        }
+    }
+    logical
+}
+
+fn parse_define(arguments: &str) -> Option<(&str, &str)> {
+    let name_end = arguments
+        .char_indices()
+        .take_while(|(index, character)| {
+            if *index == 0 {
+                character.is_ascii_alphabetic() || *character == '_'
+            } else {
+                character.is_ascii_alphanumeric() || *character == '_'
+            }
+        })
+        .last()
+        .map(|(index, character)| index + character.len_utf8())?;
+    let name = &arguments[..name_end];
+    let tail = &arguments[name_end..];
+    let value = if tail.starts_with('(') {
+        tail.trim_end()
+    } else {
+        tail.trim()
+    };
+    Some((name, value))
 }
 
 pub fn definitions_from_list(values: &[String]) -> Vec<(String, String)> {
@@ -520,5 +565,21 @@ mod tests {
             Some("7")
         );
         assert!(!result.final_definitions.contains_key("DRIVER"));
+    }
+
+    #[test]
+    fn preserves_the_complete_value_of_multiline_macros() {
+        let source = concat!(
+            "#define TASK(name, count) ([\\\n",
+            "    \"name\": name,\\\n",
+            "    \"count\": count\\\n",
+            "])\n",
+        );
+        let result = Preprocessor::default().process(source);
+        assert_eq!(
+            result.final_definitions.get("TASK").map(String::as_str),
+            Some("(name, count) ([ \"name\": name, \"count\": count ])")
+        );
+        assert_eq!(result.macro_directives[0].name, "TASK");
     }
 }

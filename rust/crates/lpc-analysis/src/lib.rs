@@ -1446,7 +1446,12 @@ impl AnalysisDatabase {
             completion_offset.and_then(|offset| directive_completion_context(&file.source, offset))
         });
         if let Some(context) = directive_context {
-            return self.directive_completion_candidates(context, &prefix);
+            return self.directive_completion_candidates(
+                uri,
+                completion_offset.unwrap_or_default(),
+                context,
+                &prefix,
+            );
         }
         let scoped_qualifier = self.files.get(uri).and_then(|file| {
             let end = completion_offset.unwrap_or(file.source.len());
@@ -1621,9 +1626,7 @@ impl AnalysisDatabase {
                 .values()
                 .flatten()
                 .filter(|(candidate_uri, _)| {
-                    candidate_uri != uri
-                        && (visible.contains(candidate_uri)
-                            || candidate_uri.to_ascii_lowercase().ends_with(".h"))
+                    candidate_uri != uri && visible.contains(candidate_uri)
                 })
                 .cloned()
                 .collect::<Vec<_>>()
@@ -1715,11 +1718,7 @@ impl AnalysisDatabase {
                 .macro_locations
                 .values()
                 .flatten()
-                .filter(|(candidate_uri, _)| {
-                    visible.contains(candidate_uri)
-                        || candidate_uri == uri
-                        || candidate_uri.to_ascii_lowercase().ends_with(".h")
-                })
+                .filter(|(candidate_uri, _)| visible.contains(candidate_uri))
                 .cloned()
                 .collect::<Vec<_>>()
         };
@@ -1772,22 +1771,7 @@ impl AnalysisDatabase {
         if candidates.len() == 1 {
             return candidates.pop();
         }
-
-        let mut header_candidates = locations
-            .iter()
-            .filter(|(candidate_uri, _)| candidate_uri.to_ascii_lowercase().ends_with(".h"))
-            .filter_map(|(candidate_uri, index)| {
-                let (stored_uri, file) = self.files.get_key_value(candidate_uri)?;
-                let definition = file
-                    .macros
-                    .get(*index)
-                    .filter(|definition| definition.active_until == file.source.len())?;
-                Some((stored_uri.as_str(), file, definition))
-            })
-            .collect::<Vec<_>>();
-        (header_candidates.len() == 1)
-            .then(|| header_candidates.pop())
-            .flatten()
+        None
     }
 
     fn invalidate_dependency_graph(&self) {
@@ -2918,6 +2902,8 @@ impl AnalysisDatabase {
 
     fn directive_completion_candidates(
         &self,
+        uri: &str,
+        offset: usize,
         context: DirectiveCompletionContext,
         prefix: &str,
     ) -> Vec<CompletionCandidate> {
@@ -2963,13 +2949,35 @@ impl AnalysisDatabase {
                 }
             }
         }
-        let macros = if context == DirectiveCompletionContext::PreprocessorExpression {
-            workspace_macros(self.files.values())
-        } else if matches!(
+        let macros = if matches!(
             context,
-            DirectiveCompletionContext::IncludePath | DirectiveCompletionContext::InheritPath
+            DirectiveCompletionContext::PreprocessorExpression
+                | DirectiveCompletionContext::IncludePath
+                | DirectiveCompletionContext::InheritPath
         ) {
-            workspace_string_macros(self.files.values())
+            let path_only = matches!(
+                context,
+                DirectiveCompletionContext::IncludePath | DirectiveCompletionContext::InheritPath
+            );
+            let mut macros = self
+                .workspace_macro_definitions(uri)
+                .into_iter()
+                .filter(|definition| {
+                    !self.macro_is_locally_undefined(uri, &definition.name, offset)
+                        && (!path_only || definition.value.trim_start().starts_with('"'))
+                })
+                .map(|definition| (definition.name.clone(), definition.value.clone()))
+                .collect::<HashMap<_, _>>();
+            macros.extend(
+                self.predefined_macros
+                    .iter()
+                    .filter(|(name, value)| {
+                        !self.macro_is_locally_undefined(uri, name, offset)
+                            && (!path_only || value.trim_start().starts_with('"'))
+                    })
+                    .map(|(name, value)| (name.clone(), value.clone())),
+            );
+            macros
         } else {
             HashMap::new()
         };
@@ -3318,21 +3326,6 @@ fn parse_string_macro_definition(line: &str) -> Option<(&str, String)> {
     Some((name, value[1..end].to_owned()))
 }
 
-fn workspace_string_macros<'a>(
-    files: impl Iterator<Item = &'a FileAnalysis>,
-) -> HashMap<String, String> {
-    let mut macros = HashMap::new();
-    for file in files {
-        for line in file.source.lines() {
-            let Some((name, value)) = parse_string_macro_definition(line) else {
-                continue;
-            };
-            macros.entry(name.to_owned()).or_insert(value);
-        }
-    }
-    macros
-}
-
 fn workspace_unique_string_macros<'a>(
     files: impl Iterator<Item = &'a FileAnalysis>,
 ) -> HashMap<String, String> {
@@ -3356,30 +3349,6 @@ fn workspace_unique_string_macros<'a>(
         .into_iter()
         .filter_map(|(name, value)| value.map(|value| (name, value)))
         .collect()
-}
-
-fn workspace_macros<'a>(files: impl Iterator<Item = &'a FileAnalysis>) -> HashMap<String, String> {
-    let mut macros = HashMap::new();
-    for file in files {
-        for line in file.source.lines() {
-            let Some(directive) = line.trim_start().strip_prefix("#define") else {
-                continue;
-            };
-            let directive = directive.trim_start();
-            let split = directive
-                .find(char::is_whitespace)
-                .unwrap_or(directive.len());
-            let raw_name = &directive[..split];
-            let name = raw_name.split_once('(').map_or(raw_name, |(name, _)| name);
-            if name.is_empty() {
-                continue;
-            }
-            macros
-                .entry(name.to_owned())
-                .or_insert_with(|| directive[split..].trim().to_owned());
-        }
-    }
-    macros
 }
 
 fn collect_macro_definitions(
@@ -4094,7 +4063,10 @@ fn collect_calls(node: Node<'_>, source: &str, output: &mut Vec<CallSite>) {
             let mut cursor = node.walk();
             let call = node
                 .named_children(&mut cursor)
-                .find(|child| child.kind() == "call_suffix")?;
+                .find(|child| child.start_byte() >= value.end_byte())?;
+            if call.kind() != "call_suffix" {
+                return None;
+            }
             let mut call_cursor = call.walk();
             let arguments = call
                 .named_children(&mut call_cursor)
@@ -4389,6 +4361,9 @@ fn collect_type_diagnostics(
     return_type: Option<&str>,
     output: &mut Vec<Diagnostic>,
 ) {
+    if node.kind() == "anonymous_function" {
+        return;
+    }
     let declared_return_type = (node.kind() == "function_declaration")
         .then(|| {
             let return_node = node.child_by_field_name("return_type")?;
@@ -4431,7 +4406,7 @@ fn collect_type_diagnostics(
         let mut cursor = node.walk();
         if let Some(value) = node.named_children(&mut cursor).next() {
             report_type_mismatch(expected, value, source, output, "返回值");
-        } else if expected.trim() != "void" {
+        } else if !matches!(expected.trim(), "void" | "mixed") {
             output.push(Diagnostic {
                 range: byte_range_to_lsp(source, node.byte_range()),
                 severity: 2,
@@ -4457,7 +4432,7 @@ fn report_type_mismatch(
     let Some(actual) = literal_type(value, source) else {
         return;
     };
-    if expected.trim() != "void" && actual == "int" && is_zero_integer_literal(value, source) {
+    if actual == "int" && is_zero_integer_literal(value, source) {
         return;
     }
     if types_compatible(expected.trim(), actual) {
@@ -6172,6 +6147,7 @@ mod tests {
     fn restores_macro_definition_hover_and_completion_from_indexed_headers() {
         let source = "#include <paths.h>\ninherit ROOT_DIR;\nvoid demo() { string path = ROOT_DIR; int value = MAX(1, 2); }\n";
         let mut database = database(source);
+        database.set_workspace_resolution(Vec::new(), vec!["include".to_owned()], HashMap::new());
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
@@ -6217,6 +6193,40 @@ mod tests {
             candidate.label == "MAX"
                 && candidate.insert_text.as_deref() == Some("MAX(${1:left}, ${2:right})")
         }));
+    }
+
+    #[test]
+    fn does_not_expose_macros_from_unrelated_headers() {
+        let source = "void demo() { int value = PRIVATE_FEATURE; }\n";
+        let mut database = database(source);
+        database.set_workspace_resolution(Vec::new(), vec!["include".to_owned()], HashMap::new());
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let header_source = "#define PRIVATE_FEATURE 1\n";
+        let header_tree = parser.parse(header_source, None).unwrap();
+        database.index_source("file:///include/private.h", &header_tree, header_source);
+
+        let offset = source.find("PRIVATE_FEATURE").unwrap();
+        let position = byte_to_lsp_position(source, offset + 2);
+        assert!(database.definition("file:///demo.c", position).is_empty());
+        assert!(database.hover("file:///demo.c", position).is_none());
+        assert!(
+            !database
+                .semantic_token_facts("file:///demo.c")
+                .macro_names
+                .contains("PRIVATE_FEATURE")
+        );
+        assert!(
+            database
+                .completion_candidates(
+                    "file:///demo.c",
+                    byte_to_lsp_position(source, source.len()),
+                )
+                .iter()
+                .all(|candidate| candidate.label != "PRIVATE_FEATURE")
+        );
     }
 
     #[test]
@@ -6803,6 +6813,28 @@ mod tests {
     }
 
     #[test]
+    fn does_not_treat_member_receivers_as_direct_function_calls() {
+        let source = concat!(
+            "int master() { return 1; }\n",
+            "int users() { return 1; }\n",
+            "int query() { return 1; }\n",
+            "void demo(object master, object *users) {\n",
+            "    master->query(\"name\");\n",
+            "    users[0]->query(\"name\");\n",
+            "    query(\"name\");\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        let mismatches = database
+            .diagnostics("file:///demo.c")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
+            .collect::<Vec<_>>();
+        assert_eq!(mismatches.len(), 1);
+        assert!(mismatches[0].message.contains("query"));
+    }
+
+    #[test]
     fn accepts_omitted_arguments_for_function_level_varargs() {
         let source = concat!(
             "varargs mixed query(string prop, int raw);\n",
@@ -7027,8 +7059,24 @@ mod tests {
             .into_iter()
             .filter(|diagnostic| diagnostic.code == "lpc.typeMismatch")
             .collect::<Vec<_>>();
-        assert_eq!(mismatches.len(), 1);
-        assert!(mismatches[0].message.contains("期望 void，实际 int"));
+        assert!(mismatches.is_empty());
+    }
+
+    #[test]
+    fn keeps_dynamic_and_nested_closure_returns_conservative() {
+        let source = concat!(
+            "mixed optional_value(int enabled) { if (enabled) return 1; return; }\n",
+            "object *filter_items(object *items) {\n",
+            "    return filter_array(items, function(object item) { return 1; });\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.typeMismatch")
+        );
     }
 
     #[test]

@@ -59,11 +59,12 @@ try {
     }
     connection.sendNotification('initialized', {});
 
-    const callerSource = '#include "macros.h"\nstring root = ROOT_DIR;\nint package_enabled = __PACKAGE_DB__;\nint caller(mixed value) { return helper() + sizeof(value) + simul_call() + MAX(1, 2); }\n';
+    const callerSource = '#include "macros.h"\nstring root = ROOT_DIR;\nint package_enabled = __PACKAGE_DB__;\nint private_leak = PRIVATE_FEATURE;\nint caller(mixed value) { return helper() + sizeof(value) + simul_call() + MAX(1, 2); }\n';
     const simulatedDirectory = path.join(smokeWorkspace, 'adm', 'single');
     mkdirSync(simulatedDirectory, { recursive: true });
     writeFileSync(path.join(smokeWorkspace, 'helper.c'), 'int helper() { return 1; }\n');
     writeFileSync(path.join(smokeWorkspace, 'macros.h'), '/** Root directory. */\n#define ROOT_DIR "/data"\n#define MAX(left, right) ((left) > (right) ? (left) : (right))\n');
+    writeFileSync(path.join(smokeWorkspace, 'private.h'), '#define PRIVATE_FEATURE 1\n');
     writeFileSync(path.join(smokeWorkspace, 'caller.c'), callerSource);
     writeFileSync(path.join(simulatedDirectory, 'simul_efun.c'), 'int simul_call() { return 1; }\n');
     const rebuild = await connection.sendRequest('lpc/workspaceIndex/rebuild', {
@@ -74,7 +75,7 @@ try {
             resolvedConfig: { simulatedEfunFile: '/adm/single/simul_efun' }
         }]
     });
-    if (rebuild?.status !== 'ready' || rebuild?.indexedFiles !== 4) {
+    if (rebuild?.status !== 'ready' || rebuild?.indexedFiles !== 5) {
         throw new Error(`Rust server returned unexpected workspace rebuild result: ${JSON.stringify(rebuild)}`);
     }
     const callerUri = pathToFileURL(path.join(smokeWorkspace, 'caller.c')).toString();
@@ -88,7 +89,7 @@ try {
     });
     const crossFileDefinition = await connection.sendRequest('textDocument/definition', {
         textDocument: { uri: callerUri },
-        position: { line: 3, character: callerSource.split('\n')[3].indexOf('helper') + 1 }
+        position: { line: 4, character: callerSource.split('\n')[4].indexOf('helper') + 1 }
     });
     if (!Array.isArray(crossFileDefinition) || !crossFileDefinition[0]?.uri?.endsWith('helper.c')) {
         throw new Error(`Rust server missed indexed definition: ${JSON.stringify(crossFileDefinition)}`);
@@ -115,7 +116,7 @@ try {
     }
     const sizeofHover = await connection.sendRequest('textDocument/hover', {
         textDocument: { uri: callerUri },
-        position: { line: 3, character: callerSource.split('\n')[3].indexOf('sizeof') + 1 }
+        position: { line: 4, character: callerSource.split('\n')[4].indexOf('sizeof') + 1 }
     });
     if (!sizeofHover?.contents?.value?.includes('sizeof')) {
         throw new Error(`Rust server missed sizeof efun hover: ${JSON.stringify(sizeofHover)}`);
@@ -131,6 +132,30 @@ try {
             && token.tokenType === 8)) {
             throw new Error(`Rust server missed macro semantic token ${name}: ${JSON.stringify(decodedCallerTokens)}`);
         }
+    }
+    const privateOffset = callerSource.indexOf('PRIVATE_FEATURE');
+    const privateLine = callerSource.slice(0, privateOffset).split('\n').length - 1;
+    const privateCharacter = privateOffset - callerSource.lastIndexOf('\n', privateOffset) - 1;
+    if (decodedCallerTokens.some(token => token.line === privateLine
+        && token.character === privateCharacter
+        && token.length === 'PRIVATE_FEATURE'.length
+        && token.tokenType === 8)) {
+        throw new Error(`Rust server highlighted a macro from an unrelated header: ${JSON.stringify(decodedCallerTokens)}`);
+    }
+    const unrelatedMacroHover = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri: callerUri },
+        position: { line: privateLine, character: privateCharacter + 1 }
+    });
+    if (unrelatedMacroHover) {
+        throw new Error(`Rust server returned hover for a macro from an unrelated header: ${JSON.stringify(unrelatedMacroHover)}`);
+    }
+    const unrelatedMacroCompletion = await connection.sendRequest('textDocument/completion', {
+        textDocument: { uri: callerUri },
+        position: { line: privateLine, character: privateCharacter + 3 }
+    });
+    if (Array.isArray(unrelatedMacroCompletion)
+        && unrelatedMacroCompletion.some(item => item.label === 'PRIVATE_FEATURE')) {
+        throw new Error(`Rust server completed a macro from an unrelated header: ${JSON.stringify(unrelatedMacroCompletion)}`);
     }
     const rootOffset = callerSource.indexOf('ROOT_DIR');
     const rootDefinition = await connection.sendRequest('textDocument/definition', {
@@ -150,7 +175,7 @@ try {
     }
     const macroCompletion = await connection.sendRequest('textDocument/completion', {
         textDocument: { uri: callerUri },
-        position: { line: 3, character: callerSource.split('\n')[3].indexOf('MAX') + 1 }
+        position: { line: 4, character: callerSource.split('\n')[4].indexOf('MAX') + 1 }
     });
     if (!Array.isArray(macroCompletion)
         || !macroCompletion.some(item => item.label === 'MAX' && item.insertTextFormat === 2)) {
@@ -200,7 +225,7 @@ try {
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: generatedMacroUri } });
 
-    writeFileSync(path.join(smokeWorkspace, 'feature.h'), '#define INCLUDED_FEATURE 1\n#define RequestType(name, method) string name##_request_type = method;\n');
+    writeFileSync(path.join(smokeWorkspace, 'feature.h'), '#define INCLUDED_FEATURE 1\n#define RequestType(name, method) \\\n    string name##_request_type = method;\n');
     const importedConditionalUri = pathToFileURL(path.join(smokeWorkspace, 'conditional.c')).toString();
     const importedConditionalSource = '#include "feature.h"\n#if INCLUDED_FEATURE\nint enabled_by_header() { return 1; }\n#else\nint disabled_by_header() { return 0; }\n#endif\nRequestType(imported_route, "GET")\nstring imported_method() { return imported_route_request_type; }\n';
     connection.sendNotification('textDocument/didOpen', {
@@ -220,7 +245,7 @@ try {
         || !importedConditionalSymbols.some(symbol => symbol.name === 'imported_route_request_type')) {
         throw new Error(`Rust server ignored imported macros in conditional compilation: ${JSON.stringify(importedConditionalSymbols)}`);
     }
-    writeFileSync(path.join(smokeWorkspace, 'feature.h'), '#define INCLUDED_FEATURE 0\n#define RequestType(name, method) string name##_request_type = method;\n');
+    writeFileSync(path.join(smokeWorkspace, 'feature.h'), '#define INCLUDED_FEATURE 0\n#define RequestType(name, method) \\\n    string name##_request_type = method;\n');
     connection.sendNotification('lpc/sourceFileChange', {
         uri: pathToFileURL(path.join(smokeWorkspace, 'feature.h')).toString(),
         type: 'changed'
