@@ -495,7 +495,7 @@ fn handle_request(
 
     if request.method == "textDocument/completion" {
         let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
-        let items = analysis.completion_candidates(&params.text_document.uri);
+        let items = analysis.completion_candidates(&params.text_document.uri, params.position);
         return send_ok(connection, request.id, items);
     }
 

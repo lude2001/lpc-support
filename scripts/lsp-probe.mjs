@@ -396,7 +396,7 @@ async function startServer(project, serverKind) {
             ]
         });
         await connection.sendNotification(InitializedNotification.type, {});
-        await connection.sendNotification(WORKSPACE_CONFIG_SYNC_METHOD, {
+        const workspaceConfig = {
             workspaceRoots: [project.root],
             workspaces: [
                 {
@@ -409,7 +409,11 @@ async function startServer(project, serverKind) {
                     lastSyncedAt: new Date().toISOString()
                 }
             ]
-        });
+        };
+        await connection.sendNotification(WORKSPACE_CONFIG_SYNC_METHOD, workspaceConfig);
+        if (serverKind === 'rust') {
+            await connection.sendRequest('lpc/workspaceIndex/rebuild', workspaceConfig);
+        }
         return server;
     } catch (error) {
         await server.dispose();

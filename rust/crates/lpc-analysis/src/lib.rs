@@ -222,17 +222,25 @@ impl AnalysisDatabase {
             }
         }
         for call in &file.calls {
-            let signatures: Vec<_> = self
-                .files
-                .values()
-                .flat_map(|candidate| candidate.symbols.iter())
+            let signatures: Vec<_> = file
+                .symbols
+                .iter()
                 .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == call.name)
                 .collect();
-            let external_signatures = self
-                .external_functions
-                .get(&call.name)
-                .map(|function| function.signatures.as_slice())
-                .unwrap_or_default();
+            let has_workspace_override = self.files.values().any(|candidate| {
+                candidate
+                    .symbols
+                    .iter()
+                    .any(|symbol| symbol.kind == SymbolKind::Function && symbol.name == call.name)
+            });
+            let external_signatures = if signatures.is_empty() && !has_workspace_override {
+                self.external_functions
+                    .get(&call.name)
+                    .map(|function| function.signatures.as_slice())
+                    .unwrap_or_default()
+            } else {
+                &[]
+            };
             let accepts_source_signature = signatures
                 .iter()
                 .any(|signature| accepts_arguments(signature, call.argument_count));
@@ -311,12 +319,16 @@ impl AnalysisDatabase {
         let (name, offset) = self.identifier_at(uri, position)?;
         let file = self.files.get(uri)?;
         let symbols = resolved_symbols(file, &name, offset);
-        let symbol = symbols.first().copied().or_else(|| {
-            self.files
-                .values()
-                .flat_map(|candidate| candidate.symbols.iter())
-                .find(|symbol| symbol.name == name && symbol.scope.start == 0)
-        });
+        let workspace_symbols = self
+            .files
+            .values()
+            .flat_map(|candidate| candidate.symbols.iter())
+            .filter(|symbol| symbol.name == name && symbol.scope.start == 0)
+            .collect::<Vec<_>>();
+        let symbol = symbols
+            .first()
+            .copied()
+            .or_else(|| (workspace_symbols.len() == 1).then(|| workspace_symbols[0]));
         let identifier = identifier_range(file, offset)?;
         if let Some(symbol) = symbol {
             return Some(HoverResult {
@@ -392,7 +404,9 @@ impl AnalysisDatabase {
         let offset = lsp_position_to_byte(&file.source, position)?;
         let range = identifier_range(file, offset)?;
         let name = file.source.get(range.clone())?;
-        (!KEYWORDS.contains(&name)).then(|| byte_range_to_lsp(&file.source, range))
+        let resolved = resolved_symbols(file, name, offset);
+        (!KEYWORDS.contains(&name) && !resolved.is_empty())
+            .then(|| byte_range_to_lsp(&file.source, range))
     }
 
     pub fn rename_edits(
@@ -403,6 +417,33 @@ impl AnalysisDatabase {
     ) -> HashMap<String, Vec<TextEdit>> {
         if !valid_identifier(new_name) {
             return HashMap::new();
+        }
+        let Some((name, offset)) = self.identifier_at(uri, position) else {
+            return HashMap::new();
+        };
+        let Some(file) = self.files.get(uri) else {
+            return HashMap::new();
+        };
+        let resolved = resolved_symbols(file, &name, offset);
+        if resolved.is_empty() {
+            return HashMap::new();
+        }
+        if resolved.iter().all(|symbol| !symbol.local) {
+            let edits = file
+                .identifiers
+                .iter()
+                .filter(|range| {
+                    file.source.get((*range).clone()) == Some(name.as_str())
+                        && resolved_symbols(file, &name, range.start)
+                            .first()
+                            .is_some_and(|symbol| !symbol.local)
+                })
+                .map(|range| TextEdit {
+                    range: byte_range_to_lsp(&file.source, range.clone()),
+                    new_text: new_name.to_owned(),
+                })
+                .collect::<Vec<_>>();
+            return HashMap::from([(uri.to_owned(), edits)]);
         }
         self.references(uri, position, true).into_iter().fold(
             HashMap::new(),
@@ -424,11 +465,18 @@ impl AnalysisDatabase {
         let file = self.files.get(uri)?;
         let offset = lsp_position_to_byte(&file.source, position)?;
         let (open, name) = enclosing_call(&file.source, offset)?;
-        let symbol = self
+        let local_symbol = file
+            .symbols
+            .iter()
+            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name);
+        let workspace_symbols = self
             .files
             .values()
             .flat_map(|candidate| candidate.symbols.iter())
-            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name);
+            .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name)
+            .collect::<Vec<_>>();
+        let symbol =
+            local_symbol.or_else(|| (workspace_symbols.len() == 1).then(|| workspace_symbols[0]));
         let signatures = if let Some(symbol) = symbol {
             vec![SignatureInformation {
                 label: symbol.detail.clone(),
@@ -481,23 +529,18 @@ impl AnalysisDatabase {
         labels
     }
 
-    pub fn completion_candidates(&mut self, uri: &str) -> Vec<CompletionCandidate> {
+    pub fn completion_candidates(
+        &mut self,
+        uri: &str,
+        position: Position,
+    ) -> Vec<CompletionCandidate> {
         self.metrics.query_count += 1;
         let mut candidates = HashMap::<String, CompletionCandidate>::new();
-        for symbol in self.files.values().flat_map(|file| file.symbols.iter()) {
-            candidates
-                .entry(symbol.name.clone())
-                .or_insert_with(|| CompletionCandidate {
-                    label: symbol.name.clone(),
-                    kind: match symbol.kind {
-                        SymbolKind::Function => 3,
-                        SymbolKind::Variable | SymbolKind::Parameter => 6,
-                        SymbolKind::Type => 7,
-                    },
-                    detail: Some(symbol.detail.clone()),
-                    documentation: None,
-                });
-        }
+        let prefix = self
+            .files
+            .get(uri)
+            .and_then(|file| completion_prefix(&file.source, position))
+            .unwrap_or_default();
         if let Some(file) = self.files.get(uri) {
             for symbol in &file.symbols {
                 candidates.insert(
@@ -513,6 +556,28 @@ impl AnalysisDatabase {
                         documentation: None,
                     },
                 );
+            }
+        }
+        if prefix.len() >= 2 {
+            for symbol in self
+                .files
+                .values()
+                .flat_map(|file| file.symbols.iter())
+                .filter(|symbol| symbol.scope.start == 0 && symbol.name.starts_with(&prefix))
+                .take(200)
+            {
+                candidates
+                    .entry(symbol.name.clone())
+                    .or_insert_with(|| CompletionCandidate {
+                        label: symbol.name.clone(),
+                        kind: match symbol.kind {
+                            SymbolKind::Function => 3,
+                            SymbolKind::Variable | SymbolKind::Parameter => 6,
+                            SymbolKind::Type => 7,
+                        },
+                        detail: Some(symbol.detail.clone()),
+                        documentation: None,
+                    });
             }
         }
         for function in self.external_functions.values() {
@@ -989,6 +1054,16 @@ fn active_parameter(arguments: &str) -> u32 {
     active
 }
 
+fn completion_prefix(source: &str, position: Position) -> Option<String> {
+    let end = lsp_position_to_byte(source, position)?;
+    let bytes = source.as_bytes();
+    let mut start = end;
+    while start > 0 && (bytes[start - 1].is_ascii_alphanumeric() || bytes[start - 1] == b'_') {
+        start -= 1;
+    }
+    source.get(start..end).map(str::to_owned)
+}
+
 fn text(node: Node<'_>, source: &str) -> String {
     node.utf8_text(source.as_bytes())
         .unwrap_or_default()
@@ -1175,6 +1250,25 @@ mod tests {
     }
 
     #[test]
+    fn does_not_guess_arity_from_unrelated_workspace_functions() {
+        let mut database = database("int demo() { return item(1); }\n");
+        let source = "int item(int left, int right) { return left + right; }\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        database.index_source("file:///unrelated.c", &tree, source);
+
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.argumentCountMismatch")
+        );
+    }
+
+    #[test]
     fn exposes_external_efun_documentation_and_arity() {
         let source = "void demo() { write(); }\n";
         let mut database = database(source);
@@ -1194,7 +1288,13 @@ mod tests {
                 .completion_labels("file:///demo.c")
                 .contains(&"write".to_owned())
         );
-        let completion = database.completion_candidates("file:///demo.c");
+        let completion = database.completion_candidates(
+            "file:///demo.c",
+            Position {
+                line: 0,
+                character: 20,
+            },
+        );
         let write_completion = completion
             .iter()
             .find(|candidate| candidate.label == "write")
