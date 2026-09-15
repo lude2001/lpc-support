@@ -84,12 +84,12 @@ describe('extension entrypoint', () => {
         expect(ServiceRegistry).toHaveBeenCalledTimes(1);
         expect(context.subscriptions).toContain(registry);
         expect(registerCoreServices).toHaveBeenCalledWith(registry, context);
-        expect(registerDiagnostics).toHaveBeenCalledWith(registry, context);
+        expect(registerDiagnostics).toHaveBeenCalledWith(registry, context, undefined);
         expect(registerUI).toHaveBeenCalledWith(registry, context);
         expect(registerCommands).toHaveBeenCalledWith(registry, context);
         expect(activateLspClient).toHaveBeenCalledWith(context);
         expect(registerWorkspaceIndexController).not.toHaveBeenCalled();
-        expect(registrationOrder).toEqual(['core', 'diagnostics', 'ui', 'commands']);
+        expect(registrationOrder).toEqual(['core', 'ui', 'diagnostics', 'commands']);
     });
 
     test('activate registers workspace indexing controls when LSP starts', async () => {
@@ -97,6 +97,8 @@ describe('extension entrypoint', () => {
         (activateLspClient as jest.Mock).mockResolvedValue(manager);
 
         await activate(context);
+
+        expect(registerDiagnostics).toHaveBeenCalledWith(registry, context, manager);
 
         expect(registerWorkspaceIndexController).toHaveBeenCalledWith({
             context,

@@ -1,6 +1,6 @@
 import type { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import type { LPCCompiler } from '../compiler';
-import type { DiagnosticsOrchestrator } from '../diagnostics';
+import type { DiagnosticsCommands } from '../diagnostics/RustDiagnosticsCommands';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
 import type { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import type { TextDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
@@ -27,7 +27,7 @@ export const Services = {
     DocumentPathSupport: new ServiceKey<WorkspaceDocumentPathSupport>('DocumentPathSupport'),
     SemanticEvaluation: new ServiceKey<SemanticEvaluationService>('SemanticEvaluation'),
     Lifecycle: new ServiceKey<DocumentLifecycleService>('Lifecycle'),
-    Diagnostics: new ServiceKey<DiagnosticsOrchestrator>('Diagnostics'),
+    Diagnostics: new ServiceKey<DiagnosticsCommands>('Diagnostics'),
     ErrorTree: new ServiceKey<ErrorTreeDataProvider>('ErrorTree'),
     CompletionInstrumentation: new ServiceKey<CompletionInstrumentation>('CompletionInstrumentation')
 };

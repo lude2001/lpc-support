@@ -26,6 +26,23 @@ pub struct Location {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct VariableEntry {
+    pub name: String,
+    pub detail: String,
+    pub range: Range,
+    pub local: bool,
+    pub unused: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDiagnosticsEntry {
+    pub uri: String,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Diagnostic {
     pub range: Range,
     pub severity: u32,
@@ -342,6 +359,52 @@ impl AnalysisDatabase {
             }
         }
         diagnostics
+    }
+
+    pub fn document_variables(&mut self, uri: &str) -> Vec<VariableEntry> {
+        self.metrics.query_count += 1;
+        let Some(file) = self.files.get(uri) else {
+            return Vec::new();
+        };
+        file.symbols
+            .iter()
+            .filter(|symbol| matches!(symbol.kind, SymbolKind::Variable | SymbolKind::Parameter))
+            .map(|symbol| {
+                let reference_count = file
+                    .identifiers
+                    .iter()
+                    .filter(|range| {
+                        symbol.scope.contains(&range.start)
+                            && file.source.get((*range).clone()) == Some(symbol.name.as_str())
+                    })
+                    .count();
+                VariableEntry {
+                    name: symbol.name.clone(),
+                    detail: symbol.detail.clone(),
+                    range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
+                    local: symbol.local,
+                    unused: symbol.local
+                        && symbol.kind == SymbolKind::Variable
+                        && !symbol.name.starts_with('_')
+                        && reference_count <= 1,
+                }
+            })
+            .collect()
+    }
+
+    pub fn workspace_diagnostics(&mut self, uri_prefix: &str) -> Vec<WorkspaceDiagnosticsEntry> {
+        let uris = self
+            .files
+            .keys()
+            .filter(|uri| uri.starts_with(uri_prefix))
+            .cloned()
+            .collect::<Vec<_>>();
+        uris.into_iter()
+            .filter_map(|uri| {
+                let diagnostics = self.diagnostics(&uri);
+                (!diagnostics.is_empty()).then_some(WorkspaceDiagnosticsEntry { uri, diagnostics })
+            })
+            .collect()
     }
 
     pub fn folding_ranges(&mut self, uri: &str) -> Vec<FoldingRange> {
@@ -4799,6 +4862,43 @@ mod tests {
                 .diagnostics("file:///demo.c")
                 .iter()
                 .all(|diagnostic| diagnostic.code != "unusedParam")
+        );
+    }
+
+    #[test]
+    fn exposes_variable_inspection_and_workspace_diagnostics_from_rust_snapshot() {
+        let source =
+            "int global_value;\nvoid demo(int input) { int unused; int used = input; used++; }\n";
+        let mut analysis = database(source);
+        let variables = analysis.document_variables("file:///demo.c");
+        assert!(
+            variables
+                .iter()
+                .any(|entry| !entry.local && entry.name == "global_value")
+        );
+        assert!(
+            variables
+                .iter()
+                .any(|entry| entry.local && entry.name == "input")
+        );
+        assert!(
+            variables
+                .iter()
+                .any(|entry| entry.unused && entry.name == "unused")
+        );
+        assert!(
+            variables
+                .iter()
+                .any(|entry| !entry.unused && entry.name == "used")
+        );
+
+        let diagnostics = analysis.workspace_diagnostics("file:///demo");
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "unusedVar")
         );
     }
 

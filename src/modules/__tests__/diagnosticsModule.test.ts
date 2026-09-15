@@ -1,156 +1,51 @@
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ServiceRegistry } from '../../core/ServiceRegistry';
 import { Services } from '../../core/ServiceKeys';
+import { RustDiagnosticsCommands } from '../../diagnostics/RustDiagnosticsCommands';
 import { registerDiagnostics } from '../diagnosticsModule';
-import { DiagnosticsOrchestrator, createDiagnosticsStack } from '../../diagnostics';
-import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 
-jest.mock('../../diagnostics', () => ({
-    DiagnosticsOrchestrator: jest.fn(),
-    createDiagnosticsStack: jest.fn(() => ({
-        collectors: ['collector'],
-        diagnosticsService: { collectDiagnostics: jest.fn() }
-    }))
+jest.mock('../../diagnostics/RustDiagnosticsCommands', () => ({
+    RustDiagnosticsCommands: jest.fn()
 }));
 
 describe('registerDiagnostics', () => {
-    let registry: ServiceRegistry;
-    let context: vscode.ExtensionContext;
-    let diagnosticsOrchestrator: { analyzeDocument: jest.Mock; dispose: jest.Mock };
-    let analysisService: { parseDocument: jest.Mock };
-    let documentPathSupport: { kind: string };
-    let efunDocsManager: { kind: string };
-    let originalActiveTextEditor: unknown;
-
     beforeEach(() => {
-        registry = new ServiceRegistry();
-        context = { subscriptions: [] } as vscode.ExtensionContext;
-        analysisService = { parseDocument: jest.fn() };
-        documentPathSupport = { kind: 'document-path-support' };
-        efunDocsManager = { kind: 'efun-docs-manager' };
-        diagnosticsOrchestrator = { analyzeDocument: jest.fn(), dispose: jest.fn() };
-        originalActiveTextEditor = (vscode.window as any).activeTextEditor;
-
-        (DiagnosticsOrchestrator as unknown as jest.Mock).mockReset().mockImplementation(() => diagnosticsOrchestrator);
+        (RustDiagnosticsCommands as unknown as jest.Mock).mockReset();
     });
 
-    afterEach(() => {
-        (vscode.window as any).activeTextEditor = originalActiveTextEditor;
-    });
-
-    test('registers diagnostics service, tracks lifecycle, and disables host document diagnostics on the public path', () => {
-        const activeDocument = { fileName: 'test.c', languageId: 'lpc' } as vscode.TextDocument;
-        (vscode.window as any).activeTextEditor = {
-            document: activeDocument
+    test('registers Rust-backed diagnostic commands without constructing the TS analysis stack', () => {
+        const registry = new ServiceRegistry();
+        const context = { subscriptions: [] } as unknown as vscode.ExtensionContext;
+        const manager = { sendRequest: jest.fn() };
+        const diagnostics = {
+            showVariables: jest.fn(),
+            scanFolder: jest.fn(),
+            dispose: jest.fn()
         };
+        (RustDiagnosticsCommands as unknown as jest.Mock).mockImplementation(() => diagnostics);
 
-        registry.register(Services.Analysis, analysisService as any);
-        registry.register(Services.TextDocumentHost, {
-            openTextDocument: jest.fn(),
-            fileExists: jest.fn(),
-            getWorkspaceFolder: jest.fn()
-        } as any);
-        registry.register(Services.DocumentPathSupport, documentPathSupport as any);
-        registry.register(Services.EfunDocs, efunDocsManager as any);
+        registerDiagnostics(registry, context, manager as any);
 
-        registerDiagnostics(registry, context);
-
-        expect(DiagnosticsOrchestrator).toHaveBeenCalledTimes(1);
-        expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
-        expect(createDiagnosticsStack).toHaveBeenCalledWith(
-            analysisService,
-            expect.objectContaining({
-                symbolResolver: expect.anything()
-            })
-        );
-        expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(
-            context,
-            expect.objectContaining({
-                diagnosticsService: expect.anything()
-            })
-        );
-        expect((DiagnosticsOrchestrator as unknown as jest.Mock).mock.calls[0][1]?.registerDocumentLifecycle).toBeUndefined();
-        expect(registry.get(Services.Diagnostics)).toBe(diagnosticsOrchestrator);
-        expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
-
+        expect(RustDiagnosticsCommands).toHaveBeenCalledWith(context, manager);
+        expect(registry.get(Services.Diagnostics)).toBe(diagnostics);
         registry.dispose();
-        expect(diagnosticsOrchestrator.dispose).toHaveBeenCalledTimes(1);
+        expect(diagnostics.dispose).toHaveBeenCalledTimes(1);
     });
 
-    test('does not analyze document when active editor is not lpc', () => {
-        const activeDocument = { fileName: 'test.txt', languageId: 'txt' } as vscode.TextDocument;
-        (vscode.window as any).activeTextEditor = {
-            document: activeDocument
+    test('keeps commands registered when the LSP manager is unavailable', () => {
+        const registry = new ServiceRegistry();
+        const context = { subscriptions: [] } as unknown as vscode.ExtensionContext;
+        const diagnostics = {
+            showVariables: jest.fn(),
+            scanFolder: jest.fn(),
+            dispose: jest.fn()
         };
+        (RustDiagnosticsCommands as unknown as jest.Mock).mockImplementation(() => diagnostics);
 
-        registry.register(Services.Analysis, analysisService as any);
-        registry.register(Services.TextDocumentHost, {
-            openTextDocument: jest.fn(),
-            fileExists: jest.fn(),
-            getWorkspaceFolder: jest.fn()
-        } as any);
-        registry.register(Services.DocumentPathSupport, documentPathSupport as any);
-        registry.register(Services.EfunDocs, efunDocsManager as any);
+        registerDiagnostics(registry, context, undefined);
 
-        registerDiagnostics(registry, context);
-
-        expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
-        expect(createDiagnosticsStack).toHaveBeenCalledWith(
-            analysisService,
-            expect.objectContaining({
-                symbolResolver: expect.anything()
-            })
-        );
-    });
-
-    test('does not analyze document when no active editor exists', () => {
-        (vscode.window as any).activeTextEditor = undefined;
-
-        registry.register(Services.Analysis, analysisService as any);
-        registry.register(Services.TextDocumentHost, {
-            openTextDocument: jest.fn(),
-            fileExists: jest.fn(),
-            getWorkspaceFolder: jest.fn()
-        } as any);
-        registry.register(Services.DocumentPathSupport, documentPathSupport as any);
-        registry.register(Services.EfunDocs, efunDocsManager as any);
-
-        registerDiagnostics(registry, context);
-
-        expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
-        expect(createDiagnosticsStack).toHaveBeenCalledWith(
-            analysisService,
-            expect.objectContaining({
-                symbolResolver: expect.anything()
-            })
-        );
-    });
-
-    test('keeps diagnostics UX registered while diagnostics stack always comes from the shared factory', () => {
-        const activeDocument = { fileName: 'test.c', languageId: 'lpc' } as vscode.TextDocument;
-        (vscode.window as any).activeTextEditor = {
-            document: activeDocument
-        };
-
-        registry.register(Services.Analysis, analysisService as any);
-        registry.register(Services.TextDocumentHost, {
-            openTextDocument: jest.fn(),
-            fileExists: jest.fn(),
-            getWorkspaceFolder: jest.fn()
-        } as any);
-        registry.register(Services.DocumentPathSupport, documentPathSupport as any);
-        registry.register(Services.EfunDocs, efunDocsManager as any);
-
-        registerDiagnostics(registry, context);
-
-        expect(createDiagnosticsStack).toHaveBeenCalledTimes(1);
-        expect(DiagnosticsOrchestrator).toHaveBeenCalledWith(
-            context,
-            expect.objectContaining({
-                diagnosticsService: expect.anything()
-            })
-        );
-        expect(registry.get(Services.Diagnostics)).toBe(diagnosticsOrchestrator);
-        expect(diagnosticsOrchestrator.analyzeDocument).not.toHaveBeenCalled();
+        expect(RustDiagnosticsCommands).toHaveBeenCalledWith(context, undefined);
+        expect(registry.get(Services.Diagnostics)).toBe(diagnostics);
     });
 });

@@ -13,10 +13,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(registry);
 
     await registerCoreServices(registry, context);
-    registerDiagnostics(registry, context);
     registerUI(registry, context);
-    registerCommands(registry, context);
     const lspClientManager = await activateLspClient(context);
+    registerDiagnostics(registry, context, lspClientManager);
+    registerCommands(registry, context);
     const projectConfigService = getRegisteredProjectConfigService();
     if (lspClientManager && projectConfigService) {
         registerWorkspaceIndexController({

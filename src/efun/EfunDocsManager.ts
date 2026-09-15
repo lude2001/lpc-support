@@ -57,7 +57,6 @@ export class EfunDocsManager {
         });
 
         this.runBackgroundTask(this.bundledDocsReady, '加载内置 Efun 文档失败');
-        this.runBackgroundTask(this.simulatedEfunScanner.load(), '加载模拟函数库文档失败');
     }
 
     private createBundledDocsMap(): Map<string, CallableDoc> {

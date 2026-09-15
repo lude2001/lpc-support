@@ -159,6 +159,20 @@ try {
     if (!Array.isArray(completion) || !completion.some(item => item.label === 'query')) {
         throw new Error(`Rust server returned unexpected completion: ${JSON.stringify(completion)}`);
     }
+    const variables = await connection.sendRequest('lpc/documentVariables', {
+        textDocument: { uri }
+    });
+    if (!Array.isArray(variables)
+        || !variables.some(item => item.name === 'total' && item.local === false)
+        || !variables.some(item => item.name === 'local' && item.local === true)) {
+        throw new Error(`Rust server returned unexpected variable inspection data: ${JSON.stringify(variables)}`);
+    }
+    const workspaceDiagnostics = await connection.sendRequest('lpc/workspaceDiagnostics', {
+        uriPrefix: 'file:///workspace/'
+    });
+    if (!Array.isArray(workspaceDiagnostics)) {
+        throw new Error(`Rust server returned invalid workspace diagnostics: ${JSON.stringify(workspaceDiagnostics)}`);
+    }
     const foldingRanges = await connection.sendRequest('textDocument/foldingRange', {
         textDocument: { uri }
     });

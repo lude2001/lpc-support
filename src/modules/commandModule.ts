@@ -87,7 +87,8 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
 
     register(context, 'lpc.showVariables', () => diagnostics.showVariables());
 
-    register(context, 'lpc.showFunctionDoc', () => {
+    register(context, 'lpc.showFunctionDoc', async () => {
+        await efunDocsManager.bundledDocsReady;
         FunctionDocPanel.createOrShow(
             context,
             efunDocsManager,

@@ -143,6 +143,18 @@ struct SourceFileChangeParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct DocumentVariablesParams {
+    text_document: TextDocumentIdentifier,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceDiagnosticsParams {
+    uri_prefix: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FormattingParams {
     text_document: TextDocumentIdentifier,
     options: FormattingOptions,
@@ -474,6 +486,24 @@ fn handle_request(
             },
         };
         return send_ok(connection, request.id, response);
+    }
+
+    if request.method == "lpc/documentVariables" {
+        let params: DocumentVariablesParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.document_variables(&params.text_document.uri),
+        );
+    }
+
+    if request.method == "lpc/workspaceDiagnostics" {
+        let params: WorkspaceDiagnosticsParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.workspace_diagnostics(&params.uri_prefix),
+        );
     }
 
     if request.method == "textDocument/semanticTokens/full" {
