@@ -67,6 +67,12 @@ try {
     if (!Array.isArray(semanticTokens?.data) || semanticTokens.data.length === 0) {
         throw new Error(`Rust server returned no semantic tokens: ${JSON.stringify(semanticTokens)}`);
     }
+    const documentSymbols = await connection.sendRequest('textDocument/documentSymbol', {
+        textDocument: { uri }
+    });
+    if (!Array.isArray(documentSymbols) || documentSymbols[0]?.name !== 'query') {
+        throw new Error(`Rust server returned unexpected document symbols: ${JSON.stringify(documentSymbols)}`);
+    }
 
     const health = await connection.sendRequest('lpc/health');
     if (health?.status !== 'ok' || health?.mode !== 'rust' || health?.documentCount !== 1) {

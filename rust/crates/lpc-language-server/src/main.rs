@@ -52,6 +52,8 @@ struct SemanticTokensParams {
     text_document: TextDocumentIdentifier,
 }
 
+type DocumentSymbolParams = SemanticTokensParams;
+
 fn main() -> Result<()> {
     let (connection, io_threads) = Connection::stdio();
     let initialize_result = json!({
@@ -68,7 +70,8 @@ fn main() -> Result<()> {
                 },
                 "full": true,
                 "range": false
-            }
+            },
+            "documentSymbolProvider": true
         },
         "serverInfo": {
             "name": "lpc-language-server",
@@ -147,6 +150,22 @@ fn handle_request(
                     &document.text
                 )
             }),
+        );
+    }
+
+    if request.method == "textDocument/documentSymbol" {
+        let params: DocumentSymbolParams = serde_json::from_value(request.params)?;
+        let uri = params.text_document.uri;
+        let document = documents
+            .get(&uri)
+            .with_context(|| format!("document symbols requested for unopened document {uri}"))?;
+        let snapshot = syntax
+            .get(&uri)
+            .with_context(|| format!("document symbols requested without syntax for {uri}"))?;
+        return send_ok(
+            connection,
+            request.id,
+            lpc_language_server::document_symbols::collect(&snapshot.tree, &document.text),
         );
     }
 
