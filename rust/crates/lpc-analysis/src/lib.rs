@@ -61,6 +61,7 @@ struct Symbol {
     documentation: Option<String>,
     return_objects: Vec<String>,
     return_expressions: Vec<ExpressionFact>,
+    value_expressions: Vec<ExpressionFact>,
     has_body: bool,
     local: bool,
     parameters: Vec<String>,
@@ -751,10 +752,7 @@ impl AnalysisDatabase {
                 .files
                 .iter()
                 .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
-                .flat_map(|(_, target)| target.symbols.iter())
-                .filter(|symbol| {
-                    !symbol.local && symbol.kind == SymbolKind::Function && symbol.name == name
-                })
+                .flat_map(|(_, target)| preferred_function_symbols(target, &name))
                 .map(|symbol| SignatureInformation {
                     label: symbol.detail.clone(),
                     documentation: symbol.documentation.clone(),
@@ -1494,25 +1492,25 @@ impl AnalysisDatabase {
         }
         for constructor in ["load_object", "clone_object", "find_object", "new"] {
             if let Some(argument) = call_first_argument(expression, constructor) {
-                let path =
-                    self.resolve_string_expression(uri, argument, offset, budget.saturating_sub(1));
-                return path
-                    .map(|path| self.path_target_uris(uri, &path))
-                    .unwrap_or_default();
+                return self
+                    .resolve_string_candidates(uri, argument, offset, budget.saturating_sub(1))
+                    .iter()
+                    .flat_map(|path| self.path_target_uris(uri, path))
+                    .collect();
             }
         }
         if let Some((receiver, argument)) = model_get_call(expression) {
             let registry_targets =
                 self.resolve_object_expression(uri, receiver, offset, budget.saturating_sub(1));
-            let Some(key) =
-                self.resolve_string_expression(uri, argument, offset, budget.saturating_sub(1))
-            else {
-                return HashSet::new();
-            };
+            let keys =
+                self.resolve_string_candidates(uri, argument, offset, budget.saturating_sub(1));
             return registry_targets
                 .iter()
                 .filter_map(|target_uri| self.files.get(target_uri))
-                .filter_map(|target| model_registry_path(&target.source, &key))
+                .flat_map(|target| {
+                    keys.iter()
+                        .filter_map(|key| model_registry_path(&target.source, key))
+                })
                 .flat_map(|path| self.path_target_uris(uri, &path))
                 .collect();
         }
@@ -1536,7 +1534,7 @@ impl AnalysisDatabase {
                                 candidate_uri,
                                 symbol,
                                 budget.saturating_sub(1),
-                                None,
+                                &HashSet::new(),
                             )
                         })
                 })
@@ -1549,10 +1547,11 @@ impl AnalysisDatabase {
                     .flat_map(|path| self.path_target_uris(uri, path))
                     .collect();
             }
-            let first_string_argument =
-                call_first_argument(expression, function_name).and_then(|argument| {
-                    self.resolve_string_expression(uri, argument, offset, budget.saturating_sub(1))
-                });
+            let first_string_arguments = call_first_argument(expression, function_name)
+                .map(|argument| {
+                    self.resolve_string_candidates(uri, argument, offset, budget.saturating_sub(1))
+                })
+                .unwrap_or_default();
             let visible = self.visible_uris(uri);
             return self
                 .files
@@ -1571,7 +1570,7 @@ impl AnalysisDatabase {
                                 candidate_uri,
                                 symbol,
                                 budget.saturating_sub(1),
-                                first_string_argument.as_deref(),
+                                &first_string_arguments,
                             )
                         })
                 })
@@ -1609,7 +1608,7 @@ impl AnalysisDatabase {
         defining_uri: &str,
         symbol: &Symbol,
         budget: usize,
-        first_string_argument: Option<&str>,
+        first_string_arguments: &HashSet<String>,
     ) -> HashSet<String> {
         let mut targets =
             self.return_object_targets(defining_uri, defining_uri, &symbol.return_objects);
@@ -1627,15 +1626,19 @@ impl AnalysisDatabase {
                 .parameters
                 .first()
                 .and_then(|parameter| declaration_identifier(parameter));
-            if let (Some(parameter), Some(argument)) = (first_parameter, first_string_argument) {
-                targets.extend(self.resolve_bound_return_expression(
-                    defining_uri,
-                    source,
-                    expression.range.start,
-                    budget.saturating_sub(1),
-                    parameter,
-                    argument,
-                ));
+            if let Some(parameter) = first_parameter
+                && !first_string_arguments.is_empty()
+            {
+                for argument in first_string_arguments {
+                    targets.extend(self.resolve_bound_return_expression(
+                        defining_uri,
+                        source,
+                        expression.range.start,
+                        budget.saturating_sub(1),
+                        parameter,
+                        argument,
+                    ));
+                }
             } else {
                 targets.extend(self.resolve_object_expression(
                     defining_uri,
@@ -1682,39 +1685,86 @@ impl AnalysisDatabase {
         self.resolve_object_expression(defining_uri, expression, offset, budget)
     }
 
-    fn resolve_string_expression(
+    fn resolve_string_candidates(
         &self,
         uri: &str,
         expression: &str,
         offset: usize,
         budget: usize,
-    ) -> Option<String> {
+    ) -> HashSet<String> {
         if budget == 0 {
-            return None;
+            return HashSet::new();
         }
         let expression = strip_outer_parentheses(expression.trim());
         if let Some(value) = quoted_string(expression) {
-            return Some(value.to_owned());
+            return HashSet::from([value.to_owned()]);
+        }
+        if let Some(elements) = array_literal_elements(expression) {
+            return elements
+                .into_iter()
+                .flat_map(|element| {
+                    self.resolve_string_candidates(uri, element, offset, budget.saturating_sub(1))
+                })
+                .collect();
+        }
+        if let Some(function_name) = direct_call_name(expression) {
+            let visible = self.visible_uris(uri);
+            return self
+                .files
+                .iter()
+                .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
+                .flat_map(|(candidate_uri, file)| {
+                    file.symbols
+                        .iter()
+                        .filter(|symbol| {
+                            !symbol.local
+                                && symbol.kind == SymbolKind::Function
+                                && symbol.name == function_name
+                        })
+                        .flat_map(|symbol| {
+                            symbol.return_expressions.iter().flat_map(|returned| {
+                                file.source
+                                    .get(returned.range.clone())
+                                    .into_iter()
+                                    .flat_map(|source| {
+                                        self.resolve_string_candidates(
+                                            candidate_uri,
+                                            source,
+                                            returned.range.start,
+                                            budget.saturating_sub(1),
+                                        )
+                                    })
+                            })
+                        })
+                })
+                .collect();
         }
         if !valid_identifier(expression) {
-            return None;
+            return HashSet::new();
         }
         if let Some(value) = self.resolve_path_token(expression) {
-            return Some(value);
+            return HashSet::from([value]);
         }
-        let file = self.files.get(uri)?;
-        let symbol = resolved_symbols(file, expression, offset)
+        let Some(file) = self.files.get(uri) else {
+            return HashSet::new();
+        };
+        let Some(symbol) = resolved_symbols(file, expression, offset)
             .into_iter()
-            .next()?;
-        let values = symbol_value_expressions(file, symbol, offset)
+            .next()
+        else {
+            return HashSet::new();
+        };
+        symbol_value_expressions(file, symbol, offset)
             .into_iter()
-            .filter_map(|(value, value_offset)| {
-                self.resolve_string_expression(uri, value, value_offset, budget.saturating_sub(1))
+            .chain(symbol.value_expressions.iter().filter_map(|value| {
+                file.source
+                    .get(value.range.clone())
+                    .map(|source| (source, value.range.start))
+            }))
+            .flat_map(|(value, value_offset)| {
+                self.resolve_string_candidates(uri, value, value_offset, budget.saturating_sub(1))
             })
-            .collect::<HashSet<_>>();
-        (values.len() == 1)
-            .then(|| values.into_iter().next())
-            .flatten()
+            .collect()
     }
 
     fn return_object_targets(
@@ -1825,8 +1875,14 @@ impl AnalysisDatabase {
             .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
             .flat_map(|(_, file)| preferred_function_symbols(file, member_name));
         let symbol = symbols.next()?;
-        if symbols.next().is_some() {
-            return None;
+        let remaining = symbols.collect::<Vec<_>>();
+        if !remaining.is_empty() {
+            let mut details = std::iter::once(symbol.detail.as_str())
+                .chain(remaining.iter().map(|candidate| candidate.detail.as_str()))
+                .collect::<Vec<_>>();
+            details.sort_unstable();
+            details.dedup();
+            return Some(format!("```lpc\n{}\n```", details.join("\n")));
         }
         Some(match symbol.documentation.as_deref() {
             Some(documentation) => format!("```lpc\n{}\n```\n\n{documentation}", symbol.detail),
@@ -2426,6 +2482,7 @@ fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                         documentation: None,
                         return_objects: Vec::new(),
                         return_expressions: Vec::new(),
+                        value_expressions: Vec::new(),
                         has_body: false,
                         local: false,
                         parameters: Vec::new(),
@@ -2515,6 +2572,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
         documentation: leading_documentation(source, node.start_byte()),
         return_objects: leading_return_objects(source, node.start_byte()),
         return_expressions,
+        value_expressions: Vec::new(),
         has_body,
         local: false,
         parameters: parameter_details,
@@ -2534,6 +2592,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                     documentation: None,
                     return_objects: Vec::new(),
                     return_expressions: Vec::new(),
+                    value_expressions: Vec::new(),
                     has_body: false,
                     local: true,
                     parameters: Vec::new(),
@@ -2576,6 +2635,9 @@ fn collect_local_variables(
     scope: std::ops::Range<usize>,
     output: &mut Vec<Symbol>,
 ) {
+    if node.kind() == "foreach_statement" {
+        collect_foreach_variables(node, source, output);
+    }
     if node.kind() == "variable_declaration"
         || node.kind() == "variable_declaration_without_semicolon"
     {
@@ -2585,6 +2647,50 @@ fn collect_local_variables(
     for child in node.named_children(&mut cursor) {
         collect_local_variables(child, source, scope.clone(), output);
     }
+}
+
+fn collect_foreach_variables(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
+    let mut cursor = node.walk();
+    let children = node.named_children(&mut cursor).collect::<Vec<_>>();
+    let variables = children
+        .iter()
+        .filter(|child| child.kind() == "foreach_variable")
+        .copied()
+        .collect::<Vec<_>>();
+    if variables.len() != 1 {
+        return;
+    }
+    let Some(iterable) = children
+        .iter()
+        .find(|child| child.kind() != "foreach_variable")
+        .copied()
+    else {
+        return;
+    };
+    let variable = variables[0];
+    let mut variable_cursor = variable.walk();
+    let Some(name) = variable
+        .named_children(&mut variable_cursor)
+        .find(|child| child.kind() == "identifier")
+    else {
+        return;
+    };
+    output.push(Symbol {
+        name: text(name, source),
+        kind: SymbolKind::Variable,
+        selection: name.byte_range(),
+        scope: node.byte_range(),
+        detail: text(variable, source),
+        documentation: None,
+        return_objects: Vec::new(),
+        return_expressions: Vec::new(),
+        value_expressions: vec![ExpressionFact {
+            range: iterable.byte_range(),
+        }],
+        has_body: false,
+        local: true,
+        parameters: Vec::new(),
+    });
 }
 
 fn collect_variable_declaration(
@@ -2619,6 +2725,7 @@ fn collect_variable_declaration(
                 documentation: None,
                 return_objects: Vec::new(),
                 return_expressions: Vec::new(),
+                value_expressions: Vec::new(),
                 has_body: false,
                 local: scope.start != 0
                     || node
@@ -3303,6 +3410,7 @@ fn member_access_context(
         match character {
             b')' | b']' => depth += 1,
             b'(' | b'[' if depth > 0 => depth -= 1,
+            b'(' | b'[' if depth == 0 => break,
             b' ' | b'\t' | b'\r' | b'\n' | b',' | b';' | b'{' | b'}' | b'=' | b'?' | b':'
                 if depth == 0 =>
             {
@@ -3348,12 +3456,55 @@ fn quoted_string(value: &str) -> Option<&str> {
     value.strip_prefix('"')?.strip_suffix('"')
 }
 
+fn array_literal_elements(expression: &str) -> Option<Vec<&str>> {
+    let body = expression.strip_prefix('{')?.strip_suffix('}')?;
+    Some(split_top_level_commas(body))
+}
+
+fn split_top_level_commas(source: &str) -> Vec<&str> {
+    let mut output = Vec::new();
+    let mut start = 0;
+    let mut nesting = 0_u32;
+    let mut quoted = false;
+    let mut escaped = false;
+    for (index, character) in source.char_indices() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                quoted = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => quoted = true,
+            '(' | '{' | '[' => nesting += 1,
+            ')' | '}' | ']' => nesting = nesting.saturating_sub(1),
+            ',' if nesting == 0 => {
+                let value = source[start..index].trim();
+                if !value.is_empty() {
+                    output.push(value);
+                }
+                start = index + character.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    let value = source[start..].trim();
+    if !value.is_empty() {
+        output.push(value);
+    }
+    output
+}
+
 fn call_first_argument<'a>(expression: &'a str, name: &str) -> Option<&'a str> {
     let arguments = expression
         .strip_prefix(name)?
         .strip_prefix('(')?
         .strip_suffix(')')?;
-    Some(arguments.split(',').next()?.trim())
+    split_top_level_commas(arguments).into_iter().next()
 }
 
 fn model_get_call(expression: &str) -> Option<(&str, &str)> {
@@ -3362,7 +3513,7 @@ fn model_get_call(expression: &str) -> Option<(&str, &str)> {
     let arguments = expression.get(index + marker.len()..)?.strip_suffix(')')?;
     Some((
         expression[..index].trim(),
-        arguments.split(',').next()?.trim(),
+        split_top_level_commas(arguments).into_iter().next()?,
     ))
 }
 
@@ -4511,6 +4662,52 @@ mod tests {
                 .iter()
                 .any(|item| item.uri.ends_with("/other.c"))
         );
+    }
+
+    #[test]
+    fn propagates_static_function_arrays_through_foreach_bindings() {
+        let source = concat!(
+            "#define BASE_D \"/std/base\"\n",
+            "string *runtime_paths() { return ({ BASE_D, \"/std/other\" }); }\n",
+            "object find_runtime_object(string path) { return find_object(path); }\n",
+            "void demo() {\n",
+            "  foreach (string path in runtime_paths()) {\n",
+            "    object runtime;\n",
+            "    runtime = find_runtime_object(path);\n",
+            "    catch(runtime->shared_method());\n",
+            "  }\n",
+            "}\n",
+        );
+        let mut analysis = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for path in ["base", "other"] {
+            let target = "int shared_method() { return 1; }\n";
+            let tree = parser.parse(target, None).unwrap();
+            analysis.index_source(&format!("file:///mud/std/{path}.c"), &tree, target);
+        }
+
+        let member_start = source.rfind("shared_method").unwrap();
+        let definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 1),
+        );
+        assert_eq!(definitions.len(), 2);
+        let completions = analysis.completion_candidates(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 6),
+        );
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "shared_method");
+        let hover = analysis
+            .hover(
+                "file:///demo.c",
+                byte_to_lsp_position(source, member_start + 1),
+            )
+            .unwrap();
+        assert!(hover.contents.contains("shared_method"));
     }
 
     #[test]
