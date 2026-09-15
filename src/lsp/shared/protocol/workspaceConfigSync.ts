@@ -17,6 +17,9 @@ export interface WorkspaceConfigSyncSnapshot {
     lastSyncedAt?: string;
     searchEfunDefinitionInInheritanceChain?: boolean;
     enableTypeChecking?: boolean;
+    enableUnusedGlobalVarCheck?: boolean;
+    enableUnusedParameterCheck?: boolean;
+    enforceLocalVariableDeclarationAtBlockStart?: boolean;
 }
 
 export interface WorkspaceConfigSyncPayload {

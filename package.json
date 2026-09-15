@@ -265,6 +265,11 @@
           "default": false,
           "description": "启用未使用的全局变量检查。默认关闭，以避免 LPC 继承链和头文件共享变量导致的误报。"
         },
+        "lpc.enableUnusedParameterCheck": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用未使用的函数参数检查。只检查带函数体的实现并忽略下划线前缀参数；默认关闭，以避免回调和覆盖函数的约定参数产生噪声。"
+        },
         "lpc.enforceLocalVariableDeclarationAtBlockStart": {
           "type": "boolean",
           "default": false,

@@ -32,6 +32,7 @@
 - 静态对象候选可继续通过数组/映射字面量、确定索引、后续索引赋值和嵌套映射到数组的索引访问传播；动态索引仍保守拒绝猜测。
 - `async_getdir`、`async_read`、`async_write`、`call_out` 与 `call_out_walltime` 文档补充 Promise 重载，参数数量检查与当前 FluffOS 声明保持兼容。
 - LSP 性能探针新增工作区启动墙钟时间、原生服务进程 CPU 时间和平均单核利用率，便于在受限 CPU 条件下验证后台索引不会持续满核。
+- `enableUnusedGlobalVarCheck` 与 `enforceLocalVariableDeclarationAtBlockStart` 配置正式由 Rust 诊断消费；未使用参数检查新增独立的 `enableUnusedParameterCheck` 开关并默认关闭，启用时只检查带函数体的实现、忽略前置声明和下划线前缀参数，避免原型与回调约定产生误报。
 
 ## [0.52.13] - 2026-08-15
 

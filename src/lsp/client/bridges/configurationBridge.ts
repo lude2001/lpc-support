@@ -65,6 +65,9 @@ export async function createWorkspaceConfigSyncPayload(
     );
     const searchEfunDefinitionInInheritanceChain = readSearchEfunDefinitionInInheritanceChain();
     const enableTypeChecking = readEnableTypeChecking();
+    const enableUnusedGlobalVarCheck = readEnableUnusedGlobalVarCheck();
+    const enableUnusedParameterCheck = readEnableUnusedParameterCheck();
+    const enforceLocalVariableDeclarationAtBlockStart = readEnforceLocalVariableDeclarationAtBlockStart();
     const workspaces = await Promise.all(workspaceRoots.map(async workspaceRoot => {
         const projectConfig = await projectConfigService.loadForWorkspace(workspaceRoot);
 
@@ -77,7 +80,10 @@ export async function createWorkspaceConfigSyncPayload(
             resolvedConfig: projectConfig?.resolved,
             lastSyncedAt: projectConfig?.lastSyncedAt,
             searchEfunDefinitionInInheritanceChain,
-            enableTypeChecking
+            enableTypeChecking,
+            enableUnusedGlobalVarCheck,
+            enableUnusedParameterCheck,
+            enforceLocalVariableDeclarationAtBlockStart
         };
     }));
 
@@ -93,6 +99,18 @@ function readSearchEfunDefinitionInInheritanceChain(): boolean {
 
 function readEnableTypeChecking(): boolean {
     return vscode.workspace.getConfiguration?.('lpc')?.get?.<boolean>('enableTypeChecking', true) ?? true;
+}
+
+function readEnableUnusedGlobalVarCheck(): boolean {
+    return vscode.workspace.getConfiguration?.('lpc')?.get?.<boolean>('enableUnusedGlobalVarCheck', false) ?? false;
+}
+
+function readEnableUnusedParameterCheck(): boolean {
+    return vscode.workspace.getConfiguration?.('lpc')?.get?.<boolean>('enableUnusedParameterCheck', false) ?? false;
+}
+
+function readEnforceLocalVariableDeclarationAtBlockStart(): boolean {
+    return vscode.workspace.getConfiguration?.('lpc')?.get?.<boolean>('enforceLocalVariableDeclarationAtBlockStart', false) ?? false;
 }
 
 async function attemptResync(

@@ -217,6 +217,9 @@ pub struct AnalysisDatabase {
     files: HashMap<String, FileAnalysis>,
     external_functions: HashMap<String, ExternalFunction>,
     type_checking_enabled: Option<bool>,
+    unused_global_var_check_enabled: bool,
+    unused_parameter_check_enabled: bool,
+    enforce_local_variable_declaration_at_block_start: bool,
     global_includes: Vec<String>,
     include_directories: Vec<String>,
     instance_resolution_functions: HashMap<String, Vec<String>>,
@@ -234,6 +237,18 @@ impl AnalysisDatabase {
 
     pub fn set_type_checking_enabled(&mut self, enabled: bool) {
         self.type_checking_enabled = Some(enabled);
+    }
+
+    pub fn set_diagnostic_preferences(
+        &mut self,
+        unused_global_var_check_enabled: bool,
+        unused_parameter_check_enabled: bool,
+        enforce_local_variable_declaration_at_block_start: bool,
+    ) {
+        self.unused_global_var_check_enabled = unused_global_var_check_enabled;
+        self.unused_parameter_check_enabled = unused_parameter_check_enabled;
+        self.enforce_local_variable_declaration_at_block_start =
+            enforce_local_variable_declaration_at_block_start;
     }
 
     pub fn set_workspace_resolution(
@@ -336,8 +351,16 @@ impl AnalysisDatabase {
         if self.type_checking_enabled == Some(false) {
             diagnostics.retain(|diagnostic| diagnostic.code != "lpc.typeMismatch");
         }
+        if !self.enforce_local_variable_declaration_at_block_start {
+            diagnostics.retain(|diagnostic| diagnostic.code != "localVariableDeclarationPosition");
+        }
         for symbol in file.symbols.iter().filter(|symbol| {
-            symbol.local && !symbol.name.starts_with('_') && symbol.kind == SymbolKind::Variable
+            symbol.local
+                && !symbol.name.starts_with('_')
+                && (symbol.kind == SymbolKind::Variable
+                    || (self.unused_parameter_check_enabled
+                        && symbol.kind == SymbolKind::Parameter))
+                && (symbol.kind != SymbolKind::Parameter || symbol.has_body)
         }) {
             let reference_count = file
                 .identifiers
@@ -348,13 +371,40 @@ impl AnalysisDatabase {
                 })
                 .count();
             if reference_count <= 1 {
+                let (code, message) = if symbol.kind == SymbolKind::Parameter {
+                    ("unusedParam", format!("未使用的参数: {}", symbol.name))
+                } else {
+                    ("unusedVar", format!("局部变量 '{}' 未被使用", symbol.name))
+                };
                 diagnostics.push(Diagnostic {
                     range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
-                    severity: 2,
-                    code: "unusedVar",
+                    severity: if symbol.kind == SymbolKind::Parameter { 4 } else { 2 },
+                    code,
                     source: "lpc-support",
-                    message: format!("局部变量 '{}' 未被使用", symbol.name),
+                    message,
                 });
+            }
+        }
+        if self.unused_global_var_check_enabled && !uri.to_ascii_lowercase().ends_with(".h") {
+            for symbol in file.symbols.iter().filter(|symbol| {
+                !symbol.local
+                    && !symbol.name.starts_with('_')
+                    && symbol.kind == SymbolKind::Variable
+            }) {
+                let reference_count = file
+                    .identifiers
+                    .iter()
+                    .filter(|range| file.source.get((*range).clone()) == Some(symbol.name.as_str()))
+                    .count();
+                if reference_count <= 1 {
+                    diagnostics.push(Diagnostic {
+                        range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
+                        severity: 4,
+                        code: "unusedGlobalVar",
+                        source: "lpc-support",
+                        message: format!("全局变量 '{}' 未被使用", symbol.name),
+                    });
+                }
             }
         }
         for call in &file.calls {
@@ -409,6 +459,7 @@ impl AnalysisDatabase {
         file.symbols
             .iter()
             .filter(|symbol| matches!(symbol.kind, SymbolKind::Variable | SymbolKind::Parameter))
+            .filter(|symbol| symbol.kind != SymbolKind::Parameter || symbol.has_body)
             .map(|symbol| {
                 let reference_count = file
                     .identifiers
@@ -2956,7 +3007,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                     return_objects: Vec::new(),
                     return_expressions: Vec::new(),
                     value_expressions: Vec::new(),
-                    has_body: false,
+                    has_body,
                     local: true,
                     parameters: Vec::new(),
                 });
@@ -3300,7 +3351,64 @@ fn collect_diagnostics(tree: &Tree, source: &str) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     collect_error_nodes(tree.root_node(), source, &mut diagnostics, false);
     collect_type_diagnostics(tree.root_node(), source, None, &mut diagnostics);
+    collect_local_declaration_position_diagnostics(tree.root_node(), source, &mut diagnostics);
     diagnostics
+}
+
+fn collect_local_declaration_position_diagnostics(
+    node: Node<'_>,
+    source: &str,
+    output: &mut Vec<Diagnostic>,
+) {
+    if node.kind() == "block" {
+        let mut has_executable = false;
+        let mut last_executable_end = node.start_byte();
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            if child.kind() == "variable_declaration" {
+                let separated_by_branch_directive = has_executable
+                    && source
+                        .get(last_executable_end..child.start_byte())
+                        .is_some_and(contains_preprocessor_branch_directive);
+                if has_executable && !separated_by_branch_directive {
+                    output.push(Diagnostic {
+                        range: byte_range_to_lsp(source, child.byte_range()),
+                        severity: 1,
+                        code: "localVariableDeclarationPosition",
+                        source: "lpc-support",
+                        message: "局部变量定义必须在可执行语句或代码块的开头。".to_owned(),
+                    });
+                }
+                if separated_by_branch_directive {
+                    has_executable = false;
+                }
+            } else {
+                has_executable = true;
+                last_executable_end = child.end_byte();
+            }
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_local_declaration_position_diagnostics(child, source, output);
+    }
+}
+
+fn contains_preprocessor_branch_directive(source: &str) -> bool {
+    source.lines().any(|line| {
+        let line = line.trim_start();
+        let Some(directive) = line.strip_prefix('#').map(str::trim_start) else {
+            return false;
+        };
+        ["if", "ifdef", "ifndef", "elif", "else", "endif"]
+            .iter()
+            .any(|keyword| {
+                directive == *keyword
+                    || directive
+                        .strip_prefix(keyword)
+                        .is_some_and(|rest| rest.starts_with(char::is_whitespace))
+            })
+    })
 }
 
 fn collect_type_diagnostics(
@@ -5352,17 +5460,53 @@ mod tests {
     }
 
     #[test]
-    fn does_not_introduce_unused_parameter_diagnostics() {
+    fn checks_only_parameters_from_function_implementations() {
         let source = concat!(
             "string skill_level(string type, int level);\n",
-            "private int callback(string intentionally_unused) { return 1; }\n",
+            "string skill_level(string type, int level) { return type + level; }\n",
+            "private int callback(string unused_value, string _intentionally_unused) { return 1; }\n",
         );
         let mut database = database(source);
+        database.set_diagnostic_preferences(false, true, false);
+        let diagnostics = database.diagnostics("file:///demo.c");
+        let unused_parameters = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "unusedParam")
+            .collect::<Vec<_>>();
+        assert_eq!(unused_parameters.len(), 1);
+        assert!(unused_parameters[0].message.contains("unused_value"));
+    }
+
+    #[test]
+    fn honors_optional_global_and_declaration_position_diagnostics() {
+        let source = concat!(
+            "int unused_global;\n",
+            "void demo(int input) {\n",
+            "  int first = input;\n",
+            "  first++;\n",
+            "  int late;\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        let defaults = database.diagnostics("file:///demo.c");
+        assert!(defaults.iter().all(|diagnostic| {
+            !matches!(
+                diagnostic.code,
+                "unusedGlobalVar" | "localVariableDeclarationPosition"
+            )
+        }));
+
+        database.set_diagnostic_preferences(true, false, true);
+        let enabled = database.diagnostics("file:///demo.c");
         assert!(
-            database
-                .diagnostics("file:///demo.c")
+            enabled
                 .iter()
-                .all(|diagnostic| diagnostic.code != "unusedParam")
+                .any(|diagnostic| diagnostic.code == "unusedGlobalVar")
+        );
+        assert!(
+            enabled
+                .iter()
+                .any(|diagnostic| diagnostic.code == "localVariableDeclarationPosition")
         );
     }
 

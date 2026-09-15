@@ -42,8 +42,8 @@ To audit a real project, run `npm run probe:lsp -- --server rust --project <proj
 ### Diagnostics And Type Checking
 
 - LPC syntax diagnostics
-- Unused local variable, parameter, and global variable checks
-- Local variable declaration-position checks
+- Unused local checks, with separately configurable parameter and global checks disabled by default to avoid dynamic-LPC noise
+- Optional local declaration-position checks for older driver rules
 - Macro, include, object-access, and basic semantic diagnostics
 - Conservative type checking for provable assignment, return, argument, and common expression mismatches
 - Folder scanning

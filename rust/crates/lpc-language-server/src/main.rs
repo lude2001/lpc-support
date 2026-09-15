@@ -125,6 +125,9 @@ struct WorkspaceConfigSnapshot {
     instance_resolution_functions: HashMap<String, Vec<String>>,
     resolved_config: Option<ResolvedConfigSnapshot>,
     enable_type_checking: Option<bool>,
+    enable_unused_global_var_check: Option<bool>,
+    enable_unused_parameter_check: Option<bool>,
+    enforce_local_variable_declaration_at_block_start: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -278,6 +281,22 @@ fn run(
                         .workspaces
                         .iter()
                         .all(|workspace| workspace.enable_type_checking.unwrap_or(true));
+                    let unused_global_var_check_enabled = params
+                        .workspaces
+                        .iter()
+                        .any(|workspace| workspace.enable_unused_global_var_check.unwrap_or(false));
+                    let unused_parameter_check_enabled = params
+                        .workspaces
+                        .iter()
+                        .any(|workspace| workspace.enable_unused_parameter_check.unwrap_or(false));
+                    let enforce_local_variable_declaration_at_block_start = params
+                        .workspaces
+                        .iter()
+                        .any(|workspace| {
+                            workspace
+                                .enforce_local_variable_declaration_at_block_start
+                                .unwrap_or(false)
+                        });
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
@@ -295,6 +314,11 @@ fn run(
                             .lock()
                             .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
                         database.set_type_checking_enabled(type_checking_enabled);
+                        database.set_diagnostic_preferences(
+                            unused_global_var_check_enabled,
+                            unused_parameter_check_enabled,
+                            enforce_local_variable_declaration_at_block_start,
+                        );
                         apply_workspace_resolution(&mut database, &params.workspaces);
                     }
                     connection
@@ -340,6 +364,22 @@ fn run(
                         .workspaces
                         .iter()
                         .all(|workspace| workspace.enable_type_checking.unwrap_or(true));
+                    let unused_global_var_check_enabled = params
+                        .workspaces
+                        .iter()
+                        .any(|workspace| workspace.enable_unused_global_var_check.unwrap_or(false));
+                    let unused_parameter_check_enabled = params
+                        .workspaces
+                        .iter()
+                        .any(|workspace| workspace.enable_unused_parameter_check.unwrap_or(false));
+                    let enforce_local_variable_declaration_at_block_start = params
+                        .workspaces
+                        .iter()
+                        .any(|workspace| {
+                            workspace
+                                .enforce_local_variable_declaration_at_block_start
+                                .unwrap_or(false)
+                        });
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
@@ -353,6 +393,11 @@ fn run(
                             .lock()
                             .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
                         database.set_type_checking_enabled(type_checking_enabled);
+                        database.set_diagnostic_preferences(
+                            unused_global_var_check_enabled,
+                            unused_parameter_check_enabled,
+                            enforce_local_variable_declaration_at_block_start,
+                        );
                         apply_workspace_resolution(&mut database, &params.workspaces);
                         for document in documents.iter() {
                             let snapshot = syntax.open(document)?;

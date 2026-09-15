@@ -203,6 +203,39 @@ try {
         throw new Error(`Rust server returned unexpected diagnostics: ${JSON.stringify(latestDiagnostics)}`);
     }
 
+    connection.sendNotification('lpc/workspaceConfigSync', {
+        workspaceRoots: [],
+        workspaces: [{
+            enableTypeChecking: true,
+            enableUnusedGlobalVarCheck: true,
+            enableUnusedParameterCheck: true,
+            enforceLocalVariableDeclarationAtBlockStart: true
+        }]
+    });
+    const configuredDiagnosticsUri = 'file:///rust-lsp-configured-diagnostics.c';
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: {
+            uri: configuredDiagnosticsUri,
+            languageId: 'lpc',
+            version: 1,
+            text: 'int stale;\nvoid configured(int unused) { write("x"); int late; }\n'
+        }
+    });
+    await connection.sendRequest('lpc/health');
+    const configuredCodes = new Set(latestDiagnostics?.diagnostics?.map(item => item.code));
+    for (const expectedCode of [
+        'unusedGlobalVar',
+        'unusedParam',
+        'localVariableDeclarationPosition'
+    ]) {
+        if (!configuredCodes.has(expectedCode)) {
+            throw new Error(`Rust server missed configured diagnostic ${expectedCode}: ${JSON.stringify(latestDiagnostics)}`);
+        }
+    }
+    connection.sendNotification('textDocument/didClose', {
+        textDocument: { uri: configuredDiagnosticsUri }
+    });
+
     const health = await connection.sendRequest('lpc/health');
     if (health?.status !== 'ok' || health?.mode !== 'rust' || health?.documentCount !== 1) {
         throw new Error(`Unexpected health response: ${JSON.stringify(health)}`);

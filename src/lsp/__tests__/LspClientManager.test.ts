@@ -336,7 +336,10 @@ describe('LspClientManager activation', () => {
                         },
                         lastSyncedAt: '2026-04-10T00:00:00.000Z',
                         searchEfunDefinitionInInheritanceChain: false,
-                        enableTypeChecking: true
+                        enableTypeChecking: true,
+                        enableUnusedGlobalVarCheck: false,
+                        enableUnusedParameterCheck: false,
+                        enforceLocalVariableDeclarationAtBlockStart: false
                     }
                 ]
             }
@@ -382,6 +385,9 @@ describe('LspClientManager activation', () => {
                     lastSyncedAt: undefined,
                     searchEfunDefinitionInInheritanceChain: false,
                     enableTypeChecking: true,
+                    enableUnusedGlobalVarCheck: false,
+                    enableUnusedParameterCheck: false,
+                    enforceLocalVariableDeclarationAtBlockStart: false,
                     instanceResolutionFunctions: undefined,
                     preprocessorDefines: undefined
                 }
@@ -429,6 +435,9 @@ describe('LspClientManager activation', () => {
                     lastSyncedAt: undefined,
                     searchEfunDefinitionInInheritanceChain: false,
                     enableTypeChecking: true,
+                    enableUnusedGlobalVarCheck: false,
+                    enableUnusedParameterCheck: false,
+                    enforceLocalVariableDeclarationAtBlockStart: false,
                     instanceResolutionFunctions: undefined,
                     preprocessorDefines: undefined
                 },
@@ -440,6 +449,9 @@ describe('LspClientManager activation', () => {
                     lastSyncedAt: undefined,
                     searchEfunDefinitionInInheritanceChain: false,
                     enableTypeChecking: true,
+                    enableUnusedGlobalVarCheck: false,
+                    enableUnusedParameterCheck: false,
+                    enforceLocalVariableDeclarationAtBlockStart: false,
                     instanceResolutionFunctions: undefined,
                     preprocessorDefines: undefined
                 }
