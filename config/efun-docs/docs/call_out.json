@@ -32,6 +32,21 @@
         "min": 2,
         "max": null
       }
+    },
+    {
+      "label": "promise call_out( int | float delay )",
+      "returnType": "promise",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "delay",
+          "type": "int | float"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
     }
   ]
 }

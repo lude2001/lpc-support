@@ -444,11 +444,12 @@ const docsDir = path.resolve(getArgValue('--docs-dir', defaultDocsDir));
 const reportPath = getArgValue('--report', undefined);
 const json = process.argv.includes('--json');
 const strict = process.argv.includes('--strict');
+const strictArity = process.argv.includes('--strict-arity');
 
 if (!fs.existsSync(path.join(fluffosRoot, 'src', 'packages'))) {
     const result = { skipped: true, reason: `FluffOS checkout not found: ${fluffosRoot}` };
     console.log(json ? JSON.stringify(result) : result.reason);
-    process.exit(strict ? 1 : 0);
+    process.exit(strict || strictArity ? 1 : 0);
 }
 
 const result = audit({ fluffosRoot, docsDir });
@@ -476,4 +477,5 @@ if (reportPath) {
     writeReport(result, path.resolve(reportPath), { fluffosRoot, docsDir });
 }
 
-process.exit(hasMismatch ? 1 : 0);
+const hasArityMismatch = result.tooNarrow.length || result.tooBroad.length;
+process.exit((strict && hasMismatch) || (strictArity && hasArityMismatch) ? 1 : 0);

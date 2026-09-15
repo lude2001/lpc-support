@@ -38,6 +38,29 @@
         "min": 4,
         "max": 4
       }
+    },
+    {
+      "label": "promise async_write( string file, string str, int flag )",
+      "returnType": "promise",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "file",
+          "type": "string"
+        },
+        {
+          "name": "str",
+          "type": "string"
+        },
+        {
+          "name": "flag",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
     }
   ]
 }

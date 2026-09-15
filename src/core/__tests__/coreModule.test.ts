@@ -1,37 +1,25 @@
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import * as vscode from 'vscode';
-import { ServiceRegistry } from '../ServiceRegistry';
-import { Services } from '../ServiceKeys';
-import { registerCoreServices } from '../../modules/coreModule';
-import { EfunDocsManager } from '../../efunDocs';
-import { createDefaultFunctionDocumentationService } from '../../language/documentation/FunctionDocumentationService';
-import { CompletionInstrumentation } from '../../completion/completionInstrumentation';
 import { LPCCompiler } from '../../compiler';
-import { LpcFrontendService } from '../../frontend/LpcFrontendService';
-import { DocumentLifecycleService } from '../DocumentLifecycleService';
-import { getGlobalParsedDocumentService } from '../../parser/ParsedDocumentService';
+import { BundledEfunDocsProvider } from '../../efun/BundledEfunDocsProvider';
+import { createVsCodeWorkspaceDocumentHost } from '../../language/shared/WorkspaceDocumentPathSupport';
+import { registerCoreServices } from '../../modules/coreModule';
 import { LpcProjectConfigService } from '../../projectConfig/LpcProjectConfigService';
 import { LpcProjectConfigSnapshotService } from '../../projectConfig/LpcProjectConfigSnapshotService';
-import { DocumentSemanticSnapshotService } from '../../semantic/documentSemanticSnapshotService';
-
-jest.mock('../../efunDocs', () => ({
-    EfunDocsManager: jest.fn()
-}));
-
-jest.mock('../../language/documentation/FunctionDocumentationService', () => ({
-    createDefaultFunctionDocumentationService: jest.fn()
-}));
-
-jest.mock('../../completion/completionInstrumentation', () => ({
-    CompletionInstrumentation: jest.fn()
-}));
-
-jest.mock('../../frontend/LpcFrontendService', () => ({
-    LpcFrontendService: jest.fn()
-}));
+import { ProjectConfigOnboardingService } from '../../projectConfig/ProjectConfigOnboardingService';
+import { Services } from '../ServiceKeys';
+import { ServiceRegistry } from '../ServiceRegistry';
 
 jest.mock('../../compiler', () => ({
     LPCCompiler: jest.fn()
+}));
+
+jest.mock('../../efun/BundledEfunDocsProvider', () => ({
+    BundledEfunDocsProvider: jest.fn()
+}));
+
+jest.mock('../../language/shared/WorkspaceDocumentPathSupport', () => ({
+    createVsCodeWorkspaceDocumentHost: jest.fn()
 }));
 
 jest.mock('../../projectConfig/LpcProjectConfigService', () => ({
@@ -42,147 +30,96 @@ jest.mock('../../projectConfig/LpcProjectConfigSnapshotService', () => ({
     LpcProjectConfigSnapshotService: jest.fn()
 }));
 
-jest.mock('../DocumentLifecycleService', () => ({
-    DocumentLifecycleService: jest.fn()
-}));
-
-jest.mock('../../semantic/documentSemanticSnapshotService', () => ({
-    DocumentSemanticSnapshotService: {
-        getInstance: jest.fn()
-    }
-}));
-
-jest.mock('../../parser/ParsedDocumentService', () => ({
-    getGlobalParsedDocumentService: jest.fn()
+jest.mock('../../projectConfig/ProjectConfigOnboardingService', () => ({
+    ProjectConfigOnboardingService: jest.fn()
 }));
 
 describe('registerCoreServices', () => {
     let registry: ServiceRegistry;
     let context: vscode.ExtensionContext;
-    let efunDocsManager: { id: string };
-    let documentationService: { id: string };
-    let completionInstrumentation: vscode.Disposable & { id: string };
     let compiler: { id: string };
-    let frontendService: { id: string; invalidate: jest.Mock; clear: jest.Mock };
+    let efunDocsProvider: { id: string };
     let projectConfigService: { id: string };
     let projectConfigSnapshotService: vscode.Disposable & { id: string; start: jest.Mock };
-    let lifecycle: vscode.Disposable & { id: string; onInvalidate: jest.Mock };
-    let parsedDocumentService: { invalidate: jest.Mock };
-    let analysisService: { clearCache: jest.Mock };
+    let projectConfigOnboardingService: vscode.Disposable & { id: string; start: jest.Mock };
+    let textDocumentHost: { openTextDocument: jest.Mock };
 
     beforeEach(() => {
         registry = new ServiceRegistry();
         context = {
             subscriptions: [],
             extensionPath: '/mock/extension',
-            globalStoragePath: '/mock/storage',
             workspaceState: {
                 get: jest.fn().mockReturnValue(undefined),
                 update: jest.fn().mockResolvedValue(undefined)
             }
         } as unknown as vscode.ExtensionContext;
 
-        efunDocsManager = { id: 'efunDocsManager' };
-        documentationService = { id: 'documentationService' };
-        completionInstrumentation = { id: 'completionInstrumentation', dispose: jest.fn() };
         compiler = { id: 'compiler' };
-        frontendService = { id: 'frontendService', invalidate: jest.fn(), clear: jest.fn() };
+        efunDocsProvider = { id: 'bundledEfunDocs' };
         projectConfigService = { id: 'projectConfigService' };
         projectConfigSnapshotService = {
             id: 'projectConfigSnapshotService',
             start: jest.fn().mockResolvedValue(undefined),
             dispose: jest.fn()
         };
-        lifecycle = { id: 'lifecycle', dispose: jest.fn(), onInvalidate: jest.fn() };
-        parsedDocumentService = { invalidate: jest.fn() };
-        analysisService = { clearCache: jest.fn() };
+        projectConfigOnboardingService = {
+            id: 'projectConfigOnboardingService',
+            start: jest.fn(),
+            dispose: jest.fn()
+        };
+        textDocumentHost = { openTextDocument: jest.fn() };
 
-        (EfunDocsManager as unknown as jest.Mock).mockReset().mockImplementation(() => efunDocsManager);
-        (createDefaultFunctionDocumentationService as unknown as jest.Mock).mockReset().mockImplementation(() => documentationService);
-        (CompletionInstrumentation as unknown as jest.Mock).mockReset().mockImplementation(() => completionInstrumentation);
         (LPCCompiler as unknown as jest.Mock).mockReset().mockImplementation(() => compiler);
-        (LpcFrontendService as unknown as jest.Mock).mockReset().mockImplementation(() => frontendService);
+        (BundledEfunDocsProvider as unknown as jest.Mock).mockReset().mockImplementation(() => efunDocsProvider);
+        (createVsCodeWorkspaceDocumentHost as jest.Mock).mockReset().mockReturnValue(textDocumentHost);
         (LpcProjectConfigService as unknown as jest.Mock).mockReset().mockImplementation(() => projectConfigService);
         (LpcProjectConfigSnapshotService as unknown as jest.Mock)
             .mockReset()
             .mockImplementation(() => projectConfigSnapshotService);
-        (DocumentLifecycleService as unknown as jest.Mock).mockReset().mockImplementation(() => lifecycle);
-        (getGlobalParsedDocumentService as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
-        ((DocumentSemanticSnapshotService as any).getInstance as jest.Mock).mockReset().mockReturnValue(analysisService);
+        (ProjectConfigOnboardingService as unknown as jest.Mock)
+            .mockReset()
+            .mockImplementation(() => projectConfigOnboardingService);
     });
 
-    test('registers core services, tracks disposables, and wires lifecycle invalidation', async () => {
+    test('registers only lightweight host services and leaves source analysis to the Rust LSP', async () => {
         await registerCoreServices(registry, context);
 
-        expect(createDefaultFunctionDocumentationService).toHaveBeenCalledTimes(1);
-        expect(EfunDocsManager).toHaveBeenCalledTimes(1);
-        expect(EfunDocsManager).toHaveBeenCalledWith(
-            context,
-            projectConfigService,
-            analysisService,
-            documentationService,
-            expect.anything(),
-            expect.anything()
-        );
-        expect(CompletionInstrumentation).toHaveBeenCalledTimes(1);
-        expect(LPCCompiler).toHaveBeenCalledTimes(1);
-        expect(LPCCompiler).toHaveBeenCalledWith(projectConfigService);
-        expect(LpcFrontendService).toHaveBeenCalledTimes(1);
         expect(LpcProjectConfigService).toHaveBeenCalledTimes(1);
         expect(LpcProjectConfigSnapshotService).toHaveBeenCalledWith(projectConfigService);
         expect(projectConfigSnapshotService.start).toHaveBeenCalledTimes(1);
-        expect(DocumentLifecycleService).toHaveBeenCalledTimes(1);
+        expect(ProjectConfigOnboardingService).toHaveBeenCalledWith({
+            projectConfigService,
+            snapshotService: projectConfigSnapshotService,
+            memento: context.workspaceState
+        });
+        expect(projectConfigOnboardingService.start).toHaveBeenCalledTimes(1);
+        expect(createVsCodeWorkspaceDocumentHost).toHaveBeenCalledTimes(1);
+        expect(BundledEfunDocsProvider).toHaveBeenCalledWith(context);
+        expect(LPCCompiler).toHaveBeenCalledWith(projectConfigService);
 
-        expect(registry.get(Services.EfunDocs)).toBe(efunDocsManager);
-        expect(registry.get(Services.Compiler)).toBe(compiler);
-        expect(registry.get(Services.Frontend)).toBe(frontendService);
         expect(registry.get(Services.ProjectConfig)).toBe(projectConfigService);
         expect(registry.get(Services.ProjectConfigSnapshot)).toBe(projectConfigSnapshotService);
-        expect(registry.get(Services.ProjectConfigOnboarding)).toBeDefined();
-        expect(registry.get(Services.FunctionDocumentation)).toBe(documentationService);
-        const textDocumentHost = registry.get(Services.TextDocumentHost);
-        expect(textDocumentHost).toEqual(expect.objectContaining({
-            openTextDocument: expect.any(Function)
-        }));
-        expect(registry.get(Services.DocumentPathSupport)).toBeDefined();
-        expect(registry.get(Services.CompletionInstrumentation)).toBe(completionInstrumentation);
-        expect(registry.get(Services.Lifecycle)).toBe(lifecycle);
-        expect(registry.get(Services.Analysis)).toBe(analysisService);
-        expect(DocumentSemanticSnapshotService.getInstance).toHaveBeenCalledTimes(1);
+        expect(registry.get(Services.ProjectConfigOnboarding)).toBe(projectConfigOnboardingService);
+        expect(registry.get(Services.TextDocumentHost)).toBe(textDocumentHost);
+        expect(registry.get(Services.EfunDocs)).toBe(efunDocsProvider);
+        expect(registry.get(Services.Compiler)).toBe(compiler);
+
+        for (const legacyAnalysisService of [
+            Services.Frontend,
+            Services.Analysis,
+            Services.FunctionDocumentation,
+            Services.DocumentPathSupport,
+            Services.SemanticEvaluation,
+            Services.Lifecycle,
+            Services.CompletionInstrumentation
+        ]) {
+            expect(() => registry.get(legacyAnalysisService as never)).toThrow('is not registered');
+        }
 
         expect(context.subscriptions).toEqual([
             projectConfigSnapshotService,
-            expect.anything(),
-            completionInstrumentation,
-            lifecycle
+            projectConfigOnboardingService
         ]);
-        expect(typeof context.subscriptions[0].dispose).toBe('function');
-        expect(typeof context.subscriptions[1].dispose).toBe('function');
-        expect(typeof context.subscriptions[2].dispose).toBe('function');
-        expect(typeof context.subscriptions[3].dispose).toBe('function');
-
-        expect(lifecycle.onInvalidate).toHaveBeenCalledTimes(1);
-
-        const lifecycleHandler = lifecycle.onInvalidate.mock.calls[0][0];
-        const uri = vscode.Uri.file('/virtual/lifecycle.c');
-        lifecycleHandler(uri);
-
-        expect(parsedDocumentService.invalidate).toHaveBeenCalledTimes(1);
-        expect(parsedDocumentService.invalidate).toHaveBeenCalledWith(uri);
-        expect(analysisService.clearCache).toHaveBeenCalledTimes(1);
-        expect(analysisService.clearCache).toHaveBeenCalledWith(uri.toString());
-
-        frontendService.invalidate.mockClear();
-        parsedDocumentService.invalidate.mockClear();
-        analysisService.clearCache.mockClear();
-        const openedDocument = { uri } as vscode.TextDocument;
-        (vscode.workspace.openTextDocument as jest.Mock).mockResolvedValue(openedDocument);
-
-        await expect(textDocumentHost.openTextDocument(uri)).resolves.toBe(openedDocument);
-
-        expect(frontendService.invalidate).toHaveBeenCalledWith(uri);
-        expect(parsedDocumentService.invalidate).toHaveBeenCalledWith(uri);
-        expect(analysisService.clearCache).toHaveBeenCalledWith(uri.toString());
-        expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(uri);
     });
 });
