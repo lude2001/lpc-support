@@ -572,13 +572,23 @@ async function readPerformanceCounters(connection) {
     const health = await connection.sendRequest(HEALTH_METHOD);
     return {
         parser: {
-            count: Number(health?.performance?.parser?.parseCount ?? 0),
-            totalTimeMs: Number(health?.performance?.parser?.totalParseTime ?? 0),
+            count: Number(health?.performance?.parser?.parseCount ?? health?.performance?.syntax?.parseCount ?? 0),
+            totalTimeMs: Number(
+                health?.performance?.parser?.totalParseTime
+                ?? (health?.performance?.syntax?.totalParseTimeMicros ?? 0) / 1000
+            ),
             files: normalizeFileCounters(health?.performance?.parser?.parseFiles)
         },
         semantic: {
-            count: Number(health?.performance?.semantic?.buildCount ?? 0),
-            totalTimeMs: Number(health?.performance?.semantic?.totalBuildTimeMs ?? 0),
+            count: Number(
+                health?.performance?.semantic?.buildCount
+                ?? health?.performance?.analysisSnapshotBuildCount
+                ?? 0
+            ),
+            totalTimeMs: Number(
+                health?.performance?.semantic?.totalBuildTimeMs
+                ?? (health?.performance?.analysisTotalBuildTimeMicros ?? 0) / 1000
+            ),
             files: normalizeFileCounters(health?.performance?.semantic?.buildFiles)
         }
     };
@@ -718,6 +728,10 @@ function sanitizeHealthPerformance(performance) {
             incrementalParseCount: performance.syntax.incrementalParseCount,
             totalParseTimeMicros: performance.syntax.totalParseTimeMicros
         } : undefined,
+        analysisSnapshotBuildCount: performance.analysisSnapshotBuildCount,
+        analysisQueryCount: performance.analysisQueryCount,
+        analysisTotalBuildTimeMicros: performance.analysisTotalBuildTimeMicros,
+        indexedFileCount: performance.indexedFileCount,
         parser: performance.parser ? {
             parseCount: performance.parser.parseCount,
             totalParseTime: performance.parser.totalParseTime,

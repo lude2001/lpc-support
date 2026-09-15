@@ -30,6 +30,11 @@ const connection = createMessageConnection(
 );
 connection.listen();
 
+let latestDiagnostics;
+connection.onNotification('textDocument/publishDiagnostics', (params) => {
+    latestDiagnostics = params;
+});
+
 try {
     const initialize = await connection.sendRequest('initialize', {
         processId: process.pid,
@@ -47,15 +52,15 @@ try {
             uri,
             languageId: 'lpc',
             version: 1,
-            text: 'void demo() {}\n'
+            text: 'int total;\nint demo(int amount) { int local = amount; return local + total; }\nint answer = query(1);\n'
         }
     });
     connection.sendNotification('textDocument/didChange', {
         textDocument: { uri, version: 2 },
         contentChanges: [{
             range: {
-                start: { line: 0, character: 5 },
-                end: { line: 0, character: 9 }
+                start: { line: 1, character: 4 },
+                end: { line: 1, character: 8 }
             },
             text: 'query'
         }]
@@ -70,8 +75,68 @@ try {
     const documentSymbols = await connection.sendRequest('textDocument/documentSymbol', {
         textDocument: { uri }
     });
-    if (!Array.isArray(documentSymbols) || documentSymbols[0]?.name !== 'query') {
+    if (!Array.isArray(documentSymbols) || !documentSymbols.some(symbol => symbol.name === 'query')) {
         throw new Error(`Rust server returned unexpected document symbols: ${JSON.stringify(documentSymbols)}`);
+    }
+    const definition = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri },
+        position: { line: 1, character: 52 }
+    });
+    if (!Array.isArray(definition) || definition[0]?.range?.start?.character !== 28) {
+        throw new Error(`Rust server returned unexpected definition: ${JSON.stringify(definition)}`);
+    }
+    const hover = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri },
+        position: { line: 1, character: 52 }
+    });
+    if (!hover?.contents?.value?.includes('int local')) {
+        throw new Error(`Rust server returned unexpected hover: ${JSON.stringify(hover)}`);
+    }
+    const references = await connection.sendRequest('textDocument/references', {
+        textDocument: { uri },
+        position: { line: 1, character: 52 },
+        context: { includeDeclaration: true }
+    });
+    if (!Array.isArray(references) || references.length !== 2) {
+        throw new Error(`Rust server returned unexpected references: ${JSON.stringify(references)}`);
+    }
+    const prepareRename = await connection.sendRequest('textDocument/prepareRename', {
+        textDocument: { uri },
+        position: { line: 1, character: 52 }
+    });
+    if (prepareRename?.start?.character !== 51) {
+        throw new Error(`Rust server returned unexpected prepare rename result: ${JSON.stringify(prepareRename)}`);
+    }
+    const rename = await connection.sendRequest('textDocument/rename', {
+        textDocument: { uri },
+        position: { line: 1, character: 52 },
+        newName: 'result'
+    });
+    if (rename?.changes?.[uri]?.length !== 2) {
+        throw new Error(`Rust server returned unexpected rename edits: ${JSON.stringify(rename)}`);
+    }
+    const signatureHelp = await connection.sendRequest('textDocument/signatureHelp', {
+        textDocument: { uri },
+        position: { line: 2, character: 20 }
+    });
+    if (signatureHelp?.signatures?.[0]?.parameters?.length !== 1) {
+        throw new Error(`Rust server returned unexpected signature help: ${JSON.stringify(signatureHelp)}`);
+    }
+    const completion = await connection.sendRequest('textDocument/completion', {
+        textDocument: { uri },
+        position: { line: 1, character: 65 }
+    });
+    if (!Array.isArray(completion) || !completion.some(item => item.label === 'query')) {
+        throw new Error(`Rust server returned unexpected completion: ${JSON.stringify(completion)}`);
+    }
+    const foldingRanges = await connection.sendRequest('textDocument/foldingRange', {
+        textDocument: { uri }
+    });
+    if (!Array.isArray(foldingRanges)) {
+        throw new Error(`Rust server returned invalid folding ranges: ${JSON.stringify(foldingRanges)}`);
+    }
+    if (!latestDiagnostics || latestDiagnostics.version !== 2 || latestDiagnostics.diagnostics.length !== 0) {
+        throw new Error(`Rust server returned unexpected diagnostics: ${JSON.stringify(latestDiagnostics)}`);
     }
 
     const health = await connection.sendRequest('lpc/health');
@@ -86,6 +151,9 @@ try {
         || health?.performance?.syntax?.incrementalParseCount !== 1
     ) {
         throw new Error(`Incremental syntax parse was not recorded: ${JSON.stringify(health)}`);
+    }
+    if (health?.performance?.analysisSnapshotBuildCount !== 2) {
+        throw new Error(`Analysis snapshots were not versioned correctly: ${JSON.stringify(health)}`);
     }
 
     await connection.sendRequest('shutdown');

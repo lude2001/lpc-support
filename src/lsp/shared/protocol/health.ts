@@ -22,6 +22,10 @@ export interface HealthStatusResponse {
             incrementalParseCount?: number;
             totalParseTimeMicros?: number;
         };
+        analysisSnapshotBuildCount?: number;
+        analysisQueryCount?: number;
+        analysisTotalBuildTimeMicros?: number;
+        indexedFileCount?: number;
         parser?: {
             parseCount?: number;
             totalParseTime?: number;

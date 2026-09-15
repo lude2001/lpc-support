@@ -220,3 +220,15 @@ rust/
 4. TypeScript 客户端不再执行生产语法或语义分析。
 5. 平台 VSIX 能启动正确二进制，健康检查、退出和升级正常。
 6. README、CHANGELOG、贡献文档和故障排查文档已更新。
+
+## 13. 分支实施状态
+
+状态以 `codex/rust-lsp-rearchitecture` 当前代码和自动化测试为准：
+
+- Gate A：完成。Rust stdio server、TS sidecar、增量文档同步、health、构建和真实项目探针已接通。
+- Gate B：进行中。Tree-sitter LPC grammar、增量 CST、条件编译屏蔽、include facts 和恒等源码映射已实现；完整宏展开及更大真实语料差异集仍待补齐。
+- Gate C：进行中。document symbols、semantic tokens、folding 和语法 diagnostics 已实现；类型诊断和完整行为差异测试仍待补齐。
+- Gate D：进行中。单后台线程工作区索引、definition、hover、references、rename、completion 和 signature help 已有共享快照实现；inherit/include 精确依赖失效和 efun 文档语义仍待补齐。
+- Gate E：未完成。Rust formatter、平台产物矩阵、默认切换与旧 TS 生产分析路径删除尚未实施。
+
+这里的“已实现”只表示 Rust 路径具备对应能力并有针对性测试，不等同于已满足第 12 节的最终发布完成定义。

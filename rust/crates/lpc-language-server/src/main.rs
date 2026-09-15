@@ -1,11 +1,20 @@
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+
 use anyhow::{Context, Result};
+use lpc_analysis::{AnalysisDatabase, Position};
 use lpc_language_server::document_store::{ContentChange, DocumentStore};
 use lpc_language_server::semantic_tokens::{TOKEN_MODIFIERS, TOKEN_TYPES};
 use lpc_language_server::syntax_store::SyntaxStore;
+use lpc_language_server::workspace_index::WorkspaceIndexController;
+use lpc_preprocessor::definitions_from_list;
 use lpc_protocol::{HEALTH_METHOD, HealthStatusResponse, PerformanceStatus};
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use url::Url;
 
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -54,6 +63,69 @@ struct SemanticTokensParams {
 
 type DocumentSymbolParams = SemanticTokensParams;
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PositionedDocumentParams {
+    text_document: TextDocumentIdentifier,
+    position: Position,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReferenceParams {
+    text_document: TextDocumentIdentifier,
+    position: Position,
+    context: ReferenceContext,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReferenceContext {
+    include_declaration: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RenameParams {
+    text_document: TextDocumentIdentifier,
+    position: Position,
+    new_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InitializeParams {
+    root_uri: Option<String>,
+    #[serde(default)]
+    workspace_folders: Vec<WorkspaceFolder>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkspaceFolder {
+    uri: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceConfigSyncParams {
+    workspace_roots: Vec<String>,
+    #[serde(default)]
+    workspaces: Vec<WorkspaceConfigSnapshot>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceConfigSnapshot {
+    #[serde(default)]
+    preprocessor_defines: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceFileChangeParams {
+    uri: String,
+}
+
 fn main() -> Result<()> {
     let (connection, io_threads) = Connection::stdio();
     let initialize_result = json!({
@@ -71,7 +143,19 @@ fn main() -> Result<()> {
                 "full": true,
                 "range": false
             },
-            "documentSymbolProvider": true
+            "documentSymbolProvider": true,
+            "foldingRangeProvider": true,
+            "definitionProvider": true,
+            "hoverProvider": true,
+            "referencesProvider": true,
+            "renameProvider": { "prepareProvider": true },
+            "signatureHelpProvider": {
+                "triggerCharacters": ["(", ","]
+            },
+            "completionProvider": {
+                "resolveProvider": false,
+                "triggerCharacters": [".", ">", ":"]
+            }
         },
         "serverInfo": {
             "name": "lpc-language-server",
@@ -79,20 +163,25 @@ fn main() -> Result<()> {
         }
     });
 
-    let (initialize_id, _) = connection
+    let (initialize_id, initialize_params) = connection
         .initialize_start()
         .context("LSP initialization request failed")?;
     connection
         .initialize_finish(initialize_id, initialize_result)
         .context("LSP initialization response failed")?;
-    run(connection)?;
+    run(connection, workspace_roots(initialize_params))?;
     io_threads.join().context("LSP transport failed")?;
     Ok(())
 }
 
-fn run(connection: Connection) -> Result<()> {
+fn run(connection: Connection, workspace_roots: Vec<PathBuf>) -> Result<()> {
     let mut documents = DocumentStore::default();
     let mut syntax = SyntaxStore::new()?;
+    let analysis = Arc::new(Mutex::new(AnalysisDatabase::default()));
+    let workspace_index = WorkspaceIndexController::default();
+    if !workspace_roots.is_empty() {
+        workspace_index.start(workspace_roots, Vec::new(), Arc::clone(&analysis));
+    }
 
     for message in &connection.receiver {
         match message {
@@ -100,16 +189,97 @@ fn run(connection: Connection) -> Result<()> {
                 if connection.handle_shutdown(&request)? {
                     break;
                 }
-                handle_request(&connection, request, &documents, &syntax)?;
+                let mut database = analysis
+                    .lock()
+                    .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                handle_request(&connection, request, &documents, &syntax, &mut database)?;
             }
             Message::Notification(notification) => {
-                handle_notification(&connection, notification, &mut documents, &mut syntax)?;
+                if notification.method == "lpc/workspaceConfigSync" {
+                    let params: WorkspaceConfigSyncParams =
+                        serde_json::from_value(notification.params)?;
+                    let definitions = definitions_from_list(
+                        &params
+                            .workspaces
+                            .into_iter()
+                            .flat_map(|workspace| workspace.preprocessor_defines)
+                            .collect::<Vec<_>>(),
+                    );
+                    syntax.set_predefined(&definitions);
+                    {
+                        let mut database = analysis
+                            .lock()
+                            .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                        for document in documents.iter() {
+                            let snapshot = syntax.open(document)?;
+                            database.invalidate(&document.uri);
+                            database.update(
+                                &document.uri,
+                                document.version,
+                                document.revision,
+                                &snapshot.tree,
+                                &document.text,
+                            );
+                            publish_diagnostics(
+                                &connection,
+                                document.uri.clone(),
+                                document.version,
+                                database.diagnostics(&document.uri),
+                            )?;
+                        }
+                    }
+                    workspace_index.start(
+                        params
+                            .workspace_roots
+                            .into_iter()
+                            .map(PathBuf::from)
+                            .collect(),
+                        definitions,
+                        Arc::clone(&analysis),
+                    );
+                    continue;
+                }
+                if notification.method == "lpc/sourceFileChange" {
+                    let params: SourceFileChangeParams =
+                        serde_json::from_value(notification.params)?;
+                    workspace_index.update_uri(params.uri, Arc::clone(&analysis));
+                    continue;
+                }
+                let mut database = analysis
+                    .lock()
+                    .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                handle_notification(
+                    &connection,
+                    notification,
+                    &mut documents,
+                    &mut syntax,
+                    &mut database,
+                )?;
             }
             Message::Response(_) => {}
         }
     }
 
+    workspace_index.cancel();
     Ok(())
+}
+
+fn workspace_roots(value: Value) -> Vec<PathBuf> {
+    let Ok(params) = serde_json::from_value::<InitializeParams>(value) else {
+        return Vec::new();
+    };
+    let uris: Vec<_> = if params.workspace_folders.is_empty() {
+        params.root_uri.into_iter().collect()
+    } else {
+        params
+            .workspace_folders
+            .into_iter()
+            .map(|folder| folder.uri)
+            .collect()
+    };
+    uris.into_iter()
+        .filter_map(|uri| Url::parse(&uri).ok()?.to_file_path().ok())
+        .collect()
 }
 
 fn handle_request(
@@ -117,8 +287,10 @@ fn handle_request(
     request: Request,
     documents: &DocumentStore,
     syntax: &SyntaxStore,
+    analysis: &mut AnalysisDatabase,
 ) -> Result<()> {
     if request.method == HEALTH_METHOD {
+        let analysis_metrics = analysis.metrics();
         let response = HealthStatusResponse {
             status: "ok",
             mode: "rust",
@@ -127,6 +299,10 @@ fn handle_request(
             performance: PerformanceStatus {
                 documents: documents.metrics(),
                 syntax: syntax.metrics(),
+                analysis_snapshot_build_count: analysis_metrics.snapshot_build_count,
+                analysis_query_count: analysis_metrics.query_count,
+                analysis_total_build_time_micros: analysis_metrics.total_build_time_micros,
+                indexed_file_count: analysis_metrics.indexed_file_count,
             },
         };
         return send_ok(connection, request.id, response);
@@ -169,6 +345,87 @@ fn handle_request(
         );
     }
 
+    if request.method == "textDocument/foldingRange" {
+        let params: SemanticTokensParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.folding_ranges(&params.text_document.uri),
+        );
+    }
+
+    if request.method == "textDocument/definition" {
+        let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.definition(&params.text_document.uri, params.position),
+        );
+    }
+
+    if request.method == "textDocument/hover" {
+        let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
+        let result = analysis.hover(&params.text_document.uri, params.position);
+        return send_ok(
+            connection,
+            request.id,
+            result.map(|hover| {
+                json!({
+                    "contents": { "kind": "markdown", "value": hover.contents },
+                    "range": hover.range
+                })
+            }),
+        );
+    }
+
+    if request.method == "textDocument/references" {
+        let params: ReferenceParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.references(
+                &params.text_document.uri,
+                params.position,
+                params.context.include_declaration,
+            ),
+        );
+    }
+
+    if request.method == "textDocument/completion" {
+        let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
+        let items: Vec<_> = analysis
+            .completion_labels(&params.text_document.uri)
+            .into_iter()
+            .map(|label| json!({ "label": label, "kind": 6 }))
+            .collect();
+        return send_ok(connection, request.id, items);
+    }
+
+    if request.method == "textDocument/prepareRename" {
+        let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.prepare_rename(&params.text_document.uri, params.position),
+        );
+    }
+
+    if request.method == "textDocument/rename" {
+        let params: RenameParams = serde_json::from_value(request.params)?;
+        let changes =
+            analysis.rename_edits(&params.text_document.uri, params.position, &params.new_name);
+        return send_ok(connection, request.id, json!({ "changes": changes }));
+    }
+
+    if request.method == "textDocument/signatureHelp" {
+        let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.signature_help(&params.text_document.uri, params.position),
+        );
+    }
+
     send_error(
         connection,
         request.id,
@@ -182,6 +439,7 @@ fn handle_notification(
     notification: Notification,
     documents: &mut DocumentStore,
     syntax: &mut SyntaxStore,
+    analysis: &mut AnalysisDatabase,
 ) -> Result<()> {
     match notification.method.as_str() {
         "textDocument/didOpen" => {
@@ -192,44 +450,66 @@ fn handle_notification(
                 params.text_document.version,
                 params.text_document.text,
             );
-            syntax.open(
-                documents
-                    .get(&uri)
-                    .context("opened document was not retained")?,
+            let document = documents
+                .get(&uri)
+                .context("opened document was not retained")?;
+            let snapshot = syntax.open(document)?;
+            analysis.update(
+                &uri,
+                document.version,
+                document.revision,
+                &snapshot.tree,
+                &document.text,
+            );
+            publish_diagnostics(
+                connection,
+                uri.clone(),
+                params.text_document.version,
+                analysis.diagnostics(&uri),
             )?;
-            publish_empty_diagnostics(connection, uri, params.text_document.version)?;
         }
         "textDocument/didChange" => {
             let params: DidChangeParams = serde_json::from_value(notification.params)?;
             let uri = params.text_document.uri;
             let version = params.text_document.version;
             let change = documents.change(&uri, version, &params.content_changes)?;
-            syntax.change(
-                documents
-                    .get(&uri)
-                    .context("changed document was not retained")?,
-                &change.edits,
-                change.contains_full_replacement,
-            )?;
-            publish_empty_diagnostics(connection, uri, version)?;
+            let document = documents
+                .get(&uri)
+                .context("changed document was not retained")?;
+            let snapshot =
+                syntax.change(document, &change.edits, change.contains_full_replacement)?;
+            analysis.update(
+                &uri,
+                document.version,
+                document.revision,
+                &snapshot.tree,
+                &document.text,
+            );
+            publish_diagnostics(connection, uri.clone(), version, analysis.diagnostics(&uri))?;
         }
         "textDocument/didClose" => {
             let params: DidCloseParams = serde_json::from_value(notification.params)?;
             documents.close(&params.text_document.uri);
             syntax.close(&params.text_document.uri);
+            analysis.remove(&params.text_document.uri);
         }
         _ => {}
     }
     Ok(())
 }
 
-fn publish_empty_diagnostics(connection: &Connection, uri: String, version: i32) -> Result<()> {
+fn publish_diagnostics(
+    connection: &Connection,
+    uri: String,
+    version: i32,
+    diagnostics: Vec<lpc_analysis::Diagnostic>,
+) -> Result<()> {
     let notification = Notification::new(
         "textDocument/publishDiagnostics".into(),
         json!({
             "uri": uri,
             "version": version,
-            "diagnostics": []
+            "diagnostics": diagnostics
         }),
     );
     connection
