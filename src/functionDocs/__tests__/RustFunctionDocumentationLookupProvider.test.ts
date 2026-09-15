@@ -73,4 +73,63 @@ describe('RustFunctionDocumentationLookupProvider', () => {
         }));
         expect(provider.getAllFunctions()).toEqual(['write']);
     });
+
+    test('loads simulated efun documentation from the indexed Rust workspace', async () => {
+        (vscode.workspace as any).getWorkspaceFolder = jest.fn(() => ({
+            uri: vscode.Uri.file('D:/mud')
+        }));
+        const sendRequest = jest.fn(async (_method: string, payload: any) => {
+            if (!payload.textDocument.uri.endsWith('/adm/single/simul_efun.c')) {
+                return undefined;
+            }
+            return {
+                currentFile: {
+                    uri: payload.textDocument.uri,
+                    sourceKind: 'local',
+                    depth: 0,
+                    entries: [{
+                        name: 'mud_write',
+                        signature: 'void mud_write(string message)',
+                        parameters: ['string message'],
+                        documentation: '/** @brief Write to the player. */',
+                        documentationRange: {
+                            start: { line: 0, character: 0 },
+                            end: { line: 0, character: 38 }
+                        },
+                        returnObjects: [],
+                        range: {
+                            start: { line: 1, character: 0 },
+                            end: { line: 1, character: 38 }
+                        },
+                        selectionRange: {
+                            start: { line: 1, character: 5 },
+                            end: { line: 1, character: 14 }
+                        },
+                        hasBody: true
+                    }]
+                },
+                inheritedGroups: [],
+                includeGroups: []
+            };
+        });
+        const provider = new RustFunctionDocumentationLookupProvider(
+            { sendRequest } as any,
+            { getAllFunctions: () => [], getStandardCallableDoc: jest.fn() } as any
+        );
+        const document = { uri: vscode.Uri.file('D:/mud/cmds/demo.c') } as vscode.TextDocument;
+        const projectConfig = {
+            projectConfigPath: 'D:/mud/lpc-support.json',
+            resolvedConfig: { simulatedEfunFile: 'adm/single/simul_efun' }
+        };
+
+        await provider.ensureWorkspaceStateCurrent(document, projectConfig);
+
+        expect(provider.getAllSimulatedFunctions(document, projectConfig)).toEqual(['mud_write']);
+        expect(provider.getSimulatedDoc('mud_write', document, projectConfig)).toEqual(expect.objectContaining({
+            summary: 'Write to the player.',
+            sourceKind: 'simulEfun',
+            declarationKind: 'external'
+        }));
+        expect(sendRequest).toHaveBeenCalledTimes(1);
+    });
 });

@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { EfunDocsManager } from '../../efun/EfunDocsManager';
 import type { FunctionDocLookup, FunctionDocSourceGroup } from '../../efun/FunctionDocLookupTypes';
+import type { LanguageWorkspaceProjectConfig } from '../../language/contracts/LanguageWorkspaceContext';
 import { DocCommentTagParser } from '../../language/documentation/DocCommentTagParser';
 import type {
     CallableDoc,
@@ -44,6 +45,7 @@ interface RustFunctionDocumentationLookup {
  */
 export class RustFunctionDocumentationLookupProvider implements FunctionDocumentationLookupProvider {
     private readonly tagParser = new DocCommentTagParser();
+    private readonly simulatedDocs = new Map<string, Map<string, CallableDoc>>();
 
     public constructor(
         private readonly manager: LspClientManager,
@@ -71,6 +73,55 @@ export class RustFunctionDocumentationLookupProvider implements FunctionDocument
 
     public getStandardCallableDoc(name: string): CallableDoc | undefined {
         return this.bundledEfuns.getStandardCallableDoc(name);
+    }
+
+    public getAllSimulatedFunctions(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): string[] {
+        return [...(this.simulatedDocs.get(workspaceKey(document, projectConfig))?.keys() ?? [])];
+    }
+
+    public getSimulatedDoc(
+        name: string,
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): CallableDoc | undefined {
+        return this.simulatedDocs.get(workspaceKey(document, projectConfig))?.get(name);
+    }
+
+    public async ensureWorkspaceStateCurrent(
+        document?: vscode.TextDocument,
+        projectConfig?: LanguageWorkspaceProjectConfig
+    ): Promise<void> {
+        const key = workspaceKey(document, projectConfig);
+        if (this.simulatedDocs.has(key)) {
+            return;
+        }
+        const docs = new Map<string, CallableDoc>();
+        this.simulatedDocs.set(key, docs);
+        const entryCandidates = resolveSimulatedEfunCandidates(document, projectConfig);
+        for (const entryFile of entryCandidates) {
+            const lookup = await this.manager.sendRequest<RustFunctionDocumentationLookup>(
+                'lpc/functionDocumentation',
+                { textDocument: { uri: vscode.Uri.file(entryFile).toString() } }
+            );
+            if (!lookup) {
+                continue;
+            }
+            for (const group of [lookup.currentFile, ...lookup.inheritedGroups, ...lookup.includeGroups]) {
+                const filePath = vscode.Uri.parse(group.uri).fsPath;
+                for (const entry of group.entries) {
+                    const callable = this.materializeEntry(group, filePath, entry);
+                    docs.set(entry.name, {
+                        ...callable,
+                        sourceKind: 'simulEfun',
+                        declarationKind: 'external'
+                    });
+                }
+            }
+            break;
+        }
     }
 
     private materializeGroup(group: RustFunctionDocumentationGroup): FunctionDocSourceGroup {
@@ -210,4 +261,45 @@ function buildDocumentationIssues(
 
 function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function workspaceKey(
+    document?: vscode.TextDocument,
+    projectConfig?: LanguageWorkspaceProjectConfig
+): string {
+    return vscode.workspace.getWorkspaceFolder(document?.uri ?? vscode.Uri.file(projectConfig?.projectConfigPath ?? ''))
+        ?.uri.fsPath
+        ?? projectConfig?.projectConfigPath
+        ?? '<no-workspace>';
+}
+
+function resolveSimulatedEfunCandidates(
+    document?: vscode.TextDocument,
+    projectConfig?: LanguageWorkspaceProjectConfig
+): string[] {
+    const configured = projectConfig?.resolvedConfig?.simulatedEfunFile;
+    if (!configured) {
+        return [];
+    }
+    const workspaceRoot = vscode.workspace.getWorkspaceFolder(document?.uri ?? vscode.Uri.file(projectConfig.projectConfigPath))
+        ?.uri.fsPath
+        ?? path.dirname(projectConfig.projectConfigPath);
+    const mudlibDirectory = projectConfig.resolvedConfig?.mudlibDirectory;
+    const mudlibRoot = !mudlibDirectory
+        ? workspaceRoot
+        : isNativeAbsolutePath(mudlibDirectory)
+            ? mudlibDirectory
+            : projectConfig.configHellPath
+                ? path.resolve(path.dirname(path.resolve(workspaceRoot, projectConfig.configHellPath)), mudlibDirectory)
+                : path.resolve(workspaceRoot, mudlibDirectory);
+    const entryPath = isNativeAbsolutePath(configured)
+        ? configured
+        : path.join(mudlibRoot, configured.replace(/^[/\\]+/u, ''));
+    return path.extname(entryPath)
+        ? [entryPath]
+        : [`${entryPath}.c`, `${entryPath}.h`, entryPath];
+}
+
+function isNativeAbsolutePath(targetPath: string): boolean {
+    return /^[A-Za-z]:[\\/]/u.test(targetPath) || targetPath.startsWith('\\\\');
 }
