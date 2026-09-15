@@ -60,8 +60,21 @@ struct Symbol {
     detail: String,
     documentation: Option<String>,
     return_objects: Vec<String>,
+    return_expressions: Vec<ExpressionFact>,
+    has_body: bool,
     local: bool,
     parameters: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct ExpressionFact {
+    range: std::ops::Range<usize>,
+}
+
+#[derive(Debug, Clone)]
+struct AssignmentFact {
+    name: std::ops::Range<usize>,
+    value: std::ops::Range<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -89,6 +102,7 @@ struct FileAnalysis {
     diagnostics: Vec<Diagnostic>,
     folding_ranges: Vec<FoldingRange>,
     calls: Vec<CallSite>,
+    assignments: Vec<AssignmentFact>,
     dependencies: Vec<String>,
     inherits: Vec<String>,
 }
@@ -197,6 +211,8 @@ impl AnalysisDatabase {
         let folding_ranges = collect_folding_ranges(tree, source);
         let mut calls = Vec::new();
         collect_calls(tree.root_node(), source, &mut calls);
+        let mut assignments = Vec::new();
+        collect_assignments(tree.root_node(), source, &mut assignments);
         let dependencies = collect_dependencies(tree.root_node(), source);
         let inherits = collect_inherits(tree.root_node(), source);
         self.files.insert(
@@ -211,6 +227,7 @@ impl AnalysisDatabase {
                 diagnostics,
                 folding_ranges,
                 calls,
+                assignments,
                 dependencies,
                 inherits,
             },
@@ -1515,7 +1532,12 @@ impl AnalysisDatabase {
                                 && symbol.name == method
                         })
                         .flat_map(|symbol| {
-                            self.return_object_targets(uri, candidate_uri, &symbol.return_objects)
+                            self.function_return_targets(
+                                candidate_uri,
+                                symbol,
+                                budget.saturating_sub(1),
+                                None,
+                            )
                         })
                 })
                 .collect();
@@ -1527,6 +1549,10 @@ impl AnalysisDatabase {
                     .flat_map(|path| self.path_target_uris(uri, path))
                     .collect();
             }
+            let first_string_argument =
+                call_first_argument(expression, function_name).and_then(|argument| {
+                    self.resolve_string_expression(uri, argument, offset, budget.saturating_sub(1))
+                });
             let visible = self.visible_uris(uri);
             return self
                 .files
@@ -1541,7 +1567,12 @@ impl AnalysisDatabase {
                                 && symbol.name == function_name
                         })
                         .flat_map(|symbol| {
-                            self.return_object_targets(uri, candidate_uri, &symbol.return_objects)
+                            self.function_return_targets(
+                                candidate_uri,
+                                symbol,
+                                budget.saturating_sub(1),
+                                first_string_argument.as_deref(),
+                            )
                         })
                 })
                 .collect();
@@ -1555,17 +1586,100 @@ impl AnalysisDatabase {
             }
             if let Some(file) = self.files.get(uri)
                 && let Some(symbol) = resolved_symbols(file, expression, offset).first()
-                && let Some(initializer) = symbol_initializer(file, symbol)
             {
-                return self.resolve_object_expression(
-                    uri,
-                    initializer,
-                    symbol.selection.start,
-                    budget.saturating_sub(1),
-                );
+                let mut targets = HashSet::new();
+                for (value, value_offset) in symbol_value_expressions(file, symbol, offset) {
+                    targets.extend(self.resolve_object_expression(
+                        uri,
+                        value,
+                        value_offset,
+                        budget.saturating_sub(1),
+                    ));
+                }
+                if !targets.is_empty() {
+                    return targets;
+                }
             }
         }
         HashSet::new()
+    }
+
+    fn function_return_targets(
+        &self,
+        defining_uri: &str,
+        symbol: &Symbol,
+        budget: usize,
+        first_string_argument: Option<&str>,
+    ) -> HashSet<String> {
+        let mut targets =
+            self.return_object_targets(defining_uri, defining_uri, &symbol.return_objects);
+        if budget == 0 {
+            return targets;
+        }
+        let Some(file) = self.files.get(defining_uri) else {
+            return targets;
+        };
+        for expression in &symbol.return_expressions {
+            let Some(source) = file.source.get(expression.range.clone()) else {
+                continue;
+            };
+            let first_parameter = symbol
+                .parameters
+                .first()
+                .and_then(|parameter| declaration_identifier(parameter));
+            if let (Some(parameter), Some(argument)) = (first_parameter, first_string_argument) {
+                targets.extend(self.resolve_bound_return_expression(
+                    defining_uri,
+                    source,
+                    expression.range.start,
+                    budget.saturating_sub(1),
+                    parameter,
+                    argument,
+                ));
+            } else {
+                targets.extend(self.resolve_object_expression(
+                    defining_uri,
+                    source,
+                    expression.range.start,
+                    budget.saturating_sub(1),
+                ));
+            }
+        }
+        targets
+    }
+
+    fn resolve_bound_return_expression(
+        &self,
+        defining_uri: &str,
+        expression: &str,
+        offset: usize,
+        budget: usize,
+        parameter: &str,
+        argument: &str,
+    ) -> HashSet<String> {
+        let expression = strip_outer_parentheses(expression.trim());
+        for constructor in ["load_object", "clone_object", "find_object", "new"] {
+            if call_first_argument(expression, constructor).map(str::trim) == Some(parameter) {
+                return self.path_target_uris(defining_uri, argument);
+            }
+        }
+        if let Some((receiver, model_argument)) = model_get_call(expression)
+            && model_argument.trim() == parameter
+        {
+            let registry_targets = self.resolve_object_expression(
+                defining_uri,
+                receiver,
+                offset,
+                budget.saturating_sub(1),
+            );
+            return registry_targets
+                .iter()
+                .filter_map(|target_uri| self.files.get(target_uri))
+                .filter_map(|target| model_registry_path(&target.source, argument))
+                .flat_map(|path| self.path_target_uris(defining_uri, &path))
+                .collect();
+        }
+        self.resolve_object_expression(defining_uri, expression, offset, budget)
     }
 
     fn resolve_string_expression(
@@ -1592,13 +1706,15 @@ impl AnalysisDatabase {
         let symbol = resolved_symbols(file, expression, offset)
             .into_iter()
             .next()?;
-        let initializer = symbol_initializer(file, symbol)?;
-        self.resolve_string_expression(
-            uri,
-            initializer,
-            symbol.selection.start,
-            budget.saturating_sub(1),
-        )
+        let values = symbol_value_expressions(file, symbol, offset)
+            .into_iter()
+            .filter_map(|(value, value_offset)| {
+                self.resolve_string_expression(uri, value, value_offset, budget.saturating_sub(1))
+            })
+            .collect::<HashSet<_>>();
+        (values.len() == 1)
+            .then(|| values.into_iter().next())
+            .flatten()
     }
 
     fn return_object_targets(
@@ -1639,7 +1755,7 @@ impl AnalysisDatabase {
     ) -> Option<Vec<CompletionCandidate>> {
         let targets = self.object_target_uris(uri, member_start)?;
         let normalized_prefix = prefix.to_ascii_lowercase();
-        let mut candidates = self
+        let mut symbols = self
             .files
             .iter()
             .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
@@ -1653,9 +1769,22 @@ impl AnalysisDatabase {
                             .to_ascii_lowercase()
                             .starts_with(&normalized_prefix))
             })
+            .collect::<Vec<_>>();
+        symbols.sort_by(|left, right| {
+            left.name
+                .cmp(&right.name)
+                .then_with(|| right.has_body.cmp(&left.has_body))
+                .then_with(|| {
+                    right
+                        .documentation
+                        .is_some()
+                        .cmp(&left.documentation.is_some())
+                })
+        });
+        let mut candidates = symbols
+            .into_iter()
             .map(completion_from_symbol)
             .collect::<Vec<_>>();
-        candidates.sort_by(|left, right| left.label.cmp(&right.label));
         candidates.dedup_by(|left, right| left.label == right.label);
         Some(candidates)
     }
@@ -1673,13 +1802,8 @@ impl AnalysisDatabase {
             .iter()
             .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
             .flat_map(|(candidate_uri, file)| {
-                file.symbols
-                    .iter()
-                    .filter(|symbol| {
-                        !symbol.local
-                            && symbol.kind == SymbolKind::Function
-                            && symbol.name == member_name
-                    })
+                preferred_function_symbols(file, member_name)
+                    .into_iter()
                     .map(|symbol| Location {
                         uri: candidate_uri.clone(),
                         range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
@@ -1699,10 +1823,7 @@ impl AnalysisDatabase {
             .files
             .iter()
             .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
-            .flat_map(|(_, file)| file.symbols.iter())
-            .filter(|symbol| {
-                !symbol.local && symbol.kind == SymbolKind::Function && symbol.name == member_name
-            });
+            .flat_map(|(_, file)| preferred_function_symbols(file, member_name));
         let symbol = symbols.next()?;
         if symbols.next().is_some() {
             return None;
@@ -2304,6 +2425,8 @@ fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                             .to_owned(),
                         documentation: None,
                         return_objects: Vec::new(),
+                        return_expressions: Vec::new(),
+                        has_body: false,
                         local: false,
                         parameters: Vec::new(),
                     });
@@ -2376,6 +2499,11 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let return_expressions = node
+        .child_by_field_name("body")
+        .map(collect_return_expressions)
+        .unwrap_or_default();
+    let has_body = node.child_by_field_name("body").is_some();
     output.push(Symbol {
         name: text(name, source),
         kind: SymbolKind::Function,
@@ -2386,6 +2514,8 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
             .to_owned(),
         documentation: leading_documentation(source, node.start_byte()),
         return_objects: leading_return_objects(source, node.start_byte()),
+        return_expressions,
+        has_body,
         local: false,
         parameters: parameter_details,
     });
@@ -2403,6 +2533,8 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                     detail: text(parameter, source),
                     documentation: None,
                     return_objects: Vec::new(),
+                    return_expressions: Vec::new(),
+                    has_body: false,
                     local: true,
                     parameters: Vec::new(),
                 });
@@ -2412,6 +2544,30 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
     if let Some(body) = node.child_by_field_name("body") {
         collect_local_variables(body, source, scope, output);
     }
+}
+
+fn collect_return_expressions(node: Node<'_>) -> Vec<ExpressionFact> {
+    if node.kind() == "anonymous_function" {
+        return Vec::new();
+    }
+    if node.kind() == "return_statement" {
+        let mut cursor = node.walk();
+        return node
+            .named_children(&mut cursor)
+            .next()
+            .map(|expression| {
+                vec![ExpressionFact {
+                    range: expression.byte_range(),
+                }]
+            })
+            .unwrap_or_default();
+    }
+    let mut expressions = Vec::new();
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        expressions.extend(collect_return_expressions(child));
+    }
+    expressions
 }
 
 fn collect_local_variables(
@@ -2462,6 +2618,8 @@ fn collect_variable_declaration(
                 detail: format!("{type_text} {}", text(name, source)),
                 documentation: None,
                 return_objects: Vec::new(),
+                return_expressions: Vec::new(),
+                has_body: false,
                 local: scope.start != 0
                     || node
                         .parent()
@@ -2510,6 +2668,29 @@ fn collect_calls(node: Node<'_>, source: &str, output: &mut Vec<CallSite>) {
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
         collect_calls(child, source, output);
+    }
+}
+
+fn collect_assignments(node: Node<'_>, source: &str, output: &mut Vec<AssignmentFact>) {
+    if node.kind() == "anonymous_function" {
+        return;
+    }
+    if node.kind() == "assignment_expression"
+        && node
+            .child_by_field_name("operator")
+            .is_some_and(|operator| text(operator, source) == "=")
+        && let Some(left) = node.child_by_field_name("left")
+        && left.kind() == "identifier"
+        && let Some(right) = node.child_by_field_name("right")
+    {
+        output.push(AssignmentFact {
+            name: left.byte_range(),
+            value: right.byte_range(),
+        });
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_assignments(child, source, output);
     }
 }
 
@@ -2892,6 +3073,20 @@ fn resolved_symbols<'a>(file: &'a FileAnalysis, name: &str, offset: usize) -> Ve
     symbols
 }
 
+fn preferred_function_symbols<'a>(file: &'a FileAnalysis, name: &str) -> Vec<&'a Symbol> {
+    let mut symbols = file
+        .symbols
+        .iter()
+        .filter(|symbol| {
+            !symbol.local && symbol.kind == SymbolKind::Function && symbol.name == name
+        })
+        .collect::<Vec<_>>();
+    if symbols.iter().any(|symbol| symbol.has_body) {
+        symbols.retain(|symbol| symbol.has_body);
+    }
+    symbols
+}
+
 fn valid_identifier(value: &str) -> bool {
     let mut characters = value.chars();
     characters
@@ -2899,6 +3094,15 @@ fn valid_identifier(value: &str) -> bool {
         .is_some_and(|character| character == '_' || character.is_ascii_alphabetic())
         && characters.all(|character| character == '_' || character.is_ascii_alphanumeric())
         && !KEYWORDS.contains(&value)
+}
+
+fn declaration_identifier(declaration: &str) -> Option<&str> {
+    declaration
+        .split('=')
+        .next()
+        .unwrap_or(declaration)
+        .split(|character: char| character != '_' && !character.is_ascii_alphanumeric())
+        .rfind(|token| valid_identifier(token))
 }
 
 fn enclosing_call(source: &str, offset: usize) -> Option<(usize, String)> {
@@ -3199,6 +3403,34 @@ fn symbol_initializer<'a>(file: &'a FileAnalysis, symbol: &Symbol) -> Option<&'a
     let declaration_tail = tail.get(..semicolon)?;
     let equals = declaration_tail.find('=')?;
     declaration_tail.get(equals + 1..).map(str::trim)
+}
+
+fn symbol_value_expressions<'a>(
+    file: &'a FileAnalysis,
+    symbol: &Symbol,
+    offset: usize,
+) -> Vec<(&'a str, usize)> {
+    let mut values = Vec::new();
+    if let Some(initializer) = symbol_initializer(file, symbol) {
+        values.push((initializer, symbol.selection.start));
+    }
+    values.extend(file.assignments.iter().filter_map(|assignment| {
+        if assignment.name.start <= symbol.selection.end || assignment.name.start >= offset {
+            return None;
+        }
+        let name = file.source.get(assignment.name.clone())?;
+        if name != symbol.name
+            || !resolved_symbols(file, name, assignment.name.start)
+                .first()
+                .is_some_and(|resolved| resolved.selection == symbol.selection)
+        {
+            return None;
+        }
+        file.source
+            .get(assignment.value.clone())
+            .map(|value| (value, assignment.value.start))
+    }));
+    values
 }
 
 fn receiver_originates_from_functions(
@@ -4162,6 +4394,123 @@ mod tests {
         );
         assert_eq!(definitions.len(), 1);
         assert_eq!(definitions[0].uri, "file:///mud/clone/user/user.c");
+    }
+
+    #[test]
+    fn propagates_statically_proven_return_expressions_from_wrapper_functions() {
+        let source = concat!(
+            "object make_base() {\n",
+            "  string path = \"/std/base\";\n",
+            "  return load_object(path);\n",
+            "}\n",
+            "void demo() { make_base()->parent_method(); }\n",
+        );
+        let mut analysis = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let target = concat!(
+            "int parent_method();\n",
+            "/** inherited method */\n",
+            "int parent_method() { return 1; }\n",
+        );
+        let tree = parser.parse(target, None).unwrap();
+        analysis.index_source("file:///mud/std/base.c", &tree, target);
+
+        let member_start = source.rfind("parent_method").unwrap();
+        let definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 1),
+        );
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/base.c");
+        let hover = analysis
+            .hover(
+                "file:///demo.c",
+                byte_to_lsp_position(source, member_start + 1),
+            )
+            .unwrap();
+        assert!(hover.contents.contains("inherited method"));
+        let completions = analysis.completion_candidates(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 6),
+        );
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "parent_method");
+    }
+
+    #[test]
+    fn binds_static_string_arguments_in_object_wrapper_returns() {
+        let source = concat!(
+            "#define BASE_D \"/std/base\"\n",
+            "object find_runtime_object(string path) {\n",
+            "  return find_object(path);\n",
+            "}\n",
+            "void demo() {\n",
+            "  object runtime;\n",
+            "  runtime = find_runtime_object(BASE_D);\n",
+            "  runtime->parent_method();\n",
+            "}\n",
+        );
+        let mut analysis = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let target = "/** inherited method */\nint parent_method() { return 1; }\n";
+        let tree = parser.parse(target, None).unwrap();
+        analysis.index_source("file:///mud/std/base.c", &tree, target);
+
+        let member_start = source.rfind("parent_method").unwrap();
+        let definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 1),
+        );
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/base.c");
+        let hover = analysis
+            .hover(
+                "file:///demo.c",
+                byte_to_lsp_position(source, member_start + 1),
+            )
+            .unwrap();
+        assert!(hover.contents.contains("inherited method"));
+    }
+
+    #[test]
+    fn keeps_multiple_static_assignment_targets_conservative() {
+        let source = concat!(
+            "void demo(int use_other) {\n",
+            "  object runtime;\n",
+            "  runtime = load_object(\"/std/base\");\n",
+            "  if (use_other) runtime = load_object(\"/std/other\");\n",
+            "  runtime->shared_method();\n",
+            "}\n",
+        );
+        let mut analysis = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for path in ["base", "other"] {
+            let target = "int shared_method() { return 1; }\n";
+            let tree = parser.parse(target, None).unwrap();
+            analysis.index_source(&format!("file:///mud/std/{path}.c"), &tree, target);
+        }
+
+        let member_start = source.rfind("shared_method").unwrap();
+        let definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 1),
+        );
+        assert_eq!(definitions.len(), 2);
+        assert!(definitions.iter().any(|item| item.uri.ends_with("/base.c")));
+        assert!(
+            definitions
+                .iter()
+                .any(|item| item.uri.ends_with("/other.c"))
+        );
     }
 
     #[test]
