@@ -1747,6 +1747,15 @@ impl AnalysisDatabase {
                 .flat_map(|path| self.path_target_uris(uri, &path))
                 .collect();
         }
+        if let Some((collection, index)) = indexed_expression(expression) {
+            return self.resolve_indexed_object_expression(
+                uri,
+                collection,
+                index,
+                offset,
+                budget.saturating_sub(1),
+            );
+        }
         if let Some((receiver, method)) = member_call(expression) {
             let receiver_targets =
                 self.resolve_object_expression(uri, receiver, offset, budget.saturating_sub(1));
@@ -1832,6 +1841,124 @@ impl AnalysisDatabase {
                     return targets;
                 }
             }
+        }
+        HashSet::new()
+    }
+
+    fn resolve_indexed_object_expression(
+        &self,
+        uri: &str,
+        collection: &str,
+        index: &str,
+        offset: usize,
+        budget: usize,
+    ) -> HashSet<String> {
+        if budget == 0 {
+            return HashSet::new();
+        }
+        let collection = strip_outer_parentheses(collection.trim());
+        let resolve_values = |values: Vec<(&str, usize)>| -> HashSet<String> {
+            values
+                .into_iter()
+                .flat_map(|(value, value_offset)| {
+                    collection_values_at(value, index)
+                        .into_iter()
+                        .flat_map(move |selected| {
+                            self.resolve_object_expression(
+                                uri,
+                                selected,
+                                value_offset,
+                                budget.saturating_sub(1),
+                            )
+                        })
+                })
+                .collect()
+        };
+        let direct = collection_values_at(collection, index);
+        if !direct.is_empty() {
+            return direct
+                .into_iter()
+                .flat_map(|selected| {
+                    self.resolve_object_expression(uri, selected, offset, budget.saturating_sub(1))
+                })
+                .collect();
+        }
+        if valid_identifier(collection)
+            && let Some(file) = self.files.get(uri)
+            && let Some(symbol) = resolved_symbols(file, collection, offset).first()
+        {
+            let mut targets = resolve_values(symbol_value_expressions(file, symbol, offset));
+            targets.extend(
+                indexed_assignment_values(file, symbol, index, offset)
+                    .into_iter()
+                    .flat_map(|(value, value_offset)| {
+                        self.resolve_object_expression(
+                            uri,
+                            value,
+                            value_offset,
+                            budget.saturating_sub(1),
+                        )
+                    }),
+            );
+            return targets;
+        }
+        if let Some((parent_collection, parent_index)) = indexed_expression(collection)
+            && valid_identifier(parent_collection)
+            && let Some(file) = self.files.get(uri)
+            && let Some(symbol) = resolved_symbols(file, parent_collection, offset).first()
+        {
+            let mut values = symbol_value_expressions(file, symbol, offset);
+            values.extend(indexed_assignment_values(
+                file,
+                symbol,
+                parent_index,
+                offset,
+            ));
+            return values
+                .into_iter()
+                .flat_map(|(parent_value, value_offset)| {
+                    collection_values_at(parent_value, parent_index)
+                        .into_iter()
+                        .flat_map(move |nested_collection| {
+                            collection_values_at(nested_collection, index)
+                                .into_iter()
+                                .flat_map(move |selected| {
+                                    self.resolve_object_expression(
+                                        uri,
+                                        selected,
+                                        value_offset,
+                                        budget.saturating_sub(1),
+                                    )
+                                })
+                        })
+                })
+                .collect();
+        }
+        if let Some(function_name) = direct_call_name(collection) {
+            let visible = self.visible_uris(uri);
+            let mut targets = HashSet::new();
+            for (candidate_uri, file) in &self.files {
+                if !visible.contains(candidate_uri.as_str()) {
+                    continue;
+                }
+                for symbol in file.symbols.iter().filter(|symbol| {
+                    !symbol.local
+                        && symbol.kind == SymbolKind::Function
+                        && symbol.name == function_name
+                }) {
+                    let values = symbol
+                        .return_expressions
+                        .iter()
+                        .filter_map(|returned| {
+                            file.source
+                                .get(returned.range.clone())
+                                .map(|value| (value, returned.range.start))
+                        })
+                        .collect();
+                    targets.extend(resolve_values(values));
+                }
+            }
+            return targets;
         }
         HashSet::new()
     }
@@ -3024,9 +3151,10 @@ fn collect_assignments(node: Node<'_>, source: &str, output: &mut Vec<Assignment
         && node
             .child_by_field_name("operator")
             .is_some_and(|operator| text(operator, source) == "=")
-        && let Some(left) = node.child_by_field_name("left")
-        && left.kind() == "identifier"
-        && let Some(right) = node.child_by_field_name("right")
+        && let (Some(left), Some(right)) = (
+            node.child_by_field_name("left"),
+            node.child_by_field_name("right"),
+        )
     {
         output.push(AssignmentFact {
             name: left.byte_range(),
@@ -3706,6 +3834,105 @@ fn array_literal_elements(expression: &str) -> Option<Vec<&str>> {
     Some(split_top_level_commas(body))
 }
 
+fn indexed_expression(expression: &str) -> Option<(&str, &str)> {
+    let expression = expression.trim();
+    if !expression.ends_with(']') {
+        return None;
+    }
+    let mut depth = 0_u32;
+    let mut quoted = false;
+    let mut escaped = false;
+    for (index, character) in expression.char_indices().rev() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                quoted = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => quoted = true,
+            ']' => depth += 1,
+            '[' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    let collection = expression[..index].trim();
+                    return (!collection.is_empty()).then(|| {
+                        (
+                            collection,
+                            expression[index + 1..expression.len() - 1].trim(),
+                        )
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn collection_values_at<'a>(collection: &'a str, index: &str) -> Vec<&'a str> {
+    let collection = strip_outer_parentheses(collection.trim());
+    if let Some(elements) = array_literal_elements(collection)
+        && let Ok(index) = index.trim().parse::<usize>()
+    {
+        return elements.get(index).copied().into_iter().collect();
+    }
+    let Some(body) = collection
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+    else {
+        return Vec::new();
+    };
+    let Some(requested_key) = static_collection_key(index) else {
+        return Vec::new();
+    };
+    split_top_level_commas(body)
+        .into_iter()
+        .filter_map(split_mapping_entry)
+        .filter(|(key, _)| static_collection_key(key).as_deref() == Some(requested_key.as_str()))
+        .map(|(_, value)| value)
+        .collect()
+}
+
+fn split_mapping_entry(entry: &str) -> Option<(&str, &str)> {
+    let mut nesting = 0_u32;
+    let mut quoted = false;
+    let mut escaped = false;
+    for (index, character) in entry.char_indices() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                quoted = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => quoted = true,
+            '(' | '{' | '[' => nesting += 1,
+            ')' | '}' | ']' => nesting = nesting.saturating_sub(1),
+            ':' if nesting == 0 => {
+                return Some((entry[..index].trim(), entry[index + 1..].trim()));
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn static_collection_key(value: &str) -> Option<String> {
+    let value = value.trim();
+    quoted_string(value)
+        .map(|key| format!("string:{key}"))
+        .or_else(|| value.parse::<i64>().ok().map(|key| format!("int:{key}")))
+}
+
 fn split_top_level_commas(source: &str) -> Vec<&str> {
     let mut output = Vec::new();
     let mut start = 0;
@@ -3827,6 +4054,38 @@ fn symbol_value_expressions<'a>(
             .map(|value| (value, assignment.value.start))
     }));
     values
+}
+
+fn indexed_assignment_values<'a>(
+    file: &'a FileAnalysis,
+    symbol: &Symbol,
+    requested_index: &str,
+    offset: usize,
+) -> Vec<(&'a str, usize)> {
+    let Some(requested_key) = static_collection_key(requested_index) else {
+        return Vec::new();
+    };
+    file.assignments
+        .iter()
+        .filter_map(|assignment| {
+            if assignment.name.start <= symbol.selection.end || assignment.name.start >= offset {
+                return None;
+            }
+            let left = file.source.get(assignment.name.clone())?;
+            let (collection, index) = indexed_expression(left)?;
+            if collection != symbol.name
+                || static_collection_key(index).as_deref() != Some(requested_key.as_str())
+                || !resolved_symbols(file, collection, assignment.name.start)
+                    .first()
+                    .is_some_and(|resolved| resolved.selection == symbol.selection)
+            {
+                return None;
+            }
+            file.source
+                .get(assignment.value.clone())
+                .map(|value| (value, assignment.value.start))
+        })
+        .collect()
 }
 
 fn receiver_originates_from_functions(
@@ -4953,6 +5212,66 @@ mod tests {
             )
             .unwrap();
         assert!(hover.contents.contains("shared_method"));
+    }
+
+    #[test]
+    fn propagates_objects_through_static_array_and_mapping_indexes() {
+        let source = concat!(
+            "void demo() {\n",
+            "  object *targets = ({ load_object(\"/std/first\"), load_object(\"/std/second\") });\n",
+            "  mapping services = ([ \"main\": load_object(\"/std/first\"), \"backup\": load_object(\"/std/second\") ]);\n",
+            "  mapping nested = ([ \"group\": ({ load_object(\"/std/first\"), load_object(\"/std/second\") }) ]);\n",
+            "  targets[1]->indexed_method();\n",
+            "  services[\"main\"]->indexed_method();\n",
+            "  services[\"late\"] = load_object(\"/std/second\");\n",
+            "  services[\"late\"]->indexed_method();\n",
+            "  nested[\"group\"][1]->indexed_method();\n",
+            "}\n",
+        );
+        let mut analysis = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for path in ["first", "second"] {
+            let target = format!("int indexed_method() {{ return {}; }}\n", path.len());
+            let tree = parser.parse(&target, None).unwrap();
+            analysis.index_source(&format!("file:///mud/std/{path}.c"), &tree, &target);
+        }
+
+        let array_call = source.find("indexed_method").unwrap();
+        let array_definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, array_call + 1),
+        );
+        assert_eq!(array_definitions.len(), 1);
+        assert!(array_definitions[0].uri.ends_with("/std/second.c"));
+
+        let mapping_call =
+            source.find("services[\"main\"]").unwrap() + "services[\"main\"]->".len();
+        let mapping_definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, mapping_call + 1),
+        );
+        assert_eq!(mapping_definitions.len(), 1);
+        assert!(mapping_definitions[0].uri.ends_with("/std/first.c"));
+
+        let assigned_call =
+            source.find("services[\"late\"]->").unwrap() + "services[\"late\"]->".len();
+        let assigned_definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, assigned_call + 1),
+        );
+        assert_eq!(assigned_definitions.len(), 1);
+        assert!(assigned_definitions[0].uri.ends_with("/std/second.c"));
+
+        let nested_call = source.rfind("indexed_method").unwrap();
+        let nested_definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, nested_call + 1),
+        );
+        assert_eq!(nested_definitions.len(), 1);
+        assert!(nested_definitions[0].uri.ends_with("/std/second.c"));
     }
 
     #[test]
