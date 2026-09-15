@@ -227,7 +227,7 @@ fn main() -> Result<()> {
             },
             "completionProvider": {
                 "resolveProvider": false,
-                "triggerCharacters": [".", ">", ":"]
+                "triggerCharacters": [".", ">", ":", "#", "\"", "<", "/"]
             },
             "documentFormattingProvider": true,
             "documentRangeFormattingProvider": true
@@ -438,12 +438,13 @@ fn run(
                         for document in documents.iter() {
                             let snapshot = syntax.open(document)?;
                             database.invalidate(&document.uri);
-                            database.update(
+                            database.update_preprocessed(
                                 &document.uri,
                                 document.version,
                                 document.revision,
                                 &snapshot.tree,
                                 &document.text,
+                                &snapshot.macro_directives,
                             );
                             publish_diagnostics(
                                 &connection,
@@ -860,12 +861,13 @@ fn handle_notification(
                 .get(&uri)
                 .context("opened document was not retained")?;
             let snapshot = syntax.open(document)?;
-            analysis.update(
+            analysis.update_preprocessed(
                 &uri,
                 document.version,
                 document.revision,
                 &snapshot.tree,
                 &document.text,
+                &snapshot.macro_directives,
             );
             publish_diagnostics(
                 connection,
@@ -884,12 +886,13 @@ fn handle_notification(
                 .context("changed document was not retained")?;
             let snapshot =
                 syntax.change(document, &change.edits, change.contains_full_replacement)?;
-            analysis.update(
+            analysis.update_preprocessed(
                 &uri,
                 document.version,
                 document.revision,
                 &snapshot.tree,
                 &document.text,
+                &snapshot.macro_directives,
             );
             publish_diagnostics(connection, uri.clone(), version, analysis.diagnostics(&uri))?;
         }

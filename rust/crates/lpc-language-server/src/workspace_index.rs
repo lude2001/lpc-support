@@ -200,7 +200,7 @@ fn index_file_with_parser(
     let Ok(mut database) = analysis.lock() else {
         return IndexOutcome::Failed;
     };
-    database.index_source(uri.as_str(), &tree, &source);
+    database.index_preprocessed_source(uri.as_str(), &tree, &source, &processed.macro_directives);
     IndexOutcome::Indexed
 }
 

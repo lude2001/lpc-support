@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Instant};
 
 use anyhow::{Context, Result};
-use lpc_preprocessor::{InactiveRegion, IncludeFact, Preprocessor};
+use lpc_preprocessor::{InactiveRegion, IncludeFact, MacroDirectiveFact, Preprocessor};
 use lpc_protocol::SyntaxPerformanceStatus;
 use tree_sitter::{InputEdit, Parser, Point, Tree};
 
@@ -17,6 +17,7 @@ pub struct SyntaxSnapshot {
     pub preprocessed_text: String,
     pub includes: Vec<IncludeFact>,
     pub inactive_regions: Vec<InactiveRegion>,
+    pub macro_directives: Vec<MacroDirectiveFact>,
 }
 
 pub struct SyntaxStore {
@@ -123,6 +124,7 @@ impl SyntaxStore {
                 preprocessed_text: preprocessed.text,
                 includes: preprocessed.includes,
                 inactive_regions: preprocessed.inactive_regions,
+                macro_directives: preprocessed.macro_directives,
             },
         );
         self.snapshots

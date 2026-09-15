@@ -6,7 +6,7 @@
 
 ### Rust 语言服务器
 
-- 恢复迁移前的宏语言能力：Rust 常驻索引现在提供对象宏与函数式宏的语义高亮、定义跳转、带相邻 Javadoc 的悬浮和参数 snippet 补全，并识别项目配置中的预定义宏；宏索引复用依赖图缓存，避免高频请求反复扫描工作区。
+- 恢复迁移前的宏语言能力：Rust 常驻索引现在提供对象宏与函数式宏的语义高亮、定义跳转、带相邻普通注释/Javadoc 及源码链接的悬浮和参数 snippet 补全，并识别项目配置中的预定义宏；宏索引复用依赖图缓存，避免高频请求反复扫描工作区。宏有效性遵守条件编译、重定义和 `#undef` 的源码顺序，不再高亮或解析非活动分支及已失效的宏。补全能力重新声明 `#`、引号、`<` 和 `/` 触发字符，输入预处理指令及 include/inherit 路径时会自动弹出候选。
 - `sizeof` 按最新版 FluffOS 的普通 efun 语义解析，不再作为支持类型操作数的特殊语法；Rust 语义高亮恢复驱动 efun，并新增对项目 `simulated efun file` 及其 include 函数的区分高亮，同时保留本地/继承函数遮蔽 efun 的规则。
 - Rust LSP 现已兑现 `lpc.searchEfunDefinitionInInheritanceChain` 与 `lpc.format.indentSize`；移除仅服务于旧 TypeScript 解析缓存/异步诊断实现、迁移后已无意义的 `lpc.performance.*` 设置。
 - 默认语言分析内核改为原生 Rust 进程，TypeScript 保留为 VS Code 激活、配置、命令和 UI 装配层。

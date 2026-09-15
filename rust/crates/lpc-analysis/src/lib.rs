@@ -4,6 +4,7 @@ use std::{
     time::Instant,
 };
 
+use lpc_preprocessor::{MacroDirectiveFact, MacroDirectiveKind};
 use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, Tree};
 
@@ -157,6 +158,7 @@ struct MacroDefinition {
     function_like: bool,
     parameters: Vec<String>,
     documentation: Option<String>,
+    active_until: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -174,6 +176,7 @@ struct FileAnalysis {
     dependencies: Vec<String>,
     inherits: Vec<String>,
     macros: Vec<MacroDefinition>,
+    macro_directives: Vec<MacroDirectiveFact>,
 }
 
 #[derive(Debug, Clone)]
@@ -232,6 +235,7 @@ pub struct SemanticTokenFacts {
     pub external_functions: HashSet<String>,
     pub macro_names: HashSet<String>,
     pub macro_declarations: Vec<std::ops::Range<usize>>,
+    pub macro_scopes: HashMap<String, Vec<std::ops::Range<usize>>>,
 }
 
 #[derive(Debug, Default)]
@@ -334,12 +338,14 @@ impl AnalysisDatabase {
             .map(|symbol| symbol.name.clone())
             .collect();
 
+        let macro_names = self.external_macro_names(uri);
         SemanticTokenFacts {
             local_functions,
             visible_functions,
             simulated_functions,
             external_functions: self.external_functions.keys().cloned().collect(),
-            macro_names: self.workspace_macro_names(uri),
+            macro_scopes: self.local_macro_scopes(uri, &macro_names),
+            macro_names,
             macro_declarations: self
                 .files
                 .get(uri)
@@ -351,6 +357,37 @@ impl AnalysisDatabase {
     }
 
     pub fn update(&mut self, uri: &str, version: i32, revision: u64, tree: &Tree, source: &str) {
+        self.update_with_macro_directives(uri, version, revision, tree, source, None);
+    }
+
+    pub fn update_preprocessed(
+        &mut self,
+        uri: &str,
+        version: i32,
+        revision: u64,
+        tree: &Tree,
+        source: &str,
+        macro_directives: &[MacroDirectiveFact],
+    ) {
+        self.update_with_macro_directives(
+            uri,
+            version,
+            revision,
+            tree,
+            source,
+            Some(macro_directives),
+        );
+    }
+
+    fn update_with_macro_directives(
+        &mut self,
+        uri: &str,
+        version: i32,
+        revision: u64,
+        tree: &Tree,
+        source: &str,
+        macro_directives: Option<&[MacroDirectiveFact]>,
+    ) {
         if version < 0 && self.files.get(uri).is_some_and(|file| file.version >= 0) {
             return;
         }
@@ -375,7 +412,7 @@ impl AnalysisDatabase {
         collect_assignments(tree.root_node(), source, &mut assignments);
         let dependencies = collect_dependencies(tree.root_node(), source);
         let inherits = collect_inherits(tree.root_node(), source);
-        let macros = collect_macro_definitions(source);
+        let macros = collect_macro_definitions(source, macro_directives);
         self.files.insert(
             uri.to_owned(),
             FileAnalysis {
@@ -392,6 +429,7 @@ impl AnalysisDatabase {
                 dependencies,
                 inherits,
                 macros,
+                macro_directives: macro_directives.unwrap_or_default().to_vec(),
             },
         );
         self.invalidate_dependency_graph();
@@ -404,6 +442,16 @@ impl AnalysisDatabase {
 
     pub fn index_source(&mut self, uri: &str, tree: &Tree, source: &str) {
         self.update(uri, -1, 0, tree, source);
+    }
+
+    pub fn index_preprocessed_source(
+        &mut self,
+        uri: &str,
+        tree: &Tree,
+        source: &str,
+        macro_directives: &[MacroDirectiveFact],
+    ) {
+        self.update_preprocessed(uri, -1, 0, tree, source, macro_directives);
     }
 
     pub fn remove(&mut self, uri: &str) {
@@ -748,6 +796,9 @@ impl AnalysisDatabase {
                     range: byte_range_to_lsp(&macro_file.source, definition.selection.clone()),
                 }];
             }
+            if self.macro_is_locally_undefined(uri, &path, offset) {
+                return Vec::new();
+            }
             let resolved_path = self.resolve_path_token(&path).unwrap_or(path);
             return self
                 .files
@@ -783,6 +834,9 @@ impl AnalysisDatabase {
                 uri: macro_uri.to_owned(),
                 range: byte_range_to_lsp(&macro_file.source, definition.selection.clone()),
             }];
+        }
+        if self.macro_is_locally_undefined(uri, &name, offset) {
+            return Vec::new();
         }
         if let Some(qualifier) = scope_access_qualifier(&origin.source, range.start) {
             if qualifier == "efun" {
@@ -868,7 +922,7 @@ impl AnalysisDatabase {
         let (name, offset) = self.identifier_at(uri, position)?;
         let file = self.files.get(uri)?;
         let identifier = identifier_range(file, offset)?;
-        if let Some((_macro_uri, _macro_file, definition)) =
+        if let Some((macro_uri, macro_file, definition)) =
             self.resolve_macro_definition(uri, &name, offset)
         {
             let parameters = if definition.function_like {
@@ -877,9 +931,14 @@ impl AnalysisDatabase {
                 String::new()
             };
             let documentation = definition.documentation.as_deref().unwrap_or_default();
+            let definition_line =
+                byte_range_to_lsp(&macro_file.source, definition.selection.clone())
+                    .start
+                    .line
+                    + 1;
             return Some(HoverResult {
                 contents: format!(
-                    "```lpc\n#define {}{} {}\n```{}",
+                    "```lpc\n#define {}{} {}\n```{}\n\nDefined in [source]({macro_uri}#L{definition_line})",
                     definition.name,
                     parameters,
                     definition.value,
@@ -892,7 +951,9 @@ impl AnalysisDatabase {
                 range: byte_range_to_lsp(&file.source, identifier),
             });
         }
-        if let Some(value) = self.predefined_macros.get(&name) {
+        if !self.macro_is_locally_undefined(uri, &name, offset)
+            && let Some(value) = self.predefined_macros.get(&name)
+        {
             return Some(HoverResult {
                 contents: format!(
                     "```lpc\n#define {name} {value}\n```\n\nWorkspace predefined macro"
@@ -1420,12 +1481,23 @@ impl AnalysisDatabase {
                 .entry(function.name.clone())
                 .or_insert_with(|| completion_from_external_function(function));
         }
-        for definition in self.workspace_macro_definitions(uri) {
+        let macro_offset = completion_offset.unwrap_or_default();
+        for definition in self
+            .workspace_macro_definitions(uri)
+            .into_iter()
+            .filter(|definition| {
+                !self.macro_is_locally_undefined(uri, &definition.name, macro_offset)
+            })
+        {
             candidates
                 .entry(definition.name.clone())
                 .or_insert_with(|| completion_from_macro(definition));
         }
-        for (name, value) in &self.predefined_macros {
+        for (name, value) in self
+            .predefined_macros
+            .iter()
+            .filter(|(name, _)| !self.macro_is_locally_undefined(uri, name, macro_offset))
+        {
             candidates
                 .entry(name.clone())
                 .or_insert_with(|| completion_from_predefined_macro(name, value));
@@ -1467,14 +1539,99 @@ impl AnalysisDatabase {
         Some((file.source.get(range)?.to_owned(), offset))
     }
 
-    fn workspace_macro_names(&self, uri: &str) -> HashSet<String> {
-        let mut names = self
-            .workspace_macro_definitions(uri)
+    fn external_macro_names(&self, uri: &str) -> HashSet<String> {
+        let visible = self.visible_uris(uri);
+        let locations = {
+            let graph = self.dependency_graph();
+            graph
+                .macro_locations
+                .values()
+                .flatten()
+                .filter(|(candidate_uri, _)| {
+                    candidate_uri != uri
+                        && (visible.contains(candidate_uri)
+                            || candidate_uri.to_ascii_lowercase().ends_with(".h"))
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        let mut names = locations
             .into_iter()
-            .map(|definition| definition.name.clone())
+            .filter_map(|(candidate_uri, index)| {
+                let file = self.files.get(&candidate_uri)?;
+                file.macros
+                    .get(index)
+                    .filter(|definition| definition.active_until == file.source.len())
+                    .map(|definition| definition.name.clone())
+            })
             .collect::<HashSet<_>>();
         names.extend(self.predefined_macros.keys().cloned());
         names
+    }
+
+    fn local_macro_scopes(
+        &self,
+        uri: &str,
+        external_names: &HashSet<String>,
+    ) -> HashMap<String, Vec<std::ops::Range<usize>>> {
+        let Some(file) = self.files.get(uri) else {
+            return HashMap::new();
+        };
+        if file.macro_directives.is_empty() {
+            return file.macros.iter().fold(
+                HashMap::<String, Vec<std::ops::Range<usize>>>::new(),
+                |mut scopes, definition| {
+                    scopes
+                        .entry(definition.name.clone())
+                        .or_default()
+                        .push(definition.selection.start..definition.active_until);
+                    scopes
+                },
+            );
+        }
+        let affected = file
+            .macro_directives
+            .iter()
+            .map(|fact| fact.name.clone())
+            .collect::<HashSet<_>>();
+        let mut active = affected
+            .iter()
+            .filter(|name| external_names.contains(*name))
+            .map(|name| (name.clone(), 0_usize))
+            .collect::<HashMap<_, _>>();
+        let mut scopes = HashMap::<String, Vec<std::ops::Range<usize>>>::new();
+        for fact in &file.macro_directives {
+            if let Some(start) = active.remove(&fact.name) {
+                scopes
+                    .entry(fact.name.clone())
+                    .or_default()
+                    .push(start..fact.range.start_byte);
+            }
+            if fact.kind == MacroDirectiveKind::Define {
+                active.insert(fact.name.clone(), fact.range.start_byte);
+            }
+        }
+        for (name, start) in active {
+            scopes
+                .entry(name)
+                .or_default()
+                .push(start..file.source.len());
+        }
+        for name in affected {
+            scopes.entry(name).or_default();
+        }
+        scopes
+    }
+
+    fn macro_is_locally_undefined(&self, uri: &str, name: &str, offset: usize) -> bool {
+        self.files
+            .get(uri)
+            .and_then(|file| {
+                file.macro_directives
+                    .iter()
+                    .rfind(|fact| fact.name == name && fact.range.start_byte <= offset)
+            })
+            .is_some_and(|fact| fact.kind == MacroDirectiveKind::Undef)
     }
 
     fn workspace_macro_definitions(&self, uri: &str) -> Vec<&MacroDefinition> {
@@ -1496,9 +1653,10 @@ impl AnalysisDatabase {
         locations
             .into_iter()
             .filter_map(|(candidate_uri, index)| {
-                self.files
-                    .get(&candidate_uri)
-                    .and_then(|file| file.macros.get(index))
+                let file = self.files.get(&candidate_uri)?;
+                file.macros
+                    .get(index)
+                    .filter(|definition| definition.active_until == file.source.len())
             })
             .collect()
     }
@@ -1510,13 +1668,15 @@ impl AnalysisDatabase {
         offset: usize,
     ) -> Option<(&'a str, &'a FileAnalysis, &'a MacroDefinition)> {
         let (origin_uri, origin) = self.files.get_key_value(uri)?;
-        if let Some(definition) = origin
-            .macros
-            .iter()
-            .filter(|definition| definition.name == name && definition.selection.start <= offset)
-            .next_back()
-        {
+        if let Some(definition) = origin.macros.iter().rfind(|definition| {
+            definition.name == name
+                && definition.selection.start <= offset
+                && offset < definition.active_until
+        }) {
             return Some((origin_uri.as_str(), origin, definition));
+        }
+        if self.macro_is_locally_undefined(uri, name, offset) {
+            return None;
         }
 
         let locations = {
@@ -1529,7 +1689,11 @@ impl AnalysisDatabase {
             .filter(|(candidate_uri, _)| candidate_uri != uri && visible.contains(candidate_uri))
             .filter_map(|(candidate_uri, index)| {
                 let (stored_uri, file) = self.files.get_key_value(candidate_uri)?;
-                Some((stored_uri.as_str(), file, file.macros.get(*index)?))
+                let definition = file
+                    .macros
+                    .get(*index)
+                    .filter(|definition| definition.active_until == file.source.len())?;
+                Some((stored_uri.as_str(), file, definition))
             })
             .collect::<Vec<_>>();
         if candidates.len() == 1 {
@@ -1541,7 +1705,11 @@ impl AnalysisDatabase {
             .filter(|(candidate_uri, _)| candidate_uri.to_ascii_lowercase().ends_with(".h"))
             .filter_map(|(candidate_uri, index)| {
                 let (stored_uri, file) = self.files.get_key_value(candidate_uri)?;
-                Some((stored_uri.as_str(), file, file.macros.get(*index)?))
+                let definition = file
+                    .macros
+                    .get(*index)
+                    .filter(|definition| definition.active_until == file.source.len())?;
+                Some((stored_uri.as_str(), file, definition))
             })
             .collect::<Vec<_>>();
         (header_candidates.len() == 1)
@@ -3141,7 +3309,10 @@ fn workspace_macros<'a>(files: impl Iterator<Item = &'a FileAnalysis>) -> HashMa
     macros
 }
 
-fn collect_macro_definitions(source: &str) -> Vec<MacroDefinition> {
+fn collect_macro_definitions(
+    source: &str,
+    macro_directives: Option<&[MacroDirectiveFact]>,
+) -> Vec<MacroDefinition> {
     let mut definitions = Vec::new();
     let mut offset = 0_usize;
     let lines = source.split_inclusive('\n').collect::<Vec<_>>();
@@ -3227,10 +3398,31 @@ fn collect_macro_definitions(source: &str) -> Vec<MacroDefinition> {
                 ..line_offset + name_start_in_line + name.len(),
             function_like,
             parameters,
-            documentation: leading_documentation(source, declaration_start),
+            documentation: leading_macro_documentation(source, declaration_start),
+            active_until: source.len(),
         });
         offset += lines[index].len();
         index += 1;
+    }
+    let Some(macro_directives) = macro_directives else {
+        return definitions;
+    };
+    definitions.retain(|definition| {
+        macro_directives.iter().any(|fact| {
+            fact.kind == MacroDirectiveKind::Define
+                && fact.name == definition.name
+                && fact.range.start_byte == definition.selection.start
+                && fact.range.end_byte == definition.selection.end
+        })
+    });
+    for fact in macro_directives {
+        if let Some(previous) = definitions.iter_mut().rfind(|definition| {
+            definition.name == fact.name
+                && definition.selection.start < fact.range.start_byte
+                && definition.active_until == source.len()
+        }) {
+            previous.active_until = fact.range.start_byte;
+        }
     }
     definitions
 }
@@ -3595,6 +3787,35 @@ fn collect_assignments(node: Node<'_>, source: &str, output: &mut Vec<Assignment
 
 fn leading_documentation(source: &str, declaration_start: usize) -> Option<String> {
     render_doc_comment(leading_doc_comment(source, declaration_start)?)
+}
+
+fn leading_macro_documentation(source: &str, declaration_start: usize) -> Option<String> {
+    if let Some(documentation) = leading_documentation(source, declaration_start) {
+        return Some(documentation);
+    }
+    let prefix = source.get(..declaration_start)?.trim_end();
+    if prefix.ends_with("*/") {
+        let start = prefix.rfind("/*")?;
+        let body = prefix.get(start + 2..prefix.len().saturating_sub(2))?;
+        let rendered = body
+            .lines()
+            .map(|line| line.trim().trim_start_matches('*').trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        return (!rendered.is_empty()).then_some(rendered);
+    }
+    let mut lines = Vec::new();
+    for line in prefix.lines().rev() {
+        let trimmed = line.trim();
+        let Some(comment) = trimmed.strip_prefix("//") else {
+            break;
+        };
+        lines.push(comment.trim());
+    }
+    lines.reverse();
+    let rendered = lines.join("\n");
+    (!rendered.is_empty()).then_some(rendered)
 }
 
 fn leading_doc_comment(source: &str, declaration_start: usize) -> Option<&str> {
@@ -5580,7 +5801,7 @@ mod tests {
             .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
             .unwrap();
         let header_source = concat!(
-            "/** Root of generated files. */\n",
+            "// Root of generated files.\n",
             "#define ROOT_DIR \"/data\"\n",
             "#define MAX(left, right) ((left) > (right) ? (left) : (right))\n",
         );
@@ -5603,6 +5824,7 @@ mod tests {
             .unwrap();
         assert!(hover.contents.contains("#define ROOT_DIR \"/data\""));
         assert!(hover.contents.contains("Root of generated files"));
+        assert!(hover.contents.contains("file:///include/paths.h#L2"));
 
         let completions = database
             .completion_candidates("file:///demo.c", byte_to_lsp_position(source, source.len()));
@@ -5645,6 +5867,96 @@ mod tests {
                 .iter()
                 .any(|candidate| candidate.label == "__PACKAGE_DB__" && candidate.kind == 21)
         );
+    }
+
+    #[test]
+    fn honors_inactive_macro_definitions_and_undef_source_order() {
+        let source = concat!(
+            "#if 0\n",
+            "#define DISABLED 1\n",
+            "#endif\n",
+            "#define ACTIVE 1\n",
+            "int before = ACTIVE;\n",
+            "#undef ACTIVE\n",
+            "int after = ACTIVE;\n",
+            "int disabled = DISABLED;\n",
+            "int config_before = __PACKAGE_DB__;\n",
+            "#undef __PACKAGE_DB__\n",
+            "int config_after = __PACKAGE_DB__;\n",
+        );
+        let processed = lpc_preprocessor::Preprocessor::with_predefined([(
+            "__PACKAGE_DB__".to_owned(),
+            "1".to_owned(),
+        )])
+        .process(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(&processed.text, None).unwrap();
+        let mut database = AnalysisDatabase::default();
+        database.set_predefined_macros(vec![("__PACKAGE_DB__".to_owned(), "1".to_owned())]);
+        database.update_preprocessed(
+            "file:///demo.c",
+            1,
+            1,
+            &tree,
+            source,
+            &processed.macro_directives,
+        );
+
+        let before = source.find("ACTIVE;").unwrap();
+        let after = source.rfind("ACTIVE;").unwrap();
+        let disabled = source.rfind("DISABLED;").unwrap();
+        let config_before = source.find("__PACKAGE_DB__;").unwrap();
+        let config_after = source.rfind("__PACKAGE_DB__;").unwrap();
+        assert!(
+            database
+                .hover("file:///demo.c", byte_to_lsp_position(source, before + 1))
+                .is_some()
+        );
+        assert!(
+            database
+                .hover("file:///demo.c", byte_to_lsp_position(source, after + 1))
+                .is_none()
+        );
+        assert!(
+            database
+                .hover(
+                    "file:///demo.c",
+                    byte_to_lsp_position(source, config_before + 1)
+                )
+                .is_some()
+        );
+        assert!(
+            database
+                .hover(
+                    "file:///demo.c",
+                    byte_to_lsp_position(source, config_after + 1)
+                )
+                .is_none()
+        );
+        assert!(
+            !database
+                .completion_candidates(
+                    "file:///demo.c",
+                    byte_to_lsp_position(source, config_after + "__PACKAGE_DB__".len())
+                )
+                .iter()
+                .any(|candidate| candidate.label == "__PACKAGE_DB__")
+        );
+        assert!(
+            database
+                .hover("file:///demo.c", byte_to_lsp_position(source, disabled + 1))
+                .is_none()
+        );
+        let facts = database.semantic_token_facts("file:///demo.c");
+        assert!(!facts.macro_names.contains("DISABLED"));
+        assert_eq!(facts.macro_scopes["ACTIVE"].len(), 1);
+        assert!(facts.macro_scopes["ACTIVE"][0].contains(&before));
+        assert!(!facts.macro_scopes["ACTIVE"][0].contains(&after));
+        assert!(facts.macro_scopes["__PACKAGE_DB__"][0].contains(&config_before));
+        assert!(!facts.macro_scopes["__PACKAGE_DB__"][0].contains(&config_after));
     }
 
     #[test]

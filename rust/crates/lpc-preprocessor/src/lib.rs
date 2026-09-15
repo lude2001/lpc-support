@@ -23,6 +23,21 @@ pub struct InactiveRegion {
     pub range: SourceRange,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum MacroDirectiveKind {
+    Define,
+    Undef,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MacroDirectiveFact {
+    pub name: String,
+    pub kind: MacroDirectiveKind,
+    pub range: SourceRange,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PreprocessedDocument {
@@ -32,6 +47,7 @@ pub struct PreprocessedDocument {
     pub text: String,
     pub includes: Vec<IncludeFact>,
     pub inactive_regions: Vec<InactiveRegion>,
+    pub macro_directives: Vec<MacroDirectiveFact>,
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +75,7 @@ impl Preprocessor {
         let mut frames: Vec<ConditionalFrame> = Vec::new();
         let mut includes = Vec::new();
         let mut inactive_regions = Vec::new();
+        let mut macro_directives = Vec::new();
         let mut offset = 0_usize;
         let mut directive_continuation = false;
 
@@ -129,12 +146,33 @@ impl Preprocessor {
                     "define" if current_active => {
                         let key = first_word(arguments);
                         if !key.is_empty() {
+                            let start_byte = offset + line.len().saturating_sub(arguments.len());
+                            macro_directives.push(MacroDirectiveFact {
+                                name: key.to_owned(),
+                                kind: MacroDirectiveKind::Define,
+                                range: SourceRange {
+                                    start_byte,
+                                    end_byte: start_byte + key.len(),
+                                },
+                            });
                             let value = arguments[key.len()..].trim();
                             definitions.insert(key.to_owned(), value.to_owned());
                         }
                     }
                     "undef" if current_active => {
-                        definitions.remove(first_word(arguments));
+                        let key = first_word(arguments);
+                        if !key.is_empty() {
+                            let start_byte = offset + line.len().saturating_sub(arguments.len());
+                            macro_directives.push(MacroDirectiveFact {
+                                name: key.to_owned(),
+                                kind: MacroDirectiveKind::Undef,
+                                range: SourceRange {
+                                    start_byte,
+                                    end_byte: start_byte + key.len(),
+                                },
+                            });
+                            definitions.remove(key);
+                        }
                     }
                     "include" if current_active => {
                         if let Some((path, system, relative_start, relative_end)) =
@@ -181,6 +219,7 @@ impl Preprocessor {
             text: String::from_utf8(output).expect("masking preserves valid UTF-8 bytes"),
             includes,
             inactive_regions: merge_regions(inactive_regions),
+            macro_directives,
         }
     }
 }
@@ -393,6 +432,28 @@ mod tests {
         assert_eq!(result.includes.len(), 1);
         assert_eq!(result.includes[0].path, "mudlib.h");
         assert!(result.includes[0].system);
+    }
+
+    #[test]
+    fn records_only_active_define_and_undef_directives_in_source_order() {
+        let source = "#if 0\n#define DISABLED 1\n#endif\n#define ACTIVE 1\n#undef ACTIVE\n";
+        let result = Preprocessor::default().process(source);
+        assert_eq!(
+            result
+                .macro_directives
+                .iter()
+                .map(|fact| (fact.name.as_str(), fact.kind))
+                .collect::<Vec<_>>(),
+            vec![
+                ("ACTIVE", MacroDirectiveKind::Define),
+                ("ACTIVE", MacroDirectiveKind::Undef),
+            ]
+        );
+        assert_eq!(
+            &source[result.macro_directives[0].range.start_byte
+                ..result.macro_directives[0].range.end_byte],
+            "ACTIVE"
+        );
     }
 
     #[test]

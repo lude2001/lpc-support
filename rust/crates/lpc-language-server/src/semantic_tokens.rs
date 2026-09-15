@@ -107,13 +107,12 @@ fn classify_identifier(
     facts: &SemanticTokenFacts,
 ) -> Option<(u32, u32)> {
     let name = &source[node.byte_range()];
-    if facts.macro_names.contains(name) {
-        let modifiers = facts
-            .macro_declarations
-            .iter()
-            .any(|range| *range == node.byte_range())
-            .then_some(DECLARATION_MODIFIER)
-            .unwrap_or_default();
+    if is_macro_at(facts, name, node.start_byte(), false) {
+        let modifiers = if facts.macro_declarations.contains(&node.byte_range()) {
+            DECLARATION_MODIFIER
+        } else {
+            0
+        };
         return Some((8, modifiers));
     }
     let parent = node.parent()?;
@@ -171,20 +170,34 @@ fn collect_directive_macro_tokens(
                     index += 1;
                 }
                 let name = &content[start..index];
-                if facts.macro_names.contains(name) {
+                if is_macro_at(facts, name, line_offset + start, true) {
                     let range = line_offset + start..line_offset + index;
-                    let modifiers = facts
-                        .macro_declarations
-                        .iter()
-                        .any(|declaration| *declaration == range)
-                        .then_some(DECLARATION_MODIFIER)
-                        .unwrap_or_default();
+                    let modifiers = if facts.macro_declarations.contains(&range) {
+                        DECLARATION_MODIFIER
+                    } else {
+                        0
+                    };
                     push_byte_range(range, source, line_index, 8, modifiers, tokens);
                 }
             }
         }
         line_offset += line.len();
     }
+}
+
+fn is_macro_at(
+    facts: &SemanticTokenFacts,
+    name: &str,
+    offset: usize,
+    include_scope_end: bool,
+) -> bool {
+    if let Some(scopes) = facts.macro_scopes.get(name) {
+        return scopes.iter().any(|scope| {
+            scope.start <= offset
+                && (offset < scope.end || (include_scope_end && offset == scope.end))
+        });
+    }
+    facts.macro_names.contains(name)
 }
 
 fn classify_call(
@@ -393,6 +406,7 @@ mod tests {
             external_functions: ["sizeof".to_owned()].into(),
             macro_names: std::collections::HashSet::new(),
             macro_declarations: Vec::new(),
+            macro_scopes: std::collections::HashMap::new(),
         };
 
         let tokens = decode_with_modifiers(&encode(&tree, source, &facts));

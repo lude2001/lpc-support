@@ -47,6 +47,12 @@ try {
     if (initialize?.serverInfo?.name !== 'lpc-language-server') {
         throw new Error(`Unexpected server info: ${JSON.stringify(initialize?.serverInfo)}`);
     }
+    const completionTriggers = initialize?.capabilities?.completionProvider?.triggerCharacters ?? [];
+    for (const trigger of ['.', '>', ':', '#', '"', '<', '/']) {
+        if (!completionTriggers.includes(trigger)) {
+            throw new Error(`Rust server missed completion trigger ${JSON.stringify(trigger)}: ${JSON.stringify(completionTriggers)}`);
+        }
+    }
     connection.sendNotification('initialized', {});
 
     const callerSource = '#include "macros.h"\nstring root = ROOT_DIR;\nint package_enabled = __PACKAGE_DB__;\nint caller(mixed value) { return helper() + sizeof(value) + simul_call() + MAX(1, 2); }\n';
@@ -155,6 +161,40 @@ try {
         throw new Error(`Rust server missed predefined macro completion: ${JSON.stringify(predefinedCompletion)}`);
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: callerUri } });
+
+    const macroLifecycleUri = 'file:///macro-lifecycle.c';
+    const macroLifecycleSource = '#if 0\n#define DISABLED 1\n#endif\n#define LOCAL_FLAG 1\nint before = LOCAL_FLAG;\n#undef LOCAL_FLAG\nint after = LOCAL_FLAG;\nint disabled = DISABLED;\n';
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: {
+            uri: macroLifecycleUri,
+            languageId: 'lpc',
+            version: 1,
+            text: macroLifecycleSource
+        }
+    });
+    const macroLifecycleTokens = decodeSemanticTokens((await connection.sendRequest(
+        'textDocument/semanticTokens/full',
+        { textDocument: { uri: macroLifecycleUri } }
+    ))?.data ?? []);
+    const localFlagTokens = macroLifecycleTokens.filter(token => token.tokenType === 8
+        && macroLifecycleSource.split('\n')[token.line]?.slice(token.character, token.character + token.length) === 'LOCAL_FLAG');
+    if (localFlagTokens.length !== 3
+        || macroLifecycleTokens.some(token => token.tokenType === 8
+            && macroLifecycleSource.split('\n')[token.line]?.slice(token.character, token.character + token.length) === 'DISABLED')) {
+        throw new Error(`Rust server ignored macro source order or inactive branches: ${JSON.stringify(macroLifecycleTokens)}`);
+    }
+    const activeMacroHover = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri: macroLifecycleUri },
+        position: { line: 4, character: 15 }
+    });
+    const undefinedMacroHover = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri: macroLifecycleUri },
+        position: { line: 6, character: 14 }
+    });
+    if (!activeMacroHover?.contents?.value?.includes('#define LOCAL_FLAG 1') || undefinedMacroHover) {
+        throw new Error(`Rust server returned stale macro hover after undef: ${JSON.stringify({ activeMacroHover, undefinedMacroHover })}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: macroLifecycleUri } });
 
     const efunShadowUri = 'file:///std/efun-shadow.c';
     const efunCallerUri = 'file:///efun-shadow-caller.c';
