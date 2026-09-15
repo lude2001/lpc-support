@@ -1477,9 +1477,8 @@ impl AnalysisDatabase {
         }
         for constructor in ["load_object", "clone_object", "find_object", "new"] {
             if let Some(argument) = call_first_argument(expression, constructor) {
-                let path = quoted_string(argument)
-                    .map(str::to_owned)
-                    .or_else(|| self.resolve_path_token(argument.trim()));
+                let path =
+                    self.resolve_string_expression(uri, argument, offset, budget.saturating_sub(1));
                 return path
                     .map(|path| self.path_target_uris(uri, &path))
                     .unwrap_or_default();
@@ -1488,13 +1487,15 @@ impl AnalysisDatabase {
         if let Some((receiver, argument)) = model_get_call(expression) {
             let registry_targets =
                 self.resolve_object_expression(uri, receiver, offset, budget.saturating_sub(1));
-            let Some(key) = quoted_string(argument) else {
+            let Some(key) =
+                self.resolve_string_expression(uri, argument, offset, budget.saturating_sub(1))
+            else {
                 return HashSet::new();
             };
             return registry_targets
                 .iter()
                 .filter_map(|target_uri| self.files.get(target_uri))
-                .filter_map(|target| model_registry_path(&target.source, key))
+                .filter_map(|target| model_registry_path(&target.source, &key))
                 .flat_map(|path| self.path_target_uris(uri, &path))
                 .collect();
         }
@@ -1565,6 +1566,39 @@ impl AnalysisDatabase {
             }
         }
         HashSet::new()
+    }
+
+    fn resolve_string_expression(
+        &self,
+        uri: &str,
+        expression: &str,
+        offset: usize,
+        budget: usize,
+    ) -> Option<String> {
+        if budget == 0 {
+            return None;
+        }
+        let expression = strip_outer_parentheses(expression.trim());
+        if let Some(value) = quoted_string(expression) {
+            return Some(value.to_owned());
+        }
+        if !valid_identifier(expression) {
+            return None;
+        }
+        if let Some(value) = self.resolve_path_token(expression) {
+            return Some(value);
+        }
+        let file = self.files.get(uri)?;
+        let symbol = resolved_symbols(file, expression, offset)
+            .into_iter()
+            .next()?;
+        let initializer = symbol_initializer(file, symbol)?;
+        self.resolve_string_expression(
+            uri,
+            initializer,
+            symbol.selection.start,
+            budget.saturating_sub(1),
+        )
     }
 
     fn return_object_targets(
@@ -3874,7 +3908,8 @@ mod tests {
     fn propagates_exact_model_get_results_through_local_variables() {
         let source = concat!(
             "void demo() {\n",
-            "  object popup = PROTOCOL_D->model_get(\"login\");\n",
+            "  string model_name = \"login\";\n",
+            "  object popup = PROTOCOL_D->model_get(model_name);\n",
             "  popup->create_popup();\n",
             "}\n",
         );
@@ -3959,6 +3994,23 @@ mod tests {
         let definitions = direct_database.definition(
             "file:///demo.c",
             byte_to_lsp_position(direct_source, member_start + 1),
+        );
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/base.c");
+
+        let alias_source = concat!(
+            "void demo() {\n",
+            "  string base_path = \"/std/base\";\n",
+            "  load_object(base_path)->parent_method();\n",
+            "}\n",
+        );
+        let mut alias_database = database(alias_source);
+        let tree = parser.parse(base, None).unwrap();
+        alias_database.index_source("file:///mud/std/base.c", &tree, base);
+        let member_start = alias_source.find("parent_method").unwrap();
+        let definitions = alias_database.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(alias_source, member_start + 1),
         );
         assert_eq!(definitions.len(), 1);
         assert_eq!(definitions[0].uri, "file:///mud/std/base.c");
