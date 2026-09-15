@@ -289,6 +289,11 @@ impl AnalysisDatabase {
         let Some(origin) = self.files.get(uri) else {
             return Vec::new();
         };
+        if identifier_range(origin, offset)
+            .is_some_and(|range| is_member_access(&origin.source, range.start))
+        {
+            return Vec::new();
+        }
 
         let candidates = resolved_symbols(origin, &name, offset);
         if let Some(symbol) = candidates.first() {
@@ -312,7 +317,7 @@ impl AnalysisDatabase {
                                 symbol.kind,
                                 SymbolKind::Function | SymbolKind::Variable | SymbolKind::Type
                             )
-                            && symbol.scope.start == 0
+                            && !symbol.local
                     })
                     .map(|symbol| Location {
                         uri: candidate_uri.clone(),
@@ -331,7 +336,7 @@ impl AnalysisDatabase {
                     .iter()
                     .filter(|symbol| {
                         symbol.name == name
-                            && symbol.scope.start == 0
+                            && !symbol.local
                             && matches!(
                                 symbol.kind,
                                 SymbolKind::Function | SymbolKind::Variable | SymbolKind::Type
@@ -354,6 +359,11 @@ impl AnalysisDatabase {
         self.metrics.query_count += 1;
         let (name, offset) = self.identifier_at(uri, position)?;
         let file = self.files.get(uri)?;
+        if identifier_range(file, offset)
+            .is_some_and(|range| is_member_access(&file.source, range.start))
+        {
+            return None;
+        }
         let symbols = resolved_symbols(file, &name, offset);
         let visible = self.visible_uris(uri);
         let mut workspace_symbols = self
@@ -361,14 +371,14 @@ impl AnalysisDatabase {
             .iter()
             .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
             .flat_map(|(_, candidate)| candidate.symbols.iter())
-            .filter(|symbol| symbol.name == name && symbol.scope.start == 0)
+            .filter(|symbol| symbol.name == name && !symbol.local)
             .collect::<Vec<_>>();
         if workspace_symbols.is_empty() {
             workspace_symbols = self
                 .files
                 .values()
                 .flat_map(|candidate| candidate.symbols.iter())
-                .filter(|symbol| symbol.name == name && symbol.scope.start == 0)
+                .filter(|symbol| symbol.name == name && !symbol.local)
                 .collect();
         }
         let symbol = symbols
@@ -526,6 +536,9 @@ impl AnalysisDatabase {
         let file = self.files.get(uri)?;
         let offset = lsp_position_to_byte(&file.source, position)?;
         let (open, name) = enclosing_call(&file.source, offset)?;
+        if is_member_access(&file.source, open.saturating_sub(name.len())) {
+            return None;
+        }
         let local_symbol = file
             .symbols
             .iter()
@@ -617,8 +630,32 @@ impl AnalysisDatabase {
             .get(uri)
             .and_then(|file| completion_prefix(&file.source, position))
             .unwrap_or_default();
+        let member_access = self.files.get(uri).is_some_and(|file| {
+            let end = lsp_position_to_byte(&file.source, position).unwrap_or(file.source.len());
+            is_member_access(&file.source, end.saturating_sub(prefix.len()))
+        });
+        if member_access {
+            let normalized_prefix = prefix.to_ascii_lowercase();
+            return COMMON_OBJECT_METHODS
+                .iter()
+                .filter(|name| {
+                    normalized_prefix.is_empty()
+                        || name.to_ascii_lowercase().starts_with(&normalized_prefix)
+                })
+                .map(|name| CompletionCandidate {
+                    label: (*name).to_owned(),
+                    kind: 2,
+                    detail: Some(format!("object->{name}(...)")),
+                    documentation: None,
+                })
+                .collect();
+        }
         if let Some(file) = self.files.get(uri) {
-            for symbol in &file.symbols {
+            let offset = lsp_position_to_byte(&file.source, position).unwrap_or(file.source.len());
+            for symbol in file.symbols.iter().filter(|symbol| {
+                !symbol.local
+                    || (symbol.scope.contains(&offset) && symbol.selection.start <= offset)
+            }) {
                 candidates.insert(
                     symbol.name.clone(),
                     CompletionCandidate {
@@ -640,7 +677,7 @@ impl AnalysisDatabase {
             .iter()
             .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
             .flat_map(|(_, file)| file.symbols.iter())
-            .filter(|symbol| symbol.scope.start == 0)
+            .filter(|symbol| !symbol.local)
         {
             candidates
                 .entry(symbol.name.clone())
@@ -654,28 +691,6 @@ impl AnalysisDatabase {
                     detail: Some(symbol.detail.clone()),
                     documentation: symbol.documentation.clone(),
                 });
-        }
-        if prefix.len() >= 2 {
-            for symbol in self
-                .files
-                .values()
-                .flat_map(|file| file.symbols.iter())
-                .filter(|symbol| symbol.scope.start == 0 && symbol.name.starts_with(&prefix))
-                .take(200)
-            {
-                candidates
-                    .entry(symbol.name.clone())
-                    .or_insert_with(|| CompletionCandidate {
-                        label: symbol.name.clone(),
-                        kind: match symbol.kind {
-                            SymbolKind::Function => 3,
-                            SymbolKind::Variable | SymbolKind::Parameter => 6,
-                            SymbolKind::Type => 7,
-                        },
-                        detail: Some(symbol.detail.clone()),
-                        documentation: symbol.documentation.clone(),
-                    });
-            }
         }
         for function in self.external_functions.values() {
             candidates
@@ -701,6 +716,15 @@ impl AnalysisDatabase {
                 });
         }
         let mut candidates = candidates.into_values().collect::<Vec<_>>();
+        if !prefix.is_empty() {
+            let normalized_prefix = prefix.to_ascii_lowercase();
+            candidates.retain(|candidate| {
+                candidate
+                    .label
+                    .to_ascii_lowercase()
+                    .starts_with(&normalized_prefix)
+            });
+        }
         candidates.sort_by(|left, right| left.label.cmp(&right.label));
         candidates
     }
@@ -827,6 +851,8 @@ const KEYWORDS: &[&str] = &[
     "void",
     "while",
 ];
+
+const COMMON_OBJECT_METHODS: &[&str] = &["query", "set", "add", "delete"];
 
 fn collect_dependencies(root: Node<'_>, source: &str) -> Vec<String> {
     let mut dependencies = Vec::new();
@@ -1143,11 +1169,20 @@ fn render_doc_comment(comment: &str) -> Option<String> {
 }
 
 fn accepts_arguments(symbol: &Symbol, argument_count: usize) -> bool {
-    let required = symbol
-        .parameters
-        .iter()
-        .filter(|parameter| !parameter.contains(':') && !parameter.contains("..."))
-        .count();
+    let has_varargs_modifier = symbol
+        .detail
+        .split_once('(')
+        .map(|(declaration, _)| declaration.split_whitespace().any(|word| word == "varargs"))
+        .unwrap_or(false);
+    let required = if has_varargs_modifier {
+        0
+    } else {
+        symbol
+            .parameters
+            .iter()
+            .filter(|parameter| !parameter.contains(':') && !parameter.contains("..."))
+            .count()
+    };
     let variadic = symbol
         .parameters
         .iter()
@@ -1474,6 +1509,14 @@ fn completion_prefix(source: &str, position: Position) -> Option<String> {
     source.get(start..end).map(str::to_owned)
 }
 
+fn is_member_access(source: &str, identifier_start: usize) -> bool {
+    let prefix = source
+        .get(..identifier_start)
+        .unwrap_or_default()
+        .trim_end();
+    prefix.ends_with("->") || prefix.ends_with('.')
+}
+
 fn text(node: Node<'_>, source: &str) -> String {
     node.utf8_text(source.as_bytes())
         .unwrap_or_default()
@@ -1598,6 +1641,116 @@ mod tests {
     }
 
     #[test]
+    fn filters_completion_candidates_by_the_identifier_prefix() {
+        let source = concat!(
+            "int skill_level;\n",
+            "int skill_name;\n",
+            "int unrelated;\n",
+            "void demo() { ski }\n",
+        );
+        let mut database = database(source);
+        let completions = database.completion_candidates(
+            "file:///demo.c",
+            Position {
+                line: 3,
+                character: 17,
+            },
+        );
+        assert_eq!(
+            completions
+                .iter()
+                .map(|candidate| candidate.label.as_str())
+                .collect::<Vec<_>>(),
+            vec!["skill_level", "skill_name"]
+        );
+    }
+
+    #[test]
+    fn excludes_unrelated_workspace_symbols_from_completion() {
+        let source = "void demo() { pro }\n";
+        let mut database = database(source);
+        let unrelated = "int project_internal_helper() { return 1; }\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(unrelated, None).unwrap();
+        database.index_source("file:///unrelated.c", &tree, unrelated);
+
+        let completions = database.completion_candidates(
+            "file:///demo.c",
+            Position {
+                line: 0,
+                character: 17,
+            },
+        );
+        assert!(
+            completions
+                .iter()
+                .all(|candidate| candidate.label != "project_internal_helper")
+        );
+    }
+
+    #[test]
+    fn excludes_locals_from_other_functions_from_completion() {
+        let source = concat!(
+            "void first(string private_value) { int private_local = 1; }\n",
+            "void second() { pri }\n",
+        );
+        let mut database = database(source);
+        let completions = database.completion_candidates(
+            "file:///demo.c",
+            Position {
+                line: 1,
+                character: 19,
+            },
+        );
+        assert!(completions.iter().all(|candidate| {
+            candidate.label != "private_value" && candidate.label != "private_local"
+        }));
+    }
+
+    #[test]
+    fn does_not_resolve_workspace_locals_as_global_symbols() {
+        let source = "void demo() { return leaked_name; }\n";
+        let mut database = database(source);
+        let unrelated = "void first(string leaked_name) { }\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(unrelated, None).unwrap();
+        database.index_source("file:///unrelated.c", &tree, unrelated);
+
+        let position = byte_to_lsp_position(source, source.find("leaked_name").unwrap());
+        assert!(database.definition("file:///demo.c", position).is_empty());
+        assert!(database.hover("file:///demo.c", position).is_none());
+    }
+
+    #[test]
+    fn keeps_unknown_object_member_completion_conservative() {
+        let source = "void demo(object target) { target->quer; }\n";
+        let mut database = database(source);
+        let completion_position = byte_to_lsp_position(source, source.find("quer").unwrap() + 4);
+        let completions = database.completion_candidates("file:///demo.c", completion_position);
+        assert_eq!(
+            completions
+                .iter()
+                .map(|candidate| candidate.label.as_str())
+                .collect::<Vec<_>>(),
+            vec!["query"]
+        );
+
+        let member_position = byte_to_lsp_position(source, source.find("quer").unwrap());
+        assert!(
+            database
+                .definition("file:///demo.c", member_position)
+                .is_empty()
+        );
+        assert!(database.hover("file:///demo.c", member_position).is_none());
+    }
+
+    #[test]
     fn rename_keeps_local_symbols_inside_their_function() {
         let source = concat!(
             "int first() { int value = 1; return value; }\n",
@@ -1656,6 +1809,21 @@ mod tests {
             diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
+        );
+    }
+
+    #[test]
+    fn accepts_omitted_arguments_for_function_level_varargs() {
+        let source = concat!(
+            "varargs mixed query(string prop, int raw);\n",
+            "void demo() { query(\"name\"); }\n",
+        );
+        let mut database = database(source);
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "lpc.argumentCountMismatch")
         );
     }
 

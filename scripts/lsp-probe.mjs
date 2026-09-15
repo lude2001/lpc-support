@@ -17,6 +17,7 @@ const {
     InitializedNotification,
     PublishDiagnosticsNotification,
     SemanticTokensRequest,
+    SignatureHelpRequest,
     ShutdownRequest
 } = require('vscode-languageserver-protocol/node');
 const { createProtocolConnection } = require('vscode-languageserver-protocol/node');
@@ -96,6 +97,13 @@ async function main() {
                 { timedOut: true, found: false, hasRange: false, contentKinds: [] }
             )
             : undefined;
+        const signatureHelp = position
+            ? await runStage(
+                'signatureHelp',
+                () => requestSignatureHelp(server.connection, uri, position),
+                { timedOut: true, found: false, signatureCount: 0, parameterCounts: [], documentationCount: 0 }
+            )
+            : undefined;
         const completion = position
             ? await runStage(
                 'completion',
@@ -125,6 +133,7 @@ async function main() {
             diagnostics,
             definition,
             hover,
+            signatureHelp,
             completion,
             semanticTokens,
             performanceStages: options.perf ? performanceStages : undefined
@@ -513,11 +522,35 @@ async function requestHover(connection, uri, position) {
         textDocument: { uri },
         position
     });
+    const text = hoverText(result?.contents);
 
     return {
         found: Boolean(result),
         hasRange: Boolean(result?.range),
-        contentKinds: hoverContentKinds(result?.contents)
+        contentKinds: hoverContentKinds(result?.contents),
+        contentLength: text.length,
+        hasProseAfterCodeBlock: /```[\s\S]*?```\s*\S/.test(text)
+    };
+}
+
+async function requestSignatureHelp(connection, uri, position) {
+    const result = await connection.sendRequest(SignatureHelpRequest.type, {
+        textDocument: { uri },
+        position,
+        context: {
+            triggerKind: 1,
+            isRetrigger: false
+        }
+    });
+    const signatures = result?.signatures ?? [];
+
+    return {
+        found: signatures.length > 0,
+        signatureCount: signatures.length,
+        parameterCounts: signatures.map((signature) => signature.parameters?.length ?? 0),
+        documentationCount: signatures.filter((signature) => Boolean(signature.documentation)).length,
+        activeSignature: result?.activeSignature,
+        activeParameter: result?.activeParameter
     };
 }
 
@@ -665,6 +698,7 @@ function createReport({
     diagnostics,
     definition,
     hover,
+    signatureHelp,
     completion,
     semanticTokens,
     performanceStages
@@ -701,6 +735,7 @@ function createReport({
             semanticTokens,
             definition,
             hover,
+            signatureHelp,
             completion
         },
         performance: performanceStages?.map(stage => sanitizePerformanceStage(project, stage))
@@ -837,6 +872,20 @@ function hoverContentKinds(contents) {
     });
 }
 
+function hoverText(contents) {
+    if (!contents) {
+        return '';
+    }
+
+    const entries = Array.isArray(contents) ? contents : [contents];
+    return entries.map((entry) => {
+        if (typeof entry === 'string') {
+            return entry;
+        }
+        return typeof entry.value === 'string' ? entry.value : '';
+    }).join('\n');
+}
+
 function renderMarkdown(report) {
     const lines = [
         '# LSP Probe Report',
@@ -886,8 +935,16 @@ function renderMarkdown(report) {
     if (report.requests.hover) {
         lines.push(`- Hover found: ${report.requests.hover.found ? 'yes' : 'no'}${report.requests.hover.timedOut ? ' (timed out)' : ''}`);
         lines.push(`- Hover content kinds: ${report.requests.hover.contentKinds.join(', ') || '(none)'}`);
+        lines.push(`- Hover content length: ${report.requests.hover.contentLength ?? 0}; prose after code block: ${report.requests.hover.hasProseAfterCodeBlock ? 'yes' : 'no'}`);
     } else {
         lines.push('- Hover: not requested');
+    }
+
+    if (report.requests.signatureHelp) {
+        lines.push(`- Signature help found: ${report.requests.signatureHelp.found ? 'yes' : 'no'}${report.requests.signatureHelp.timedOut ? ' (timed out)' : ''}`);
+        lines.push(`- Signatures: ${report.requests.signatureHelp.signatureCount}; parameters: ${report.requests.signatureHelp.parameterCounts.join(', ') || '(none)'}; documented: ${report.requests.signatureHelp.documentationCount}`);
+    } else {
+        lines.push('- Signature help: not requested');
     }
 
     if (report.requests.completion) {
