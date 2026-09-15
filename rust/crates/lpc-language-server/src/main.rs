@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -120,7 +121,18 @@ struct WorkspaceConfigSyncParams {
 struct WorkspaceConfigSnapshot {
     #[serde(default)]
     preprocessor_defines: Vec<String>,
+    #[serde(default)]
+    instance_resolution_functions: HashMap<String, Vec<String>>,
+    resolved_config: Option<ResolvedConfigSnapshot>,
     enable_type_checking: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolvedConfigSnapshot {
+    #[serde(default)]
+    include_directories: Vec<String>,
+    global_include_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -257,8 +269,8 @@ fn run(
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
-                            .into_iter()
-                            .flat_map(|workspace| workspace.preprocessor_defines)
+                            .iter()
+                            .flat_map(|workspace| workspace.preprocessor_defines.iter().cloned())
                             .collect::<Vec<_>>(),
                     );
                     let roots: Vec<_> = params
@@ -266,10 +278,13 @@ fn run(
                         .into_iter()
                         .map(PathBuf::from)
                         .collect();
-                    analysis
-                        .lock()
-                        .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?
-                        .set_type_checking_enabled(type_checking_enabled);
+                    {
+                        let mut database = analysis
+                            .lock()
+                            .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                        database.set_type_checking_enabled(type_checking_enabled);
+                        apply_workspace_resolution(&mut database, &params.workspaces);
+                    }
                     connection
                         .sender
                         .send(Message::Notification(Notification::new(
@@ -316,8 +331,8 @@ fn run(
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
-                            .into_iter()
-                            .flat_map(|workspace| workspace.preprocessor_defines)
+                            .iter()
+                            .flat_map(|workspace| workspace.preprocessor_defines.iter().cloned())
                             .collect::<Vec<_>>(),
                     );
                     syntax.set_predefined(&definitions);
@@ -326,6 +341,7 @@ fn run(
                             .lock()
                             .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
                         database.set_type_checking_enabled(type_checking_enabled);
+                        apply_workspace_resolution(&mut database, &params.workspaces);
                         for document in documents.iter() {
                             let snapshot = syntax.open(document)?;
                             database.invalidate(&document.uri);
@@ -378,6 +394,41 @@ fn run(
 
     workspace_index.cancel();
     Ok(())
+}
+
+fn apply_workspace_resolution(
+    database: &mut AnalysisDatabase,
+    workspaces: &[WorkspaceConfigSnapshot],
+) {
+    let global_includes = workspaces
+        .iter()
+        .filter_map(|workspace| workspace.resolved_config.as_ref())
+        .filter_map(|config| config.global_include_file.clone())
+        .map(|path| path.trim_matches(['<', '>', '"']).to_owned())
+        .collect();
+    let include_directories = workspaces
+        .iter()
+        .filter_map(|workspace| workspace.resolved_config.as_ref())
+        .flat_map(|config| config.include_directories.iter().cloned())
+        .collect();
+    let mut instance_resolution_functions = HashMap::<String, Vec<String>>::new();
+    for workspace in workspaces {
+        for (name, paths) in &workspace.instance_resolution_functions {
+            let targets = instance_resolution_functions
+                .entry(name.clone())
+                .or_default();
+            for path in paths {
+                if !targets.contains(path) {
+                    targets.push(path.clone());
+                }
+            }
+        }
+    }
+    database.set_workspace_resolution(
+        global_includes,
+        include_directories,
+        instance_resolution_functions,
+    );
 }
 
 fn workspace_roots(value: Value) -> Vec<PathBuf> {

@@ -58,8 +58,23 @@ struct Symbol {
     scope: std::ops::Range<usize>,
     detail: String,
     documentation: Option<String>,
+    return_objects: Vec<String>,
     local: bool,
     parameters: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct TypeDefinition {
+    name: String,
+    members: Vec<TypeMember>,
+}
+
+#[derive(Debug, Clone)]
+struct TypeMember {
+    name: String,
+    selection: std::ops::Range<usize>,
+    detail: String,
+    documentation: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -68,11 +83,13 @@ struct FileAnalysis {
     revision: u64,
     source: String,
     symbols: Vec<Symbol>,
+    type_definitions: Vec<TypeDefinition>,
     identifiers: Vec<std::ops::Range<usize>>,
     diagnostics: Vec<Diagnostic>,
     folding_ranges: Vec<FoldingRange>,
     calls: Vec<CallSite>,
     dependencies: Vec<String>,
+    inherits: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -111,6 +128,9 @@ pub struct AnalysisDatabase {
     files: HashMap<String, FileAnalysis>,
     external_functions: HashMap<String, ExternalFunction>,
     type_checking_enabled: Option<bool>,
+    global_includes: Vec<String>,
+    include_directories: Vec<String>,
+    instance_resolution_functions: HashMap<String, Vec<String>>,
     metrics: AnalysisMetrics,
 }
 
@@ -124,6 +144,17 @@ impl AnalysisDatabase {
 
     pub fn set_type_checking_enabled(&mut self, enabled: bool) {
         self.type_checking_enabled = Some(enabled);
+    }
+
+    pub fn set_workspace_resolution(
+        &mut self,
+        global_includes: Vec<String>,
+        include_directories: Vec<String>,
+        instance_resolution_functions: HashMap<String, Vec<String>>,
+    ) {
+        self.global_includes = global_includes;
+        self.include_directories = include_directories;
+        self.instance_resolution_functions = instance_resolution_functions;
     }
 
     pub fn update(&mut self, uri: &str, version: i32, revision: u64, tree: &Tree, source: &str) {
@@ -140,6 +171,7 @@ impl AnalysisDatabase {
         let started_at = Instant::now();
         let mut symbols = Vec::new();
         collect_symbols(tree.root_node(), source, &mut symbols);
+        let type_definitions = collect_type_definitions(tree.root_node(), source);
         let mut identifiers = Vec::new();
         collect_identifiers(tree.root_node(), &mut identifiers);
         let diagnostics = collect_diagnostics(tree, source);
@@ -147,6 +179,7 @@ impl AnalysisDatabase {
         let mut calls = Vec::new();
         collect_calls(tree.root_node(), source, &mut calls);
         let dependencies = collect_dependencies(tree.root_node(), source);
+        let inherits = collect_inherits(tree.root_node(), source);
         self.files.insert(
             uri.to_owned(),
             FileAnalysis {
@@ -154,11 +187,13 @@ impl AnalysisDatabase {
                 revision,
                 source: source.to_owned(),
                 symbols,
+                type_definitions,
                 identifiers,
                 diagnostics,
                 folding_ranges,
                 calls,
                 dependencies,
+                inherits,
             },
         );
         self.metrics.snapshot_build_count += 1;
@@ -232,13 +267,7 @@ impl AnalysisDatabase {
                 .flat_map(|(_, candidate)| candidate.symbols.iter())
                 .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == call.name)
                 .collect();
-            let has_workspace_override = self.files.values().any(|candidate| {
-                candidate
-                    .symbols
-                    .iter()
-                    .any(|symbol| symbol.kind == SymbolKind::Function && symbol.name == call.name)
-            });
-            let external_signatures = if signatures.is_empty() && !has_workspace_override {
+            let external_signatures = if signatures.is_empty() {
                 self.external_functions
                     .get(&call.name)
                     .map(|function| function.signatures.as_slice())
@@ -283,16 +312,46 @@ impl AnalysisDatabase {
 
     pub fn definition(&mut self, uri: &str, position: Position) -> Vec<Location> {
         self.metrics.query_count += 1;
-        let Some((name, offset)) = self.identifier_at(uri, position) else {
-            return Vec::new();
-        };
         let Some(origin) = self.files.get(uri) else {
             return Vec::new();
         };
-        if identifier_range(origin, offset)
-            .is_some_and(|range| is_member_access(&origin.source, range.start))
-        {
+        let Some(offset) = lsp_position_to_byte(&origin.source, position) else {
             return Vec::new();
+        };
+        if let Some(path) = directive_path_on_line(&origin.source, offset) {
+            let resolved_path = self.resolve_path_token(&path).unwrap_or(path);
+            return self
+                .files
+                .iter()
+                .filter(|(candidate_uri, _)| {
+                    self.dependency_matches(uri, &resolved_path, candidate_uri)
+                })
+                .map(|(candidate_uri, _)| Location {
+                    uri: candidate_uri.clone(),
+                    range: Range {
+                        start: Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: 0,
+                            character: 0,
+                        },
+                    },
+                })
+                .collect();
+        }
+        let Some(range) = identifier_range(origin, offset) else {
+            return Vec::new();
+        };
+        let Some(name) = origin.source.get(range.clone()).map(str::to_owned) else {
+            return Vec::new();
+        };
+        if is_member_access(&origin.source, range.start) {
+            if let Some(location) = self.typed_member_definition(uri, range.start, &name) {
+                return vec![location];
+            }
+            return self.object_member_definitions(uri, range.start, &name);
         }
 
         let candidates = resolved_symbols(origin, &name, offset);
@@ -359,10 +418,15 @@ impl AnalysisDatabase {
         self.metrics.query_count += 1;
         let (name, offset) = self.identifier_at(uri, position)?;
         let file = self.files.get(uri)?;
-        if identifier_range(file, offset)
-            .is_some_and(|range| is_member_access(&file.source, range.start))
-        {
-            return None;
+        let identifier = identifier_range(file, offset)?;
+        if is_member_access(&file.source, identifier.start) {
+            let contents = self
+                .typed_member_hover(uri, identifier.start, &name)
+                .or_else(|| self.object_member_hover(uri, identifier.start, &name))?;
+            return Some(HoverResult {
+                contents,
+                range: byte_range_to_lsp(&file.source, identifier),
+            });
         }
         let symbols = resolved_symbols(file, &name, offset);
         let visible = self.visible_uris(uri);
@@ -385,7 +449,6 @@ impl AnalysisDatabase {
             .first()
             .copied()
             .or_else(|| (workspace_symbols.len() == 1).then(|| workspace_symbols[0]));
-        let identifier = identifier_range(file, offset)?;
         if let Some(symbol) = symbol {
             return Some(HoverResult {
                 contents: match symbol.documentation.as_deref() {
@@ -424,49 +487,99 @@ impl AnalysisDatabase {
         let Some(origin) = self.files.get(uri) else {
             return Vec::new();
         };
-        let resolved = resolved_symbols(origin, &name, offset).first().copied();
-        if resolved.is_none() {
+        let member_reference = identifier_range(origin, offset)
+            .is_some_and(|range| is_member_access(&origin.source, range.start));
+        if let Some(local) = resolved_symbols(origin, &name, offset)
+            .into_iter()
+            .find(|symbol| symbol.local)
+        {
+            return origin
+                .identifiers
+                .iter()
+                .filter(|range| {
+                    origin.source.get((*range).clone()) == Some(name.as_str())
+                        && local.scope.contains(&range.start)
+                        && (include_declaration
+                            || range.start != local.selection.start
+                            || range.end != local.selection.end)
+                        && resolved_symbols(origin, &name, range.start)
+                            .first()
+                            .is_some_and(|symbol| symbol.selection == local.selection)
+                })
+                .map(|range| Location {
+                    uri: uri.to_owned(),
+                    range: byte_range_to_lsp(&origin.source, range.clone()),
+                })
+                .collect();
+        }
+
+        let configured_receiver = member_reference
+            .then(|| {
+                let identifier = identifier_range(origin, offset)?;
+                let (_, receiver) = member_access_context(&origin.source, identifier.start)?;
+                direct_call_name(&receiver).map(str::to_owned)
+            })
+            .flatten()
+            .filter(|function| self.instance_resolution_functions.contains_key(function));
+        let definitions = self.definition(uri, position);
+        if definitions.len() != 1 {
             return Vec::new();
         }
-        let related = self.related_uris(uri);
-        let local_scope = resolved
-            .filter(|symbol| symbol.local)
-            .map(|symbol| symbol.scope.clone());
-        let declaration_ranges: HashSet<_> = resolved
-            .into_iter()
-            .map(|symbol| (symbol.selection.start, symbol.selection.end))
-            .collect();
-        self.files
-            .iter()
-            .filter(|(candidate_uri, _)| {
-                if local_scope.is_some() {
-                    candidate_uri.as_str() == uri
-                } else {
-                    related.contains(candidate_uri.as_str())
+        let target = &definitions[0];
+        let mut references = Vec::new();
+        let configured_functions =
+            self.configured_functions_reaching_target(&target.uri, configured_receiver.as_deref());
+        let configured_consumers =
+            self.configured_instance_consumer_uris(&name, &configured_functions);
+        let mut candidate_uris = if member_reference {
+            if configured_consumers.is_empty() {
+                self.files
+                    .iter()
+                    .filter(|(_, file)| file.source.contains(&name))
+                    .map(|(uri, _)| uri.clone())
+                    .collect()
+            } else {
+                configured_consumers.clone()
+            }
+        } else {
+            self.related_uris(&target.uri)
+        };
+        candidate_uris.insert(target.uri.clone());
+        candidate_uris.insert(uri.to_owned());
+        candidate_uris.extend(configured_consumers);
+        for candidate_uri in candidate_uris {
+            let Some(file) = self.files.get(&candidate_uri) else {
+                continue;
+            };
+            for range in &file.identifiers {
+                if file.source.get(range.clone()) != Some(name.as_str()) {
+                    continue;
                 }
-            })
-            .flat_map(|(candidate_uri, file)| {
-                let declaration_ranges = &declaration_ranges;
-                let local_scope = local_scope.clone();
-                let name = name.clone();
-                file.identifiers.iter().filter_map(move |range| {
-                    let text = file.source.get(range.clone())?;
-                    if text != name
-                        || (!include_declaration
-                            && declaration_ranges.contains(&(range.start, range.end)))
-                        || local_scope
-                            .as_ref()
-                            .is_some_and(|scope| !scope.contains(&range.start))
-                    {
-                        return None;
-                    }
-                    Some(Location {
-                        uri: candidate_uri.clone(),
-                        range: byte_range_to_lsp(&file.source, range.clone()),
-                    })
-                })
-            })
-            .collect()
+                let location = Location {
+                    uri: candidate_uri.clone(),
+                    range: byte_range_to_lsp(&file.source, range.clone()),
+                };
+                if member_reference
+                    && location != *target
+                    && !is_member_access(&file.source, range.start)
+                {
+                    continue;
+                }
+                if (!include_declaration && location == *target)
+                    || !self.occurrence_resolves_to(
+                        &candidate_uri,
+                        range,
+                        &name,
+                        target,
+                        &configured_functions,
+                    )
+                {
+                    continue;
+                }
+                references.push(location);
+            }
+        }
+        references
     }
 
     pub fn prepare_rename(&mut self, uri: &str, position: Position) -> Option<Range> {
@@ -475,9 +588,11 @@ impl AnalysisDatabase {
         let offset = lsp_position_to_byte(&file.source, position)?;
         let range = identifier_range(file, offset)?;
         let name = file.source.get(range.clone())?;
-        let resolved = resolved_symbols(file, name, offset);
-        (!KEYWORDS.contains(&name) && !resolved.is_empty())
-            .then(|| byte_range_to_lsp(&file.source, range))
+        let locally_resolved = !resolved_symbols(file, name, offset).is_empty();
+        let is_keyword = KEYWORDS.contains(&name);
+        let rename_range = byte_range_to_lsp(&file.source, range);
+        let uniquely_resolved = locally_resolved || self.definition(uri, position).len() == 1;
+        (!is_keyword && uniquely_resolved).then_some(rename_range)
     }
 
     pub fn rename_edits(
@@ -489,32 +604,11 @@ impl AnalysisDatabase {
         if !valid_identifier(new_name) {
             return HashMap::new();
         }
-        let Some((name, offset)) = self.identifier_at(uri, position) else {
+        let Some((_name, _offset)) = self.identifier_at(uri, position) else {
             return HashMap::new();
         };
-        let Some(file) = self.files.get(uri) else {
+        if self.prepare_rename(uri, position).is_none() {
             return HashMap::new();
-        };
-        let resolved = resolved_symbols(file, &name, offset);
-        if resolved.is_empty() {
-            return HashMap::new();
-        }
-        if resolved.iter().all(|symbol| !symbol.local) {
-            let edits = file
-                .identifiers
-                .iter()
-                .filter(|range| {
-                    file.source.get((*range).clone()) == Some(name.as_str())
-                        && resolved_symbols(file, &name, range.start)
-                            .first()
-                            .is_some_and(|symbol| !symbol.local)
-                })
-                .map(|range| TextEdit {
-                    range: byte_range_to_lsp(&file.source, range.clone()),
-                    new_text: new_name.to_owned(),
-                })
-                .collect::<Vec<_>>();
-            return HashMap::from([(uri.to_owned(), edits)]);
         }
         self.references(uri, position, true).into_iter().fold(
             HashMap::new(),
@@ -536,8 +630,37 @@ impl AnalysisDatabase {
         let file = self.files.get(uri)?;
         let offset = lsp_position_to_byte(&file.source, position)?;
         let (open, name) = enclosing_call(&file.source, offset)?;
-        if is_member_access(&file.source, open.saturating_sub(name.len())) {
-            return None;
+        let name_start = open.saturating_sub(name.len());
+        if is_member_access(&file.source, name_start) {
+            let targets = self.object_target_uris(uri, name_start)?;
+            let signatures = self
+                .files
+                .iter()
+                .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
+                .flat_map(|(_, target)| target.symbols.iter())
+                .filter(|symbol| {
+                    !symbol.local && symbol.kind == SymbolKind::Function && symbol.name == name
+                })
+                .map(|symbol| SignatureInformation {
+                    label: symbol.detail.clone(),
+                    documentation: symbol.documentation.clone(),
+                    parameters: symbol
+                        .parameters
+                        .iter()
+                        .map(|label| ParameterInformation {
+                            label: label.clone(),
+                        })
+                        .collect(),
+                })
+                .collect::<Vec<_>>();
+            if signatures.is_empty() {
+                return None;
+            }
+            return Some(SignatureHelp {
+                signatures,
+                active_signature: 0,
+                active_parameter: active_parameter(&file.source[open + 1..offset]),
+            });
         }
         let local_symbol = file
             .symbols
@@ -630,11 +753,79 @@ impl AnalysisDatabase {
             .get(uri)
             .and_then(|file| completion_prefix(&file.source, position))
             .unwrap_or_default();
+        let completion_offset = self
+            .files
+            .get(uri)
+            .and_then(|file| lsp_position_to_byte(&file.source, position));
+        let directive_context = self.files.get(uri).and_then(|file| {
+            completion_offset.and_then(|offset| directive_completion_context(&file.source, offset))
+        });
+        if let Some(context) = directive_context {
+            return self.directive_completion_candidates(context, &prefix);
+        }
+        let scoped_qualifier = self.files.get(uri).and_then(|file| {
+            let end = completion_offset.unwrap_or(file.source.len());
+            scope_access_qualifier(&file.source, end.saturating_sub(prefix.len()))
+        });
+        if let Some(qualifier) = scoped_qualifier {
+            let normalized_prefix = prefix.to_ascii_lowercase();
+            if qualifier == "efun" {
+                let mut candidates = self
+                    .external_functions
+                    .values()
+                    .filter(|function| {
+                        normalized_prefix.is_empty()
+                            || function
+                                .name
+                                .to_ascii_lowercase()
+                                .starts_with(&normalized_prefix)
+                    })
+                    .map(completion_from_external_function)
+                    .collect::<Vec<_>>();
+                candidates.sort_by(|left, right| left.label.cmp(&right.label));
+                return candidates;
+            }
+            let inherited = self.inherited_uris(uri);
+            let mut candidates = self
+                .files
+                .iter()
+                .filter(|(candidate_uri, _)| inherited.contains(candidate_uri.as_str()))
+                .flat_map(|(_, file)| file.symbols.iter())
+                .filter(|symbol| {
+                    !symbol.local
+                        && symbol.kind == SymbolKind::Function
+                        && (normalized_prefix.is_empty()
+                            || symbol
+                                .name
+                                .to_ascii_lowercase()
+                                .starts_with(&normalized_prefix))
+                })
+                .map(completion_from_symbol)
+                .collect::<Vec<_>>();
+            candidates.sort_by(|left, right| left.label.cmp(&right.label));
+            candidates.dedup_by(|left, right| left.label == right.label);
+            return candidates;
+        }
         let member_access = self.files.get(uri).is_some_and(|file| {
-            let end = lsp_position_to_byte(&file.source, position).unwrap_or(file.source.len());
+            let end = completion_offset.unwrap_or(file.source.len());
             is_member_access(&file.source, end.saturating_sub(prefix.len()))
         });
         if member_access {
+            let member_start = completion_offset
+                .unwrap_or_default()
+                .saturating_sub(prefix.len());
+            if let Some(candidates) = self.typed_member_candidates(uri, member_start, &prefix) {
+                return candidates;
+            }
+            if let Some(candidates) = self.object_member_candidates(uri, member_start, &prefix) {
+                return candidates;
+            }
+            if self.files.get(uri).and_then(|file| {
+                member_access_context(&file.source, member_start).map(|(operator, _)| operator)
+            }) == Some(MemberOperator::Dot)
+            {
+                return Vec::new();
+            }
             let normalized_prefix = prefix.to_ascii_lowercase();
             return COMMON_OBJECT_METHODS
                 .iter()
@@ -647,6 +838,8 @@ impl AnalysisDatabase {
                     kind: 2,
                     detail: Some(format!("object->{name}(...)")),
                     documentation: None,
+                    insert_text: Some(common_object_method_snippet(name)),
+                    insert_text_format: Some(2),
                 })
                 .collect();
         }
@@ -656,19 +849,7 @@ impl AnalysisDatabase {
                 !symbol.local
                     || (symbol.scope.contains(&offset) && symbol.selection.start <= offset)
             }) {
-                candidates.insert(
-                    symbol.name.clone(),
-                    CompletionCandidate {
-                        label: symbol.name.clone(),
-                        kind: match symbol.kind {
-                            SymbolKind::Function => 3,
-                            SymbolKind::Variable | SymbolKind::Parameter => 6,
-                            SymbolKind::Type => 7,
-                        },
-                        detail: Some(symbol.detail.clone()),
-                        documentation: symbol.documentation.clone(),
-                    },
-                );
+                candidates.insert(symbol.name.clone(), completion_from_symbol(symbol));
             }
         }
         let visible = self.visible_uris(uri);
@@ -681,29 +862,12 @@ impl AnalysisDatabase {
         {
             candidates
                 .entry(symbol.name.clone())
-                .or_insert_with(|| CompletionCandidate {
-                    label: symbol.name.clone(),
-                    kind: if symbol.kind == SymbolKind::Function {
-                        3
-                    } else {
-                        6
-                    },
-                    detail: Some(symbol.detail.clone()),
-                    documentation: symbol.documentation.clone(),
-                });
+                .or_insert_with(|| completion_from_symbol(symbol));
         }
         for function in self.external_functions.values() {
             candidates
                 .entry(function.name.clone())
-                .or_insert_with(|| CompletionCandidate {
-                    label: function.name.clone(),
-                    kind: 3,
-                    detail: function
-                        .signatures
-                        .first()
-                        .map(|signature| signature.label.clone()),
-                    documentation: function.summary.clone(),
-                });
+                .or_insert_with(|| completion_from_external_function(function));
         }
         for keyword in KEYWORDS {
             candidates
@@ -713,6 +877,8 @@ impl AnalysisDatabase {
                     kind: 14,
                     detail: None,
                     documentation: None,
+                    insert_text: None,
+                    insert_text_format: None,
                 });
         }
         let mut candidates = candidates.into_values().collect::<Vec<_>>();
@@ -747,10 +913,13 @@ impl AnalysisDatabase {
             let Some(file) = self.files.get(&uri) else {
                 continue;
             };
-            for dependency in &file.dependencies {
+            for dependency in file.dependencies.iter().chain(&self.global_includes) {
+                let resolved_dependency = self
+                    .resolve_path_token(dependency)
+                    .unwrap_or_else(|| dependency.clone());
                 for candidate_uri in self.files.keys() {
                     if !visible.contains(candidate_uri)
-                        && dependency_matches(&uri, dependency, candidate_uri)
+                        && self.dependency_matches(&uri, &resolved_dependency, candidate_uri)
                     {
                         visible.insert(candidate_uri.clone());
                         pending.push(candidate_uri.clone());
@@ -763,12 +932,677 @@ impl AnalysisDatabase {
 
     fn related_uris(&self, origin_uri: &str) -> HashSet<String> {
         let mut related = self.visible_uris(origin_uri);
-        for candidate_uri in self.files.keys() {
-            if self.visible_uris(candidate_uri).contains(origin_uri) {
-                related.insert(candidate_uri.clone());
+        let mut pending = vec![origin_uri.to_owned()];
+        while let Some(target_uri) = pending.pop() {
+            for (candidate_uri, file) in &self.files {
+                if related.contains(candidate_uri) {
+                    continue;
+                }
+                let depends_on_target =
+                    file.dependencies
+                        .iter()
+                        .chain(&self.global_includes)
+                        .any(|dependency| {
+                            let resolved = self
+                                .resolve_path_token(dependency)
+                                .unwrap_or_else(|| dependency.clone());
+                            self.dependency_matches(candidate_uri, &resolved, &target_uri)
+                        });
+                if depends_on_target {
+                    related.insert(candidate_uri.clone());
+                    pending.push(candidate_uri.clone());
+                }
             }
         }
         related
+    }
+
+    fn configured_functions_reaching_target(
+        &self,
+        target_uri: &str,
+        receiver_function: Option<&str>,
+    ) -> HashSet<String> {
+        let selected_paths = receiver_function
+            .and_then(|function| self.instance_resolution_functions.get(function))
+            .map(|paths| paths.iter().collect::<HashSet<_>>());
+        if let Some(selected_paths) = &selected_paths {
+            return self
+                .instance_resolution_functions
+                .iter()
+                .filter(|(_, paths)| paths.iter().any(|path| selected_paths.contains(path)))
+                .map(|(name, _)| name.clone())
+                .collect();
+        }
+        let mut path_reaches_target = HashMap::<String, bool>::new();
+        for path in self
+            .instance_resolution_functions
+            .values()
+            .flat_map(|paths| paths.iter())
+        {
+            if selected_paths
+                .as_ref()
+                .is_some_and(|selected| !selected.contains(path))
+            {
+                continue;
+            }
+            if path_reaches_target.contains_key(path) {
+                continue;
+            }
+            let reaches_target =
+                self.path_target_uris(target_uri, path)
+                    .into_iter()
+                    .any(|owner_uri| {
+                        owner_uri == target_uri
+                            || self.visible_uris(&owner_uri).contains(target_uri)
+                    });
+            path_reaches_target.insert(path.clone(), reaches_target);
+        }
+        self.instance_resolution_functions
+            .iter()
+            .filter(|(_, paths)| {
+                paths
+                    .iter()
+                    .any(|path| path_reaches_target.get(path) == Some(&true))
+            })
+            .map(|(name, _)| name.clone())
+            .collect()
+    }
+
+    fn configured_instance_consumer_uris(
+        &self,
+        member_name: &str,
+        functions: &HashSet<String>,
+    ) -> HashSet<String> {
+        if functions.is_empty() {
+            return HashSet::new();
+        }
+        let call_patterns = functions
+            .iter()
+            .map(|function| format!("{function}("))
+            .collect::<Vec<_>>();
+        self.files
+            .iter()
+            .filter(|(_, file)| {
+                file.source.contains(member_name)
+                    && call_patterns
+                        .iter()
+                        .any(|function| file.source.contains(function))
+            })
+            .map(|(uri, _)| uri.clone())
+            .collect()
+    }
+
+    fn occurrence_resolves_to(
+        &self,
+        uri: &str,
+        identifier: &std::ops::Range<usize>,
+        name: &str,
+        target: &Location,
+        configured_functions: &HashSet<String>,
+    ) -> bool {
+        let Some(file) = self.files.get(uri) else {
+            return false;
+        };
+        let location = Location {
+            uri: uri.to_owned(),
+            range: byte_range_to_lsp(&file.source, identifier.clone()),
+        };
+        if location == *target {
+            return true;
+        }
+        if is_member_access(&file.source, identifier.start) {
+            if let Some((_, receiver)) = member_access_context(&file.source, identifier.start)
+                && receiver_originates_from_functions(
+                    file,
+                    &receiver,
+                    identifier.start,
+                    configured_functions,
+                    8,
+                )
+            {
+                return true;
+            }
+            if let Some(location) = self.typed_member_definition(uri, identifier.start, name) {
+                return location == *target;
+            }
+            let locations = self.object_member_definitions(uri, identifier.start, name);
+            return locations.len() == 1 && locations[0] == *target;
+        }
+        if let Some(symbol) = resolved_symbols(file, name, identifier.start).first() {
+            if symbol.local {
+                return false;
+            }
+            return Location {
+                uri: uri.to_owned(),
+                range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
+            } == *target;
+        }
+        let locations = self.visible_symbol_locations(uri, name);
+        locations.len() == 1 && locations[0] == *target
+    }
+
+    fn visible_symbol_locations(&self, uri: &str, name: &str) -> Vec<Location> {
+        let visible = self.visible_uris(uri);
+        self.files
+            .iter()
+            .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
+            .flat_map(|(candidate_uri, file)| {
+                file.symbols
+                    .iter()
+                    .filter(|symbol| {
+                        symbol.name == name
+                            && !symbol.local
+                            && matches!(
+                                symbol.kind,
+                                SymbolKind::Function | SymbolKind::Variable | SymbolKind::Type
+                            )
+                    })
+                    .map(|symbol| Location {
+                        uri: candidate_uri.clone(),
+                        range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
+                    })
+            })
+            .collect()
+    }
+
+    fn inherited_uris(&self, origin_uri: &str) -> HashSet<String> {
+        let mut inherited = HashSet::new();
+        let mut pending = vec![origin_uri.to_owned()];
+        while let Some(uri) = pending.pop() {
+            let Some(file) = self.files.get(&uri) else {
+                continue;
+            };
+            for dependency in &file.inherits {
+                let resolved_dependency = self
+                    .resolve_path_token(dependency)
+                    .unwrap_or_else(|| dependency.clone());
+                for candidate_uri in self.files.keys() {
+                    if candidate_uri != origin_uri
+                        && !inherited.contains(candidate_uri)
+                        && self.dependency_matches(&uri, &resolved_dependency, candidate_uri)
+                    {
+                        inherited.insert(candidate_uri.clone());
+                        pending.push(candidate_uri.clone());
+                    }
+                }
+            }
+        }
+        inherited
+    }
+
+    fn resolve_path_token(&self, token: &str) -> Option<String> {
+        if token.starts_with('/') || token.contains('/') || token.starts_with('.') {
+            return Some(token.to_owned());
+        }
+        let mut values = self
+            .files
+            .values()
+            .filter_map(|file| macro_string_value(&file.source, token));
+        let first = values.next()?;
+        values.all(|value| value == first).then_some(first)
+    }
+
+    fn dependency_matches(&self, origin_uri: &str, dependency: &str, candidate_uri: &str) -> bool {
+        if dependency.starts_with('/') || dependency.starts_with('.') || dependency.contains('/') {
+            return dependency_matches(origin_uri, dependency, candidate_uri);
+        }
+        if !self.include_directories.is_empty() {
+            return self.include_directories.iter().any(|directory| {
+                dependency_matches(
+                    origin_uri,
+                    &format!("{}/{}", directory.trim_end_matches(['/', '\\']), dependency),
+                    candidate_uri,
+                )
+            });
+        }
+        dependency_matches(origin_uri, dependency, candidate_uri)
+    }
+
+    fn receiver_type_name(&self, uri: &str, member_start: usize) -> Option<String> {
+        let file = self.files.get(uri)?;
+        let (operator, receiver) = member_access_context(&file.source, member_start)?;
+        if operator != MemberOperator::Dot {
+            return None;
+        }
+        let symbol = resolved_symbols(file, &receiver, member_start)
+            .into_iter()
+            .next()?;
+        type_name_from_symbol(symbol)
+    }
+
+    fn object_target_uris(&self, uri: &str, member_start: usize) -> Option<HashSet<String>> {
+        let file = self.files.get(uri)?;
+        let (operator, receiver) = member_access_context(&file.source, member_start)?;
+        if operator != MemberOperator::Arrow {
+            return None;
+        }
+        let direct_targets = self.resolve_object_expression(uri, &receiver, member_start, 8);
+        let mut targets = direct_targets.clone();
+        for target in direct_targets {
+            targets.extend(self.visible_uris(&target));
+        }
+        (!targets.is_empty()).then_some(targets)
+    }
+
+    fn resolve_object_expression(
+        &self,
+        uri: &str,
+        expression: &str,
+        offset: usize,
+        budget: usize,
+    ) -> HashSet<String> {
+        if budget == 0 {
+            return HashSet::new();
+        }
+        let expression = strip_outer_parentheses(expression.trim());
+        if expression == "this_object" || expression == "this_object()" {
+            return HashSet::from([uri.to_owned()]);
+        }
+        if let Some(path) = quoted_string(expression) {
+            return self.path_target_uris(uri, path);
+        }
+        for constructor in ["load_object", "clone_object", "find_object", "new"] {
+            if let Some(argument) = call_first_argument(expression, constructor) {
+                let path = quoted_string(argument)
+                    .map(str::to_owned)
+                    .or_else(|| self.resolve_path_token(argument.trim()));
+                return path
+                    .map(|path| self.path_target_uris(uri, &path))
+                    .unwrap_or_default();
+            }
+        }
+        if let Some((receiver, argument)) = model_get_call(expression) {
+            let registry_targets =
+                self.resolve_object_expression(uri, receiver, offset, budget.saturating_sub(1));
+            let Some(key) = quoted_string(argument) else {
+                return HashSet::new();
+            };
+            return registry_targets
+                .iter()
+                .filter_map(|target_uri| self.files.get(target_uri))
+                .filter_map(|target| model_registry_path(&target.source, key))
+                .flat_map(|path| self.path_target_uris(uri, &path))
+                .collect();
+        }
+        if let Some((receiver, method)) = member_call(expression) {
+            let receiver_targets =
+                self.resolve_object_expression(uri, receiver, offset, budget.saturating_sub(1));
+            return self
+                .files
+                .iter()
+                .filter(|(candidate_uri, _)| receiver_targets.contains(candidate_uri.as_str()))
+                .flat_map(|(candidate_uri, file)| {
+                    file.symbols
+                        .iter()
+                        .filter(|symbol| {
+                            !symbol.local
+                                && symbol.kind == SymbolKind::Function
+                                && symbol.name == method
+                        })
+                        .flat_map(|symbol| {
+                            self.return_object_targets(uri, candidate_uri, &symbol.return_objects)
+                        })
+                })
+                .collect();
+        }
+        if let Some(function_name) = direct_call_name(expression) {
+            if let Some(paths) = self.instance_resolution_functions.get(function_name) {
+                return paths
+                    .iter()
+                    .flat_map(|path| self.path_target_uris(uri, path))
+                    .collect();
+            }
+            let visible = self.visible_uris(uri);
+            return self
+                .files
+                .iter()
+                .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
+                .flat_map(|(candidate_uri, file)| {
+                    file.symbols
+                        .iter()
+                        .filter(|symbol| {
+                            !symbol.local
+                                && symbol.kind == SymbolKind::Function
+                                && symbol.name == function_name
+                        })
+                        .flat_map(|symbol| {
+                            self.return_object_targets(uri, candidate_uri, &symbol.return_objects)
+                        })
+                })
+                .collect();
+        }
+        if valid_identifier(expression) {
+            if let Some(path) = self.resolve_path_token(expression) {
+                let targets = self.path_target_uris(uri, &path);
+                if !targets.is_empty() {
+                    return targets;
+                }
+            }
+            if let Some(file) = self.files.get(uri)
+                && let Some(symbol) = resolved_symbols(file, expression, offset).first()
+                && let Some(initializer) = symbol_initializer(file, symbol)
+            {
+                return self.resolve_object_expression(
+                    uri,
+                    initializer,
+                    symbol.selection.start,
+                    budget.saturating_sub(1),
+                );
+            }
+        }
+        HashSet::new()
+    }
+
+    fn return_object_targets(
+        &self,
+        origin_uri: &str,
+        defining_uri: &str,
+        return_objects: &[String],
+    ) -> HashSet<String> {
+        return_objects
+            .iter()
+            .flat_map(|target| {
+                if target == "this_object()" {
+                    HashSet::from([defining_uri.to_owned()])
+                } else if target == "*" {
+                    HashSet::new()
+                } else {
+                    self.path_target_uris(origin_uri, target)
+                }
+            })
+            .collect()
+    }
+
+    fn path_target_uris(&self, origin_uri: &str, path: &str) -> HashSet<String> {
+        self.files
+            .keys()
+            .filter(|candidate_uri| self.dependency_matches(origin_uri, path, candidate_uri))
+            .cloned()
+            .collect()
+    }
+
+    fn object_member_candidates(
+        &self,
+        uri: &str,
+        member_start: usize,
+        prefix: &str,
+    ) -> Option<Vec<CompletionCandidate>> {
+        let targets = self.object_target_uris(uri, member_start)?;
+        let normalized_prefix = prefix.to_ascii_lowercase();
+        let mut candidates = self
+            .files
+            .iter()
+            .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
+            .flat_map(|(_, file)| file.symbols.iter())
+            .filter(|symbol| {
+                !symbol.local
+                    && symbol.kind == SymbolKind::Function
+                    && (normalized_prefix.is_empty()
+                        || symbol
+                            .name
+                            .to_ascii_lowercase()
+                            .starts_with(&normalized_prefix))
+            })
+            .map(completion_from_symbol)
+            .collect::<Vec<_>>();
+        candidates.sort_by(|left, right| left.label.cmp(&right.label));
+        candidates.dedup_by(|left, right| left.label == right.label);
+        Some(candidates)
+    }
+
+    fn object_member_definitions(
+        &self,
+        uri: &str,
+        member_start: usize,
+        member_name: &str,
+    ) -> Vec<Location> {
+        let Some(targets) = self.object_target_uris(uri, member_start) else {
+            return Vec::new();
+        };
+        self.files
+            .iter()
+            .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
+            .flat_map(|(candidate_uri, file)| {
+                file.symbols
+                    .iter()
+                    .filter(|symbol| {
+                        !symbol.local
+                            && symbol.kind == SymbolKind::Function
+                            && symbol.name == member_name
+                    })
+                    .map(|symbol| Location {
+                        uri: candidate_uri.clone(),
+                        range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
+                    })
+            })
+            .collect()
+    }
+
+    fn object_member_hover(
+        &self,
+        uri: &str,
+        member_start: usize,
+        member_name: &str,
+    ) -> Option<String> {
+        let targets = self.object_target_uris(uri, member_start)?;
+        let mut symbols = self
+            .files
+            .iter()
+            .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
+            .flat_map(|(_, file)| file.symbols.iter())
+            .filter(|symbol| {
+                !symbol.local && symbol.kind == SymbolKind::Function && symbol.name == member_name
+            });
+        let symbol = symbols.next()?;
+        if symbols.next().is_some() {
+            return None;
+        }
+        Some(match symbol.documentation.as_deref() {
+            Some(documentation) => format!("```lpc\n{}\n```\n\n{documentation}", symbol.detail),
+            None => format!("```lpc\n{}\n```", symbol.detail),
+        })
+    }
+
+    fn typed_member_candidates(
+        &self,
+        uri: &str,
+        member_start: usize,
+        prefix: &str,
+    ) -> Option<Vec<CompletionCandidate>> {
+        let type_name = self.receiver_type_name(uri, member_start)?;
+        let visible = self.visible_uris(uri);
+        let mut definitions = self
+            .files
+            .iter()
+            .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
+            .flat_map(|(_, file)| file.type_definitions.iter())
+            .filter(|definition| definition.name == type_name)
+            .collect::<Vec<_>>();
+        if definitions.is_empty() {
+            definitions = self
+                .files
+                .values()
+                .flat_map(|file| file.type_definitions.iter())
+                .filter(|definition| definition.name == type_name)
+                .collect();
+        }
+        if definitions.len() != 1 {
+            return None;
+        }
+        let normalized_prefix = prefix.to_ascii_lowercase();
+        let mut candidates = definitions[0]
+            .members
+            .iter()
+            .filter(|member| {
+                normalized_prefix.is_empty()
+                    || member
+                        .name
+                        .to_ascii_lowercase()
+                        .starts_with(&normalized_prefix)
+            })
+            .map(|member| CompletionCandidate {
+                label: member.name.clone(),
+                kind: 5,
+                detail: Some(member.detail.clone()),
+                documentation: member.documentation.clone(),
+                insert_text: None,
+                insert_text_format: None,
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_by(|left, right| left.label.cmp(&right.label));
+        Some(candidates)
+    }
+
+    fn typed_member_definition(
+        &self,
+        uri: &str,
+        member_start: usize,
+        member_name: &str,
+    ) -> Option<Location> {
+        let type_name = self.receiver_type_name(uri, member_start)?;
+        let visible = self.visible_uris(uri);
+        let mut matches = self
+            .files
+            .iter()
+            .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
+            .flat_map(|(candidate_uri, file)| {
+                file.type_definitions
+                    .iter()
+                    .filter(|definition| definition.name == type_name)
+                    .flat_map(|definition| definition.members.iter())
+                    .filter(|member| member.name == member_name)
+                    .map(|member| Location {
+                        uri: candidate_uri.clone(),
+                        range: byte_range_to_lsp(&file.source, member.selection.clone()),
+                    })
+            })
+            .collect::<Vec<_>>();
+        if matches.is_empty() {
+            matches = self
+                .files
+                .iter()
+                .flat_map(|(candidate_uri, file)| {
+                    file.type_definitions
+                        .iter()
+                        .filter(|definition| definition.name == type_name)
+                        .flat_map(|definition| definition.members.iter())
+                        .filter(|member| member.name == member_name)
+                        .map(|member| Location {
+                            uri: candidate_uri.clone(),
+                            range: byte_range_to_lsp(&file.source, member.selection.clone()),
+                        })
+                })
+                .collect();
+        }
+        (matches.len() == 1).then(|| matches.remove(0))
+    }
+
+    fn typed_member_hover(
+        &self,
+        uri: &str,
+        member_start: usize,
+        member_name: &str,
+    ) -> Option<String> {
+        let location = self.typed_member_definition(uri, member_start, member_name)?;
+        let file = self.files.get(&location.uri)?;
+        let member = file
+            .type_definitions
+            .iter()
+            .flat_map(|definition| definition.members.iter())
+            .find(|member| {
+                member.name == member_name
+                    && member.selection.start
+                        == lsp_position_to_byte(&file.source, location.range.start)
+                            .unwrap_or(usize::MAX)
+            })?;
+        Some(match member.documentation.as_deref() {
+            Some(documentation) => format!("```lpc\n{}\n```\n\n{documentation}", member.detail),
+            None => format!("```lpc\n{}\n```", member.detail),
+        })
+    }
+
+    fn directive_completion_candidates(
+        &self,
+        context: DirectiveCompletionContext,
+        prefix: &str,
+    ) -> Vec<CompletionCandidate> {
+        let mut candidates = HashMap::<String, CompletionCandidate>::new();
+        match context {
+            DirectiveCompletionContext::PreprocessorDirective
+            | DirectiveCompletionContext::PreprocessorExpression => {
+                for directive in PREPROCESSOR_DIRECTIVES {
+                    candidates.insert(
+                        (*directive).to_owned(),
+                        CompletionCandidate {
+                            label: (*directive).to_owned(),
+                            kind: 14,
+                            detail: Some(format!("预处理指令: {directive}")),
+                            documentation: None,
+                            insert_text: None,
+                            insert_text_format: None,
+                        },
+                    );
+                }
+            }
+            DirectiveCompletionContext::IncludePath | DirectiveCompletionContext::InheritPath => {
+                let detail = if context == DirectiveCompletionContext::InheritPath {
+                    "继承路径"
+                } else {
+                    "包含路径"
+                };
+                for uri in self.files.keys() {
+                    let normalized = uri_path_without_extension(uri);
+                    let basename = normalized.rsplit('/').next().unwrap_or(&normalized);
+                    for label in [normalized.as_str(), basename] {
+                        candidates
+                            .entry(label.to_owned())
+                            .or_insert_with(|| CompletionCandidate {
+                                label: label.to_owned(),
+                                kind: 17,
+                                detail: Some(detail.to_owned()),
+                                documentation: None,
+                                insert_text: None,
+                                insert_text_format: None,
+                            });
+                    }
+                }
+            }
+        }
+        let macros = if context == DirectiveCompletionContext::PreprocessorExpression {
+            workspace_macros(self.files.values())
+        } else if matches!(
+            context,
+            DirectiveCompletionContext::IncludePath | DirectiveCompletionContext::InheritPath
+        ) {
+            workspace_string_macros(self.files.values())
+        } else {
+            HashMap::new()
+        };
+        for (name, value) in macros {
+            candidates
+                .entry(name.clone())
+                .or_insert(CompletionCandidate {
+                    label: name,
+                    kind: 21,
+                    detail: Some(value),
+                    documentation: None,
+                    insert_text: None,
+                    insert_text_format: None,
+                });
+        }
+        let normalized_prefix = prefix.to_ascii_lowercase();
+        let mut candidates = candidates
+            .into_values()
+            .filter(|candidate| {
+                normalized_prefix.is_empty()
+                    || candidate
+                        .label
+                        .to_ascii_lowercase()
+                        .starts_with(&normalized_prefix)
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_by(|left, right| left.label.cmp(&right.label));
+        candidates
     }
 }
 
@@ -815,6 +1649,10 @@ pub struct CompletionCandidate {
     pub detail: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub documentation: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub insert_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub insert_text_format: Option<u32>,
 }
 
 const KEYWORDS: &[&str] = &[
@@ -853,6 +1691,93 @@ const KEYWORDS: &[&str] = &[
 ];
 
 const COMMON_OBJECT_METHODS: &[&str] = &["query", "set", "add", "delete"];
+const PREPROCESSOR_DIRECTIVES: &[&str] = &[
+    "include", "define", "undef", "if", "ifdef", "ifndef", "elif", "else", "endif", "pragma",
+    "error", "warning", "line",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DirectiveCompletionContext {
+    PreprocessorDirective,
+    PreprocessorExpression,
+    IncludePath,
+    InheritPath,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MemberOperator {
+    Arrow,
+    Dot,
+}
+
+fn completion_from_symbol(symbol: &Symbol) -> CompletionCandidate {
+    let insert_text = (symbol.kind == SymbolKind::Function)
+        .then(|| function_snippet(&symbol.name, &symbol.parameters));
+    CompletionCandidate {
+        label: symbol.name.clone(),
+        kind: match symbol.kind {
+            SymbolKind::Function => 3,
+            SymbolKind::Variable | SymbolKind::Parameter => 6,
+            SymbolKind::Type => 7,
+        },
+        detail: Some(symbol.detail.clone()),
+        documentation: symbol.documentation.clone(),
+        insert_text_format: insert_text.as_ref().map(|_| 2),
+        insert_text,
+    }
+}
+
+fn completion_from_external_function(function: &ExternalFunction) -> CompletionCandidate {
+    let parameters = function
+        .signatures
+        .first()
+        .map(|signature| signature.parameters.as_slice())
+        .unwrap_or_default();
+    CompletionCandidate {
+        label: function.name.clone(),
+        kind: 3,
+        detail: function
+            .signatures
+            .first()
+            .map(|signature| signature.label.clone()),
+        documentation: function.summary.clone(),
+        insert_text: Some(function_snippet(&function.name, parameters)),
+        insert_text_format: Some(2),
+    }
+}
+
+fn function_snippet(name: &str, parameters: &[String]) -> String {
+    if parameters.is_empty() {
+        return format!("{name}()");
+    }
+    let placeholders = parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            let name =
+                snippet_parameter_name(parameter).unwrap_or_else(|| format!("arg{}", index + 1));
+            format!("${{{}:{name}}}", index + 1)
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{name}({placeholders})")
+}
+
+fn snippet_parameter_name(parameter: &str) -> Option<String> {
+    let before_default = parameter.split('=').next().unwrap_or(parameter);
+    before_default
+        .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+        .rfind(|part| !part.is_empty())
+        .map(str::to_owned)
+}
+
+fn common_object_method_snippet(name: &str) -> String {
+    match name {
+        "query" | "delete" => format!("{name}(${{1:prop}})"),
+        "set" | "add" => format!("{name}(${{1:prop}}, ${{2:value}})"),
+        _ => format!("{name}()"),
+    }
+}
 
 fn collect_dependencies(root: Node<'_>, source: &str) -> Vec<String> {
     let mut dependencies = Vec::new();
@@ -885,9 +1810,9 @@ fn collect_syntax_dependencies(node: Node<'_>, source: &str, output: &mut Vec<St
         let mut cursor = node.walk();
         if let Some(value) = node
             .named_children(&mut cursor)
-            .find(|child| child.kind() == "string_literal")
+            .next()
             .and_then(|child| child.utf8_text(source.as_bytes()).ok())
-            .and_then(|value| value.strip_prefix('"')?.strip_suffix('"'))
+            .map(strip_quoted_path)
         {
             output.push(value.to_owned());
         }
@@ -896,6 +1821,39 @@ fn collect_syntax_dependencies(node: Node<'_>, source: &str, output: &mut Vec<St
     for child in node.named_children(&mut cursor) {
         collect_syntax_dependencies(child, source, output);
     }
+}
+
+fn collect_inherits(root: Node<'_>, source: &str) -> Vec<String> {
+    let mut inherits = Vec::new();
+    collect_inherit_nodes(root, source, &mut inherits);
+    inherits.sort();
+    inherits.dedup();
+    inherits
+}
+
+fn collect_inherit_nodes(node: Node<'_>, source: &str, output: &mut Vec<String>) {
+    if node.kind() == "inherit_declaration" {
+        let mut cursor = node.walk();
+        if let Some(value) = node
+            .named_children(&mut cursor)
+            .next()
+            .and_then(|child| child.utf8_text(source.as_bytes()).ok())
+            .map(strip_quoted_path)
+        {
+            output.push(value.to_owned());
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_inherit_nodes(child, source, output);
+    }
+}
+
+fn strip_quoted_path(value: &str) -> &str {
+    value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap_or(value)
 }
 
 fn dependency_matches(origin_uri: &str, dependency: &str, candidate_uri: &str) -> bool {
@@ -914,6 +1872,73 @@ fn dependency_matches(origin_uri: &str, dependency: &str, candidate_uri: &str) -
         return true;
     }
     candidate.ends_with(&format!("/{dependency}"))
+}
+
+fn macro_string_value(source: &str, name: &str) -> Option<String> {
+    source.lines().find_map(|line| {
+        let (candidate, value) = parse_string_macro_definition(line)?;
+        (candidate == name).then_some(value)
+    })
+}
+
+fn parse_string_macro_definition(line: &str) -> Option<(&str, String)> {
+    let directive = line.trim_start().strip_prefix("#define")?.trim_start();
+    let (name, value) = directive
+        .split_once(char::is_whitespace)
+        .map(|(name, value)| (name, value.trim()))?;
+    if !value.starts_with('"') {
+        return None;
+    }
+    let end = value[1..].find('"')? + 1;
+    Some((name, value[1..end].to_owned()))
+}
+
+fn workspace_string_macros<'a>(
+    files: impl Iterator<Item = &'a FileAnalysis>,
+) -> HashMap<String, String> {
+    let mut macros = HashMap::new();
+    for file in files {
+        for line in file.source.lines() {
+            let Some((name, value)) = parse_string_macro_definition(line) else {
+                continue;
+            };
+            macros.entry(name.to_owned()).or_insert(value);
+        }
+    }
+    macros
+}
+
+fn workspace_macros<'a>(files: impl Iterator<Item = &'a FileAnalysis>) -> HashMap<String, String> {
+    let mut macros = HashMap::new();
+    for file in files {
+        for line in file.source.lines() {
+            let Some(directive) = line.trim_start().strip_prefix("#define") else {
+                continue;
+            };
+            let directive = directive.trim_start();
+            let split = directive
+                .find(char::is_whitespace)
+                .unwrap_or(directive.len());
+            let raw_name = &directive[..split];
+            let name = raw_name.split_once('(').map_or(raw_name, |(name, _)| name);
+            if name.is_empty() {
+                continue;
+            }
+            macros
+                .entry(name.to_owned())
+                .or_insert_with(|| directive[split..].trim().to_owned());
+        }
+    }
+    macros
+}
+
+fn uri_path_without_extension(uri: &str) -> String {
+    let normalized = uri.replace('\\', "/");
+    normalized
+        .strip_suffix(".c")
+        .or_else(|| normalized.strip_suffix(".h"))
+        .unwrap_or(&normalized)
+        .to_owned()
 }
 
 fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
@@ -938,6 +1963,7 @@ fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                             .trim()
                             .to_owned(),
                         documentation: None,
+                        return_objects: Vec::new(),
                         local: false,
                         parameters: Vec::new(),
                     });
@@ -946,6 +1972,51 @@ fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
             _ => {}
         }
     }
+}
+
+fn collect_type_definitions(root: Node<'_>, source: &str) -> Vec<TypeDefinition> {
+    let mut definitions = Vec::new();
+    let mut cursor = root.walk();
+    for node in root
+        .named_children(&mut cursor)
+        .filter(|node| matches!(node.kind(), "struct_declaration" | "class_declaration"))
+    {
+        let Some(name) = node.child_by_field_name("name") else {
+            continue;
+        };
+        let mut members = Vec::new();
+        let mut field_cursor = node.walk();
+        for field in node
+            .named_children(&mut field_cursor)
+            .filter(|child| child.kind() == "field_declaration")
+        {
+            let mut child_cursor = field.walk();
+            let children = field.named_children(&mut child_cursor).collect::<Vec<_>>();
+            let has_primitive_type = children
+                .iter()
+                .any(|child| child.kind() == "primitive_type");
+            let custom_type = (!has_primitive_type)
+                .then(|| children.iter().find(|child| child.kind() == "identifier"))
+                .flatten()
+                .copied();
+            for member in children.iter().filter(|child| child.kind() == "identifier") {
+                if custom_type.is_some_and(|type_node| type_node.id() == member.id()) {
+                    continue;
+                }
+                members.push(TypeMember {
+                    name: text(*member, source),
+                    selection: member.byte_range(),
+                    detail: text(field, source).trim_end_matches(';').trim().to_owned(),
+                    documentation: leading_documentation(source, field.start_byte()),
+                });
+            }
+        }
+        definitions.push(TypeDefinition {
+            name: text(name, source),
+            members,
+        });
+    }
+    definitions
 }
 
 fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
@@ -974,6 +2045,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
             .trim()
             .to_owned(),
         documentation: leading_documentation(source, node.start_byte()),
+        return_objects: leading_return_objects(source, node.start_byte()),
         local: false,
         parameters: parameter_details,
     });
@@ -990,6 +2062,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                     scope: scope.clone(),
                     detail: text(parameter, source),
                     documentation: None,
+                    return_objects: Vec::new(),
                     local: true,
                     parameters: Vec::new(),
                 });
@@ -1024,10 +2097,17 @@ fn collect_variable_declaration(
     scope: std::ops::Range<usize>,
     output: &mut Vec<Symbol>,
 ) {
-    let type_text = node
-        .child_by_field_name("type")
-        .map(|kind| text(kind, source))
-        .unwrap_or_else(|| "mixed".to_owned());
+    let mut declarator_cursor = node.walk();
+    let first_declarator_start = node
+        .named_children(&mut declarator_cursor)
+        .find(|child| child.kind() == "variable_declarator")
+        .map(|child| child.start_byte());
+    let type_text = first_declarator_start
+        .and_then(|start| source.get(node.start_byte()..start))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("mixed")
+        .to_owned();
     let mut cursor = node.walk();
     for declarator in node
         .named_children(&mut cursor)
@@ -1041,6 +2121,7 @@ fn collect_variable_declaration(
                 scope: scope.clone(),
                 detail: format!("{type_text} {}", text(name, source)),
                 documentation: None,
+                return_objects: Vec::new(),
                 local: scope.start != 0
                     || node
                         .parent()
@@ -1093,12 +2174,36 @@ fn collect_calls(node: Node<'_>, source: &str, output: &mut Vec<CallSite>) {
 }
 
 fn leading_documentation(source: &str, declaration_start: usize) -> Option<String> {
+    render_doc_comment(leading_doc_comment(source, declaration_start)?)
+}
+
+fn leading_doc_comment(source: &str, declaration_start: usize) -> Option<&str> {
     let prefix = source.get(..declaration_start)?.trim_end();
     if !prefix.ends_with("*/") {
         return None;
     }
     let comment_start = prefix.rfind("/**")?;
-    render_doc_comment(&prefix[comment_start..])
+    Some(&prefix[comment_start..])
+}
+
+fn leading_return_objects(source: &str, declaration_start: usize) -> Vec<String> {
+    let Some(comment) = leading_doc_comment(source, declaration_start) else {
+        return Vec::new();
+    };
+    let Some(tag_start) = comment.find("@lpc-return-objects") else {
+        return Vec::new();
+    };
+    let tagged = &comment[tag_start + "@lpc-return-objects".len()..];
+    let Some(open) = tagged.find('{') else {
+        return Vec::new();
+    };
+    let Some(close) = tagged[open + 1..].find('}').map(|index| index + open + 1) else {
+        return Vec::new();
+    };
+    tagged[open + 1..close]
+        .split(',')
+        .filter_map(|value| quoted_string(value).map(str::to_owned))
+        .collect()
 }
 
 fn render_doc_comment(comment: &str) -> Option<String> {
@@ -1509,12 +2614,273 @@ fn completion_prefix(source: &str, position: Position) -> Option<String> {
     source.get(start..end).map(str::to_owned)
 }
 
+fn directive_completion_context(source: &str, offset: usize) -> Option<DirectiveCompletionContext> {
+    let line_start = source
+        .get(..offset)?
+        .rfind('\n')
+        .map_or(0, |index| index + 1);
+    let line_prefix = source.get(line_start..offset)?.trim_start();
+    if let Some(rest) = line_prefix.strip_prefix("#include")
+        && !line_prefix.contains(';')
+        && rest.chars().next().is_some_and(char::is_whitespace)
+        && rest
+            .trim_start()
+            .chars()
+            .next()
+            .is_some_and(|character| matches!(character, '"' | '<'))
+    {
+        return Some(DirectiveCompletionContext::IncludePath);
+    }
+    if line_prefix.starts_with("inherit")
+        && !line_prefix.contains(';')
+        && line_prefix["inherit".len()..]
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace)
+    {
+        return Some(DirectiveCompletionContext::InheritPath);
+    }
+    let directive = line_prefix.strip_prefix('#')?;
+    if directive.chars().any(char::is_whitespace) {
+        Some(DirectiveCompletionContext::PreprocessorExpression)
+    } else {
+        Some(DirectiveCompletionContext::PreprocessorDirective)
+    }
+}
+
+fn directive_path_on_line(source: &str, offset: usize) -> Option<String> {
+    let line_start = source
+        .get(..offset)?
+        .rfind('\n')
+        .map_or(0, |index| index + 1);
+    let line_end = source
+        .get(offset..)?
+        .find('\n')
+        .map_or(source.len(), |index| offset + index);
+    let line = source.get(line_start..line_end)?;
+    let trimmed = line.trim_start();
+    let relative_offset = offset.saturating_sub(line_start);
+    let arguments = if let Some(arguments) = trimmed.strip_prefix("#include") {
+        arguments
+    } else {
+        let arguments = trimmed.strip_prefix("inherit")?;
+        let leading_whitespace = line.len().saturating_sub(trimmed.len());
+        if trimmed
+            .find(';')
+            .is_some_and(|end| relative_offset > leading_whitespace + end)
+        {
+            return None;
+        }
+        arguments
+    }
+    .trim_start();
+    if let Some(path) = arguments
+        .strip_prefix('"')
+        .and_then(|value| value.split_once('"').map(|(path, _)| path))
+        .or_else(|| {
+            arguments
+                .strip_prefix('<')
+                .and_then(|value| value.split_once('>').map(|(path, _)| path))
+        })
+    {
+        return Some(path.to_owned());
+    }
+    arguments
+        .split(|character: char| character.is_whitespace() || character == ';')
+        .find(|token| !token.is_empty())
+        .map(str::to_owned)
+}
+
 fn is_member_access(source: &str, identifier_start: usize) -> bool {
     let prefix = source
         .get(..identifier_start)
         .unwrap_or_default()
         .trim_end();
     prefix.ends_with("->") || prefix.ends_with('.')
+}
+
+fn member_access_context(
+    source: &str,
+    identifier_start: usize,
+) -> Option<(MemberOperator, String)> {
+    let prefix = source.get(..identifier_start)?.trim_end();
+    let (operator, receiver_prefix) = if let Some(receiver) = prefix.strip_suffix("->") {
+        (MemberOperator::Arrow, receiver.trim_end())
+    } else {
+        let receiver = prefix.strip_suffix('.')?;
+        (MemberOperator::Dot, receiver.trim_end())
+    };
+    let bytes = receiver_prefix.as_bytes();
+    let mut start = bytes.len();
+    let mut depth = 0_i32;
+    while start > 0 {
+        let character = bytes[start - 1];
+        match character {
+            b')' | b']' => depth += 1,
+            b'(' | b'[' if depth > 0 => depth -= 1,
+            b' ' | b'\t' | b'\r' | b'\n' | b',' | b';' | b'{' | b'}' | b'=' | b'?' | b':'
+                if depth == 0 =>
+            {
+                break;
+            }
+            _ => {}
+        }
+        start -= 1;
+    }
+    let receiver = receiver_prefix[start..].trim();
+    (!receiver.is_empty()).then(|| (operator, receiver.to_owned()))
+}
+
+fn strip_outer_parentheses(mut expression: &str) -> &str {
+    loop {
+        if !expression.starts_with('(') || !expression.ends_with(')') {
+            return expression;
+        }
+        let mut depth = 0_i32;
+        let mut closes_at_end = false;
+        for (index, character) in expression.char_indices() {
+            match character {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        closes_at_end = index + character.len_utf8() == expression.len();
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if !closes_at_end {
+            return expression;
+        }
+        expression = expression[1..expression.len() - 1].trim();
+    }
+}
+
+fn quoted_string(value: &str) -> Option<&str> {
+    let value = value.trim();
+    value.strip_prefix('"')?.strip_suffix('"')
+}
+
+fn call_first_argument<'a>(expression: &'a str, name: &str) -> Option<&'a str> {
+    let arguments = expression
+        .strip_prefix(name)?
+        .strip_prefix('(')?
+        .strip_suffix(')')?;
+    Some(arguments.split(',').next()?.trim())
+}
+
+fn model_get_call(expression: &str) -> Option<(&str, &str)> {
+    let marker = "->model_get(";
+    let index = expression.rfind(marker)?;
+    let arguments = expression.get(index + marker.len()..)?.strip_suffix(')')?;
+    Some((
+        expression[..index].trim(),
+        arguments.split(',').next()?.trim(),
+    ))
+}
+
+fn member_call(expression: &str) -> Option<(&str, &str)> {
+    let expression = expression.strip_suffix(')')?;
+    let arrow = expression.rfind("->")?;
+    let callable = expression.get(arrow + 2..)?;
+    let open = callable.find('(')?;
+    let method = callable.get(..open)?.trim();
+    valid_identifier(method).then(|| (expression[..arrow].trim(), method))
+}
+
+fn direct_call_name(expression: &str) -> Option<&str> {
+    let expression = expression.strip_suffix(')')?;
+    let open = expression.find('(')?;
+    let name = expression.get(..open)?.trim();
+    valid_identifier(name).then_some(name)
+}
+
+fn model_registry_path(source: &str, key: &str) -> Option<String> {
+    let key_index = source.find(&format!("\"{key}\""))?;
+    let entry = source.get(key_index..key_index.saturating_add(512).min(source.len()))?;
+    let path_key = entry.find("\"path\"")?;
+    let path_value = entry.get(path_key + "\"path\"".len()..)?;
+    let quote = path_value.find('"')?;
+    let value = path_value.get(quote + 1..)?;
+    let end = value.find('"')?;
+    Some(value[..end].to_owned())
+}
+
+fn symbol_initializer<'a>(file: &'a FileAnalysis, symbol: &Symbol) -> Option<&'a str> {
+    if !matches!(symbol.kind, SymbolKind::Variable) {
+        return None;
+    }
+    let end = symbol.scope.end.min(file.source.len());
+    let tail = file.source.get(symbol.selection.end..end)?;
+    let semicolon = tail.find(';')?;
+    let declaration_tail = tail.get(..semicolon)?;
+    let equals = declaration_tail.find('=')?;
+    declaration_tail.get(equals + 1..).map(str::trim)
+}
+
+fn receiver_originates_from_functions(
+    file: &FileAnalysis,
+    expression: &str,
+    offset: usize,
+    functions: &HashSet<String>,
+    budget: usize,
+) -> bool {
+    if budget == 0 || functions.is_empty() {
+        return false;
+    }
+    let expression = strip_outer_parentheses(expression.trim());
+    if direct_call_name(expression).is_some_and(|name| functions.contains(name)) {
+        return true;
+    }
+    if valid_identifier(expression)
+        && let Some(symbol) = resolved_symbols(file, expression, offset).first()
+        && let Some(initializer) = symbol_initializer(file, symbol)
+    {
+        return receiver_originates_from_functions(
+            file,
+            initializer,
+            symbol.selection.start,
+            functions,
+            budget.saturating_sub(1),
+        );
+    }
+    false
+}
+
+fn type_name_from_symbol(symbol: &Symbol) -> Option<String> {
+    let declaration_prefix = symbol.detail.rsplit_once(&symbol.name)?.0;
+    declaration_prefix
+        .split_whitespace()
+        .rev()
+        .map(|part| part.trim_matches(['*', '&']))
+        .find(|part| {
+            !part.is_empty()
+                && !matches!(
+                    *part,
+                    "class"
+                        | "struct"
+                        | "private"
+                        | "protected"
+                        | "public"
+                        | "static"
+                        | "nosave"
+                        | "ref"
+                )
+        })
+        .map(str::to_owned)
+}
+
+fn scope_access_qualifier(source: &str, identifier_start: usize) -> Option<String> {
+    let prefix = source.get(..identifier_start)?.trim_end();
+    let qualifier_prefix = prefix.strip_suffix("::")?.trim_end();
+    let qualifier_start = qualifier_prefix
+        .char_indices()
+        .rev()
+        .find(|(_, character)| !character.is_ascii_alphanumeric() && *character != '_')
+        .map_or(0, |(index, character)| index + character.len_utf8());
+    Some(qualifier_prefix[qualifier_start..].to_owned())
 }
 
 fn text(node: Node<'_>, source: &str) -> String {
@@ -1740,6 +3106,11 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["query"]
         );
+        assert_eq!(
+            completions[0].insert_text.as_deref(),
+            Some("query(${1:prop})")
+        );
+        assert_eq!(completions[0].insert_text_format, Some(2));
 
         let member_position = byte_to_lsp_position(source, source.find("quer").unwrap());
         assert!(
@@ -1748,6 +3119,465 @@ mod tests {
                 .is_empty()
         );
         assert!(database.hover("file:///demo.c", member_position).is_none());
+    }
+
+    #[test]
+    fn completes_bare_scoped_methods_from_macro_backed_inherits() {
+        let source = "inherit BASE; void demo() { ::par }\n";
+        let mut database = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, dependency) in [
+            (
+                "file:///mud/include/globals.h",
+                "#define BASE \"/std/base\"\n",
+            ),
+            (
+                "file:///mud/std/base.c",
+                "/** parent docs */\nint parent_method() { return 1; }\n",
+            ),
+        ] {
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+
+        let position = byte_to_lsp_position(source, source.find("par").unwrap() + 3);
+        let completions = database.completion_candidates("file:///demo.c", position);
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "parent_method");
+        assert_eq!(
+            completions[0].insert_text.as_deref(),
+            Some("parent_method()")
+        );
+    }
+
+    #[test]
+    fn completes_efun_scope_only_from_external_functions() {
+        let source = "void demo() { efun::wr }\n";
+        let mut database = database(source);
+        database.set_external_functions(vec![ExternalFunction {
+            name: "write".to_owned(),
+            summary: Some("write docs".to_owned()),
+            signatures: vec![ExternalSignature {
+                label: "void write(mixed value)".to_owned(),
+                parameters: vec!["mixed value".to_owned()],
+                minimum_arguments: 1,
+                maximum_arguments: Some(1),
+            }],
+        }]);
+        let position = byte_to_lsp_position(source, source.find("wr").unwrap() + 2);
+        let completions = database.completion_candidates("file:///demo.c", position);
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "write");
+        assert_eq!(completions[0].documentation.as_deref(), Some("write docs"));
+    }
+
+    #[test]
+    fn completes_preprocessor_directives_without_global_symbols() {
+        let source = "#def\n";
+        let mut database = database(source);
+        let position = byte_to_lsp_position(source, source.find("def").unwrap() + 3);
+        let completions = database.completion_candidates("file:///demo.c", position);
+        assert_eq!(
+            completions
+                .iter()
+                .map(|candidate| candidate.label.as_str())
+                .collect::<Vec<_>>(),
+            vec!["define"]
+        );
+    }
+
+    #[test]
+    fn completes_include_and_inherit_paths_from_the_workspace_index() {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for source in ["#include \"/adm/sim", "inherit \"/adm/sim"] {
+            let mut database = database(source);
+            let dependency = "void helper() {}\n";
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source("file:///mud/adm/simul_efun.c", &tree, dependency);
+            let position = byte_to_lsp_position(source, source.len());
+            let completions = database.completion_candidates("file:///demo.c", position);
+            assert!(
+                completions
+                    .iter()
+                    .any(|candidate| candidate.label == "simul_efun")
+            );
+            assert!(
+                completions
+                    .iter()
+                    .all(|candidate| candidate.label != "helper")
+            );
+        }
+    }
+
+    #[test]
+    fn resolves_include_and_inherit_string_paths_to_indexed_files() {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for source in [
+            "#include \"/adm/simul_efun/atoi.c\"\n",
+            "inherit \"/adm/simul_efun/atoi\";\n",
+        ] {
+            let mut database = database(source);
+            let dependency = "void helper() {}\n";
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source("file:///mud/adm/simul_efun/atoi.c", &tree, dependency);
+            for offset in [source.find("atoi").unwrap() + 2, 2] {
+                let locations =
+                    database.definition("file:///demo.c", byte_to_lsp_position(source, offset));
+                assert_eq!(locations.len(), 1);
+                assert_eq!(locations[0].uri, "file:///mud/adm/simul_efun/atoi.c");
+            }
+        }
+
+        let source = "inherit BASE;\n";
+        let mut database = database(source);
+        for (uri, dependency) in [
+            (
+                "file:///mud/include/globals.h",
+                "#define BASE \"/std/base\"\n",
+            ),
+            ("file:///mud/std/base.c", "void helper() {}\n"),
+        ] {
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+        let locations = database.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, source.find("inherit").unwrap() + 2),
+        );
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].uri, "file:///mud/std/base.c");
+    }
+
+    #[test]
+    fn completes_and_navigates_typed_struct_members() {
+        let source = concat!(
+            "struct Payload {\n",
+            "  /** display label */\n",
+            "  string name;\n",
+            "  int level;\n",
+            "}\n",
+            "void demo() { struct Payload payload; payload.name; }\n",
+        );
+        let mut database = database(source);
+        let member_use = source.rfind("name").unwrap();
+        let completions = database.completion_candidates(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_use + 2),
+        );
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "name");
+
+        let position = byte_to_lsp_position(source, member_use + 1);
+        let locations = database.definition("file:///demo.c", position);
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].range.start.line, 2);
+        let hover = database.hover("file:///demo.c", position).unwrap();
+        assert!(hover.contents.contains("string name"));
+        assert!(hover.contents.contains("display label"));
+    }
+
+    #[test]
+    fn resolves_macro_backed_object_methods_across_language_features() {
+        let source = "void demo() { PROTOCOL_D->model_get(\"login\"); }\n";
+        let mut database = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, dependency) in [
+            (
+                "file:///mud/include/globals.h",
+                "#define PROTOCOL_D \"/adm/protocol/protocol_server\"\n",
+            ),
+            (
+                "file:///mud/adm/protocol/protocol_server.c",
+                "/** resolve protocol models */\nobject model_get(string name) { return 0; }\n",
+            ),
+        ] {
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+
+        let member_start = source.find("model_get").unwrap();
+        let completion_position = byte_to_lsp_position(source, member_start + 5);
+        let completions = database.completion_candidates("file:///demo.c", completion_position);
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "model_get");
+
+        let member_position = byte_to_lsp_position(source, member_start + 1);
+        let definitions = database.definition("file:///demo.c", member_position);
+        assert_eq!(definitions.len(), 1);
+        assert!(
+            definitions[0]
+                .uri
+                .ends_with("/adm/protocol/protocol_server.c")
+        );
+        let hover = database.hover("file:///demo.c", member_position).unwrap();
+        assert!(hover.contents.contains("resolve protocol models"));
+
+        let signature_position = byte_to_lsp_position(source, source.find("login").unwrap() + 2);
+        let signature = database
+            .signature_help("file:///demo.c", signature_position)
+            .unwrap();
+        assert_eq!(signature.signatures.len(), 1);
+        assert_eq!(signature.signatures[0].parameters.len(), 1);
+        assert!(
+            signature.signatures[0]
+                .documentation
+                .as_deref()
+                .is_some_and(|documentation| documentation.contains("protocol models"))
+        );
+    }
+
+    #[test]
+    fn propagates_exact_model_get_results_through_local_variables() {
+        let source = concat!(
+            "void demo() {\n",
+            "  object popup = PROTOCOL_D->model_get(\"login\");\n",
+            "  popup->create_popup();\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, dependency) in [
+            (
+                "file:///mud/include/globals.h",
+                "#define PROTOCOL_D \"/adm/protocol/protocol_server\"\n",
+            ),
+            (
+                "file:///mud/adm/protocol/protocol_server.c",
+                concat!(
+                    "mapping query_model_registry() {\n",
+                    "  return ([ \"login\": ([ \"path\": \"/adm/protocol/model/login_model\" ]) ]);\n",
+                    "}\n",
+                    "object model_get(string name) { return 0; }\n",
+                ),
+            ),
+            (
+                "file:///mud/adm/protocol/model/login_model.c",
+                "/** create login popup */\nmapping create_popup() { return ([]); }\n",
+            ),
+        ] {
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+
+        let member_start = source.rfind("create_popup").unwrap();
+        let completions = database.completion_candidates(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 6),
+        );
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "create_popup");
+
+        let position = byte_to_lsp_position(source, member_start + 1);
+        let definitions = database.definition("file:///demo.c", position);
+        assert_eq!(definitions.len(), 1);
+        assert!(definitions[0].uri.ends_with("/model/login_model.c"));
+        let hover = database.hover("file:///demo.c", position).unwrap();
+        assert!(hover.contents.contains("create login popup"));
+    }
+
+    #[test]
+    fn resolves_this_object_and_load_object_method_targets() {
+        let source = concat!(
+            "inherit \"/std/base\";\n",
+            "void demo() { this_object()->parent_method(); }\n",
+        );
+        let mut analysis = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let base = "/** inherited method */\nint parent_method() { return 1; }\n";
+        let tree = parser.parse(base, None).unwrap();
+        analysis.index_source("file:///mud/std/base.c", &tree, base);
+
+        let member_start = source.find("parent_method").unwrap();
+        let completions = analysis.completion_candidates(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 6),
+        );
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "parent_method");
+        let definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 1),
+        );
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/base.c");
+
+        let direct_source = "void demo() { load_object(\"/std/base\")->parent_method(); }\n";
+        let mut direct_database = database(direct_source);
+        let tree = parser.parse(base, None).unwrap();
+        direct_database.index_source("file:///mud/std/base.c", &tree, base);
+        let member_start = direct_source.find("parent_method").unwrap();
+        let definitions = direct_database.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(direct_source, member_start + 1),
+        );
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/base.c");
+    }
+
+    #[test]
+    fn applies_configured_global_include_and_instance_resolution() {
+        let source = "void demo() { GLOBAL_HELPER(); this_player()->query_name(); }\n";
+        let mut database = database(source);
+        database.set_workspace_resolution(
+            vec!["globals.h".to_owned()],
+            vec!["/include".to_owned()],
+            HashMap::from([(
+                "this_player".to_owned(),
+                vec!["/clone/user/user".to_owned()],
+            )]),
+        );
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, dependency) in [
+            (
+                "file:///mud/include/globals.h",
+                "int GLOBAL_HELPER() { return 1; }\n",
+            ),
+            (
+                "file:///mud/clone/user/user.c",
+                "string query_name() { return \"user\"; }\n",
+            ),
+            (
+                "file:///mud/other.c",
+                "string query_name() { return \"other\"; }\n",
+            ),
+        ] {
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+
+        let global = source.find("GLOBAL_HELPER").unwrap();
+        let definitions =
+            database.definition("file:///demo.c", byte_to_lsp_position(source, global));
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/include/globals.h");
+
+        let member = source.find("query_name").unwrap();
+        let completions = database.completion_candidates(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member + "query_na".len()),
+        );
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "query_name");
+        let definitions =
+            database.definition("file:///demo.c", byte_to_lsp_position(source, member + 2));
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/clone/user/user.c");
+        let references = database.references(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member + 2),
+            true,
+        );
+        assert_eq!(references.len(), 2);
+        assert!(
+            references
+                .iter()
+                .all(|location| location.uri != "file:///mud/other.c")
+        );
+        let edits = database.rename_edits(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member + 2),
+            "display_name",
+        );
+        assert_eq!(edits.get("file:///demo.c").map(Vec::len), Some(1));
+        assert_eq!(
+            edits.get("file:///mud/clone/user/user.c").map(Vec::len),
+            Some(1)
+        );
+        assert!(!edits.contains_key("file:///mud/other.c"));
+    }
+
+    #[test]
+    fn finds_and_renames_cross_file_inherited_references_without_touching_shadows() {
+        let source = "inherit \"/std/base\"; void demo() { shared_name(); }\n";
+        let mut database = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, dependency) in [
+            (
+                "file:///mud/std/base.c",
+                "int shared_name() { return 1; }\n",
+            ),
+            (
+                "file:///mud/unrelated.c",
+                "int shared_name; int read(mixed shared_name) { return shared_name; }\n",
+            ),
+        ] {
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+        let use_offset = source.rfind("shared_name").unwrap() + 2;
+        let position = byte_to_lsp_position(source, use_offset);
+        let definitions = database.definition("file:///demo.c", position);
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/base.c");
+        let references = database.references("file:///demo.c", position, true);
+        assert_eq!(references.len(), 2);
+        assert!(
+            references
+                .iter()
+                .all(|location| location.uri != "file:///mud/unrelated.c")
+        );
+        let edits = database.rename_edits("file:///demo.c", position, "renamed_shared");
+        assert_eq!(edits.get("file:///demo.c").map(Vec::len), Some(1));
+        assert_eq!(edits.get("file:///mud/std/base.c").map(Vec::len), Some(1));
+        assert!(!edits.contains_key("file:///mud/unrelated.c"));
+    }
+
+    #[test]
+    fn propagates_documented_return_objects_from_local_calls() {
+        let source = concat!(
+            "/** @lpc-return-objects {\"/clone/user/user\"} */\n",
+            "object make_user() { return 0; }\n",
+            "void demo() {\n",
+            "  object user = make_user();\n",
+            "  user->query_name();\n",
+            "}\n",
+        );
+        let mut analysis = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let target = "/** player name */\nstring query_name() { return \"demo\"; }\n";
+        let tree = parser.parse(target, None).unwrap();
+        analysis.index_source("file:///mud/clone/user/user.c", &tree, target);
+
+        let member_start = source.rfind("query_name").unwrap();
+        let completions = analysis.completion_candidates(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 6),
+        );
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "query_name");
+        let definitions = analysis.definition(
+            "file:///demo.c",
+            byte_to_lsp_position(source, member_start + 1),
+        );
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/clone/user/user.c");
     }
 
     #[test]
@@ -1947,6 +3777,11 @@ mod tests {
                 .as_deref()
                 .is_some_and(|documentation| documentation.contains("构造战斗武学动作"))
         );
+        assert_eq!(
+            completion.insert_text.as_deref(),
+            Some("battle_choices(${1:popup}, ${2:type})")
+        );
+        assert_eq!(completion.insert_text_format, Some(2));
     }
 
     #[test]
@@ -2035,6 +3870,11 @@ mod tests {
             .find(|candidate| candidate.label == "write")
             .unwrap();
         assert_eq!(write_completion.kind, 3);
+        assert_eq!(
+            write_completion.insert_text.as_deref(),
+            Some("write(${1:str})")
+        );
+        assert_eq!(write_completion.insert_text_format, Some(2));
         assert!(
             write_completion
                 .documentation
@@ -2062,6 +3902,20 @@ mod tests {
             )
             .unwrap();
         assert_eq!(help.signatures[0].parameters[0].label, "mixed str");
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .any(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
+        );
+
+        let unrelated = "void write() {}\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(unrelated, None).unwrap();
+        database.index_source("file:///unrelated.c", &tree, unrelated);
         assert!(
             database
                 .diagnostics("file:///demo.c")

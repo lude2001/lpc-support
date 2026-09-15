@@ -15,7 +15,9 @@ const {
     HoverRequest,
     InitializeRequest,
     InitializedNotification,
+    PrepareRenameRequest,
     PublishDiagnosticsNotification,
+    ReferencesRequest,
     SemanticTokensRequest,
     SignatureHelpRequest,
     ShutdownRequest
@@ -90,6 +92,20 @@ async function main() {
                 { timedOut: true, locationCount: 0, locations: [] }
             )
             : undefined;
+        const references = position
+            ? await runStage(
+                'references',
+                () => requestReferences(server.connection, project, uri, position),
+                { timedOut: true, locationCount: 0, files: [] }
+            )
+            : undefined;
+        const prepareRename = position
+            ? await runStage(
+                'prepareRename',
+                () => requestPrepareRename(server.connection, uri, position),
+                { timedOut: true, found: false, hasPlaceholder: false }
+            )
+            : undefined;
         const hover = position
             ? await runStage(
                 'hover',
@@ -132,6 +148,8 @@ async function main() {
             health,
             diagnostics,
             definition,
+            references,
+            prepareRename,
             hover,
             signatureHelp,
             completion,
@@ -517,6 +535,30 @@ async function requestDefinition(connection, project, uri, position) {
     };
 }
 
+async function requestReferences(connection, project, uri, position) {
+    const result = await connection.sendRequest(ReferencesRequest.type, {
+        textDocument: { uri },
+        position,
+        context: { includeDeclaration: true }
+    });
+    const locations = normalizeLocations(project, result);
+    return {
+        locationCount: locations.length,
+        files: [...new Set(locations.map((location) => location.file))].sort()
+    };
+}
+
+async function requestPrepareRename(connection, uri, position) {
+    const result = await connection.sendRequest(PrepareRenameRequest.type, {
+        textDocument: { uri },
+        position
+    });
+    return {
+        found: Boolean(result),
+        hasPlaceholder: Boolean(result && !('start' in result) && result.placeholder)
+    };
+}
+
 async function requestHover(connection, uri, position) {
     const result = await connection.sendRequest(HoverRequest.type, {
         textDocument: { uri },
@@ -566,7 +608,10 @@ async function requestCompletion(connection, uri, position, includeLabels) {
 
     const summary = {
         itemCount: items.length,
-        isIncomplete: Boolean(!Array.isArray(result) && result?.isIncomplete)
+        isIncomplete: Boolean(!Array.isArray(result) && result?.isIncomplete),
+        snippetCount: items.filter((item) => item.insertTextFormat === 2
+            || (typeof item.insertText === 'string' && item.insertText.includes('$'))).length,
+        documentationCount: items.filter((item) => Boolean(item.documentation)).length
     };
 
     if (includeLabels) {
@@ -697,6 +742,8 @@ function createReport({
     health,
     diagnostics,
     definition,
+    references,
+    prepareRename,
     hover,
     signatureHelp,
     completion,
@@ -734,6 +781,8 @@ function createReport({
         requests: {
             semanticTokens,
             definition,
+            references,
+            prepareRename,
             hover,
             signatureHelp,
             completion
@@ -932,6 +981,19 @@ function renderMarkdown(report) {
         lines.push('- Definition: not requested');
     }
 
+    if (report.requests.references) {
+        lines.push(`- References: ${report.requests.references.locationCount}${report.requests.references.timedOut ? ' (timed out)' : ''}`);
+        lines.push(`- Reference files: ${report.requests.references.files.join(', ') || '(none)'}`);
+    } else {
+        lines.push('- References: not requested');
+    }
+
+    if (report.requests.prepareRename) {
+        lines.push(`- Prepare rename: ${report.requests.prepareRename.found ? 'yes' : 'no'}${report.requests.prepareRename.timedOut ? ' (timed out)' : ''}`);
+    } else {
+        lines.push('- Prepare rename: not requested');
+    }
+
     if (report.requests.hover) {
         lines.push(`- Hover found: ${report.requests.hover.found ? 'yes' : 'no'}${report.requests.hover.timedOut ? ' (timed out)' : ''}`);
         lines.push(`- Hover content kinds: ${report.requests.hover.contentKinds.join(', ') || '(none)'}`);
@@ -949,6 +1011,7 @@ function renderMarkdown(report) {
 
     if (report.requests.completion) {
         lines.push(`- Completion items: ${report.requests.completion.itemCount}${report.requests.completion.timedOut ? ' (timed out)' : ''}`);
+        lines.push(`- Completion snippets: ${report.requests.completion.snippetCount ?? 0}; documented: ${report.requests.completion.documentationCount ?? 0}`);
         if (report.requests.completion.sampleLabels) {
             lines.push(`- Completion sample labels: ${report.requests.completion.sampleLabels.join(', ') || '(none)'}`);
         }
