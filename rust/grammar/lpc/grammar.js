@@ -32,6 +32,10 @@ module.exports = grammar({
 
   word: $ => $.identifier,
 
+  externals: $ => [
+    $.heredoc_literal,
+  ],
+
   supertypes: $ => [
     $._statement,
     $._expression,
@@ -277,6 +281,7 @@ module.exports = grammar({
       $.parenthesized_expression,
       $.number_literal,
       $.string_literal,
+      $.heredoc_literal,
       $.character_literal,
       $.parameter_placeholder,
       $.identifier,
@@ -341,6 +346,7 @@ module.exports = grammar({
         $.mapping_literal,
         $.identifier,
         $.string_literal,
+        $.heredoc_literal,
         $.number_literal,
         $.parameter_placeholder,
         seq('::', $.identifier),

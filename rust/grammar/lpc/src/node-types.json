@@ -44,6 +44,10 @@
         "named": true
       },
       {
+        "type": "heredoc_literal",
+        "named": true
+      },
+      {
         "type": "identifier",
         "named": true
       },
@@ -1050,6 +1054,10 @@
             "named": false
           },
           {
+            "type": "heredoc_literal",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -1729,6 +1737,10 @@
   {
     "type": "function",
     "named": false
+  },
+  {
+    "type": "heredoc_literal",
+    "named": true
   },
   {
     "type": "identifier",

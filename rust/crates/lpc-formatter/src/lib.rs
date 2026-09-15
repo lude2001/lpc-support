@@ -458,6 +458,7 @@ impl Printer<'_> {
 
     fn expression(&self, node: Node<'_>, depth: usize) -> String {
         match node.kind() {
+            "heredoc_literal" => self.text(node).to_owned(),
             "array_literal" => self.render_collection_at(node, "({", "})", depth),
             "mapping_literal" => self.render_collection_at(node, "([", "])", depth),
             "new_expression" => self.render_collection_at(node, "new(", ")", depth),
@@ -781,7 +782,8 @@ mod tests {
             .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
             .unwrap();
         let tree = parser.parse(source, None).unwrap();
-        format_document(&tree, source, FormatterConfig::default()).unwrap()
+        format_document(&tree, source, FormatterConfig::default())
+            .unwrap_or_else(|| panic!("formatter rejected {}", tree.root_node().to_sexp()))
     }
 
     #[test]
@@ -828,6 +830,19 @@ mod tests {
         let output = format(source);
         assert!(output.starts_with("#include <mudlib.h>\n#define LIMIT 3\n\n"));
         assert!(output.contains("void test()\n{"));
+    }
+
+    #[test]
+    fn preserves_heredoc_body_and_closing_marker() {
+        let source = "string help(){return @TEXT\n第一行\n  second line\nTEXT;}\n";
+        let output = format(source);
+        assert!(output.contains("return @TEXT\n第一行\n  second line\nTEXT;"));
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        assert!(!parser.parse(&output, None).unwrap().root_node().has_error());
+        assert_eq!(format(&output), output);
     }
 
     #[test]

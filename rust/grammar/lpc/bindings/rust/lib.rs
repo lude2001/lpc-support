@@ -27,4 +27,21 @@ mod tests {
             tree.root_node().to_sexp()
         );
     }
+
+    #[test]
+    fn parses_dynamic_heredoc_literals() {
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&super::LANGUAGE.into())
+            .expect("generated LPC language should load");
+        let source = "string help() { return @TEXT\nhello\nTEXT; }";
+        let tree = parser
+            .parse(source, None)
+            .expect("parser should return a tree");
+        assert!(
+            !tree.root_node().has_error(),
+            "{}",
+            tree.root_node().to_sexp()
+        );
+    }
 }

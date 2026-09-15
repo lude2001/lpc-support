@@ -1505,6 +1505,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "heredoc_literal"
+        },
+        {
+          "type": "SYMBOL",
           "name": "character_literal"
         },
         {
@@ -2300,6 +2304,10 @@
                 {
                   "type": "SYMBOL",
                   "name": "string_literal"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "heredoc_literal"
                 },
                 {
                   "type": "SYMBOL",
@@ -3237,7 +3245,12 @@
     ]
   ],
   "precedences": [],
-  "externals": [],
+  "externals": [
+    {
+      "type": "SYMBOL",
+      "name": "heredoc_literal"
+    }
+  ],
   "inline": [],
   "supertypes": [
     "_statement",
