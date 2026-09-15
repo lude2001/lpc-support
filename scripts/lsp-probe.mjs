@@ -140,6 +140,15 @@ async function main() {
             diagnostics = await diagnosticsPromise;
         }
         const health = await server.connection.sendRequest(HEALTH_METHOD);
+        const performanceBenchmarks = options.perf && position && options.perfIterations > 0
+            ? await benchmarkRequests(server.connection, [
+                ['semanticTokens', () => requestSemanticTokens(server.connection, uri), { timedOut: true }],
+                ['definition', () => requestDefinition(server.connection, project, uri, position), { timedOut: true }],
+                ['references', () => requestReferences(server.connection, project, uri, position), { timedOut: true }],
+                ['hover', () => requestHover(server.connection, uri, position), { timedOut: true }],
+                ['completion', () => requestCompletion(server.connection, uri, position, false), { timedOut: true }]
+            ], options.perfIterations, options.requestTimeoutMs)
+            : undefined;
 
         const report = createReport({
             project,
@@ -154,7 +163,8 @@ async function main() {
             signatureHelp,
             completion,
             semanticTokens,
-            performanceStages: options.perf ? performanceStages : undefined
+            performanceStages: options.perf ? performanceStages : undefined,
+            performanceBenchmarks
         });
 
         const jsonPath = path.join(options.outputDir, 'latest.json');
@@ -226,6 +236,7 @@ function parseOptions(args, env) {
             || DEFAULT_REQUEST_TIMEOUT_MS,
         includeCompletionLabels: parseBoolean(values.get('include-completion-labels') ?? env.LPC_PROBE_INCLUDE_COMPLETION_LABELS),
         perf: parseBoolean(values.get('perf') ?? env.LPC_PROBE_PERF),
+        perfIterations: Math.max(0, Number(values.get('perf-iterations') ?? env.LPC_PROBE_PERF_ITERATIONS ?? 0) || 0),
         semanticTokens: parseBoolean(values.get('semantic-tokens') ?? env.LPC_PROBE_SEMANTIC_TOKENS),
         server: values.get('server') ?? env.LPC_PROBE_SERVER ?? 'typescript'
     };
@@ -650,6 +661,45 @@ async function measureStage(connection, name, action, timeoutMs, fallback) {
     };
 }
 
+async function benchmarkRequests(connection, requests, iterations, timeoutMs) {
+    const reports = [];
+    for (const [name, action, fallback] of requests) {
+        const before = await readPerformanceCounters(connection);
+        const durations = [];
+        let timedOut = 0;
+        for (let iteration = 0; iteration < iterations; iteration += 1) {
+            const startedAt = performance.now();
+            const result = await withTimeout(action(), timeoutMs, fallback);
+            durations.push(performance.now() - startedAt);
+            if (result?.timedOut) {
+                timedOut += 1;
+            }
+        }
+        const after = await readPerformanceCounters(connection);
+        durations.sort((left, right) => left - right);
+        reports.push({
+            name,
+            iterations,
+            timedOut,
+            meanMs: durations.reduce((sum, value) => sum + value, 0) / durations.length,
+            p50Ms: percentile(durations, 50),
+            p95Ms: percentile(durations, 95),
+            maxMs: durations.at(-1) ?? 0,
+            parser: diffCounters(before.parser, after.parser),
+            semantic: diffCounters(before.semantic, after.semantic)
+        });
+    }
+    return reports;
+}
+
+function percentile(sorted, value) {
+    if (sorted.length === 0) {
+        return 0;
+    }
+    const index = Math.ceil((sorted.length - 1) * value / 100);
+    return sorted[index];
+}
+
 async function readPerformanceCounters(connection) {
     const health = await connection.sendRequest(HEALTH_METHOD);
     return {
@@ -748,7 +798,8 @@ function createReport({
     signatureHelp,
     completion,
     semanticTokens,
-    performanceStages
+    performanceStages,
+    performanceBenchmarks
 }) {
     return {
         generatedAt: new Date().toISOString(),
@@ -787,7 +838,8 @@ function createReport({
             signatureHelp,
             completion
         },
-        performance: performanceStages?.map(stage => sanitizePerformanceStage(project, stage))
+        performance: performanceStages?.map(stage => sanitizePerformanceStage(project, stage)),
+        performanceBenchmarks: performanceBenchmarks?.map(stage => sanitizePerformanceStage(project, stage))
     };
 }
 
@@ -815,6 +867,10 @@ function sanitizeHealthPerformance(performance) {
             fullParseCount: performance.syntax.fullParseCount,
             incrementalParseCount: performance.syntax.incrementalParseCount,
             totalParseTimeMicros: performance.syntax.totalParseTimeMicros
+        } : undefined,
+        processMemory: performance.processMemory ? {
+            residentBytes: performance.processMemory.residentBytes,
+            peakResidentBytes: performance.processMemory.peakResidentBytes
         } : undefined,
         analysisSnapshotBuildCount: performance.analysisSnapshotBuildCount,
         analysisQueryCount: performance.analysisQueryCount,
@@ -952,6 +1008,8 @@ function renderMarkdown(report) {
         `- Status: ${report.health.status ?? '(unknown)'}`,
         `- Server version: ${report.health.serverVersion ?? '(unknown)'}`,
         `- Documents: ${report.health.documentCount ?? '(unknown)'}`,
+        `- Resident memory: ${formatBytes(report.health.performance?.processMemory?.residentBytes)}`,
+        `- Peak resident memory: ${formatBytes(report.health.performance?.processMemory?.peakResidentBytes)}`,
         '',
         '## Diagnostics',
         ''
@@ -1031,6 +1089,15 @@ function renderMarkdown(report) {
         }
     }
 
+    if (Array.isArray(report.performanceBenchmarks) && report.performanceBenchmarks.length > 0) {
+        lines.push('', '## Warm request benchmark', '');
+        for (const stage of report.performanceBenchmarks) {
+            lines.push(
+                `- ${stage.name}: n=${stage.iterations}; mean ${formatDuration(stage.meanMs)}; p50 ${formatDuration(stage.p50Ms)}; p95 ${formatDuration(stage.p95Ms)}; max ${formatDuration(stage.maxMs)}; timeouts ${stage.timedOut}; parse +${stage.parser.count}; semantic +${stage.semantic.count}`
+            );
+        }
+    }
+
     lines.push('');
     return `${lines.join('\n')}\n`;
 }
@@ -1041,6 +1108,13 @@ function formatDuration(value) {
     }
 
     return `${value.toFixed(1)}ms`;
+}
+
+function formatBytes(value) {
+    if (!Number.isFinite(value) || value <= 0) {
+        return '(unavailable)';
+    }
+    return `${(value / 1024 / 1024).toFixed(1)} MiB`;
 }
 
 function summarizePerformanceFiles(stage) {

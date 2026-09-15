@@ -13,7 +13,7 @@ use lpc_language_server::semantic_tokens::{TOKEN_MODIFIERS, TOKEN_TYPES};
 use lpc_language_server::syntax_store::SyntaxStore;
 use lpc_language_server::workspace_index::WorkspaceIndexController;
 use lpc_preprocessor::definitions_from_list;
-use lpc_protocol::{HEALTH_METHOD, HealthStatusResponse, PerformanceStatus};
+use lpc_protocol::{HEALTH_METHOD, HealthStatusResponse, PerformanceStatus, ProcessMemoryStatus};
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -466,6 +466,7 @@ fn handle_request(
             performance: PerformanceStatus {
                 documents: documents.metrics(),
                 syntax: syntax.metrics(),
+                process_memory: process_memory_status(),
                 analysis_snapshot_build_count: analysis_metrics.snapshot_build_count,
                 analysis_query_count: analysis_metrics.query_count,
                 analysis_total_build_time_micros: analysis_metrics.total_build_time_micros,
@@ -780,6 +781,108 @@ fn publish_diagnostics(
         .sender
         .send(Message::Notification(notification))?;
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn process_memory_status() -> ProcessMemoryStatus {
+    let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
+    ProcessMemoryStatus {
+        resident_bytes: linux_memory_bytes(&status, "VmRSS:"),
+        peak_resident_bytes: linux_memory_bytes(&status, "VmHWM:"),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_memory_bytes(status: &str, field: &str) -> u64 {
+    status
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix(field)?
+                .split_whitespace()
+                .next()?
+                .parse::<u64>()
+                .ok()
+        })
+        .unwrap_or_default()
+        .saturating_mul(1024)
+}
+
+#[cfg(target_os = "macos")]
+fn process_memory_status() -> ProcessMemoryStatus {
+    let resident_bytes = std::process::Command::new("ps")
+        .args(["-o", "rss=", "-p", &std::process::id().to_string()])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .unwrap_or_default()
+        .saturating_mul(1024);
+    ProcessMemoryStatus {
+        resident_bytes,
+        peak_resident_bytes: resident_bytes,
+    }
+}
+
+#[cfg(windows)]
+fn process_memory_status() -> ProcessMemoryStatus {
+    #[repr(C)]
+    struct ProcessMemoryCounters {
+        cb: u32,
+        page_fault_count: u32,
+        peak_working_set_size: usize,
+        working_set_size: usize,
+        quota_peak_paged_pool_usage: usize,
+        quota_paged_pool_usage: usize,
+        quota_peak_non_paged_pool_usage: usize,
+        quota_non_paged_pool_usage: usize,
+        pagefile_usage: usize,
+        peak_pagefile_usage: usize,
+    }
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        #[link_name = "GetCurrentProcess"]
+        fn get_current_process() -> isize;
+        #[link_name = "K32GetProcessMemoryInfo"]
+        fn get_process_memory_info(
+            process: isize,
+            counters: *mut ProcessMemoryCounters,
+            size: u32,
+        ) -> i32;
+    }
+
+    let mut counters = ProcessMemoryCounters {
+        cb: std::mem::size_of::<ProcessMemoryCounters>() as u32,
+        page_fault_count: 0,
+        peak_working_set_size: 0,
+        working_set_size: 0,
+        quota_peak_paged_pool_usage: 0,
+        quota_paged_pool_usage: 0,
+        quota_peak_non_paged_pool_usage: 0,
+        quota_non_paged_pool_usage: 0,
+        pagefile_usage: 0,
+        peak_pagefile_usage: 0,
+    };
+    let succeeded = unsafe {
+        get_process_memory_info(
+            get_current_process(),
+            &mut counters,
+            std::mem::size_of::<ProcessMemoryCounters>() as u32,
+        )
+    };
+    if succeeded == 0 {
+        return ProcessMemoryStatus::default();
+    }
+    ProcessMemoryStatus {
+        resident_bytes: counters.working_set_size as u64,
+        peak_resident_bytes: counters.peak_working_set_size as u64,
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+fn process_memory_status() -> ProcessMemoryStatus {
+    ProcessMemoryStatus::default()
 }
 
 fn send_ok(connection: &Connection, id: RequestId, value: impl serde::Serialize) -> Result<()> {

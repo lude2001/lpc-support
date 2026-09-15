@@ -17,10 +17,18 @@ pub struct HealthStatusResponse {
 pub struct PerformanceStatus {
     pub documents: DocumentPerformanceStatus,
     pub syntax: SyntaxPerformanceStatus,
+    pub process_memory: ProcessMemoryStatus,
     pub analysis_snapshot_build_count: u64,
     pub analysis_query_count: u64,
     pub analysis_total_build_time_micros: u64,
     pub indexed_file_count: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessMemoryStatus {
+    pub resident_bytes: u64,
+    pub peak_resident_bytes: u64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]

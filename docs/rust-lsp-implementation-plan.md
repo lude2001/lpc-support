@@ -249,3 +249,5 @@ rust/
 | 单字符增量解析 p95 | 8 µs | 无增量基线 | 不再完整重解析 |
 
 工作区 6753 个源文件的语法审计耗时约 1.28 秒。后台索引刻意使用单线程并在文件间让出执行预算，完整墙钟时间约 14 秒，换取低性能 CPU 上不持续占满所有核心。正式发布结论仍应在目标低性能设备上重复采样 cold/warm p50、p95、CPU time 与峰值内存。
+
+探针现支持 `--perf-iterations`，并从 Rust 健康状态读取当前与峰值常驻内存。对真实 `/adm/daemons/restart_d.c` 的 `prepare_shutdown` 包装器链进行 30 次 warm 采样：semantic tokens p95 1.2 ms、definition p95 0.9 ms、references p95 3.8 ms、hover p95 0.9 ms、completion p95 1.1 ms，全部 0 超时，采样期间 parse 与 semantic rebuild 增量均为 0；索引 6753 个文件后的进程峰值常驻内存为 100.7 MiB。这是当前 Windows 主机的数据，仍不替代目标低性能设备的最终验收。
