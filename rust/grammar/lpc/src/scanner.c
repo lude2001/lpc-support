@@ -77,10 +77,18 @@ bool tree_sitter_lpc_external_scanner_scan(
         if (line_start && matched < delimiter_length && lexer->lookahead == delimiter[matched]) {
             matched++;
             lexer->advance(lexer, false);
-            if (matched == delimiter_length && lexer->lookahead == ';') {
+            if (matched == delimiter_length) {
                 lexer->mark_end(lexer);
-                lexer->result_symbol = HEREDOC_LITERAL;
-                return true;
+                while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
+                    lexer->advance(lexer, true);
+                }
+                if (lexer->lookahead == ';' || lexer->lookahead == ')' ||
+                    lexer->lookahead == ']' || lexer->lookahead == '}' ||
+                    lexer->lookahead == ',' || lexer->lookahead == '\r' ||
+                    lexer->lookahead == '\n') {
+                    lexer->result_symbol = HEREDOC_LITERAL;
+                    return true;
+                }
             }
             continue;
         }

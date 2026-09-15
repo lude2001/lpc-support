@@ -43,5 +43,15 @@ mod tests {
             "{}",
             tree.root_node().to_sexp()
         );
+
+        let call_source = "void help() { write(@HELP\nbody\nHELP ); }";
+        let call_tree = parser
+            .parse(call_source, None)
+            .expect("parser should return a tree");
+        assert!(
+            !call_tree.root_node().has_error(),
+            "{}",
+            call_tree.root_node().to_sexp()
+        );
     }
 }
