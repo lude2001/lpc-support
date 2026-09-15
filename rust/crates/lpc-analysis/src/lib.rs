@@ -1,4 +1,5 @@
 use std::{
+    cell::{Ref, RefCell},
     collections::{HashMap, HashSet},
     time::Instant,
 };
@@ -99,6 +100,22 @@ struct CallSite {
     argument_count: usize,
 }
 
+#[derive(Debug, Default)]
+struct DependencyGraph {
+    forward: HashMap<String, HashSet<String>>,
+    inherit_forward: HashMap<String, HashSet<String>>,
+    reverse: HashMap<String, HashSet<String>>,
+    path_targets: HashMap<String, HashSet<String>>,
+    string_macros: HashMap<String, String>,
+}
+
+#[derive(Debug, Default)]
+struct ReferenceResolutionCache {
+    workspace_definitions: Vec<Location>,
+    visible: HashMap<String, Vec<Location>>,
+    scoped: HashMap<(String, String), Vec<Location>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalFunction {
     pub name: String,
@@ -131,6 +148,7 @@ pub struct AnalysisDatabase {
     global_includes: Vec<String>,
     include_directories: Vec<String>,
     instance_resolution_functions: HashMap<String, Vec<String>>,
+    dependency_graph: RefCell<Option<DependencyGraph>>,
     metrics: AnalysisMetrics,
 }
 
@@ -155,6 +173,7 @@ impl AnalysisDatabase {
         self.global_includes = global_includes;
         self.include_directories = include_directories;
         self.instance_resolution_functions = instance_resolution_functions;
+        self.invalidate_dependency_graph();
     }
 
     pub fn update(&mut self, uri: &str, version: i32, revision: u64, tree: &Tree, source: &str) {
@@ -196,6 +215,7 @@ impl AnalysisDatabase {
                 inherits,
             },
         );
+        self.invalidate_dependency_graph();
         self.metrics.snapshot_build_count += 1;
         self.metrics.total_build_time_micros +=
             started_at.elapsed().as_micros().min(u128::from(u64::MAX)) as u64;
@@ -209,6 +229,7 @@ impl AnalysisDatabase {
 
     pub fn remove(&mut self, uri: &str) {
         self.files.remove(uri);
+        self.invalidate_dependency_graph();
         self.metrics.indexed_file_count =
             self.files.values().filter(|file| file.version < 0).count() as u64;
     }
@@ -221,10 +242,12 @@ impl AnalysisDatabase {
 
     pub fn invalidate(&mut self, uri: &str) {
         self.files.remove(uri);
+        self.invalidate_dependency_graph();
     }
 
     pub fn clear_indexed(&mut self) {
         self.files.retain(|_, file| file.version >= 0);
+        self.invalidate_dependency_graph();
         self.metrics.indexed_file_count = 0;
     }
 
@@ -347,6 +370,12 @@ impl AnalysisDatabase {
         let Some(name) = origin.source.get(range.clone()).map(str::to_owned) else {
             return Vec::new();
         };
+        if let Some(qualifier) = scope_access_qualifier(&origin.source, range.start) {
+            if qualifier == "efun" {
+                return Vec::new();
+            }
+            return self.scoped_symbol_locations(uri, &qualifier, &name);
+        }
         if is_member_access(&origin.source, range.start) {
             if let Some(location) = self.typed_member_definition(uri, range.start, &name) {
                 return vec![location];
@@ -419,6 +448,41 @@ impl AnalysisDatabase {
         let (name, offset) = self.identifier_at(uri, position)?;
         let file = self.files.get(uri)?;
         let identifier = identifier_range(file, offset)?;
+        if let Some(qualifier) = scope_access_qualifier(&file.source, identifier.start) {
+            if qualifier == "efun" {
+                let external = self.external_functions.get(&name)?;
+                let signatures = external
+                    .signatures
+                    .iter()
+                    .map(|signature| signature.label.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let summary = external.summary.as_deref().unwrap_or_default();
+                return Some(HoverResult {
+                    contents: format!("```lpc\n{signatures}\n```\n\n{summary}"),
+                    range: byte_range_to_lsp(&file.source, identifier),
+                });
+            }
+            let locations = self.scoped_symbol_locations(uri, &qualifier, &name);
+            if locations.len() != 1 {
+                return None;
+            }
+            let target = self.files.get(&locations[0].uri)?;
+            let symbol = target.symbols.iter().find(|symbol| {
+                symbol.name == name
+                    && byte_range_to_lsp(&target.source, symbol.selection.clone())
+                        == locations[0].range
+            })?;
+            return Some(HoverResult {
+                contents: match symbol.documentation.as_deref() {
+                    Some(documentation) => {
+                        format!("```lpc\n{}\n```\n\n{documentation}", symbol.detail)
+                    }
+                    None => format!("```lpc\n{}\n```", symbol.detail),
+                },
+                range: byte_range_to_lsp(&file.source, identifier),
+            });
+        }
         if is_member_access(&file.source, identifier.start) {
             let contents = self
                 .typed_member_hover(uri, identifier.start, &name)
@@ -531,6 +595,10 @@ impl AnalysisDatabase {
             self.configured_functions_reaching_target(&target.uri, configured_receiver.as_deref());
         let configured_consumers =
             self.configured_instance_consumer_uris(&name, &configured_functions);
+        let mut resolution_cache = ReferenceResolutionCache {
+            workspace_definitions: self.workspace_symbol_locations(&name),
+            ..ReferenceResolutionCache::default()
+        };
         let mut candidate_uris = if member_reference {
             if configured_consumers.is_empty() {
                 self.files
@@ -551,6 +619,9 @@ impl AnalysisDatabase {
             let Some(file) = self.files.get(&candidate_uri) else {
                 continue;
             };
+            if !file.source.contains(&name) {
+                continue;
+            }
             for range in &file.identifiers {
                 if file.source.get(range.clone()) != Some(name.as_str()) {
                     continue;
@@ -565,15 +636,15 @@ impl AnalysisDatabase {
                 {
                     continue;
                 }
-                if (!include_declaration && location == *target)
-                    || !self.occurrence_resolves_to(
-                        &candidate_uri,
-                        range,
-                        &name,
-                        target,
-                        &configured_functions,
-                    )
-                {
+                let resolves = self.occurrence_resolves_to(
+                    &candidate_uri,
+                    range,
+                    &name,
+                    target,
+                    &configured_functions,
+                    &mut resolution_cache,
+                );
+                if (!include_declaration && location == *target) || !resolves {
                     continue;
                 }
                 references.push(location);
@@ -631,6 +702,32 @@ impl AnalysisDatabase {
         let offset = lsp_position_to_byte(&file.source, position)?;
         let (open, name) = enclosing_call(&file.source, offset)?;
         let name_start = open.saturating_sub(name.len());
+        if let Some(qualifier) = scope_access_qualifier(&file.source, name_start) {
+            if qualifier == "efun" {
+                let external = self.external_functions.get(&name)?;
+                return Some(signature_help_from_external(
+                    external,
+                    &file.source,
+                    open,
+                    offset,
+                ));
+            }
+            let locations = self.scoped_symbol_locations(uri, &qualifier, &name);
+            if locations.len() != 1 {
+                return None;
+            }
+            let target = self.files.get(&locations[0].uri)?;
+            let symbol = target.symbols.iter().find(|symbol| {
+                symbol.name == name
+                    && byte_range_to_lsp(&target.source, symbol.selection.clone())
+                        == locations[0].range
+            })?;
+            return Some(SignatureHelp {
+                signatures: vec![signature_information_from_symbol(symbol)],
+                active_signature: 0,
+                active_parameter: active_parameter(&file.source[open + 1..offset]),
+            });
+        }
         if is_member_access(&file.source, name_start) {
             let targets = self.object_target_uris(uri, name_start)?;
             let signatures = self
@@ -785,7 +882,7 @@ impl AnalysisDatabase {
                 candidates.sort_by(|left, right| left.label.cmp(&right.label));
                 return candidates;
             }
-            let inherited = self.inherited_uris(uri);
+            let inherited = self.scoped_target_uris(uri, &qualifier);
             let mut candidates = self
                 .files
                 .iter()
@@ -906,23 +1003,112 @@ impl AnalysisDatabase {
         Some((file.source.get(range)?.to_owned(), offset))
     }
 
+    fn invalidate_dependency_graph(&self) {
+        *self.dependency_graph.borrow_mut() = None;
+    }
+
+    fn dependency_graph(&self) -> Ref<'_, DependencyGraph> {
+        if self.dependency_graph.borrow().is_none() {
+            let mut graph = DependencyGraph::default();
+            let mut path_index = HashMap::<String, HashSet<String>>::new();
+            for candidate_uri in self.files.keys() {
+                let normalized = candidate_uri.replace('\\', "/");
+                path_index
+                    .entry(normalized.clone())
+                    .or_default()
+                    .insert(candidate_uri.clone());
+                for (index, _) in normalized.match_indices('/') {
+                    path_index
+                        .entry(normalized[index..].to_owned())
+                        .or_default()
+                        .insert(candidate_uri.clone());
+                }
+            }
+            let macro_values = workspace_unique_string_macros(self.files.values());
+            for (origin_uri, file) in &self.files {
+                for dependency in file.dependencies.iter().chain(&self.global_includes) {
+                    let resolved_dependency = if dependency.starts_with('/')
+                        || dependency.contains('/')
+                        || dependency.starts_with('.')
+                    {
+                        dependency.clone()
+                    } else {
+                        macro_values
+                            .get(dependency)
+                            .cloned()
+                            .unwrap_or_else(|| dependency.clone())
+                    };
+                    let is_inherit = file.inherits.iter().any(|inherit| inherit == dependency);
+                    for key in self.dependency_lookup_keys(origin_uri, &resolved_dependency) {
+                        for candidate_uri in path_index.get(&key).into_iter().flatten() {
+                            if origin_uri == candidate_uri {
+                                continue;
+                            }
+                            graph
+                                .forward
+                                .entry(origin_uri.clone())
+                                .or_default()
+                                .insert(candidate_uri.clone());
+                            graph
+                                .reverse
+                                .entry(candidate_uri.clone())
+                                .or_default()
+                                .insert(origin_uri.clone());
+                            if is_inherit {
+                                graph
+                                    .inherit_forward
+                                    .entry(origin_uri.clone())
+                                    .or_default()
+                                    .insert(candidate_uri.clone());
+                            }
+                        }
+                    }
+                }
+            }
+            graph.path_targets = path_index;
+            graph.string_macros = macro_values;
+            *self.dependency_graph.borrow_mut() = Some(graph);
+        }
+        Ref::map(self.dependency_graph.borrow(), |graph| {
+            graph.as_ref().expect("dependency graph was initialized")
+        })
+    }
+
+    fn dependency_lookup_keys(&self, origin_uri: &str, dependency: &str) -> Vec<String> {
+        let mut dependency = dependency.replace('\\', "/");
+        if !dependency.ends_with(".c") && !dependency.ends_with(".h") {
+            dependency.push_str(".c");
+        }
+        if dependency.starts_with('/') {
+            return vec![dependency];
+        }
+        if !dependency.starts_with('.')
+            && !dependency.contains('/')
+            && !self.include_directories.is_empty()
+        {
+            return self
+                .include_directories
+                .iter()
+                .map(|directory| format!("/{}/{}", directory.trim_matches(['/', '\\']), dependency))
+                .collect();
+        }
+        let normalized_origin = origin_uri.replace('\\', "/");
+        let mut keys = vec![format!("/{dependency}")];
+        if let Some((directory, _)) = normalized_origin.rsplit_once('/') {
+            keys.push(format!("{directory}/{dependency}"));
+        }
+        keys
+    }
+
     fn visible_uris(&self, origin_uri: &str) -> HashSet<String> {
+        let graph = self.dependency_graph();
         let mut visible = HashSet::from([origin_uri.to_owned()]);
         let mut pending = vec![origin_uri.to_owned()];
         while let Some(uri) = pending.pop() {
-            let Some(file) = self.files.get(&uri) else {
-                continue;
-            };
-            for dependency in file.dependencies.iter().chain(&self.global_includes) {
-                let resolved_dependency = self
-                    .resolve_path_token(dependency)
-                    .unwrap_or_else(|| dependency.clone());
-                for candidate_uri in self.files.keys() {
-                    if !visible.contains(candidate_uri)
-                        && self.dependency_matches(&uri, &resolved_dependency, candidate_uri)
-                    {
-                        visible.insert(candidate_uri.clone());
-                        pending.push(candidate_uri.clone());
+            if let Some(dependencies) = graph.forward.get(&uri) {
+                for dependency in dependencies {
+                    if visible.insert(dependency.clone()) {
+                        pending.push(dependency.clone());
                     }
                 }
             }
@@ -931,26 +1117,25 @@ impl AnalysisDatabase {
     }
 
     fn related_uris(&self, origin_uri: &str) -> HashSet<String> {
-        let mut related = self.visible_uris(origin_uri);
+        let graph = self.dependency_graph();
+        let mut related = HashSet::from([origin_uri.to_owned()]);
+        let mut visible_pending = vec![origin_uri.to_owned()];
+        while let Some(uri) = visible_pending.pop() {
+            if let Some(dependencies) = graph.forward.get(&uri) {
+                for dependency in dependencies {
+                    if related.insert(dependency.clone()) {
+                        visible_pending.push(dependency.clone());
+                    }
+                }
+            }
+        }
         let mut pending = vec![origin_uri.to_owned()];
         while let Some(target_uri) = pending.pop() {
-            for (candidate_uri, file) in &self.files {
-                if related.contains(candidate_uri) {
-                    continue;
-                }
-                let depends_on_target =
-                    file.dependencies
-                        .iter()
-                        .chain(&self.global_includes)
-                        .any(|dependency| {
-                            let resolved = self
-                                .resolve_path_token(dependency)
-                                .unwrap_or_else(|| dependency.clone());
-                            self.dependency_matches(candidate_uri, &resolved, &target_uri)
-                        });
-                if depends_on_target {
-                    related.insert(candidate_uri.clone());
-                    pending.push(candidate_uri.clone());
+            if let Some(consumers) = graph.reverse.get(&target_uri) {
+                for consumer in consumers {
+                    if related.insert(consumer.clone()) {
+                        pending.push(consumer.clone());
+                    }
                 }
             }
         }
@@ -1039,6 +1224,7 @@ impl AnalysisDatabase {
         name: &str,
         target: &Location,
         configured_functions: &HashSet<String>,
+        resolution_cache: &mut ReferenceResolutionCache,
     ) -> bool {
         let Some(file) = self.files.get(uri) else {
             return false;
@@ -1050,8 +1236,27 @@ impl AnalysisDatabase {
         if location == *target {
             return true;
         }
+        if let Some(qualifier) = scope_access_qualifier(&file.source, identifier.start) {
+            if qualifier == "efun" {
+                return false;
+            }
+            let locations = resolution_cache
+                .scoped
+                .entry((uri.to_owned(), qualifier.clone()))
+                .or_insert_with(|| self.scoped_symbol_locations(uri, &qualifier, name));
+            return locations.len() == 1 && locations[0] == *target;
+        }
         if is_member_access(&file.source, identifier.start) {
-            if let Some((_, receiver)) = member_access_context(&file.source, identifier.start)
+            let Some((operator, receiver)) = member_access_context(&file.source, identifier.start)
+            else {
+                return false;
+            };
+            if operator == MemberOperator::Dot {
+                return self
+                    .typed_member_definition(uri, identifier.start, name)
+                    .is_some_and(|location| location == *target);
+            }
+            if !configured_functions.is_empty()
                 && receiver_originates_from_functions(
                     file,
                     &receiver,
@@ -1062,11 +1267,15 @@ impl AnalysisDatabase {
             {
                 return true;
             }
-            if let Some(location) = self.typed_member_definition(uri, identifier.start, name) {
-                return location == *target;
-            }
-            let locations = self.object_member_definitions(uri, identifier.start, name);
-            return locations.len() == 1 && locations[0] == *target;
+            let Some(targets) = self.object_target_uris(uri, identifier.start) else {
+                return false;
+            };
+            let locations = resolution_cache
+                .workspace_definitions
+                .iter()
+                .filter(|location| targets.contains(&location.uri))
+                .collect::<Vec<_>>();
+            return locations.len() == 1 && *locations[0] == *target;
         }
         if let Some(symbol) = resolved_symbols(file, name, identifier.start).first() {
             if symbol.local {
@@ -1077,15 +1286,26 @@ impl AnalysisDatabase {
                 range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
             } == *target;
         }
-        let locations = self.visible_symbol_locations(uri, name);
+        if !resolution_cache.visible.contains_key(uri) {
+            let visible = self.visible_uris(uri);
+            let locations = resolution_cache
+                .workspace_definitions
+                .iter()
+                .filter(|location| visible.contains(&location.uri))
+                .cloned()
+                .collect();
+            resolution_cache.visible.insert(uri.to_owned(), locations);
+        }
+        let locations = resolution_cache
+            .visible
+            .get(uri)
+            .expect("visible reference resolution was cached");
         locations.len() == 1 && locations[0] == *target
     }
 
-    fn visible_symbol_locations(&self, uri: &str, name: &str) -> Vec<Location> {
-        let visible = self.visible_uris(uri);
+    fn workspace_symbol_locations(&self, name: &str) -> Vec<Location> {
         self.files
             .iter()
-            .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
             .flat_map(|(candidate_uri, file)| {
                 file.symbols
                     .iter()
@@ -1106,23 +1326,14 @@ impl AnalysisDatabase {
     }
 
     fn inherited_uris(&self, origin_uri: &str) -> HashSet<String> {
+        let graph = self.dependency_graph();
         let mut inherited = HashSet::new();
         let mut pending = vec![origin_uri.to_owned()];
         while let Some(uri) = pending.pop() {
-            let Some(file) = self.files.get(&uri) else {
-                continue;
-            };
-            for dependency in &file.inherits {
-                let resolved_dependency = self
-                    .resolve_path_token(dependency)
-                    .unwrap_or_else(|| dependency.clone());
-                for candidate_uri in self.files.keys() {
-                    if candidate_uri != origin_uri
-                        && !inherited.contains(candidate_uri)
-                        && self.dependency_matches(&uri, &resolved_dependency, candidate_uri)
-                    {
-                        inherited.insert(candidate_uri.clone());
-                        pending.push(candidate_uri.clone());
+            if let Some(dependencies) = graph.inherit_forward.get(&uri) {
+                for dependency in dependencies {
+                    if dependency != origin_uri && inherited.insert(dependency.clone()) {
+                        pending.push(dependency.clone());
                     }
                 }
             }
@@ -1130,16 +1341,79 @@ impl AnalysisDatabase {
         inherited
     }
 
+    fn scoped_target_uris(&self, origin_uri: &str, qualifier: &str) -> HashSet<String> {
+        if qualifier.is_empty() {
+            return self.inherited_uris(origin_uri);
+        }
+        let Some(file) = self.files.get(origin_uri) else {
+            return HashSet::new();
+        };
+        let matching_dependencies = file
+            .inherits
+            .iter()
+            .filter_map(|dependency| {
+                let resolved = self
+                    .resolve_path_token(dependency)
+                    .unwrap_or_else(|| dependency.clone());
+                (path_basename(&resolved) == qualifier).then_some(resolved)
+            })
+            .collect::<Vec<_>>();
+        if matching_dependencies.len() != 1 {
+            return HashSet::new();
+        }
+        let direct = self.path_target_uris(origin_uri, &matching_dependencies[0]);
+        if direct.len() != 1 {
+            return HashSet::new();
+        }
+        let target = direct.into_iter().next().expect("one direct scope target");
+        let mut targets = self.inherited_uris(&target);
+        targets.insert(target);
+        targets
+    }
+
+    fn scoped_symbol_locations(
+        &self,
+        origin_uri: &str,
+        qualifier: &str,
+        name: &str,
+    ) -> Vec<Location> {
+        let targets = self.scoped_target_uris(origin_uri, qualifier);
+        let mut direct = Vec::new();
+        let mut inherited = Vec::new();
+        for (candidate_uri, file) in &self.files {
+            if !targets.contains(candidate_uri) {
+                continue;
+            }
+            for symbol in file.symbols.iter().filter(|symbol| {
+                !symbol.local && symbol.kind == SymbolKind::Function && symbol.name == name
+            }) {
+                let location = Location {
+                    uri: candidate_uri.clone(),
+                    range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
+                };
+                if self.files.get(origin_uri).is_some_and(|origin| {
+                    origin.inherits.iter().any(|dependency| {
+                        let resolved = self
+                            .resolve_path_token(dependency)
+                            .unwrap_or_else(|| dependency.clone());
+                        (qualifier.is_empty() || path_basename(&resolved) == qualifier)
+                            && self.dependency_matches(origin_uri, &resolved, candidate_uri)
+                    })
+                }) {
+                    direct.push(location);
+                } else {
+                    inherited.push(location);
+                }
+            }
+        }
+        if direct.is_empty() { inherited } else { direct }
+    }
+
     fn resolve_path_token(&self, token: &str) -> Option<String> {
         if token.starts_with('/') || token.contains('/') || token.starts_with('.') {
             return Some(token.to_owned());
         }
-        let mut values = self
-            .files
-            .values()
-            .filter_map(|file| macro_string_value(&file.source, token));
-        let first = values.next()?;
-        values.all(|value| value == first).then_some(first)
+        self.dependency_graph().string_macros.get(token).cloned()
     }
 
     fn dependency_matches(&self, origin_uri: &str, dependency: &str, candidate_uri: &str) -> bool {
@@ -1314,9 +1588,11 @@ impl AnalysisDatabase {
     }
 
     fn path_target_uris(&self, origin_uri: &str, path: &str) -> HashSet<String> {
-        self.files
-            .keys()
-            .filter(|candidate_uri| self.dependency_matches(origin_uri, path, candidate_uri))
+        let graph = self.dependency_graph();
+        self.dependency_lookup_keys(origin_uri, path)
+            .into_iter()
+            .filter_map(|key| graph.path_targets.get(&key))
+            .flatten()
             .cloned()
             .collect()
     }
@@ -1856,6 +2132,18 @@ fn strip_quoted_path(value: &str) -> &str {
         .unwrap_or(value)
 }
 
+fn path_basename(path: &str) -> &str {
+    let basename = path
+        .trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(path);
+    basename
+        .strip_suffix(".c")
+        .or_else(|| basename.strip_suffix(".h"))
+        .unwrap_or(basename)
+}
+
 fn dependency_matches(origin_uri: &str, dependency: &str, candidate_uri: &str) -> bool {
     let mut dependency = dependency.replace('\\', "/");
     if !dependency.ends_with(".c") && !dependency.ends_with(".h") {
@@ -1872,13 +2160,6 @@ fn dependency_matches(origin_uri: &str, dependency: &str, candidate_uri: &str) -
         return true;
     }
     candidate.ends_with(&format!("/{dependency}"))
-}
-
-fn macro_string_value(source: &str, name: &str) -> Option<String> {
-    source.lines().find_map(|line| {
-        let (candidate, value) = parse_string_macro_definition(line)?;
-        (candidate == name).then_some(value)
-    })
 }
 
 fn parse_string_macro_definition(line: &str) -> Option<(&str, String)> {
@@ -1906,6 +2187,31 @@ fn workspace_string_macros<'a>(
         }
     }
     macros
+}
+
+fn workspace_unique_string_macros<'a>(
+    files: impl Iterator<Item = &'a FileAnalysis>,
+) -> HashMap<String, String> {
+    let mut values = HashMap::<String, Option<String>>::new();
+    for file in files {
+        for line in file.source.lines() {
+            let Some((name, value)) = parse_string_macro_definition(line) else {
+                continue;
+            };
+            values
+                .entry(name.to_owned())
+                .and_modify(|current| {
+                    if current.as_deref() != Some(value.as_str()) {
+                        *current = None;
+                    }
+                })
+                .or_insert(Some(value));
+        }
+    }
+    values
+        .into_iter()
+        .filter_map(|(name, value)| value.map(|value| (name, value)))
+        .collect()
 }
 
 fn workspace_macros<'a>(files: impl Iterator<Item = &'a FileAnalysis>) -> HashMap<String, String> {
@@ -2604,6 +2910,47 @@ fn active_parameter(arguments: &str) -> u32 {
     active
 }
 
+fn signature_information_from_symbol(symbol: &Symbol) -> SignatureInformation {
+    SignatureInformation {
+        label: symbol.detail.clone(),
+        documentation: symbol.documentation.clone(),
+        parameters: symbol
+            .parameters
+            .iter()
+            .map(|label| ParameterInformation {
+                label: label.clone(),
+            })
+            .collect(),
+    }
+}
+
+fn signature_help_from_external(
+    external: &ExternalFunction,
+    source: &str,
+    open: usize,
+    offset: usize,
+) -> SignatureHelp {
+    SignatureHelp {
+        signatures: external
+            .signatures
+            .iter()
+            .map(|signature| SignatureInformation {
+                label: signature.label.clone(),
+                documentation: external.summary.clone(),
+                parameters: signature
+                    .parameters
+                    .iter()
+                    .map(|label| ParameterInformation {
+                        label: label.clone(),
+                    })
+                    .collect(),
+            })
+            .collect(),
+        active_signature: 0,
+        active_parameter: active_parameter(&source[open + 1..offset]),
+    }
+}
+
 fn completion_prefix(source: &str, position: Position) -> Option<String> {
     let end = lsp_position_to_byte(source, position)?;
     let bytes = source.as_bytes();
@@ -3154,8 +3501,134 @@ mod tests {
     }
 
     #[test]
+    fn resolves_named_inherit_scope_across_language_features() {
+        let source = concat!(
+            "inherit \"/std/room\";\n",
+            "inherit \"/std/item\";\n",
+            "void demo() { room::init(\"hall\"); room::in }\n",
+        );
+        let mut database = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, dependency) in [
+            (
+                "file:///mud/std/room.c",
+                "/** initialize a room */\nvoid init(string name) {}\n",
+            ),
+            (
+                "file:///mud/std/item.c",
+                "/** initialize an item */\nvoid init(int count) {}\n",
+            ),
+        ] {
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+
+        let method_start = source.find("init").unwrap();
+        let position = byte_to_lsp_position(source, method_start + 1);
+        let definitions = database.definition("file:///demo.c", position);
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/room.c");
+        assert!(
+            database
+                .prepare_rename("file:///demo.c", position)
+                .is_some()
+        );
+
+        let hover = database.hover("file:///demo.c", position).unwrap();
+        assert!(hover.contents.contains("void init(string name)"));
+        assert!(hover.contents.contains("initialize a room"));
+        assert!(!hover.contents.contains("initialize an item"));
+
+        let signature_position = byte_to_lsp_position(source, source.find("hall").unwrap() + 2);
+        let signature = database
+            .signature_help("file:///demo.c", signature_position)
+            .unwrap();
+        assert_eq!(signature.signatures.len(), 1);
+        assert_eq!(signature.signatures[0].label, "void init(string name)");
+        assert_eq!(signature.signatures[0].parameters.len(), 1);
+
+        let completion_end = source.rfind("in").unwrap() + 2;
+        let completions = database.completion_candidates(
+            "file:///demo.c",
+            byte_to_lsp_position(source, completion_end),
+        );
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "init");
+        assert_eq!(
+            completions[0].documentation.as_deref(),
+            Some("initialize a room")
+        );
+
+        let references = database.references("file:///demo.c", position, true);
+        assert_eq!(references.len(), 2);
+        assert!(
+            references
+                .iter()
+                .any(|location| location.uri == "file:///mud/std/room.c")
+        );
+        assert!(
+            references
+                .iter()
+                .all(|location| location.uri != "file:///mud/std/item.c")
+        );
+    }
+
+    #[test]
+    fn keeps_ambiguous_or_unknown_named_inherit_scopes_conservative() {
+        let source = concat!(
+            "inherit \"/std/room\";\n",
+            "inherit \"/other/room\";\n",
+            "void demo() { room::init(1); missing::init(1); room::in }\n",
+        );
+        let mut database = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, dependency) in [
+            ("file:///mud/std/room.c", "void init(string name) {}\n"),
+            ("file:///mud/other/room.c", "void init(int count) {}\n"),
+        ] {
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+
+        for method_start in [source.find("init").unwrap(), source.rfind("init").unwrap()] {
+            let position = byte_to_lsp_position(source, method_start + 1);
+            assert!(database.definition("file:///demo.c", position).is_empty());
+            assert!(database.hover("file:///demo.c", position).is_none());
+            assert!(
+                database
+                    .signature_help(
+                        "file:///demo.c",
+                        byte_to_lsp_position(source, method_start + "init(".len()),
+                    )
+                    .is_none()
+            );
+            assert!(
+                database
+                    .prepare_rename("file:///demo.c", position)
+                    .is_none()
+            );
+        }
+
+        let completion_end = source.rfind("in").unwrap() + 2;
+        assert!(
+            database
+                .completion_candidates(
+                    "file:///demo.c",
+                    byte_to_lsp_position(source, completion_end)
+                )
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn completes_efun_scope_only_from_external_functions() {
-        let source = "void demo() { efun::wr }\n";
+        let source = "void demo() { efun::write(1); efun::wr }\n";
         let mut database = database(source);
         database.set_external_functions(vec![ExternalFunction {
             name: "write".to_owned(),
@@ -3167,11 +3640,32 @@ mod tests {
                 maximum_arguments: Some(1),
             }],
         }]);
-        let position = byte_to_lsp_position(source, source.find("wr").unwrap() + 2);
+        let position = byte_to_lsp_position(source, source.rfind("wr").unwrap() + 2);
         let completions = database.completion_candidates("file:///demo.c", position);
         assert_eq!(completions.len(), 1);
         assert_eq!(completions[0].label, "write");
         assert_eq!(completions[0].documentation.as_deref(), Some("write docs"));
+
+        let call_start = source.find("write").unwrap();
+        let call_position = byte_to_lsp_position(source, call_start + 1);
+        assert!(
+            database
+                .definition("file:///demo.c", call_position)
+                .is_empty()
+        );
+        assert!(
+            database
+                .hover("file:///demo.c", call_position)
+                .is_some_and(|hover| hover.contents.contains("write docs"))
+        );
+        let signature = database
+            .signature_help(
+                "file:///demo.c",
+                byte_to_lsp_position(source, source.find('1').unwrap() + 1),
+            )
+            .unwrap();
+        assert_eq!(signature.signatures.len(), 1);
+        assert_eq!(signature.signatures[0].parameters.len(), 1);
     }
 
     #[test]
@@ -3255,6 +3749,44 @@ mod tests {
         );
         assert_eq!(locations.len(), 1);
         assert_eq!(locations[0].uri, "file:///mud/std/base.c");
+    }
+
+    #[test]
+    fn invalidates_the_dependency_graph_after_document_changes() {
+        let source = "inherit \"/std/first\"; void demo() { helper(); }\n";
+        let mut database = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for uri in [
+            "file:///mud/std/first.c",
+            "file:///mud/std/second.c",
+            "file:///mud/other/unrelated.c",
+        ] {
+            let dependency = "void helper() {}\n";
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+        let position = byte_to_lsp_position(source, source.find("helper").unwrap());
+        let definitions = database.definition("file:///demo.c", position);
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/first.c");
+
+        let updated = "inherit \"/std/second\"; void demo() { helper(); }\n";
+        let tree = parser.parse(updated, None).unwrap();
+        database.update("file:///demo.c", 2, 2, &tree, updated);
+        let updated_position = byte_to_lsp_position(updated, updated.find("helper").unwrap());
+        let definitions = database.definition("file:///demo.c", updated_position);
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/std/second.c");
+
+        database.remove("file:///mud/std/second.c");
+        assert!(
+            database
+                .definition("file:///demo.c", updated_position)
+                .is_empty()
+        );
     }
 
     #[test]
