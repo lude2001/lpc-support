@@ -11,6 +11,12 @@ LPC Support is a VS Code extension for LPC / FluffOS development. It provides ed
 
 The extension follows a conservative static-proof principle: facts that can be proven from the current file, includes, inherits, project configuration, built-in efun docs, or explicit user configuration are used for completion, navigation, and diagnostics. Runtime-dynamic behavior that cannot be proven reliably is downgraded conservatively to avoid false diagnostics and incorrect jumps.
 
+## Native language-analysis core
+
+The extension now runs high-frequency analysis in the Rust language server bundled with each platform-specific VSIX. Document synchronization, preprocessing, incremental CST updates, semantic snapshots, and the workspace index remain in one process; TypeScript handles VS Code integration, configuration, commands, and UI. Cold indexing is limited to one background worker that regularly yields CPU time for responsive use on low-end processors.
+
+For source development, run `npm run build:rust` to create the current platform binary under `dist/bin`. `npm run package` builds the native server and emits a VSIX targeted at the current operating system and CPU architecture.
+
 ## Feature Overview
 
 ### Editor Features

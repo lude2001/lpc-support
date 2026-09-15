@@ -11,7 +11,7 @@ export function resolveLanguageServerRuntime(
     environment: NodeJS.ProcessEnv = process.env,
     platform: NodeJS.Platform = process.platform
 ): LanguageServerRuntime {
-    if (environment.LPC_LANGUAGE_SERVER !== 'rust') {
+    if (environment.LPC_LANGUAGE_SERVER === 'typescript') {
         return {
             kind: 'typescript',
             module: context.asAbsolutePath(path.join('dist', 'lsp', 'server.js'))
@@ -27,8 +27,8 @@ export function resolveLanguageServerRuntime(
 
     if (!fs.existsSync(command)) {
         throw new Error(
-            `Rust LPC language server was requested but no executable exists at ${command}. `
-            + 'Run npm run build:rust or set LPC_RUST_SERVER_PATH.'
+            `The bundled Rust LPC language server is missing at ${command}. `
+            + 'Reinstall the platform-specific extension package or run npm run build:rust.'
         );
     }
 

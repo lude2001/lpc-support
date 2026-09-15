@@ -229,6 +229,6 @@ rust/
 - Gate B：进行中。Tree-sitter LPC grammar、增量 CST、条件编译屏蔽、include facts 和恒等源码映射已实现；完整宏展开及更大真实语料差异集仍待补齐。
 - Gate C：进行中。document symbols、semantic tokens、folding、语法 diagnostics、未使用局部量与已知函数参数数量诊断和对应 quick fix 已实现；完整类型诊断和行为差异测试仍待补齐。
 - Gate D：进行中。单后台线程工作区索引、显式 rebuild/progress、磁盘增删改、definition、hover、references、rename、completion 和 signature help 已有共享快照实现；现有 bundled efun 文档已作为补全、hover、签名帮助和参数数量诊断的共同权威来源，inherit/include 精确依赖失效仍待补齐。
-- Gate E：进行中。CST 驱动的 Rust 全文/range formatter 与真实 `yifeng-jian.c`、`meridiand.c` 语法安全和幂等检查已接入；复杂 trivia/heredoc 差异、平台产物矩阵、默认切换与旧 TS 生产分析路径删除仍待完成。
+- Gate E：进行中。CST 驱动的 Rust 全文/range formatter 与真实 `yifeng-jian.c`、`meridiand.c` 语法安全和幂等检查已接入；Rust 已成为默认运行时，打包会强制构建原生服务并生成当前平台专用 VSIX，CI 覆盖 Windows/Linux/macOS 的 x64/ARM64 原生产物。复杂 trivia/heredoc 差异和旧 TS 生产分析路径删除仍待完成。
 
 这里的“已实现”只表示 Rust 路径具备对应能力并有针对性测试，不等同于已满足第 12 节的最终发布完成定义。
