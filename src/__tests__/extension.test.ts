@@ -8,7 +8,6 @@ import { registerCommands, registerWorkspaceIndexRebuildCommand } from '../modul
 import { getRegisteredProjectConfigService, registerCoreServices } from '../modules/coreModule';
 import { registerDiagnostics } from '../modules/diagnosticsModule';
 import { registerUI } from '../modules/uiModule';
-import { disposeGlobalParsedDocumentService } from '../parser/ParsedDocumentService';
 
 jest.mock('../core/ServiceRegistry', () => ({
     ServiceRegistry: jest.fn()
@@ -30,10 +29,6 @@ jest.mock('../modules/uiModule', () => ({
 jest.mock('../modules/commandModule', () => ({
     registerCommands: jest.fn(),
     registerWorkspaceIndexRebuildCommand: jest.fn()
-}));
-
-jest.mock('../parser/ParsedDocumentService', () => ({
-    disposeGlobalParsedDocumentService: jest.fn()
 }));
 
 jest.mock('../lsp/client/activateLspClient', () => ({
@@ -75,7 +70,6 @@ describe('extension entrypoint', () => {
         (registerWorkspaceIndexRebuildCommand as jest.Mock).mockReset().mockReturnValue({ dispose: jest.fn() });
         (activateLspClient as jest.Mock).mockReset().mockResolvedValue(undefined);
         (registerWorkspaceIndexController as jest.Mock).mockReset();
-        (disposeGlobalParsedDocumentService as jest.Mock).mockReset();
     });
 
     test('activate always wires the single public LSP path', async () => {
@@ -113,9 +107,7 @@ describe('extension entrypoint', () => {
         expect(registerWorkspaceIndexRebuildCommand).toHaveBeenCalledWith(context, handler);
     });
 
-    test('deactivate disposes the global parsed document service', () => {
-        deactivate();
-
-        expect(disposeGlobalParsedDocumentService).toHaveBeenCalledTimes(1);
+    test('deactivate is safe after all production services move to registered disposables', () => {
+        expect(deactivate()).toBeUndefined();
     });
 });

@@ -5,7 +5,7 @@ import type { DocumentAnalysisService } from '../semantic/documentAnalysisServic
 import type { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
 import type { TextDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
 import type { DocumentLifecycleService } from './DocumentLifecycleService';
-import type { EfunDocsManager } from '../efunDocs';
+import type { BundledEfunDocsProvider } from '../efun/BundledEfunDocsProvider';
 import type { ErrorTreeDataProvider } from '../errorTreeDataProvider';
 import type { SemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
@@ -16,7 +16,7 @@ import { ServiceKey } from './ServiceRegistry';
 
 export const Services = {
     Frontend: new ServiceKey<LpcFrontendService>('Frontend'),
-    EfunDocs: new ServiceKey<EfunDocsManager>('EfunDocs'),
+    EfunDocs: new ServiceKey<BundledEfunDocsProvider>('EfunDocs'),
     Compiler: new ServiceKey<LPCCompiler>('Compiler'),
     ProjectConfig: new ServiceKey<LpcProjectConfigService>('ProjectConfig'),
     ProjectConfigSnapshot: new ServiceKey<LpcProjectConfigSnapshotService>('ProjectConfigSnapshot'),

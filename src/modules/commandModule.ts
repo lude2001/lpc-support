@@ -95,9 +95,11 @@ export function registerCommands(
 
     register(context, 'lpc.showFunctionDoc', async () => {
         await efunDocsManager.bundledDocsReady;
-        const lookupProvider = lspClientManager
-            ? new RustFunctionDocumentationLookupProvider(lspClientManager, efunDocsManager)
-            : efunDocsManager;
+        if (!lspClientManager) {
+            vscode.window.showErrorMessage('Rust 语言服务器尚未启动，无法生成函数文档视图。');
+            return;
+        }
+        const lookupProvider = new RustFunctionDocumentationLookupProvider(lspClientManager, efunDocsManager);
         FunctionDocPanel.createOrShow(
             context,
             lookupProvider,

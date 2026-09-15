@@ -6,7 +6,6 @@ import { registerCommands, registerWorkspaceIndexRebuildCommand } from './module
 import { getRegisteredProjectConfigService, registerCoreServices } from './modules/coreModule';
 import { registerDiagnostics } from './modules/diagnosticsModule';
 import { registerUI } from './modules/uiModule';
-import { disposeGlobalParsedDocumentService } from './parser/ParsedDocumentService';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const registry = new ServiceRegistry();
@@ -29,5 +28,5 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {
-    disposeGlobalParsedDocumentService();
+    // VS Code disposes all registered services through context.subscriptions.
 }

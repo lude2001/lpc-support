@@ -86,8 +86,7 @@ describe('document analysis ownership guards', () => {
             .sort();
 
         expect(snapshotSingletonCallSites).toEqual([
-            'src/lsp/server/runtime/createProductionLanguageServices.ts',
-            'src/modules/coreModule.ts'
+            'src/lsp/server/runtime/createProductionLanguageServices.ts'
         ]);
         expect(astConfigureCallSites).toEqual([]);
         expect(astSingletonCallSites).toEqual([]);
@@ -131,8 +130,7 @@ describe('document analysis ownership guards', () => {
 
         expect(documentationInstantiationCallSites).toEqual([
             'src/language/documentation/FunctionDocumentationService.ts',
-            'src/lsp/server/runtime/createProductionLanguageServices.ts',
-            'src/modules/coreModule.ts'
+            'src/lsp/server/runtime/createProductionLanguageServices.ts'
         ]);
     });
 
@@ -216,6 +214,19 @@ describe('document analysis ownership guards', () => {
         expect(codeActionsSource).not.toContain('FunctionDeclaration');
         expect(codeActionsSource).not.toContain('FunctionInfoExtractor');
         expect(codeActionsSource).toContain("'lpc/enclosingFunction'");
+    });
+
+    test('extension activation does not construct or dispose the legacy TypeScript analysis stack', () => {
+        const extensionSource = fs.readFileSync(path.join(srcRoot, 'extension.ts'), 'utf8');
+        const coreModuleSource = fs.readFileSync(path.join(srcRoot, 'modules', 'coreModule.ts'), 'utf8');
+        const productionActivation = `${extensionSource}\n${coreModuleSource}`;
+
+        expect(productionActivation).not.toContain('ParsedDocumentService');
+        expect(productionActivation).not.toContain('DocumentSemanticSnapshotService');
+        expect(productionActivation).not.toContain('LpcFrontendService');
+        expect(productionActivation).not.toContain('FunctionDocLookupBuilder');
+        expect(productionActivation).not.toContain('SemanticEvaluationService');
+        expect(coreModuleSource).toContain('BundledEfunDocsProvider');
     });
 
     test('inheritance resolution does not read include paths back out of MacroManager', () => {

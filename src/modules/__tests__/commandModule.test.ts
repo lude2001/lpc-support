@@ -4,6 +4,7 @@ import { ServiceRegistry } from '../../core/ServiceRegistry';
 import { Services } from '../../core/ServiceKeys';
 import { registerCommands } from '../commandModule';
 import { FunctionDocPanel } from '../../functionDocPanel';
+import { RustFunctionDocumentationLookupProvider } from '../../functionDocs/services/RustFunctionDocumentationLookupProvider';
 import { createLpcCodeActionCommandHandlers } from '../../codeActions';
 import { ErrorTreeDataProvider } from '../../errorTreeDataProvider';
 import {
@@ -259,7 +260,7 @@ describe('registerCommands', () => {
     });
 
     test('delegates representative commands to registry services and helpers', async () => {
-        registerCommands(registry, context);
+        registerCommands(registry, context, { sendRequest: jest.fn() } as any);
         const handlers = getRegisteredHandlers();
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
         const activeDocument = {
@@ -281,7 +282,7 @@ describe('registerCommands', () => {
         expect(efunDocsManager.configureSimulatedEfuns).toHaveBeenCalledTimes(1);
         expect(FunctionDocPanel.createOrShow).toHaveBeenCalledWith(
             context,
-            efunDocsManager,
+            expect.any(RustFunctionDocumentationLookupProvider),
             expect.objectContaining({
                 openTextDocument: expect.any(Function)
             }),

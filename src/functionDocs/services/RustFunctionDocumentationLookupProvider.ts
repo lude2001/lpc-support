@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { EfunDocsManager } from '../../efun/EfunDocsManager';
+import type { BundledEfunDocsProvider } from '../../efun/BundledEfunDocsProvider';
 import type { FunctionDocLookup, FunctionDocSourceGroup } from '../../efun/FunctionDocLookupTypes';
 import type { LanguageWorkspaceProjectConfig } from '../../language/contracts/LanguageWorkspaceContext';
 import { DocCommentTagParser } from '../../language/documentation/DocCommentTagParser';
@@ -49,7 +49,7 @@ export class RustFunctionDocumentationLookupProvider implements FunctionDocument
 
     public constructor(
         private readonly manager: LspClientManager,
-        private readonly bundledEfuns: Pick<EfunDocsManager, 'getAllFunctions' | 'getStandardCallableDoc'>
+        private readonly bundledEfuns: Pick<BundledEfunDocsProvider, 'getAllFunctions' | 'getStandardCallableDoc'>
     ) {}
 
     public async getFunctionDocLookupForDocument(document: vscode.TextDocument): Promise<FunctionDocLookup> {
