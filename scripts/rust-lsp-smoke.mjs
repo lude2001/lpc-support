@@ -174,6 +174,12 @@ try {
     if (enclosingFunction?.name !== 'query' || enclosingFunction?.range?.start?.line !== 1) {
         throw new Error(`Rust server returned unexpected enclosing function: ${JSON.stringify(enclosingFunction)}`);
     }
+    const functionDocumentation = await connection.sendRequest('lpc/functionDocumentation', {
+        textDocument: { uri }
+    });
+    if (!functionDocumentation?.currentFile?.entries?.some(entry => entry.name === 'query')) {
+        throw new Error(`Rust server returned unexpected function documentation: ${JSON.stringify(functionDocumentation)}`);
+    }
     const workspaceDiagnostics = await connection.sendRequest('lpc/workspaceDiagnostics', {
         uriPrefix: 'file:///workspace/'
     });

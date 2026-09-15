@@ -506,6 +506,15 @@ fn handle_request(
         );
     }
 
+    if request.method == "lpc/functionDocumentation" {
+        let params: DocumentVariablesParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.function_documentation_lookup(&params.text_document.uri),
+        );
+    }
+
     if request.method == "lpc/workspaceDiagnostics" {
         let params: WorkspaceDiagnosticsParams = serde_json::from_value(request.params)?;
         return send_ok(

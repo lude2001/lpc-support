@@ -50,6 +50,38 @@ pub struct FunctionRange {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FunctionDocumentationEntry {
+    pub name: String,
+    pub signature: String,
+    pub parameters: Vec<String>,
+    pub documentation: Option<String>,
+    pub documentation_range: Option<Range>,
+    pub return_objects: Vec<String>,
+    pub range: Range,
+    pub selection_range: Range,
+    pub has_body: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FunctionDocumentationGroup {
+    pub uri: String,
+    pub source_kind: &'static str,
+    pub depth: usize,
+    pub parent_uri: Option<String>,
+    pub entries: Vec<FunctionDocumentationEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FunctionDocumentationLookup {
+    pub current_file: FunctionDocumentationGroup,
+    pub inherited_groups: Vec<FunctionDocumentationGroup>,
+    pub include_groups: Vec<FunctionDocumentationGroup>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Diagnostic {
     pub range: Range,
     pub severity: u32,
@@ -419,6 +451,115 @@ impl AnalysisDatabase {
             name: symbol.name.clone(),
             range: byte_range_to_lsp(&file.source, symbol.declaration.clone()),
         })
+    }
+
+    pub fn function_documentation_lookup(
+        &mut self,
+        uri: &str,
+    ) -> Option<FunctionDocumentationLookup> {
+        self.metrics.query_count += 1;
+        let current_file = self.function_documentation_group(uri, "local", 0, None)?;
+        let (forward, inherit_forward) = {
+            let graph = self.dependency_graph();
+            (graph.forward.clone(), graph.inherit_forward.clone())
+        };
+        let inherited_groups = self
+            .documentation_dependencies(uri, &forward, &inherit_forward, true)
+            .into_iter()
+            .filter_map(|(target, depth, parent)| {
+                self.function_documentation_group(&target, "inherit", depth, Some(parent))
+            })
+            .collect();
+        let include_groups = self
+            .documentation_dependencies(uri, &forward, &inherit_forward, false)
+            .into_iter()
+            .filter_map(|(target, depth, parent)| {
+                self.function_documentation_group(&target, "include", depth, Some(parent))
+            })
+            .collect();
+        Some(FunctionDocumentationLookup {
+            current_file,
+            inherited_groups,
+            include_groups,
+        })
+    }
+
+    fn function_documentation_group(
+        &self,
+        uri: &str,
+        source_kind: &'static str,
+        depth: usize,
+        parent_uri: Option<String>,
+    ) -> Option<FunctionDocumentationGroup> {
+        let file = self.files.get(uri)?;
+        let entries = file
+            .symbols
+            .iter()
+            .filter(|symbol| symbol.kind == SymbolKind::Function && !symbol.local)
+            .map(|symbol| {
+                let (documentation, documentation_range) =
+                    leading_doc_comment_with_range(&file.source, symbol.declaration.start)
+                        .map(|(comment, range)| {
+                            (
+                                Some(comment.to_owned()),
+                                Some(byte_range_to_lsp(&file.source, range)),
+                            )
+                        })
+                        .unwrap_or((None, None));
+                FunctionDocumentationEntry {
+                    name: symbol.name.clone(),
+                    signature: symbol.detail.clone(),
+                    parameters: symbol.parameters.clone(),
+                    documentation,
+                    documentation_range,
+                    return_objects: symbol.return_objects.clone(),
+                    range: byte_range_to_lsp(&file.source, symbol.declaration.clone()),
+                    selection_range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
+                    has_body: symbol.has_body,
+                }
+            })
+            .collect();
+        Some(FunctionDocumentationGroup {
+            uri: uri.to_owned(),
+            source_kind,
+            depth,
+            parent_uri,
+            entries,
+        })
+    }
+
+    fn documentation_dependencies(
+        &self,
+        origin: &str,
+        forward: &HashMap<String, HashSet<String>>,
+        inherit_forward: &HashMap<String, HashSet<String>>,
+        inherits: bool,
+    ) -> Vec<(String, usize, String)> {
+        let mut visited = HashSet::from([origin.to_owned()]);
+        let mut queue = std::collections::VecDeque::from([(origin.to_owned(), 0_usize)]);
+        let mut output = Vec::new();
+        while let Some((parent, depth)) = queue.pop_front() {
+            let mut targets = if inherits {
+                inherit_forward.get(&parent).cloned().unwrap_or_default()
+            } else {
+                let mut includes = forward.get(&parent).cloned().unwrap_or_default();
+                if let Some(inherited) = inherit_forward.get(&parent) {
+                    includes.retain(|target| !inherited.contains(target));
+                }
+                includes
+            }
+            .into_iter()
+            .collect::<Vec<_>>();
+            targets.sort();
+            for target in targets {
+                if !visited.insert(target.clone()) {
+                    continue;
+                }
+                output.push((target.clone(), depth + 1, parent.clone()));
+                queue.push_back((target, depth + 1));
+            }
+        }
+        output
     }
 
     pub fn workspace_diagnostics(&mut self, uri_prefix: &str) -> Vec<WorkspaceDiagnosticsEntry> {
@@ -2903,12 +3044,19 @@ fn leading_documentation(source: &str, declaration_start: usize) -> Option<Strin
 }
 
 fn leading_doc_comment(source: &str, declaration_start: usize) -> Option<&str> {
+    leading_doc_comment_with_range(source, declaration_start).map(|(comment, _)| comment)
+}
+
+fn leading_doc_comment_with_range(
+    source: &str,
+    declaration_start: usize,
+) -> Option<(&str, std::ops::Range<usize>)> {
     let prefix = source.get(..declaration_start)?.trim_end();
     if !prefix.ends_with("*/") {
         return None;
     }
     let comment_start = prefix.rfind("/**")?;
-    Some(&prefix[comment_start..])
+    Some((&prefix[comment_start..], comment_start..prefix.len()))
 }
 
 fn leading_return_objects(source: &str, declaration_start: usize) -> Vec<String> {
@@ -4944,6 +5092,78 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "unusedVar")
+        );
+    }
+
+    #[test]
+    fn exposes_function_documentation_for_current_inherited_and_included_files() {
+        let source = concat!(
+            "inherit \"/std/base\";\n",
+            "#include \"/include/shared.h\"\n",
+            "/**\n",
+            " * @brief Local documentation.\n",
+            " * @param int value Input value.\n",
+            " * @return string Result text.\n",
+            " */\n",
+            "string local_helper(int value) { return \"ok\"; }\n",
+        );
+        let mut analysis = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, dependency_source) in [
+            (
+                "file:///mud/std/base.c",
+                "/** @brief Inherited documentation. */\nint inherited_helper() { return 1; }\n",
+            ),
+            (
+                "file:///mud/include/shared.h",
+                "/** @brief Included documentation. */\nstring included_helper(string name);\n",
+            ),
+        ] {
+            let tree = parser.parse(dependency_source, None).unwrap();
+            analysis.index_source(uri, &tree, dependency_source);
+        }
+
+        let lookup = analysis
+            .function_documentation_lookup("file:///demo.c")
+            .expect("function documentation lookup should resolve");
+        let local = lookup
+            .current_file
+            .entries
+            .iter()
+            .find(|entry| entry.name == "local_helper")
+            .unwrap();
+        assert!(local.has_body);
+        assert_eq!(local.parameters, ["int value"]);
+        assert!(
+            local
+                .documentation
+                .as_deref()
+                .is_some_and(|text| text.contains("Local documentation"))
+        );
+        assert_eq!(local.range.start.line, 7);
+        assert_eq!(lookup.inherited_groups.len(), 1);
+        assert_eq!(lookup.inherited_groups[0].source_kind, "inherit");
+        assert_eq!(lookup.inherited_groups[0].depth, 1);
+        assert_eq!(
+            lookup.inherited_groups[0].parent_uri.as_deref(),
+            Some("file:///demo.c")
+        );
+        assert!(
+            lookup.inherited_groups[0]
+                .entries
+                .iter()
+                .any(|entry| entry.name == "inherited_helper")
+        );
+        assert_eq!(lookup.include_groups.len(), 1);
+        assert_eq!(lookup.include_groups[0].source_kind, "include");
+        assert!(
+            lookup.include_groups[0]
+                .entries
+                .iter()
+                .any(|entry| entry.name == "included_helper" && !entry.has_body)
         );
     }
 

@@ -4,6 +4,7 @@ import { createLpcCodeActionCommandHandlers } from '../codeActions';
 import { Services } from '../core/ServiceKeys';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { FunctionDocPanel } from '../functionDocPanel';
+import { RustFunctionDocumentationLookupProvider } from '../functionDocs/services/RustFunctionDocumentationLookupProvider';
 import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import type { LspClientManager } from '../lsp/client/LspClientManager';
 import { getLpcprjStartCommand, hasLpcprjCommand } from '../utils/lpcprj';
@@ -94,9 +95,12 @@ export function registerCommands(
 
     register(context, 'lpc.showFunctionDoc', async () => {
         await efunDocsManager.bundledDocsReady;
+        const lookupProvider = lspClientManager
+            ? new RustFunctionDocumentationLookupProvider(lspClientManager, efunDocsManager)
+            : efunDocsManager;
         FunctionDocPanel.createOrShow(
             context,
-            efunDocsManager,
+            lookupProvider,
             textDocumentHost,
             projectConfigSnapshotService
         );
