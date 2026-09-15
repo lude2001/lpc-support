@@ -43,6 +43,13 @@ pub struct WorkspaceDiagnosticsEntry {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FunctionRange {
+    pub name: String,
+    pub range: Range,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Diagnostic {
     pub range: Range,
     pub severity: u32,
@@ -73,6 +80,7 @@ struct Symbol {
     name: String,
     kind: SymbolKind,
     selection: std::ops::Range<usize>,
+    declaration: std::ops::Range<usize>,
     scope: std::ops::Range<usize>,
     detail: String,
     documentation: Option<String>,
@@ -390,6 +398,27 @@ impl AnalysisDatabase {
                 }
             })
             .collect()
+    }
+
+    pub fn enclosing_function(&mut self, uri: &str, position: Position) -> Option<FunctionRange> {
+        self.metrics.query_count += 1;
+        let file = self.files.get(uri)?;
+        let offset = lsp_position_to_byte(&file.source, position)?;
+        let symbol = file
+            .symbols
+            .iter()
+            .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.has_body)
+            .filter(|symbol| symbol.declaration.contains(&offset))
+            .min_by_key(|symbol| {
+                symbol
+                    .declaration
+                    .end
+                    .saturating_sub(symbol.declaration.start)
+            })?;
+        Some(FunctionRange {
+            name: symbol.name.clone(),
+            range: byte_range_to_lsp(&file.source, symbol.declaration.clone()),
+        })
     }
 
     pub fn workspace_diagnostics(&mut self, uri_prefix: &str) -> Vec<WorkspaceDiagnosticsEntry> {
@@ -2535,6 +2564,7 @@ fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                         name: text(name, source),
                         kind: SymbolKind::Type,
                         selection: name.byte_range(),
+                        declaration: node.byte_range(),
                         scope: 0..source.len(),
                         detail: source[node.start_byte()..node.end_byte().min(source.len())]
                             .split('{')
@@ -2628,6 +2658,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
         name: text(name, source),
         kind: SymbolKind::Function,
         selection: name.byte_range(),
+        declaration: node.byte_range(),
         scope: 0..source.len(),
         detail: source[node.start_byte()..body_start.min(source.len())]
             .trim()
@@ -2650,6 +2681,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                     name: text(parameter_name, source),
                     kind: SymbolKind::Parameter,
                     selection: parameter_name.byte_range(),
+                    declaration: parameter.byte_range(),
                     scope: scope.clone(),
                     detail: text(parameter, source),
                     documentation: None,
@@ -2742,6 +2774,7 @@ fn collect_foreach_variables(node: Node<'_>, source: &str, output: &mut Vec<Symb
         name: text(name, source),
         kind: SymbolKind::Variable,
         selection: name.byte_range(),
+        declaration: variable.byte_range(),
         scope: node.byte_range(),
         detail: text(variable, source),
         documentation: None,
@@ -2783,6 +2816,7 @@ fn collect_variable_declaration(
                 name: text(name, source),
                 kind: SymbolKind::Variable,
                 selection: name.byte_range(),
+                declaration: declarator.byte_range(),
                 scope: scope.clone(),
                 detail: format!("{type_text} {}", text(name, source)),
                 documentation: None,
@@ -4891,6 +4925,17 @@ mod tests {
                 .iter()
                 .any(|entry| !entry.unused && entry.name == "used")
         );
+        let function = analysis
+            .enclosing_function(
+                "file:///demo.c",
+                Position {
+                    line: 1,
+                    character: 35,
+                },
+            )
+            .unwrap();
+        assert_eq!(function.name, "demo");
+        assert_eq!(function.range.start.line, 1);
 
         let diagnostics = analysis.workspace_diagnostics("file:///demo");
         assert_eq!(diagnostics.len(), 1);

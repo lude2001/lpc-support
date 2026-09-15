@@ -5,6 +5,7 @@ import { Services } from '../core/ServiceKeys';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { FunctionDocPanel } from '../functionDocPanel';
 import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
+import type { LspClientManager } from '../lsp/client/LspClientManager';
 import { getLpcprjStartCommand, hasLpcprjCommand } from '../utils/lpcprj';
 
 type CompilationMode = 'local' | 'remote';
@@ -71,7 +72,11 @@ interface LocalCompileModeQuickPickItem extends vscode.QuickPickItem {
     value: LocalLpccpCompileMode;
 }
 
-export function registerCommands(registry: ServiceRegistry, context: vscode.ExtensionContext): void {
+export function registerCommands(
+    registry: ServiceRegistry,
+    context: vscode.ExtensionContext,
+    lspClientManager?: LspClientManager
+): void {
     const efunDocsManager = registry.get(Services.EfunDocs);
     const diagnostics = registry.get(Services.Diagnostics);
     const compiler = registry.get(Services.Compiler);
@@ -115,7 +120,7 @@ export function registerCommands(registry: ServiceRegistry, context: vscode.Exte
         }
     });
 
-    for (const command of createLpcCodeActionCommandHandlers(registry.get(Services.Analysis))) {
+    for (const command of createLpcCodeActionCommandHandlers(lspClientManager)) {
         register(context, command.id, command.handler);
     }
 

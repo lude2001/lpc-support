@@ -497,6 +497,15 @@ fn handle_request(
         );
     }
 
+    if request.method == "lpc/enclosingFunction" {
+        let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.enclosing_function(&params.text_document.uri, params.position),
+        );
+    }
+
     if request.method == "lpc/workspaceDiagnostics" {
         let params: WorkspaceDiagnosticsParams = serde_json::from_value(request.params)?;
         return send_ok(

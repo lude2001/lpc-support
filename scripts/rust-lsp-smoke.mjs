@@ -167,6 +167,13 @@ try {
         || !variables.some(item => item.name === 'local' && item.local === true)) {
         throw new Error(`Rust server returned unexpected variable inspection data: ${JSON.stringify(variables)}`);
     }
+    const enclosingFunction = await connection.sendRequest('lpc/enclosingFunction', {
+        textDocument: { uri },
+        position: { line: 1, character: 52 }
+    });
+    if (enclosingFunction?.name !== 'query' || enclosingFunction?.range?.start?.line !== 1) {
+        throw new Error(`Rust server returned unexpected enclosing function: ${JSON.stringify(enclosingFunction)}`);
+    }
     const workspaceDiagnostics = await connection.sendRequest('lpc/workspaceDiagnostics', {
         uriPrefix: 'file:///workspace/'
     });

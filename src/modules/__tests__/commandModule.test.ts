@@ -252,7 +252,7 @@ describe('registerCommands', () => {
         expect(vscode.window.createTreeView).not.toHaveBeenCalled();
         expect(vscode.workspace.onDidChangeConfiguration).not.toHaveBeenCalled();
         expect(vscode.window.createStatusBarItem).not.toHaveBeenCalled();
-        expect(createLpcCodeActionCommandHandlers).toHaveBeenCalledWith(registry.get(Services.Analysis));
+        expect(createLpcCodeActionCommandHandlers).toHaveBeenCalledWith(undefined);
         expect(registeredCommandIds).not.toContain('lpc.addServer');
         expect(registeredCommandIds).not.toContain('lpc.selectServer');
         expect(registeredCommandIds).not.toContain('lpc.removeServer');

@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { GLM4Client } from './glm4Client';
-import { FunctionInfoExtractor } from './language/documentation/FunctionInfoExtractor';
-import type { DocumentAnalysisService } from './semantic/documentAnalysisService';
+import type { LspClientManager } from './lsp/client/LspClientManager';
 
 const RENAME_COMMAND_IDS = ['lpc.renameVarToSnakeCase', 'lpc.renameVarToCamelCase'] as const;
 
@@ -11,9 +10,8 @@ export interface LpcCommandHandler {
 }
 
 export function createLpcCodeActionCommandHandlers(
-    analysisService: Pick<DocumentAnalysisService, 'getSyntaxDocument'>
+    lspClientManager: Pick<LspClientManager, 'sendRequest'> | undefined
 ): LpcCommandHandler[] {
-    const functionInfoExtractor = new FunctionInfoExtractor(analysisService);
     return [
         ...RENAME_COMMAND_IDS.map((id) => ({
             id,
@@ -21,7 +19,7 @@ export function createLpcCodeActionCommandHandlers(
         })),
         {
             id: 'lpc.generateJavadoc',
-            handler: () => generateJavadocCommand(functionInfoExtractor)
+            handler: () => generateJavadocCommand(lspClientManager)
         }
     ];
 }
@@ -44,7 +42,9 @@ function createRenameCommandHandler(): LpcCommandHandler['handler'] {
     };
 }
 
-async function generateJavadocCommand(functionInfoExtractor: FunctionInfoExtractor): Promise<void> {
+async function generateJavadocCommand(
+    lspClientManager: Pick<LspClientManager, 'sendRequest'> | undefined
+): Promise<void> {
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.languageId !== 'lpc') {
         vscode.window.showErrorMessage('请在LPC文件中选择一个函数');
@@ -69,14 +69,38 @@ async function generateJavadocCommand(functionInfoExtractor: FunctionInfoExtract
         }, async (progress) => {
             progress.report({ increment: 0 });
 
-            let functionInfo: any = null;
+            let functionText: string | undefined;
+            let functionStartLine: number | undefined;
             if (!selection.isEmpty) {
-                functionInfo = functionInfoExtractor.parseFunctionFromSelection(editor.document, selection);
+                functionText = editor.document.getText(selection);
+                functionStartLine = selection.start.line;
             } else {
-                functionInfo = functionInfoExtractor.parseFunctionFromCursor(editor.document, selection.active);
+                const functionRange = await lspClientManager?.sendRequest<{
+                    name: string;
+                    range: {
+                        start: { line: number; character: number };
+                        end: { line: number; character: number };
+                    };
+                }>('lpc/enclosingFunction', {
+                    textDocument: { uri: editor.document.uri.toString() },
+                    position: {
+                        line: selection.active.line,
+                        character: selection.active.character
+                    }
+                });
+                if (functionRange) {
+                    const range = new vscode.Range(
+                        functionRange.range.start.line,
+                        functionRange.range.start.character,
+                        functionRange.range.end.line,
+                        functionRange.range.end.character
+                    );
+                    functionText = editor.document.getText(range);
+                    functionStartLine = range.start.line;
+                }
             }
 
-            if (!functionInfo) {
+            if (!functionText || functionStartLine === undefined) {
                 vscode.window.showErrorMessage('无法找到函数定义，请确保光标位于函数内部或选择完整的函数');
                 return;
             }
@@ -96,10 +120,9 @@ async function generateJavadocCommand(functionInfoExtractor: FunctionInfoExtract
             const glm4Client = GLM4Client.fromVSCodeConfigWithModel(selectedModel);
             progress.report({ increment: 50, message: `使用模型 ${selectedModel} 调用API...` });
 
-            const javadocComment = await glm4Client.generateJavadoc(functionInfo.fullText);
+            const javadocComment = await glm4Client.generateJavadoc(functionText);
             progress.report({ increment: 80, message: '插入注释...' });
 
-            const functionStartLine = functionInfo.line ?? selection.active.line;
             const insertPosition = new vscode.Position(functionStartLine, 0);
             const indent = getLineIndentation(editor.document, functionStartLine);
             const formattedComment = formatJavadocComment(javadocComment, indent);

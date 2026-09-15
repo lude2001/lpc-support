@@ -209,12 +209,13 @@ describe('document analysis ownership guards', () => {
         expect(productionCallSites).toEqual([]);
     });
 
-    test('host code-action commands delegate function extraction to documentation services', () => {
+    test('host code-action commands delegate enclosing function extraction to Rust LSP', () => {
         const codeActionsSource = fs.readFileSync(path.join(srcRoot, 'codeActions.ts'), 'utf8');
 
         expect(codeActionsSource).not.toContain('SyntaxKind');
         expect(codeActionsSource).not.toContain('FunctionDeclaration');
-        expect(codeActionsSource).toContain('FunctionInfoExtractor');
+        expect(codeActionsSource).not.toContain('FunctionInfoExtractor');
+        expect(codeActionsSource).toContain("'lpc/enclosingFunction'");
     });
 
     test('inheritance resolution does not read include paths back out of MacroManager', () => {

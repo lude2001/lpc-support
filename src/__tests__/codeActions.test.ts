@@ -8,9 +8,7 @@ describe('createLpcCodeActionCommandHandlers', () => {
     });
 
     test('returns rename and Javadoc handlers without registering commands directly', () => {
-        const handlers = createLpcCodeActionCommandHandlers({
-            getSyntaxDocument: jest.fn()
-        });
+        const handlers = createLpcCodeActionCommandHandlers({ sendRequest: jest.fn() });
 
         expect(handlers.map(handler => handler.id)).toEqual([
             'lpc.renameVarToSnakeCase',
