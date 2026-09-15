@@ -127,6 +127,13 @@ async function main() {
                 { timedOut: true, itemCount: 0, isIncomplete: false }
             )
             : undefined;
+        const functionDocumentation = options.server === 'rust'
+            ? await runStage(
+                'functionDocumentation',
+                () => requestFunctionDocumentation(server.connection, uri),
+                { timedOut: true, currentFileCount: 0, inheritedGroupCount: 0, inheritedEntryCount: 0, includeGroupCount: 0, includeEntryCount: 0, documentedEntryCount: 0 }
+            )
+            : undefined;
 
         let diagnostics;
         if (options.perf) {
@@ -162,6 +169,7 @@ async function main() {
             hover,
             signatureHelp,
             completion,
+            functionDocumentation,
             semanticTokens,
             performanceStages: options.perf ? performanceStages : undefined,
             performanceBenchmarks
@@ -607,6 +615,28 @@ async function requestSignatureHelp(connection, uri, position) {
     };
 }
 
+async function requestFunctionDocumentation(connection, uri) {
+    const result = await connection.sendRequest('lpc/functionDocumentation', {
+        textDocument: { uri }
+    });
+    const currentEntries = result?.currentFile?.entries ?? [];
+    const inheritedGroups = result?.inheritedGroups ?? [];
+    const includeGroups = result?.includeGroups ?? [];
+    const allEntries = [
+        ...currentEntries,
+        ...inheritedGroups.flatMap(group => group.entries ?? []),
+        ...includeGroups.flatMap(group => group.entries ?? [])
+    ];
+    return {
+        currentFileCount: currentEntries.length,
+        inheritedGroupCount: inheritedGroups.length,
+        inheritedEntryCount: inheritedGroups.reduce((total, group) => total + (group.entries?.length ?? 0), 0),
+        includeGroupCount: includeGroups.length,
+        includeEntryCount: includeGroups.reduce((total, group) => total + (group.entries?.length ?? 0), 0),
+        documentedEntryCount: allEntries.filter(entry => Boolean(entry.documentation)).length
+    };
+}
+
 async function requestCompletion(connection, uri, position, includeLabels) {
     const result = await connection.sendRequest(CompletionRequest.type, {
         textDocument: { uri },
@@ -797,6 +827,7 @@ function createReport({
     hover,
     signatureHelp,
     completion,
+    functionDocumentation,
     semanticTokens,
     performanceStages,
     performanceBenchmarks
@@ -836,7 +867,8 @@ function createReport({
             prepareRename,
             hover,
             signatureHelp,
-            completion
+            completion,
+            functionDocumentation
         },
         performance: performanceStages?.map(stage => sanitizePerformanceStage(project, stage)),
         performanceBenchmarks: performanceBenchmarks?.map(stage => sanitizePerformanceStage(project, stage))
@@ -1075,6 +1107,13 @@ function renderMarkdown(report) {
         }
     } else {
         lines.push('- Completion: not requested');
+    }
+
+    if (report.requests.functionDocumentation) {
+        const docs = report.requests.functionDocumentation;
+        lines.push(`- Function docs: local ${docs.currentFileCount}; inherit ${docs.inheritedGroupCount} groups/${docs.inheritedEntryCount} entries; include ${docs.includeGroupCount} groups/${docs.includeEntryCount} entries; documented ${docs.documentedEntryCount}${docs.timedOut ? ' (timed out)' : ''}`);
+    } else {
+        lines.push('- Function docs: not requested');
     }
 
     if (Array.isArray(report.performance) && report.performance.length > 0) {
