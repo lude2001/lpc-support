@@ -17,6 +17,8 @@ The extension now runs high-frequency analysis in the Rust language server bundl
 
 For source development, run `npm run build:rust` to create the current platform binary under `dist/bin`. `npm run package` builds the native server and emits a VSIX targeted at the current operating system and CPU architecture.
 
+To audit a real project, run `npm run probe:lsp -- --server rust --project <project-root> --file <LPC-path> --position <line:column> --perf --perf-iterations 30`. The privacy-safe report records workspace startup wall time, process CPU time and average single-core utilization, warm p50/p95 latency, timeouts, rebuild counts, and current/peak resident memory without source text or completion labels.
+
 ## Feature Overview
 
 ### Editor Features

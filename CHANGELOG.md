@@ -28,6 +28,10 @@
 - LSP 静态探针支持 `--perf-iterations` 重复采样，输出 warm mean/p50/p95/max、超时数、采样期间的解析/语义重建增量，并由 Rust 健康状态报告当前与峰值常驻内存。
 - “显示所有 LPC 变量”和“扫描文件夹中未使用的变量”改为直接消费 Rust 常驻分析快照，不再启动第二套 TypeScript diagnostics/parser；模拟 efun 的 TypeScript 扫描也不再随扩展激活自动运行，只有文档中心明确查询时才按需加载。
 - “生成 Javadoc”在无选区时通过 Rust 查询光标所在函数的精确声明范围，扩展宿主不再为该命令建立 TypeScript 语法树；显式选区仍直接使用用户选择的源码。
+- 函数文档中心改为通过 Rust 工作区索引读取当前文件、inherit、include 与模拟 efun 的签名和 Javadoc；扩展激活不再实例化旧 TypeScript frontend、semantic snapshot 或函数文档源码分析服务。
+- 静态对象候选可继续通过数组/映射字面量、确定索引、后续索引赋值和嵌套映射到数组的索引访问传播；动态索引仍保守拒绝猜测。
+- `async_getdir`、`async_read`、`async_write`、`call_out` 与 `call_out_walltime` 文档补充 Promise 重载，参数数量检查与当前 FluffOS 声明保持兼容。
+- LSP 性能探针新增工作区启动墙钟时间、原生服务进程 CPU 时间和平均单核利用率，便于在受限 CPU 条件下验证后台索引不会持续满核。
 
 ## [0.52.13] - 2026-08-15
 

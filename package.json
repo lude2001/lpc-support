@@ -561,6 +561,7 @@
     "probe:lsp": "node scripts/lsp-probe.mjs",
     "audit:efun-arity": "node scripts/audit-efun-arity.mjs",
     "audit:efun-arity:strict": "node scripts/audit-efun-arity.mjs --strict",
+    "audit:efun-arity:strict-arity": "node scripts/audit-efun-arity.mjs --strict-arity",
     "audit:rust-syntax": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --release --package lpc-language-server --example syntax_audit --"
   },
   "license": "MIT",

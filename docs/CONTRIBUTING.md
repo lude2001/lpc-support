@@ -1,212 +1,104 @@
 # 开发贡献指南
 
-## 当前语言架构
+## 当前生产架构
 
-### 分层模型
+LPC Support 的生产语言能力采用 Rust + TypeScript 分工：
 
-当前语言基础设施采用明确分层，而不是把 parse tree、AST、语义快照混在一起：
+- `src/extension.ts`、`src/modules/` 与 `src/lsp/client/` 负责 VS Code 激活、配置同步、命令、UI 和原生进程生命周期。
+- `rust/crates/lpc-language-server/` 是唯一生产语言服务器入口。
+- `rust/crates/lpc-preprocessor/`、`lpc-analysis/` 与 `lpc-formatter/` 分别负责预处理、版本化语义/索引和 CST 驱动格式化。
+- `rust/grammar/lpc/` 维护 Tree-sitter LPC grammar；生成产物通过 grammar 测试验证，不手改生成代码。
+- `src/parser/`、`src/syntax/`、`src/semantic/` 和旧 TypeScript LSP 只保留为开发期行为基线及测试夹具，不得重新接回扩展激活路径或发布 VSIX。
 
-1. `ParsedDocument`
-   - 定义位置：`src/parser/types.ts`
-   - 生产入口：`src/parser/ParsedDocumentService.ts`
-   - 职责：统一封装文本、token、parse tree、parse diagnostics、trivia 访问器与解析缓存信息
-2. `SyntaxDocument`
-   - 定义位置：`src/syntax/types.ts`
-   - 构建入口：`src/syntax/SyntaxBuilder.ts`
-   - 职责：把 parse tree 转成稳定的源码结构模型，节点范围基于 token span，而不是文本搜索
-3. `SemanticSnapshot`
-   - 定义位置：`src/semantic/semanticSnapshot.ts`
-   - 构建入口：`src/semantic/SemanticModelBuilder.ts`
-   - 职责：在 syntax 层之上构建符号表、作用域、类型摘要、继承摘要和语义诊断输入
-4. Provider / orchestration
-   - 典型入口：`src/modules/languageModule.ts`、`src/lsp/server/bootstrap/registerCapabilities.ts`、`src/diagnostics/DiagnosticsOrchestrator.ts`
-   - 职责：LSP server 与宿主侧装配只做能力接线，不再自建 parser、cache 或伪 AST 真源
+生产代码必须遵守以下约束：
 
-### 当前主路径约束
+- 不在 TypeScript Provider、命令或 UI 中解析 LPC 源码或扫描全文推断结构。
+- 不在查询处理时扫描整个工作区；所有跨文件能力消费 Rust 常驻索引及其依赖失效机制。
+- 不把动态 LPC 行为猜成唯一结果。无法静态证明时返回空结果或保守候选集合。
+- parser、syntax、semantic 与 workspace index 保持独立职责，不统称为新的“AST”。
+- 项目事实优先来自工作区 `lpc-support.json` 与其同步的 `config.hell`，不得恢复旧设置作为生产真源。
 
-- 生产主路径不得新增 `new LPCLexer(...)` / `new LPCParser(...)`
-- 生产主路径不得重新引入任何 legacy parse cache facade
-- 生产主路径不得新增 `document.getText().indexOf(...)` 一类范围反推逻辑
-- 生产主路径不得依赖 `SimpleASTManager` 或 `LPCParserUtil`
+## Rust 语言能力改动
 
-允许的受控例外：
+新增或修改语言行为时：
 
-- 调试工具
-- 手工实验或 legacy demo
-- 测试夹具
+1. 在对应 Rust crate 中实现事实提取或查询，不在 TypeScript 侧增加第二套逻辑。
+2. 让诊断、悬停、签名、补全、跳转、引用和重命名尽量共享同一解析身份与候选集合。
+3. 对不确定路径使用保守降级，并为误报、跨作用域污染和歧义目标补负向测试。
+4. 涉及 include、inherit、宏或配置的变化时，同时验证正反向依赖失效和未保存文档版本。
+5. 用户可感知变化同步更新 `CHANGELOG.md`。
 
-## 模块职责
-
-### `src/parser/`
-
-- `ParsedDocumentService.ts`
-  - 项目唯一可信解析入口
-  - 统一维护解析缓存、版本感知和 parse diagnostics
-- `TokenTriviaIndex.ts`
-  - 提供 leading/trailing/intervening trivia 访问
-- `types.ts`
-  - `ParsedDocument`、`ParsedDocumentStats` 等正式契约
-
-### `src/syntax/`
-
-- `SyntaxBuilder.ts`
-  - 负责把 parse tree 转成 syntax 节点
-- `syntaxNode.ts` / `types.ts` / `trivia.ts`
-  - 定义 syntax 节点、token range、trivia 契约
-
-### `src/semantic/`
-
-- `SemanticModelBuilder.ts`
-  - 负责从 syntax 构建语义模型
-- `semanticSnapshot.ts`
-  - 定义 `SemanticSnapshot` 和向兼容快照的转换逻辑
-
-### `src/ast/`
-
-这是历史目录，不再代表“唯一语言结构层”。
-
-- `ASTManager` 当前是 Provider 适配 facade
-  - 可以继续作为主路径入口使用
-  - 但它必须转发到 parser/syntax/semantic 服务，而不是维护第二真源
-- `simpleAstManager.ts`
-  - 已明确为 legacy 兼容/实验模块
-  - 禁止新功能依赖
-
-### 已移除的 legacy parse cache facade
-
-- 历史上的 `src/parseCache.ts` 与 `src/core/ParseCache.ts` 已移除
-- 不要以“临时兼容”名义重新恢复这两层 facade
-- `src/parser/LPCParserUtil.ts`
-  - 仅限 parse-tree 调试辅助
-
-如果新增功能需要“快速拿到 parse tree”，优先做法是：
-
-1. 先看能否从 `ASTManager.parseDocument()` 获取
-2. 再看能否直接通过 `ParsedDocumentService` 获取
-3. 不要重新引入任何 parse cache facade
-
-## 命名约定
-
-### 必须统一的术语
-
-- `parse tree`
-  - ANTLR 原始语法树
-  - 只表示 parser 产物
-- `ParsedDocument`
-  - parse tree + token + diagnostics + trivia 访问能力的统一容器
-- `syntax tree` / `SyntaxDocument`
-  - 稳定的源码结构模型
-- `SemanticSnapshot`
-  - 以 syntax 为输入的语义摘要
-
-### 应避免的含混命名
-
-- 不要再把 `AST` 当成 parse tree、syntax tree、semantic snapshot 的统称
-- 新代码不要把新的 parser/syntax/semantic 输出命名为泛化的 `ast`
-- `DocumentSemanticSnapshot`
-  - 当前仍存在，主要用于兼容现有 completion/index 边界
-  - 新基础设施命名优先使用 `SemanticSnapshot`
-
-### 文件与类型命名
-
-- 服务和 Provider 文件继续使用 `camelCase.ts`
-- 类名、接口名、类型名使用 `PascalCase`
-- 生成文件维持 ANTLR 默认命名，不手改
-- 测试文件统一使用 `*.test.ts` 或 `*.spec.ts`
-
-## 新功能接入建议
-
-### 添加新的语言能力时
-
-1. 先判断需要的是 parser、syntax 还是 semantic 层信息
-2. 优先复用已有统一服务
-3. 仅在 Provider 层组装 VS Code 对象
-4. 为主路径变更补针对性测试
-
-推荐判断方式：
-
-- 只需要 token、parse diagnostics、trivia：用 `ParsedDocument`
-- 需要稳定声明结构、块结构、token-backed range：用 `SyntaxDocument`
-- 需要符号、作用域、类型、继承：用 `SemanticSnapshot`
-
-### 不推荐的做法
-
-- 在 Provider 内直接创建 parser
-- 在业务逻辑里重新扫描全文做结构推断
-- 在旧 facade 上继续叠加新缓存或新解析逻辑
-- 让 legacy 模块重新承担生产真源职责
-
-## 诊断与 Provider 规则
-
-### 诊断
-
-- `DiagnosticsOrchestrator` 统一复用 `ASTManager.parseDocument()`
-- parser errors 来源于 `ParsedDocument` / snapshot parse diagnostics
-- 新诊断规则优先作为 collector 接入，不要散落在 `extension.ts`
-
-### Provider
-
-- completion / definition / reference / rename / semantic tokens / symbol / folding 应统一消费 parser/syntax/semantic 服务
-- 若某个 Provider 需要临时兼容层，兼容层只能转发，不能再生一套真源
-
-## 测试约定
-
-当前重构保护网的重点测试包括：
-
-- `src/__tests__/parsedDocumentService.test.ts`
-  - 锁定统一解析服务与 trivia 契约
-- `src/__tests__/syntaxBuilder.test.ts`
-  - 锁定 syntax 节点结构与 token-backed range
-- `src/__tests__/semanticModelBuilder.test.ts`
-  - 锁定 symbol / scope / type / inherit 摘要
-- `src/__tests__/providerIntegration.test.ts`
-  - 锁定生产主路径不回退到 legacy parse cache 思路
-- `src/lsp/__tests__/singlePathCutover.test.ts`
-  - 锁定公开运行面不再暴露 classic / hybrid 多模式入口
-
-新增语言基础设施或 Provider 变更时，至少覆盖下面之一：
-
-- parser/trivia 契约
-- syntax range 稳定性
-- semantic 摘要正确性
-- 生产主路径不回退 legacy 入口
-
-## formatter 接入边界
-
-本仓库 formatter 已经落在正式主路径上，后续修改时应遵守：
-
-- 结构来源以 `SyntaxDocument` 为主
-- 注释、空白、换行和指令来源以 `TokenTriviaIndex` / trivia 模型为主
-- 不要为 formatter 再造一套 parser 或文本切片结构层
-- 如需语义辅助，应把 `SemanticSnapshot` 视为可选增强，而不是格式化主结构真源
-
-## 快速开始
+常用验证：
 
 ```bash
-npm install
-npm run build
-npm test
+npm run check
+npm run check:rust
+npm run test:rust
+npm run test:rust-formatter
+npm run test:rust-smoke
+npm test -- --runInBand
 ```
 
-开发扩展时可使用：
+真实项目问题优先使用脱敏静态探针：
 
 ```bash
-npm run watch
+npm run probe:lsp -- --server rust --project <mudlib-root> --file <mudlib-path> --position <line:column>
+npm run probe:lsp -- --server rust --project <mudlib-root> --file <mudlib-path> --position <line:column> --perf --perf-iterations 30 --semantic-tokens
 ```
 
-然后在 VS Code 中按 `F5` 启动 Extension Development Host。
+不要用 driver、`lpccp` 或运行时热编译来判断编辑器静态能力。探针报告默认不保存真实根路径、源码、函数体或补全候选标签。
+
+## Formatter 边界
+
+生产 formatter 位于 `rust/crates/lpc-formatter/`，结构真源是 Tree-sitter CST。修改时必须验证：
+
+- 语法错误或不安全预处理结构会拒绝格式化，而不是猜测并改坏源码。
+- heredoc 正文、关闭标记、CRLF 和尾部换行保持不变。
+- 全文与 range formatting 对完整节点保持一致。
+- 输出再次格式化应幂等，并能重新解析为无错误语法树。
+
+重点真实样例为 `test/lpc_code/yifeng-jian.c` 与 `test/lpc_code/meridiand.c`。
+
+## TypeScript 宿主改动
+
+TypeScript 可以负责：
+
+- VS Code API 对象、Webview、命令和状态栏。
+- Rust LSP 请求/通知适配、配置同步和错误提示。
+- bundled efun JSON 的展示层物化，但不得解析 LPC 模拟函数源码。
+
+如果宿主侧需要新的源码事实，先增加一个最小、脱敏的 Rust 自定义请求，再在 TypeScript 中做展示适配。
+
+## 打包与平台
+
+`npm run package` 会清理产物、构建当前平台 Rust release binary，并生成带平台标签的 VSIX。发布包必须：
+
+- 只携带当前 `win32-x64`、`linux-x64`、`linux-arm64`、`darwin-x64` 或 `darwin-arm64` 原生二进制。
+- 不包含旧 `dist/lsp/server.js`。
+- 在缺失或不匹配二进制时给出明确错误，不静默回退到 TypeScript 分析。
+
+平台矩阵由 `.github/workflows/ci.yml` 构建。当前平台交付前还需验证 VSIX 安装、同版本覆盖升级、initialize、health、shutdown 和 exit。
+
+## 命名和测试
+
+- Rust 类型使用 `PascalCase`，函数与模块使用 `snake_case`；TypeScript 遵循仓库既有 `PascalCase`/`camelCase`。
+- 测试文件使用 `*.test.ts`、`*.spec.ts` 或 Rust `#[test]`。
+- Tree-sitter range 使用字节偏移，LSP 边界必须正确转换 UTF-16 行列。
+- 不手改 `src/antlr/` 或 Tree-sitter 生成文件。
+
+至少为每个行为变化覆盖一个正向场景和一个保守降级场景。涉及生产切换时还要运行主路径 ownership guard，确认扩展 bundle 没有重新引入 ANTLR 或旧 TypeScript 分析服务。
 
 ## 提交流程
 
-1. 在当前架构规则下实现变更
-2. 为语言主路径补测试
-3. 运行相关测试或构建
-4. 更新 `CHANGELOG.md` 或相关文档（如果有用户可见变化）
-5. 使用 Conventional Commits 提交
+1. 在独立分支实现并补测试。
+2. 运行与风险相称的 Rust、TypeScript、真实样例和真实项目探针。
+3. 检查 `git diff --check` 与发布 bundle 内容。
+4. 更新用户文档和 `CHANGELOG.md`。
+5. 使用 Conventional Commits 提交。
 
 ## 参考文档
 
 - [README](../README.md)
+- [Rust LSP 一次性重构实施计划](rust-lsp-implementation-plan.md)
 - [.spec-workflow/steering/tech.md](../.spec-workflow/steering/tech.md)
 - [.spec-workflow/steering/structure.md](../.spec-workflow/steering/structure.md)
-- [.spec-workflow/specs/parser-syntax-foundation-refactor/design.md](../.spec-workflow/specs/parser-syntax-foundation-refactor/design.md)

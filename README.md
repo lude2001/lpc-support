@@ -17,7 +17,7 @@ LPC Support 是面向 VS Code 的 LPC / FluffOS 语言扩展，提供日常 mudl
 
 开发源码时先运行 `npm run build:rust` 生成 `dist/bin` 下的当前平台二进制。`npm run package` 会自动构建原生服务并生成当前操作系统与 CPU 架构专用的 VSIX。
 
-真实项目性能复核可使用 `npm run probe:lsp -- --server rust --project <项目根目录> --file <LPC路径> --position <行:列> --perf --perf-iterations 30`。报告会在脱敏前提下记录单次阶段耗时、warm p50/p95、超时数、查询期间的解析/语义重建次数，以及 Rust 进程当前和峰值常驻内存。
+真实项目性能复核可使用 `npm run probe:lsp -- --server rust --project <项目根目录> --file <LPC路径> --position <行:列> --perf --perf-iterations 30`。报告会在脱敏前提下记录工作区启动墙钟时间、进程 CPU 时间与平均单核利用率、单次阶段耗时、warm p50/p95、超时数、查询期间的解析/语义重建次数，以及 Rust 进程当前和峰值常驻内存。
 
 ## 功能概览
 

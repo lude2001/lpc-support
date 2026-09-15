@@ -37,6 +37,7 @@ const DEFAULT_DIAGNOSTIC_TIMEOUT_MS = 2500;
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
 
 async function main() {
+    const probeStartedAt = performance.now();
     const options = parseOptions(process.argv.slice(2), process.env);
     const project = loadProject(options.projectRoot);
     const targetFile = resolveProbeFile(project, options.file);
@@ -53,7 +54,9 @@ async function main() {
     fs.mkdirSync(options.outputDir, { recursive: true });
     ensureLanguageServer(options.server);
 
+    const serverStartedAt = performance.now();
     const server = await startServer(project, options.server);
+    const startupWallMs = performance.now() - serverStartedAt;
     try {
         const diagnosticsPromise = server.waitForDiagnostics(uri, options.diagnosticTimeoutMs);
         const performanceStages = [];
@@ -156,6 +159,8 @@ async function main() {
                 ['completion', () => requestCompletion(server.connection, uri, position, false), { timedOut: true }]
             ], options.perfIterations, options.requestTimeoutMs)
             : undefined;
+        const processCpuTimeMs = readProcessCpuTimeMs(server.child.pid);
+        const probeWallMs = performance.now() - probeStartedAt;
 
         const report = createReport({
             project,
@@ -172,7 +177,15 @@ async function main() {
             functionDocumentation,
             semanticTokens,
             performanceStages: options.perf ? performanceStages : undefined,
-            performanceBenchmarks
+            performanceBenchmarks,
+            processMetrics: {
+                startupWallMs,
+                probeWallMs,
+                processCpuTimeMs,
+                averageCoreUtilization: Number.isFinite(processCpuTimeMs) && probeWallMs > 0
+                    ? processCpuTimeMs / probeWallMs
+                    : undefined
+            }
         });
 
         const jsonPath = path.join(options.outputDir, 'latest.json');
@@ -198,6 +211,43 @@ async function main() {
         }
     } finally {
         await server.dispose();
+    }
+}
+
+function readProcessCpuTimeMs(pid) {
+    if (!Number.isInteger(pid) || pid <= 0) {
+        return undefined;
+    }
+
+    try {
+        if (process.platform === 'win32') {
+            const output = execFileSync('powershell.exe', [
+                '-NoProfile',
+                '-NonInteractive',
+                '-Command',
+                `(Get-Process -Id ${pid} -ErrorAction Stop).TotalProcessorTime.TotalMilliseconds.ToString([Globalization.CultureInfo]::InvariantCulture)`
+            ], { encoding: 'utf8', windowsHide: true });
+            return Number(output.trim());
+        }
+
+        if (process.platform === 'linux') {
+            const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+            const fields = stat.slice(stat.lastIndexOf(') ') + 2).trim().split(/\s+/);
+            const ticksPerSecond = Number(execFileSync('getconf', ['CLK_TCK'], { encoding: 'utf8' }).trim());
+            const userTicks = Number(fields[11]);
+            const systemTicks = Number(fields[12]);
+            return ((userTicks + systemTicks) / ticksPerSecond) * 1000;
+        }
+
+        const output = execFileSync('ps', ['-o', 'time=', '-p', String(pid)], { encoding: 'utf8' }).trim();
+        const match = /^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$/.exec(output);
+        if (!match) {
+            return undefined;
+        }
+        const [, days = '0', hours = '0', minutes, seconds] = match;
+        return ((((Number(days) * 24) + Number(hours)) * 60 + Number(minutes)) * 60 + Number(seconds)) * 1000;
+    } catch {
+        return undefined;
     }
 }
 
@@ -830,7 +880,8 @@ function createReport({
     functionDocumentation,
     semanticTokens,
     performanceStages,
-    performanceBenchmarks
+    performanceBenchmarks,
+    processMetrics
 }) {
     return {
         generatedAt: new Date().toISOString(),
@@ -859,6 +910,7 @@ function createReport({
             documentCount: health?.documentCount,
             performance: sanitizeHealthPerformance(health?.performance)
         },
+        processMetrics,
         diagnostics: diagnostics.map((diagnostic) => sanitizeDiagnostic(project, diagnostic)),
         requests: {
             semanticTokens,
@@ -1042,6 +1094,9 @@ function renderMarkdown(report) {
         `- Documents: ${report.health.documentCount ?? '(unknown)'}`,
         `- Resident memory: ${formatBytes(report.health.performance?.processMemory?.residentBytes)}`,
         `- Peak resident memory: ${formatBytes(report.health.performance?.processMemory?.peakResidentBytes)}`,
+        `- Workspace startup wall time: ${formatDuration(report.processMetrics?.startupWallMs)}`,
+        `- Probe process CPU time: ${formatOptionalDuration(report.processMetrics?.processCpuTimeMs)}`,
+        `- Average server core utilization: ${formatRatio(report.processMetrics?.averageCoreUtilization)}`,
         '',
         '## Diagnostics',
         ''
@@ -1149,11 +1204,22 @@ function formatDuration(value) {
     return `${value.toFixed(1)}ms`;
 }
 
+function formatOptionalDuration(value) {
+    return Number.isFinite(value) ? formatDuration(value) : '(unavailable)';
+}
+
 function formatBytes(value) {
     if (!Number.isFinite(value) || value <= 0) {
         return '(unavailable)';
     }
     return `${(value / 1024 / 1024).toFixed(1)} MiB`;
+}
+
+function formatRatio(value) {
+    if (!Number.isFinite(value) || value < 0) {
+        return '(unavailable)';
+    }
+    return `${(value * 100).toFixed(1)}% of one logical core`;
 }
 
 function summarizePerformanceFiles(stage) {

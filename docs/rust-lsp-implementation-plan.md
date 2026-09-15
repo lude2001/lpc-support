@@ -227,13 +227,13 @@ rust/
 
 - Gate A：完成。Rust stdio server、TS sidecar、增量文档同步、health、构建和真实项目探针已接通。
 - Gate B：完成本次切换范围。Tree-sitter LPC grammar、增量 CST、复合条件编译求值与屏蔽、include facts、动态 heredoc token 和恒等源码映射已实现。真实项目在 `__PACKAGE_DB__` 配置下审计 6753 个 `.c/.h` 文件，语法错误文件为 0；CI 对仓库固定 LPC 样例执行严格审计。会改变源码长度的完整文本宏展开没有进入本次实现，宏事实由预处理层保留，语法层直接覆盖项目使用的函数式宏和字符串宏组合。
-- Gate C：进行中。document symbols、semantic tokens、folding、语法 diagnostics、未使用局部量、可证明的 literal 初始化/返回类型错误、已知函数参数数量诊断和对应 quick fix 已实现；更深的表达式类型流与完整行为差异测试仍待补齐。
-- Gate D：进行中。单后台线程工作区索引、显式 rebuild/progress、磁盘增删改、definition、hover、references、rename、completion 和 signature help 已有共享快照实现；现有 bundled efun 文档已作为补全、hover、签名帮助和参数数量诊断的共同权威来源，include/inherit 可见图用于优先查询与保守引用范围。宏路径依赖和配置 generation 级反向失效仍待补齐。
-- Gate E：进行中。CST 驱动的 Rust 全文/range formatter、heredoc 正文保护与真实 `yifeng-jian.c`、`meridiand.c` 语法安全和幂等检查已接入；Rust 已成为默认运行时，打包会强制构建原生服务并生成当前平台专用 VSIX，CI 覆盖 Windows/Linux/macOS 的 x64/ARM64 原生产物。变量面板、文件夹诊断和 Javadoc 的函数范围查询已切到 Rust 自定义请求，扩展激活不再启动模拟 efun 的 TS 扫描；函数文档中心仍需移除最后的 TS 源码分析依赖，代码中段复杂预处理指令也仍待完成。
+- Gate C：完成。document symbols、semantic tokens、folding、语法 diagnostics、未使用局部量、可证明的类型错误、已知函数参数数量诊断和对应 quick fix 全部由 Rust 快照提供。类型流只报告静态可证明的错误；不确定的动态 LPC 表达式按设计保守降级，避免以“更深分析”为名恢复误报。
+- Gate D：完成。单后台线程工作区索引、显式 rebuild/progress、磁盘增删改、definition、hover、references、rename、completion 和 signature help 共用常驻快照。include/inherit、宏路径、配置 generation 与正反向依赖变化会使相关缓存失效；对象候选可通过包装返回、分支赋值、`foreach`、数组/映射字面量、确定索引及索引赋值传播，动态索引保持保守。
+- Gate E：完成。Rust CST formatter 覆盖全文与 range formatting，并通过 heredoc、CRLF、语法安全和幂等检查。变量面板、文件夹诊断、Javadoc 函数范围及函数文档中心均通过 Rust 自定义请求获取源码事实；扩展激活只装配项目配置、静态 bundled efun 展示、命令/UI 和 Rust 客户端，不再实例化旧 TypeScript frontend、semantic snapshot、模拟 efun 扫描或函数文档源码分析服务。当前平台 VSIX 已完成打包、覆盖安装和原生服务生命周期验证，其他桌面平台由 CI 原生矩阵构建。
 
-这里的“已实现”只表示 Rust 路径具备对应能力并有针对性测试，不等同于已满足第 12 节的最终发布完成定义。
+上述 Gate 的“完成”表示本分支的实现与验证门槛已通过；它不构成合入稳定分支或发布授权。
 
-2026-09-15 的真实项目差异复核确认 Gate D 仍是发布阻断项。Rust 已修复函数级 `varargs` 参数数量误报、源码函数 Javadoc 丢失、补全跨作用域污染和未知对象方法的猜测式跳转；类型可证明的对象成员、裸 `::`/`efun::`、命名继承作用域（如 `char::query`）、struct/class 字段、include/inherit 路径、预处理上下文、函数 snippet、配置驱动的全局 include 与实例解析也已进入自动化契约。对象流现已覆盖静态字符串别名、局部直接赋值、静态包装函数返回表达式及首个字符串参数绑定；多条可达赋值会保留候选集合而不会猜测单一目标。静态函数数组可继续流入单变量 `foreach`，嵌套调用中的成员接收者也按语法边界提取。目标文件同时含前置声明和实现时，导航能力统一优先实现。真实 `/adm/daemons/restart_d.c` 的 `find_runtime_object(DBASE_D)` 赋值链已能落到 `/adm/daemons/dbased.c` 的 `prepare_shutdown` 实现，诊断为 0，definition、references、hover、completion 均有结果且不再返回前置声明重复项；同文件 `runtime_daemon_paths()` 的 11 个静态目标也能经 `foreach` 和 `catch(daemon->mud_shutdown())` 保守解析为 11 个真实实现，补全保留 16 个候选。命名继承作用域只在直接父类 basename 唯一时解析，并在歧义时保守地拒绝跳转或重命名。依赖正反向图、路径目标和唯一字符串宏已改为随索引失效的缓存；在真实 `/clone/user/user.c` 的 `char::query` 上，单次 Rust 探针测得 definition 约 1.1 ms、references 约 68.4 ms、hover 约 1.0 ms、completion 约 1.5 ms，引用结果覆盖 5,895 个同名候选中的 232 个已解析位置且没有请求超时。这是单次定位样本，不代替 p95。剩余阻断项主要是映射/数组索引等更深容器对象流、引用/重命名的更大规模差异语料，以及最终低性能设备 cold/warm p50、p95 和峰值内存验收。在这些差异全部闭合前，不得把“请求有返回”解释为功能等价，也不得以性能数据替代功能验收。
+2026-09-15 的最终真实项目复核覆盖 6753 个 `.c/.h` 文件，全部可读且 Tree-sitter 语法错误文件为 0。用户报告过误报的 `/cmds/skill/new_skills.c` 在原位置诊断为 0；文档化函数的 hover 返回完整签名和 Javadoc 正文，函数文档查询同时返回当前文件、inherit 与 include 分组。真实 `/adm/daemons/restart_d.c` 中，`runtime_daemon_paths()` 的 11 个静态目标可经 `foreach`、`catch(...)` 和对象成员调用解析为 11 个真实实现，诊断为 0。自动化保护网同时覆盖歧义命名继承、未知对象、动态索引、跨函数同名局部量等负向场景，确保不以唯一名称或不完整候选猜测跳转与重命名。
 
 ### 13.1 当前性能证据
 
@@ -248,8 +248,8 @@ rust/
 | 完整 CST 解析 | 1.939 ms | 786.0 ms | 约 405 倍更快 |
 | 单字符增量解析 p95 | 8 µs | 无增量基线 | 不再完整重解析 |
 
-工作区 6753 个源文件的语法审计耗时约 1.28 秒。后台索引刻意使用单线程并在文件间让出执行预算，完整墙钟时间约 14 秒，换取低性能 CPU 上不持续占满所有核心。正式发布结论仍应在目标低性能设备上重复采样 cold/warm p50、p95、CPU time 与峰值内存。
+工作区 6753 个源文件的最终语法审计耗时 1.378 秒。后台索引刻意使用单线程并在文件间让出执行预算。为模拟受限 CPU，Windows 探针进程树固定到 1 个逻辑核并设为 BelowNormal；5 次全新进程/全量索引采样的 cold 启动墙钟 p50 为 16.894 秒、p95 为 17.284 秒，进程 CPU time p50 为 8.031 秒、p95 为 8.953 秒，平均单核利用率 p50 为 46.3%、p95 为 50.5%，峰值常驻内存 p95 为 106.0 MiB。该约束测试证明索引不会持续占满单核；它仍应与未来真实低性能设备的体验反馈并行观察。
 
-探针现支持 `--perf-iterations`，并从 Rust 健康状态读取当前与峰值常驻内存。对真实 `/adm/daemons/restart_d.c` 的 `prepare_shutdown` 包装器链进行 30 次 warm 采样：semantic tokens p95 1.2 ms、definition p95 0.9 ms、references p95 3.8 ms、hover p95 0.9 ms、completion p95 1.1 ms，全部 0 超时，采样期间 parse 与 semantic rebuild 增量均为 0；索引 6753 个文件后的进程峰值常驻内存为 100.7 MiB。这是当前 Windows 主机的数据，仍不替代目标低性能设备的最终验收。
+同一单核受限环境对真实 `/adm/daemons/restart_d.c` 的 11 候选容器对象流进行 30 次 warm 采样：semantic tokens p95 1.7 ms、definition p95 3.2 ms、references p95 3.8 ms、hover p95 2.6 ms、completion p95 4.4 ms，全部 0 超时，采样期间 parse 与 semantic rebuild 增量均为 0。函数文档完整查询单次为 9.1 ms。
 
-当前 Windows x64 平台已完成一次干净打包和两次强制安装（第二次覆盖同版本以验证升级路径）。`lpc-support-win32-x64-0.52.13.vsix` 的 SHA-256 为 `840a99e6666d60f7e428bb405f48a2aea55ae74519bd5e6907929b2e92588d70`；VSIX 及安装目录均只包含 `dist/extension.js`、模板和 Rust sidecar，不包含 `dist/lsp/server.js`。安装后的 `lpc-language-server.exe` SHA-256 与构建记录一致，为 `f0fb3c93868606d4c43b16c58423a4b6c3bc486841850a88edc7ebaae8625800`，随后 stdio smoke 再次通过 initialize、健康检查、请求、shutdown 和 exit。其他目标平台仍由 CI 构建矩阵覆盖，尚未在本机执行安装生命周期。
+当前 Windows x64 平台已完成干净打包和两次强制安装（第二次覆盖同版本以验证升级路径）。`lpc-support-win32-x64-0.52.13.vsix` 的 SHA-256 为 `d597145999a6ac5cf96d6715eacd37ae637d33110c0d420cbf64095314913faf`；VSIX 和安装目录只包含约 750 KiB 的 `dist/extension.js`、模板和 Rust sidecar，不包含 `dist/lsp/server.js`，生产 bundle 也不含 ANTLR、`LpcFrontendService`、`DocumentSemanticSnapshotService`、`FunctionDocLookupBuilder` 或 `SimulatedEfunScanner` 符号。安装后的 `lpc-language-server.exe` SHA-256 与构建记录一致，为 `64617ed42ca21a7195b1c8185e00315126a0e1e30a9e98c81cdb93b8d2dff54b`，随后 stdio smoke 再次通过 initialize、健康检查、跨文件请求、shutdown 和 exit。其他目标平台由 CI 的 Windows/Linux/macOS x64/ARM64 原生构建矩阵覆盖；未在本 Windows 主机伪装成跨平台安装验收。

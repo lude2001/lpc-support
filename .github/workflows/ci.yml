@@ -80,7 +80,7 @@ jobs:
         run: npm test -- --runInBand
 
       - name: Audit efun arity docs
-        run: npm run audit:efun-arity:strict -- --fluffos-root "${{ github.workspace }}\\fluffos"
+        run: npm run audit:efun-arity:strict-arity -- --fluffos-root "${{ github.workspace }}\\fluffos"
 
       - name: Package extension
         run: npm run package
