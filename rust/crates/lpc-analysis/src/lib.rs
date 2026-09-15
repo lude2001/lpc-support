@@ -481,6 +481,68 @@ impl AnalysisDatabase {
         labels
     }
 
+    pub fn completion_candidates(&mut self, uri: &str) -> Vec<CompletionCandidate> {
+        self.metrics.query_count += 1;
+        let mut candidates = HashMap::<String, CompletionCandidate>::new();
+        for symbol in self.files.values().flat_map(|file| file.symbols.iter()) {
+            candidates
+                .entry(symbol.name.clone())
+                .or_insert_with(|| CompletionCandidate {
+                    label: symbol.name.clone(),
+                    kind: match symbol.kind {
+                        SymbolKind::Function => 3,
+                        SymbolKind::Variable | SymbolKind::Parameter => 6,
+                        SymbolKind::Type => 7,
+                    },
+                    detail: Some(symbol.detail.clone()),
+                    documentation: None,
+                });
+        }
+        if let Some(file) = self.files.get(uri) {
+            for symbol in &file.symbols {
+                candidates.insert(
+                    symbol.name.clone(),
+                    CompletionCandidate {
+                        label: symbol.name.clone(),
+                        kind: match symbol.kind {
+                            SymbolKind::Function => 3,
+                            SymbolKind::Variable | SymbolKind::Parameter => 6,
+                            SymbolKind::Type => 7,
+                        },
+                        detail: Some(symbol.detail.clone()),
+                        documentation: None,
+                    },
+                );
+            }
+        }
+        for function in self.external_functions.values() {
+            candidates
+                .entry(function.name.clone())
+                .or_insert_with(|| CompletionCandidate {
+                    label: function.name.clone(),
+                    kind: 3,
+                    detail: function
+                        .signatures
+                        .first()
+                        .map(|signature| signature.label.clone()),
+                    documentation: function.summary.clone(),
+                });
+        }
+        for keyword in KEYWORDS {
+            candidates
+                .entry((*keyword).to_owned())
+                .or_insert_with(|| CompletionCandidate {
+                    label: (*keyword).to_owned(),
+                    kind: 14,
+                    detail: None,
+                    documentation: None,
+                });
+        }
+        let mut candidates = candidates.into_values().collect::<Vec<_>>();
+        candidates.sort_by(|left, right| left.label.cmp(&right.label));
+        candidates
+    }
+
     pub fn metrics(&self) -> AnalysisMetrics {
         self.metrics.clone()
     }
@@ -523,6 +585,17 @@ pub struct SignatureInformation {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ParameterInformation {
     pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionCandidate {
+    pub label: String,
+    pub kind: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub documentation: Option<String>,
 }
 
 const KEYWORDS: &[&str] = &[
@@ -1120,6 +1193,18 @@ mod tests {
             database
                 .completion_labels("file:///demo.c")
                 .contains(&"write".to_owned())
+        );
+        let completion = database.completion_candidates("file:///demo.c");
+        let write_completion = completion
+            .iter()
+            .find(|candidate| candidate.label == "write")
+            .unwrap();
+        assert_eq!(write_completion.kind, 3);
+        assert!(
+            write_completion
+                .documentation
+                .as_deref()
+                .is_some_and(|documentation| documentation.contains("当前玩家"))
         );
         let hover = database
             .hover(

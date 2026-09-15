@@ -495,11 +495,7 @@ fn handle_request(
 
     if request.method == "textDocument/completion" {
         let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
-        let items: Vec<_> = analysis
-            .completion_labels(&params.text_document.uri)
-            .into_iter()
-            .map(|label| json!({ "label": label, "kind": 6 }))
-            .collect();
+        let items = analysis.completion_candidates(&params.text_document.uri);
         return send_ok(connection, request.id, items);
     }
 
