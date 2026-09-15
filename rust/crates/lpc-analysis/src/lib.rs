@@ -57,6 +57,7 @@ struct Symbol {
     selection: std::ops::Range<usize>,
     scope: std::ops::Range<usize>,
     detail: String,
+    documentation: Option<String>,
     local: bool,
     parameters: Vec<String>,
 }
@@ -203,9 +204,7 @@ impl AnalysisDatabase {
             diagnostics.retain(|diagnostic| diagnostic.code != "lpc.typeMismatch");
         }
         for symbol in file.symbols.iter().filter(|symbol| {
-            symbol.local
-                && !symbol.name.starts_with('_')
-                && matches!(symbol.kind, SymbolKind::Variable | SymbolKind::Parameter)
+            symbol.local && !symbol.name.starts_with('_') && symbol.kind == SymbolKind::Variable
         }) {
             let reference_count = file
                 .identifiers
@@ -219,17 +218,9 @@ impl AnalysisDatabase {
                 diagnostics.push(Diagnostic {
                     range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
                     severity: 2,
-                    code: if symbol.kind == SymbolKind::Parameter {
-                        "unusedParam"
-                    } else {
-                        "unusedVar"
-                    },
+                    code: "unusedVar",
                     source: "lpc-support",
-                    message: if symbol.kind == SymbolKind::Parameter {
-                        format!("未使用的参数: {}", symbol.name)
-                    } else {
-                        format!("未使用的局部变量: {}", symbol.name)
-                    },
+                    message: format!("局部变量 '{}' 未被使用", symbol.name),
                 });
             }
         }
@@ -387,7 +378,12 @@ impl AnalysisDatabase {
         let identifier = identifier_range(file, offset)?;
         if let Some(symbol) = symbol {
             return Some(HoverResult {
-                contents: format!("```lpc\n{}\n```", symbol.detail),
+                contents: match symbol.documentation.as_deref() {
+                    Some(documentation) => {
+                        format!("```lpc\n{}\n```\n\n{documentation}", symbol.detail)
+                    }
+                    None => format!("```lpc\n{}\n```", symbol.detail),
+                },
                 range: byte_range_to_lsp(&file.source, identifier),
             });
         }
@@ -555,6 +551,7 @@ impl AnalysisDatabase {
         let signatures = if let Some(symbol) = symbol {
             vec![SignatureInformation {
                 label: symbol.detail.clone(),
+                documentation: symbol.documentation.clone(),
                 parameters: symbol
                     .parameters
                     .iter()
@@ -570,6 +567,10 @@ impl AnalysisDatabase {
                 .iter()
                 .map(|signature| SignatureInformation {
                     label: signature.label.clone(),
+                    documentation: self
+                        .external_functions
+                        .get(&name)
+                        .and_then(|function| function.summary.clone()),
                     parameters: signature
                         .parameters
                         .iter()
@@ -628,7 +629,7 @@ impl AnalysisDatabase {
                             SymbolKind::Type => 7,
                         },
                         detail: Some(symbol.detail.clone()),
-                        documentation: None,
+                        documentation: symbol.documentation.clone(),
                     },
                 );
             }
@@ -651,7 +652,7 @@ impl AnalysisDatabase {
                         6
                     },
                     detail: Some(symbol.detail.clone()),
-                    documentation: None,
+                    documentation: symbol.documentation.clone(),
                 });
         }
         if prefix.len() >= 2 {
@@ -672,7 +673,7 @@ impl AnalysisDatabase {
                             SymbolKind::Type => 7,
                         },
                         detail: Some(symbol.detail.clone()),
-                        documentation: None,
+                        documentation: symbol.documentation.clone(),
                     });
             }
         }
@@ -771,6 +772,8 @@ pub struct SignatureHelp {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct SignatureInformation {
     pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub documentation: Option<String>,
     pub parameters: Vec<ParameterInformation>,
 }
 
@@ -908,6 +911,7 @@ fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                             .unwrap_or_default()
                             .trim()
                             .to_owned(),
+                        documentation: None,
                         local: false,
                         parameters: Vec::new(),
                     });
@@ -943,6 +947,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
         detail: source[node.start_byte()..body_start.min(source.len())]
             .trim()
             .to_owned(),
+        documentation: leading_documentation(source, node.start_byte()),
         local: false,
         parameters: parameter_details,
     });
@@ -958,6 +963,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                     selection: parameter_name.byte_range(),
                     scope: scope.clone(),
                     detail: text(parameter, source),
+                    documentation: None,
                     local: true,
                     parameters: Vec::new(),
                 });
@@ -1008,6 +1014,7 @@ fn collect_variable_declaration(
                 selection: name.byte_range(),
                 scope: scope.clone(),
                 detail: format!("{type_text} {}", text(name, source)),
+                documentation: None,
                 local: scope.start != 0
                     || node
                         .parent()
@@ -1057,6 +1064,82 @@ fn collect_calls(node: Node<'_>, source: &str, output: &mut Vec<CallSite>) {
     for child in node.named_children(&mut cursor) {
         collect_calls(child, source, output);
     }
+}
+
+fn leading_documentation(source: &str, declaration_start: usize) -> Option<String> {
+    let prefix = source.get(..declaration_start)?.trim_end();
+    if !prefix.ends_with("*/") {
+        return None;
+    }
+    let comment_start = prefix.rfind("/**")?;
+    render_doc_comment(&prefix[comment_start..])
+}
+
+fn render_doc_comment(comment: &str) -> Option<String> {
+    let lines = comment
+        .lines()
+        .map(|line| {
+            line.trim()
+                .strip_prefix("/**")
+                .unwrap_or(line.trim())
+                .strip_suffix("*/")
+                .unwrap_or_else(|| line.trim().strip_prefix("/**").unwrap_or(line.trim()))
+                .trim_start_matches('*')
+                .trim()
+        })
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+    let mut summary = Vec::new();
+    let mut parameters = Vec::new();
+    let mut returns = Vec::new();
+    let mut details = Vec::new();
+    let mut in_details = false;
+    for line in lines {
+        if let Some(value) = line.strip_prefix("@brief") {
+            summary.push(value.trim().to_owned());
+            in_details = false;
+        } else if let Some(value) = line.strip_prefix("@param") {
+            let mut parts = value.split_whitespace();
+            let kind = parts.next().unwrap_or("mixed");
+            let name = parts.next().unwrap_or("参数");
+            let description = parts.collect::<Vec<_>>().join(" ");
+            parameters.push(format!(
+                "- `{name}` (`{kind}`){}",
+                if description.is_empty() {
+                    String::new()
+                } else {
+                    format!("：{description}")
+                }
+            ));
+            in_details = false;
+        } else if let Some(value) = line.strip_prefix("@return") {
+            returns.push(value.trim().to_owned());
+            in_details = false;
+        } else if let Some(value) = line.strip_prefix("@details") {
+            details.push(value.trim().to_owned());
+            in_details = true;
+        } else if line.starts_with('@') {
+            in_details = false;
+        } else if in_details {
+            details.push(line.to_owned());
+        } else {
+            summary.push(line.to_owned());
+        }
+    }
+    let mut sections = Vec::new();
+    if !summary.is_empty() {
+        sections.push(summary.join(" "));
+    }
+    if !parameters.is_empty() {
+        sections.push(format!("**参数**\n\n{}", parameters.join("\n")));
+    }
+    if !returns.is_empty() {
+        sections.push(format!("**返回值**\n\n{}", returns.join(" ")));
+    }
+    if !details.is_empty() {
+        sections.push(format!("**详细说明**\n\n{}", details.join(" ")));
+    }
+    (!sections.is_empty()).then(|| sections.join("\n\n"))
 }
 
 fn accepts_arguments(symbol: &Symbol, argument_count: usize) -> bool {
@@ -1153,6 +1236,9 @@ fn report_type_mismatch(
     let Some(actual) = literal_type(value, source) else {
         return;
     };
+    if expected.trim() != "void" && actual == "int" && is_zero_integer_literal(value, source) {
+        return;
+    }
     if types_compatible(expected.trim(), actual) {
         return;
     }
@@ -1166,6 +1252,29 @@ fn report_type_mismatch(
             expected.trim()
         ),
     });
+}
+
+fn is_zero_integer_literal(node: Node<'_>, source: &str) -> bool {
+    if node.kind() != "number_literal" {
+        return false;
+    }
+    let Ok(value) = node.utf8_text(source.as_bytes()) else {
+        return false;
+    };
+    let normalized = value.replace('_', "");
+    if let Some(hex) = normalized
+        .strip_prefix("0x")
+        .or_else(|| normalized.strip_prefix("0X"))
+    {
+        return u128::from_str_radix(hex, 16).is_ok_and(|value| value == 0);
+    }
+    if let Some(binary) = normalized
+        .strip_prefix("0b")
+        .or_else(|| normalized.strip_prefix("0B"))
+    {
+        return u128::from_str_radix(binary, 2).is_ok_and(|value| value == 0);
+    }
+    normalized.parse::<u128>().is_ok_and(|value| value == 0)
 }
 
 fn literal_type<'a>(node: Node<'_>, source: &'a str) -> Option<&'a str> {
@@ -1551,6 +1660,21 @@ mod tests {
     }
 
     #[test]
+    fn does_not_introduce_unused_parameter_diagnostics() {
+        let source = concat!(
+            "string skill_level(string type, int level);\n",
+            "private int callback(string intentionally_unused) { return 1; }\n",
+        );
+        let mut database = database(source);
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
+                .iter()
+                .all(|diagnostic| diagnostic.code != "unusedParam")
+        );
+    }
+
+    #[test]
     fn reports_only_statically_proven_literal_type_mismatches() {
         let source = concat!(
             "int count = \"wrong\";\n",
@@ -1572,6 +1696,88 @@ mod tests {
                 .diagnostics("file:///demo.c")
                 .iter()
                 .all(|diagnostic| diagnostic.code != "lpc.typeMismatch")
+        );
+    }
+
+    #[test]
+    fn accepts_lpc_zero_as_a_null_sentinel_for_declared_types() {
+        let source = concat!(
+            "string query_name() { return 0; }\n",
+            "mapping query_data() { return 0x0; }\n",
+            "object query_target() { return 0b0; }\n",
+            "void invalid_void_return() { return 0; }\n",
+        );
+        let mut database = database(source);
+        let mismatches = database
+            .diagnostics("file:///demo.c")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "lpc.typeMismatch")
+            .collect::<Vec<_>>();
+        assert_eq!(mismatches.len(), 1);
+        assert!(mismatches[0].message.contains("期望 void，实际 int"));
+    }
+
+    #[test]
+    fn function_hover_includes_signature_and_structured_javadoc() {
+        let source = concat!(
+            "/**\n",
+            " * @brief 构造战斗武学动作\n",
+            " * @param object popup 协议模型\n",
+            " * @param string type 武学分类\n",
+            " * @return mapping * 动作列表\n",
+            " * @details 保留完整的函数说明。\n",
+            " */\n",
+            "private mapping *battle_choices(object popup, string type) { return ({}); }\n",
+            "void demo() { battle_choices(0, \"unarmed\"); }\n",
+        );
+        let mut database = database(source);
+        let hover = database
+            .hover(
+                "file:///demo.c",
+                Position {
+                    line: 8,
+                    character: 16,
+                },
+            )
+            .expect("function hover should resolve");
+        assert!(hover.contents.contains("mapping *battle_choices"));
+        assert!(hover.contents.contains("构造战斗武学动作"));
+        assert!(hover.contents.contains("`popup` (`object`)"));
+        assert!(hover.contents.contains("**返回值**"));
+        assert!(hover.contents.contains("保留完整的函数说明"));
+
+        let signature = database
+            .signature_help(
+                "file:///demo.c",
+                Position {
+                    line: 8,
+                    character: 35,
+                },
+            )
+            .expect("signature help should resolve");
+        assert!(
+            signature.signatures[0]
+                .documentation
+                .as_deref()
+                .is_some_and(|documentation| documentation.contains("构造战斗武学动作"))
+        );
+
+        let completion = database
+            .completion_candidates(
+                "file:///demo.c",
+                Position {
+                    line: 8,
+                    character: 14,
+                },
+            )
+            .into_iter()
+            .find(|candidate| candidate.label == "battle_choices")
+            .expect("function completion should resolve");
+        assert!(
+            completion
+                .documentation
+                .as_deref()
+                .is_some_and(|documentation| documentation.contains("构造战斗武学动作"))
         );
     }
 
