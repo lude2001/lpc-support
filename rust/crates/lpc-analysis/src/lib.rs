@@ -220,6 +220,7 @@ pub struct AnalysisDatabase {
     unused_global_var_check_enabled: bool,
     unused_parameter_check_enabled: bool,
     enforce_local_variable_declaration_at_block_start: bool,
+    search_efun_definition_in_inheritance_chain: bool,
     global_includes: Vec<String>,
     include_directories: Vec<String>,
     instance_resolution_functions: HashMap<String, Vec<String>>,
@@ -249,6 +250,10 @@ impl AnalysisDatabase {
         self.unused_parameter_check_enabled = unused_parameter_check_enabled;
         self.enforce_local_variable_declaration_at_block_start =
             enforce_local_variable_declaration_at_block_start;
+    }
+
+    pub fn set_search_efun_definition_in_inheritance_chain(&mut self, enabled: bool) {
+        self.search_efun_definition_in_inheritance_chain = enabled;
     }
 
     pub fn set_workspace_resolution(
@@ -378,7 +383,11 @@ impl AnalysisDatabase {
                 };
                 diagnostics.push(Diagnostic {
                     range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
-                    severity: if symbol.kind == SymbolKind::Parameter { 4 } else { 2 },
+                    severity: if symbol.kind == SymbolKind::Parameter {
+                        4
+                    } else {
+                        2
+                    },
                     code,
                     source: "lpc-support",
                     message,
@@ -691,6 +700,12 @@ impl AnalysisDatabase {
                 uri: uri.to_owned(),
                 range: byte_range_to_lsp(&origin.source, symbol.selection.clone()),
             }];
+        }
+
+        if self.external_functions.contains_key(&name)
+            && !self.search_efun_definition_in_inheritance_chain
+        {
+            return Vec::new();
         }
 
         let visible = self.visible_uris(uri);
@@ -4495,6 +4510,56 @@ mod tests {
                 .is_empty()
         );
         assert!(database.hover("file:///demo.c", member_position).is_none());
+    }
+
+    #[test]
+    fn honors_efun_inheritance_definition_search_preference() {
+        let source = "inherit \"/std/base\";\nvoid demo() { write(\"hello\"); }\n";
+        let mut database = database(source);
+        database.set_external_functions(vec![ExternalFunction {
+            name: "write".to_owned(),
+            summary: Some("driver output".to_owned()),
+            signatures: vec![ExternalSignature {
+                label: "void write(mixed value)".to_owned(),
+                parameters: vec!["mixed value".to_owned()],
+                minimum_arguments: 1,
+                maximum_arguments: Some(1),
+            }],
+        }]);
+        let dependency = "void write(mixed value) {}\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(dependency, None).unwrap();
+        database.index_source("file:///std/base.c", &tree, dependency);
+
+        let position = byte_to_lsp_position(source, source.rfind("write").unwrap());
+        assert!(database.definition("file:///demo.c", position).is_empty());
+
+        database.set_search_efun_definition_in_inheritance_chain(true);
+        let definitions = database.definition("file:///demo.c", position);
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///std/base.c");
+    }
+
+    #[test]
+    fn resolves_local_efun_shadow_regardless_of_inheritance_search_preference() {
+        let source = concat!(
+            "void write(mixed value) {}\n",
+            "void demo() { write(\"hello\"); }\n",
+        );
+        let mut database = database(source);
+        database.set_external_functions(vec![ExternalFunction {
+            name: "write".to_owned(),
+            summary: None,
+            signatures: Vec::new(),
+        }]);
+        let position = byte_to_lsp_position(source, source.rfind("write").unwrap());
+        let definitions = database.definition("file:///demo.c", position);
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///demo.c");
+        assert_eq!(definitions[0].range.start.line, 0);
     }
 
     #[test]

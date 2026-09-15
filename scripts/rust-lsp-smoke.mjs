@@ -76,6 +76,32 @@ try {
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: callerUri } });
 
+    const efunShadowUri = 'file:///std/efun-shadow.c';
+    const efunCallerUri = 'file:///efun-shadow-caller.c';
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: {
+            uri: efunShadowUri,
+            languageId: 'lpc',
+            version: 1,
+            text: 'void write(mixed value) {}\n'
+        }
+    });
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: {
+            uri: efunCallerUri,
+            languageId: 'lpc',
+            version: 1,
+            text: 'inherit "/std/efun-shadow";\nvoid demo() { write("x"); }\n'
+        }
+    });
+    const disabledEfunDefinition = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: efunCallerUri },
+        position: { line: 1, character: 15 }
+    });
+    if (!Array.isArray(disabledEfunDefinition) || disabledEfunDefinition.length !== 0) {
+        throw new Error(`Rust server ignored disabled efun inheritance search: ${JSON.stringify(disabledEfunDefinition)}`);
+    }
+
     const uri = 'file:///rust-lsp-smoke.c';
     connection.sendNotification('textDocument/didOpen', {
         textDocument: {
@@ -209,9 +235,27 @@ try {
             enableTypeChecking: true,
             enableUnusedGlobalVarCheck: true,
             enableUnusedParameterCheck: true,
-            enforceLocalVariableDeclarationAtBlockStart: true
+            enforceLocalVariableDeclarationAtBlockStart: true,
+            searchEfunDefinitionInInheritanceChain: true,
+            formatIndentSize: 2
         }]
     });
+    const configuredFormatting = await connection.sendRequest('textDocument/formatting', {
+        textDocument: { uri },
+        options: { tabSize: 8, insertSpaces: true }
+    });
+    if (!configuredFormatting?.[0]?.newText?.includes('\n  int local = amount;')) {
+        throw new Error(`Rust server ignored configured formatter indentation: ${JSON.stringify(configuredFormatting)}`);
+    }
+    const enabledEfunDefinition = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: efunCallerUri },
+        position: { line: 1, character: 15 }
+    });
+    if (!Array.isArray(enabledEfunDefinition) || enabledEfunDefinition[0]?.uri !== efunShadowUri) {
+        throw new Error(`Rust server ignored enabled efun inheritance search: ${JSON.stringify(enabledEfunDefinition)}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: efunCallerUri } });
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: efunShadowUri } });
     const configuredDiagnosticsUri = 'file:///rust-lsp-configured-diagnostics.c';
     connection.sendNotification('textDocument/didOpen', {
         textDocument: {

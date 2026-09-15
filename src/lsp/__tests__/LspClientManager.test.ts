@@ -339,7 +339,8 @@ describe('LspClientManager activation', () => {
                         enableTypeChecking: true,
                         enableUnusedGlobalVarCheck: false,
                         enableUnusedParameterCheck: false,
-                        enforceLocalVariableDeclarationAtBlockStart: false
+                        enforceLocalVariableDeclarationAtBlockStart: false,
+                        formatIndentSize: 4
                     }
                 ]
             }
@@ -388,6 +389,7 @@ describe('LspClientManager activation', () => {
                     enableUnusedGlobalVarCheck: false,
                     enableUnusedParameterCheck: false,
                     enforceLocalVariableDeclarationAtBlockStart: false,
+                    formatIndentSize: 4,
                     instanceResolutionFunctions: undefined,
                     preprocessorDefines: undefined
                 }
@@ -438,6 +440,7 @@ describe('LspClientManager activation', () => {
                     enableUnusedGlobalVarCheck: false,
                     enableUnusedParameterCheck: false,
                     enforceLocalVariableDeclarationAtBlockStart: false,
+                    formatIndentSize: 4,
                     instanceResolutionFunctions: undefined,
                     preprocessorDefines: undefined
                 },
@@ -452,6 +455,7 @@ describe('LspClientManager activation', () => {
                     enableUnusedGlobalVarCheck: false,
                     enableUnusedParameterCheck: false,
                     enforceLocalVariableDeclarationAtBlockStart: false,
+                    formatIndentSize: 4,
                     instanceResolutionFunctions: undefined,
                     preprocessorDefines: undefined
                 }

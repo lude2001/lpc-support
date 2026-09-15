@@ -68,6 +68,7 @@ export async function createWorkspaceConfigSyncPayload(
     const enableUnusedGlobalVarCheck = readEnableUnusedGlobalVarCheck();
     const enableUnusedParameterCheck = readEnableUnusedParameterCheck();
     const enforceLocalVariableDeclarationAtBlockStart = readEnforceLocalVariableDeclarationAtBlockStart();
+    const formatIndentSize = readFormatIndentSize();
     const workspaces = await Promise.all(workspaceRoots.map(async workspaceRoot => {
         const projectConfig = await projectConfigService.loadForWorkspace(workspaceRoot);
 
@@ -83,7 +84,8 @@ export async function createWorkspaceConfigSyncPayload(
             enableTypeChecking,
             enableUnusedGlobalVarCheck,
             enableUnusedParameterCheck,
-            enforceLocalVariableDeclarationAtBlockStart
+            enforceLocalVariableDeclarationAtBlockStart,
+            formatIndentSize
         };
     }));
 
@@ -111,6 +113,10 @@ function readEnableUnusedParameterCheck(): boolean {
 
 function readEnforceLocalVariableDeclarationAtBlockStart(): boolean {
     return vscode.workspace.getConfiguration?.('lpc')?.get?.<boolean>('enforceLocalVariableDeclarationAtBlockStart', false) ?? false;
+}
+
+function readFormatIndentSize(): number {
+    return vscode.workspace.getConfiguration?.('lpc')?.get?.<number>('format.indentSize', 4) ?? 4;
 }
 
 async function attemptResync(

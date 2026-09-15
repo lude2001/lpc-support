@@ -222,10 +222,10 @@ get_actor(id)->query_name();
 
 - `lpc.enableTypeChecking`：启用或关闭 `lpc.type.*` 类型检查诊断
 - `lpc.enableUnusedGlobalVarCheck`：启用或关闭未使用全局变量检查（默认关闭，以避免继承与头文件误报）
+- `lpc.enableUnusedParameterCheck`：启用或关闭未使用参数检查（默认关闭；只检查函数实现并忽略下划线前缀参数）
 - `lpc.enforceLocalVariableDeclarationAtBlockStart`：启用或关闭局部变量必须声明在块开头的检查
+- `lpc.searchEfunDefinitionInInheritanceChain`：允许“转到定义”在继承链中寻找 efun 的源码重写（默认关闭）
 - `lpc.format.indentSize`：格式化缩进宽度
-- `lpc.performance.debounceDelay`：诊断防抖延迟
-- `lpc.performance.enableMonitoring`：启用轻量性能监控
 - `lpc.javadoc.enableAutoGeneration`：启用 Javadoc 注释生成
 - `lpc.glm4.*`：配置 GLM-4 注释生成能力
 

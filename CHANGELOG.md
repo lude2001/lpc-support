@@ -6,6 +6,7 @@
 
 ### Rust 语言服务器
 
+- Rust LSP 现已兑现 `lpc.searchEfunDefinitionInInheritanceChain` 与 `lpc.format.indentSize`；移除仅服务于旧 TypeScript 解析缓存/异步诊断实现、迁移后已无意义的 `lpc.performance.*` 设置。
 - 默认语言分析内核改为原生 Rust 进程，TypeScript 保留为 VS Code 激活、配置、命令和 UI 装配层。
 - 文档编辑采用增量 CST；诊断、语义高亮、符号、跳转、引用、重命名、补全、悬停、签名帮助和格式化共享版本化分析快照，避免查询时重复解析工作区。
 - bundled efun 文档直接为 Rust 补全、悬停、签名帮助与参数数量检查提供资料。

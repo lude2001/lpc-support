@@ -227,9 +227,9 @@ rust/
 
 - Gate A：完成。Rust stdio server、TS sidecar、增量文档同步、health、构建和真实项目探针已接通。
 - Gate B：完成本次切换范围。Tree-sitter LPC grammar、增量 CST、复合条件编译求值与屏蔽、include facts、动态 heredoc token 和恒等源码映射已实现。真实项目在 `__PACKAGE_DB__` 配置下审计 6753 个 `.c/.h` 文件，语法错误文件为 0；CI 对仓库固定 LPC 样例执行严格审计。会改变源码长度的完整文本宏展开没有进入本次实现，宏事实由预处理层保留，语法层直接覆盖项目使用的函数式宏和字符串宏组合。
-- Gate C：完成。document symbols、semantic tokens、folding、语法 diagnostics、未使用局部量、可证明的类型错误、已知函数参数数量诊断和对应 quick fix 全部由 Rust 快照提供。全局未使用检查与旧 driver 的局部声明位置规则继续遵守原配置开关；参数检查独立为默认关闭的 `enableUnusedParameterCheck`，启用时只检查函数实现，绝不诊断前置声明。类型流只报告静态可证明的错误；不确定的动态 LPC 表达式按设计保守降级，避免以“更深分析”为名恢复误报。
+- Gate C：完成。document symbols、semantic tokens、folding、语法 diagnostics、未使用局部量、可证明的类型错误、已知函数参数数量诊断和对应 quick fix 全部由 Rust 快照提供。全局未使用检查与旧 driver 的局部声明位置规则继续遵守原配置开关；参数检查独立为默认关闭的 `enableUnusedParameterCheck`，启用时只检查函数实现，绝不诊断前置声明。`searchEfunDefinitionInInheritanceChain` 已由 Rust 跳转路径兑现，默认继续阻止 efun 继承链扫描，开启后只搜索可见继承图。类型流只报告静态可证明的错误；不确定的动态 LPC 表达式按设计保守降级，避免以“更深分析”为名恢复误报。
 - Gate D：完成。单后台线程工作区索引、显式 rebuild/progress、磁盘增删改、definition、hover、references、rename、completion 和 signature help 共用常驻快照。include/inherit、宏路径、配置 generation 与正反向依赖变化会使相关缓存失效；对象候选可通过包装返回、分支赋值、`foreach`、数组/映射字面量、确定索引及索引赋值传播，动态索引保持保守。
-- Gate E：完成。Rust CST formatter 覆盖全文与 range formatting，并通过 heredoc、CRLF、语法安全和幂等检查。变量面板、文件夹诊断、Javadoc 函数范围及函数文档中心均通过 Rust 自定义请求获取源码事实；扩展激活只装配项目配置、静态 bundled efun 展示、命令/UI 和 Rust 客户端，不再实例化旧 TypeScript frontend、semantic snapshot、模拟 efun 扫描或函数文档源码分析服务。当前平台 VSIX 已完成打包、覆盖安装和原生服务生命周期验证，其他桌面平台由 CI 原生矩阵构建。
+- Gate E：完成。Rust CST formatter 覆盖全文与 range formatting，并通过 heredoc、CRLF、语法安全和幂等检查；`format.indentSize` 通过配置同步成为 Rust 全文与选区格式化的统一缩进真源。变量面板、文件夹诊断、Javadoc 函数范围及函数文档中心均通过 Rust 自定义请求获取源码事实；扩展激活只装配项目配置、静态 bundled efun 展示、命令/UI 和 Rust 客户端，不再实例化旧 TypeScript frontend、semantic snapshot、模拟 efun 扫描或函数文档源码分析服务。只服务于旧 TS 缓存和异步诊断调度的 `lpc.performance.*` 设置已移除，避免保留无效开关。当前平台 VSIX 已完成打包、覆盖安装和原生服务生命周期验证，其他桌面平台由 CI 原生矩阵构建。
 
 上述 Gate 的“完成”表示本分支的实现与验证门槛已通过；它不构成合入稳定分支或发布授权。
 
@@ -252,4 +252,6 @@ rust/
 
 同一单核受限环境对真实 `/adm/daemons/restart_d.c` 的 11 候选容器对象流进行 30 次 warm 采样：semantic tokens p95 1.7 ms、definition p95 3.2 ms、references p95 3.8 ms、hover p95 2.6 ms、completion p95 4.4 ms，全部 0 超时，采样期间 parse 与 semantic rebuild 增量均为 0。函数文档完整查询单次为 9.1 ms。
 
-当前 Windows x64 平台已完成干净打包和两次强制安装（第二次覆盖同版本以验证升级路径）。`lpc-support-win32-x64-0.52.13.vsix` 的 SHA-256 为 `adaef3a1c6f9ab188b072a96a244588b7dbc51bf1bbcb1eb884dca66d628a3c8`；VSIX 和安装目录只包含约 751 KiB 的 `dist/extension.js`、模板和 Rust sidecar，不包含 `dist/lsp/server.js`，生产 bundle 也不含 ANTLR、`LpcFrontendService`、`DocumentSemanticSnapshotService`、`FunctionDocLookupBuilder` 或 `SimulatedEfunScanner` 符号。安装后的 `lpc-language-server.exe` SHA-256 与构建记录一致，为 `fac5698b57cf674fedadcdc830d52167f7b5e709c19bedc3719d2978dac20269`，随后 stdio smoke 再次通过 initialize、健康检查、跨文件请求、可配置诊断、shutdown 和 exit。其他目标平台由 CI 的 Windows/Linux/macOS x64/ARM64 原生构建矩阵覆盖；未在本 Windows 主机伪装成跨平台安装验收。
+最终自动化回归为 Jest 168/168 套件、1379/1379 测试通过；Rust workspace 为 81/81 单元测试通过，clippy `-D warnings` 通过。原生 stdio smoke 额外覆盖 efun 继承链开关的关闭/开启行为、2 空格 formatter 配置覆盖 8 空格 LSP 请求选项，以及可配置诊断、跨文件能力、shutdown 和 exit。
+
+当前 Windows x64 平台已完成干净打包和两次强制安装（第二次覆盖同版本以验证升级路径）。`lpc-support-win32-x64-0.52.13.vsix` 的 SHA-256 为 `ea162c2e2d7c7631e1ca1eb43c700a4ddaf7ac4e1a24408898630eb2d96a0db0`；VSIX 和安装目录只包含约 751 KiB 的 `dist/extension.js`、模板和 Rust sidecar，不包含 `dist/lsp/server.js`，生产 bundle 也不含 ANTLR、`LpcFrontendService`、`DocumentSemanticSnapshotService`、`FunctionDocLookupBuilder` 或 `SimulatedEfunScanner` 符号。安装后的 `lpc-language-server.exe` SHA-256 与构建记录一致，为 `553b345b5e9af823164c972e2697571357a6ab2d5de1de6268a719313156203c`，随后 stdio smoke 再次通过全部生命周期与配置链路。其他目标平台由 CI 的 Windows/Linux/macOS x64/ARM64 原生构建矩阵覆盖；未在本 Windows 主机伪装成跨平台安装验收。

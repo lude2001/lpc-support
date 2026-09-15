@@ -285,57 +285,12 @@
           "default": true,
           "description": "启用保守的 LPC 类型检查诊断。关闭后不会产生 lpc.type.* 诊断。"
         },
-        "lpc.performance.debounceDelay": {
-          "type": "number",
-          "default": 300,
-          "minimum": 100,
-          "maximum": 2000,
-          "description": "诊断防抖延迟时间（毫秒），较高的值可以减少CPU使用但增加响应延迟"
-        },
-        "lpc.performance.maxCacheSize": {
-          "type": "number",
-          "default": 50,
-          "minimum": 10,
-          "maximum": 200,
-          "description": "解析缓存的最大文档数量"
-        },
-        "lpc.performance.maxCacheMemory": {
-          "type": "number",
-          "default": 5000000,
-          "minimum": 1000000,
-          "maximum": 50000000,
-          "description": "解析缓存的最大内存使用量（字符数）"
-        },
-        "lpc.performance.enableMonitoring": {
-          "type": "boolean",
-          "default": true,
-          "description": "启用解析缓存与补全链路的轻量性能监控"
-        },
-        "lpc.performance.completionMetricHistorySize": {
-          "type": "number",
-          "default": 30,
-          "minimum": 5,
-          "maximum": 200,
-          "description": "保留最近补全性能样本的数量，用于开发者诊断输出"
-        },
         "lpc.format.indentSize": {
           "type": "number",
           "default": 4,
           "minimum": 2,
           "maximum": 8,
           "description": "LPC formatter indentation size"
-        },
-        "lpc.performance.enableAsyncDiagnostics": {
-          "type": "boolean",
-          "default": true,
-          "description": "启用异步诊断处理，可以提高大文件的性能但可能略微增加内存使用"
-        },
-        "lpc.performance.batchSize": {
-          "type": "number",
-          "default": 50,
-          "minimum": 10,
-          "maximum": 200,
-          "description": "异步处理时的批次大小，较小的值可以提高响应性但可能降低总体性能"
         },
         "lpc.glm4.apiKey": {
           "type": "string",

@@ -128,6 +128,8 @@ struct WorkspaceConfigSnapshot {
     enable_unused_global_var_check: Option<bool>,
     enable_unused_parameter_check: Option<bool>,
     enforce_local_variable_declaration_at_block_start: Option<bool>,
+    search_efun_definition_in_inheritance_chain: Option<bool>,
+    format_indent_size: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -174,7 +176,6 @@ struct RangeFormattingParams {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FormattingOptions {
-    tab_size: usize,
     insert_spaces: bool,
 }
 
@@ -265,6 +266,7 @@ fn run(
         .expect("analysis lock poisoned")
         .set_external_functions(efuns);
     let workspace_index = WorkspaceIndexController::default();
+    let mut format_indent_size = 4_usize;
     if !workspace_roots.is_empty() {
         workspace_index.start(workspace_roots, Vec::new(), Arc::clone(&analysis));
     }
@@ -289,14 +291,23 @@ fn run(
                         .workspaces
                         .iter()
                         .any(|workspace| workspace.enable_unused_parameter_check.unwrap_or(false));
-                    let enforce_local_variable_declaration_at_block_start = params
-                        .workspaces
-                        .iter()
-                        .any(|workspace| {
+                    let enforce_local_variable_declaration_at_block_start =
+                        params.workspaces.iter().any(|workspace| {
                             workspace
                                 .enforce_local_variable_declaration_at_block_start
                                 .unwrap_or(false)
                         });
+                    let search_efun_definition_in_inheritance_chain =
+                        params.workspaces.iter().any(|workspace| {
+                            workspace
+                                .search_efun_definition_in_inheritance_chain
+                                .unwrap_or(false)
+                        });
+                    format_indent_size = params
+                        .workspaces
+                        .iter()
+                        .find_map(|workspace| workspace.format_indent_size)
+                        .unwrap_or(4);
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
@@ -318,6 +329,9 @@ fn run(
                             unused_global_var_check_enabled,
                             unused_parameter_check_enabled,
                             enforce_local_variable_declaration_at_block_start,
+                        );
+                        database.set_search_efun_definition_in_inheritance_chain(
+                            search_efun_definition_in_inheritance_chain,
                         );
                         apply_workspace_resolution(&mut database, &params.workspaces);
                     }
@@ -354,7 +368,14 @@ fn run(
                 let mut database = analysis
                     .lock()
                     .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
-                handle_request(&connection, request, &documents, &syntax, &mut database)?;
+                handle_request(
+                    &connection,
+                    request,
+                    &documents,
+                    &syntax,
+                    &mut database,
+                    format_indent_size,
+                )?;
             }
             Message::Notification(notification) => {
                 if notification.method == "lpc/workspaceConfigSync" {
@@ -372,14 +393,23 @@ fn run(
                         .workspaces
                         .iter()
                         .any(|workspace| workspace.enable_unused_parameter_check.unwrap_or(false));
-                    let enforce_local_variable_declaration_at_block_start = params
-                        .workspaces
-                        .iter()
-                        .any(|workspace| {
+                    let enforce_local_variable_declaration_at_block_start =
+                        params.workspaces.iter().any(|workspace| {
                             workspace
                                 .enforce_local_variable_declaration_at_block_start
                                 .unwrap_or(false)
                         });
+                    let search_efun_definition_in_inheritance_chain =
+                        params.workspaces.iter().any(|workspace| {
+                            workspace
+                                .search_efun_definition_in_inheritance_chain
+                                .unwrap_or(false)
+                        });
+                    format_indent_size = params
+                        .workspaces
+                        .iter()
+                        .find_map(|workspace| workspace.format_indent_size)
+                        .unwrap_or(4);
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
@@ -397,6 +427,9 @@ fn run(
                             unused_global_var_check_enabled,
                             unused_parameter_check_enabled,
                             enforce_local_variable_declaration_at_block_start,
+                        );
+                        database.set_search_efun_definition_in_inheritance_chain(
+                            search_efun_definition_in_inheritance_chain,
                         );
                         apply_workspace_resolution(&mut database, &params.workspaces);
                         for document in documents.iter() {
@@ -512,6 +545,7 @@ fn handle_request(
     documents: &DocumentStore,
     syntax: &SyntaxStore,
     analysis: &mut AnalysisDatabase,
+    format_indent_size: usize,
 ) -> Result<()> {
     if request.method == HEALTH_METHOD {
         let analysis_metrics = analysis.metrics();
@@ -692,7 +726,7 @@ fn handle_request(
         let snapshot = syntax
             .get(&uri)
             .with_context(|| format!("formatting requested without syntax for {uri}"))?;
-        let config = formatting_config(&params.options);
+        let config = formatting_config(&params.options, format_indent_size);
         let edits = lpc_formatter::format_document(&snapshot.tree, &document.text, config)
             .map(|new_text| {
                 vec![json!({
@@ -722,7 +756,7 @@ fn handle_request(
             &document.text,
             start,
             end,
-            formatting_config(&params.options),
+            formatting_config(&params.options, format_indent_size),
         )
         .map(|(range, new_text)| {
             vec![json!({
@@ -782,13 +816,16 @@ fn handle_request(
     )
 }
 
-fn formatting_config(options: &FormattingOptions) -> FormatterConfig {
+fn formatting_config(
+    options: &FormattingOptions,
+    configured_indent_size: usize,
+) -> FormatterConfig {
+    // The LPC formatter has historically emitted spaces. Keep accepting the
+    // standard LSP option while making the extension's explicit LPC setting
+    // authoritative for both formatting entry points.
+    let _requested_spaces = options.insert_spaces;
     FormatterConfig {
-        indent_size: if options.insert_spaces {
-            options.tab_size.clamp(1, 16)
-        } else {
-            4
-        },
+        indent_size: configured_indent_size.clamp(1, 16),
     }
 }
 
@@ -1003,4 +1040,41 @@ fn send_error(
     };
     connection.sender.send(Message::Response(response))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uses_synchronized_formatter_indent_preference() {
+        let spaces = FormattingOptions {
+            insert_spaces: true,
+        };
+        assert_eq!(formatting_config(&spaces, 2).indent_size, 2);
+        assert_eq!(formatting_config(&spaces, 32).indent_size, 16);
+
+        let tabs = FormattingOptions {
+            insert_spaces: false,
+        };
+        assert_eq!(formatting_config(&tabs, 2).indent_size, 2);
+    }
+
+    #[test]
+    fn deserializes_editor_preferences_from_workspace_sync() {
+        let params: WorkspaceConfigSyncParams = serde_json::from_value(json!({
+            "workspaceRoots": ["D:/mud"],
+            "workspaces": [{
+                "searchEfunDefinitionInInheritanceChain": true,
+                "formatIndentSize": 2
+            }]
+        }))
+        .unwrap();
+        assert_eq!(params.workspaces.len(), 1);
+        assert_eq!(
+            params.workspaces[0].search_efun_definition_in_inheritance_chain,
+            Some(true)
+        );
+        assert_eq!(params.workspaces[0].format_indent_size, Some(2));
+    }
 }

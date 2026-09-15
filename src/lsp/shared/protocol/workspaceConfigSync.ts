@@ -20,6 +20,7 @@ export interface WorkspaceConfigSyncSnapshot {
     enableUnusedGlobalVarCheck?: boolean;
     enableUnusedParameterCheck?: boolean;
     enforceLocalVariableDeclarationAtBlockStart?: boolean;
+    formatIndentSize?: number;
 }
 
 export interface WorkspaceConfigSyncPayload {

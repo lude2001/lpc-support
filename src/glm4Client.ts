@@ -96,17 +96,20 @@ export class GLM4Client {
         const currentModel = config.get<string>('glm4.model', 'glm-4');
         const lastSelectedModel = config.get<string>('glm4.lastSelectedModel', '');
         const customModels = config.get<Array<{name: string, id: string, description?: string}>>('glm4.customModels', []);
+        const allowCustomModel = config.get<boolean>('glm4.allowCustomModel', true);
         
         // 准备QuickPick选项 - 预设模型
-        const items = GLM4Client.AVAILABLE_MODELS.map(model => ({
-            label: model.name,
-            description: model.description,
-            detail: model.id === currentModel ? '(当前默认)' : (model.id === lastSelectedModel ? '(上次选择)' : ''),
-            modelId: model.id
-        }));
+        const items = GLM4Client.AVAILABLE_MODELS
+            .filter(model => allowCustomModel || model.id !== 'custom')
+            .map(model => ({
+                label: model.name,
+                description: model.description,
+                detail: model.id === currentModel ? '(当前默认)' : (model.id === lastSelectedModel ? '(上次选择)' : ''),
+                modelId: model.id
+            }));
 
         // 添加自定义模型
-        if (customModels.length > 0) {
+        if (allowCustomModel && customModels.length > 0) {
             items.push({
                 label: '$(dash) ────── 自定义模型 ──────',
                 description: '',
@@ -125,26 +128,28 @@ export class GLM4Client {
         }
 
         // 添加管理选项
-        items.push(
-            {
-                label: '$(dash) ────── 管理选项 ──────',
-                description: '',
-                detail: '',
-                modelId: 'separator2'
-            },
-            {
-                label: '$(edit) 输入自定义模型名称',
-                description: '手动输入模型名称',
-                detail: '',
-                modelId: 'input-custom'
-            },
-            {
-                label: '$(add) 添加到自定义模型列表',
-                description: '将模型添加到配置中以便重复使用',
-                detail: '',
-                modelId: 'add-custom'
-            }
-        );
+        if (allowCustomModel) {
+            items.push(
+                {
+                    label: '$(dash) ────── 管理选项 ──────',
+                    description: '',
+                    detail: '',
+                    modelId: 'separator2'
+                },
+                {
+                    label: '$(edit) 输入自定义模型名称',
+                    description: '手动输入模型名称',
+                    detail: '',
+                    modelId: 'input-custom'
+                },
+                {
+                    label: '$(add) 添加到自定义模型列表',
+                    description: '将模型添加到配置中以便重复使用',
+                    detail: '',
+                    modelId: 'add-custom'
+                }
+            );
+        }
 
         const selected = await vscode.window.showQuickPick(items.filter(item => item.modelId !== 'separator' && item.modelId !== 'separator2'), {
             placeHolder: '选择要使用的GLM模型',
