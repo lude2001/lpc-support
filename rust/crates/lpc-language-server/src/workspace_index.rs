@@ -238,7 +238,16 @@ fn ignored_directory(path: &Path) -> bool {
         .is_some_and(|name| {
             matches!(
                 name.to_ascii_lowercase().as_str(),
-                ".git" | ".tmp" | "node_modules" | "dist" | "out" | "target"
+                ".git"
+                    | ".tmp"
+                    | ".venv"
+                    | "venv"
+                    | "temp"
+                    | "node_modules"
+                    | "coverage"
+                    | "dist"
+                    | "out"
+                    | "target"
             )
         })
 }

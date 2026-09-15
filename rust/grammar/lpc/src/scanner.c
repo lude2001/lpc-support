@@ -6,6 +6,7 @@
 
 enum TokenType {
     HEREDOC_LITERAL,
+    MACRO_IDENTIFIER,
 };
 
 void *tree_sitter_lpc_external_scanner_create(void) {
@@ -39,12 +40,30 @@ bool tree_sitter_lpc_external_scanner_scan(
     const bool *valid_symbols
 ) {
     (void)payload;
-    if (!valid_symbols[HEREDOC_LITERAL]) {
-        return false;
-    }
     while (lexer->lookahead == ' ' || lexer->lookahead == '\t' || lexer->lookahead == '\r' ||
            lexer->lookahead == '\n') {
         lexer->advance(lexer, true);
+    }
+    if (valid_symbols[MACRO_IDENTIFIER] &&
+        (lexer->lookahead == '_' ||
+         (lexer->lookahead >= 'A' && lexer->lookahead <= 'Z'))) {
+        bool has_letter = false;
+        while (lexer->lookahead == '_' ||
+               (lexer->lookahead >= '0' && lexer->lookahead <= '9') ||
+               (lexer->lookahead >= 'A' && lexer->lookahead <= 'Z')) {
+            has_letter = has_letter ||
+                (lexer->lookahead >= 'A' && lexer->lookahead <= 'Z');
+            lexer->advance(lexer, false);
+        }
+        lexer->mark_end(lexer);
+        if (has_letter && lexer->lookahead == '(') {
+            lexer->result_symbol = MACRO_IDENTIFIER;
+            return true;
+        }
+        return false;
+    }
+    if (!valid_symbols[HEREDOC_LITERAL]) {
+        return false;
     }
     if (lexer->lookahead != '@') {
         return false;
@@ -63,6 +82,9 @@ bool tree_sitter_lpc_external_scanner_scan(
     if (delimiter_length == 0) {
         return false;
     }
+    while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
+        lexer->advance(lexer, false);
+    }
     if (lexer->lookahead == '\r') {
         lexer->advance(lexer, false);
     }
@@ -79,10 +101,8 @@ bool tree_sitter_lpc_external_scanner_scan(
             lexer->advance(lexer, false);
             if (matched == delimiter_length) {
                 lexer->mark_end(lexer);
-                while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
-                    lexer->advance(lexer, true);
-                }
-                if (lexer->lookahead == ';' || lexer->lookahead == ')' ||
+                if (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
+                    lexer->lookahead == ';' || lexer->lookahead == ')' ||
                     lexer->lookahead == ']' || lexer->lookahead == '}' ||
                     lexer->lookahead == ',' || lexer->lookahead == '\r' ||
                     lexer->lookahead == '\n') {

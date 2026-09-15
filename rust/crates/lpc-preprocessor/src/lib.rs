@@ -60,6 +60,7 @@ impl Preprocessor {
         let mut includes = Vec::new();
         let mut inactive_regions = Vec::new();
         let mut offset = 0_usize;
+        let mut directive_continuation = false;
 
         for line_with_ending in source.split_inclusive('\n') {
             let line = line_with_ending
@@ -75,8 +76,12 @@ impl Preprocessor {
             let current_active = frames.last().is_none_or(|frame| frame.active);
             let mut directive = false;
 
-            if let Some(body) = trimmed.strip_prefix('#') {
+            if directive_continuation {
                 directive = true;
+                directive_continuation = line.trim_end().ends_with('\\');
+            } else if let Some(body) = trimmed.strip_prefix('#') {
+                directive = true;
+                directive_continuation = line.trim_end().ends_with('\\');
                 let body = body.trim_start();
                 let (name, arguments) = split_directive(body);
                 match name {
@@ -403,6 +408,20 @@ mod tests {
         let result = Preprocessor::default().process(source);
         assert!(result.text.contains("int enabled;"));
         assert!(!result.text.contains("int disabled;"));
+    }
+
+    #[test]
+    fn masks_every_physical_line_of_continued_directives() {
+        let source = "#define DATA ([ \\\n  \"name\" : 1, \\\n])\nint visible;\n";
+        let result = Preprocessor::default().process(source);
+        assert!(
+            result
+                .text
+                .lines()
+                .take(3)
+                .all(|line| line.trim().is_empty())
+        );
+        assert!(result.text.contains("int visible;"));
     }
 
     #[test]

@@ -34,6 +34,7 @@ module.exports = grammar({
 
   externals: $ => [
     $.heredoc_literal,
+    $.macro_identifier,
   ],
 
   supertypes: $ => [
@@ -60,12 +61,20 @@ module.exports = grammar({
       $.inherit_declaration,
       $.include_declaration,
       $.modifier_section,
+      $.macro_annotation,
       $._statement,
     )),
 
     preprocessor_directive: _ => token(seq(
       '#',
       repeat(choice(/[^\\\r\n]/, /\\\r?\n/)),
+    )),
+
+    macro_annotation: $ => prec(-1, seq(
+      field('name', $.identifier),
+      '(',
+      optional($.argument_list),
+      ')',
     )),
 
     comment: _ => token(choice(
@@ -190,14 +199,14 @@ module.exports = grammar({
     if_statement: $ => prec.right(seq(
       'if',
       '(',
-      field('condition', $._expression),
+      field('condition', choice($._expression, $.comma_expression)),
       ')',
       field('consequence', $._statement),
       optional(seq('else', field('alternative', $._statement))),
     )),
 
-    while_statement: $ => seq('while', '(', $._expression, ')', $._statement),
-    do_statement: $ => seq('do', $._statement, 'while', '(', $._expression, ')', ';'),
+    while_statement: $ => seq('while', '(', choice($._expression, $.comma_expression), ')', $._statement),
+    do_statement: $ => seq('do', $._statement, 'while', '(', choice($._expression, $.comma_expression), ')', ';'),
 
     for_statement: $ => seq(
       'for',
@@ -284,6 +293,10 @@ module.exports = grammar({
       $.heredoc_literal,
       $.character_literal,
       $.parameter_placeholder,
+      $.captured_expression,
+      $.reference_expression,
+      $.macro_concatenation,
+      $.macro_invocation,
       $.identifier,
     ),
 
@@ -344,10 +357,14 @@ module.exports = grammar({
         $.parenthesized_expression,
         $.array_literal,
         $.mapping_literal,
+        $.new_expression,
+        $.captured_expression,
+        $.macro_invocation,
         $.identifier,
         $.string_literal,
         $.heredoc_literal,
         $.number_literal,
+        $.character_literal,
         $.parameter_placeholder,
         seq('::', $.identifier),
         seq('efun', '::', $.identifier),
@@ -394,28 +411,69 @@ module.exports = grammar({
       '(:',
       optional(commaSep1(choice(
         seq('$', $.identifier),
-        seq('$', '(', $._expression, ')'),
         seq($._expression, optional('...')),
       ))),
       ':)',
     ),
 
     concatenated_string: $ => prec.left(PREC.ADDITIVE + 1, choice(
+      prec.dynamic(3, seq(
+        $.identifier,
+        repeat1($.string_literal),
+        $.postfix_expression,
+        repeat(choice($.string_literal, $.identifier)),
+      )),
+      prec.dynamic(3, seq(
+        repeat1($.string_literal),
+        $.postfix_expression,
+        repeat(choice($.string_literal, $.identifier)),
+      )),
+      prec.dynamic(2, seq(
+        $.identifier,
+        repeat1($.string_literal),
+        $.macro_invocation,
+        repeat(choice($.string_literal, $.identifier, $.macro_invocation)),
+      )),
+      prec.dynamic(2, seq(
+        $.string_literal,
+        $.macro_invocation,
+        repeat(choice($.string_literal, $.identifier, $.macro_invocation)),
+      )),
       seq(
         $.string_literal,
-        repeat1(choice($.string_literal, $.identifier, $.postfix_expression)),
+        repeat1(choice($.string_literal, $.identifier, $.macro_invocation)),
       ),
       seq(
         $.identifier,
         $.string_literal,
-        repeat(choice($.identifier, $.string_literal)),
+        repeat(choice($.identifier, $.string_literal, $.macro_invocation)),
+      ),
+      seq(
+        $.identifier,
+        repeat1($.identifier),
+        $.string_literal,
+        repeat(choice($.identifier, $.string_literal, $.macro_invocation)),
+      ),
+      seq(
+        $.heredoc_literal,
+        repeat1(choice($.string_literal, $.identifier, $.macro_invocation)),
+      ),
+      seq(
+        $.identifier,
+        $.heredoc_literal,
+        repeat(choice($.identifier, $.string_literal, $.macro_invocation)),
+      ),
+      seq(
+        $.macro_invocation,
+        repeat1(choice($.string_literal, $.identifier)),
       ),
     )),
 
     array_literal: $ => seq('(', '{', optional($.expression_list), '}', ')'),
     mapping_literal: $ => seq('(', '[', optional(commaSep1($.mapping_pair)), optional(','), ']', ')'),
     mapping_pair: $ => seq(field('key', $._expression), ':', field('value', $._expression)),
-    parenthesized_expression: $ => seq('(', $._expression, ')'),
+    parenthesized_expression: $ => seq('(', choice($._expression, $.comma_expression), ')'),
+    comma_expression: $ => seq($._expression, repeat1(seq(',', $._expression))),
 
     number_literal: _ => token(choice(
       /0[xX][0-9a-fA-F_]+/,
@@ -426,9 +484,18 @@ module.exports = grammar({
       /[0-9][0-9_]*/,
     )),
 
-    string_literal: _ => token(seq('"', repeat(choice(/[^"\\\r\n]/, /\\(.|\r?\n)/)), '"')),
+    string_literal: _ => token(seq('"', repeat(choice(/[^"\\]/, /\\(.|\r?\n)/)), '"')),
     character_literal: _ => token(seq("'", choice(/[^'\\\r\n]/, /\\./), "'")),
     parameter_placeholder: _ => token(/\$[0-9]+/),
+    captured_expression: $ => seq('$', '(', $._expression, ')'),
+    reference_expression: $ => prec(PREC.UNARY, seq('ref', $._expression)),
+    macro_concatenation: $ => prec.left(PREC.ADDITIVE + 1, seq($.identifier, repeat1($.identifier))),
+    macro_invocation: $ => seq(
+      field('name', alias($.macro_identifier, $.identifier)),
+      '(',
+      optional($.argument_list),
+      ')',
+    ),
     identifier: _ => /[A-Za-z_][A-Za-z0-9_]*/,
   },
 });

@@ -60,6 +60,9 @@ jobs:
         working-directory: rust/grammar/lpc
         run: npx tree-sitter test
 
+      - name: Audit bundled LPC fixtures
+        run: npm run audit:rust-syntax -- test/lpc_code --strict
+
       - name: Check Rust
         run: npm run check:rust
 

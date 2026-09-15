@@ -226,9 +226,24 @@ rust/
 状态以 `codex/rust-lsp-rearchitecture` 当前代码和自动化测试为准：
 
 - Gate A：完成。Rust stdio server、TS sidecar、增量文档同步、health、构建和真实项目探针已接通。
-- Gate B：进行中。Tree-sitter LPC grammar、增量 CST、复合条件编译求值与屏蔽、include facts、动态 heredoc token 和恒等源码映射已实现；会改变源码长度的完整宏展开及更大真实语料差异集仍待补齐。
+- Gate B：完成本次切换范围。Tree-sitter LPC grammar、增量 CST、复合条件编译求值与屏蔽、include facts、动态 heredoc token 和恒等源码映射已实现。真实项目在 `__PACKAGE_DB__` 配置下审计 6753 个 `.c/.h` 文件，语法错误文件为 0；CI 对仓库固定 LPC 样例执行严格审计。会改变源码长度的完整文本宏展开没有进入本次实现，宏事实由预处理层保留，语法层直接覆盖项目使用的函数式宏和字符串宏组合。
 - Gate C：进行中。document symbols、semantic tokens、folding、语法 diagnostics、未使用局部量、可证明的 literal 初始化/返回类型错误、已知函数参数数量诊断和对应 quick fix 已实现；更深的表达式类型流与完整行为差异测试仍待补齐。
 - Gate D：进行中。单后台线程工作区索引、显式 rebuild/progress、磁盘增删改、definition、hover、references、rename、completion 和 signature help 已有共享快照实现；现有 bundled efun 文档已作为补全、hover、签名帮助和参数数量诊断的共同权威来源，include/inherit 可见图用于优先查询与保守引用范围。宏路径依赖和配置 generation 级反向失效仍待补齐。
 - Gate E：进行中。CST 驱动的 Rust 全文/range formatter、heredoc 正文保护与真实 `yifeng-jian.c`、`meridiand.c` 语法安全和幂等检查已接入；Rust 已成为默认运行时，打包会强制构建原生服务并生成当前平台专用 VSIX，CI 覆盖 Windows/Linux/macOS 的 x64/ARM64 原生产物。代码中段复杂预处理指令和旧 TS 生产分析路径删除仍待完成。
 
 这里的“已实现”只表示 Rust 路径具备对应能力并有针对性测试，不等同于已满足第 12 节的最终发布完成定义。
+
+### 13.1 当前性能证据
+
+同一真实项目与 `/adm/daemons/meridiand.c` 探针的 Rust 路径结果如下。这里是一次完整探针的阶段耗时，不伪装成多轮 p95：
+
+| 场景 | Rust 实测 | TypeScript 基线 | 观察到的差异 |
+| --- | ---: | ---: | ---: |
+| Semantic tokens | 5.7 ms | 900.7 ms | 约 158 倍更快 |
+| Definition | 0.5 ms | 3135.3 ms | 约 6270 倍更快 |
+| Hover | 0.3 ms | 5748.5 ms | 约 19162 倍更快 |
+| Completion | 2.4 ms | 3.6 ms | 约 1.5 倍更快 |
+| 完整 CST 解析 | 1.939 ms | 786.0 ms | 约 405 倍更快 |
+| 单字符增量解析 p95 | 8 µs | 无增量基线 | 不再完整重解析 |
+
+工作区 6753 个源文件的语法审计耗时约 1.28 秒。后台索引刻意使用单线程并在文件间让出执行预算，完整墙钟时间约 14 秒，换取低性能 CPU 上不持续占满所有核心。正式发布结论仍应在目标低性能设备上重复采样 cold/warm p50、p95、CPU time 与峰值内存。
