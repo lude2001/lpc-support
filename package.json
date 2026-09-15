@@ -534,7 +534,7 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "cross-env NODE_ENV=production npm run build && npm run build:rust",
+    "vscode:prepublish": "cross-env NODE_ENV=production npm run build && npm run build:rust && node scripts/prepare-native-package.mjs",
     "build": "npm run generate-parser && node esbuild.mjs",
     "build:rust": "node scripts/build-rust-lsp.mjs",
     "benchmark:rust": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --release --package lpc-language-server --example analysis-benchmark --",

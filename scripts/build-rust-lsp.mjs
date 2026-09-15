@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
@@ -39,7 +39,11 @@ if (!existsSync(source)) {
 
 mkdirSync(path.dirname(destination), { recursive: true });
 copyFileSync(source, destination);
+if (process.platform !== 'win32') {
+    chmodSync(destination, 0o755);
+}
 const sha256 = createHash('sha256').update(readFileSync(destination)).digest('hex');
+writeFileSync(`${destination}.sha256`, `${sha256}  ${executableName}\n`, 'utf8');
 console.log(`Rust LSP: ${destination}`);
 console.log(`SHA-256: ${sha256}`);
 
