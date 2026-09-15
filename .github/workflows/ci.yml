@@ -64,7 +64,9 @@ jobs:
         run: npm run check:rust
 
       - name: Test Rust
-        run: npm run test:rust
+        run: |
+          npm run test:rust
+          npm run test:rust-formatter
 
       - name: Build and smoke-test Rust LSP
         run: |

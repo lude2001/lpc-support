@@ -4,7 +4,8 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use lpc_analysis::{AnalysisDatabase, Position};
+use lpc_analysis::{AnalysisDatabase, Position, Range, byte_range_to_lsp, position_to_byte};
+use lpc_formatter::FormatterConfig;
 use lpc_language_server::document_store::{ContentChange, DocumentStore};
 use lpc_language_server::semantic_tokens::{TOKEN_MODIFIERS, TOKEN_TYPES};
 use lpc_language_server::syntax_store::SyntaxStore;
@@ -126,6 +127,28 @@ struct SourceFileChangeParams {
     uri: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FormattingParams {
+    text_document: TextDocumentIdentifier,
+    options: FormattingOptions,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RangeFormattingParams {
+    text_document: TextDocumentIdentifier,
+    range: Range,
+    options: FormattingOptions,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FormattingOptions {
+    tab_size: usize,
+    insert_spaces: bool,
+}
+
 fn main() -> Result<()> {
     let (connection, io_threads) = Connection::stdio();
     let initialize_result = json!({
@@ -155,7 +178,9 @@ fn main() -> Result<()> {
             "completionProvider": {
                 "resolveProvider": false,
                 "triggerCharacters": [".", ">", ":"]
-            }
+            },
+            "documentFormattingProvider": true,
+            "documentRangeFormattingProvider": true
         },
         "serverInfo": {
             "name": "lpc-language-server",
@@ -426,12 +451,73 @@ fn handle_request(
         );
     }
 
+    if request.method == "textDocument/formatting" {
+        let params: FormattingParams = serde_json::from_value(request.params)?;
+        let uri = params.text_document.uri;
+        let document = documents
+            .get(&uri)
+            .with_context(|| format!("formatting requested for unopened document {uri}"))?;
+        let snapshot = syntax
+            .get(&uri)
+            .with_context(|| format!("formatting requested without syntax for {uri}"))?;
+        let config = formatting_config(&params.options);
+        let edits = lpc_formatter::format_document(&snapshot.tree, &document.text, config)
+            .map(|new_text| {
+                vec![json!({
+                    "range": byte_range_to_lsp(&document.text, 0..document.text.len()),
+                    "newText": new_text
+                })]
+            })
+            .unwrap_or_default();
+        return send_ok(connection, request.id, edits);
+    }
+
+    if request.method == "textDocument/rangeFormatting" {
+        let params: RangeFormattingParams = serde_json::from_value(request.params)?;
+        let uri = params.text_document.uri;
+        let document = documents
+            .get(&uri)
+            .with_context(|| format!("range formatting requested for unopened document {uri}"))?;
+        let snapshot = syntax
+            .get(&uri)
+            .with_context(|| format!("range formatting requested without syntax for {uri}"))?;
+        let start = position_to_byte(&document.text, params.range.start)
+            .context("range formatting start is outside the document")?;
+        let end = position_to_byte(&document.text, params.range.end)
+            .context("range formatting end is outside the document")?;
+        let edits = lpc_formatter::format_range(
+            &snapshot.tree,
+            &document.text,
+            start,
+            end,
+            formatting_config(&params.options),
+        )
+        .map(|(range, new_text)| {
+            vec![json!({
+                "range": byte_range_to_lsp(&document.text, range),
+                "newText": new_text
+            })]
+        })
+        .unwrap_or_default();
+        return send_ok(connection, request.id, edits);
+    }
+
     send_error(
         connection,
         request.id,
         lsp_server::ErrorCode::MethodNotFound,
         format!("Rust LPC server does not implement {} yet", request.method),
     )
+}
+
+fn formatting_config(options: &FormattingOptions) -> FormatterConfig {
+    FormatterConfig {
+        indent_size: if options.insert_spaces {
+            options.tab_size.clamp(1, 16)
+        } else {
+            4
+        },
+    }
 }
 
 fn handle_notification(

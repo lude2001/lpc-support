@@ -939,6 +939,10 @@
         {
           "type": "_expression",
           "named": true
+        },
+        {
+          "type": "struct_initializer",
+          "named": true
         }
       ]
     }
@@ -1213,6 +1217,32 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "struct_initializer",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_expression",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {

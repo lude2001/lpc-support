@@ -1,0 +1,13 @@
+[package]
+name = "lpc-formatter"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tree-sitter.workspace = true
+
+[dev-dependencies]
+tree-sitter-lpc-support = { path = "../../grammar/lpc" }

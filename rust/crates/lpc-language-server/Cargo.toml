@@ -9,6 +9,7 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 lpc-analysis.workspace = true
+lpc-formatter.workspace = true
 lpc-preprocessor.workspace = true
 lpc-protocol.workspace = true
 lsp-server.workspace = true

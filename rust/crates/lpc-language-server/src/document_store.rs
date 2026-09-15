@@ -145,6 +145,10 @@ impl DocumentStore {
         self.documents.is_empty()
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &DocumentSnapshot> {
+        self.documents.values()
+    }
+
     pub fn metrics(&self) -> DocumentPerformanceStatus {
         self.metrics.clone()
     }

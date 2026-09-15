@@ -779,6 +779,10 @@ fn lsp_position_to_byte(source: &str, position: Position) -> Option<usize> {
     (utf16 == position.character).then_some(line_start + line.len())
 }
 
+pub fn position_to_byte(source: &str, position: Position) -> Option<usize> {
+    lsp_position_to_byte(source, position)
+}
+
 #[cfg(test)]
 mod tests {
     use tree_sitter::Parser;

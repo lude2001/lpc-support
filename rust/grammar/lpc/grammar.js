@@ -371,7 +371,18 @@ module.exports = grammar({
     ),
 
     anonymous_function: $ => seq('function', $.parameter_list, $.block),
-    new_expression: $ => seq('new', '(', commaSep1($._expression), ')'),
+    new_expression: $ => seq(
+      'new',
+      '(',
+      commaSep1(choice($._expression, $.struct_initializer)),
+      ')',
+    ),
+
+    struct_initializer: $ => seq(
+      field('name', $.identifier),
+      ':',
+      field('value', $._expression),
+    ),
 
     closure_expression: $ => seq(
       '(:',

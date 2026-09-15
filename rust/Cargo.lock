@@ -222,11 +222,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "lpc-formatter"
+version = "0.1.0"
+dependencies = [
+ "tree-sitter",
+ "tree-sitter-lpc-support",
+]
+
+[[package]]
 name = "lpc-language-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "lpc-analysis",
+ "lpc-formatter",
  "lpc-preprocessor",
  "lpc-protocol",
  "lsp-server",

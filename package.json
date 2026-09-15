@@ -540,6 +540,7 @@
     "benchmark:rust": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --release --package lpc-language-server --example analysis-benchmark --",
     "check:rust": "node scripts/run-cargo.mjs clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
     "test:rust": "node scripts/run-cargo.mjs test --manifest-path rust/Cargo.toml --workspace",
+    "test:rust-formatter": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --package lpc-language-server --example formatter-check -- test/lpc_code/yifeng-jian.c test/lpc_code/meridiand.c",
     "build:dev": "cross-env NODE_ENV=development npm run build",
     "watch": "cross-env NODE_ENV=development node esbuild.mjs --watch",
     "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPCLexer.g4 grammar/LPCParser.g4",

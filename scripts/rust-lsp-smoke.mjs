@@ -135,6 +135,13 @@ try {
     if (!Array.isArray(foldingRanges)) {
         throw new Error(`Rust server returned invalid folding ranges: ${JSON.stringify(foldingRanges)}`);
     }
+    const formatting = await connection.sendRequest('textDocument/formatting', {
+        textDocument: { uri },
+        options: { tabSize: 4, insertSpaces: true }
+    });
+    if (!Array.isArray(formatting) || !formatting[0]?.newText?.includes('int query(int amount)\n{')) {
+        throw new Error(`Rust server returned unexpected formatting edits: ${JSON.stringify(formatting)}`);
+    }
     if (!latestDiagnostics || latestDiagnostics.version !== 2 || latestDiagnostics.diagnostics.length !== 0) {
         throw new Error(`Rust server returned unexpected diagnostics: ${JSON.stringify(latestDiagnostics)}`);
     }

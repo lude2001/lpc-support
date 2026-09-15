@@ -71,3 +71,25 @@ mapping data = ([ "name": value, "items": ({}) ]);
         (mapping_pair
           (string_literal)
           (array_literal))))))
+
+==================
+Struct initializer
+==================
+
+object x = new(Item, name:"sword", id:"changjian");
+
+---
+
+(source_file
+  (variable_declaration
+    (primitive_type)
+    (variable_declarator
+      (identifier)
+      (new_expression
+        (identifier)
+        (struct_initializer
+          (identifier)
+          (string_literal))
+        (struct_initializer
+          (identifier)
+          (string_literal))))))
