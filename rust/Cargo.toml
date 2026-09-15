@@ -1,0 +1,29 @@
+[workspace]
+members = [
+    "crates/lpc-language-server",
+    "crates/lpc-protocol",
+    "grammar/lpc"
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/lude2001/lpc-support"
+rust-version = "1.98.1"
+
+[workspace.dependencies]
+anyhow = "1.0.102"
+lpc-protocol = { path = "crates/lpc-protocol" }
+lsp-server = "0.10.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.151"
+tree-sitter = "0.27.0"
+tree-sitter-language = "0.1.8"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = 3
+panic = "abort"
+strip = "symbols"

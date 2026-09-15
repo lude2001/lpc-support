@@ -65,3 +65,6 @@ test/lpc_code/
 .codex/
 tmp/
 .tmp/
+
+# Rust build outputs
+rust/target/

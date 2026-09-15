@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execFileSync, fork } from 'child_process';
+import { execFileSync, fork, spawn } from 'child_process';
 import { createRequire } from 'module';
 import fs from 'fs';
 import os from 'os';
@@ -20,7 +20,12 @@ const {
     ShutdownRequest
 } = require('vscode-languageserver-protocol/node');
 const { createProtocolConnection } = require('vscode-languageserver-protocol/node');
-const { IPCMessageReader, IPCMessageWriter } = require('vscode-jsonrpc/node');
+const {
+    IPCMessageReader,
+    IPCMessageWriter,
+    StreamMessageReader,
+    StreamMessageWriter
+} = require('vscode-jsonrpc/node');
 
 const WORKSPACE_CONFIG_SYNC_METHOD = 'lpc/workspaceConfigSync';
 const HEALTH_METHOD = 'lpc/health';
@@ -43,9 +48,9 @@ async function main() {
         : undefined;
 
     fs.mkdirSync(options.outputDir, { recursive: true });
-    ensureServerBundle();
+    ensureLanguageServer(options.server);
 
-    const server = await startServer(project, uri);
+    const server = await startServer(project, options.server);
     try {
         const diagnosticsPromise = server.waitForDiagnostics(uri, options.diagnosticTimeoutMs);
         const performanceStages = [];
@@ -69,7 +74,7 @@ async function main() {
         }), { timedOut: true });
 
         let semanticTokens;
-        if (options.perf && position) {
+        if (options.semanticTokens || (options.perf && position)) {
             semanticTokens = await runStage(
                 'semanticTokens',
                 () => requestSemanticTokens(server.connection, uri),
@@ -193,7 +198,9 @@ function parseOptions(args, env) {
         requestTimeoutMs: Number(values.get('request-timeout-ms') ?? env.LPC_PROBE_REQUEST_TIMEOUT_MS ?? DEFAULT_REQUEST_TIMEOUT_MS)
             || DEFAULT_REQUEST_TIMEOUT_MS,
         includeCompletionLabels: parseBoolean(values.get('include-completion-labels') ?? env.LPC_PROBE_INCLUDE_COMPLETION_LABELS),
-        perf: parseBoolean(values.get('perf') ?? env.LPC_PROBE_PERF)
+        perf: parseBoolean(values.get('perf') ?? env.LPC_PROBE_PERF),
+        semanticTokens: parseBoolean(values.get('semantic-tokens') ?? env.LPC_PROBE_SEMANTIC_TOKENS),
+        server: values.get('server') ?? env.LPC_PROBE_SERVER ?? 'typescript'
     };
 }
 
@@ -310,7 +317,21 @@ function normalizePosition(rawPosition, source) {
     return { line, character };
 }
 
-function ensureServerBundle() {
+function ensureLanguageServer(server) {
+    if (server === 'rust') {
+        const executable = rustServerExecutable();
+        if (!fs.existsSync(executable)) {
+            execFileSync(process.execPath, ['scripts/build-rust-lsp.mjs'], {
+                cwd: process.cwd(),
+                stdio: 'inherit'
+            });
+        }
+        return;
+    }
+    if (server !== 'typescript') {
+        throw new Error(`Unsupported LSP server '${server}'. Use 'typescript' or 'rust'.`);
+    }
+
     const serverModule = path.resolve(process.cwd(), 'dist', 'lsp', 'server.js');
     try {
         execFileSync(process.execPath, ['esbuild.mjs'], {
@@ -328,27 +349,37 @@ function ensureServerBundle() {
     }
 }
 
-async function startServer(project) {
-    const serverModule = path.resolve(process.cwd(), 'dist', 'lsp', 'server.js');
-    const child = fork(serverModule, ['--node-ipc'], {
-        cwd: process.cwd(),
-        env: { ...process.env },
-        silent: true,
-        stdio: ['pipe', 'pipe', 'pipe', 'ipc']
-    });
+async function startServer(project, serverKind) {
+    const child = serverKind === 'rust'
+        ? spawn(rustServerExecutable(), [], {
+            cwd: process.cwd(),
+            env: { ...process.env },
+            stdio: ['pipe', 'pipe', 'pipe'],
+            windowsHide: true
+        })
+        : fork(path.resolve(process.cwd(), 'dist', 'lsp', 'server.js'), ['--node-ipc'], {
+            cwd: process.cwd(),
+            env: { ...process.env },
+            silent: true,
+            stdio: ['pipe', 'pipe', 'pipe', 'ipc']
+        });
 
-    if (!child.channel) {
-        throw new Error('LSP server process did not expose an IPC channel.');
+    if (serverKind === 'typescript' && !child.channel) {
+        throw new Error('TypeScript LSP server process did not expose an IPC channel.');
     }
 
     const stderr = [];
-    child.stdout?.on('data', () => undefined);
     child.stderr?.on('data', (chunk) => stderr.push(String(chunk)));
 
-    const connection = createProtocolConnection(
-        new IPCMessageReader(child),
-        new IPCMessageWriter(child)
-    );
+    const connection = serverKind === 'rust'
+        ? createProtocolConnection(
+            new StreamMessageReader(child.stdout),
+            new StreamMessageWriter(child.stdin)
+        )
+        : createProtocolConnection(
+            new IPCMessageReader(child),
+            new IPCMessageWriter(child)
+        );
     const server = new ProbeServer(child, connection, stderr);
     connection.listen();
 
@@ -388,6 +419,13 @@ async function startServer(project) {
             stderr.length > 0 ? `stderr:\n${stderr.join('')}` : 'stderr: <empty>'
         ].join('\n'));
     }
+}
+
+function rustServerExecutable() {
+    const executableName = process.platform === 'win32'
+        ? 'lpc-language-server.exe'
+        : 'lpc-language-server';
+    return path.resolve(process.cwd(), 'dist', 'bin', executableName);
 }
 
 class ProbeServer {
@@ -667,6 +705,19 @@ function sanitizeHealthPerformance(performance) {
     }
 
     return {
+        documents: performance.documents ? {
+            openCount: performance.documents.openCount,
+            closeCount: performance.documents.closeCount,
+            fullReplacementCount: performance.documents.fullReplacementCount,
+            incrementalEditCount: performance.documents.incrementalEditCount,
+            rejectedChangeCount: performance.documents.rejectedChangeCount
+        } : undefined,
+        syntax: performance.syntax ? {
+            parseCount: performance.syntax.parseCount,
+            fullParseCount: performance.syntax.fullParseCount,
+            incrementalParseCount: performance.syntax.incrementalParseCount,
+            totalParseTimeMicros: performance.syntax.totalParseTimeMicros
+        } : undefined,
         parser: performance.parser ? {
             parseCount: performance.parser.parseCount,
             totalParseTime: performance.parser.totalParseTime,

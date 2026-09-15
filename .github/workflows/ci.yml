@@ -45,11 +45,31 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      - name: Set up Rust
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component clippy,rustfmt
+          rustup default 1.98.1
+
       - name: Install dependencies
         run: npm ci
 
       - name: Type check
         run: npm run check
+
+      - name: Test Tree-sitter grammar
+        working-directory: rust/grammar/lpc
+        run: npx tree-sitter test
+
+      - name: Check Rust
+        run: npm run check:rust
+
+      - name: Test Rust
+        run: npm run test:rust
+
+      - name: Build and smoke-test Rust LSP
+        run: |
+          npm run build:rust
+          npm run test:rust-smoke
 
       - name: Run tests
         run: npm test -- --runInBand

@@ -1,0 +1,73 @@
+==================
+Declarations
+==================
+
+private int counter = 1;
+string *names;
+
+int query_value(int delta: (: 1 :)) {
+    return counter + delta;
+}
+
+---
+
+(source_file
+  (variable_declaration
+    (modifier)
+    (primitive_type)
+    (variable_declarator
+      (identifier)
+      (number_literal)))
+  (variable_declaration
+    (primitive_type)
+    (variable_declarator
+      (identifier)))
+  (function_declaration
+    (primitive_type)
+    (identifier)
+    (parameter_list
+      (parameter
+        (primitive_type)
+        (identifier)
+        (closure_expression
+          (number_literal))))
+    (block
+      (return_statement
+        (binary_expression
+          (identifier)
+          (identifier))))))
+
+==================
+LPC collections
+==================
+
+mixed values = ({ 1, "two", item->query_value() });
+mapping data = ([ "name": value, "items": ({}) ]);
+
+---
+
+(source_file
+  (variable_declaration
+    (primitive_type)
+    (variable_declarator
+      (identifier)
+      (array_literal
+        (expression_list
+          (number_literal)
+          (string_literal)
+          (postfix_expression
+            (identifier)
+            (member_suffix
+              (identifier))
+            (call_suffix))))))
+  (variable_declaration
+    (primitive_type)
+    (variable_declarator
+      (identifier)
+      (mapping_literal
+        (mapping_pair
+          (string_literal)
+          (identifier))
+        (mapping_pair
+          (string_literal)
+          (array_literal))))))

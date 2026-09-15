@@ -63,6 +63,7 @@
     "jest-environment-node": "^29.7.0",
     "jsdom": "^24.1.3",
     "rimraf": "^5.0.10",
+    "tree-sitter-cli": "^0.27.0",
     "ts-jest": "^29.1.1",
     "typescript": "^5.0.0"
   },
@@ -535,6 +536,10 @@
   "scripts": {
     "vscode:prepublish": "cross-env NODE_ENV=production npm run build",
     "build": "npm run generate-parser && node esbuild.mjs",
+    "build:rust": "node scripts/build-rust-lsp.mjs",
+    "benchmark:rust": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --release --package lpc-language-server --example analysis-benchmark --",
+    "check:rust": "node scripts/run-cargo.mjs clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
+    "test:rust": "node scripts/run-cargo.mjs test --manifest-path rust/Cargo.toml --workspace",
     "build:dev": "cross-env NODE_ENV=development npm run build",
     "watch": "cross-env NODE_ENV=development node esbuild.mjs --watch",
     "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPCLexer.g4 grammar/LPCParser.g4",
@@ -551,6 +556,7 @@
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "test:performance": "jest --runInBand src/functionDocs/__tests__/FunctionDocumentationPerformance.test.ts",
+    "test:rust-smoke": "node scripts/rust-lsp-smoke.mjs",
     "probe:lsp": "node scripts/lsp-probe.mjs",
     "audit:efun-arity": "node scripts/audit-efun-arity.mjs",
     "audit:efun-arity:strict": "node scripts/audit-efun-arity.mjs --strict"

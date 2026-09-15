@@ -10,6 +10,7 @@ import { initializeConfigurationBridge } from './bridges/configurationBridge';
 import { initializeSourceFileChangeBridge } from './bridges/sourceFileChangeBridge';
 import { LspClientManager } from './LspClientManager';
 import { getRegisteredProjectConfigService } from '../../modules/coreModule';
+import { resolveLanguageServerRuntime } from './languageServerRuntime';
 
 export type LspClientManagerFactory = () => LspClientManager;
 
@@ -26,7 +27,7 @@ export async function activateLspClient(
 function createPhaseAClientManager(context: vscode.ExtensionContext): LspClientManager {
     let configurationBridgeDisposable: vscode.Disposable | undefined;
     let sourceFileChangeBridgeDisposable: vscode.Disposable | undefined;
-    const client = createPhaseALanguageClient(context);
+    const client = createLanguageClient(context);
 
     return new LspClientManager({
         client,
@@ -54,26 +55,37 @@ function createPhaseAClientManager(context: vscode.ExtensionContext): LspClientM
     });
 }
 
-function createPhaseALanguageClient(context: vscode.ExtensionContext): LanguageClient {
-    const serverModule = context.asAbsolutePath(path.join('dist', 'lsp', 'server.js'));
-    const serverOptions: ServerOptions = {
-        run: {
-            module: serverModule,
-            transport: TransportKind.ipc
-        },
-        debug: {
-            module: serverModule,
-            transport: TransportKind.ipc
+function createLanguageClient(context: vscode.ExtensionContext): LanguageClient {
+    const runtime = resolveLanguageServerRuntime(context);
+    const serverOptions: ServerOptions = runtime.kind === 'rust'
+        ? {
+            run: {
+                command: runtime.command,
+                transport: TransportKind.stdio
+            },
+            debug: {
+                command: runtime.command,
+                transport: TransportKind.stdio
+            }
         }
-    };
+        : {
+            run: {
+                module: runtime.module,
+                transport: TransportKind.ipc
+            },
+            debug: {
+                module: runtime.module,
+                transport: TransportKind.ipc
+            }
+        };
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ language: 'lpc', scheme: 'file' }],
         outputChannel: vscode.window.createOutputChannel('LPC LSP')
     };
 
     return new LanguageClient(
-        'lpc-support-phase-a',
-        'LPC Support Phase A',
+        runtime.kind === 'rust' ? 'lpc-support-rust' : 'lpc-support-phase-a',
+        runtime.kind === 'rust' ? 'LPC Support Rust' : 'LPC Support Phase A',
         serverOptions,
         clientOptions
     );

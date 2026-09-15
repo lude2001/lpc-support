@@ -1,0 +1,19 @@
+[package]
+name = "lpc-language-server"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+lpc-protocol.workspace = true
+lsp-server.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tree-sitter.workspace = true
+tree-sitter-lpc-support = { path = "../../grammar/lpc" }
+
+[dev-dependencies]
+serde_json.workspace = true

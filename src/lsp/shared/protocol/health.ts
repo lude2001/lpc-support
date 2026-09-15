@@ -5,10 +5,23 @@ export interface HealthStatusRequest {
 
 export interface HealthStatusResponse {
     status: 'ok';
-    mode: 'phase-a';
+    mode: 'phase-a' | 'rust';
     serverVersion: string;
     documentCount: number;
     performance?: {
+        documents?: {
+            openCount?: number;
+            closeCount?: number;
+            fullReplacementCount?: number;
+            incrementalEditCount?: number;
+            rejectedChangeCount?: number;
+        };
+        syntax?: {
+            parseCount?: number;
+            fullParseCount?: number;
+            incrementalParseCount?: number;
+            totalParseTimeMicros?: number;
+        };
         parser?: {
             parseCount?: number;
             totalParseTime?: number;

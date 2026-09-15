@@ -1,0 +1,25 @@
+{
+  "grammars": [
+    {
+      "name": "lpc",
+      "camelcase": "Lpc",
+      "scope": "source.lpc",
+      "path": ".",
+      "file-types": ["c", "h", "lpc"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Incremental LPC and FluffOS grammar for lpc-support",
+    "authors": [
+      {
+        "name": "lpc-support contributors"
+      }
+    ]
+  },
+  "bindings": {
+    "c": true,
+    "rust": true
+  }
+}

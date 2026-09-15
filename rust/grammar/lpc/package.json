@@ -1,0 +1,7 @@
+{
+  "name": "tree-sitter-lpc-support",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "main": "bindings/node"
+}
