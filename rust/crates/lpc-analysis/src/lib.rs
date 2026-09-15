@@ -80,6 +80,21 @@ struct CallSite {
     argument_count: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalFunction {
+    pub name: String,
+    pub summary: Option<String>,
+    pub signatures: Vec<ExternalSignature>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalSignature {
+    pub label: String,
+    pub parameters: Vec<String>,
+    pub minimum_arguments: usize,
+    pub maximum_arguments: Option<usize>,
+}
+
 #[derive(Debug, Clone, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisMetrics {
@@ -92,10 +107,18 @@ pub struct AnalysisMetrics {
 #[derive(Debug, Default)]
 pub struct AnalysisDatabase {
     files: HashMap<String, FileAnalysis>,
+    external_functions: HashMap<String, ExternalFunction>,
     metrics: AnalysisMetrics,
 }
 
 impl AnalysisDatabase {
+    pub fn set_external_functions(&mut self, functions: Vec<ExternalFunction>) {
+        self.external_functions = functions
+            .into_iter()
+            .map(|function| (function.name.clone(), function))
+            .collect();
+    }
+
     pub fn update(&mut self, uri: &str, version: i32, revision: u64, tree: &Tree, source: &str) {
         if version < 0 && self.files.get(uri).is_some_and(|file| file.version >= 0) {
             return;
@@ -205,10 +228,23 @@ impl AnalysisDatabase {
                 .flat_map(|candidate| candidate.symbols.iter())
                 .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == call.name)
                 .collect();
-            if !signatures.is_empty()
-                && !signatures
-                    .iter()
-                    .any(|signature| accepts_arguments(signature, call.argument_count))
+            let external_signatures = self
+                .external_functions
+                .get(&call.name)
+                .map(|function| function.signatures.as_slice())
+                .unwrap_or_default();
+            let accepts_source_signature = signatures
+                .iter()
+                .any(|signature| accepts_arguments(signature, call.argument_count));
+            let accepts_external_signature = external_signatures.iter().any(|signature| {
+                call.argument_count >= signature.minimum_arguments
+                    && signature
+                        .maximum_arguments
+                        .is_none_or(|maximum| call.argument_count <= maximum)
+            });
+            if (!signatures.is_empty() || !external_signatures.is_empty())
+                && !accepts_source_signature
+                && !accepts_external_signature
             {
                 diagnostics.push(Diagnostic {
                     range: byte_range_to_lsp(&file.source, call.range.clone()),
@@ -280,10 +316,24 @@ impl AnalysisDatabase {
                 .values()
                 .flat_map(|candidate| candidate.symbols.iter())
                 .find(|symbol| symbol.name == name && symbol.scope.start == 0)
-        })?;
+        });
         let identifier = identifier_range(file, offset)?;
+        if let Some(symbol) = symbol {
+            return Some(HoverResult {
+                contents: format!("```lpc\n{}\n```", symbol.detail),
+                range: byte_range_to_lsp(&file.source, identifier),
+            });
+        }
+        let external = self.external_functions.get(&name)?;
+        let signatures = external
+            .signatures
+            .iter()
+            .map(|signature| signature.label.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let summary = external.summary.as_deref().unwrap_or_default();
         Some(HoverResult {
-            contents: format!("```lpc\n{}\n```", symbol.detail),
+            contents: format!("```lpc\n{signatures}\n```\n\n{summary}"),
             range: byte_range_to_lsp(&file.source, identifier),
         })
     }
@@ -378,9 +428,9 @@ impl AnalysisDatabase {
             .files
             .values()
             .flat_map(|candidate| candidate.symbols.iter())
-            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name)?;
-        Some(SignatureHelp {
-            signatures: vec![SignatureInformation {
+            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name);
+        let signatures = if let Some(symbol) = symbol {
+            vec![SignatureInformation {
                 label: symbol.detail.clone(),
                 parameters: symbol
                     .parameters
@@ -389,7 +439,26 @@ impl AnalysisDatabase {
                         label: label.clone(),
                     })
                     .collect(),
-            }],
+            }]
+        } else {
+            self.external_functions
+                .get(&name)?
+                .signatures
+                .iter()
+                .map(|signature| SignatureInformation {
+                    label: signature.label.clone(),
+                    parameters: signature
+                        .parameters
+                        .iter()
+                        .map(|label| ParameterInformation {
+                            label: label.clone(),
+                        })
+                        .collect(),
+                })
+                .collect()
+        };
+        Some(SignatureHelp {
+            signatures,
             active_signature: 0,
             active_parameter: active_parameter(&file.source[open + 1..offset]),
         })
@@ -406,6 +475,7 @@ impl AnalysisDatabase {
             labels.extend(file.symbols.iter().map(|symbol| symbol.name.clone()));
         }
         labels.extend(KEYWORDS.iter().map(|keyword| (*keyword).to_owned()));
+        labels.extend(self.external_functions.keys().cloned());
         let mut labels: Vec<_> = labels.into_iter().collect();
         labels.sort();
         labels
@@ -1026,6 +1096,55 @@ mod tests {
         );
         assert!(
             diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
+        );
+    }
+
+    #[test]
+    fn exposes_external_efun_documentation_and_arity() {
+        let source = "void demo() { write(); }\n";
+        let mut database = database(source);
+        database.set_external_functions(vec![ExternalFunction {
+            name: "write".to_owned(),
+            summary: Some("向当前玩家输出信息。".to_owned()),
+            signatures: vec![ExternalSignature {
+                label: "void write(mixed str)".to_owned(),
+                parameters: vec!["mixed str".to_owned()],
+                minimum_arguments: 1,
+                maximum_arguments: Some(1),
+            }],
+        }]);
+
+        assert!(
+            database
+                .completion_labels("file:///demo.c")
+                .contains(&"write".to_owned())
+        );
+        let hover = database
+            .hover(
+                "file:///demo.c",
+                Position {
+                    line: 0,
+                    character: 15,
+                },
+            )
+            .unwrap();
+        assert!(hover.contents.contains("void write(mixed str)"));
+        assert!(hover.contents.contains("向当前玩家输出信息"));
+        let help = database
+            .signature_help(
+                "file:///demo.c",
+                Position {
+                    line: 0,
+                    character: 20,
+                },
+            )
+            .unwrap();
+        assert_eq!(help.signatures[0].parameters[0].label, "mixed str");
+        assert!(
+            database
+                .diagnostics("file:///demo.c")
                 .iter()
                 .any(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
         );

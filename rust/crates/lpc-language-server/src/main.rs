@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use lpc_analysis::{AnalysisDatabase, Position, Range, byte_range_to_lsp, position_to_byte};
 use lpc_formatter::FormatterConfig;
 use lpc_language_server::document_store::{ContentChange, DocumentStore};
+use lpc_language_server::efun_docs;
 use lpc_language_server::semantic_tokens::{TOKEN_MODIFIERS, TOKEN_TYPES};
 use lpc_language_server::syntax_store::SyntaxStore;
 use lpc_language_server::workspace_index::WorkspaceIndexController;
@@ -214,15 +215,27 @@ fn main() -> Result<()> {
     connection
         .initialize_finish(initialize_id, initialize_result)
         .context("LSP initialization response failed")?;
-    run(connection, workspace_roots(initialize_params))?;
+    let efuns = efun_docs::load_from_environment().unwrap_or_else(|error| {
+        eprintln!("lpc-language-server: efun documentation unavailable: {error:#}");
+        Vec::new()
+    });
+    run(connection, workspace_roots(initialize_params), efuns)?;
     io_threads.join().context("LSP transport failed")?;
     Ok(())
 }
 
-fn run(connection: Connection, workspace_roots: Vec<PathBuf>) -> Result<()> {
+fn run(
+    connection: Connection,
+    workspace_roots: Vec<PathBuf>,
+    efuns: Vec<lpc_analysis::ExternalFunction>,
+) -> Result<()> {
     let mut documents = DocumentStore::default();
     let mut syntax = SyntaxStore::new()?;
     let analysis = Arc::new(Mutex::new(AnalysisDatabase::default()));
+    analysis
+        .lock()
+        .expect("analysis lock poisoned")
+        .set_external_functions(efuns);
     let workspace_index = WorkspaceIndexController::default();
     if !workspace_roots.is_empty() {
         workspace_index.start(workspace_roots, Vec::new(), Arc::clone(&analysis));

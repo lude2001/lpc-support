@@ -61,11 +61,23 @@ function createLanguageClient(context: vscode.ExtensionContext): LanguageClient 
         ? {
             run: {
                 command: runtime.command,
-                transport: TransportKind.stdio
+                transport: TransportKind.stdio,
+                options: {
+                    env: {
+                        ...process.env,
+                        LPC_EXTENSION_ROOT: context.extensionPath
+                    }
+                }
             },
             debug: {
                 command: runtime.command,
-                transport: TransportKind.stdio
+                transport: TransportKind.stdio,
+                options: {
+                    env: {
+                        ...process.env,
+                        LPC_EXTENSION_ROOT: context.extensionPath
+                    }
+                }
             }
         }
         : {
