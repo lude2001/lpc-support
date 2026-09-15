@@ -211,24 +211,107 @@ fn first_word(value: &str) -> &str {
 }
 
 fn evaluate_condition(expression: &str, definitions: &HashMap<String, String>) -> bool {
-    let expression = expression.trim();
-    if let Some(rest) = expression.strip_prefix('!') {
-        return !evaluate_condition(rest, definitions);
+    evaluate_value(expression, definitions, 0) != 0
+}
+
+fn evaluate_value(expression: &str, definitions: &HashMap<String, String>, depth: usize) -> i64 {
+    if depth > 32 {
+        return 0;
     }
-    if let Some(name) = expression.strip_prefix("defined") {
-        let name = name
+    let expression = trim_balanced_parentheses(expression.trim());
+    for operator in ["||", "&&", "==", "!=", ">=", "<=", ">", "<"] {
+        if let Some(index) = find_top_level_operator(expression, operator) {
+            let left = evaluate_value(&expression[..index], definitions, depth + 1);
+            let right = evaluate_value(
+                &expression[index + operator.len()..],
+                definitions,
+                depth + 1,
+            );
+            return match operator {
+                "||" => i64::from(left != 0 || right != 0),
+                "&&" => i64::from(left != 0 && right != 0),
+                "==" => i64::from(left == right),
+                "!=" => i64::from(left != right),
+                ">=" => i64::from(left >= right),
+                "<=" => i64::from(left <= right),
+                ">" => i64::from(left > right),
+                "<" => i64::from(left < right),
+                _ => 0,
+            };
+        }
+    }
+    if let Some(rest) = expression.strip_prefix('!') {
+        return i64::from(evaluate_value(rest, definitions, depth + 1) == 0);
+    }
+    if let Some(rest) = expression.strip_prefix("defined") {
+        let name = rest
             .trim()
             .trim_start_matches('(')
             .trim_end_matches(')')
             .trim();
-        return definitions.contains_key(name);
+        return i64::from(definitions.contains_key(name));
+    }
+    if let Some(hex) = expression
+        .strip_prefix("0x")
+        .or_else(|| expression.strip_prefix("0X"))
+    {
+        return i64::from_str_radix(hex, 16).unwrap_or(0);
     }
     if let Ok(value) = expression.parse::<i64>() {
-        return value != 0;
+        return value;
     }
-    definitions
-        .get(first_word(expression))
-        .is_some_and(|value| value.trim().parse::<i64>() != Ok(0))
+    definitions.get(first_word(expression)).map_or(0, |value| {
+        let value = value.trim();
+        if value.is_empty() {
+            1
+        } else {
+            evaluate_value(value, definitions, depth + 1)
+        }
+    })
+}
+
+fn trim_balanced_parentheses(mut expression: &str) -> &str {
+    loop {
+        if !expression.starts_with('(') || !expression.ends_with(')') {
+            return expression;
+        }
+        let mut depth = 0_i32;
+        let mut closes_at_end = false;
+        for (index, character) in expression.char_indices() {
+            match character {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        closes_at_end = index + character.len_utf8() == expression.len();
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if !closes_at_end {
+            return expression;
+        }
+        expression = expression[1..expression.len() - 1].trim();
+    }
+}
+
+fn find_top_level_operator(expression: &str, operator: &str) -> Option<usize> {
+    let bytes = expression.as_bytes();
+    let operator = operator.as_bytes();
+    let mut depth = 0_i32;
+    let mut index = 0_usize;
+    while index + operator.len() <= bytes.len() {
+        match bytes[index] {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            _ if depth == 0 && bytes[index..].starts_with(operator) => return Some(index),
+            _ => {}
+        }
+        index += 1;
+    }
+    None
 }
 
 fn parse_include(arguments: &str) -> Option<(String, bool, usize, usize)> {
@@ -305,6 +388,21 @@ mod tests {
         assert_eq!(result.includes.len(), 1);
         assert_eq!(result.includes[0].path, "mudlib.h");
         assert!(result.includes[0].system);
+    }
+
+    #[test]
+    fn evaluates_nested_boolean_and_numeric_macro_conditions() {
+        let source = concat!(
+            "#define LEVEL 3\n",
+            "#if defined(LEVEL) && (LEVEL >= 2)\n",
+            "int enabled;\n",
+            "#else\n",
+            "int disabled;\n",
+            "#endif\n",
+        );
+        let result = Preprocessor::default().process(source);
+        assert!(result.text.contains("int enabled;"));
+        assert!(!result.text.contains("int disabled;"));
     }
 
     #[test]
