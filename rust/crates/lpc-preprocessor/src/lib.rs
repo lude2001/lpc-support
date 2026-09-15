@@ -36,6 +36,8 @@ pub struct MacroDirectiveFact {
     pub name: String,
     pub kind: MacroDirectiveKind,
     pub range: SourceRange,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -72,6 +74,17 @@ impl Preprocessor {
     }
 
     pub fn process(&self, source: &str) -> PreprocessedDocument {
+        self.process_with_include_resolver(source, |_, _, _| None)
+    }
+
+    pub fn process_with_include_resolver<F>(
+        &self,
+        source: &str,
+        mut resolve_include: F,
+    ) -> PreprocessedDocument
+    where
+        F: FnMut(&str, bool, &HashMap<String, String>) -> Option<HashMap<String, String>>,
+    {
         let mut output = source.as_bytes().to_vec();
         let initial_definitions = self.predefined.clone();
         let mut definitions = initial_definitions.clone();
@@ -162,6 +175,7 @@ impl Preprocessor {
                                     start_byte,
                                     end_byte: start_byte + key.len(),
                                 },
+                                value: Some(value.to_owned()),
                             });
                             definitions.insert(key.to_owned(), value.to_owned());
                         }
@@ -177,23 +191,59 @@ impl Preprocessor {
                                     start_byte,
                                     end_byte: start_byte + key.len(),
                                 },
+                                value: None,
                             });
                             definitions.remove(key);
                         }
                     }
                     "include" if current_active => {
-                        if let Some((path, system, relative_start, relative_end)) =
-                            parse_include(arguments)
-                        {
-                            let body_offset = line.len() - trimmed.len() + 1;
+                        let parsed = parse_include(arguments).or_else(|| {
+                            let macro_name = first_word(arguments);
+                            definitions
+                                .get(macro_name)
+                                .and_then(|value| parse_include(value))
+                                .map(|(path, system, _, _)| {
+                                    let start = arguments.find(macro_name).unwrap_or(0);
+                                    (path, system, start, start + macro_name.len())
+                                })
+                        });
+                        if let Some((path, system, relative_start, relative_end)) = parsed {
+                            let arguments_offset =
+                                line.len().saturating_sub(physical_arguments.len());
+                            let include_range = SourceRange {
+                                start_byte: offset + arguments_offset + relative_start,
+                                end_byte: offset + arguments_offset + relative_end,
+                            };
                             includes.push(IncludeFact {
-                                path,
+                                path: path.clone(),
                                 system,
-                                range: SourceRange {
-                                    start_byte: offset + body_offset + relative_start,
-                                    end_byte: offset + body_offset + relative_end,
-                                },
+                                range: include_range.clone(),
                             });
+                            if let Some(imported) = resolve_include(&path, system, &definitions) {
+                                let mut changed_names = definitions
+                                    .keys()
+                                    .chain(imported.keys())
+                                    .cloned()
+                                    .collect::<Vec<_>>();
+                                changed_names.sort();
+                                changed_names.dedup();
+                                for name in changed_names {
+                                    if definitions.get(&name) == imported.get(&name) {
+                                        continue;
+                                    }
+                                    macro_directives.push(MacroDirectiveFact {
+                                        name: name.clone(),
+                                        kind: if imported.contains_key(&name) {
+                                            MacroDirectiveKind::Define
+                                        } else {
+                                            MacroDirectiveKind::Undef
+                                        },
+                                        range: include_range.clone(),
+                                        value: imported.get(&name).cloned(),
+                                    });
+                                }
+                                definitions = imported;
+                            }
                         }
                     }
                     _ => {}
@@ -581,5 +631,67 @@ mod tests {
             Some("(name, count) ([ \"name\": name, \"count\": count ])")
         );
         assert_eq!(result.macro_directives[0].name, "TASK");
+    }
+
+    #[test]
+    fn applies_include_side_effects_at_the_directive_position() {
+        let source = concat!(
+            "#define BEFORE 1\n",
+            "#include <feature.h>\n",
+            "#if HEADER_SAW_BEFORE && !defined(REMOVED_BY_HEADER)\n",
+            "int enabled;\n",
+            "#endif\n",
+        );
+        let result = Preprocessor::default().process_with_include_resolver(
+            source,
+            |path, system, definitions| {
+                assert_eq!(path, "feature.h");
+                assert!(system);
+                assert_eq!(definitions.get("BEFORE").map(String::as_str), Some("1"));
+                let mut imported = definitions.clone();
+                imported.insert("HEADER_SAW_BEFORE".to_owned(), "1".to_owned());
+                imported.remove("REMOVED_BY_HEADER");
+                Some(imported)
+            },
+        );
+        assert!(result.text.contains("int enabled;"));
+        assert_eq!(
+            result
+                .final_definitions
+                .get("HEADER_SAW_BEFORE")
+                .map(String::as_str),
+            Some("1")
+        );
+        assert!(result.macro_directives.iter().any(|directive| {
+            directive.name == "HEADER_SAW_BEFORE" && directive.kind == MacroDirectiveKind::Define
+        }));
+    }
+
+    #[test]
+    fn resolves_macro_backed_include_arguments() {
+        let source = "#define CONFIG <config.h>\n#include CONFIG\n";
+        let result = Preprocessor::default().process_with_include_resolver(
+            source,
+            |path, system, definitions| {
+                assert_eq!(path, "config.h");
+                assert!(system);
+                let mut imported = definitions.clone();
+                imported.insert("FROM_CONFIG".to_owned(), "1".to_owned());
+                Some(imported)
+            },
+        );
+        assert_eq!(result.includes.len(), 1);
+        assert_eq!(result.includes[0].path, "config.h");
+        assert_eq!(
+            &source[result.includes[0].range.start_byte..result.includes[0].range.end_byte],
+            "CONFIG"
+        );
+        assert_eq!(
+            result
+                .final_definitions
+                .get("FROM_CONFIG")
+                .map(String::as_str),
+            Some("1")
+        );
     }
 }
