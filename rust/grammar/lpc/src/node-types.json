@@ -1085,7 +1085,7 @@
         "required": false,
         "types": [
           {
-            "type": "_expression",
+            "type": "closure_expression",
             "named": true
           }
         ]

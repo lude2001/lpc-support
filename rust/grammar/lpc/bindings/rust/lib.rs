@@ -174,4 +174,26 @@ void run() {
             tree.root_node().to_sexp()
         );
     }
+
+    #[test]
+    fn parses_fluffos_parameter_declarators() {
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&super::LANGUAGE.into())
+            .expect("generated LPC language should load");
+        let source = concat!(
+            "varargs string legacy(mapping ref *data, int mode: (: 1 :));\n",
+            "void collect(string prefix, mixed *args...);\n",
+            "void amp_ref(int &value);\n",
+            "int anonymous(int, string *);\n",
+        );
+        let tree = parser
+            .parse(source, None)
+            .expect("parser should return a tree");
+        assert!(
+            !tree.root_node().has_error(),
+            "{}",
+            tree.root_node().to_sexp()
+        );
+    }
 }

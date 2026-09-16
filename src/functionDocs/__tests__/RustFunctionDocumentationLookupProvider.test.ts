@@ -13,6 +13,38 @@ describe('RustFunctionDocumentationLookupProvider', () => {
                     name: 'query_name',
                     signature: 'public varargs string query_name(object who, int mode)',
                     parameters: ['object who', 'int mode'],
+                    structuredSignature: {
+                        label: 'public varargs string query_name(object who, int mode: (: 0 :))',
+                        rawSyntax: 'public varargs string query_name(object who, int mode: (: 0 :));',
+                        returnType: 'string',
+                        modifiers: ['public', 'varargs'],
+                        parameters: [{
+                            label: 'object who',
+                            name: 'who',
+                            typeName: 'object',
+                            passingMode: 'value',
+                            arrayDepth: 0,
+                            variadic: false,
+                            isVariadicCollector: false,
+                            optional: false
+                        }, {
+                            label: 'int mode: (: 0 :)',
+                            name: 'mode',
+                            typeName: 'int',
+                            passingMode: 'value',
+                            arrayDepth: 0,
+                            variadic: false,
+                            isVariadicCollector: false,
+                            optional: true,
+                            defaultValueText: '(: 0 :)'
+                        }],
+                        functionVarargs: true,
+                        trueVariadic: false,
+                        variadicKind: 'permissiveModifier',
+                        declaredArity: 2,
+                        minimumArity: 0,
+                        maximumArity: null
+                    },
                     documentation: '/**\n * @brief Query a name.\n * @param object who Target object.\n * @return string Display name.\n */',
                     documentationRange: {
                         start: { line: 0, character: 0 },
@@ -78,12 +110,26 @@ describe('RustFunctionDocumentationLookupProvider', () => {
             documentationIssues: [{ code: 'stale-parameter-name', parameterName: 'old_name' }]
         }));
         expect(lookup.currentFile.entries[0].signatures[0]).toEqual(expect.objectContaining({
+            label: 'public varargs string query_name(object who, int mode: (: 0 :))',
+            rawSyntax: 'public varargs string query_name(object who, int mode: (: 0 :));',
             returnType: 'string',
             parameters: [
-                expect.objectContaining({ name: 'who', type: 'object', description: 'Target object from Rust.' }),
-                expect.objectContaining({ name: 'mode', type: 'int' })
+                expect.objectContaining({
+                    name: 'who',
+                    sourceName: 'who',
+                    type: 'object',
+                    passingMode: 'value',
+                    arrayDepth: 0,
+                    description: 'Target object from Rust.'
+                }),
+                expect.objectContaining({
+                    name: 'mode',
+                    type: 'int',
+                    optional: true,
+                    defaultValueText: '(: 0 :)'
+                })
             ],
-            arity: { min: 0, max: 2 }
+            arity: { min: 0, max: null }
         }));
         expect(lookup.inheritedGroups[0]).toEqual(expect.objectContaining({
             sourceKind: 'inherit',

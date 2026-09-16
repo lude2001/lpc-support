@@ -17,6 +17,7 @@ interface RustFunctionDocumentationEntry {
     name: string;
     signature: string;
     parameters: string[];
+    structuredSignature?: RustCallableSignature;
     documentation?: string;
     documentationRange?: DocumentRange;
     structuredDocumentation?: RustCallableDocumentation;
@@ -24,6 +25,31 @@ interface RustFunctionDocumentationEntry {
     range: DocumentRange;
     selectionRange: DocumentRange;
     hasBody: boolean;
+}
+
+interface RustCallableSignature {
+    label: string;
+    rawSyntax: string;
+    returnType?: string;
+    modifiers: string[];
+    parameters: Array<{
+        label: string;
+        name?: string;
+        typeName?: string;
+        passingMode: 'value' | 'reference';
+        arrayDepth: number;
+        variadic: boolean;
+        isVariadicCollector: boolean;
+        optional: boolean;
+        defaultValueText?: string;
+    }>;
+    functionVarargs: boolean;
+    trueVariadic: boolean;
+    variadicKind: 'none' | 'permissiveModifier' | 'collectedTail';
+    variadicParameterIndex?: number;
+    declaredArity: number;
+    minimumArity: number;
+    maximumArity: number | null;
 }
 
 interface RustCallableDocumentation {
@@ -204,7 +230,7 @@ export class RustFunctionDocumentationLookupProvider implements FunctionDocument
             selectionRange: entry.selectionRange,
             attachedCommentRange: entry.documentationRange,
             declarationKind: entry.hasBody ? 'implementation' : 'prototype',
-            modifiers: extractModifiers(entry.signature),
+            modifiers: entry.structuredSignature?.modifiers ?? extractModifiers(entry.signature),
             documentationIssues: structured?.issues ?? buildDocumentationIssues(signature, parsedTags!)
         };
     }
@@ -215,7 +241,19 @@ function materializeSignature(
     returnType: string | undefined,
     documentedParameters: Array<{ name: string; type?: string; description?: string }>
 ): CallableSignature {
-    const parameters = entry.parameters.map((parameter, index) => parseParameter(parameter, index));
+    const parameters = entry.structuredSignature
+        ? entry.structuredSignature.parameters.map((parameter, index) => ({
+            name: parameter.name ?? `arg${index + 1}`,
+            sourceName: parameter.name,
+            type: parameter.typeName,
+            passingMode: parameter.passingMode,
+            arrayDepth: parameter.arrayDepth,
+            isVariadicCollector: parameter.isVariadicCollector || undefined,
+            optional: parameter.optional || undefined,
+            variadic: parameter.variadic || undefined,
+            defaultValueText: parameter.defaultValueText
+        }))
+        : entry.parameters.map((parameter, index) => parseParameter(parameter, index));
     for (const documented of documentedParameters) {
         const parameter = parameters.find((candidate) => candidate.name === documented.name);
         if (parameter) {
@@ -223,17 +261,24 @@ function materializeSignature(
             parameter.description = documented.description;
         }
     }
-    const isFunctionVarargs = extractModifiers(entry.signature).includes('varargs');
-    const isVariadic = parameters.some((parameter) => parameter.variadic === true);
+    const isFunctionVarargs = entry.structuredSignature?.functionVarargs
+        ?? extractModifiers(entry.signature).includes('varargs');
+    const isVariadic = entry.structuredSignature?.trueVariadic
+        ?? parameters.some((parameter) => parameter.variadic === true);
     return {
-        label: entry.signature,
-        returnType,
+        label: entry.structuredSignature?.label ?? entry.signature,
+        returnType: entry.structuredSignature?.returnType ?? returnType,
         parameters,
         isVariadic,
-        arity: isFunctionVarargs
-            ? { min: 0, max: isVariadic ? null : parameters.length }
-            : undefined,
-        rawSyntax: entry.signature
+        arity: entry.structuredSignature
+            ? {
+                min: entry.structuredSignature.minimumArity,
+                max: entry.structuredSignature.maximumArity
+            }
+            : isFunctionVarargs
+                ? { min: 0, max: null }
+                : undefined,
+        rawSyntax: entry.structuredSignature?.rawSyntax ?? entry.signature
     };
 }
 

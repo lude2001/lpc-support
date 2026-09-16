@@ -78,6 +78,7 @@ pub struct FunctionDocumentationEntry {
     pub name: String,
     pub signature: String,
     pub parameters: Vec<String>,
+    pub structured_signature: Option<CallableSignatureFacts>,
     pub documentation: Option<String>,
     pub documentation_range: Option<Range>,
     pub structured_documentation: Option<CallableDocumentation>,
@@ -85,6 +86,57 @@ pub struct FunctionDocumentationEntry {
     pub range: Range,
     pub selection_range: Range,
     pub has_body: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CallableSignatureFacts {
+    pub label: String,
+    pub raw_syntax: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub return_type: Option<String>,
+    pub modifiers: Vec<String>,
+    pub parameters: Vec<CallableParameterFacts>,
+    pub function_varargs: bool,
+    pub true_variadic: bool,
+    pub variadic_kind: VariadicKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variadic_parameter_index: Option<usize>,
+    pub declared_arity: usize,
+    pub minimum_arity: usize,
+    pub maximum_arity: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum VariadicKind {
+    None,
+    PermissiveModifier,
+    CollectedTail,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ParameterPassingMode {
+    Value,
+    Reference,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CallableParameterFacts {
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub type_name: Option<String>,
+    pub passing_mode: ParameterPassingMode,
+    pub array_depth: usize,
+    pub variadic: bool,
+    pub is_variadic_collector: bool,
+    pub optional: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value_text: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -147,6 +199,7 @@ struct Symbol {
     local: bool,
     check_unused: bool,
     parameters: Vec<String>,
+    structured_signature: Option<CallableSignatureFacts>,
 }
 
 #[derive(Debug, Clone)]
@@ -973,6 +1026,7 @@ impl AnalysisDatabase {
                     name: symbol.name.clone(),
                     signature: symbol.detail.clone(),
                     parameters: symbol.parameters.clone(),
+                    structured_signature: symbol.structured_signature.clone(),
                     documentation,
                     documentation_range,
                     structured_documentation: symbol.documentation.clone(),
@@ -1597,10 +1651,15 @@ impl AnalysisDatabase {
                     && byte_range_to_lsp(&target.source, symbol.selection.clone())
                         == locations[0].range
             })?;
+            let signatures = vec![signature_information_from_symbol(target, symbol)];
             return Some(SignatureHelp {
-                signatures: vec![signature_information_from_symbol(target, symbol)],
+                active_parameter: active_parameter_for_signatures(
+                    &file.source[open + 1..offset],
+                    &signatures,
+                    0,
+                ),
+                signatures,
                 active_signature: 0,
-                active_parameter: active_parameter(&file.source[open + 1..offset]),
             });
         }
         if is_member_access(&file.source, name_start) {
@@ -1614,30 +1673,19 @@ impl AnalysisDatabase {
                         .into_iter()
                         .map(move |symbol| (target, symbol))
                 })
-                .map(|(target, symbol)| SignatureInformation {
-                    label: symbol.detail.clone(),
-                    documentation: function_documentation(target, symbol)
-                        .map(CallableDocumentation::render_markdown),
-                    parameters: symbol
-                        .parameters
-                        .iter()
-                        .map(|label| {
-                            parameter_information_from_symbol(
-                                symbol,
-                                function_documentation(target, symbol),
-                                label,
-                            )
-                        })
-                        .collect(),
-                })
+                .map(|(target, symbol)| signature_information_from_symbol(target, symbol))
                 .collect::<Vec<_>>();
             if signatures.is_empty() {
                 return None;
             }
             return Some(SignatureHelp {
+                active_parameter: active_parameter_for_signatures(
+                    &file.source[open + 1..offset],
+                    &signatures,
+                    0,
+                ),
                 signatures,
                 active_signature: 0,
-                active_parameter: active_parameter(&file.source[open + 1..offset]),
             });
         }
         let local_symbol = file
@@ -1698,9 +1746,13 @@ impl AnalysisDatabase {
                 .collect()
         };
         Some(SignatureHelp {
+            active_parameter: active_parameter_for_signatures(
+                &file.source[open + 1..offset],
+                &signatures,
+                0,
+            ),
             signatures,
             active_signature: 0,
-            active_parameter: active_parameter(&file.source[open + 1..offset]),
         })
     }
 
@@ -3450,8 +3502,12 @@ enum MemberOperator {
 }
 
 fn completion_from_symbol(symbol: &Symbol) -> CompletionCandidate {
-    let insert_text = (symbol.kind == SymbolKind::Function)
-        .then(|| function_snippet(&symbol.name, &symbol.parameters));
+    let insert_text = (symbol.kind == SymbolKind::Function).then(|| {
+        symbol.structured_signature.as_ref().map_or_else(
+            || function_snippet(&symbol.name, &symbol.parameters),
+            |signature| function_snippet_from_facts(&symbol.name, signature),
+        )
+    });
     CompletionCandidate {
         label: symbol.name.clone(),
         kind: match symbol.kind {
@@ -3530,6 +3586,26 @@ fn function_snippet(name: &str, parameters: &[String]) -> String {
         .map(|(index, parameter)| {
             let name =
                 snippet_parameter_name(parameter).unwrap_or_else(|| format!("arg{}", index + 1));
+            format!("${{{}:{name}}}", index + 1)
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{name}({placeholders})")
+}
+
+fn function_snippet_from_facts(name: &str, signature: &CallableSignatureFacts) -> String {
+    if signature.parameters.is_empty() {
+        return format!("{name}()");
+    }
+    let placeholders = signature
+        .parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            let name = parameter
+                .name
+                .clone()
+                .unwrap_or_else(|| format!("arg{}", index + 1));
             format!("${{{}:{name}}}", index + 1)
         })
         .collect::<Vec<_>>()
@@ -4183,6 +4259,7 @@ fn collect_symbols(root: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                         local: false,
                         check_unused: false,
                         parameters: Vec::new(),
+                        structured_signature: None,
                     });
                 }
             }
@@ -4272,6 +4349,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
     let detail = source[node.start_byte()..body_start.min(source.len())]
         .trim()
         .to_owned();
+    let structured_signature = build_callable_signature_facts(node, source, &detail);
     let return_type = declared_function_return_type(node, source);
     let documentation = leading_callable_documentation(
         source,
@@ -4298,6 +4376,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
         local: false,
         check_unused: false,
         parameters: parameter_details,
+        structured_signature: Some(structured_signature),
     });
 
     let scope = node.byte_range();
@@ -4320,6 +4399,7 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                     local: true,
                     check_unused: true,
                     parameters: Vec::new(),
+                    structured_signature: None,
                 });
             }
         }
@@ -4409,6 +4489,7 @@ fn collect_anonymous_function_parameters(node: Node<'_>, source: &str, output: &
             local: true,
             check_unused: false,
             parameters: Vec::new(),
+            structured_signature: None,
         });
     }
 }
@@ -4461,6 +4542,7 @@ fn collect_foreach_variables(node: Node<'_>, source: &str, output: &mut Vec<Symb
             local: true,
             check_unused: single_variable,
             parameters: Vec::new(),
+            structured_signature: None,
         });
     }
 }
@@ -4506,6 +4588,7 @@ fn collect_variable_declaration(
                         .is_some_and(|parent| parent.kind() != "source_file"),
                 check_unused: true,
                 parameters: Vec::new(),
+                structured_signature: None,
             });
         }
     }
@@ -4692,6 +4775,115 @@ fn declared_function_return_type(node: Node<'_>, source: &str) -> Option<String>
     Some(format!("{base}{}", "*".repeat(pointers)))
 }
 
+fn build_callable_signature_facts(
+    node: Node<'_>,
+    source: &str,
+    detail: &str,
+) -> CallableSignatureFacts {
+    let mut node_cursor = node.walk();
+    let modifiers = node
+        .named_children(&mut node_cursor)
+        .filter(|child| child.kind() == "modifier")
+        .map(|modifier| text(modifier, source))
+        .collect::<Vec<_>>();
+    let parameters = node
+        .child_by_field_name("parameters")
+        .map(|parameter_list| {
+            let mut parameter_cursor = parameter_list.walk();
+            parameter_list
+                .named_children(&mut parameter_cursor)
+                .filter(|parameter| parameter.kind() == "parameter")
+                .map(|parameter| build_callable_parameter_facts(parameter, source))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let function_varargs = modifiers.iter().any(|modifier| modifier == "varargs");
+    let variadic_parameter_index = parameters.iter().position(|parameter| parameter.variadic);
+    let true_variadic = variadic_parameter_index.is_some();
+    let accepts_variable_arity = function_varargs || true_variadic;
+    let minimum_arity = if accepts_variable_arity {
+        0
+    } else {
+        parameters
+            .iter()
+            .filter(|parameter| !parameter.optional && !parameter.variadic)
+            .count()
+    };
+    let variadic_kind = if true_variadic {
+        VariadicKind::CollectedTail
+    } else if function_varargs {
+        VariadicKind::PermissiveModifier
+    } else {
+        VariadicKind::None
+    };
+    let declared_arity = parameters.len();
+
+    CallableSignatureFacts {
+        label: detail.trim_end_matches(';').trim().to_owned(),
+        raw_syntax: detail.to_owned(),
+        return_type: declared_function_return_type(node, source),
+        modifiers,
+        parameters,
+        function_varargs,
+        true_variadic,
+        variadic_kind,
+        variadic_parameter_index,
+        declared_arity,
+        minimum_arity,
+        maximum_arity: None,
+    }
+}
+
+fn build_callable_parameter_facts(node: Node<'_>, source: &str) -> CallableParameterFacts {
+    let label = text(node, source);
+    let name_node = node.child_by_field_name("name");
+    let type_node = node.child_by_field_name("type");
+    let default_node = node.child_by_field_name("default");
+    let prefix_end = name_node
+        .map(|name| name.start_byte())
+        .or_else(|| default_node.map(|default| default.start_byte()))
+        .unwrap_or(node.end_byte());
+    let pointer_start = type_node
+        .map(|parameter_type| parameter_type.end_byte())
+        .unwrap_or(node.start_byte());
+    let array_depth = source.get(pointer_start..prefix_end).map_or(0, |prefix| {
+        prefix.bytes().filter(|byte| *byte == b'*').count()
+    });
+    let type_name = type_node.map(|parameter_type| {
+        let base = text(parameter_type, source);
+        if array_depth == 0 {
+            base
+        } else {
+            format!("{base} {}", "*".repeat(array_depth))
+        }
+    });
+    let before_default = source
+        .get(
+            node.start_byte()..default_node.map_or(node.end_byte(), |default| default.start_byte()),
+        )
+        .unwrap_or_default();
+    let is_ref = before_default
+        .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+        .any(|token| token == "ref")
+        || before_default.contains('&');
+
+    CallableParameterFacts {
+        label,
+        name: name_node.map(|name| text(name, source)),
+        type_name,
+        passing_mode: if is_ref {
+            ParameterPassingMode::Reference
+        } else {
+            ParameterPassingMode::Value
+        },
+        array_depth,
+        variadic: before_default.contains("..."),
+        is_variadic_collector: before_default.contains("..."),
+        optional: default_node.is_some(),
+        default_value_text: default_node.map(|default| text(default, source)),
+    }
+}
+
 fn leading_macro_documentation(source: &str, declaration_start: usize) -> Option<String> {
     if let Some(documentation) = leading_documentation(source, declaration_start) {
         return Some(documentation);
@@ -4760,6 +4952,12 @@ fn is_preprocessor_branch_directive(line: &str) -> bool {
 }
 
 fn accepts_arguments(symbol: &Symbol, argument_count: usize) -> bool {
+    if let Some(signature) = symbol.structured_signature.as_ref() {
+        return argument_count >= signature.minimum_arity
+            && signature
+                .maximum_arity
+                .is_none_or(|maximum| argument_count <= maximum);
+    }
     let has_varargs_modifier = symbol
         .detail
         .split_once('(')
@@ -5641,21 +5839,50 @@ fn active_parameter(arguments: &str) -> u32 {
     active
 }
 
+fn active_parameter_for_signatures(
+    arguments: &str,
+    signatures: &[SignatureInformation],
+    active_signature: usize,
+) -> u32 {
+    let active = active_parameter(arguments);
+    let Some(signature) = signatures.get(active_signature) else {
+        return active;
+    };
+    if signature.parameters.is_empty() {
+        0
+    } else {
+        active.min(signature.parameters.len().saturating_sub(1) as u32)
+    }
+}
+
 fn signature_information_from_symbol(file: &FileAnalysis, symbol: &Symbol) -> SignatureInformation {
     let documentation = function_documentation(file, symbol);
+    let parameter_labels = symbol
+        .structured_signature
+        .as_ref()
+        .map(|signature| {
+            signature
+                .parameters
+                .iter()
+                .map(|parameter| parameter.label.as_str())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| symbol.parameters.iter().map(String::as_str).collect());
     SignatureInformation {
-        label: symbol.detail.clone(),
+        label: symbol
+            .structured_signature
+            .as_ref()
+            .map(|signature| signature.label.clone())
+            .unwrap_or_else(|| symbol.detail.clone()),
         documentation: documentation.map(CallableDocumentation::render_markdown),
-        parameters: symbol
-            .parameters
-            .iter()
-            .map(|label| parameter_information_from_symbol(symbol, documentation, label))
+        parameters: parameter_labels
+            .into_iter()
+            .map(|label| parameter_information_from_symbol(documentation, label))
             .collect(),
     }
 }
 
 fn parameter_information_from_symbol(
-    _symbol: &Symbol,
     documentation: Option<&CallableDocumentation>,
     label: &str,
 ) -> ParameterInformation {
@@ -5680,25 +5907,30 @@ fn signature_help_from_external(
     open: usize,
     offset: usize,
 ) -> SignatureHelp {
+    let signatures = external
+        .signatures
+        .iter()
+        .map(|signature| SignatureInformation {
+            label: signature.label.clone(),
+            documentation: external.summary.clone(),
+            parameters: signature
+                .parameters
+                .iter()
+                .map(|label| ParameterInformation {
+                    label: label.clone(),
+                    documentation: None,
+                })
+                .collect(),
+        })
+        .collect::<Vec<_>>();
     SignatureHelp {
-        signatures: external
-            .signatures
-            .iter()
-            .map(|signature| SignatureInformation {
-                label: signature.label.clone(),
-                documentation: external.summary.clone(),
-                parameters: signature
-                    .parameters
-                    .iter()
-                    .map(|label| ParameterInformation {
-                        label: label.clone(),
-                        documentation: None,
-                    })
-                    .collect(),
-            })
-            .collect(),
+        active_parameter: active_parameter_for_signatures(
+            &source[open + 1..offset],
+            &signatures,
+            0,
+        ),
+        signatures,
         active_signature: 0,
-        active_parameter: active_parameter(&source[open + 1..offset]),
     }
 }
 
@@ -8426,11 +8658,11 @@ mod tests {
         let source = concat!(
             "int master() { return 1; }\n",
             "int users() { return 1; }\n",
-            "int query() { return 1; }\n",
+            "int query(string name) { return sizeof(name); }\n",
             "void demo(object master, object *users) {\n",
             "    master->query(\"name\");\n",
             "    users[0]->query(\"name\");\n",
-            "    query(\"name\");\n",
+            "    query();\n",
             "}\n",
         );
         let mut database = database(source);
@@ -8456,6 +8688,125 @@ mod tests {
                 .iter()
                 .all(|diagnostic| diagnostic.code != "lpc.argumentCountMismatch")
         );
+    }
+
+    #[test]
+    fn indexes_fluffos_parameter_semantics_without_reparsing_signature_text() {
+        let source = concat!(
+            "varargs string legacy(ref mapping *data, int mode: (: 1 :));\n",
+            "void collect(string prefix, mixed args...);\n",
+            "int ordinary(int left, int right);\n",
+            "int defaulted(int left, int right: (: 2 :));\n",
+            "void amp_ref(int & value);\n",
+            "int anonymous(int, string *);\n",
+            "void demo() {\n",
+            "    legacy();\n",
+            "    legacy(([]), 1, 2);\n",
+            "    collect();\n",
+            "    collect(\"x\", 1, 2);\n",
+            "    ordinary(1);\n",
+            "    ordinary(1, 2, 3);\n",
+            "    defaulted();\n",
+            "    defaulted(1, 2, 3);\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        let file = database.files.get("file:///demo.c").unwrap();
+        let legacy = file
+            .symbols
+            .iter()
+            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == "legacy")
+            .unwrap()
+            .structured_signature
+            .as_ref()
+            .unwrap();
+        assert!(legacy.function_varargs);
+        assert!(!legacy.true_variadic);
+        assert_eq!(legacy.variadic_kind, VariadicKind::PermissiveModifier);
+        assert_eq!(legacy.declared_arity, 2);
+        assert!(legacy.raw_syntax.ends_with(';'));
+        assert_eq!(legacy.minimum_arity, 0);
+        assert_eq!(legacy.maximum_arity, None);
+        assert_eq!(
+            legacy.parameters[0].passing_mode,
+            ParameterPassingMode::Reference
+        );
+        assert_eq!(legacy.parameters[0].type_name.as_deref(), Some("mapping *"));
+        assert_eq!(legacy.parameters[0].array_depth, 1);
+        assert!(legacy.parameters[1].optional);
+        assert_eq!(
+            legacy.parameters[1].default_value_text.as_deref(),
+            Some("(: 1 :)")
+        );
+
+        let collect = file
+            .symbols
+            .iter()
+            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == "collect")
+            .unwrap()
+            .structured_signature
+            .as_ref()
+            .unwrap();
+        assert!(!collect.function_varargs);
+        assert!(collect.true_variadic);
+        assert_eq!(collect.variadic_kind, VariadicKind::CollectedTail);
+        assert_eq!(collect.variadic_parameter_index, Some(1));
+        assert_eq!(collect.minimum_arity, 0);
+        assert_eq!(collect.maximum_arity, None);
+
+        let defaulted = file
+            .symbols
+            .iter()
+            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == "defaulted")
+            .unwrap()
+            .structured_signature
+            .as_ref()
+            .unwrap();
+        assert_eq!(defaulted.declared_arity, 2);
+        assert_eq!(defaulted.minimum_arity, 1);
+        assert_eq!(defaulted.maximum_arity, None);
+
+        let amp_ref = file
+            .symbols
+            .iter()
+            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == "amp_ref")
+            .unwrap()
+            .structured_signature
+            .as_ref()
+            .unwrap();
+        assert_eq!(
+            amp_ref.parameters[0].passing_mode,
+            ParameterPassingMode::Reference
+        );
+
+        let anonymous = file
+            .symbols
+            .iter()
+            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == "anonymous")
+            .unwrap()
+            .structured_signature
+            .as_ref()
+            .unwrap();
+        assert_eq!(anonymous.parameters[0].name, None);
+        assert_eq!(anonymous.parameters[1].name, None);
+        assert_eq!(anonymous.parameters[1].array_depth, 1);
+
+        let mismatches = database
+            .diagnostics("file:///demo.c")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
+            .collect::<Vec<_>>();
+        assert_eq!(mismatches.len(), 2);
+
+        let collect_call = source.rfind("collect(\"x\", 1, 2)").unwrap();
+        let signature_help = database
+            .signature_help(
+                "file:///demo.c",
+                byte_to_lsp_position(source, collect_call + "collect(\"x\", 1, 2".len()),
+            )
+            .unwrap();
+        assert_eq!(signature_help.active_parameter, 1);
+        assert_eq!(signature_help.signatures[0].parameters.len(), 2);
     }
 
     #[test]
@@ -8599,6 +8950,18 @@ mod tests {
             .unwrap();
         assert!(local.has_body);
         assert_eq!(local.parameters, ["int value"]);
+        let structured_signature = local.structured_signature.as_ref().unwrap();
+        assert_eq!(structured_signature.return_type.as_deref(), Some("string"));
+        assert_eq!(structured_signature.minimum_arity, 1);
+        assert_eq!(structured_signature.maximum_arity, None);
+        assert_eq!(
+            structured_signature.parameters[0].name.as_deref(),
+            Some("value")
+        );
+        assert_eq!(
+            structured_signature.parameters[0].type_name.as_deref(),
+            Some("int")
+        );
         assert!(
             local
                 .documentation

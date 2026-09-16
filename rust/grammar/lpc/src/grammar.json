@@ -375,8 +375,17 @@
                   "type": "CHOICE",
                   "members": [
                     {
-                      "type": "STRING",
-                      "value": "ref"
+                      "type": "CHOICE",
+                      "members": [
+                        {
+                          "type": "STRING",
+                          "value": "ref"
+                        },
+                        {
+                          "type": "STRING",
+                          "value": "&"
+                        }
+                      ]
                     },
                     {
                       "type": "BLANK"
@@ -395,8 +404,17 @@
                   "type": "CHOICE",
                   "members": [
                     {
-                      "type": "STRING",
-                      "value": "ref"
+                      "type": "CHOICE",
+                      "members": [
+                        {
+                          "type": "STRING",
+                          "value": "ref"
+                        },
+                        {
+                          "type": "STRING",
+                          "value": "&"
+                        }
+                      ]
                     },
                     {
                       "type": "BLANK"
@@ -501,7 +519,7 @@
                   "name": "default",
                   "content": {
                     "type": "SYMBOL",
-                    "name": "_expression"
+                    "name": "closure_expression"
                   }
                 }
               ]

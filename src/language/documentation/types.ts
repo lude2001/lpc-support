@@ -27,7 +27,11 @@ export type CallableReturnObjects = string[];
 
 export interface CallableParameter {
     name: string;
+    sourceName?: string;
     type?: string;
+    passingMode?: 'value' | 'reference';
+    arrayDepth?: number;
+    isVariadicCollector?: boolean;
     description?: string;
     optional?: boolean;
     variadic?: boolean;

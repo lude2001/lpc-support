@@ -111,9 +111,9 @@ module.exports = grammar({
     parameter: $ => seq(
       choice(
         seq(
-          optional('ref'),
+          optional(choice('ref', '&')),
           field('type', $._type),
-          optional('ref'),
+          optional(choice('ref', '&')),
           repeat('*'),
           optional(field('name', $.identifier)),
         ),
@@ -121,7 +121,7 @@ module.exports = grammar({
         seq(repeat('*'), field('name', $.identifier)),
       ),
       optional('...'),
-      optional(seq(':', field('default', $._expression))),
+      optional(seq(':', field('default', $.closure_expression))),
     ),
 
     struct_declaration: $ => seq(

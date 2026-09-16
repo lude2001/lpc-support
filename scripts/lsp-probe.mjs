@@ -134,7 +134,7 @@ async function main() {
             ? await runStage(
                 'functionDocumentation',
                 () => requestFunctionDocumentation(server.connection, uri),
-                { timedOut: true, currentFileCount: 0, inheritedGroupCount: 0, inheritedEntryCount: 0, includeGroupCount: 0, includeEntryCount: 0, documentedEntryCount: 0 }
+                { timedOut: true, currentFileCount: 0, inheritedGroupCount: 0, inheritedEntryCount: 0, includeGroupCount: 0, includeEntryCount: 0, documentedEntryCount: 0, structuredSignatureCount: 0, functionVarargsCount: 0, trueVariadicCount: 0, optionalParameterCount: 0, refParameterCount: 0, arrayParameterCount: 0 }
             )
             : undefined;
 
@@ -702,7 +702,16 @@ async function requestFunctionDocumentation(connection, uri) {
         inheritedEntryCount: inheritedGroups.reduce((total, group) => total + (group.entries?.length ?? 0), 0),
         includeGroupCount: includeGroups.length,
         includeEntryCount: includeGroups.reduce((total, group) => total + (group.entries?.length ?? 0), 0),
-        documentedEntryCount: allEntries.filter(entry => Boolean(entry.documentation)).length
+        documentedEntryCount: allEntries.filter(entry => Boolean(entry.documentation)).length,
+        structuredSignatureCount: allEntries.filter(entry => Boolean(entry.structuredSignature)).length,
+        functionVarargsCount: allEntries.filter(entry => entry.structuredSignature?.functionVarargs === true).length,
+        trueVariadicCount: allEntries.filter(entry => entry.structuredSignature?.trueVariadic === true).length,
+        optionalParameterCount: allEntries.reduce((total, entry) => total
+            + (entry.structuredSignature?.parameters?.filter(parameter => parameter.optional === true).length ?? 0), 0),
+        refParameterCount: allEntries.reduce((total, entry) => total
+            + (entry.structuredSignature?.parameters?.filter(parameter => parameter.passingMode === 'reference').length ?? 0), 0),
+        arrayParameterCount: allEntries.reduce((total, entry) => total
+            + (entry.structuredSignature?.parameters?.filter(parameter => parameter.arrayDepth > 0).length ?? 0), 0)
     };
 }
 
@@ -1265,6 +1274,7 @@ function renderMarkdown(report) {
     if (report.requests.functionDocumentation) {
         const docs = report.requests.functionDocumentation;
         lines.push(`- Function docs: local ${docs.currentFileCount}; inherit ${docs.inheritedGroupCount} groups/${docs.inheritedEntryCount} entries; include ${docs.includeGroupCount} groups/${docs.includeEntryCount} entries; documented ${docs.documentedEntryCount}${docs.timedOut ? ' (timed out)' : ''}`);
+        lines.push(`- Structured signatures: ${docs.structuredSignatureCount}; function varargs ${docs.functionVarargsCount}; true varargs ${docs.trueVariadicCount}; optional parameters ${docs.optionalParameterCount}; ref parameters ${docs.refParameterCount}; array parameters ${docs.arrayParameterCount}`);
     } else {
         lines.push('- Function docs: not requested');
     }
