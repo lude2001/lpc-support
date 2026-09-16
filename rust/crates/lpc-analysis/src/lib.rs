@@ -1721,39 +1721,26 @@ impl AnalysisDatabase {
         }
         let callable =
             local_symbol.or_else(|| (workspace_symbols.len() == 1).then(|| workspace_symbols[0]));
-        let signatures = if let Some((defining_file, symbol)) = callable {
-            vec![signature_information_from_symbol(defining_file, symbol)]
-        } else {
-            self.external_functions
-                .get(&name)?
-                .signatures
-                .iter()
-                .map(|signature| SignatureInformation {
-                    label: signature.label.clone(),
-                    documentation: self
-                        .external_functions
-                        .get(&name)
-                        .and_then(|function| function.summary.clone()),
-                    parameters: signature
-                        .parameters
-                        .iter()
-                        .map(|label| ParameterInformation {
-                            label: label.clone(),
-                            documentation: None,
-                        })
-                        .collect(),
-                })
-                .collect()
-        };
-        Some(SignatureHelp {
-            active_parameter: active_parameter_for_signatures(
-                &file.source[open + 1..offset],
-                &signatures,
-                0,
-            ),
-            signatures,
-            active_signature: 0,
-        })
+        if let Some((defining_file, symbol)) = callable {
+            let signatures = vec![signature_information_from_symbol(defining_file, symbol)];
+            return Some(SignatureHelp {
+                active_parameter: active_parameter_for_signatures(
+                    &file.source[open + 1..offset],
+                    &signatures,
+                    0,
+                ),
+                signatures,
+                active_signature: 0,
+            });
+        }
+
+        let external = self.external_functions.get(&name)?;
+        Some(signature_help_from_external(
+            external,
+            &file.source,
+            open,
+            offset,
+        ))
     }
 
     pub fn completion_labels(&mut self, uri: &str) -> Vec<String> {
@@ -5923,15 +5910,36 @@ fn signature_help_from_external(
                 .collect(),
         })
         .collect::<Vec<_>>();
+    let active_parameter = active_parameter(&source[open + 1..offset]);
+    let active_signature = select_external_signature(&external.signatures, active_parameter);
     SignatureHelp {
         active_parameter: active_parameter_for_signatures(
             &source[open + 1..offset],
             &signatures,
-            0,
+            active_signature,
         ),
         signatures,
-        active_signature: 0,
+        active_signature: active_signature as u32,
     }
+}
+
+fn select_external_signature(signatures: &[ExternalSignature], active_parameter: u32) -> usize {
+    let expected_parameter_count = active_parameter as usize + 1;
+    if let Some(index) = signatures
+        .iter()
+        .position(|signature| signature.parameters.len() == expected_parameter_count)
+    {
+        return index;
+    }
+
+    signatures
+        .iter()
+        .position(|signature| {
+            signature.maximum_arguments.is_none()
+                && !signature.parameters.is_empty()
+                && active_parameter as usize >= signature.parameters.len() - 1
+        })
+        .unwrap_or(0)
 }
 
 fn completion_prefix(source: &str, position: Position) -> Option<String> {
@@ -9358,5 +9366,74 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "lpc.argumentCountMismatch")
         );
+    }
+
+    #[test]
+    fn selects_external_overloads_for_the_active_parameter() {
+        let source = concat!(
+            "void demo() {\n",
+            "    overloaded(1, 2);\n",
+            "    variadic(1, 2, 3);\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        database.set_external_functions(vec![
+            ExternalFunction {
+                name: "overloaded".to_owned(),
+                summary: None,
+                signatures: vec![
+                    ExternalSignature {
+                        label: "mixed overloaded(mixed value)".to_owned(),
+                        parameters: vec!["mixed value".to_owned()],
+                        minimum_arguments: 1,
+                        maximum_arguments: Some(1),
+                    },
+                    ExternalSignature {
+                        label: "mixed overloaded(mixed left, mixed right)".to_owned(),
+                        parameters: vec!["mixed left".to_owned(), "mixed right".to_owned()],
+                        minimum_arguments: 2,
+                        maximum_arguments: Some(2),
+                    },
+                ],
+            },
+            ExternalFunction {
+                name: "variadic".to_owned(),
+                summary: None,
+                signatures: vec![
+                    ExternalSignature {
+                        label: "mixed variadic()".to_owned(),
+                        parameters: Vec::new(),
+                        minimum_arguments: 0,
+                        maximum_arguments: Some(0),
+                    },
+                    ExternalSignature {
+                        label: "mixed variadic(mixed first, mixed ...rest)".to_owned(),
+                        parameters: vec!["mixed first".to_owned(), "mixed ...rest".to_owned()],
+                        minimum_arguments: 1,
+                        maximum_arguments: None,
+                    },
+                ],
+            },
+        ]);
+
+        let overloaded_offset = source.find("overloaded(1, 2)").unwrap() + "overloaded(1, 2".len();
+        let overloaded = database
+            .signature_help(
+                "file:///demo.c",
+                byte_to_lsp_position(source, overloaded_offset),
+            )
+            .unwrap();
+        assert_eq!(overloaded.active_signature, 1);
+        assert_eq!(overloaded.active_parameter, 1);
+
+        let variadic_offset = source.find("variadic(1, 2, 3)").unwrap() + "variadic(1, 2, 3".len();
+        let variadic = database
+            .signature_help(
+                "file:///demo.c",
+                byte_to_lsp_position(source, variadic_offset),
+            )
+            .unwrap();
+        assert_eq!(variadic.active_signature, 1);
+        assert_eq!(variadic.active_parameter, 1);
     }
 }
