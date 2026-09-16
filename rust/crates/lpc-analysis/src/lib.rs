@@ -522,14 +522,7 @@ impl AnalysisDatabase {
         source: &str,
         preprocessed_environment: PreprocessedEnvironment<'_>,
     ) {
-        self.update_preprocessed(
-            uri,
-            -1,
-            0,
-            tree,
-            source,
-            preprocessed_environment,
-        );
+        self.update_preprocessed(uri, -1, 0, tree, source, preprocessed_environment);
     }
 
     pub fn remove(&mut self, uri: &str) {
@@ -1477,9 +1470,7 @@ impl AnalysisDatabase {
         include_declaration: bool,
     ) -> Vec<Location> {
         let mut references = Vec::new();
-        if include_declaration
-            && let Some(target_file) = self.files.get(target_uri)
-        {
+        if include_declaration && let Some(target_file) = self.files.get(target_uri) {
             references.push(Location {
                 uri: target_uri.to_owned(),
                 range: byte_range_to_lsp(&target_file.source, target_selection.clone()),
@@ -1512,12 +1503,7 @@ impl AnalysisDatabase {
             left.uri
                 .cmp(&right.uri)
                 .then(left.range.start.line.cmp(&right.range.start.line))
-                .then(
-                    left.range
-                        .start
-                        .character
-                        .cmp(&right.range.start.character),
-                )
+                .then(left.range.start.character.cmp(&right.range.start.character))
         });
         references.dedup();
         references
@@ -2037,9 +2023,7 @@ impl AnalysisDatabase {
         });
         is_undef
             .then(|| range.start.saturating_sub(1))
-            .and_then(|previous_offset| {
-                self.resolve_macro_definition(uri, name, previous_offset)
-            })
+            .and_then(|previous_offset| self.resolve_macro_definition(uri, name, previous_offset))
     }
 
     fn resolve_macro_definition<'a>(
@@ -3074,25 +3058,12 @@ impl AnalysisDatabase {
         member_name: &str,
     ) -> Option<String> {
         let targets = self.object_target_uris(uri, member_start)?;
-        let mut symbols = self
-            .files
-            .iter()
-            .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
-            .flat_map(|(_, file)| preferred_function_symbols(file, member_name));
-        let symbol = symbols.next()?;
-        let remaining = symbols.collect::<Vec<_>>();
-        if !remaining.is_empty() {
-            let mut details = std::iter::once(symbol.detail.as_str())
-                .chain(remaining.iter().map(|candidate| candidate.detail.as_str()))
-                .collect::<Vec<_>>();
-            details.sort_unstable();
-            details.dedup();
-            return Some(format!("```lpc\n{}\n```", details.join("\n")));
-        }
-        Some(match symbol.documentation.as_deref() {
-            Some(documentation) => format!("```lpc\n{}\n```\n\n{documentation}", symbol.detail),
-            None => format!("```lpc\n{}\n```", symbol.detail),
-        })
+        render_function_symbol_hover(
+            self.files
+                .iter()
+                .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
+                .flat_map(|(_, file)| preferred_function_symbols(file, member_name)),
+        )
     }
 
     fn typed_member_candidates(
@@ -5389,9 +5360,9 @@ fn is_macro_lifecycle_directive(line: &str) -> bool {
         .unwrap_or_default()
         .trim_start();
     ["define", "undef"].into_iter().any(|keyword| {
-        directive.strip_prefix(keyword).is_some_and(|tail| {
-            tail.chars().next().is_some_and(char::is_whitespace)
-        })
+        directive
+            .strip_prefix(keyword)
+            .is_some_and(|tail| tail.chars().next().is_some_and(char::is_whitespace))
     })
 }
 
@@ -5435,8 +5406,7 @@ fn directive_identifier_ranges(
         }
         let start = index;
         index += 1;
-        while index < bytes.len()
-            && (bytes[index].is_ascii_alphanumeric() || bytes[index] == b'_')
+        while index < bytes.len() && (bytes[index].is_ascii_alphanumeric() || bytes[index] == b'_')
         {
             index += 1;
         }
@@ -5479,6 +5449,39 @@ fn preferred_function_symbols<'a>(file: &'a FileAnalysis, name: &str) -> Vec<&'a
         symbols.retain(|symbol| symbol.has_body);
     }
     symbols
+}
+
+fn render_function_symbol_hover<'a>(
+    symbols: impl IntoIterator<Item = &'a Symbol>,
+) -> Option<String> {
+    let mut entries = HashMap::<&str, Vec<&str>>::new();
+    for symbol in symbols {
+        let documentation = entries.entry(symbol.detail.as_str()).or_default();
+        if let Some(value) = symbol.documentation.as_deref() {
+            documentation.push(value);
+        }
+    }
+    if entries.is_empty() {
+        return None;
+    }
+
+    let mut entries = entries.into_iter().collect::<Vec<_>>();
+    entries.sort_by(|left, right| left.0.cmp(right.0));
+    Some(
+        entries
+            .into_iter()
+            .map(|(detail, mut documentation)| {
+                documentation.sort_unstable();
+                documentation.dedup();
+                if documentation.is_empty() {
+                    format!("```lpc\n{detail}\n```")
+                } else {
+                    format!("```lpc\n{detail}\n```\n\n{}", documentation.join("\n\n"))
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n---\n\n"),
+    )
 }
 
 fn valid_identifier(value: &str) -> bool {
@@ -7220,10 +7223,26 @@ mod tests {
             byte_to_lsp_position(source, first_use + 1),
             true,
         );
-        assert!(references.iter().any(|location| location.range.start.line == 0));
-        assert!(references.iter().any(|location| location.range.start.line == 1));
-        assert!(references.iter().any(|location| location.range.start.line == 2));
-        assert!(references.iter().all(|location| location.range.start.line < 3));
+        assert!(
+            references
+                .iter()
+                .any(|location| location.range.start.line == 0)
+        );
+        assert!(
+            references
+                .iter()
+                .any(|location| location.range.start.line == 1)
+        );
+        assert!(
+            references
+                .iter()
+                .any(|location| location.range.start.line == 2)
+        );
+        assert!(
+            references
+                .iter()
+                .all(|location| location.range.start.line < 3)
+        );
 
         let undef = source.find("#undef FLAG").unwrap() + "#undef ".len();
         let undef_position = byte_to_lsp_position(source, undef + 1);
@@ -7235,18 +7254,22 @@ mod tests {
             0
         );
         assert!(database.hover("file:///demo.c", undef_position).is_some());
-        assert!(database
-            .prepare_rename("file:///demo.c", undef_position)
-            .is_some());
+        assert!(
+            database
+                .prepare_rename("file:///demo.c", undef_position)
+                .is_some()
+        );
 
         let edits = database.rename_edits(
             "file:///demo.c",
             byte_to_lsp_position(source, first_use + 1),
             "FIRST_FLAG",
         );
-        assert!(edits["file:///demo.c"]
-            .iter()
-            .all(|edit| edit.range.start.line < 3));
+        assert!(
+            edits["file:///demo.c"]
+                .iter()
+                .all(|edit| edit.range.start.line < 3)
+        );
         assert_eq!(edits["file:///demo.c"].len(), 3);
     }
 
@@ -7288,18 +7311,22 @@ mod tests {
             true,
         );
         assert_eq!(references.len(), 2);
-        assert!(references
-            .iter()
-            .all(|location| !matches!(location.range.start.line, 2 | 3)));
+        assert!(
+            references
+                .iter()
+                .all(|location| !matches!(location.range.start.line, 2 | 3))
+        );
         let edits = database.rename_edits(
             "file:///demo.c",
             byte_to_lsp_position(source, use_offset + 1),
             "ACTIVE_FLAG",
         );
         assert_eq!(edits["file:///demo.c"].len(), 2);
-        assert!(edits["file:///demo.c"]
-            .iter()
-            .all(|edit| !matches!(edit.range.start.line, 2 | 3)));
+        assert!(
+            edits["file:///demo.c"]
+                .iter()
+                .all(|edit| !matches!(edit.range.start.line, 2 | 3))
+        );
     }
 
     #[test]
@@ -7703,6 +7730,54 @@ mod tests {
         );
         assert_eq!(definitions.len(), 1);
         assert_eq!(definitions[0].uri, "file:///mud/clone/user/user.c");
+    }
+
+    #[test]
+    fn preserves_structured_javadoc_for_multiple_cross_file_method_targets() {
+        let source = concat!(
+            "/** @lpc-return-objects {\"/model/world\", \"/model/fallback\"} */\n",
+            "object resolve_model() { return 0; }\n",
+            "void demo() { resolve_model()->world_object_button(0); }\n",
+        );
+        let mut analysis = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, documentation) in [
+            (
+                "file:///mud/model/world.c",
+                ("生成世界对象按钮协议数据", "主模型按钮数据"),
+            ),
+            (
+                "file:///mud/model/fallback.c",
+                ("生成后备世界对象按钮协议数据", "后备模型按钮数据"),
+            ),
+        ] {
+            let target = format!(
+                "/**\n * @brief {}\n * @param mixed data {}\n * @return string JSON 协议字符串\n */\nvarargs string world_object_button(mixed data) {{ return \"\"; }}\n",
+                documentation.0, documentation.1
+            );
+            let tree = parser.parse(&target, None).unwrap();
+            analysis.index_source(uri, &tree, &target);
+        }
+
+        let member_start = source.rfind("world_object_button").unwrap();
+        let hover = analysis
+            .hover(
+                "file:///demo.c",
+                byte_to_lsp_position(source, member_start + 2),
+            )
+            .expect("cross-file method hover should resolve");
+        assert!(
+            hover
+                .contents
+                .contains("varargs string world_object_button(mixed data)")
+        );
+        assert!(hover.contents.contains("生成世界对象按钮协议数据"));
+        assert!(hover.contents.contains("生成后备世界对象按钮协议数据"));
+        assert!(hover.contents.contains("`data` (`mixed`)"));
+        assert!(hover.contents.contains("**返回值**"));
     }
 
     #[test]
