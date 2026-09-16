@@ -1,0 +1,59 @@
+{
+  "name": "js_call",
+  "summary": "Invokes `handler` from the page's handler table (`Module.fluffos.handlers` in JavaScript) with `args` spread as individual string arguments. The handler may return a value or a Promise; when it settles, the callback runs on a later driver tick:",
+  "reference": [
+    "js_eval",
+    "call_out",
+    "resolve"
+  ],
+  "category": "WebAssembly JS Bridge",
+  "availability": {
+    "package": "jsbridge",
+    "condition": "仅 EMSCRIPTEN 且启用 PACKAGE_JSBRIDGE 时可用",
+    "source": "docs/efun/jsbridge/js_call.md"
+  },
+  "signatures": [
+    {
+      "label": "int js_call(string handler, string *args)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "handler",
+          "type": "string"
+        },
+        {
+          "name": "args",
+          "type": "string *"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "label": "int js_call(string handler, string *args, string | function callback)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "handler",
+          "type": "string"
+        },
+        {
+          "name": "args",
+          "type": "string *"
+        },
+        {
+          "name": "callback",
+          "type": "string | function"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

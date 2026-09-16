@@ -1,0 +1,29 @@
+{
+  "name": "promise_create",
+  "summary": "Returns a new promise in the pending state, with no declared payload type -- it is a `promise<mixed>`, assignable to any `promise<T>` variable. (Only an `async` function's own promise carries a declared payload; see the async/await concept page.)",
+  "reference": [
+    "promise_resolve",
+    "promise_reject",
+    "promise_then",
+    "promise_status",
+    "promise_result"
+  ],
+  "category": "Promise 与异步（Promise / Async）",
+  "availability": {
+    "package": "core",
+    "condition": "始终启用的 PACKAGE_CORE",
+    "source": "docs/efun/promises/promise_create.md"
+  },
+  "signatures": [
+    {
+      "label": "promise promise_create()",
+      "returnType": "promise",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

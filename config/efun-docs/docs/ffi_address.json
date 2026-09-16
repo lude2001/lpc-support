@@ -1,0 +1,32 @@
+{
+  "name": "ffi_address",
+  "summary": "Returns the raw native address of the first byte of `mem` as an integer — for passing to C as a pointer value or for pointer comparisons. The address is valid only while `mem` is alive.",
+  "reference": [
+    "ffi_alloc",
+    "ffi_peek",
+    "ffi_call"
+  ],
+  "category": "外部函数接口（FFI）",
+  "availability": {
+    "package": "ffi",
+    "condition": "需要 PACKAGE_FFI 和 libffi；WebAssembly 目标不可用",
+    "source": "docs/efun/ffi/ffi_address.md"
+  },
+  "signatures": [
+    {
+      "label": "int ffi_address( buffer mem )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "mem",
+          "type": "buffer"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "name": "ffi_write",
+  "summary": "Writes `value` as the scalar type `type_code` (a code from <ffi.h>) at byte `offset` within `mem`. `value` is an int for integer/pointer types or a float for FFI_FLOAT/FFI_DOUBLE. Used to fill struct fields and out-parameters before an ffi_call().",
+  "reference": [
+    "ffi_read",
+    "ffi_struct_layout",
+    "ffi_alloc"
+  ],
+  "category": "外部函数接口（FFI）",
+  "availability": {
+    "package": "ffi",
+    "condition": "需要 PACKAGE_FFI 和 libffi；WebAssembly 目标不可用",
+    "source": "docs/efun/ffi/ffi_write.md"
+  },
+  "signatures": [
+    {
+      "label": "void ffi_write( buffer mem, int offset, int type_code, mixed value )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "mem",
+          "type": "buffer"
+        },
+        {
+          "name": "offset",
+          "type": "int"
+        },
+        {
+          "name": "type_code",
+          "type": "int"
+        },
+        {
+          "name": "value",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 4,
+        "max": 4
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "promise_catch",
+  "summary": "Attaches only a rejection handler and returns the chained promise. Fulfillment passes through unchanged; a rejection runs `on_rejected(reason)`, whose return value fulfills the chained promise.",
+  "reference": [
+    "promise_then",
+    "promise_reject"
+  ],
+  "category": "Promise 与异步（Promise / Async）",
+  "availability": {
+    "package": "core",
+    "condition": "始终启用的 PACKAGE_CORE",
+    "source": "docs/efun/promises/promise_catch.md"
+  },
+  "signatures": [
+    {
+      "label": "promise promise_catch(promise p, function on_rejected)",
+      "returnType": "promise",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "p",
+          "type": "promise"
+        },
+        {
+          "name": "on_rejected",
+          "type": "function"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

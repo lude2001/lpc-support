@@ -244,6 +244,7 @@ function normalizeStructuredDoc(docKey: string, value: unknown): StructuredEfunD
                 .map((item) => item.trim())
             : undefined,
         category: value.category.trim() || DEFAULT_EFUN_CATEGORY,
+        availability: normalizeAvailability(value.availability),
         signatures
     };
 }
@@ -312,6 +313,21 @@ function normalizeParameter(docKey: string, value: unknown): StructuredEfunParam
     };
 }
 
+function normalizeAvailability(value: unknown): StructuredEfunDoc['availability'] {
+    if (!isRecord(value)
+        || typeof value.package !== 'string'
+        || !value.package.trim()
+        || typeof value.condition !== 'string'
+        || !value.condition.trim()) {
+        return undefined;
+    }
+    return {
+        package: value.package.trim(),
+        condition: value.condition.trim(),
+        source: normalizeOptionalText(value.source)
+    };
+}
+
 function cloneStructuredDoc(structuredDoc: StructuredEfunDoc): StructuredEfunDoc {
     return {
         name: structuredDoc.name,
@@ -320,6 +336,7 @@ function cloneStructuredDoc(structuredDoc: StructuredEfunDoc): StructuredEfunDoc
         note: structuredDoc.note,
         reference: structuredDoc.reference ? [...structuredDoc.reference] : undefined,
         category: structuredDoc.category,
+        availability: structuredDoc.availability ? { ...structuredDoc.availability } : undefined,
         signatures: structuredDoc.signatures.map(cloneStructuredSignature)
     };
 }

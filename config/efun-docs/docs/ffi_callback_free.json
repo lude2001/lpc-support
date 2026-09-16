@@ -1,0 +1,31 @@
+{
+  "name": "ffi_callback_free",
+  "summary": "Releases the libffi closure for callback handle `cb`. Optional — the closure is also reclaimed by the GC. Do not free a callback while C still holds its address.",
+  "reference": [
+    "ffi_callback",
+    "ffi_callback_addr"
+  ],
+  "category": "外部函数接口（FFI）",
+  "availability": {
+    "package": "ffi",
+    "condition": "需要 PACKAGE_FFI 和 libffi；WebAssembly 目标不可用",
+    "source": "docs/efun/ffi/ffi_callback_free.md"
+  },
+  "signatures": [
+    {
+      "label": "void ffi_callback_free( int cb )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "cb",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "name": "promise_then",
+  "summary": "Attaches handlers to `p` and returns a new promise for the handler's result. Handlers run from the microtask drain when `p` settles — or, if `p` is already settled, from the drain later in the current gametick. Delivery is never synchronous with this call:",
+  "reference": [
+    "promise_catch",
+    "promise_create",
+    "promise_resolve",
+    "promise_reject",
+    "async_yield"
+  ],
+  "category": "Promise 与异步（Promise / Async）",
+  "availability": {
+    "package": "core",
+    "condition": "始终启用的 PACKAGE_CORE",
+    "source": "docs/efun/promises/promise_then.md"
+  },
+  "signatures": [
+    {
+      "label": "promise promise_then(promise p)",
+      "returnType": "promise",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "p",
+          "type": "promise"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "promise promise_then(promise p, function on_fulfilled)",
+      "returnType": "promise",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "p",
+          "type": "promise"
+        },
+        {
+          "name": "on_fulfilled",
+          "type": "function"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    },
+    {
+      "label": "promise promise_then(promise p, function on_fulfilled, function on_rejected)",
+      "returnType": "promise",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "p",
+          "type": "promise"
+        },
+        {
+          "name": "on_fulfilled",
+          "type": "function"
+        },
+        {
+          "name": "on_rejected",
+          "type": "function"
+        }
+      ],
+      "arity": {
+        "min": 3,
+        "max": 3
+      }
+    }
+  ]
+}

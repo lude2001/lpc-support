@@ -1,0 +1,51 @@
+{
+  "name": "promise_reject",
+  "summary": "Rejects the pending promise `p` with `reason` (0 if omitted). Rejection handlers attached with promise_then(3)/promise_catch(3) run from the microtask drain — never synchronously from this call, but still within the same gametick. An `await` suspended on `p` raises `reason` as an error at the await point (catchable with `acatch`).",
+  "reference": [
+    "promise_resolve",
+    "promise_catch",
+    "promise_then"
+  ],
+  "category": "Promise 与异步（Promise / Async）",
+  "availability": {
+    "package": "core",
+    "condition": "始终启用的 PACKAGE_CORE",
+    "source": "docs/efun/promises/promise_reject.md"
+  },
+  "signatures": [
+    {
+      "label": "void promise_reject(promise p)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "p",
+          "type": "promise"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "void promise_reject(promise p, mixed reason)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "p",
+          "type": "promise"
+        },
+        {
+          "name": "reason",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

@@ -466,12 +466,22 @@ describe('EfunDocsManager', () => {
             returnType: 'int',
             arity: { min: 1, max: 1 }
         });
-        expect(readDoc('mapping_origin_stats').signatures[0]).toMatchObject({
-            returnType: 'mapping',
-            arity: { min: 0, max: 0 }
+        expect(readDoc('promise_then').signatures).toHaveLength(3);
+        expect(readDoc('async_info').signatures).toEqual(expect.arrayContaining([
+            expect.objectContaining({ returnType: 'mapping *', arity: { min: 0, max: 0 } }),
+            expect.objectContaining({ returnType: 'mapping', arity: { min: 1, max: 1 } })
+        ]));
+        expect(readDoc('ffi_prepare').signatures[0]).toMatchObject({
+            returnType: 'int',
+            arity: { min: 4, max: 4 }
         });
+        expect(fs.existsSync(path.join(docsDir, 'mapping_origin_stats.json'))).toBe(false);
         expect(fs.existsSync(path.join(docsDir, 'inherit_program.json'))).toBe(false);
         expect(fs.existsSync(path.join(docsDir, 'include_file.json'))).toBe(false);
+
+        const manager = await createManager(process.cwd());
+        expect(manager.getStandardCallableDoc('ffi_prepare')?.note).toContain('PACKAGE_FFI');
+        expect(manager.getStandardCallableDoc('mapping_origin_stats')).toBeUndefined();
     });
 
     test('bundled efun docs match FluffOS arity declarations when checkout is available', async () => {

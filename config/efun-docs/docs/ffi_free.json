@@ -1,0 +1,30 @@
+{
+  "name": "ffi_free",
+  "summary": "Releases a buffer allocated by ffi_alloc(). Optional — the block is also reclaimed by the garbage collector when no LPC value references it. Using `mem` after freeing it is an error.",
+  "reference": [
+    "ffi_alloc"
+  ],
+  "category": "外部函数接口（FFI）",
+  "availability": {
+    "package": "ffi",
+    "condition": "需要 PACKAGE_FFI 和 libffi；WebAssembly 目标不可用",
+    "source": "docs/efun/ffi/ffi_free.md"
+  },
+  "signatures": [
+    {
+      "label": "void ffi_free( buffer mem )",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "mem",
+          "type": "buffer"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

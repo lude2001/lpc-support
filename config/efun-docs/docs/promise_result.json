@@ -1,0 +1,31 @@
+{
+  "name": "promise_result",
+  "summary": "Returns the fulfillment value or rejection reason of the settled promise `p`. It is an error to call this on a pending promise (check promise_status(3) first, or use promise_then(3) / `await` instead).",
+  "reference": [
+    "promise_status",
+    "promise_then"
+  ],
+  "category": "Promise 与异步（Promise / Async）",
+  "availability": {
+    "package": "core",
+    "condition": "始终启用的 PACKAGE_CORE",
+    "source": "docs/efun/promises/promise_result.md"
+  },
+  "signatures": [
+    {
+      "label": "mixed promise_result(promise p)",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "p",
+          "type": "promise"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import { FileFunctionDocTracker, type FunctionDocLookup } from './FileFunctionDo
 import { FunctionDocLookupBuilder, type FunctionDocLookupBuildOptions } from './FunctionDocLookupBuilder';
 import { SimulatedEfunScanner } from './SimulatedEfunScanner';
 import type { StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
+import { materializeEfunNote } from './availability';
 import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
 import { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
@@ -183,7 +184,7 @@ function materializeCallableDoc(structuredDoc: StructuredEfunDoc): CallableDoc {
         signatures: structuredDoc.signatures.map(materializeCallableSignature),
         summary: structuredDoc.summary,
         details: structuredDoc.details,
-        note: structuredDoc.note,
+        note: materializeEfunNote(structuredDoc),
         sourceKind: 'efun'
     };
 }

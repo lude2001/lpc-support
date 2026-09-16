@@ -1,0 +1,38 @@
+{
+  "name": "ffi_call",
+  "summary": "Calls the function handle `func` returned by ffi_prepare(). `args` must have exactly the prepared argument count; each element is an int, a float, or a buffer (never a string — LPC strings are UTF-8-native and never implicitly marshalled to char*), matching the prepared argument type codes.",
+  "reference": [
+    "ffi_prepare",
+    "ffi_peek",
+    "ffi_alloc",
+    "string_encode",
+    "string_decode"
+  ],
+  "category": "外部函数接口（FFI）",
+  "availability": {
+    "package": "ffi",
+    "condition": "需要 PACKAGE_FFI 和 libffi；WebAssembly 目标不可用",
+    "source": "docs/efun/ffi/ffi_call.md"
+  },
+  "signatures": [
+    {
+      "label": "mixed ffi_call( int func, mixed *args )",
+      "returnType": "mixed",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "func",
+          "type": "int"
+        },
+        {
+          "name": "args",
+          "type": "mixed *"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

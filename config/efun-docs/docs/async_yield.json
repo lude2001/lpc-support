@@ -1,0 +1,27 @@
+{
+  "name": "async_yield",
+  "summary": "Returns a promise fulfilled with 0 on the next pass of the driver's event loop -- after the driver has read pending network input, queued commands and fired due timers.",
+  "reference": [
+    "async_info",
+    "promise_then",
+    "call_out"
+  ],
+  "category": "Promise 与异步（Promise / Async）",
+  "availability": {
+    "package": "core",
+    "condition": "始终启用的 PACKAGE_CORE",
+    "source": "docs/efun/promises/async_yield.md"
+  },
+  "signatures": [
+    {
+      "label": "promise async_yield()",
+      "returnType": "promise",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  ]
+}

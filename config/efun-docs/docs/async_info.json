@@ -1,0 +1,43 @@
+{
+  "name": "async_info",
+  "summary": "With no argument (or 0), returns one mapping per async function that is currently suspended at an `await`, oldest first. Each entry has:",
+  "reference": [
+    "async_yield",
+    "call_out_info",
+    "promise_status",
+    "promise_then"
+  ],
+  "category": "Promise 与异步（Promise / Async）",
+  "availability": {
+    "package": "core",
+    "condition": "始终启用的 PACKAGE_CORE",
+    "source": "docs/efun/promises/async_info.md"
+  },
+  "signatures": [
+    {
+      "label": "mapping *async_info()",
+      "returnType": "mapping *",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": {
+        "min": 0,
+        "max": 0
+      }
+    },
+    {
+      "label": "mapping async_info(int stats)",
+      "returnType": "mapping",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "stats",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

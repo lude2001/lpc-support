@@ -1,0 +1,51 @@
+{
+  "name": "promise_resolve",
+  "summary": "Fulfills the pending promise `p` with `value` (0 if omitted). Reactions attached with promise_then(3) and suspended `await` expressions resume from the microtask drain — never synchronously from this call, but still within the same gametick.",
+  "reference": [
+    "promise_create",
+    "promise_reject",
+    "promise_then"
+  ],
+  "category": "Promise 与异步（Promise / Async）",
+  "availability": {
+    "package": "core",
+    "condition": "始终启用的 PACKAGE_CORE",
+    "source": "docs/efun/promises/promise_resolve.md"
+  },
+  "signatures": [
+    {
+      "label": "void promise_resolve(promise p)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "p",
+          "type": "promise"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "void promise_resolve(promise p, mixed value)",
+      "returnType": "void",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "p",
+          "type": "promise"
+        },
+        {
+          "name": "value",
+          "type": "mixed"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

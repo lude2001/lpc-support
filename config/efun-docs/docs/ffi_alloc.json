@@ -1,0 +1,34 @@
+{
+  "name": "ffi_alloc",
+  "summary": "Returns a zeroed buffer of `nbytes` bytes whose storage is the native memory block itself, suitable for structs, out-parameters, and pointer arguments to ffi_call(). The block is reference-counted like any buffer and freed by the GC; ffi_free() releases it early.",
+  "reference": [
+    "ffi_free",
+    "ffi_read",
+    "ffi_write",
+    "ffi_address",
+    "ffi_struct_layout"
+  ],
+  "category": "外部函数接口（FFI）",
+  "availability": {
+    "package": "ffi",
+    "condition": "需要 PACKAGE_FFI 和 libffi；WebAssembly 目标不可用",
+    "source": "docs/efun/ffi/ffi_alloc.md"
+  },
+  "signatures": [
+    {
+      "label": "buffer ffi_alloc( int nbytes )",
+      "returnType": "buffer",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "nbytes",
+          "type": "int"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    }
+  ]
+}

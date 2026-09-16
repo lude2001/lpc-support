@@ -1,0 +1,37 @@
+{
+  "name": "ffi_symbol",
+  "summary": "Resolves the symbol `name` in library `lib` and returns its raw native address as an integer, or 0 if not found.",
+  "reference": [
+    "ffi_prepare",
+    "ffi_peek",
+    "ffi_address",
+    "valid_ffi"
+  ],
+  "category": "外部函数接口（FFI）",
+  "availability": {
+    "package": "ffi",
+    "condition": "需要 PACKAGE_FFI 和 libffi；WebAssembly 目标不可用",
+    "source": "docs/efun/ffi/ffi_symbol.md"
+  },
+  "signatures": [
+    {
+      "label": "int ffi_symbol( int lib, string name )",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "lib",
+          "type": "int"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}

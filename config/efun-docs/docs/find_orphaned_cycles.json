@@ -1,0 +1,35 @@
+{
+  "name": "find_orphaned_cycles",
+  "summary": "Scans every live array, class, mapping, and function pointer in the driver and returns the number of blocks that are UNREACHABLE -- kept alive only by a reference loop after the last outside reference was dropped. Pure reference counting can never reclaim such blocks, and no LPC-level tool (refs(), break_cycles()) can reach them anymore, because by definition no variable leads to them.",
+  "reference": [
+    "has_cycle",
+    "find_cycles",
+    "break_cycles",
+    "check_memory",
+    "refs"
+  ],
+  "category": "驱动内部与调试（Internals / Debug）",
+  "availability": {
+    "package": "develop",
+    "condition": "需要 PACKAGE_DEVELOP、DEBUGMALLOC 和 DEBUGMALLOC_EXTENSIONS",
+    "source": "docs/efun/internals/find_orphaned_cycles.md"
+  },
+  "signatures": [
+    {
+      "label": "int find_orphaned_cycles(int collect)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "collect",
+          "type": "int",
+          "optional": true
+        }
+      ],
+      "arity": {
+        "min": 0,
+        "max": 1
+      }
+    }
+  ]
+}

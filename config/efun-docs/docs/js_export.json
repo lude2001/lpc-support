@@ -1,0 +1,51 @@
+{
+  "name": "js_export",
+  "summary": "Registers `callback` under `name` so the page's JavaScript can call into LPC:",
+  "reference": [
+    "js_call",
+    "js_eval",
+    "call_out"
+  ],
+  "category": "WebAssembly JS Bridge",
+  "availability": {
+    "package": "jsbridge",
+    "condition": "仅 EMSCRIPTEN 且启用 PACKAGE_JSBRIDGE 时可用",
+    "source": "docs/efun/jsbridge/js_export.md"
+  },
+  "signatures": [
+    {
+      "label": "int js_export(string name)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "arity": {
+        "min": 1,
+        "max": 1
+      }
+    },
+    {
+      "label": "int js_export(string name, string | function callback)",
+      "returnType": "int",
+      "isVariadic": false,
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "callback",
+          "type": "string | function"
+        }
+      ],
+      "arity": {
+        "min": 2,
+        "max": 2
+      }
+    }
+  ]
+}
