@@ -218,6 +218,7 @@ version = "0.1.0"
 dependencies = [
  "lpc-preprocessor",
  "serde",
+ "serde_json",
  "tree-sitter",
  "tree-sitter-lpc-support",
 ]

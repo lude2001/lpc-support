@@ -19,10 +19,33 @@ interface RustFunctionDocumentationEntry {
     parameters: string[];
     documentation?: string;
     documentationRange?: DocumentRange;
+    structuredDocumentation?: RustCallableDocumentation;
     returnObjects: string[];
     range: DocumentRange;
     selectionRange: DocumentRange;
     hasBody: boolean;
+}
+
+interface RustCallableDocumentation {
+    rawText: string;
+    summary?: string;
+    parameters: Array<{
+        typeName?: string;
+        name: string;
+        description?: string;
+    }>;
+    returns?: {
+        typeName?: string;
+        description?: string;
+    };
+    details?: string;
+    note?: string;
+    returnObjects: string[];
+    extraTags: Array<{ name: string; value?: string }>;
+    issues: Array<{
+        code: 'orphan-param-tag' | 'stale-parameter-name' | 'duplicate-param-tag' | 'duplicate-return-tag';
+        parameterName?: string;
+    }>;
 }
 
 interface RustFunctionDocumentationGroup {
@@ -144,22 +167,37 @@ export class RustFunctionDocumentationLookupProvider implements FunctionDocument
         entry: RustFunctionDocumentationEntry
     ): CallableDoc {
         const returnType = extractReturnType(entry.signature, entry.name);
-        const parsedTags = this.tagParser.parse(
-            entry.documentation && entry.documentationRange
-                ? { kind: 'javadoc', text: entry.documentation, range: entry.documentationRange }
-                : undefined,
-            returnType
-        );
-        const signature = materializeSignature(entry, returnType, parsedTags.params);
+        const structured = entry.structuredDocumentation;
+        const parsedTags = structured
+            ? undefined
+            : this.tagParser.parse(
+                entry.documentation && entry.documentationRange
+                    ? { kind: 'javadoc', text: entry.documentation, range: entry.documentationRange }
+                    : undefined,
+                returnType
+            );
+        const documentedParameters = structured
+            ? structured.parameters.map((parameter) => ({
+                name: parameter.name,
+                type: parameter.typeName,
+                description: parameter.description
+            }))
+            : parsedTags!.params;
+        const signature = materializeSignature(entry, returnType, documentedParameters);
         return {
             name: entry.name,
             declarationKey: `${group.uri}#${entry.range.start.line}:${entry.range.start.character}-${entry.range.end.line}:${entry.range.end.character}`,
             signatures: [signature],
-            summary: parsedTags.summary,
-            details: parsedTags.details,
-            note: parsedTags.note,
-            returns: parsedTags.returns,
-            returnObjects: parsedTags.returnObjects ?? entry.returnObjects,
+            summary: structured?.summary ?? parsedTags?.summary,
+            details: structured?.details ?? parsedTags?.details,
+            note: structured?.note ?? parsedTags?.note,
+            returns: structured?.returns
+                ? {
+                    type: structured.returns.typeName,
+                    description: structured.returns.description
+                }
+                : parsedTags?.returns,
+            returnObjects: structured?.returnObjects ?? parsedTags?.returnObjects ?? entry.returnObjects,
             sourceKind: group.sourceKind,
             sourcePath: filePath,
             sourceRange: entry.range,
@@ -167,7 +205,7 @@ export class RustFunctionDocumentationLookupProvider implements FunctionDocument
             attachedCommentRange: entry.documentationRange,
             declarationKind: entry.hasBody ? 'implementation' : 'prototype',
             modifiers: extractModifiers(entry.signature),
-            documentationIssues: buildDocumentationIssues(signature, parsedTags)
+            documentationIssues: structured?.issues ?? buildDocumentationIssues(signature, parsedTags!)
         };
     }
 }
@@ -175,7 +213,7 @@ export class RustFunctionDocumentationLookupProvider implements FunctionDocument
 function materializeSignature(
     entry: RustFunctionDocumentationEntry,
     returnType: string | undefined,
-    documentedParameters: Array<{ name: string; type: string; description?: string }>
+    documentedParameters: Array<{ name: string; type?: string; description?: string }>
 ): CallableSignature {
     const parameters = entry.parameters.map((parameter, index) => parseParameter(parameter, index));
     for (const documented of documentedParameters) {

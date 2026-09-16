@@ -9,6 +9,11 @@ use lpc_preprocessor::{InactiveRegion, IncludeFact, MacroDirectiveFact, MacroDir
 use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, Parser, Tree};
 
+mod documentation;
+
+pub use documentation::CallableDocumentation;
+use documentation::parse_callable_documentation;
+
 type PreprocessedEnvironment<'a> = (
     &'a [MacroDirectiveFact],
     &'a HashMap<String, String>,
@@ -75,6 +80,7 @@ pub struct FunctionDocumentationEntry {
     pub parameters: Vec<String>,
     pub documentation: Option<String>,
     pub documentation_range: Option<Range>,
+    pub structured_documentation: Option<CallableDocumentation>,
     pub return_objects: Vec<String>,
     pub range: Range,
     pub selection_range: Range,
@@ -133,7 +139,7 @@ struct Symbol {
     declaration: std::ops::Range<usize>,
     scope: std::ops::Range<usize>,
     detail: String,
-    documentation: Option<String>,
+    documentation: Option<CallableDocumentation>,
     return_objects: Vec<String>,
     return_expressions: Vec<ExpressionFact>,
     value_expressions: Vec<ExpressionFact>,
@@ -950,21 +956,26 @@ impl AnalysisDatabase {
             .iter()
             .filter(|symbol| symbol.kind == SymbolKind::Function && !symbol.local)
             .map(|symbol| {
-                let (documentation, documentation_range) =
-                    leading_doc_comment_with_range(&file.source, symbol.declaration.start)
-                        .map(|(comment, range)| {
-                            (
-                                Some(comment.to_owned()),
-                                Some(byte_range_to_lsp(&file.source, range)),
-                            )
-                        })
-                        .unwrap_or((None, None));
+                let (documentation, documentation_range) = symbol
+                    .documentation
+                    .as_ref()
+                    .and_then(|_| {
+                        leading_doc_comment_with_range(&file.source, symbol.declaration.start)
+                    })
+                    .map(|(comment, range)| {
+                        (
+                            Some(comment.to_owned()),
+                            Some(byte_range_to_lsp(&file.source, range)),
+                        )
+                    })
+                    .unwrap_or((None, None));
                 FunctionDocumentationEntry {
                     name: symbol.name.clone(),
                     signature: symbol.detail.clone(),
                     parameters: symbol.parameters.clone(),
                     documentation,
                     documentation_range,
+                    structured_documentation: symbol.documentation.clone(),
                     return_objects: symbol.return_objects.clone(),
                     range: byte_range_to_lsp(&file.source, symbol.declaration.clone()),
                     selection_range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
@@ -1247,10 +1258,15 @@ impl AnalysisDatabase {
                     && byte_range_to_lsp(&target.source, symbol.selection.clone())
                         == locations[0].range
             })?;
+            let documentation = function_documentation(target, symbol);
             return Some(HoverResult {
-                contents: match symbol.documentation.as_deref() {
+                contents: match documentation {
                     Some(documentation) => {
-                        format!("```lpc\n{}\n```\n\n{documentation}", symbol.detail)
+                        format!(
+                            "```lpc\n{}\n```\n\n{}",
+                            symbol.detail,
+                            documentation.render_markdown()
+                        )
                     }
                     None => format!("```lpc\n{}\n```", symbol.detail),
                 },
@@ -1272,26 +1288,42 @@ impl AnalysisDatabase {
             .files
             .iter()
             .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
-            .flat_map(|(_, candidate)| candidate.symbols.iter())
-            .filter(|symbol| symbol.name == name && !symbol.local)
+            .flat_map(|(_, candidate)| {
+                candidate
+                    .symbols
+                    .iter()
+                    .map(move |symbol| (candidate, symbol))
+            })
+            .filter(|(_, symbol)| symbol.name == name && !symbol.local)
             .collect::<Vec<_>>();
         if workspace_symbols.is_empty() {
             workspace_symbols = self
                 .files
                 .values()
-                .flat_map(|candidate| candidate.symbols.iter())
-                .filter(|symbol| symbol.name == name && !symbol.local)
+                .flat_map(|candidate| {
+                    candidate
+                        .symbols
+                        .iter()
+                        .map(move |symbol| (candidate, symbol))
+                })
+                .filter(|(_, symbol)| symbol.name == name && !symbol.local)
                 .collect();
         }
-        let symbol = symbols
+        let callable = symbols
             .first()
             .copied()
+            .map(|symbol| (file, symbol))
             .or_else(|| (workspace_symbols.len() == 1).then(|| workspace_symbols[0]));
-        if let Some(symbol) = symbol {
+        if let Some((defining_file, symbol)) = callable {
+            let documentation = function_documentation(defining_file, symbol);
             return Some(HoverResult {
-                contents: match symbol.documentation.as_deref() {
+                contents: match documentation {
                     Some(documentation) => {
-                        format!("```lpc\n{}\n```\n\n{documentation}", symbol.detail)
+                        format!(
+                            "```lpc\n{}\n```\n\n{}",
+                            symbol.detail,
+                            documentation.render_markdown()
+                        )
                     }
                     None => format!("```lpc\n{}\n```", symbol.detail),
                 },
@@ -1566,7 +1598,7 @@ impl AnalysisDatabase {
                         == locations[0].range
             })?;
             return Some(SignatureHelp {
-                signatures: vec![signature_information_from_symbol(symbol)],
+                signatures: vec![signature_information_from_symbol(target, symbol)],
                 active_signature: 0,
                 active_parameter: active_parameter(&file.source[open + 1..offset]),
             });
@@ -1577,15 +1609,24 @@ impl AnalysisDatabase {
                 .files
                 .iter()
                 .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
-                .flat_map(|(_, target)| preferred_function_symbols(target, &name))
-                .map(|symbol| SignatureInformation {
+                .flat_map(|(_, target)| {
+                    preferred_function_symbols(target, &name)
+                        .into_iter()
+                        .map(move |symbol| (target, symbol))
+                })
+                .map(|(target, symbol)| SignatureInformation {
                     label: symbol.detail.clone(),
-                    documentation: symbol.documentation.clone(),
+                    documentation: function_documentation(target, symbol)
+                        .map(CallableDocumentation::render_markdown),
                     parameters: symbol
                         .parameters
                         .iter()
-                        .map(|label| ParameterInformation {
-                            label: label.clone(),
+                        .map(|label| {
+                            parameter_information_from_symbol(
+                                symbol,
+                                function_documentation(target, symbol),
+                                label,
+                            )
                         })
                         .collect(),
                 })
@@ -1602,37 +1643,38 @@ impl AnalysisDatabase {
         let local_symbol = file
             .symbols
             .iter()
-            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name);
+            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name)
+            .map(|symbol| (file, symbol));
         let visible = self.visible_uris(uri);
         let mut workspace_symbols = self
             .files
             .iter()
             .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
-            .flat_map(|(_, candidate)| candidate.symbols.iter())
-            .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name)
+            .flat_map(|(_, candidate)| {
+                candidate
+                    .symbols
+                    .iter()
+                    .map(move |symbol| (candidate, symbol))
+            })
+            .filter(|(_, symbol)| symbol.kind == SymbolKind::Function && symbol.name == name)
             .collect::<Vec<_>>();
         if workspace_symbols.is_empty() {
             workspace_symbols = self
                 .files
                 .values()
-                .flat_map(|candidate| candidate.symbols.iter())
-                .filter(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name)
+                .flat_map(|candidate| {
+                    candidate
+                        .symbols
+                        .iter()
+                        .map(move |symbol| (candidate, symbol))
+                })
+                .filter(|(_, symbol)| symbol.kind == SymbolKind::Function && symbol.name == name)
                 .collect();
         }
-        let symbol =
+        let callable =
             local_symbol.or_else(|| (workspace_symbols.len() == 1).then(|| workspace_symbols[0]));
-        let signatures = if let Some(symbol) = symbol {
-            vec![SignatureInformation {
-                label: symbol.detail.clone(),
-                documentation: symbol.documentation.clone(),
-                parameters: symbol
-                    .parameters
-                    .iter()
-                    .map(|label| ParameterInformation {
-                        label: label.clone(),
-                    })
-                    .collect(),
-            }]
+        let signatures = if let Some((defining_file, symbol)) = callable {
+            vec![signature_information_from_symbol(defining_file, symbol)]
         } else {
             self.external_functions
                 .get(&name)?
@@ -1649,6 +1691,7 @@ impl AnalysisDatabase {
                         .iter()
                         .map(|label| ParameterInformation {
                             label: label.clone(),
+                            documentation: None,
                         })
                         .collect(),
                 })
@@ -1732,8 +1775,8 @@ impl AnalysisDatabase {
                 .files
                 .iter()
                 .filter(|(candidate_uri, _)| inherited.contains(candidate_uri.as_str()))
-                .flat_map(|(_, file)| file.symbols.iter())
-                .filter(|symbol| {
+                .flat_map(|(_, file)| file.symbols.iter().map(move |symbol| (file, symbol)))
+                .filter(|(_, symbol)| {
                     !symbol.local
                         && symbol.kind == SymbolKind::Function
                         && (normalized_prefix.is_empty()
@@ -1742,7 +1785,7 @@ impl AnalysisDatabase {
                                 .to_ascii_lowercase()
                                 .starts_with(&normalized_prefix))
                 })
-                .map(completion_from_symbol)
+                .map(|(file, symbol)| completion_from_symbol_in_file(file, symbol))
                 .collect::<Vec<_>>();
             candidates.sort_by(|left, right| left.label.cmp(&right.label));
             candidates.dedup_by(|left, right| left.label == right.label);
@@ -1791,20 +1834,23 @@ impl AnalysisDatabase {
                 !symbol.local
                     || (symbol.scope.contains(&offset) && symbol.selection.start <= offset)
             }) {
-                candidates.insert(symbol.name.clone(), completion_from_symbol(symbol));
+                candidates.insert(
+                    symbol.name.clone(),
+                    completion_from_symbol_in_file(file, symbol),
+                );
             }
         }
         let visible = self.visible_uris(uri);
-        for symbol in self
+        for (file, symbol) in self
             .files
             .iter()
             .filter(|(candidate_uri, _)| visible.contains(candidate_uri.as_str()))
-            .flat_map(|(_, file)| file.symbols.iter())
-            .filter(|symbol| !symbol.local)
+            .flat_map(|(_, file)| file.symbols.iter().map(move |symbol| (file, symbol)))
+            .filter(|(_, symbol)| !symbol.local)
         {
             candidates
                 .entry(symbol.name.clone())
-                .or_insert_with(|| completion_from_symbol(symbol));
+                .or_insert_with(|| completion_from_symbol_in_file(file, symbol));
         }
         for function in self.external_functions.values() {
             candidates
@@ -2998,8 +3044,8 @@ impl AnalysisDatabase {
             .files
             .iter()
             .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
-            .flat_map(|(_, file)| file.symbols.iter())
-            .filter(|symbol| {
+            .flat_map(|(_, file)| file.symbols.iter().map(move |symbol| (file, symbol)))
+            .filter(|(_, symbol)| {
                 !symbol.local
                     && symbol.kind == SymbolKind::Function
                     && (normalized_prefix.is_empty()
@@ -3010,19 +3056,19 @@ impl AnalysisDatabase {
             })
             .collect::<Vec<_>>();
         symbols.sort_by(|left, right| {
-            left.name
-                .cmp(&right.name)
-                .then_with(|| right.has_body.cmp(&left.has_body))
+            left.1
+                .name
+                .cmp(&right.1.name)
+                .then_with(|| right.1.has_body.cmp(&left.1.has_body))
                 .then_with(|| {
-                    right
-                        .documentation
+                    function_documentation(right.0, right.1)
                         .is_some()
-                        .cmp(&left.documentation.is_some())
+                        .cmp(&function_documentation(left.0, left.1).is_some())
                 })
         });
         let mut candidates = symbols
             .into_iter()
-            .map(completion_from_symbol)
+            .map(|(file, symbol)| completion_from_symbol_in_file(file, symbol))
             .collect::<Vec<_>>();
         candidates.dedup_by(|left, right| left.label == right.label);
         Some(candidates)
@@ -3062,7 +3108,11 @@ impl AnalysisDatabase {
             self.files
                 .iter()
                 .filter(|(candidate_uri, _)| targets.contains(candidate_uri.as_str()))
-                .flat_map(|(_, file)| preferred_function_symbols(file, member_name)),
+                .flat_map(|(_, file)| {
+                    preferred_function_symbols(file, member_name)
+                        .into_iter()
+                        .map(move |symbol| (symbol, function_documentation(file, symbol)))
+                }),
         )
     }
 
@@ -3325,6 +3375,8 @@ pub struct SignatureInformation {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ParameterInformation {
     pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub documentation: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -3408,10 +3460,20 @@ fn completion_from_symbol(symbol: &Symbol) -> CompletionCandidate {
             SymbolKind::Type => 7,
         },
         detail: Some(symbol.detail.clone()),
-        documentation: symbol.documentation.clone(),
+        documentation: symbol
+            .documentation
+            .as_ref()
+            .map(CallableDocumentation::render_markdown),
         insert_text_format: insert_text.as_ref().map(|_| 2),
         insert_text,
     }
+}
+
+fn completion_from_symbol_in_file(file: &FileAnalysis, symbol: &Symbol) -> CompletionCandidate {
+    let mut candidate = completion_from_symbol(symbol);
+    candidate.documentation =
+        function_documentation(file, symbol).map(CallableDocumentation::render_markdown);
+    candidate
 }
 
 fn completion_from_external_function(function: &ExternalFunction) -> CompletionCandidate {
@@ -4191,22 +4253,45 @@ fn collect_function(node: Node<'_>, source: &str, output: &mut Vec<Symbol>) {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let parameter_names = node
+        .child_by_field_name("parameters")
+        .map(|parameters| {
+            let mut cursor = parameters.walk();
+            parameters
+                .named_children(&mut cursor)
+                .filter_map(|parameter| parameter.child_by_field_name("name"))
+                .map(|name| text(name, source))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     let return_expressions = node
         .child_by_field_name("body")
         .map(collect_return_expressions)
         .unwrap_or_default();
     let has_body = node.child_by_field_name("body").is_some();
+    let detail = source[node.start_byte()..body_start.min(source.len())]
+        .trim()
+        .to_owned();
+    let return_type = declared_function_return_type(node, source);
+    let documentation = leading_callable_documentation(
+        source,
+        node.start_byte(),
+        return_type.as_deref(),
+        &parameter_names,
+    );
+    let return_objects = documentation
+        .as_ref()
+        .map(|documentation| documentation.return_objects.clone())
+        .unwrap_or_default();
     output.push(Symbol {
         name: text(name, source),
         kind: SymbolKind::Function,
         selection: name.byte_range(),
         declaration: node.byte_range(),
         scope: 0..source.len(),
-        detail: source[node.start_byte()..body_start.min(source.len())]
-            .trim()
-            .to_owned(),
-        documentation: leading_documentation(source, node.start_byte()),
-        return_objects: leading_return_objects(source, node.start_byte()),
+        detail,
+        documentation,
+        return_objects,
         return_expressions,
         value_expressions: Vec::new(),
         has_body,
@@ -4572,7 +4657,39 @@ fn collect_assignments(node: Node<'_>, source: &str, output: &mut Vec<Assignment
 }
 
 fn leading_documentation(source: &str, declaration_start: usize) -> Option<String> {
-    render_doc_comment(leading_doc_comment(source, declaration_start)?)
+    let comment = leading_doc_comment(source, declaration_start)?;
+    let documentation = parse_callable_documentation(comment, None, &[]);
+    (!is_file_documentation(&documentation)).then(|| documentation.render_markdown())
+}
+
+fn leading_callable_documentation(
+    source: &str,
+    declaration_start: usize,
+    return_type: Option<&str>,
+    parameter_names: &[String],
+) -> Option<CallableDocumentation> {
+    let comment = leading_doc_comment(source, declaration_start)?;
+    let documentation = parse_callable_documentation(comment, return_type, parameter_names);
+    (!is_file_documentation(&documentation)).then_some(documentation)
+}
+
+fn is_file_documentation(documentation: &CallableDocumentation) -> bool {
+    documentation
+        .extra_tags
+        .iter()
+        .any(|tag| tag.name == "file")
+}
+
+fn declared_function_return_type(node: Node<'_>, source: &str) -> Option<String> {
+    let return_node = node.child_by_field_name("return_type")?;
+    let base = text(return_node, source);
+    let name = node.child_by_field_name("name")?;
+    let pointers = source
+        .get(return_node.end_byte()..name.start_byte())?
+        .bytes()
+        .filter(|byte| *byte == b'*')
+        .count();
+    Some(format!("{base}{}", "*".repeat(pointers)))
 }
 
 fn leading_macro_documentation(source: &str, declaration_start: usize) -> Option<String> {
@@ -4612,99 +4729,34 @@ fn leading_doc_comment_with_range(
     source: &str,
     declaration_start: usize,
 ) -> Option<(&str, std::ops::Range<usize>)> {
-    let prefix = source.get(..declaration_start)?.trim_end();
-    if !prefix.ends_with("*/") {
+    let prefix = source.get(..declaration_start)?;
+    let comment_start = prefix.rfind("/**")?;
+    let comment_end = prefix[comment_start..].find("*/")? + comment_start + 2;
+    let intervening = &prefix[comment_end..];
+    if !intervening.lines().all(|line| {
+        let line = line.trim();
+        line.is_empty() || is_preprocessor_branch_directive(line)
+    }) {
         return None;
     }
-    let comment_start = prefix.rfind("/**")?;
-    Some((&prefix[comment_start..], comment_start..prefix.len()))
+    Some((
+        &prefix[comment_start..comment_end],
+        comment_start..comment_end,
+    ))
 }
 
-fn leading_return_objects(source: &str, declaration_start: usize) -> Vec<String> {
-    let Some(comment) = leading_doc_comment(source, declaration_start) else {
-        return Vec::new();
+fn is_preprocessor_branch_directive(line: &str) -> bool {
+    let Some(directive) = line.strip_prefix('#').map(str::trim_start) else {
+        return false;
     };
-    let Some(tag_start) = comment.find("@lpc-return-objects") else {
-        return Vec::new();
-    };
-    let tagged = &comment[tag_start + "@lpc-return-objects".len()..];
-    let Some(open) = tagged.find('{') else {
-        return Vec::new();
-    };
-    let Some(close) = tagged[open + 1..].find('}').map(|index| index + open + 1) else {
-        return Vec::new();
-    };
-    tagged[open + 1..close]
-        .split(',')
-        .filter_map(|value| quoted_string(value).map(str::to_owned))
-        .collect()
-}
-
-fn render_doc_comment(comment: &str) -> Option<String> {
-    let lines = comment
-        .lines()
-        .map(|line| {
-            line.trim()
-                .strip_prefix("/**")
-                .unwrap_or(line.trim())
-                .strip_suffix("*/")
-                .unwrap_or_else(|| line.trim().strip_prefix("/**").unwrap_or(line.trim()))
-                .trim_start_matches('*')
-                .trim()
+    ["if", "ifdef", "ifndef", "elif", "else", "endif"]
+        .iter()
+        .any(|keyword| {
+            directive == *keyword
+                || directive
+                    .strip_prefix(keyword)
+                    .is_some_and(|rest| rest.starts_with(char::is_whitespace))
         })
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>();
-    let mut summary = Vec::new();
-    let mut parameters = Vec::new();
-    let mut returns = Vec::new();
-    let mut details = Vec::new();
-    let mut in_details = false;
-    for line in lines {
-        if let Some(value) = line.strip_prefix("@brief") {
-            summary.push(value.trim().to_owned());
-            in_details = false;
-        } else if let Some(value) = line.strip_prefix("@param") {
-            let mut parts = value.split_whitespace();
-            let kind = parts.next().unwrap_or("mixed");
-            let name = parts.next().unwrap_or("参数");
-            let description = parts.collect::<Vec<_>>().join(" ");
-            parameters.push(format!(
-                "- `{name}` (`{kind}`){}",
-                if description.is_empty() {
-                    String::new()
-                } else {
-                    format!("：{description}")
-                }
-            ));
-            in_details = false;
-        } else if let Some(value) = line.strip_prefix("@return") {
-            returns.push(value.trim().to_owned());
-            in_details = false;
-        } else if let Some(value) = line.strip_prefix("@details") {
-            details.push(value.trim().to_owned());
-            in_details = true;
-        } else if line.starts_with('@') {
-            in_details = false;
-        } else if in_details {
-            details.push(line.to_owned());
-        } else {
-            summary.push(line.to_owned());
-        }
-    }
-    let mut sections = Vec::new();
-    if !summary.is_empty() {
-        sections.push(summary.join(" "));
-    }
-    if !parameters.is_empty() {
-        sections.push(format!("**参数**\n\n{}", parameters.join("\n")));
-    }
-    if !returns.is_empty() {
-        sections.push(format!("**返回值**\n\n{}", returns.join(" ")));
-    }
-    if !details.is_empty() {
-        sections.push(format!("**详细说明**\n\n{}", details.join(" ")));
-    }
-    (!sections.is_empty()).then(|| sections.join("\n\n"))
 }
 
 fn accepts_arguments(symbol: &Symbol, argument_count: usize) -> bool {
@@ -5041,20 +5093,9 @@ fn collect_local_declaration_position_diagnostics(
 }
 
 fn contains_preprocessor_branch_directive(source: &str) -> bool {
-    source.lines().any(|line| {
-        let line = line.trim_start();
-        let Some(directive) = line.strip_prefix('#').map(str::trim_start) else {
-            return false;
-        };
-        ["if", "ifdef", "ifndef", "elif", "else", "endif"]
-            .iter()
-            .any(|keyword| {
-                directive == *keyword
-                    || directive
-                        .strip_prefix(keyword)
-                        .is_some_and(|rest| rest.starts_with(char::is_whitespace))
-            })
-    })
+    source
+        .lines()
+        .any(|line| is_preprocessor_branch_directive(line.trim_start()))
 }
 
 fn collect_type_diagnostics(
@@ -5451,14 +5492,63 @@ fn preferred_function_symbols<'a>(file: &'a FileAnalysis, name: &str) -> Vec<&'a
     symbols
 }
 
+fn function_documentation<'a>(
+    file: &'a FileAnalysis,
+    symbol: &'a Symbol,
+) -> Option<&'a CallableDocumentation> {
+    if symbol.kind != SymbolKind::Function {
+        return symbol.documentation.as_ref();
+    }
+    symbol.documentation.as_ref().or_else(|| {
+        file.symbols
+            .iter()
+            .filter(|candidate| {
+                candidate.kind == SymbolKind::Function
+                    && candidate.name == symbol.name
+                    && parameters_have_matching_shapes(&candidate.parameters, &symbol.parameters)
+                    && !candidate.has_body
+            })
+            .find_map(|candidate| candidate.documentation.as_ref())
+    })
+}
+
+fn parameters_have_matching_shapes(left: &[String], right: &[String]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| parameter_shape(left) == parameter_shape(right))
+}
+
+fn parameter_shape(parameter: &str) -> String {
+    let before_default = parameter
+        .split_once(':')
+        .map_or(parameter, |(head, _)| head);
+    let Some(name) = declaration_identifier(before_default) else {
+        return before_default.split_whitespace().collect();
+    };
+    let Some(name_start) = before_default.rfind(name) else {
+        return before_default.split_whitespace().collect();
+    };
+    format!(
+        "{}{}",
+        before_default[..name_start]
+            .split_whitespace()
+            .collect::<String>(),
+        before_default[name_start + name.len()..]
+            .split_whitespace()
+            .collect::<String>()
+    )
+}
+
 fn render_function_symbol_hover<'a>(
-    symbols: impl IntoIterator<Item = &'a Symbol>,
+    symbols: impl IntoIterator<Item = (&'a Symbol, Option<&'a CallableDocumentation>)>,
 ) -> Option<String> {
-    let mut entries = HashMap::<&str, Vec<&str>>::new();
-    for symbol in symbols {
+    let mut entries = HashMap::<&str, Vec<String>>::new();
+    for (symbol, callable_documentation) in symbols {
         let documentation = entries.entry(symbol.detail.as_str()).or_default();
-        if let Some(value) = symbol.documentation.as_deref() {
-            documentation.push(value);
+        if let Some(value) = callable_documentation {
+            documentation.push(value.render_markdown());
         }
     }
     if entries.is_empty() {
@@ -5551,17 +5641,36 @@ fn active_parameter(arguments: &str) -> u32 {
     active
 }
 
-fn signature_information_from_symbol(symbol: &Symbol) -> SignatureInformation {
+fn signature_information_from_symbol(file: &FileAnalysis, symbol: &Symbol) -> SignatureInformation {
+    let documentation = function_documentation(file, symbol);
     SignatureInformation {
         label: symbol.detail.clone(),
-        documentation: symbol.documentation.clone(),
+        documentation: documentation.map(CallableDocumentation::render_markdown),
         parameters: symbol
             .parameters
             .iter()
-            .map(|label| ParameterInformation {
-                label: label.clone(),
-            })
+            .map(|label| parameter_information_from_symbol(symbol, documentation, label))
             .collect(),
+    }
+}
+
+fn parameter_information_from_symbol(
+    _symbol: &Symbol,
+    documentation: Option<&CallableDocumentation>,
+    label: &str,
+) -> ParameterInformation {
+    let parameter_name = declaration_identifier(label);
+    let documentation = parameter_name.and_then(|name| {
+        documentation?
+            .parameters
+            .iter()
+            .find(|parameter| parameter.name == name)?
+            .description
+            .clone()
+    });
+    ParameterInformation {
+        label: label.to_owned(),
+        documentation,
     }
 }
 
@@ -5583,6 +5692,7 @@ fn signature_help_from_external(
                     .iter()
                     .map(|label| ParameterInformation {
                         label: label.clone(),
+                        documentation: None,
                     })
                     .collect(),
             })
@@ -8622,6 +8732,18 @@ mod tests {
                 .as_deref()
                 .is_some_and(|documentation| documentation.contains("构造战斗武学动作"))
         );
+        assert_eq!(
+            signature.signatures[0].parameters[0]
+                .documentation
+                .as_deref(),
+            Some("协议模型")
+        );
+        assert_eq!(
+            signature.signatures[0].parameters[1]
+                .documentation
+                .as_deref(),
+            Some("武学分类")
+        );
 
         let completion = database
             .completion_candidates(
@@ -8645,6 +8767,94 @@ mod tests {
             Some("battle_choices(${1:popup}, ${2:type})")
         );
         assert_eq!(completion.insert_text_format, Some(2));
+    }
+
+    #[test]
+    fn attaches_docs_across_conditional_directives_but_not_file_headers_or_includes() {
+        let source = concat!(
+            "/** @file This describes the file, not the first function. */\n",
+            "int first();\n",
+            "/** @brief Conditional implementation. */\n",
+            "#ifdef FEATURE_X\n",
+            "int conditional() { return 1; }\n",
+            "#endif\n",
+            "/** @brief Must not cross an include. */\n",
+            "#include <other.h>\n",
+            "int after_include() { return 2; }\n",
+        );
+        let database = database(source);
+        let file = database.files.get("file:///demo.c").unwrap();
+        let function = |name: &str| {
+            file.symbols
+                .iter()
+                .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name)
+                .unwrap()
+        };
+
+        assert!(function("first").documentation.is_none());
+        assert_eq!(
+            function("conditional")
+                .documentation
+                .as_ref()
+                .and_then(|documentation| documentation.summary.as_deref()),
+            Some("Conditional implementation.")
+        );
+        assert!(function("after_include").documentation.is_none());
+    }
+
+    #[test]
+    fn uses_matching_prototype_docs_when_the_implementation_has_none() {
+        let source = concat!(
+            "string look(object who) { return who->query_name(); }\n",
+            "/**\n",
+            " * @brief Returns the visible name.\n",
+            " * @param object who Target object.\n",
+            " * @return string Visible name.\n",
+            " */\n",
+            "string look(object who);\n",
+            "void demo(object target) { look(target); }\n",
+        );
+        let mut database = database(source);
+        let call = source.rfind("look(target)").unwrap();
+        let position = byte_to_lsp_position(source, call + 1);
+
+        let hover = database.hover("file:///demo.c", position).unwrap();
+        assert!(hover.contents.contains("Returns the visible name."));
+        assert!(hover.contents.contains("Visible name."));
+
+        let signature = database
+            .signature_help(
+                "file:///demo.c",
+                byte_to_lsp_position(source, call + "look(target".len()),
+            )
+            .unwrap();
+        assert!(
+            signature.signatures[0]
+                .documentation
+                .as_deref()
+                .is_some_and(|documentation| documentation.contains("Returns the visible name."))
+        );
+        assert_eq!(
+            signature.signatures[0].parameters[0]
+                .documentation
+                .as_deref(),
+            Some("Target object.")
+        );
+
+        let completion = database
+            .completion_candidates(
+                "file:///demo.c",
+                byte_to_lsp_position(source, call + "lo".len()),
+            )
+            .into_iter()
+            .find(|candidate| candidate.label == "look")
+            .unwrap();
+        assert!(
+            completion
+                .documentation
+                .as_deref()
+                .is_some_and(|documentation| documentation.contains("Returns the visible name."))
+        );
     }
 
     #[test]

@@ -18,6 +18,21 @@ describe('RustFunctionDocumentationLookupProvider', () => {
                         start: { line: 0, character: 0 },
                         end: { line: 4, character: 3 }
                     },
+                    structuredDocumentation: {
+                        rawText: '/** structured by Rust */',
+                        summary: 'Query a name from Rust.',
+                        parameters: [{
+                            typeName: 'object',
+                            name: 'who',
+                            description: 'Target object from Rust.'
+                        }],
+                        returns: { typeName: 'string', description: 'Display name.' },
+                        details: 'Preserves multiline structured content.',
+                        note: 'Indexed once.',
+                        returnObjects: [],
+                        extraTags: [{ name: 'warning', value: 'Preserved by Rust.' }],
+                        issues: [{ code: 'stale-parameter-name', parameterName: 'old_name' }]
+                    },
                     returnObjects: [],
                     range: {
                         start: { line: 5, character: 0 },
@@ -54,15 +69,18 @@ describe('RustFunctionDocumentationLookupProvider', () => {
         });
         expect(lookup.currentFile.entries[0]).toEqual(expect.objectContaining({
             name: 'query_name',
-            summary: 'Query a name.',
-            returns: { type: 'string', description: 'string Display name.' },
+            summary: 'Query a name from Rust.',
+            details: 'Preserves multiline structured content.',
+            note: 'Indexed once.',
+            returns: { type: 'string', description: 'Display name.' },
             modifiers: ['public', 'varargs'],
-            declarationKind: 'implementation'
+            declarationKind: 'implementation',
+            documentationIssues: [{ code: 'stale-parameter-name', parameterName: 'old_name' }]
         }));
         expect(lookup.currentFile.entries[0].signatures[0]).toEqual(expect.objectContaining({
             returnType: 'string',
             parameters: [
-                expect.objectContaining({ name: 'who', type: 'object', description: 'Target object.' }),
+                expect.objectContaining({ name: 'who', type: 'object', description: 'Target object from Rust.' }),
                 expect.objectContaining({ name: 'mode', type: 'int' })
             ],
             arity: { min: 0, max: 2 }
