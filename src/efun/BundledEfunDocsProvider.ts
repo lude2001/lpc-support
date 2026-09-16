@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import type { CallableDoc, CallableParameter, CallableSignature } from '../language/documentation/types';
 import { BundledEfunLoader } from './BundledEfunLoader';
 import type { StructuredEfunDoc, StructuredEfunParameter, StructuredEfunSignature } from './types';
-import { materializeEfunNote } from './availability';
 
 /** Static efun catalogue used by the TS presentation layer. No LPC source is parsed here. */
 export class BundledEfunDocsProvider {
@@ -54,7 +53,7 @@ function materializeCallableDoc(structuredDoc: StructuredEfunDoc): CallableDoc {
         signatures: structuredDoc.signatures.map(materializeCallableSignature),
         summary: structuredDoc.summary,
         details: structuredDoc.details,
-        note: materializeEfunNote(structuredDoc),
+        note: structuredDoc.note,
         sourceKind: 'efun'
     };
 }

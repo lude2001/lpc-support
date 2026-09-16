@@ -11,15 +11,8 @@ use serde::Deserialize;
 struct EfunDocument {
     name: String,
     summary: Option<String>,
-    availability: Option<EfunAvailability>,
     #[serde(default)]
     signatures: Vec<EfunSignature>,
-}
-
-#[derive(Debug, Deserialize)]
-struct EfunAvailability {
-    condition: String,
-    source: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,7 +67,7 @@ pub fn load_bundled_efuns(extension_root: &Path) -> Result<Vec<ExternalFunction>
                 .with_context(|| format!("invalid efun document {}", path.display()))?;
             Ok(ExternalFunction {
                 name: document.name,
-                summary: materialize_summary(document.summary, document.availability),
+                summary: document.summary,
                 signatures: document
                     .signatures
                     .into_iter()
@@ -102,20 +95,6 @@ pub fn load_bundled_efuns(extension_root: &Path) -> Result<Vec<ExternalFunction>
             })
         })
         .collect()
-}
-
-fn materialize_summary(
-    summary: Option<String>,
-    availability: Option<EfunAvailability>,
-) -> Option<String> {
-    let mut parts = summary.into_iter().collect::<Vec<_>>();
-    if let Some(availability) = availability {
-        parts.push(format!("可用性：{}", availability.condition));
-        if let Some(source) = availability.source {
-            parts.push(format!("来源：FluffOS {source}"));
-        }
-    }
-    (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
 fn locate_extension_root() -> Option<PathBuf> {
@@ -163,32 +142,5 @@ mod tests {
         assert!(write.signatures.iter().any(|signature| {
             signature.minimum_arguments == 1 && signature.maximum_arguments == Some(1)
         }));
-
-        assert_eq!(functions.len(), 446);
-        assert!(
-            !functions
-                .iter()
-                .any(|function| function.name == "mapping_origin_stats")
-        );
-        let promise_then = functions
-            .iter()
-            .find(|function| function.name == "promise_then")
-            .unwrap();
-        assert_eq!(promise_then.signatures.len(), 3);
-        let orphaned = functions
-            .iter()
-            .find(|function| function.name == "find_orphaned_cycles")
-            .unwrap();
-        assert_eq!(orphaned.signatures[0].minimum_arguments, 0);
-        assert_eq!(orphaned.signatures[0].maximum_arguments, Some(1));
-        let ffi = functions
-            .iter()
-            .find(|function| function.name == "ffi_prepare")
-            .unwrap();
-        assert!(
-            ffi.summary
-                .as_deref()
-                .is_some_and(|summary| summary.contains("PACKAGE_FFI"))
-        );
     }
 }

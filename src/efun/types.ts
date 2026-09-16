@@ -11,14 +11,7 @@ export interface StructuredEfunDoc {
     note?: string;
     reference?: string[];
     category: string;
-    availability?: StructuredEfunAvailability;
     signatures: StructuredEfunSignature[];
-}
-
-export interface StructuredEfunAvailability {
-    package: string;
-    condition: string;
-    source?: string;
 }
 
 export interface StructuredEfunSignature {

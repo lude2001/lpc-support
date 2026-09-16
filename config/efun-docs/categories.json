@@ -222,6 +222,7 @@
     "getuid",
     "living",
     "livings",
+    "mapping_origin_stats",
     "query_privs",
     "set_author",
     "set_light",
@@ -455,50 +456,5 @@
     "translate",
     "uncompress",
     "uncompress_file"
-  ],
-  "Promise 与异步（Promise / Async）": [
-    "async_info",
-    "async_yield",
-    "promise_catch",
-    "promise_create",
-    "promise_reject",
-    "promise_resolve",
-    "promise_result",
-    "promise_status",
-    "promise_then",
-    "promisep"
-  ],
-  "引用环（Reference Cycles）": [
-    "break_cycles",
-    "find_cycles",
-    "has_cycle"
-  ],
-  "驱动内部与调试（Internals / Debug）": [
-    "find_orphaned_cycles"
-  ],
-  "外部函数接口（FFI）": [
-    "ffi_address",
-    "ffi_alloc",
-    "ffi_call",
-    "ffi_callback",
-    "ffi_callback_addr",
-    "ffi_callback_free",
-    "ffi_error",
-    "ffi_free",
-    "ffi_load",
-    "ffi_peek",
-    "ffi_prepare",
-    "ffi_read",
-    "ffi_sizeof",
-    "ffi_status",
-    "ffi_struct_layout",
-    "ffi_symbol",
-    "ffi_unload",
-    "ffi_write"
-  ],
-  "WebAssembly JS Bridge": [
-    "js_call",
-    "js_eval",
-    "js_export"
   ]
 }
