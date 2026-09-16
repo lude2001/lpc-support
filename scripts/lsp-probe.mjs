@@ -83,7 +83,7 @@ async function main() {
         if (options.semanticTokens || (options.perf && position)) {
             semanticTokens = await runStage(
                 'semanticTokens',
-                () => requestSemanticTokens(server.connection, uri),
+                () => requestSemanticTokens(server.connection, uri, server.semanticTokenLegend, position),
                 { timedOut: true, dataLength: 0 }
             );
         }
@@ -498,7 +498,7 @@ async function startServer(project, serverKind) {
     connection.listen();
 
     try {
-        await connection.sendRequest(InitializeRequest.type, {
+        const initializeResult = await connection.sendRequest(InitializeRequest.type, {
             processId: process.pid,
             rootUri: uriFromPath(project.root),
             capabilities: {},
@@ -509,6 +509,7 @@ async function startServer(project, serverKind) {
                 }
             ]
         });
+        server.semanticTokenLegend = initializeResult?.capabilities?.semanticTokensProvider?.legend;
         await connection.sendNotification(InitializedNotification.type, {});
         const workspaceConfig = {
             workspaceRoots: [project.root],
@@ -730,13 +731,43 @@ async function requestCompletion(connection, uri, position, includeLabels) {
     return summary;
 }
 
-async function requestSemanticTokens(connection, uri) {
+async function requestSemanticTokens(connection, uri, legend, position) {
     const result = await connection.sendRequest(SemanticTokensRequest.type, {
         textDocument: { uri }
     });
-
+    const data = Array.isArray(result?.data) ? result.data : [];
+    const tokenTypes = Array.isArray(legend?.tokenTypes) ? legend.tokenTypes : [];
+    const tokenModifiers = Array.isArray(legend?.tokenModifiers) ? legend.tokenModifiers : [];
+    const typeCounts = {};
+    const tokensAtPosition = [];
+    let line = 0;
+    let character = 0;
+    for (let index = 0; index + 4 < data.length; index += 5) {
+        line += data[index];
+        character = data[index] === 0 ? character + data[index + 1] : data[index + 1];
+        const length = data[index + 2];
+        const tokenType = tokenTypes[data[index + 3]] ?? `unknown(${data[index + 3]})`;
+        const modifiers = tokenModifiers.filter((_, modifierIndex) => (
+            (data[index + 4] & (1 << modifierIndex)) !== 0
+        ));
+        typeCounts[tokenType] = (typeCounts[tokenType] ?? 0) + 1;
+        if (position
+            && line === position.line
+            && character <= position.character
+            && position.character < character + length) {
+            tokensAtPosition.push({
+                tokenType,
+                modifiers,
+                line: line + 1,
+                character: character + 1,
+                length
+            });
+        }
+    }
     return {
-        dataLength: Array.isArray(result?.data) ? result.data.length : 0
+        dataLength: data.length,
+        typeCounts,
+        tokensAtPosition
     };
 }
 
@@ -1172,6 +1203,14 @@ function renderMarkdown(report) {
     lines.push('', '## Requests', '');
     if (report.requests.semanticTokens) {
         lines.push(`- Semantic tokens data length: ${report.requests.semanticTokens.dataLength ?? 0}${report.requests.semanticTokens.timedOut ? ' (timed out)' : ''}`);
+        const semanticTypes = Object.entries(report.requests.semanticTokens.typeCounts ?? {})
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([type, count]) => `${type}=${count}`);
+        lines.push(`- Semantic token types: ${semanticTypes.join(', ') || '(none)'}`);
+        const positionTokens = (report.requests.semanticTokens.tokensAtPosition ?? []).map((token) => (
+            `${token.tokenType}${token.modifiers.length > 0 ? `.${token.modifiers.join('.')}` : ''} at ${token.line}:${token.character} length ${token.length}`
+        ));
+        lines.push(`- Semantic tokens at requested position: ${positionTokens.join(', ') || '(none)'}`);
     } else {
         lines.push('- Semantic tokens: not requested');
     }

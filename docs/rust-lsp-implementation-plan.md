@@ -6,6 +6,8 @@
 
 本次重构不是将现有 TypeScript 逐行翻译成 Rust，也不是只替换 ANTLR parser。目标是建立面向编辑器工作负载的增量分析架构：文档编辑、预处理、语法分析、语义分析、工作区索引和主要 LSP 请求共享同一份版本化分析状态。
 
+功能完整、语义正确和保守避免误报是发布的第一优先级。性能指标只能通过缓存、增量计算、索引复用和请求调度取得，不能通过删除语言能力、缩小合法 LPC 语义或跳过必要分析来达成；任何功能回归都会直接阻断发布，无论性能数字是否达标。
+
 正式版本中：
 
 - TypeScript 只负责 VS Code 激活、配置同步、命令/UI 和 Rust 进程生命周期。
@@ -254,6 +256,6 @@ rust/
 
 最终提交代码在同一真实工作区的复核索引了 6768 个磁盘文件并打开 1 个目标文档：冷启动墙钟 20.536 秒、进程 CPU time 12.484 秒、平均利用率为单个逻辑核的 59.1%、峰值常驻内存 131.1 MiB。随后 30 次 warm 采样的 semantic tokens / definition / references / hover / completion p95 分别为 1.4 / 1.1 / 4.2 / 1.0 / 1.3 ms，全部 0 超时、0 parse rebuild、0 semantic rebuild；完整函数文档查询为 6.8 ms。
 
-最终自动化回归为 Jest 168/168 套件、1379/1379 测试通过；Rust workspace 当前为 115/115 单元测试通过，clippy `-D warnings` 通过。原生 stdio smoke 额外覆盖 efun 继承链开关的关闭/开启行为、补全触发字符、签名帮助逗号重触发、宏定义/悬浮/高亮/补全、失效生命周期、多行及带空格参数的函数宏、未 include 头文件宏隔离、include 导入条件宏、头文件变更失效与宏生成声明的文档符号/悬浮/跳转、2 空格 formatter 配置覆盖 8 空格 LSP 请求选项，以及可配置诊断、跨文件能力、shutdown 和 exit。宏顺序专项测试进一步覆盖调用方定义传入头文件、头文件 undef 回流、宏路径 include、导入函数宏生成声明，以及 include 前后不同的跳转和高亮范围。真实项目的脱敏全工作区 LSP 诊断审计覆盖全部索引文件：修复成员调用接收者误识别、嵌套匿名函数返回类型串扰、多变量 `foreach` 与匿名函数参数绑定后，诊断由 108 条降至 21 条；其中不再存在 `lpc.typeMismatch`、`lpc.undefinedFunction` 或 `lpc.undefinedSymbol`，剩余 12 条参数数量问题与 9 条确实没有引用的局部变量均保留具体文件及位置供源码侧复核。
+最终自动化回归为 Jest 168/168 套件、1379/1379 测试通过；Rust workspace 当前为 117/117 单元测试通过，clippy `-D warnings` 通过。原生 stdio smoke 额外覆盖 efun 继承链开关的关闭/开启行为、补全触发字符、签名帮助逗号重触发、宏定义/悬浮/高亮/补全/引用/重命名、`#undef` 与条件编译生命周期、多行及带空格参数的函数宏、未 include 头文件宏隔离、include 导入条件宏、头文件变更失效与宏生成声明的文档符号/悬浮/跳转、2 空格 formatter 配置覆盖 8 空格 LSP 请求选项，以及可配置诊断、跨文件能力、shutdown 和 exit。宏顺序专项测试进一步覆盖调用方定义传入头文件、头文件 undef 回流、宏路径 include、导入函数宏生成声明，以及 include 前后不同的跳转和高亮范围。真实项目的脱敏全工作区 LSP 诊断审计覆盖全部索引文件：修复成员调用接收者误识别、嵌套匿名函数返回类型串扰、多变量 `foreach` 与匿名函数参数绑定后，诊断由 108 条降至 21 条；其中不再存在 `lpc.typeMismatch`、`lpc.undefinedFunction` 或 `lpc.undefinedSymbol`，剩余 12 条参数数量问题与 9 条确实没有引用的局部变量均保留具体文件及位置供源码侧复核。
 
-当前 Windows x64 平台已重新完成干净打包；此前两次强制安装已验证同版本升级路径，本轮宏顺序与诊断恢复包则通过解包后的原生二进制直接执行 stdio smoke。`lpc-support-win32-x64-0.52.13.vsix` 的 SHA-256 为 `c6c6f7db782b432a33cbefff955a97ed0444ea749993f6ad000a5292ba540d08`；VSIX 共 436 个条目，只包含约 751 KiB 的 `dist/extension.js`、模板、故障排查文档和 Rust sidecar，不包含 `dist/lsp/server.js` 或 ANTLR 生成源码。包内 `lpc-language-server.exe` SHA-256 与构建记录及旁路校验文件一致，为 `c56e65b4340bbea6ae23acaa588dd41f4ab00346a01d5efd05c7964b9cdf24e7`，解包后 stdio smoke 再次通过全部生命周期、配置、宏隔离与诊断链路。其他目标平台由 CI 的 Windows/Linux/macOS x64/ARM64 六平台原生构建矩阵覆盖；未在本 Windows 主机伪装成跨平台安装验收。
+当前 Windows x64 平台已重新完成干净打包；真实项目 `/feature/skill.c` 的宏光标探针确认返回 `macro` token、定义、结构化悬浮、418 个精确引用和可重命名范围，同一文档还区分 110 个 driver efun 与 41 个 simulated efun，诊断为 0。`lpc-support-win32-x64-0.52.13.vsix` 的 SHA-256 为 `1c29a3f37e152f6c6832602ab5170b3c89f4e37f75bf3745fcb3eff6e21c4348`；VSIX 共 436 个条目，只包含约 751 KiB 的 `dist/extension.js`、模板、故障排查文档和 Rust sidecar，不包含 `dist/lsp/server.js` 或 ANTLR 生成源码。包内 `lpc-language-server.exe` SHA-256 与构建记录及旁路校验文件一致，为 `54bcecde7652b90c16e045da71a2da5c2486169963eed220daff7654e728f189`，解包后 stdio smoke 再次通过宏高亮、引用、重命名、条件编译生命周期及其他语言能力链路。其他目标平台由 CI 的 Windows/Linux/macOS x64/ARM64 六平台原生构建矩阵覆盖；未在本 Windows 主机伪装成跨平台安装验收。

@@ -101,7 +101,7 @@ try {
     const expectedCallTokens = [
         ['helper', 5, 0],
         ['sizeof', 9, 4],
-        ['simul_call', 5, 4]
+        ['simul_call', 15, 4]
     ];
     for (const [name, tokenType, modifiers] of expectedCallTokens) {
         const character = callerSource.indexOf(name) - callerSource.lastIndexOf('\n', callerSource.indexOf(name)) - 1;
@@ -172,6 +172,37 @@ try {
     if (!rootHover?.contents?.value?.includes('#define ROOT_DIR "/data"')
         || !rootHover.contents.value.includes('Root directory')) {
         throw new Error(`Rust server missed macro hover documentation: ${JSON.stringify(rootHover)}`);
+    }
+    const rootPosition = {
+        line: 1,
+        character: rootOffset - callerSource.lastIndexOf('\n', rootOffset)
+    };
+    const rootReferences = await connection.sendRequest('textDocument/references', {
+        textDocument: { uri: callerUri },
+        position: rootPosition,
+        context: { includeDeclaration: true }
+    });
+    if (!Array.isArray(rootReferences)
+        || rootReferences.length !== 2
+        || !rootReferences.some(location => location.uri.endsWith('macros.h'))
+        || !rootReferences.some(location => location.uri === callerUri)) {
+        throw new Error(`Rust server missed macro references: ${JSON.stringify(rootReferences)}`);
+    }
+    const rootPrepareRename = await connection.sendRequest('textDocument/prepareRename', {
+        textDocument: { uri: callerUri },
+        position: rootPosition
+    });
+    if (!rootPrepareRename?.start || !rootPrepareRename?.end) {
+        throw new Error(`Rust server rejected macro rename preparation: ${JSON.stringify(rootPrepareRename)}`);
+    }
+    const rootRename = await connection.sendRequest('textDocument/rename', {
+        textDocument: { uri: callerUri },
+        position: rootPosition,
+        newName: 'DATA_ROOT'
+    });
+    const macroRenameChanges = rootRename?.changes ?? {};
+    if (Object.values(macroRenameChanges).flat().length !== 2) {
+        throw new Error(`Rust server missed macro rename edits: ${JSON.stringify(rootRename)}`);
     }
     const macroCompletion = await connection.sendRequest('textDocument/completion', {
         textDocument: { uri: callerUri },

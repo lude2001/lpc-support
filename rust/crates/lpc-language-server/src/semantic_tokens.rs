@@ -17,6 +17,7 @@ pub const TOKEN_TYPES: &[&str] = &[
     "comment",
     "operator",
     "inactive",
+    "simulatedEfun",
 ];
 
 pub const TOKEN_MODIFIERS: &[&str] = &[
@@ -215,7 +216,7 @@ fn classify_call(
         return (5, 0);
     }
     if facts.simulated_functions.contains(name) {
-        return (5, DEFAULT_LIBRARY_MODIFIER);
+        return (15, DEFAULT_LIBRARY_MODIFIER);
     }
     if facts.visible_functions.contains(name) {
         return (5, 0);
@@ -418,7 +419,7 @@ mod tests {
         assert!(
             tokens
                 .iter()
-                .any(|token| token.3 == 5 && token.4 == DEFAULT_LIBRARY_MODIFIER)
+                .any(|token| token.3 == 15 && token.4 == DEFAULT_LIBRARY_MODIFIER)
         );
         assert!(tokens.iter().any(|token| token.3 == 5 && token.4 == 0));
     }

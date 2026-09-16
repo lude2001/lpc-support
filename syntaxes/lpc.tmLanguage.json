@@ -22,6 +22,9 @@
 			"include": "#memberAccess"
 		},
 		{
+			"include": "#macroReference"
+		},
+		{
 			"include": "#functionCall"
 		},
 		{
@@ -50,6 +53,7 @@
 				{ "include": "#comments" },
 				{ "include": "#strings" },
 				{ "include": "#memberAccess" },
+				{ "include": "#macroReference" },
 				{ "include": "#functionCall" },
 				{ "include": "#keywords" },
 				{ "include": "#types" },
@@ -80,6 +84,7 @@
 				{ "include": "#comments" },
 				{ "include": "#strings" },
 				{ "include": "#memberAccess" },
+				{ "include": "#macroReference" },
 				{ "include": "#functionCall" },
 				{ "include": "#operators" }
 			]
@@ -259,6 +264,18 @@
 				"1": { "name": "keyword.operator.member.lpc" },
 				"3": { "name": "entity.name.function.member.lpc" }
 			}
+		},
+		"macroReference": {
+			"patterns": [
+				{
+					"name": "entity.name.function.preprocessor.lpc",
+					"match": "\\b[A-Z_][A-Z0-9_]*(?=\\s*\\()"
+				},
+				{
+					"name": "constant.other.preprocessor.lpc",
+					"match": "\\b[A-Z_][A-Z0-9_]*\\b"
+				}
+			]
 		},
 		"functionCall": {
 			"name": "meta.function-call.lpc",

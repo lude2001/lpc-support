@@ -23,6 +23,7 @@ describe('TextMate LPC grammar', () => {
             'lpcType',
             'method',
             'parameter',
+            'simulatedEfun',
             'inactive'
         ]));
         expect(tokenModifiers).toEqual(expect.arrayContaining([
@@ -37,15 +38,20 @@ describe('TextMate LPC grammar', () => {
             method: ['entity.name.function.member.lpc'],
             macro: ['entity.name.function.preprocessor.lpc'],
             builtin: ['support.function.efun.lpc'],
+            simulatedEfun: ['support.function.simulated-efun.lpc'],
             inactive: ['comment.block.preprocessor.lpc']
+        }));
+        expect(contributes.configurationDefaults['[lpc]']).toEqual(expect.objectContaining({
+            'editor.semanticHighlighting.enabled': true
         }));
     });
 
-    test('stays lexical and does not duplicate semantic token responsibilities', () => {
+    test('keeps lexical highlighting as a fallback without hardcoding project semantic symbols', () => {
         const grammarSource = fs.readFileSync(grammarPath, 'utf8');
 
         expect(grammarSource).not.toContain('support.function.efun.lpc');
         expect(grammarSource).not.toContain('variable.other.lpc');
+        expect(grammarSource).toContain('constant.other.preprocessor.lpc');
     });
 
     test('keeps documentation annotations in the plain comment fallback color', () => {
@@ -62,6 +68,7 @@ describe('TextMate LPC grammar', () => {
 
         expect(grammarSource).toContain('meta.preprocessor.define.lpc');
         expect(grammarSource).toContain('entity.name.function.preprocessor.lpc');
+        expect(grammarSource).toContain('constant.other.preprocessor.lpc');
         expect(grammarSource).toContain('variable.parameter.preprocessor.lpc');
         expect(grammarSource).toContain('meta.function-call.lpc');
         expect(grammarSource).toContain('entity.name.function.fallback.lpc');

@@ -254,9 +254,12 @@ fn index_file_with_parser(
         uri.as_str(),
         &tree,
         &source,
-        &processed.macro_directives,
-        &processed.initial_definitions,
-        &processed.includes,
+        (
+            &processed.macro_directives,
+            &processed.initial_definitions,
+            &processed.includes,
+            &processed.inactive_regions,
+        ),
     );
     IndexOutcome::Indexed
 }

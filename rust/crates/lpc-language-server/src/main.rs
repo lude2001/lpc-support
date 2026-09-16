@@ -479,6 +479,7 @@ fn run(
                                     &snapshot.macro_directives,
                                     &snapshot.predefined_macros,
                                     &snapshot.includes,
+                                    &snapshot.inactive_regions,
                                 ),
                             );
                             publish_diagnostics(
@@ -530,6 +531,7 @@ fn run(
                                     &snapshot.macro_directives,
                                     &snapshot.predefined_macros,
                                     &snapshot.includes,
+                                    &snapshot.inactive_regions,
                                 ),
                             );
                             publish_diagnostics(
@@ -980,6 +982,7 @@ fn handle_notification(
                     &snapshot.macro_directives,
                     &snapshot.predefined_macros,
                     &snapshot.includes,
+                    &snapshot.inactive_regions,
                 ),
             );
             publish_diagnostics(
@@ -1009,6 +1012,7 @@ fn handle_notification(
                     &snapshot.macro_directives,
                     &snapshot.predefined_macros,
                     &snapshot.includes,
+                    &snapshot.inactive_regions,
                 ),
             );
             publish_diagnostics(connection, uri.clone(), version, analysis.diagnostics(&uri))?;

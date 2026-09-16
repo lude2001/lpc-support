@@ -96,6 +96,11 @@
         "path": "./syntaxes/lpc.tmLanguage.json"
       }
     ],
+    "configurationDefaults": {
+      "[lpc]": {
+        "editor.semanticHighlighting.enabled": true
+      }
+    },
     "snippets": [
       {
         "language": "lpc",
@@ -412,10 +417,12 @@
       },
       {
         "id": "method",
+        "superType": "function",
         "description": "对象方法"
       },
       {
         "id": "property",
+        "superType": "variable",
         "description": "成员/属性"
       },
       {
@@ -440,7 +447,13 @@
       },
       {
         "id": "builtin",
+        "superType": "function",
         "description": "内置函数"
+      },
+      {
+        "id": "simulatedEfun",
+        "superType": "function",
+        "description": "模拟外部函数"
       },
       {
         "id": "inactive",
@@ -485,6 +498,9 @@
           ],
           "builtin": [
             "support.function.efun.lpc"
+          ],
+          "simulatedEfun": [
+            "support.function.simulated-efun.lpc"
           ],
           "inactive": [
             "comment.block.preprocessor.lpc"

@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-use lpc_preprocessor::{IncludeFact, MacroDirectiveFact, MacroDirectiveKind};
+use lpc_preprocessor::{InactiveRegion, IncludeFact, MacroDirectiveFact, MacroDirectiveKind};
 use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, Parser, Tree};
 
@@ -13,6 +13,7 @@ type PreprocessedEnvironment<'a> = (
     &'a [MacroDirectiveFact],
     &'a HashMap<String, String>,
     &'a [IncludeFact],
+    &'a [InactiveRegion],
 );
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -195,6 +196,7 @@ struct FileAnalysis {
     inherits: Vec<String>,
     macros: Vec<MacroDefinition>,
     macro_directives: Vec<MacroDirectiveFact>,
+    inactive_regions: Vec<std::ops::Range<usize>>,
     initial_macro_hashes: Vec<u64>,
     macro_tracking_precise: bool,
     macro_generated_symbols: HashSet<String>,
@@ -461,6 +463,12 @@ impl AnalysisDatabase {
         let mut assignments = Vec::new();
         collect_assignments(tree.root_node(), source, &mut assignments);
         let active_includes = preprocessed_environment.map(|environment| environment.2);
+        let inactive_regions = preprocessed_environment
+            .map(|environment| environment.3)
+            .unwrap_or_default()
+            .iter()
+            .map(|region| region.range.start_byte..region.range.end_byte)
+            .collect();
         let dependencies = collect_dependencies(tree.root_node(), source, active_includes);
         let inherits = collect_inherits(tree.root_node(), source);
         self.files.insert(
@@ -489,6 +497,7 @@ impl AnalysisDatabase {
                         directive
                     })
                     .collect(),
+                inactive_regions,
                 initial_macro_hashes,
                 macro_tracking_precise: preprocessed_environment.is_some(),
                 macro_generated_symbols,
@@ -511,9 +520,7 @@ impl AnalysisDatabase {
         uri: &str,
         tree: &Tree,
         source: &str,
-        macro_directives: &[MacroDirectiveFact],
-        predefined_macros: &HashMap<String, String>,
-        active_includes: &[IncludeFact],
+        preprocessed_environment: PreprocessedEnvironment<'_>,
     ) {
         self.update_preprocessed(
             uri,
@@ -521,7 +528,7 @@ impl AnalysisDatabase {
             0,
             tree,
             source,
-            (macro_directives, predefined_macros, active_includes),
+            preprocessed_environment,
         );
     }
 
@@ -1089,7 +1096,7 @@ impl AnalysisDatabase {
             return Vec::new();
         };
         if let Some((macro_uri, macro_file, definition)) =
-            self.resolve_macro_definition(uri, &name, offset)
+            self.resolve_macro_reference_definition(uri, &name, offset)
         {
             return vec![Location {
                 uri: macro_uri.to_owned(),
@@ -1184,7 +1191,7 @@ impl AnalysisDatabase {
         let file = self.files.get(uri)?;
         let identifier = identifier_range(file, offset)?;
         if let Some((macro_uri, macro_file, definition)) =
-            self.resolve_macro_definition(uri, &name, offset)
+            self.resolve_macro_reference_definition(uri, &name, offset)
         {
             let parameters = if definition.function_like {
                 format!("({})", definition.parameters.join(", "))
@@ -1351,6 +1358,19 @@ impl AnalysisDatabase {
                 .collect();
         }
 
+        if let Some((target_uri, _, target_definition)) =
+            self.resolve_macro_reference_definition(uri, &name, offset)
+        {
+            let target_uri = target_uri.to_owned();
+            let target_selection = target_definition.selection.clone();
+            return self.macro_references(
+                &name,
+                &target_uri,
+                &target_selection,
+                include_declaration,
+            );
+        }
+
         let configured_receiver = member_reference
             .then(|| {
                 let identifier = identifier_range(origin, offset)?;
@@ -1433,9 +1453,13 @@ impl AnalysisDatabase {
         let offset = lsp_position_to_byte(&file.source, position)?;
         let range = identifier_range(file, offset)?;
         let name = file.source.get(range.clone())?;
-        if self.resolve_macro_definition(uri, name, offset).is_some()
-            || self.predefined_macros.contains_key(name)
+        if self
+            .resolve_macro_reference_definition(uri, name, offset)
+            .is_some()
         {
+            return Some(byte_range_to_lsp(&file.source, range));
+        }
+        if self.predefined_macros.contains_key(name) {
             return None;
         }
         let locally_resolved = !resolved_symbols(file, name, offset).is_empty();
@@ -1443,6 +1467,60 @@ impl AnalysisDatabase {
         let rename_range = byte_range_to_lsp(&file.source, range);
         let uniquely_resolved = locally_resolved || self.definition(uri, position).len() == 1;
         (!is_keyword && uniquely_resolved).then_some(rename_range)
+    }
+
+    fn macro_references(
+        &self,
+        name: &str,
+        target_uri: &str,
+        target_selection: &std::ops::Range<usize>,
+        include_declaration: bool,
+    ) -> Vec<Location> {
+        let mut references = Vec::new();
+        if include_declaration
+            && let Some(target_file) = self.files.get(target_uri)
+        {
+            references.push(Location {
+                uri: target_uri.to_owned(),
+                range: byte_range_to_lsp(&target_file.source, target_selection.clone()),
+            });
+        }
+
+        for (candidate_uri, file) in &self.files {
+            if !file.source.contains(name) {
+                continue;
+            }
+            for range in macro_candidate_ranges(file, name) {
+                if candidate_uri == target_uri && range == *target_selection {
+                    continue;
+                }
+                let resolves_to_target = self
+                    .resolve_macro_reference_definition(candidate_uri, name, range.start)
+                    .is_some_and(|(resolved_uri, _, definition)| {
+                        resolved_uri == target_uri && definition.selection == *target_selection
+                    });
+                if resolves_to_target {
+                    references.push(Location {
+                        uri: candidate_uri.clone(),
+                        range: byte_range_to_lsp(&file.source, range),
+                    });
+                }
+            }
+        }
+
+        references.sort_by(|left, right| {
+            left.uri
+                .cmp(&right.uri)
+                .then(left.range.start.line.cmp(&right.range.start.line))
+                .then(
+                    left.range
+                        .start
+                        .character
+                        .cmp(&right.range.start.character),
+                )
+        });
+        references.dedup();
+        references
     }
 
     pub fn rename_edits(
@@ -1938,6 +2016,30 @@ impl AnalysisDatabase {
                     .filter(|definition| definition.active_until == file.source.len())
             })
             .collect()
+    }
+
+    fn resolve_macro_reference_definition<'a>(
+        &'a self,
+        uri: &str,
+        name: &str,
+        offset: usize,
+    ) -> Option<(&'a str, &'a FileAnalysis, &'a MacroDefinition)> {
+        if let resolved @ Some(_) = self.resolve_macro_definition(uri, name, offset) {
+            return resolved;
+        }
+        let file = self.files.get(uri)?;
+        let range = identifier_range(file, offset)?;
+        let is_undef = file.macro_directives.iter().any(|fact| {
+            fact.kind == MacroDirectiveKind::Undef
+                && fact.name == name
+                && fact.range.start_byte == range.start
+                && fact.range.end_byte == range.end
+        });
+        is_undef
+            .then(|| range.start.saturating_sub(1))
+            .and_then(|previous_offset| {
+                self.resolve_macro_definition(uri, name, previous_offset)
+            })
     }
 
     fn resolve_macro_definition<'a>(
@@ -5247,6 +5349,104 @@ fn lexical_identifier_range(source: &str, offset: usize) -> Option<std::ops::Ran
     (bytes[start].is_ascii_alphabetic() || bytes[start] == b'_').then_some(start..end)
 }
 
+fn macro_candidate_ranges(file: &FileAnalysis, name: &str) -> Vec<std::ops::Range<usize>> {
+    let mut ranges = file
+        .identifiers
+        .iter()
+        .filter(|range| file.source.get((*range).clone()) == Some(name))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let mut line_offset = 0_usize;
+    for line in file.source.split_inclusive('\n') {
+        let content = line.trim_end_matches(['\r', '\n']);
+        if content.trim_start().starts_with('#') {
+            let line_end = line_offset + content.len();
+            let active_lifecycle = file.macro_directives.iter().any(|fact| {
+                line_offset <= fact.range.start_byte && fact.range.end_byte <= line_end
+            });
+            if !is_macro_lifecycle_directive(content) || active_lifecycle {
+                ranges.extend(directive_identifier_ranges(content, line_offset, name));
+            }
+        }
+        line_offset += line.len();
+    }
+    ranges.retain(|range| {
+        !file
+            .inactive_regions
+            .iter()
+            .any(|inactive| inactive.start <= range.start && range.start < inactive.end)
+    });
+    ranges.sort_by_key(|range| (range.start, range.end));
+    ranges.dedup();
+    ranges
+}
+
+fn is_macro_lifecycle_directive(line: &str) -> bool {
+    let directive = line
+        .trim_start()
+        .strip_prefix('#')
+        .unwrap_or_default()
+        .trim_start();
+    ["define", "undef"].into_iter().any(|keyword| {
+        directive.strip_prefix(keyword).is_some_and(|tail| {
+            tail.chars().next().is_some_and(char::is_whitespace)
+        })
+    })
+}
+
+fn directive_identifier_ranges(
+    line: &str,
+    line_offset: usize,
+    expected: &str,
+) -> Vec<std::ops::Range<usize>> {
+    let bytes = line.as_bytes();
+    let mut ranges = Vec::new();
+    let mut index = 0_usize;
+    let mut quote = None;
+    while index < bytes.len() {
+        if quote.is_none() && index + 1 < bytes.len() && bytes[index..].starts_with(b"//") {
+            break;
+        }
+        if quote.is_none() && index + 1 < bytes.len() && bytes[index..].starts_with(b"/*") {
+            index += 2;
+            while index + 1 < bytes.len() && !bytes[index..].starts_with(b"*/") {
+                index += 1;
+            }
+            index = (index + 2).min(bytes.len());
+            continue;
+        }
+        if matches!(bytes[index], b'"' | b'\'') {
+            if index == 0 || bytes[index - 1] != b'\\' {
+                quote = if quote == Some(bytes[index]) {
+                    None
+                } else if quote.is_none() {
+                    Some(bytes[index])
+                } else {
+                    quote
+                };
+            }
+            index += 1;
+            continue;
+        }
+        if quote.is_some() || !(bytes[index].is_ascii_alphabetic() || bytes[index] == b'_') {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        index += 1;
+        while index < bytes.len()
+            && (bytes[index].is_ascii_alphanumeric() || bytes[index] == b'_')
+        {
+            index += 1;
+        }
+        if &line[start..index] == expected {
+            ranges.push(line_offset + start..line_offset + index);
+        }
+    }
+    ranges
+}
+
 fn resolved_symbols<'a>(file: &'a FileAnalysis, name: &str, offset: usize) -> Vec<&'a Symbol> {
     let mut symbols: Vec<_> = file
         .symbols
@@ -6875,6 +7075,42 @@ mod tests {
         assert!(hover.contents.contains("Root of generated files"));
         assert!(hover.contents.contains("file:///include/paths.h#L2"));
 
+        let references = database.references(
+            "file:///demo.c",
+            byte_to_lsp_position(source, root_offset + 2),
+            true,
+        );
+        assert_eq!(references.len(), 3);
+        assert_eq!(
+            references
+                .iter()
+                .filter(|location| location.uri == "file:///demo.c")
+                .count(),
+            2
+        );
+        assert_eq!(
+            references
+                .iter()
+                .filter(|location| location.uri == "file:///include/paths.h")
+                .count(),
+            1
+        );
+        assert!(
+            database
+                .prepare_rename(
+                    "file:///demo.c",
+                    byte_to_lsp_position(source, root_offset + 2),
+                )
+                .is_some()
+        );
+        let edits = database.rename_edits(
+            "file:///demo.c",
+            byte_to_lsp_position(source, root_offset + 2),
+            "DATA_ROOT",
+        );
+        assert_eq!(edits["file:///demo.c"].len(), 2);
+        assert_eq!(edits["file:///include/paths.h"].len(), 1);
+
         let completions = database
             .completion_candidates("file:///demo.c", byte_to_lsp_position(source, source.len()));
         assert!(
@@ -6921,6 +7157,7 @@ mod tests {
                 &processed.macro_directives,
                 &processed.initial_definitions,
                 &processed.includes,
+                &processed.inactive_regions,
             ),
         );
         let header_source = "#define HEADER_FLAG 1\n";
@@ -6945,6 +7182,124 @@ mod tests {
         assert_eq!(scopes.len(), 1);
         assert_eq!(scopes[0].start, source.find("flags.h").unwrap());
         assert_eq!(scopes[0].end, source.len());
+    }
+
+    #[test]
+    fn macro_references_and_rename_preserve_source_order_and_redefinitions() {
+        let source = concat!(
+            "#define FLAG 1\n",
+            "int first = FLAG;\n",
+            "#undef FLAG\n",
+            "#define FLAG 2\n",
+            "int second = FLAG;\n",
+        );
+        let processed = lpc_preprocessor::Preprocessor::default().process(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(&processed.text, None).unwrap();
+        let mut database = AnalysisDatabase::default();
+        database.update_preprocessed(
+            "file:///demo.c",
+            1,
+            1,
+            &tree,
+            source,
+            (
+                &processed.macro_directives,
+                &processed.initial_definitions,
+                &processed.includes,
+                &processed.inactive_regions,
+            ),
+        );
+
+        let first_use = source.find("FLAG;").unwrap();
+        let references = database.references(
+            "file:///demo.c",
+            byte_to_lsp_position(source, first_use + 1),
+            true,
+        );
+        assert!(references.iter().any(|location| location.range.start.line == 0));
+        assert!(references.iter().any(|location| location.range.start.line == 1));
+        assert!(references.iter().any(|location| location.range.start.line == 2));
+        assert!(references.iter().all(|location| location.range.start.line < 3));
+
+        let undef = source.find("#undef FLAG").unwrap() + "#undef ".len();
+        let undef_position = byte_to_lsp_position(source, undef + 1);
+        assert_eq!(
+            database.definition("file:///demo.c", undef_position)[0]
+                .range
+                .start
+                .line,
+            0
+        );
+        assert!(database.hover("file:///demo.c", undef_position).is_some());
+        assert!(database
+            .prepare_rename("file:///demo.c", undef_position)
+            .is_some());
+
+        let edits = database.rename_edits(
+            "file:///demo.c",
+            byte_to_lsp_position(source, first_use + 1),
+            "FIRST_FLAG",
+        );
+        assert!(edits["file:///demo.c"]
+            .iter()
+            .all(|edit| edit.range.start.line < 3));
+        assert_eq!(edits["file:///demo.c"].len(), 3);
+    }
+
+    #[test]
+    fn macro_rename_excludes_inactive_redefinitions() {
+        let source = concat!(
+            "#define FLAG 1\n",
+            "#if 0\n",
+            "#define FLAG 2\n",
+            "int hidden = FLAG;\n",
+            "#endif\n",
+            "int value = FLAG;\n",
+        );
+        let processed = lpc_preprocessor::Preprocessor::default().process(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(&processed.text, None).unwrap();
+        let mut database = AnalysisDatabase::default();
+        database.update_preprocessed(
+            "file:///demo.c",
+            1,
+            1,
+            &tree,
+            source,
+            (
+                &processed.macro_directives,
+                &processed.initial_definitions,
+                &processed.includes,
+                &processed.inactive_regions,
+            ),
+        );
+
+        let use_offset = source.rfind("FLAG").unwrap();
+        let references = database.references(
+            "file:///demo.c",
+            byte_to_lsp_position(source, use_offset + 1),
+            true,
+        );
+        assert_eq!(references.len(), 2);
+        assert!(references
+            .iter()
+            .all(|location| !matches!(location.range.start.line, 2 | 3)));
+        let edits = database.rename_edits(
+            "file:///demo.c",
+            byte_to_lsp_position(source, use_offset + 1),
+            "ACTIVE_FLAG",
+        );
+        assert_eq!(edits["file:///demo.c"].len(), 2);
+        assert!(edits["file:///demo.c"]
+            .iter()
+            .all(|edit| !matches!(edit.range.start.line, 2 | 3)));
     }
 
     #[test]
@@ -6977,6 +7332,7 @@ mod tests {
                 &processed.macro_directives,
                 &processed.initial_definitions,
                 &processed.includes,
+                &processed.inactive_regions,
             ),
         );
 
@@ -7139,6 +7495,7 @@ mod tests {
                 &processed.macro_directives,
                 &processed.initial_definitions,
                 &processed.includes,
+                &processed.inactive_regions,
             ),
         );
 
@@ -7217,6 +7574,7 @@ mod tests {
                 &processed.macro_directives,
                 &processed.initial_definitions,
                 &processed.includes,
+                &processed.inactive_regions,
             ),
         );
 
@@ -7772,6 +8130,7 @@ mod tests {
                 &processed.macro_directives,
                 &processed.initial_definitions,
                 &processed.includes,
+                &processed.inactive_regions,
             ),
         );
 
