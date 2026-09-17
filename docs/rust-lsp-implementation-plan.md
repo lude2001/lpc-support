@@ -244,8 +244,8 @@ rust/
 - [ ] 完成宏、高亮、跨文件文档与签名帮助的真实项目矩阵和当前 VS Code 主题显示验收。
 - [x] 完成旧 TypeScript formatter 差异矩阵，以及动态 LPC 保守语义的真实 mudlib 负向回归。
 - [x] 完成长时间编辑生命周期测试，包括真实 VS Code sidecar 崩溃恢复、二进制替换和延长编辑压力。
-- [ ] 在最终 HEAD 上取得 Windows、Linux、macOS x64/ARM64 六平台构建结果。
-- [ ] 所有验收通过后再干净打包并校验最终 VSIX；当前根目录的 Windows x64 VSIX 是为 M2/M4 实机验收生成并安装的临时测试制品，不是最终发布候选。
+- [x] 在最终 HEAD 上取得 Windows、Linux、macOS x64/ARM64 六平台构建结果；CI run `35196666059` 对提交 `3037ace` 的主验证及六个平台打包全部成功。
+- [x] 从同一最终 HEAD 干净打包并校验 Windows x64 VSIX，核对包内文件和 SHA-256 后覆盖安装；该制品是待 M2 视觉验收的发布候选，尚未发布。
 
 #### 剩余里程碑
 
@@ -270,7 +270,7 @@ rust/
    - 自动化覆盖头文件变化、配置重载、文件增删、索引取消、sidecar 崩溃/重启和扩展升级。
    - 进行长时间编辑会话实机验证，确认缓存失效、内存和 CPU 不随编辑轮次持续增长。
    - 当前证据：stdio smoke 已覆盖头文件编辑后的宏失效、配置同步重载和即时语义刷新、文件新增后可跳转、文件删除后旧跳转消失、100 轮增量编辑期间持续请求 semantic tokens、可用时限制常驻内存净增长不超过 64 MiB，以及 shutdown/exit；workspace index 单测覆盖发现阶段、主动 generation 取消、完整缓存恢复、普通 `.c` 增量失效及头文件变化全量失效。新增 `npm run test:e2e` 在真实 VS Code Extension Host 中两次终止本轮新建的 Rust sidecar，均观察到新 PID 启动且 hover 恢复；第一阶段退出后原位替换 bundled sidecar，再启动第二阶段验证升级替换。两阶段各执行 4000 次真实文档变更并每 25 次请求 hover：分别耗时 54.841 秒和 54.224 秒，常驻内存净增长 458752 与 483328 字节，采样 CPU 增量 1.078 与 0.875 秒。LanguageClient 保留 3 分钟内最多 3 次自动重启，瞬时可恢复断流只写入输出日志，第 4 次连续崩溃停止并提示。M4 已完成；该结果不替代 M2 主题显示或 M5 六平台构建。
-5. **M5：最终发布候选闭环**
+5. **M5：最终发布候选闭环（已完成）**
    - 在最终 HEAD 上运行 TypeScript、Rust、smoke、真实项目探针和制品内容检查。
    - 取得 Windows/Linux/macOS x64/ARM64 六平台构建结果；触发远端 CI 前单独确认推送授权。
    - 全部通过后再干净打包平台 VSIX、核对条目与 SHA-256；打包不等于发布，发布仍需独立授权。
@@ -296,4 +296,4 @@ rust/
 
 最近一次自动化回归为 Jest 168/168 套件、1383/1383 测试通过；生产 TypeScript 构建类型检查与完整源码构建通过。Rust workspace 当前为 138/138 单元测试通过，clippy `-D warnings` 通过。该数字是当前保护网基线，不单独证明迁移完成。原生 stdio smoke 额外覆盖 efun 继承链开关的关闭/开启行为、补全触发字符、签名帮助逗号重触发、宏定义/悬浮/高亮/补全/引用/重命名、`#undef` 与条件编译生命周期、多行及带空格参数的函数宏、未 include 头文件宏隔离、include 导入条件宏、头文件变更失效与宏生成声明的文档符号/悬浮/跳转、跨文件多候选方法的结构化 Javadoc 保留、2 空格 formatter 配置覆盖 8 空格 LSP 请求选项，以及可配置诊断、跨文件能力、文件增删、100 轮增量编辑、shutdown 和 exit。宏顺序专项测试进一步覆盖调用方定义传入头文件、头文件 undef 回流、宏路径 include、导入函数宏生成声明，以及 include 前后不同的跳转和高亮范围；Windows 含 `~` 路径按 VS Code 的 `%7E` URI 形式归一化，避免工作区索引与已打开文档形成重复引用。真实项目的脱敏全工作区 LSP 诊断审计覆盖全部索引文件：此前修复成员调用接收者误识别、嵌套匿名函数返回类型串扰、多变量 `foreach` 与匿名函数参数绑定后，诊断由 108 条降至 21 条；本轮再修复宏展开未计入局部变量引用的 4 条误报，剩余 17 条已逐条归类为 12 条真实参数数量错误和 5 条真实未使用局部量。
 
-为进行 M2/M4 实机验收，当前工作区已生成并覆盖安装 Windows x64 临时测试制品 `lpc-support-win32-x64-0.52.13.vsix`：共 436 个条目，包含 Rust sidecar，不包含 `dist/lsp/server.js` 或 ANTLR 源码；VSIX SHA-256 为 `b6d035423e37480ea61b3894ccbfe01bf1834b4969988174d322a8be3397c084`，包内及安装目录 sidecar SHA-256 均为 `fdc14efd8967233022740514ec70ab6994f64f2a10c4c6ad2e62968c4df8e65b`。该制品只用于本机验收，不是最终发布候选。真实项目 `/feature/skill.c` 的宏光标探针确认返回 `macro` token、定义、结构化悬浮、418 个精确引用和可重命名范围，同一文档还区分 110 个 driver efun 与 41 个 simulated efun，诊断为 0；`/cmds/std/look.c` 的跨文件方法探针确认 `world_object_button` 返回结构化 Javadoc，定义、签名帮助和补全均带文档。必须等 M2 剩余主题显示验收关闭并取得最终 HEAD 六平台 CI 结果后，才能重新打包和登记最终 VSIX/sidecar SHA-256；未在本 Windows 主机伪装成跨平台安装验收。
+最终 HEAD `3037ace` 已由 CI run `35196666059` 完成主验证以及 Windows、Linux、macOS x64/ARM64 六平台原生打包。当前工作区随后从同一 HEAD 干净生成并覆盖安装 Windows x64 发布候选 `lpc-support-win32-x64-0.52.13.vsix`：共 436 个条目，包含 Rust sidecar，不包含 `dist/lsp/server.js` 或 ANTLR 源码；VSIX SHA-256 为 `e659a9b3a7cca6a9e86183e2816ece8802bdfbaa437a464fd7f5a999924e477e`，构建目录与安装目录 sidecar SHA-256 均为 `b55328a68c13d771ae397730cc89cfa8b276961d6195ea01281751d535c64407`。真实项目 `/feature/skill.c` 的宏光标探针确认返回 `macro` token、定义、结构化悬浮、418 个精确引用和可重命名范围，同一文档还区分 110 个 driver efun 与 41 个 simulated efun，诊断为 0；`/cmds/std/look.c` 的跨文件方法探针确认 `world_object_button` 返回结构化 Javadoc，定义、签名帮助和补全均带文档。制品尚未发布；仍需用户用当前 VS Code 主题完成 M2 中 driver efun、simulated efun、局部遮蔽、相邻字符串及完整签名矩阵的视觉验收，且未在本 Windows 主机伪装成跨平台安装验收。
