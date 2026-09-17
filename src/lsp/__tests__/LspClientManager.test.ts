@@ -157,7 +157,7 @@ describe('LspClientManager activation', () => {
     test('activateLspClient initializes the configuration bridge on the production path', async () => {
         const context = {
             subscriptions: [],
-            asAbsolutePath: jest.fn((targetPath: string) => `D:/code/lpc-support/${targetPath}`)
+            asAbsolutePath: jest.fn(() => process.execPath)
         } as unknown as vscode.ExtensionContext;
         const bridgeDisposable = { dispose: jest.fn() };
         const projectConfigService = {

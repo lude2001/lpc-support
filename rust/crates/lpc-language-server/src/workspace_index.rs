@@ -800,9 +800,9 @@ mod tests {
             false,
         );
 
-        let caller_uri = Url::from_file_path(&caller_path).unwrap();
+        let caller_uri = source_file_uri(&caller_path).unwrap();
         let definitions = analysis.lock().unwrap().definition(
-            caller_uri.as_str(),
+            &caller_uri,
             Position {
                 line: 0,
                 character: 23,
