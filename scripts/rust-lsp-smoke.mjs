@@ -30,6 +30,15 @@ const connection = createMessageConnection(
     new StreamMessageReader(child.stdout),
     new StreamMessageWriter(child.stdin)
 );
+let semanticRefreshCount = 0;
+const workspaceIndexReadyNotifications = [];
+connection.onRequest('workspace/semanticTokens/refresh', () => {
+    semanticRefreshCount += 1;
+    return null;
+});
+connection.onNotification('lpc/workspaceIndex/ready', (payload) => {
+    workspaceIndexReadyNotifications.push(payload);
+});
 connection.listen();
 
 let latestDiagnostics;
@@ -42,7 +51,13 @@ try {
     const initialize = await connection.sendRequest('initialize', {
         processId: process.pid,
         rootUri: null,
-        capabilities: {}
+        capabilities: {
+            workspace: {
+                semanticTokens: {
+                    refreshSupport: true
+                }
+            }
+        }
     });
     if (initialize?.serverInfo?.name !== 'lpc-language-server') {
         throw new Error(`Unexpected server info: ${JSON.stringify(initialize?.serverInfo)}`);
@@ -67,16 +82,24 @@ try {
     writeFileSync(path.join(smokeWorkspace, 'private.h'), '#define PRIVATE_FEATURE 1\n');
     writeFileSync(path.join(smokeWorkspace, 'caller.c'), callerSource);
     writeFileSync(path.join(simulatedDirectory, 'simul_efun.c'), 'int simul_call() { return 1; }\n');
-    const rebuild = await connection.sendRequest('lpc/workspaceIndex/rebuild', {
+    const workspaceIndexRequest = {
         workspaceRoots: [smokeWorkspace],
         workspaces: [{
             workspaceRoot: smokeWorkspace,
             preprocessorDefines: ['__PACKAGE_DB__=1'],
             resolvedConfig: { simulatedEfunFile: '/adm/single/simul_efun' }
         }]
-    });
+    };
+    const rebuild = await connection.sendRequest('lpc/workspaceIndex/rebuild', workspaceIndexRequest);
     if (rebuild?.status !== 'ready' || rebuild?.indexedFiles !== 5) {
         throw new Error(`Rust server returned unexpected workspace rebuild result: ${JSON.stringify(rebuild)}`);
+    }
+    if (workspaceIndexReadyNotifications.length !== 1
+        || workspaceIndexReadyNotifications[0]?.indexedFiles !== 5) {
+        throw new Error(`Rust server missed the workspace-ready notification: ${JSON.stringify(workspaceIndexReadyNotifications)}`);
+    }
+    if (semanticRefreshCount !== 1) {
+        throw new Error(`Rust server did not request semantic-token refresh after indexing: ${semanticRefreshCount}`);
     }
     const callerUri = pathToFileURL(path.join(smokeWorkspace, 'caller.c')).toString();
     connection.sendNotification('textDocument/didOpen', {
@@ -94,6 +117,59 @@ try {
     if (!Array.isArray(crossFileDefinition) || !crossFileDefinition[0]?.uri?.endsWith('helper.c')) {
         throw new Error(`Rust server missed indexed definition: ${JSON.stringify(crossFileDefinition)}`);
     }
+    const lifecycleSource = 'int lifecycle_probe() { return added_helper(); }\n';
+    const lifecycleUri = pathToFileURL(path.join(smokeWorkspace, 'lifecycle.c')).toString();
+    const lifecyclePosition = {
+        line: 0,
+        character: lifecycleSource.indexOf('added_helper') + 1
+    };
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: {
+            uri: lifecycleUri,
+            languageId: 'lpc',
+            version: 1,
+            text: lifecycleSource
+        }
+    });
+    const definitionBeforeAdd = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: lifecycleUri },
+        position: lifecyclePosition
+    });
+    if (Array.isArray(definitionBeforeAdd) && definitionBeforeAdd.length > 0) {
+        throw new Error(`Rust server resolved a file before it was added: ${JSON.stringify(definitionBeforeAdd)}`);
+    }
+    const addedFile = path.join(smokeWorkspace, 'added.c');
+    writeFileSync(addedFile, 'int added_helper() { return 2; }\n');
+    const rebuildAfterAdd = await connection.sendRequest(
+        'lpc/workspaceIndex/rebuild',
+        workspaceIndexRequest
+    );
+    if (rebuildAfterAdd?.status !== 'ready' || rebuildAfterAdd?.indexedFiles !== 6) {
+        throw new Error(`Rust server missed an added workspace file: ${JSON.stringify(rebuildAfterAdd)}`);
+    }
+    const definitionAfterAdd = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: lifecycleUri },
+        position: lifecyclePosition
+    });
+    if (!Array.isArray(definitionAfterAdd) || !definitionAfterAdd[0]?.uri?.endsWith('added.c')) {
+        throw new Error(`Rust server did not expose an added file: ${JSON.stringify(definitionAfterAdd)}`);
+    }
+    rmSync(addedFile);
+    const rebuildAfterDelete = await connection.sendRequest(
+        'lpc/workspaceIndex/rebuild',
+        workspaceIndexRequest
+    );
+    if (rebuildAfterDelete?.status !== 'ready' || rebuildAfterDelete?.indexedFiles !== 5) {
+        throw new Error(`Rust server retained a deleted workspace file: ${JSON.stringify(rebuildAfterDelete)}`);
+    }
+    const definitionAfterDelete = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: lifecycleUri },
+        position: lifecyclePosition
+    });
+    if (Array.isArray(definitionAfterDelete) && definitionAfterDelete.length > 0) {
+        throw new Error(`Rust server resolved a deleted file: ${JSON.stringify(definitionAfterDelete)}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: lifecycleUri } });
     const callerSemanticTokens = await connection.sendRequest('textDocument/semanticTokens/full', {
         textDocument: { uri: callerUri }
     });
@@ -478,6 +554,7 @@ try {
         throw new Error(`Rust server returned unexpected diagnostics: ${JSON.stringify(latestDiagnostics)}`);
     }
 
+    const refreshCountBeforeConfigSync = semanticRefreshCount;
     connection.sendNotification('lpc/workspaceConfigSync', {
         workspaceRoots: [],
         workspaces: [{
@@ -495,6 +572,9 @@ try {
     });
     if (!configuredFormatting?.[0]?.newText?.includes('\n  int local = amount;')) {
         throw new Error(`Rust server ignored configured formatter indentation: ${JSON.stringify(configuredFormatting)}`);
+    }
+    if (semanticRefreshCount <= refreshCountBeforeConfigSync) {
+        throw new Error('Rust server did not refresh open-document semantic tokens after config sync.');
     }
     const enabledEfunDefinition = await connection.sendRequest('textDocument/definition', {
         textDocument: { uri: efunCallerUri },
@@ -529,18 +609,55 @@ try {
         textDocument: { uri: configuredDiagnosticsUri }
     });
 
+    const stressIterations = 100;
+    const answerLineEnd = 'int answer = query(1);'.length;
+    const residentSamples = [];
+    for (let iteration = 0; iteration < stressIterations; iteration += 1) {
+        const inserting = iteration % 2 === 0;
+        connection.sendNotification('textDocument/didChange', {
+            textDocument: { uri, version: iteration + 3 },
+            contentChanges: [{
+                range: {
+                    start: { line: 2, character: answerLineEnd },
+                    end: {
+                        line: 2,
+                        character: answerLineEnd + (inserting ? 0 : 1)
+                    }
+                },
+                text: inserting ? ' ' : ''
+            }]
+        });
+        if ((iteration + 1) % 20 === 0) {
+            const stressTokens = await connection.sendRequest('textDocument/semanticTokens/full', {
+                textDocument: { uri }
+            });
+            if (!Array.isArray(stressTokens?.data) || stressTokens.data.length === 0) {
+                throw new Error(`Rust server lost semantic tokens during edit stress at iteration ${iteration + 1}.`);
+            }
+            const stressHealth = await connection.sendRequest('lpc/health');
+            const residentBytes = stressHealth?.performance?.processMemory?.residentBytes;
+            if (Number.isFinite(residentBytes)) {
+                residentSamples.push(residentBytes);
+            }
+        }
+    }
+
     const health = await connection.sendRequest('lpc/health');
     if (health?.status !== 'ok' || health?.mode !== 'rust' || health?.documentCount !== 1) {
         throw new Error(`Unexpected health response: ${JSON.stringify(health)}`);
     }
-    if (health?.performance?.documents?.incrementalEditCount !== 1) {
+    if (health?.performance?.documents?.incrementalEditCount !== stressIterations + 1) {
         throw new Error(`Incremental edit was not recorded: ${JSON.stringify(health)}`);
     }
     if (
         health?.performance?.syntax?.fullParseCount < 2
-        || health?.performance?.syntax?.incrementalParseCount !== 1
+        || health?.performance?.syntax?.incrementalParseCount !== stressIterations + 1
     ) {
         throw new Error(`Incremental syntax parse was not recorded: ${JSON.stringify(health)}`);
+    }
+    if (residentSamples.length > 1
+        && residentSamples.at(-1) - residentSamples[0] > 64 * 1024 * 1024) {
+        throw new Error(`Rust server resident memory grew unexpectedly during edit stress: ${JSON.stringify(residentSamples)}`);
     }
     if (health?.performance?.analysisSnapshotBuildCount < 3) {
         throw new Error(`Analysis snapshots were not versioned correctly: ${JSON.stringify(health)}`);

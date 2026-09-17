@@ -3,6 +3,7 @@ import type { WorkspaceConfigSyncPayload } from './workspaceConfigSync';
 
 export const WORKSPACE_INDEX_REBUILD_REQUEST = 'lpc/workspaceIndex/rebuild';
 export const WORKSPACE_INDEX_PROGRESS_NOTIFICATION = 'lpc/workspaceIndex/progress';
+export const WORKSPACE_INDEX_READY_NOTIFICATION = 'lpc/workspaceIndex/ready';
 
 export interface WorkspaceIndexRebuildParams extends WorkspaceConfigSyncPayload {
 }
@@ -11,6 +12,7 @@ export interface WorkspaceIndexRebuildResult {
     status: 'ready';
     totalFiles: number;
     indexedFiles: number;
+    cachedFiles?: number;
     skippedFiles: number;
     failedFiles: number;
     durationMs: number;
@@ -36,5 +38,12 @@ export const WorkspaceIndexProgressNotification = {
     method: WORKSPACE_INDEX_PROGRESS_NOTIFICATION,
     type: new NotificationType<WorkspaceIndexProgressPayload>(
         WORKSPACE_INDEX_PROGRESS_NOTIFICATION
+    )
+} as const;
+
+export const WorkspaceIndexReadyNotification = {
+    method: WORKSPACE_INDEX_READY_NOTIFICATION,
+    type: new NotificationType<WorkspaceIndexRebuildResult>(
+        WORKSPACE_INDEX_READY_NOTIFICATION
     )
 } as const;

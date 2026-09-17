@@ -21,6 +21,8 @@ use serde_json::{Value, json};
 use url::Url;
 
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
+const WORKSPACE_INDEX_READY_NOTIFICATION: &str = "lpc/workspaceIndex/ready";
+const SEMANTIC_TOKENS_REFRESH_REQUEST: &str = "workspace/semanticTokens/refresh";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -251,15 +253,25 @@ fn main() -> Result<()> {
         eprintln!("lpc-language-server: efun documentation unavailable: {error:#}");
         Vec::new()
     });
-    run(connection, workspace_roots(initialize_params), efuns)?;
+    let semantic_tokens_refresh_supported = initialize_params
+        .pointer("/capabilities/workspace/semanticTokens/refreshSupport")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    run(
+        connection,
+        workspace_roots(initialize_params),
+        efuns,
+        semantic_tokens_refresh_supported,
+    )?;
     io_threads.join().context("LSP transport failed")?;
     Ok(())
 }
 
 fn run(
     connection: Connection,
-    workspace_roots: Vec<PathBuf>,
+    _workspace_roots: Vec<PathBuf>,
     efuns: Vec<lpc_analysis::ExternalFunction>,
+    semantic_tokens_refresh_supported: bool,
 ) -> Result<()> {
     let mut documents = DocumentStore::default();
     let mut syntax = SyntaxStore::new()?;
@@ -270,22 +282,7 @@ fn run(
         .set_external_functions(efuns);
     let workspace_index = WorkspaceIndexController::default();
     let mut format_indent_size = 4_usize;
-    if !workspace_roots.is_empty() {
-        let preprocessor_workspaces = workspace_roots
-            .iter()
-            .cloned()
-            .map(|root| WorkspacePreprocessorConfig {
-                root,
-                ..WorkspacePreprocessorConfig::default()
-            })
-            .collect();
-        workspace_index.start(
-            workspace_roots,
-            Vec::new(),
-            preprocessor_workspaces,
-            Arc::clone(&analysis),
-        );
-    }
+    let mut next_server_request_id = -1_i32;
 
     for message in &connection.receiver {
         match message {
@@ -377,6 +374,22 @@ fn run(
                         preprocessor_workspaces,
                         Arc::clone(&analysis),
                     );
+                    if result.status == "ready" {
+                        connection
+                            .sender
+                            .send(Message::Notification(Notification::new(
+                                WORKSPACE_INDEX_READY_NOTIFICATION.to_owned(),
+                                json!(result.clone()),
+                            )))?;
+                        if semantic_tokens_refresh_supported {
+                            connection.sender.send(Message::Request(Request::new(
+                                RequestId::from(next_server_request_id),
+                                SEMANTIC_TOKENS_REFRESH_REQUEST.to_owned(),
+                                Value::Null,
+                            )))?;
+                            next_server_request_id -= 1;
+                        }
+                    }
                     connection
                         .sender
                         .send(Message::Notification(Notification::new(
@@ -490,6 +503,20 @@ fn run(
                             )?;
                         }
                     }
+                    if semantic_tokens_refresh_supported && !documents.is_empty() {
+                        connection.sender.send(Message::Request(Request::new(
+                            RequestId::from(next_server_request_id),
+                            SEMANTIC_TOKENS_REFRESH_REQUEST.to_owned(),
+                            Value::Null,
+                        )))?;
+                        next_server_request_id -= 1;
+                    }
+                    let sender = connection.sender.clone();
+                    let refresh_request_id = semantic_tokens_refresh_supported.then(|| {
+                        let request_id = next_server_request_id;
+                        next_server_request_id -= 1;
+                        request_id
+                    });
                     workspace_index.start(
                         params
                             .workspace_roots
@@ -499,6 +526,22 @@ fn run(
                         definitions,
                         preprocessor_workspaces,
                         Arc::clone(&analysis),
+                        move |result| {
+                            if result.status != "ready" {
+                                return;
+                            }
+                            let _ = sender.send(Message::Notification(Notification::new(
+                                WORKSPACE_INDEX_READY_NOTIFICATION.to_owned(),
+                                json!(result),
+                            )));
+                            if let Some(refresh_request_id) = refresh_request_id {
+                                let _ = sender.send(Message::Request(Request::new(
+                                    RequestId::from(refresh_request_id),
+                                    SEMANTIC_TOKENS_REFRESH_REQUEST.to_owned(),
+                                    Value::Null,
+                                )));
+                            }
+                        },
                     );
                     continue;
                 }

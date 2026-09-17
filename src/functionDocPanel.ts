@@ -50,6 +50,13 @@ export class FunctionDocPanel {
     private pendingBuild: vscode.CancellationTokenSource | undefined;
     private disposed = false;
 
+    public static refreshCurrent(): void {
+        const current = FunctionDocPanel.currentPanel;
+        if (current?.currentDocument) {
+            void current.update(current.currentDocument, true);
+        }
+    }
+
     public static createOrShow(
         context: vscode.ExtensionContext,
         functionDocLookupProvider: FunctionDocLookupProvider,

@@ -88,7 +88,7 @@ pub struct FunctionDocumentationEntry {
     pub has_body: bool,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CallableSignatureFacts {
     pub label: String,
@@ -107,7 +107,7 @@ pub struct CallableSignatureFacts {
     pub maximum_arity: Option<usize>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum VariadicKind {
     None,
@@ -115,14 +115,14 @@ pub enum VariadicKind {
     CollectedTail,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ParameterPassingMode {
     Value,
     Reference,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CallableParameterFacts {
     pub label: String,
@@ -166,6 +166,31 @@ pub struct Diagnostic {
     pub message: String,
 }
 
+impl<'de> Deserialize<'de> for Diagnostic {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct CachedDiagnostic {
+            range: Range,
+            severity: u32,
+            code: String,
+            source: String,
+            message: String,
+        }
+
+        let cached = CachedDiagnostic::deserialize(deserializer)?;
+        Ok(Self {
+            range: cached.range,
+            severity: cached.severity,
+            code: Box::leak(cached.code.into_boxed_str()),
+            source: Box::leak(cached.source.into_boxed_str()),
+            message: cached.message,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct FoldingRange {
@@ -175,7 +200,29 @@ pub struct FoldingRange {
     pub kind: Option<&'static str>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+impl<'de> Deserialize<'de> for FoldingRange {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct CachedFoldingRange {
+            start_line: u32,
+            end_line: u32,
+            kind: Option<String>,
+        }
+
+        let cached = CachedFoldingRange::deserialize(deserializer)?;
+        Ok(Self {
+            start_line: cached.start_line,
+            end_line: cached.end_line,
+            kind: cached.kind.map(|kind| &*Box::leak(kind.into_boxed_str())),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 enum SymbolKind {
     Function,
     Variable,
@@ -183,7 +230,7 @@ enum SymbolKind {
     Type,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct Symbol {
     name: String,
     kind: SymbolKind,
@@ -202,24 +249,24 @@ struct Symbol {
     structured_signature: Option<CallableSignatureFacts>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct ExpressionFact {
     range: std::ops::Range<usize>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct AssignmentFact {
     name: std::ops::Range<usize>,
     value: std::ops::Range<usize>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct TypeDefinition {
     name: String,
     members: Vec<TypeMember>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct TypeMember {
     name: String,
     selection: std::ops::Range<usize>,
@@ -227,7 +274,7 @@ struct TypeMember {
     documentation: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct MacroDefinition {
     name: String,
     value: String,
@@ -238,7 +285,7 @@ struct MacroDefinition {
     active_until: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct FileAnalysis {
     version: i32,
     revision: u64,
@@ -255,13 +302,14 @@ struct FileAnalysis {
     inherits: Vec<String>,
     macros: Vec<MacroDefinition>,
     macro_directives: Vec<MacroDirectiveFact>,
+    macro_expansion_references: HashMap<String, Vec<usize>>,
     inactive_regions: Vec<std::ops::Range<usize>>,
     initial_macro_hashes: Vec<u64>,
     macro_tracking_precise: bool,
     macro_generated_symbols: HashSet<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct CallSite {
     name: String,
     range: std::ops::Range<usize>,
@@ -339,6 +387,14 @@ pub struct AnalysisDatabase {
     dependency_resolution_cache: RefCell<HashMap<String, bool>>,
     metrics: AnalysisMetrics,
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+struct IndexedAnalysisCache {
+    schema_version: u32,
+    files: HashMap<String, FileAnalysis>,
+}
+
+const INDEXED_ANALYSIS_CACHE_SCHEMA_VERSION: u32 = 1;
 
 impl AnalysisDatabase {
     pub fn set_external_functions(&mut self, functions: Vec<ExternalFunction>) {
@@ -517,6 +573,8 @@ impl AnalysisDatabase {
             &macros,
         ));
         expansion_macros.extend(macros.clone());
+        let macro_expansion_references =
+            collect_macro_expansion_references(source, &identifiers, &expansion_macros);
         let macro_generated_symbols =
             collect_macro_generated_symbols(source, &calls, &expansion_macros, &mut symbols);
         let mut assignments = Vec::new();
@@ -556,6 +614,7 @@ impl AnalysisDatabase {
                         directive
                     })
                     .collect(),
+                macro_expansion_references,
                 inactive_regions,
                 initial_macro_hashes,
                 macro_tracking_precise: preprocessed_environment.is_some(),
@@ -627,6 +686,44 @@ impl AnalysisDatabase {
         self.metrics.indexed_file_count = 0;
     }
 
+    pub fn export_indexed_cache(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(&IndexedAnalysisCache {
+            schema_version: INDEXED_ANALYSIS_CACHE_SCHEMA_VERSION,
+            files: self
+                .files
+                .iter()
+                .filter(|(_, file)| file.version < 0)
+                .map(|(uri, file)| (uri.clone(), file.clone()))
+                .collect(),
+        })
+    }
+
+    pub fn import_indexed_cache(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<HashSet<String>, serde_json::Error> {
+        let cache: IndexedAnalysisCache = serde_json::from_slice(bytes)?;
+        if cache.schema_version != INDEXED_ANALYSIS_CACHE_SCHEMA_VERSION {
+            return Ok(HashSet::new());
+        }
+
+        let mut imported = HashSet::new();
+        for (uri, file) in cache.files {
+            if self
+                .files
+                .get(&uri)
+                .is_none_or(|existing| existing.version < 0)
+            {
+                self.files.insert(uri.clone(), file);
+                imported.insert(uri);
+            }
+        }
+        self.invalidate_dependency_graph();
+        self.metrics.indexed_file_count =
+            self.files.values().filter(|file| file.version < 0).count() as u64;
+        Ok(imported)
+    }
+
     pub fn diagnostics(&mut self, uri: &str) -> Vec<Diagnostic> {
         self.metrics.query_count += 1;
         let Some(file) = self.files.get(uri) else {
@@ -675,7 +772,14 @@ impl AnalysisDatabase {
                         && file.source.get((*range).clone()) == Some(symbol.name.as_str())
                 })
                 .count();
-            if reference_count <= 1 {
+            let used_by_macro = reference_count <= 1
+                && file
+                    .macro_expansion_references
+                    .get(&symbol.name)
+                    .is_some_and(|offsets| {
+                        offsets.iter().any(|offset| symbol.scope.contains(offset))
+                    });
+            if reference_count <= 1 && !used_by_macro {
                 let (code, message) = if symbol.kind == SymbolKind::Parameter {
                     ("unusedParam", format!("未使用的参数: {}", symbol.name))
                 } else {
@@ -1541,7 +1645,8 @@ impl AnalysisDatabase {
         if self.predefined_macros.contains_key(name) {
             return None;
         }
-        let locally_resolved = !resolved_symbols(file, name, offset).is_empty();
+        let member_access = is_member_access(&file.source, range.start);
+        let locally_resolved = !member_access && !resolved_symbols(file, name, offset).is_empty();
         let is_keyword = KEYWORDS.contains(&name);
         let rename_range = byte_range_to_lsp(&file.source, range);
         let uniquely_resolved = locally_resolved || self.definition(uri, position).len() == 1;
@@ -1879,7 +1984,12 @@ impl AnalysisDatabase {
                 );
             }
         }
-        let visible = self.visible_uris(uri);
+        let mut visible = self.visible_uris(uri);
+        for path in &self.simulated_efun_files {
+            for entry_uri in self.path_target_uris(uri, path) {
+                visible.extend(self.visible_uris(&entry_uri));
+            }
+        }
         for (file, symbol) in self
             .files
             .iter()
@@ -2612,6 +2722,13 @@ impl AnalysisDatabase {
         if operator != MemberOperator::Arrow {
             return None;
         }
+        if valid_identifier(&receiver)
+            && resolved_symbols(file, &receiver, member_start)
+                .iter()
+                .any(|symbol| symbol.kind == SymbolKind::Parameter)
+        {
+            return None;
+        }
         let direct_targets = self.resolve_object_expression(uri, &receiver, member_start, 8);
         let mut targets = direct_targets.clone();
         for target in direct_targets {
@@ -2742,6 +2859,9 @@ impl AnalysisDatabase {
             if let Some(file) = self.files.get(uri)
                 && let Some(symbol) = resolved_symbols(file, expression, offset).first()
             {
+                if symbol.kind == SymbolKind::Parameter {
+                    return HashSet::new();
+                }
                 let mut targets = HashSet::new();
                 for (value, value_offset) in symbol_value_expressions(file, symbol, offset) {
                     targets.extend(self.resolve_object_expression(
@@ -3950,6 +4070,108 @@ fn collect_macro_generated_symbols(
     generated_names
 }
 
+fn collect_macro_expansion_references(
+    source: &str,
+    identifiers: &[std::ops::Range<usize>],
+    macros: &[MacroDefinition],
+) -> HashMap<String, Vec<usize>> {
+    let mut definitions = HashMap::<&str, Vec<usize>>::new();
+    for (index, definition) in macros.iter().enumerate() {
+        definitions
+            .entry(definition.name.as_str())
+            .or_default()
+            .push(index);
+    }
+
+    let mut references = HashMap::<String, Vec<usize>>::new();
+    for range in identifiers {
+        let Some(name) = source.get(range.clone()) else {
+            continue;
+        };
+        let mut expanded_identifiers = HashSet::new();
+        collect_macro_expansion_identifiers(
+            macros,
+            &definitions,
+            name,
+            range.start,
+            &mut HashSet::new(),
+            &mut expanded_identifiers,
+        );
+        for identifier in expanded_identifiers {
+            references.entry(identifier).or_default().push(range.start);
+        }
+    }
+    references
+}
+
+fn collect_macro_expansion_identifiers(
+    macros: &[MacroDefinition],
+    definitions: &HashMap<&str, Vec<usize>>,
+    macro_name: &str,
+    invocation_offset: usize,
+    visited: &mut HashSet<String>,
+    output: &mut HashSet<String>,
+) {
+    if !visited.insert(macro_name.to_owned()) {
+        return;
+    }
+    let definition = definitions.get(macro_name).and_then(|indices| {
+        indices.iter().rev().find_map(|index| {
+            let definition = &macros[*index];
+            ((definition.selection.is_empty() || definition.selection.start < invocation_offset)
+                && invocation_offset < definition.active_until)
+                .then_some(definition)
+        })
+    });
+    if let Some(definition) = definition {
+        for identifier in macro_value_identifiers(&definition.value) {
+            if definition
+                .parameters
+                .iter()
+                .any(|parameter| parameter == identifier)
+            {
+                continue;
+            }
+            output.insert(identifier.to_owned());
+            collect_macro_expansion_identifiers(
+                macros,
+                definitions,
+                identifier,
+                invocation_offset,
+                visited,
+                output,
+            );
+        }
+    }
+    visited.remove(macro_name);
+}
+
+fn macro_value_identifiers(value: &str) -> impl Iterator<Item = &str> {
+    struct MacroIdentifiers<'a> {
+        value: &'a str,
+        offset: usize,
+    }
+
+    impl<'a> Iterator for MacroIdentifiers<'a> {
+        type Item = &'a str;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let bytes = self.value.as_bytes();
+            while self.offset < bytes.len() && !is_ascii_identifier_start(bytes[self.offset]) {
+                self.offset += 1;
+            }
+            if self.offset >= bytes.len() {
+                return None;
+            }
+            let start = self.offset;
+            self.offset = ascii_identifier_end(bytes, start);
+            self.value.get(start..self.offset)
+        }
+    }
+
+    MacroIdentifiers { value, offset: 0 }
+}
+
 fn macro_definitions_from_environment(
     source_len: usize,
     definitions: &HashMap<String, String>,
@@ -3957,34 +4179,23 @@ fn macro_definitions_from_environment(
 ) -> Vec<MacroDefinition> {
     definitions
         .iter()
-        .filter_map(|(name, value)| {
-            let parameters_and_body = value.strip_prefix('(')?;
-            let close = parameters_and_body.find(')')?;
-            let body = parameters_and_body[close + 1..].trim();
-            if body.is_empty() {
-                return None;
-            }
-            let parameters = parameters_and_body[..close]
-                .split(',')
-                .map(str::trim)
-                .filter(|parameter| !parameter.is_empty())
-                .map(str::to_owned)
-                .collect::<Vec<_>>();
+        .map(|(name, value)| {
+            let (function_like, parameters, body) = macro_parts_from_serialized_value(value);
             let active_until = local_directives
                 .iter()
                 .filter(|directive| directive.name == *name)
                 .map(|directive| directive.range.start_byte)
                 .min()
                 .unwrap_or(source_len);
-            Some(MacroDefinition {
+            MacroDefinition {
                 name: name.clone(),
-                value: body.to_owned(),
+                value: body,
                 selection: 0..0,
-                function_like: true,
+                function_like,
                 parameters,
                 documentation: None,
                 active_until,
-            })
+            }
         })
         .collect()
 }
@@ -4007,32 +4218,45 @@ fn macro_definitions_from_directives(
         })
         .filter_map(|(index, directive)| {
             let value = directive.value.as_deref()?;
-            let parameters_and_body = value.strip_prefix('(')?;
-            let close = parameters_and_body.find(')')?;
-            let body = parameters_and_body[close + 1..].trim();
-            if body.is_empty() {
-                return None;
-            }
+            let (function_like, parameters, body) = macro_parts_from_serialized_value(value);
             let active_until = directives[index + 1..]
                 .iter()
                 .find(|later| later.name == directive.name)
                 .map_or(source_len, |later| later.range.start_byte);
             Some(MacroDefinition {
                 name: directive.name.clone(),
-                value: body.to_owned(),
+                value: body,
                 selection: directive.range.start_byte..directive.range.end_byte,
-                function_like: true,
-                parameters: parameters_and_body[..close]
-                    .split(',')
-                    .map(str::trim)
-                    .filter(|parameter| !parameter.is_empty())
-                    .map(str::to_owned)
-                    .collect(),
+                function_like,
+                parameters,
                 documentation: None,
                 active_until,
             })
         })
         .collect()
+}
+
+fn macro_parts_from_serialized_value(value: &str) -> (bool, Vec<String>, String) {
+    let Some(parameters_and_body) = value.strip_prefix('(') else {
+        return (false, Vec::new(), value.to_owned());
+    };
+    let Some(close) = parameters_and_body.find(')') else {
+        return (false, Vec::new(), value.to_owned());
+    };
+    let body = parameters_and_body[close + 1..].trim();
+    if body.is_empty() {
+        return (false, Vec::new(), value.to_owned());
+    }
+    (
+        true,
+        parameters_and_body[..close]
+            .split(',')
+            .map(str::trim)
+            .filter(|parameter| !parameter.is_empty())
+            .map(str::to_owned)
+            .collect(),
+        body.to_owned(),
+    )
 }
 
 fn whole_line_macro_arguments(
@@ -6721,6 +6945,70 @@ mod tests {
     }
 
     #[test]
+    fn does_not_guess_member_targets_for_objects_from_dynamic_arrays() {
+        let source = concat!(
+            "object *runtime_users() { return users(); }\n",
+            "void demo() {\n",
+            "  object user;\n",
+            "  object *all_users = runtime_users();\n",
+            "  foreach (user in all_users) { user->query_temp(\"link_ob\"); }\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, dependency) in [
+            (
+                "file:///mud/adm/simul_efun/user.c",
+                "object *users() { return filter_array(children(\"/clone/user\"), (: playerp :)); }\n",
+            ),
+            (
+                "file:///mud/adm/simul_efun/nt.c",
+                "mixed query_temp(string key) { return 0; }\n",
+            ),
+        ] {
+            let tree = parser.parse(dependency, None).unwrap();
+            database.index_source(uri, &tree, dependency);
+        }
+        database.set_simulated_efun_files(vec![
+            "/adm/simul_efun/user".to_owned(),
+            "/adm/simul_efun/nt".to_owned(),
+        ]);
+
+        let member_start = source.rfind("query_temp").unwrap();
+        let position = byte_to_lsp_position(source, member_start + 1);
+        assert!(database.definition("file:///demo.c", position).is_empty());
+        assert!(database.hover("file:///demo.c", position).is_none());
+        assert!(
+            database
+                .prepare_rename("file:///demo.c", position)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn does_not_resolve_unknown_member_to_the_enclosing_function_with_same_name() {
+        let source = concat!(
+            "mixed query_temp(string prop, object ob) {\n",
+            "  if (!ob) ob = previous_object();\n",
+            "  return ob->query_temp(prop);\n",
+            "}\n",
+        );
+        let mut database = database(source);
+        let member_start = source.rfind("query_temp").unwrap();
+        let position = byte_to_lsp_position(source, member_start + 1);
+        assert!(database.definition("file:///demo.c", position).is_empty());
+        assert!(database.hover("file:///demo.c", position).is_none());
+        assert!(
+            database
+                .prepare_rename("file:///demo.c", position)
+                .is_none()
+        );
+    }
+
+    #[test]
     fn honors_efun_inheritance_definition_search_preference() {
         let source = "inherit \"/std/base\";\nvoid demo() { write(\"hello\"); }\n";
         let mut database = database(source);
@@ -7387,6 +7675,84 @@ mod tests {
         assert!(facts.local_functions.contains("local_helper"));
         assert!(facts.simulated_functions.contains("simul_call"));
         assert!(facts.external_functions.contains("sizeof"));
+    }
+
+    #[test]
+    fn preserves_simulated_efun_docs_across_hover_signature_and_completion() {
+        let source = "void demo() { simul_call(1); simul_ca }\n";
+        let mut database = database(source);
+        database.set_simulated_efun_files(vec!["/adm/single/simul_efun".to_owned()]);
+
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let simulated_source = concat!(
+            "/**\n",
+            " * @brief Simulated call documentation.\n",
+            " * @param int value Input value.\n",
+            " * @return string Result text.\n",
+            " */\n",
+            "string simul_call(int value) { return \"ok\"; }\n",
+        );
+        let simulated_tree = parser.parse(simulated_source, None).unwrap();
+        database.index_source(
+            "file:///adm/single/simul_efun.c",
+            &simulated_tree,
+            simulated_source,
+        );
+
+        let call = source.find("simul_call").unwrap();
+        let hover = database
+            .hover("file:///demo.c", byte_to_lsp_position(source, call + 2))
+            .expect("simulated efun hover should resolve");
+        assert!(hover.contents.contains("string simul_call(int value)"));
+        assert!(hover.contents.contains("Simulated call documentation."));
+        assert!(hover.contents.contains("`value` (`int`)"));
+
+        let signature = database
+            .signature_help(
+                "file:///demo.c",
+                byte_to_lsp_position(source, call + "simul_call(1".len()),
+            )
+            .expect("simulated efun signature should resolve");
+        assert_eq!(signature.signatures.len(), 1);
+        assert_eq!(
+            signature.signatures[0].label,
+            "string simul_call(int value)"
+        );
+        assert!(
+            signature.signatures[0]
+                .documentation
+                .as_deref()
+                .is_some_and(
+                    |documentation| documentation.contains("Simulated call documentation.")
+                )
+        );
+        assert_eq!(
+            signature.signatures[0].parameters[0]
+                .documentation
+                .as_deref(),
+            Some("Input value.")
+        );
+
+        let completion = database
+            .completion_candidates(
+                "file:///demo.c",
+                byte_to_lsp_position(source, source.rfind("simul_ca").unwrap() + "simul_ca".len()),
+            )
+            .into_iter()
+            .find(|candidate| candidate.label == "simul_call")
+            .expect("simulated efun completion should resolve");
+        assert_eq!(
+            completion.insert_text.as_deref(),
+            Some("simul_call(${1:value})")
+        );
+        assert!(
+            completion.documentation.as_deref().is_some_and(
+                |documentation| documentation.contains("Simulated call documentation.")
+            )
+        );
     }
 
     #[test]
@@ -8416,6 +8782,28 @@ mod tests {
     }
 
     #[test]
+    fn counts_local_references_reached_through_macro_expansion() {
+        let source = concat!(
+            "#define NPC1 my[\"npc1\"]\n",
+            "#define FIRST NPC1\n",
+            "#define LOOKUP() my[\"value\"]\n",
+            "int direct_macro() { mapping my = ([]); return NPC1; }\n",
+            "int nested_macro() { mapping my = ([]); return FIRST; }\n",
+            "int function_macro() { mapping my = ([]); return LOOKUP(); }\n",
+            "int genuinely_unused() { mapping my = ([]); return 1; }\n",
+        );
+        let mut database = database(source);
+        let unused_lines = database
+            .diagnostics("file:///demo.c")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "unusedVar")
+            .map(|diagnostic| diagnostic.range.start.line)
+            .collect::<Vec<_>>();
+
+        assert_eq!(unused_lines, vec![6]);
+    }
+
+    #[test]
     fn reports_only_genuinely_unknown_direct_function_calls() {
         let source = concat!(
             "void local_helper() {}\n",
@@ -8586,6 +8974,69 @@ mod tests {
                 .diagnostics("file:///demo.c")
                 .iter()
                 .all(|diagnostic| diagnostic.code != "lpc.undefinedFunction")
+        );
+    }
+
+    #[test]
+    fn preserves_include_prototype_docs_across_language_features() {
+        let source = "#include <helpers.h>\nvoid demo() { helper(1); hel }\n";
+        let mut database = database(source);
+        database.set_workspace_resolution(Vec::new(), vec!["include".to_owned()], HashMap::new());
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let header_source = concat!(
+            "/**\n",
+            " * @brief Included helper documentation.\n",
+            " * @param int value Included value.\n",
+            " * @return string Included result.\n",
+            " */\n",
+            "string helper(int value);\n",
+        );
+        let header_tree = parser.parse(header_source, None).unwrap();
+        database.index_source("file:///include/helpers.h", &header_tree, header_source);
+
+        let call = source.find("helper(1)").unwrap();
+        let definition =
+            database.definition("file:///demo.c", byte_to_lsp_position(source, call + 2));
+        assert_eq!(definition.len(), 1);
+        assert_eq!(definition[0].uri, "file:///include/helpers.h");
+
+        let hover = database
+            .hover("file:///demo.c", byte_to_lsp_position(source, call + 2))
+            .expect("include prototype hover should resolve");
+        assert!(hover.contents.contains("string helper(int value)"));
+        assert!(hover.contents.contains("Included helper documentation."));
+        assert!(hover.contents.contains("Included result."));
+
+        let signature = database
+            .signature_help(
+                "file:///demo.c",
+                byte_to_lsp_position(source, call + "helper(1".len()),
+            )
+            .expect("include prototype signature should resolve");
+        assert_eq!(signature.signatures.len(), 1);
+        assert_eq!(signature.signatures[0].label, "string helper(int value)");
+        assert_eq!(
+            signature.signatures[0].parameters[0]
+                .documentation
+                .as_deref(),
+            Some("Included value.")
+        );
+
+        let completion = database
+            .completion_candidates(
+                "file:///demo.c",
+                byte_to_lsp_position(source, source.rfind("hel").unwrap() + "hel".len()),
+            )
+            .into_iter()
+            .find(|candidate| candidate.label == "helper")
+            .expect("include prototype completion should resolve");
+        assert!(
+            completion.documentation.as_deref().is_some_and(
+                |documentation| documentation.contains("Included helper documentation.")
+            )
         );
     }
 

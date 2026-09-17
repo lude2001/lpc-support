@@ -241,7 +241,7 @@ function materializeSignature(
     returnType: string | undefined,
     documentedParameters: Array<{ name: string; type?: string; description?: string }>
 ): CallableSignature {
-    const parameters = entry.structuredSignature
+    const parameters: CallableParameter[] = entry.structuredSignature
         ? entry.structuredSignature.parameters.map((parameter, index) => ({
             name: parameter.name ?? `arg${index + 1}`,
             sourceName: parameter.name,

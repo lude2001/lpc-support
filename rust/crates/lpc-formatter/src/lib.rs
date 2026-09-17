@@ -267,15 +267,41 @@ impl Printer<'_> {
             parts.push(self.render_attached(consequence, depth));
         }
         if let Some(alternative) = alternative {
+            let comments = self.comments_between(
+                consequence.map_or(node.start_byte(), |value| value.end_byte()),
+                alternative.start_byte(),
+                node,
+            );
             if alternative.kind() == "if_statement" {
                 let nested = self.render_if(alternative, depth);
-                parts.push(format!(
-                    "{}else {}",
-                    self.indent(depth),
-                    nested.trim_start()
-                ));
+                let mut else_line = format!("{}else", self.indent(depth));
+                if let Some(comment) = comments.first() {
+                    else_line.push(' ');
+                    else_line.push_str(self.text(*comment).trim());
+                    parts.push(else_line);
+                    parts.push(nested);
+                } else {
+                    parts.push(format!("{else_line} {}", nested.trim_start()));
+                }
+                parts.extend(
+                    comments
+                        .into_iter()
+                        .skip(1)
+                        .map(|comment| self.render_comment(comment, depth)),
+                );
             } else {
-                parts.push(format!("{}else", self.indent(depth)));
+                let mut else_line = format!("{}else", self.indent(depth));
+                if let Some(comment) = comments.first() {
+                    else_line.push(' ');
+                    else_line.push_str(self.text(*comment).trim());
+                }
+                parts.push(else_line);
+                parts.extend(
+                    comments
+                        .into_iter()
+                        .skip(1)
+                        .map(|comment| self.render_comment(comment, depth)),
+                );
                 parts.push(self.render_attached(alternative, depth));
             }
         }
@@ -546,31 +572,61 @@ impl Printer<'_> {
         depth: usize,
     ) -> String {
         let mut cursor = node.walk();
-        let direct: Vec<_> = node
-            .named_children(&mut cursor)
-            .filter(|child| !matches!(child.kind(), "comment"))
+        let direct: Vec<_> = node.named_children(&mut cursor).collect();
+        let expression_lists: Vec<_> = direct
+            .iter()
+            .copied()
+            .filter(|child| child.kind() == "expression_list")
             .collect();
-        let children: Vec<_> = if direct.len() == 1 && direct[0].kind() == "expression_list" {
-            let mut list_cursor = direct[0].walk();
-            direct[0].named_children(&mut list_cursor).collect()
+        let children: Vec<_> = if expression_lists.len() == 1
+            && direct
+                .iter()
+                .all(|child| matches!(child.kind(), "expression_list" | "comment"))
+        {
+            let expression_list = expression_lists[0];
+            let mut list_cursor = expression_list.walk();
+            expression_list.named_children(&mut list_cursor).collect()
         } else {
             direct
         };
         if children.is_empty() {
             return format!("{opener}{closer}");
         }
-        let lines = children
-            .into_iter()
-            .map(|child| {
-                format!(
-                    "{}{}",
-                    self.indent(depth + 1),
-                    self.expression(child, depth + 1)
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(",\n");
+        let mut lines = Vec::new();
+        for (index, child) in children.iter().enumerate() {
+            if child.kind() == "comment" {
+                lines.push(self.render_comment(*child, depth + 1));
+                continue;
+            }
+            let has_following_expression = children[index + 1..]
+                .iter()
+                .any(|following| following.kind() != "comment");
+            lines.push(format!(
+                "{}{}{}",
+                self.indent(depth + 1),
+                self.expression(*child, depth + 1),
+                if has_following_expression { "," } else { "" }
+            ));
+        }
+        let lines = lines.join("\n");
         format!("{opener}\n{lines}\n{}{closer}", self.indent(depth))
+    }
+
+    fn comments_between<'tree>(
+        &self,
+        start_byte: usize,
+        end_byte: usize,
+        parent: Node<'tree>,
+    ) -> Vec<Node<'tree>> {
+        let mut cursor = parent.walk();
+        parent
+            .named_children(&mut cursor)
+            .filter(|child| {
+                child.kind() == "comment"
+                    && child.start_byte() >= start_byte
+                    && child.end_byte() <= end_byte
+            })
+            .collect()
     }
 
     fn inline_range(&self, start: usize, end: usize) -> String {
@@ -811,6 +867,49 @@ mod tests {
         assert!(output.contains("    \"actions\" : ({\n"), "{output}");
         assert!(output.contains("        \"slash\",\n"), "{output}");
         assert!(output.contains("        \"parry\"\n"), "{output}");
+    }
+
+    #[test]
+    fn preserves_comments_between_collection_entries() {
+        let output = format(
+            "mapping data = ([ \"first\":({ 1 }), // explanation\n// keep first 25\n\"second\":({ 2 }) ]);",
+        );
+        assert_eq!(output.matches("// explanation").count(), 1, "{output}");
+        assert_eq!(output.matches("// keep first 25").count(), 1, "{output}");
+        assert!(output.contains("// explanation\n"), "{output}");
+        assert!(output.contains("// keep first 25\n"), "{output}");
+    }
+
+    #[test]
+    fn preserves_comment_after_else_keyword() {
+        let output = format("void test(){if(x){foo();}else // alternate path\n{bar();}}");
+        assert_eq!(output.matches("// alternate path").count(), 1, "{output}");
+        assert!(output.contains("else // alternate path\n"), "{output}");
+    }
+
+    #[test]
+    fn preserves_comment_between_else_and_nested_if_without_commenting_out_condition() {
+        let output = format(
+            "void test(){if(x){foo();}else // alternate condition\nif(y){bar();}else{baz();}}",
+        );
+        assert_eq!(
+            output.matches("// alternate condition").count(),
+            1,
+            "{output}"
+        );
+        assert!(
+            output.contains("else // alternate condition\n    if (y)"),
+            "{output}"
+        );
+    }
+
+    #[test]
+    fn preserves_documentation_comments_before_consecutive_functions() {
+        let output = format(
+            "/** first docs */\nint first(){return 1;}\n/** second docs */\nint second(){return 2;}",
+        );
+        assert_eq!(output.matches("/** first docs */").count(), 1, "{output}");
+        assert_eq!(output.matches("/** second docs */").count(), 1, "{output}");
     }
 
     #[test]

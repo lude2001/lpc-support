@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ServiceRegistry } from './core/ServiceRegistry';
+import { FunctionDocPanel } from './functionDocPanel';
 import { activateLspClient } from './lsp/client/activateLspClient';
 import { registerWorkspaceIndexController } from './lsp/client/workspaceIndexController';
 import { registerCommands, registerWorkspaceIndexRebuildCommand } from './modules/commandModule';
@@ -22,7 +23,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             context,
             manager: lspClientManager,
             projectConfigService,
-            registerRebuildCommand: (handler) => registerWorkspaceIndexRebuildCommand(context, handler)
+            registerRebuildCommand: (handler) => registerWorkspaceIndexRebuildCommand(context, handler),
+            onIndexReady: () => FunctionDocPanel.refreshCurrent()
         });
     }
 }

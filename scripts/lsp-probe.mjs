@@ -176,6 +176,7 @@ async function main() {
         const probeWallMs = performance.now() - probeStartedAt;
 
         const report = createReport({
+            server: options.server,
             project,
             targetFile,
             position,
@@ -525,9 +526,21 @@ async function startServer(project, serverKind) {
                 }
             ]
         };
+        const workspaceReady = serverKind === 'rust'
+            ? new Promise((resolve, reject) => {
+                const timeout = setTimeout(
+                    () => reject(new Error('Timed out waiting for the Rust workspace index.')),
+                    120_000
+                );
+                connection.onNotification('lpc/workspaceIndex/ready', (result) => {
+                    clearTimeout(timeout);
+                    resolve(result);
+                });
+            })
+            : undefined;
         await connection.sendNotification(WORKSPACE_CONFIG_SYNC_METHOD, workspaceConfig);
-        if (serverKind === 'rust') {
-            await connection.sendRequest('lpc/workspaceIndex/rebuild', workspaceConfig);
+        if (workspaceReady) {
+            await workspaceReady;
         }
         return server;
     } catch (error) {
@@ -924,6 +937,7 @@ async function withTimeout(promise, timeoutMs, fallback) {
 }
 
 function createReport({
+    server,
     project,
     targetFile,
     position,
@@ -944,6 +958,7 @@ function createReport({
 }) {
     return {
         generatedAt: new Date().toISOString(),
+        server,
         privacy: {
             sourceTextIncluded: false,
             projectRootIncluded: false,
@@ -1166,6 +1181,7 @@ function renderMarkdown(report) {
         '# LSP Probe Report',
         '',
         `- Generated: ${report.generatedAt}`,
+        `- Server: ${report.server}`,
         `- Project: ${report.project.root}`,
         `- Config: ${report.project.configHellPath}`,
         `- Target: ${report.target.file}`,

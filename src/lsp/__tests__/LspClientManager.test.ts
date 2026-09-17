@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import type * as vscode from 'vscode';
-import { activateLspClient } from '../client/activateLspClient';
+import { activateLspClient, createLspClientErrorHandler } from '../client/activateLspClient';
 import {
     initializeConfigurationBridge,
     WORKSPACE_CONFIG_SYNC_NOTIFICATION
@@ -21,6 +21,14 @@ const mockLanguageClientDispose = jest.fn();
 const mockLanguageClientConstructor = jest.fn();
 
 jest.mock('vscode-languageclient/node', () => ({
+    CloseAction: {
+        DoNotRestart: 1,
+        Restart: 2
+    },
+    ErrorAction: {
+        Continue: 1,
+        Shutdown: 2
+    },
     TransportKind: {
         ipc: 'ipc'
     },
@@ -164,6 +172,15 @@ describe('LspClientManager activation', () => {
 
         expect(manager).toBeInstanceOf(LspClientManager);
         expect(mockLanguageClientConstructor).toHaveBeenCalledTimes(1);
+        expect(mockLanguageClientConstructor.mock.calls[0][3]).toEqual(expect.objectContaining({
+            connectionOptions: {
+                maxRestartCount: 3
+            },
+            errorHandler: expect.objectContaining({
+                error: expect.any(Function),
+                closed: expect.any(Function)
+            })
+        }));
         expect(initializeSourceFileChangeBridge).toHaveBeenCalledWith({
             client: expect.any(Object)
         });
@@ -236,6 +253,42 @@ describe('LspClientManager activation', () => {
 
         expect(startSpy).toHaveBeenCalledTimes(1);
         expect(stopSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('manager can restart after a completed stop', async () => {
+        const startSpy = jest.fn().mockResolvedValue(undefined);
+        const stopSpy = jest.fn().mockResolvedValue(undefined);
+        const manager = new LspClientManager({
+            start: startSpy,
+            stop: stopSpy
+        });
+
+        await manager.start();
+        await manager.stop();
+        await manager.start();
+
+        expect(startSpy).toHaveBeenCalledTimes(2);
+        expect(stopSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test('language client hides recoverable transport noise but stops after four rapid crashes', async () => {
+        let timestamp = 1_000;
+        const handler = createLspClientErrorHandler('LPC Support Rust', 3, () => timestamp);
+
+        expect(await handler.error(new Error('stream destroyed'), undefined, 1)).toEqual({
+            action: 1,
+            handled: true
+        });
+        expect(await handler.closed()).toEqual({ action: 2, handled: true });
+        expect(await handler.closed()).toEqual({ action: 2, handled: true });
+        expect(await handler.closed()).toEqual({ action: 2, handled: true });
+        expect(await handler.closed()).toEqual(expect.objectContaining({
+            action: 1,
+            message: expect.stringContaining('crashed 4 times')
+        }));
+
+        timestamp += 3 * 60 * 1000 + 1;
+        expect(await handler.closed()).toEqual({ action: 2, handled: true });
     });
 
     test('sendRequest forwards custom LSP requests when the client supports them', async () => {

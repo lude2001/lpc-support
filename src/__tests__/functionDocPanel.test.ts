@@ -48,6 +48,22 @@ describe('FunctionDocPanel', () => {
         (vscode.workspace as any).onDidSaveTextDocument = jest.fn().mockReturnValue({ dispose: jest.fn() });
     });
 
+    test('refreshes the current document when the workspace index becomes ready', async () => {
+        const document = createTextDocument('D:/workspace/look.c', 'inherit F_CLEAN_UP;\n');
+        const update = jest.fn(async () => undefined);
+        const panelState = { currentDocument: document, update };
+        (FunctionDocPanel as any).currentPanel = panelState;
+
+        try {
+            FunctionDocPanel.refreshCurrent();
+            await Promise.resolve();
+
+            expect(update).toHaveBeenCalledWith(document, true);
+        } finally {
+            (FunctionDocPanel as any).currentPanel = undefined;
+        }
+    });
+
     test('publishes declaration-preserving structured snapshot without embedding source data in HTML', async () => {
         const { panel, postMessage } = createPanel();
         const callable = {

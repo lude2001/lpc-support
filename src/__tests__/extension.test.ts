@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, tes
 import type * as vscode from 'vscode';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { activate, deactivate } from '../extension';
+import { FunctionDocPanel } from '../functionDocPanel';
 import { activateLspClient } from '../lsp/client/activateLspClient';
 import { registerWorkspaceIndexController } from '../lsp/client/workspaceIndexController';
 import { registerCommands, registerWorkspaceIndexRebuildCommand } from '../modules/commandModule';
@@ -16,6 +17,12 @@ jest.mock('../core/ServiceRegistry', () => ({
 jest.mock('../modules/coreModule', () => ({
     getRegisteredProjectConfigService: jest.fn(),
     registerCoreServices: jest.fn()
+}));
+
+jest.mock('../functionDocPanel', () => ({
+    FunctionDocPanel: {
+        refreshCurrent: jest.fn()
+    }
 }));
 
 jest.mock('../modules/diagnosticsModule', () => ({
@@ -99,12 +106,15 @@ describe('extension entrypoint', () => {
             context,
             manager,
             projectConfigService,
-            registerRebuildCommand: expect.any(Function)
+            registerRebuildCommand: expect.any(Function),
+            onIndexReady: expect.any(Function)
         });
         const options = (registerWorkspaceIndexController as jest.Mock).mock.calls[0][0];
         const handler = jest.fn(async () => undefined);
         options.registerRebuildCommand(handler);
         expect(registerWorkspaceIndexRebuildCommand).toHaveBeenCalledWith(context, handler);
+        options.onIndexReady();
+        expect(FunctionDocPanel.refreshCurrent).toHaveBeenCalled();
     });
 
     test('deactivate is safe after all production services move to registered disposables', () => {

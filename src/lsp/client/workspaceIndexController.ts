@@ -4,6 +4,7 @@ import { createWorkspaceConfigSyncPayload } from './bridges/configurationBridge'
 import { LspClientManager } from './LspClientManager';
 import {
     WORKSPACE_INDEX_PROGRESS_NOTIFICATION,
+    WORKSPACE_INDEX_READY_NOTIFICATION,
     type WorkspaceIndexProgressPayload,
     WORKSPACE_INDEX_REBUILD_REQUEST,
     type WorkspaceIndexRebuildResult
@@ -19,6 +20,7 @@ export interface WorkspaceIndexControllerOptions {
     readonly manager: LspClientManager;
     readonly projectConfigService: Pick<LpcProjectConfigService, 'getProjectConfigPath' | 'loadForWorkspace'>;
     readonly registerRebuildCommand: (handler: () => Promise<void>) => vscode.Disposable;
+    readonly onIndexReady?: (result: WorkspaceIndexRebuildResult) => void;
 }
 
 export function registerWorkspaceIndexController(options: WorkspaceIndexControllerOptions): vscode.Disposable {
@@ -43,6 +45,10 @@ class WorkspaceIndexController implements vscode.Disposable {
         this.disposables.push(this.options.manager.onNotification(
             WORKSPACE_INDEX_PROGRESS_NOTIFICATION,
             (payload) => this.updateProgressStatus(payload)
+        ));
+        this.disposables.push(this.options.manager.onNotification(
+            WORKSPACE_INDEX_READY_NOTIFICATION,
+            (payload) => this.handleIndexReady(payload)
         ));
         void this.promptForInitialBuild();
     }
@@ -138,7 +144,19 @@ class WorkspaceIndexController implements vscode.Disposable {
 
     private setReadyStatus(result: WorkspaceIndexRebuildResult): void {
         this.statusBarItem.text = '$(database) LPC Index: Ready';
-        this.statusBarItem.tooltip = `LPC 工作区预热索引已就绪：${result.indexedFiles}/${result.totalFiles} 个文件，耗时 ${result.durationMs}ms。点击可重建。`;
+        const cacheSummary = result.cachedFiles
+            ? `，缓存恢复 ${result.cachedFiles} 个`
+            : '';
+        this.statusBarItem.tooltip = `LPC 工作区预热索引已就绪：${result.indexedFiles}/${result.totalFiles} 个文件${cacheSummary}，耗时 ${result.durationMs}ms。点击可重建。`;
+    }
+
+    private handleIndexReady(payload: unknown): void {
+        if (!isWorkspaceIndexReadyPayload(payload)) {
+            return;
+        }
+
+        this.setReadyStatus(payload);
+        this.options.onIndexReady?.(payload);
     }
 
     private setErrorStatus(error: unknown): void {
@@ -198,4 +216,18 @@ function isWorkspaceIndexProgressPayload(payload: unknown): payload is Workspace
         && typeof progress.indexedFiles === 'number'
         && typeof progress.skippedFiles === 'number'
         && typeof progress.failedFiles === 'number';
+}
+
+function isWorkspaceIndexReadyPayload(payload: unknown): payload is WorkspaceIndexRebuildResult {
+    if (!payload || typeof payload !== 'object') {
+        return false;
+    }
+
+    const result = payload as Partial<WorkspaceIndexRebuildResult>;
+    return result.status === 'ready'
+        && typeof result.totalFiles === 'number'
+        && typeof result.indexedFiles === 'number'
+        && typeof result.skippedFiles === 'number'
+        && typeof result.failedFiles === 'number'
+        && typeof result.durationMs === 'number';
 }

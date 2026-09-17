@@ -3,6 +3,7 @@ import type * as vscode from 'vscode';
 import { registerWorkspaceIndexController } from '../client/workspaceIndexController';
 import {
     WORKSPACE_INDEX_PROGRESS_NOTIFICATION,
+    WORKSPACE_INDEX_READY_NOTIFICATION,
     WORKSPACE_INDEX_REBUILD_REQUEST
 } from '../shared/protocol/workspaceIndex';
 
@@ -204,11 +205,11 @@ describe('workspace index controller', () => {
                 update: jest.fn()
             }
         } as unknown as vscode.ExtensionContext;
-        let progressHandler: ((payload: unknown) => void) | undefined;
+        const notificationHandlers = new Map<string, (payload: unknown) => void>();
         let finishRebuild: (() => void) | undefined;
         const manager = {
-            onNotification: jest.fn((_method: string, handler: (payload: unknown) => void) => {
-                progressHandler = handler;
+            onNotification: jest.fn((method: string, handler: (payload: unknown) => void) => {
+                notificationHandlers.set(method, handler);
                 return { dispose: jest.fn() };
             }),
             sendRequest: jest.fn(() => new Promise(resolve => {
@@ -240,7 +241,7 @@ describe('workspace index controller', () => {
         });
         const rebuildPromise = rebuild?.() ?? Promise.resolve();
         await flushPromises();
-        progressHandler?.({
+        notificationHandlers.get(WORKSPACE_INDEX_PROGRESS_NOTIFICATION)?.({
             status: 'building',
             totalFiles: 100,
             processedFiles: 40,
@@ -287,6 +288,49 @@ describe('workspace index controller', () => {
         expect(registerRebuildCommand).toHaveBeenCalledWith(
             expect.any(Function)
         );
+    });
+
+    test('refreshes index consumers when the background index becomes ready', () => {
+        const context = {
+            subscriptions: [],
+            workspaceState: {
+                get: jest.fn(() => true),
+                update: jest.fn()
+            }
+        } as unknown as vscode.ExtensionContext;
+        const notificationHandlers = new Map<string, (payload: unknown) => void>();
+        const onIndexReady = jest.fn();
+
+        registerWorkspaceIndexController({
+            context,
+            manager: {
+                onNotification: jest.fn((method: string, handler: (payload: unknown) => void) => {
+                    notificationHandlers.set(method, handler);
+                    return { dispose: jest.fn() };
+                }),
+                sendRequest: jest.fn()
+            } as any,
+            projectConfigService: {
+                getProjectConfigPath: jest.fn(),
+                loadForWorkspace: jest.fn()
+            } as any,
+            registerRebuildCommand: jest.fn(() => ({ dispose: jest.fn() })),
+            onIndexReady
+        });
+
+        const ready = {
+            status: 'ready' as const,
+            totalFiles: 120,
+            indexedFiles: 118,
+            skippedFiles: 2,
+            failedFiles: 0,
+            durationMs: 20000
+        };
+        notificationHandlers.get(WORKSPACE_INDEX_READY_NOTIFICATION)?.(ready);
+
+        expect(onIndexReady).toHaveBeenCalledWith(ready);
+        const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value;
+        expect(statusBarItem.text).toBe('$(database) LPC Index: Ready');
     });
 });
 

@@ -230,14 +230,52 @@ rust/
 - Gate A：完成。Rust stdio server、TS sidecar、增量文档同步、health、构建和真实项目探针已接通。
 - Gate B：完成本次切换范围。Tree-sitter LPC grammar、增量 CST、复合条件编译求值与屏蔽、include facts、动态 heredoc token 和恒等源码映射已实现。全局 include、直接 include 与嵌套 include 按实际包含顺序传递宏环境：头文件读取包含点之前的定义，并把 define/undef 结果回流，宏路径 include 同样可解析；缓存键只包含头文件条件、修改及嵌套依赖实际涉及的宏。真实项目在 `__PACKAGE_DB__` 配置下审计 6769 个 `.c/.h` 文件，语法错误文件为 0；CI 对仓库固定 LPC 样例执行严格审计。会改变源码长度的宏不改写编辑器主 CST；预处理层保留宏事实，语法层稳定接纳函数式宏和字符串宏组合，语义层会单独解析整行函数式宏展开并把其生成的变量/函数声明映射回调用行，避免破坏原始源码坐标。
 - Gate C：完成。document symbols、semantic tokens、folding、语法 diagnostics、未使用局部量、可证明的类型错误、已知函数参数数量、未定义直接调用和未定义值符号诊断及对应 quick fix 全部由 Rust 快照提供。否定性诊断只在 include/inherit/simulated efun 依赖完整时启用，并识别 FluffOS 预定义宏、头文件宏、宏源码顺序、多变量 `foreach`、匿名函数参数与命名继承限定符；头文件和被文本包含的 `.c` 片段因依赖最终宿主上下文而保守静默。全局未使用检查与旧 driver 的局部声明位置规则继续遵守原配置开关；参数检查独立为默认关闭的 `enableUnusedParameterCheck`，启用时只检查函数实现，绝不诊断前置声明。`searchEfunDefinitionInInheritanceChain` 已由 Rust 跳转路径兑现，默认继续阻止 efun 继承链扫描，开启后只搜索可见继承图。类型流只报告静态可证明的错误；不确定的动态 LPC 表达式按设计保守降级，避免以“更深分析”为名恢复误报。
-- Gate D：完成。单后台线程工作区索引、显式 rebuild/progress、磁盘增删改、definition、hover、references、rename、completion 和 signature help 共用常驻快照。include/inherit、宏路径、配置 generation 与正反向依赖变化会使相关缓存失效；对象候选可通过包装返回、分支赋值、`foreach`、数组/映射字面量、确定索引及索引赋值传播，动态索引保持保守。
+- Gate D：完成。工作区索引、显式 rebuild/progress、磁盘增删改、definition、hover、references、rename、completion 和 signature help 共用常驻快照；跨启动缓存按扩展版本、项目配置及文件元数据校验，头文件或配置变化保守退回全量重建，普通源文件变化只增量重建。include/inherit、宏路径、配置 generation 与正反向依赖变化会使相关缓存失效；对象候选可通过包装返回、分支赋值、`foreach`、数组/映射字面量、确定索引及索引赋值传播，动态索引保持保守。
 - Gate E：完成。Rust CST formatter 覆盖全文与 range formatting，并通过 heredoc、CRLF、语法安全和幂等检查；`format.indentSize` 通过配置同步成为 Rust 全文与选区格式化的统一缩进真源。变量面板、文件夹诊断、Javadoc 函数范围及函数文档中心均通过 Rust 自定义请求获取源码事实；扩展激活只装配项目配置、静态 bundled efun 展示、命令/UI 和 Rust 客户端，不再实例化旧 TypeScript frontend、semantic snapshot、模拟 efun 扫描或函数文档源码分析服务。只服务于旧 TS 缓存和异步诊断调度的 `lpc.performance.*` 设置已移除，避免保留无效开关。当前平台 VSIX 已完成打包、覆盖安装和原生服务生命周期验证，Windows、Linux、macOS 的 x64/ARM64 目标由 CI 六平台原生矩阵构建。
 
 上述 Gate 记录的是架构切换已落地，不再等同于“功能完整迁移已经验收”。用户实际使用随后发现宏、跨文件 Javadoc 和函数签名语义缺陷，因此完整迁移验收已重新打开；只有这些差异及后续审计发现均有驱动源码、真实 mudlib、自动化测试与 LSP 探针证据后，才可再次宣告完成。它同样不构成合入稳定分支或发布授权。
 
-2026-09-16 的最终真实项目复核覆盖 6769 个 `.c/.h` 文件，全部可读且 Tree-sitter 语法错误文件为 0。用户报告过误报的 `/cmds/skill/new_skills.c` 在原位置诊断为 0；全工作区诊断稳定为迁移前基线的 21 条（12 条已知参数数量、9 条真实未使用局部量），没有新增 `lpc.undefinedFunction` 或 `lpc.undefinedSymbol`。文档化函数的 hover 返回完整签名和 Javadoc 正文，函数文档查询同时返回当前文件、inherit 与 include 分组。真实 `/adm/daemons/restart_d.c` 中，`runtime_daemon_paths()` 的 11 个静态目标可经 `foreach`、`catch(...)` 和对象成员调用解析为 11 个真实实现，诊断为 0。自动化保护网同时覆盖歧义命名继承、未知对象、动态索引、跨函数同名局部量等负向场景，确保不以唯一名称或不完整候选猜测跳转与重命名。宏能力进一步以真实 `/clone/cloth/yaodai.c` 验证：`WAIST` 的悬浮包含定义与源码位置，跳转精确落到 `/include/armor.h` 的宏名称范围；自动化同时覆盖函数式宏 snippet、配置宏、非活动条件分支、重定义和 `#undef` 生命周期。
+2026-09-16 的真实项目复核覆盖 6769 个 `.c/.h` 文件，全部可读且 Tree-sitter 语法错误文件为 0。用户报告过误报的 `/cmds/skill/new_skills.c` 在原位置诊断为 0。进一步逐条审计原 21 条诊断后确认：其中 4 条 `unusedVar` 是对象宏间接引用局部变量时的 Rust 误报，修复并增加直接对象宏、嵌套对象宏、函数式宏与真实未使用量的正反回归后，全工作区剩余 17 条；12 条参数数量错误与当前 FluffOS `src/packages/core/core.spec` 中 `tell_object(object, string)`、`write(mixed)` 的定义一致，另外 5 条局部量在各自作用域内确实未使用。当前不再存在未解释诊断，也没有 `lpc.typeMismatch`、`lpc.undefinedFunction` 或 `lpc.undefinedSymbol`。这只完成了诊断误报审计，不代表其余迁移验收项完成。文档化函数的 hover 返回完整签名和 Javadoc 正文，函数文档查询同时返回当前文件、inherit 与 include 分组。真实 `/adm/daemons/restart_d.c` 中，`runtime_daemon_paths()` 的 11 个静态目标可经 `foreach`、`catch(...)` 和对象成员调用解析为 11 个真实实现，诊断为 0。自动化保护网同时覆盖歧义命名继承、未知对象、动态索引、跨函数同名局部量等负向场景，确保不以唯一名称或不完整候选猜测跳转与重命名。宏能力进一步以真实 `/clone/cloth/yaodai.c` 验证：`WAIST` 的悬浮包含定义与源码位置，跳转精确落到 `/include/armor.h` 的宏名称范围；自动化同时覆盖函数式宏 snippet、配置宏、非活动条件分支、重定义和 `#undef` 生命周期。
 
-### 13.1 当前性能证据
+### 13.1 尚未完成的完整迁移验收
+
+- [x] 建立真实旧 TypeScript LSP 与 Rust sidecar 的进程级迁移防退化矩阵；现有 `languageParity.test.ts` 仍只负责 TypeScript 共享服务到 TypeScript handler 的适配一致性，进程级矩阵由 `npm run test:lsp-parity` 独立执行。
+- [x] 逐条解释真实工作区诊断并修复 Rust 误报；当前 17 条均已有源码或 FluffOS 函数签名证据。
+- [ ] 完成宏、高亮、跨文件文档与签名帮助的真实项目矩阵和当前 VS Code 主题显示验收。
+- [x] 完成旧 TypeScript formatter 差异矩阵，以及动态 LPC 保守语义的真实 mudlib 负向回归。
+- [x] 完成长时间编辑生命周期测试，包括真实 VS Code sidecar 崩溃恢复、二进制替换和延长编辑压力。
+- [ ] 在最终 HEAD 上取得 Windows、Linux、macOS x64/ARM64 六平台构建结果。
+- [ ] 所有验收通过后再干净打包并校验最终 VSIX；当前根目录的 Windows x64 VSIX 是为 M2/M4 实机验收生成并安装的临时测试制品，不是最终发布候选。
+
+#### 剩余里程碑
+
+1. **M1：进程级迁移防退化矩阵（已完成首个固定矩阵）**
+   - 启动真实旧 TypeScript LSP 与 Rust sidecar，而不是比较 TypeScript 共享服务和 handler。
+   - 在同一固定 corpus、项目配置和光标位置上覆盖诊断、语义高亮、悬浮、跳转、补全、签名、引用、重命名、全文格式化和选区格式化。
+   - 只比较稳定行为事实；文案、候选排序和 Markdown 包装等非语义差异不强制逐字段相等。
+   - Rust 修复旧 TS 缺陷时登记为有回归测试的明确差异，旧 TS 不作为绝对正确的 oracle。
+   - 完成标准：约 15 至 25 个高价值场景无未解释差异，并可由单条本地命令重复执行。
+   - 当前证据：固定 corpus 已扩展到 13 个文件、24 个场景；16 个稳定事实完全一致，8 个差异均以严格条件登记，其中 4 个语言能力差异是宏跳转缩小到名称范围、include 宏补全、跨文件继承调用引用，以及只修改完整引用集合的重命名，另 4 个 formatter 差异必须同时满足源码 token 流（忽略集合末尾可选逗号）与规范化注释多重集不变。报告写入 `.tmp/lsp-parity/latest.json`；任何未登记差异都会使命令失败。
+2. **M2：宏、高亮、跨文件文档与签名矩阵**
+   - 覆盖函数式宏、多行宏、token paste、条件编译、重定义、`#undef`、include 顺序及其高亮/悬浮/跳转/补全。
+   - 覆盖 prototype/implementation、inherit、include、simulated efun、对象推断的完整 Javadoc、参数、重载和签名帮助。
+   - 在当前 VS Code 主题中实机确认 driver efun、simulated efun、宏、局部遮蔽和相邻字符串的最终显示。
+   - 当前自动化证据：真实 `/feature/skill.c` 的 `SKILL_D` 为 `macro` token，跳转精确落到 `/include/globals.h` 名称范围，hover 为结构化 Markdown且诊断为 0；真实 `/cmds/std/look.c` 的 `world_object_button` 为 `method` token，跳转到对象模型实现，hover、补全和单参数签名帮助均带文档且诊断为 0。现有 smoke/单测另覆盖多行函数宏、token paste、条件编译、重定义、`#undef` 和 include 顺序。用户已实机确认启动索引完成后宏会自动恢复正确颜色，函数文档中心能识别 `F_CLEAN_UP`；driver efun、simulated efun、局部遮蔽、相邻字符串及完整签名矩阵的当前主题显示仍待集中验收，因此 M2 尚未完成。
+3. **M3：Formatter 与保守动态语义（已完成）**
+   - 建立旧 TS 与 Rust 的全文、选区、宏密集、heredoc、注释及真实大型文件格式化矩阵。
+   - 用真实 mudlib 负向样例锁定对象数组、映射、包装函数、命名继承和未知动态值；不确定时不得猜测跳转、重命名、诊断或修改。
+   - 当前 formatter 证据：进程矩阵覆盖全文、选区、宏密集、heredoc、注释、`yifeng-jian.c` 与 `meridiand.c`；修复集合内注释丢失、`else` 行尾注释丢失，以及注释吞掉嵌套 `if` 的语义风险。两个真实大文件均通过语法与幂等检查，进程矩阵为 16 项完全一致、8 项严格批准差异、0 项未解释差异。
+   - 当前动态语义证据：Rust 单测覆盖未知对象成员、动态数组、映射索引、包装函数、多目标赋值、命名继承歧义和动态闭包；新增成员调用不得因同名外层函数而允许重命名的负向回归。真实 Rust 探针中，`/adm/simul_efun/nt.c` 的未知参数 `ob->query_temp()` 与 `/adm/daemons/restart_d.c` 的运行期用户数组 `user->query_temp()` 均为 0 definition、0 hover、0 signature、不可重命名，而可静态证明的包装函数 `dbase = find_runtime_object(DBASE_D)` 后 `dbase->prepare_shutdown()` 保留 1 个精确 definition。旧 TypeScript 对前两项会按同名符号猜测，已作为不继承的负向行为记录。探针报告现在显式写入 `server`，避免再次混淆 TS 与 Rust 结果。
+4. **M4：编辑器生命周期与升级可靠性（已完成）**
+   - 自动化覆盖头文件变化、配置重载、文件增删、索引取消、sidecar 崩溃/重启和扩展升级。
+   - 进行长时间编辑会话实机验证，确认缓存失效、内存和 CPU 不随编辑轮次持续增长。
+   - 当前证据：stdio smoke 已覆盖头文件编辑后的宏失效、配置同步重载和即时语义刷新、文件新增后可跳转、文件删除后旧跳转消失、100 轮增量编辑期间持续请求 semantic tokens、可用时限制常驻内存净增长不超过 64 MiB，以及 shutdown/exit；workspace index 单测覆盖发现阶段、主动 generation 取消、完整缓存恢复、普通 `.c` 增量失效及头文件变化全量失效。新增 `npm run test:e2e` 在真实 VS Code Extension Host 中两次终止本轮新建的 Rust sidecar，均观察到新 PID 启动且 hover 恢复；第一阶段退出后原位替换 bundled sidecar，再启动第二阶段验证升级替换。两阶段各执行 4000 次真实文档变更并每 25 次请求 hover：分别耗时 54.841 秒和 54.224 秒，常驻内存净增长 458752 与 483328 字节，采样 CPU 增量 1.078 与 0.875 秒。LanguageClient 保留 3 分钟内最多 3 次自动重启，瞬时可恢复断流只写入输出日志，第 4 次连续崩溃停止并提示。M4 已完成；该结果不替代 M2 主题显示或 M5 六平台构建。
+5. **M5：最终发布候选闭环**
+   - 在最终 HEAD 上运行 TypeScript、Rust、smoke、真实项目探针和制品内容检查。
+   - 取得 Windows/Linux/macOS x64/ARM64 六平台构建结果；触发远端 CI 前单独确认推送授权。
+   - 全部通过后再干净打包平台 VSIX、核对条目与 SHA-256；打包不等于发布，发布仍需独立授权。
+
+### 13.2 当前性能证据
 
 同一真实项目与 `/adm/daemons/meridiand.c` 探针的 Rust 路径结果如下。这里是一次完整探针的阶段耗时，不伪装成多轮 p95：
 
@@ -250,12 +288,12 @@ rust/
 | 完整 CST 解析 | 1.939 ms | 786.0 ms | 约 405 倍更快 |
 | 单字符增量解析 p95 | 8 µs | 无增量基线 | 不再完整重解析 |
 
-工作区 6753 个源文件的最终语法审计耗时 1.378 秒。后台索引刻意使用单线程并在文件间让出执行预算。为模拟受限 CPU，Windows 探针进程树固定到 1 个逻辑核并设为 BelowNormal；5 次全新进程/全量索引采样的 cold 启动墙钟 p50 为 16.894 秒、p95 为 17.284 秒，进程 CPU time p50 为 8.031 秒、p95 为 8.953 秒，平均单核利用率 p50 为 46.3%、p95 为 50.5%，峰值常驻内存 p95 为 106.0 MiB。该约束测试证明索引不会持续占满单核；它仍应与未来真实低性能设备的体验反馈并行观察。
+工作区 6753 个源文件的最终语法审计耗时 1.378 秒。早期后台索引曾在每个文件后固定让出 1 ms；真实用户验收确认这会把约 6800 文件项目的每次启动拉长到约 20 秒，因此已改为仅在首次或保守失效时执行完整索引，并将完整快照写入扩展全局存储。性能提升不改变前台请求优先级；真实低性能设备仍需继续观察 CPU 竞争。
 
 同一单核受限环境对真实 `/adm/daemons/restart_d.c` 的 11 候选容器对象流进行 30 次 warm 采样：semantic tokens p95 1.7 ms、definition p95 3.2 ms、references p95 3.8 ms、hover p95 2.6 ms、completion p95 4.4 ms，全部 0 超时，采样期间 parse 与 semantic rebuild 增量均为 0。函数文档完整查询单次为 9.1 ms。
 
-最终提交代码在同一真实工作区的复核索引了 6768 个磁盘文件并打开 1 个目标文档：冷启动墙钟 20.536 秒、进程 CPU time 12.484 秒、平均利用率为单个逻辑核的 59.1%、峰值常驻内存 131.1 MiB。随后 30 次 warm 采样的 semantic tokens / definition / references / hover / completion p95 分别为 1.4 / 1.1 / 4.2 / 1.0 / 1.3 ms，全部 0 超时、0 parse rebuild、0 semantic rebuild；完整函数文档查询为 6.8 ms。
+当前代码在同一真实工作区复核了 6881 个磁盘文件并打开 `/cmds/std/look.c`：无缓存冷启动由优化前 28.106 秒降至 11.785 至 19.109 秒；生成缓存后的下一次全新进程启动为 0.897 秒，分析构建数由 6883 降为 1，仍保留 1 个 `F_CLEAN_UP` 精确定义和 1 个继承文档组。缓存按扩展版本、预处理配置、文件长度和修改时间校验；普通独立 `.c` 变化只重建对应文件，被文本 include 或 inherit 的 `.c` 同时重建反向依赖，新增源文件、任一 `.h` 新增/删除/变化及配置变化均保守执行全量重建。配置同步完成后还会立即刷新已打开文档的 semantic tokens，不再等待后台全量索引才更新宏颜色。当前真实项目缓存约 109.4 MiB，存放在 VS Code 扩展全局存储而非 mudlib 工作区。
 
-最近一次自动化回归为 Jest 168/168 套件、1379/1379 测试通过；Rust workspace 当前为 126/126 单元测试通过，clippy `-D warnings` 通过。该数字是当前保护网基线，不单独证明迁移完成。原生 stdio smoke 额外覆盖 efun 继承链开关的关闭/开启行为、补全触发字符、签名帮助逗号重触发、宏定义/悬浮/高亮/补全/引用/重命名、`#undef` 与条件编译生命周期、多行及带空格参数的函数宏、未 include 头文件宏隔离、include 导入条件宏、头文件变更失效与宏生成声明的文档符号/悬浮/跳转、跨文件多候选方法的结构化 Javadoc 保留、2 空格 formatter 配置覆盖 8 空格 LSP 请求选项，以及可配置诊断、跨文件能力、shutdown 和 exit。宏顺序专项测试进一步覆盖调用方定义传入头文件、头文件 undef 回流、宏路径 include、导入函数宏生成声明，以及 include 前后不同的跳转和高亮范围。真实项目的脱敏全工作区 LSP 诊断审计覆盖全部索引文件：修复成员调用接收者误识别、嵌套匿名函数返回类型串扰、多变量 `foreach` 与匿名函数参数绑定后，诊断由 108 条降至 21 条；其中不再存在 `lpc.typeMismatch`、`lpc.undefinedFunction` 或 `lpc.undefinedSymbol`，剩余诊断仍须结合最新 FluffOS 参数语义重新审计，而不能沿用旧结论直接视为源码问题。
+最近一次自动化回归为 Jest 168/168 套件、1383/1383 测试通过；生产 TypeScript 构建类型检查与完整源码构建通过。Rust workspace 当前为 137/137 单元测试通过，clippy `-D warnings` 通过。该数字是当前保护网基线，不单独证明迁移完成。原生 stdio smoke 额外覆盖 efun 继承链开关的关闭/开启行为、补全触发字符、签名帮助逗号重触发、宏定义/悬浮/高亮/补全/引用/重命名、`#undef` 与条件编译生命周期、多行及带空格参数的函数宏、未 include 头文件宏隔离、include 导入条件宏、头文件变更失效与宏生成声明的文档符号/悬浮/跳转、跨文件多候选方法的结构化 Javadoc 保留、2 空格 formatter 配置覆盖 8 空格 LSP 请求选项，以及可配置诊断、跨文件能力、文件增删、100 轮增量编辑、shutdown 和 exit。宏顺序专项测试进一步覆盖调用方定义传入头文件、头文件 undef 回流、宏路径 include、导入函数宏生成声明，以及 include 前后不同的跳转和高亮范围。真实项目的脱敏全工作区 LSP 诊断审计覆盖全部索引文件：此前修复成员调用接收者误识别、嵌套匿名函数返回类型串扰、多变量 `foreach` 与匿名函数参数绑定后，诊断由 108 条降至 21 条；本轮再修复宏展开未计入局部变量引用的 4 条误报，剩余 17 条已逐条归类为 12 条真实参数数量错误和 5 条真实未使用局部量。
 
-当前 Windows x64 平台已重新完成干净打包；真实项目 `/feature/skill.c` 的宏光标探针确认返回 `macro` token、定义、结构化悬浮、418 个精确引用和可重命名范围，同一文档还区分 110 个 driver efun 与 41 个 simulated efun，诊断为 0；`/cmds/std/look.c` 的跨文件方法探针确认 `world_object_button` 返回结构化 Javadoc，定义、签名帮助和补全均带文档。`lpc-support-win32-x64-0.52.13.vsix` 的 SHA-256 为 `a1b994287ec35191e3dc1da45f755a715ddc0b40a33e5d7ed7046a753fc01778`；VSIX 共 436 个条目，只包含约 752 KiB 的 `dist/extension.js`、模板、故障排查文档和 Rust sidecar，不包含 `dist/lsp/server.js` 或 ANTLR 生成源码。包内 `lpc-language-server.exe` SHA-256 与构建记录及旁路校验文件一致，为 `ef773f048e3d76646123f8dc13f5fe1ef698b65183d8bef69ca849078d553b8a`。其他目标平台由 CI 的 Windows/Linux/macOS x64/ARM64 六平台原生构建矩阵覆盖；未在本 Windows 主机伪装成跨平台安装验收。
+为进行 M2/M4 实机验收，当前工作区已生成并覆盖安装 Windows x64 临时测试制品 `lpc-support-win32-x64-0.52.13.vsix`：共 436 个条目，包含 Rust sidecar，不包含 `dist/lsp/server.js` 或 ANTLR 源码；VSIX SHA-256 为 `b6d035423e37480ea61b3894ccbfe01bf1834b4969988174d322a8be3397c084`，包内及安装目录 sidecar SHA-256 均为 `fdc14efd8967233022740514ec70ab6994f64f2a10c4c6ad2e62968c4df8e65b`。该制品只用于本机验收，不是最终发布候选。真实项目 `/feature/skill.c` 的宏光标探针确认返回 `macro` token、定义、结构化悬浮、418 个精确引用和可重命名范围，同一文档还区分 110 个 driver efun 与 41 个 simulated efun，诊断为 0；`/cmds/std/look.c` 的跨文件方法探针确认 `world_object_button` 返回结构化 Javadoc，定义、签名帮助和补全均带文档。必须等 M2 剩余主题显示验收关闭并取得最终 HEAD 六平台 CI 结果后，才能重新打包和登记最终 VSIX/sidecar SHA-256；未在本 Windows 主机伪装成跨平台安装验收。
