@@ -369,10 +369,10 @@ fn restore_workspace_cache(
             if manifest.files.get(path_key.as_ref()) == current_stamps.get(path_key.as_ref()) {
                 continue;
             }
-            if let Ok(uri) = Url::from_file_path(path) {
+            if let Some(uri) = source_file_uri(path) {
                 dependent_paths.extend(
                     database
-                        .dependent_uris(uri.as_str())
+                        .dependent_uris(&uri)
                         .into_iter()
                         .filter_map(|dependent| Url::parse(&dependent).ok()?.to_file_path().ok()),
                 );
@@ -382,14 +382,14 @@ fn restore_workspace_cache(
             if current_stamps.contains_key(old_path) {
                 continue;
             }
-            if let Ok(uri) = Url::from_file_path(old_path) {
+            if let Some(uri) = source_file_uri(Path::new(old_path)) {
                 dependent_paths.extend(
                     database
-                        .dependent_uris(uri.as_str())
+                        .dependent_uris(&uri)
                         .into_iter()
                         .filter_map(|dependent| Url::parse(&dependent).ok()?.to_file_path().ok()),
                 );
-                database.remove_indexed(uri.as_str());
+                database.remove_indexed(&uri);
             }
         }
     }
@@ -400,9 +400,7 @@ fn restore_workspace_cache(
             let path_key = path.to_string_lossy();
             let unchanged =
                 manifest.files.get(path_key.as_ref()) == current_stamps.get(path_key.as_ref());
-            let cached = Url::from_file_path(path)
-                .ok()
-                .is_some_and(|uri| imported_uris.contains(uri.as_str()));
+            let cached = source_file_uri(path).is_some_and(|uri| imported_uris.contains(&uri));
             !unchanged || !cached || dependent_paths.contains(*path)
         })
         .cloned()
@@ -497,14 +495,14 @@ fn index_file_with_parser(
     let Some(tree) = parser.parse(&processed.text, None) else {
         return IndexOutcome::Failed;
     };
-    let Ok(uri) = Url::from_file_path(path) else {
+    let Some(uri) = source_file_uri(path) else {
         return IndexOutcome::Failed;
     };
     let Ok(mut database) = analysis.lock() else {
         return IndexOutcome::Failed;
     };
     database.index_preprocessed_source(
-        uri.as_str(),
+        &uri,
         &tree,
         &source,
         (
@@ -515,6 +513,11 @@ fn index_file_with_parser(
         ),
     );
     IndexOutcome::Indexed
+}
+
+fn source_file_uri(path: &Path) -> Option<String> {
+    let uri = Url::from_file_path(path).ok()?.to_string();
+    Some(uri.replace('~', "%7E"))
 }
 
 fn source_files_for_generation(
@@ -598,6 +601,15 @@ mod tests {
         assert!(!is_lpc_source(Path::new("package.json")));
         assert!(ignored_directory(Path::new("node_modules")));
         assert!(ignored_directory(Path::new("TARGET")));
+    }
+
+    #[test]
+    fn source_file_uris_match_vscode_encoding_for_tilde_paths() {
+        let path = std::env::temp_dir().join("runner~1").join("caller.c");
+        let uri = source_file_uri(&path).unwrap();
+
+        assert!(uri.contains("runner%7E1"));
+        assert!(!uri.contains("runner~1"));
     }
 
     #[test]
