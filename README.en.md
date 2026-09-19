@@ -11,13 +11,9 @@ LPC Support is a VS Code extension for LPC / FluffOS development. It provides ed
 
 The extension follows a conservative static-proof principle: facts that can be proven from the current file, includes, inherits, project configuration, built-in efun docs, or explicit user configuration are used for completion, navigation, and diagnostics. Runtime-dynamic behavior that cannot be proven reliably is downgraded conservatively to avoid false diagnostics and incorrect jumps.
 
-## Native language-analysis core
+## Built-in Native Language Server
 
-The extension now runs high-frequency analysis in the Rust language server bundled with each platform-specific VSIX. Document synchronization, preprocessing, incremental CST updates, semantic snapshots, and the workspace index remain in one process; TypeScript handles VS Code integration, configuration, commands, and UI. Cold indexing is limited to one background worker that regularly yields CPU time for responsive use on low-end processors.
-
-For source development, run `npm run build:rust` to create the current platform binary under `dist/bin`. `npm run package` builds the native server and emits a VSIX targeted at the current operating system and CPU architecture.
-
-To audit a real project, run `npm run probe:lsp -- --server rust --project <project-root> --file <LPC-path> --position <line:column> --perf --perf-iterations 30`. The privacy-safe report records workspace startup wall time, process CPU time and average single-core utilization, warm p50/p95 latency, timeouts, rebuild counts, and current/peak resident memory without source text or completion labels.
+The extension ships with a Rust language server matched to your operating system and CPU architecture, so it works right after installation with no extra components. Document synchronization, preprocessing, incremental syntax trees, semantic snapshots, and the workspace index run in a single process. Background indexing is limited to one worker thread that regularly yields CPU time, keeping the editor responsive even on low-end machines and large mudlibs.
 
 ## Feature Overview
 
@@ -439,7 +435,7 @@ For more background on the development-environment boundaries and LPC developmen
 
 **Technical Support**
 
-- ANTLR4
+- Tree-sitter
 - Zhipu AI (GLM-4)
 - FluffOS community
 

@@ -542,7 +542,6 @@
     "media/**",
     "language-configuration.json",
     "config/efun-docs/**",
-    "docs/efun-arity-audit.md",
     "docs/rust-lsp-troubleshooting.md",
     "README.md",
     "README.en.md",

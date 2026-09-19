@@ -11,13 +11,9 @@ LPC Support 是面向 VS Code 的 LPC / FluffOS 语言扩展，提供日常 mudl
 
 扩展以静态可证明为核心原则：能从当前文件、include、inherit、项目配置、内置 efun 文档或明确用户配置中证明的结果会参与补全、跳转和诊断；无法可靠证明的运行时动态行为会保守降级，避免把正常 LPC 代码误报或跳转到错误位置。
 
-## 原生语言分析内核
+## 内置原生语言服务器
 
-扩展默认通过随平台 VSIX 一同安装的 Rust 语言服务器执行高频分析。文档同步、预处理、增量语法树、语义快照与工作区索引常驻于同一进程；TypeScript 扩展宿主只负责 VS Code 集成、配置同步、命令和界面。后台索引限制为单工作线程并定期让出执行预算，以避免在低性能 CPU 上长期占满核心。
-
-开发源码时先运行 `npm run build:rust` 生成 `dist/bin` 下的当前平台二进制。`npm run package` 会自动构建原生服务并生成当前操作系统与 CPU 架构专用的 VSIX。
-
-真实项目性能复核可使用 `npm run probe:lsp -- --server rust --project <项目根目录> --file <LPC路径> --position <行:列> --perf --perf-iterations 30`。报告会在脱敏前提下记录工作区启动墙钟时间、进程 CPU 时间与平均单核利用率、单次阶段耗时、warm p50/p95、超时数、查询期间的解析/语义重建次数，以及 Rust 进程当前和峰值常驻内存。
+扩展自带与操作系统、CPU 架构匹配的 Rust 语言服务器，安装后即可使用，不需要额外安装组件。文档同步、预处理、增量语法树、语义快照与工作区索引常驻同一进程；后台索引限制为单工作线程并定期让出执行预算，即使在低性能 CPU 或大型 mudlib 上也能保持编辑器响应。
 
 ## 功能概览
 
@@ -468,7 +464,7 @@ object get_equipment(string type);
 
 **技术支持**
 
-- ANTLR4
+- Tree-sitter
 - 智谱AI (GLM-4)
 - FluffOS 社区
 
