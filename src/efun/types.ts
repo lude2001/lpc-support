@@ -1,9 +1,3 @@
-export interface StructuredEfunDocBundle {
-    generatedAt?: string;
-    categories: Record<string, string[]>;
-    docs: Record<string, StructuredEfunDoc>;
-}
-
 export interface StructuredEfunDoc {
     name: string;
     summary?: string;

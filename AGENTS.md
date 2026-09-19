@@ -6,7 +6,7 @@
 - `src/extension.ts`
   - 激活入口，负责创建 `ServiceRegistry` 并按顺序调用模块注册函数
 - `src/core/`
-  - 服务注册与跨模块基础设施：`ServiceRegistry`、`ServiceKeys`（EfunDocs、Compiler、ProjectConfig、ProjectConfigSnapshot、ProjectConfigOnboarding、TextDocumentHost、Diagnostics、ErrorTree）、`CacheManager`、`DocumentCache`
+  - 服务注册与跨模块基础设施：`ServiceRegistry`、`ServiceKeys`（EfunDocs、Compiler、ProjectConfig、ProjectConfigSnapshot、ProjectConfigOnboarding、TextDocumentHost、Diagnostics、ErrorTree）
 - `src/modules/`
   - 扩展装配层：`coreModule.ts`、`diagnosticsModule.ts`、`commandModule.ts`、`uiModule.ts`
 - `src/lsp/`

@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type {
     StructuredEfunDoc,
-    StructuredEfunDocBundle,
     StructuredEfunParameter,
     StructuredEfunSignature
 } from './types';
@@ -11,7 +10,6 @@ import type {
 const BUNDLED_DOCS_DIR = 'efun-docs';
 const BUNDLED_DOCS_SUBDIR = 'docs';
 const BUNDLED_CATEGORIES_FILE = 'categories.json';
-const LEGACY_BUNDLED_DOCS_FILE = 'efun-docs.json';
 
 export const DEFAULT_EFUN_CATEGORY = '标准 Efun';
 
@@ -45,7 +43,9 @@ export class BundledEfunLoader {
             return;
         }
 
-        await this.loadLegacyBundledDocsAsync(this.getLegacyBundledDocsPath(context));
+        console.error(`未找到内置 Efun 文档目录: ${bundledDocsDir}`);
+        this.structuredDocs = new Map();
+        this.categories = new Map();
     }
 
     private async loadSplitBundledDocsAsync(bundledDocsDir: string): Promise<void> {
@@ -107,49 +107,6 @@ export class BundledEfunLoader {
         this.categories = this.loadCategories(rawCategories, structuredDocs);
     }
 
-    private async loadLegacyBundledDocsAsync(bundledDocsPath: string): Promise<void> {
-
-        if (!fs.existsSync(bundledDocsPath)) {
-            console.error(`未找到内置 Efun 文档文件: ${bundledDocsPath}`);
-            this.structuredDocs = new Map();
-            this.categories = new Map();
-            return;
-        }
-
-        let parsedBundle: unknown;
-        try {
-            const content = await fs.promises.readFile(bundledDocsPath, 'utf8');
-            parsedBundle = JSON.parse(content);
-        } catch (error) {
-            console.error('加载内置 Efun 文档失败: JSON 解析错误', error);
-            this.structuredDocs = new Map();
-            this.categories = new Map();
-            return;
-        }
-
-        if (!isRecord(parsedBundle) || !isRecord(parsedBundle.docs)) {
-            console.error('加载内置 Efun 文档失败: 缺少合法的 docs 对象');
-            this.structuredDocs = new Map();
-            this.categories = new Map();
-            return;
-        }
-
-        const bundle = parsedBundle as StructuredEfunDocBundle;
-        const structuredDocs = new Map<string, StructuredEfunDoc>();
-
-        for (const [docKey, docValue] of Object.entries(bundle.docs)) {
-            const normalized = normalizeStructuredDoc(docKey, docValue);
-            if (!normalized) {
-                continue;
-            }
-
-            structuredDocs.set(docKey, cloneStructuredDoc(normalized));
-        }
-
-        this.structuredDocs = structuredDocs;
-        this.categories = this.loadCategories(bundle.categories, structuredDocs);
-    }
-
     private loadCategories(
         rawCategories: unknown,
         docs: Map<string, StructuredEfunDoc>
@@ -187,14 +144,6 @@ export class BundledEfunLoader {
         }
 
         return path.join(path.resolve(__dirname, '..', '..'), 'config', BUNDLED_DOCS_DIR);
-    }
-
-    private getLegacyBundledDocsPath(context: vscode.ExtensionContext): string {
-        if (context?.extensionPath) {
-            return path.join(context.extensionPath, 'config', LEGACY_BUNDLED_DOCS_FILE);
-        }
-
-        return path.join(path.resolve(__dirname, '..', '..'), 'config', LEGACY_BUNDLED_DOCS_FILE);
     }
 }
 

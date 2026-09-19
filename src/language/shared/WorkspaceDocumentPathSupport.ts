@@ -36,33 +36,3 @@ export function createVsCodeWorkspaceDocumentHost(): WorkspaceDocumentHost {
         onDidChangeTextDocument: (listener) => vscode.workspace.onDidChangeTextDocument(listener)
     };
 }
-
-export function assertTextDocumentHost(owner: string, host: TextDocumentHost | undefined): TextDocumentHost {
-    if (!host) {
-        throw new Error(`${owner} requires an injected TextDocumentHost`);
-    }
-
-    return host;
-}
-
-export function assertOpenTextDocumentHost(
-    owner: string,
-    host: OpenTextDocumentHost | undefined
-): OpenTextDocumentHost {
-    if (!host) {
-        throw new Error(`${owner} requires an injected openTextDocument host`);
-    }
-
-    return host;
-}
-
-export function assertWorkspaceDocumentHost(
-    owner: string,
-    host: WorkspaceDocumentHost | undefined
-): WorkspaceDocumentHost {
-    if (!host) {
-        throw new Error(`${owner} requires an injected WorkspaceDocumentHost`);
-    }
-
-    return host;
-}

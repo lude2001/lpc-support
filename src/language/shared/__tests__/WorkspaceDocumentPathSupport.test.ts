@@ -1,9 +1,6 @@
 import * as vscode from 'vscode';
 import { describe, expect, jest, test } from '@jest/globals';
 import {
-    assertOpenTextDocumentHost,
-    assertTextDocumentHost,
-    assertWorkspaceDocumentHost,
     createVsCodeTextDocumentHost,
     createVsCodeWorkspaceDocumentHost
 } from '../WorkspaceDocumentPathSupport';
@@ -31,14 +28,5 @@ describe('workspace document host contract', () => {
         await host.findFiles('**/*.c');
         expect(findFiles).toHaveBeenCalledWith('**/*.c', undefined);
         expect(host.getWorkspaceFolders()).toBe(vscode.workspace.workspaceFolders);
-    });
-
-    test('host assertions reject missing hosts and return injected ones', () => {
-        const host = createVsCodeTextDocumentHost();
-
-        expect(() => assertTextDocumentHost('Owner', undefined)).toThrow('Owner requires an injected TextDocumentHost');
-        expect(() => assertOpenTextDocumentHost('Owner', undefined)).toThrow('Owner requires an injected openTextDocument host');
-        expect(() => assertWorkspaceDocumentHost('Owner', undefined)).toThrow('Owner requires an injected WorkspaceDocumentHost');
-        expect(assertTextDocumentHost('Owner', host)).toBe(host);
     });
 });
