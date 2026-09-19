@@ -10,7 +10,6 @@
         "isolatedModules": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "downlevelIteration": true,
         "types": ["jest", "node", "@types/vscode"]
     },
     "include": [
