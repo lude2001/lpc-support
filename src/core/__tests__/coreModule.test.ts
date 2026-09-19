@@ -51,7 +51,7 @@ describe('registerCoreServices', () => {
             extensionPath: '/mock/extension',
             workspaceState: {
                 get: jest.fn().mockReturnValue(undefined),
-                update: jest.fn().mockResolvedValue(undefined)
+                update: jest.fn<(key: string, value: unknown) => Thenable<void>>().mockResolvedValue(undefined)
             }
         } as unknown as vscode.ExtensionContext;
 
@@ -60,7 +60,7 @@ describe('registerCoreServices', () => {
         projectConfigService = { id: 'projectConfigService' };
         projectConfigSnapshotService = {
             id: 'projectConfigSnapshotService',
-            start: jest.fn().mockResolvedValue(undefined),
+            start: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
             dispose: jest.fn()
         };
         projectConfigOnboardingService = {
@@ -105,18 +105,17 @@ describe('registerCoreServices', () => {
         expect(registry.get(Services.EfunDocs)).toBe(efunDocsProvider);
         expect(registry.get(Services.Compiler)).toBe(compiler);
 
-        for (const legacyAnalysisService of [
-            Services.Frontend,
-            Services.Analysis,
-            Services.FunctionDocumentation,
-            Services.DocumentPathSupport,
-            Services.SemanticEvaluation,
-            Services.Lifecycle,
-            Services.CompletionInstrumentation
+        for (const legacyServiceName of [
+            'Frontend',
+            'Analysis',
+            'FunctionDocumentation',
+            'DocumentPathSupport',
+            'SemanticEvaluation',
+            'Lifecycle',
+            'CompletionInstrumentation'
         ]) {
-            expect(() => registry.get(legacyAnalysisService as never)).toThrow('is not registered');
+            expect(Object.prototype.hasOwnProperty.call(Services, legacyServiceName)).toBe(false);
         }
-
         expect(context.subscriptions).toEqual([
             projectConfigSnapshotService,
             projectConfigOnboardingService

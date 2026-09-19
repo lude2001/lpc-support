@@ -573,6 +573,23 @@ try {
     if (!configuredFormatting?.[0]?.newText?.includes('\n  int local = amount;')) {
         throw new Error(`Rust server ignored configured formatter indentation: ${JSON.stringify(configuredFormatting)}`);
     }
+    const rangeFormatting = await connection.sendRequest('textDocument/rangeFormatting', {
+        textDocument: { uri },
+        range: {
+            start: { line: 1, character: 0 },
+            end: { line: 1, character: 'int query(int amount) { int local = amount; return local + total; }'.length }
+        },
+        options: { tabSize: 8, insertSpaces: true }
+    });
+    if (!Array.isArray(rangeFormatting) || rangeFormatting.length !== 1) {
+        throw new Error(`Rust server returned unexpected range formatting edits: ${JSON.stringify(rangeFormatting)}`);
+    }
+    if (rangeFormatting[0]?.range?.start?.line !== 1 || rangeFormatting[0]?.range?.end?.line !== 1) {
+        throw new Error(`Rust server range formatting escaped the requested function range: ${JSON.stringify(rangeFormatting)}`);
+    }
+    if (!rangeFormatting[0]?.newText?.includes('int query(int amount)\n{')) {
+        throw new Error(`Rust server range formatting lost Allman braces: ${JSON.stringify(rangeFormatting)}`);
+    }
     if (semanticRefreshCount <= refreshCountBeforeConfigSync) {
         throw new Error('Rust server did not refresh open-document semantic tokens after config sync.');
     }
@@ -604,6 +621,38 @@ try {
         if (!configuredCodes.has(expectedCode)) {
             throw new Error(`Rust server missed configured diagnostic ${expectedCode}: ${JSON.stringify(latestDiagnostics)}`);
         }
+    }
+    const unusedGlobalDiagnostic = latestDiagnostics?.diagnostics
+        ?.find(item => item.code === 'unusedGlobalVar');
+    if (!unusedGlobalDiagnostic) {
+        throw new Error(`Rust server did not publish an unusedGlobalVar diagnostic for quick fix: ${JSON.stringify(latestDiagnostics)}`);
+    }
+    const quickFix = await connection.sendRequest('textDocument/codeAction', {
+        textDocument: { uri: configuredDiagnosticsUri },
+        range: unusedGlobalDiagnostic.range,
+        context: { diagnostics: [unusedGlobalDiagnostic] }
+    });
+    const quickFixEdit = Array.isArray(quickFix) ? quickFix[0] : undefined;
+    if (quickFixEdit?.kind !== 'quickfix' || quickFixEdit?.isPreferred !== true) {
+        throw new Error(`Rust server returned unexpected quick fix: ${JSON.stringify(quickFix)}`);
+    }
+    const quickFixChanges = quickFixEdit?.edit?.changes?.[configuredDiagnosticsUri];
+    if (!Array.isArray(quickFixChanges) || quickFixChanges[0]?.newText !== '_stale') {
+        throw new Error(`Rust server quick fix did not mark the variable as intentional: ${JSON.stringify(quickFix)}`);
+    }
+    const unrelatedQuickFix = await connection.sendRequest('textDocument/codeAction', {
+        textDocument: { uri: configuredDiagnosticsUri },
+        range: unusedGlobalDiagnostic.range,
+        context: {
+            diagnostics: [{
+                range: unusedGlobalDiagnostic.range,
+                code: 'otherDiagnostic',
+                message: 'not an unused symbol'
+            }]
+        }
+    });
+    if (!Array.isArray(unrelatedQuickFix) || unrelatedQuickFix.length !== 0) {
+        throw new Error(`Rust server offered a quick fix for an unrelated diagnostic: ${JSON.stringify(unrelatedQuickFix)}`);
     }
     connection.sendNotification('textDocument/didClose', {
         textDocument: { uri: configuredDiagnosticsUri }

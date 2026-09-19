@@ -4,6 +4,16 @@
 
 ## [未发布]
 
+### 旧 TypeScript LSP/分析栈退役
+
+- 旧 TypeScript LSP server 与分析栈正式退役并从仓库删除，随扩展打包的 Rust sidecar（`dist/bin/lpc-language-server[.exe]`）成为唯一语言服务器入口；客户端不再提供 `LPC_LANGUAGE_SERVER=typescript` 回退，激活路径只保留 Rust 分支。
+- 构建不再生成 `dist/lsp/server.js`，发布打包也不再依赖事后删除旧 server 产物。
+- 随栈删除的还有 ANTLR 相关资产：`grammar/`、`src/antlr/` 与 `generate-parser` 脚本；`npm run build` 不再生成解析器。
+- 依赖调整：移除 `antlr4ts`、`vscode-languageserver`、`vscode-languageserver-textdocument` 与 `antlr4ts-cli`，新增 `vscode-languageserver-protocol`。
+- LSP 静态探针只支持 Rust sidecar，`--server` 选项移除。
+- 原生 stdio smoke 新增 `textDocument/codeAction` quickfix 与 `textDocument/rangeFormatting` 两个场景。
+- Jest 测试随旧栈删除精简到 33 个套件 / 173 个测试，全部通过；语言能力保护网转移到 Rust 单测与 stdio smoke。
+
 ### Rust 语言服务器
 
 - efun 签名帮助恢复按当前参数位置选择重载：输入第二或第三个参数时不再固定显示第一条签名，尾随可变参数会稳定停留在 collector 参数上。
@@ -26,7 +36,6 @@
 - LPC 默认启用语义高亮，并保留大写宏的 TextMate 词法降级；driver efun 与 simulated efun 使用可继承的独立语义类型，避免主题未声明自定义颜色时退化成普通文本。
 - 跨文件对象方法悬浮在存在多个静态候选实现时不再只保留函数签名；相同或不同签名对应的结构化 Javadoc 会一并保留，包括摘要、参数、返回值和详细说明。
 - VSIX 携带当前 Windows、Linux 或 macOS 架构对应的原生二进制；缺失二进制会给出明确启动错误。
-- 旧 TypeScript LSP 仅保留为源码开发期的差异测试基准，不再装入发布 VSIX。
 - Rust 诊断与既有 LPC 语义重新对齐：不再新增“未使用参数”提示，也不会把合法的 `0` 空值哨兵误报为 `string`、`mapping` 或 `object` 返回类型不匹配。
 - Rust 悬浮现在保留源码函数的完整签名及相邻 Javadoc，包括摘要、参数、返回值和详细说明。
 - 修复函数级 `varargs` 被当成全部参数必填而产生的参数数量误报。

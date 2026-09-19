@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from 'fs';
+import { existsSync } from 'fs';
 import path from 'path';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
@@ -12,7 +12,3 @@ if (!existsSync(nativeServer)) {
 if (!existsSync(`${nativeServer}.sha256`)) {
     throw new Error(`Native LPC language server checksum is missing at ${nativeServer}.sha256`);
 }
-
-// The TypeScript server remains buildable as a development oracle, but it is
-// deliberately excluded from release VSIX files after the Rust cutover.
-rmSync(path.join(repositoryRoot, 'dist', 'lsp'), { recursive: true, force: true });

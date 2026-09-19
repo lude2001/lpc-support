@@ -8,7 +8,7 @@ LPC Support 的生产语言能力采用 Rust + TypeScript 分工：
 - `rust/crates/lpc-language-server/` 是唯一生产语言服务器入口。
 - `rust/crates/lpc-preprocessor/`、`lpc-analysis/` 与 `lpc-formatter/` 分别负责预处理、版本化语义/索引和 CST 驱动格式化。
 - `rust/grammar/lpc/` 维护 Tree-sitter LPC grammar；生成产物通过 grammar 测试验证，不手改生成代码。
-- `src/parser/`、`src/syntax/`、`src/semantic/` 和旧 TypeScript LSP 只保留为开发期行为基线及测试夹具，不得重新接回扩展激活路径或发布 VSIX。
+- 旧 TypeScript 分析栈与 LSP server（`src/parser/`、`src/syntax/`、`src/semantic/` 等）已于 2026-09 退役并从仓库删除，Rust sidecar 是唯一语言服务器入口；不要重新引入这些目录或把旧实现接回扩展激活路径。
 
 生产代码必须遵守以下约束：
 
@@ -42,8 +42,8 @@ npm test -- --runInBand
 真实项目问题优先使用脱敏静态探针：
 
 ```bash
-npm run probe:lsp -- --server rust --project <mudlib-root> --file <mudlib-path> --position <line:column>
-npm run probe:lsp -- --server rust --project <mudlib-root> --file <mudlib-path> --position <line:column> --perf --perf-iterations 30 --semantic-tokens
+npm run probe:lsp -- --project <mudlib-root> --file <mudlib-path> --position <line:column>
+npm run probe:lsp -- --project <mudlib-root> --file <mudlib-path> --position <line:column> --perf --perf-iterations 30 --semantic-tokens
 ```
 
 不要用 driver、`lpccp` 或运行时热编译来判断编辑器静态能力。探针报告默认不保存真实根路径、源码、函数体或补全候选标签。
@@ -74,8 +74,8 @@ TypeScript 可以负责：
 `npm run package` 会清理产物、构建当前平台 Rust release binary，并生成带平台标签的 VSIX。发布包必须：
 
 - 只携带当前 `win32-x64`、`linux-x64`、`linux-arm64`、`darwin-x64` 或 `darwin-arm64` 原生二进制。
-- 不包含旧 `dist/lsp/server.js`。
-- 在缺失或不匹配二进制时给出明确错误，不静默回退到 TypeScript 分析。
+- 不再包含任何 TypeScript 语言服务器产物（旧 `dist/lsp/server.js` 构建路径已随退役删除）。
+- 在缺失或不匹配二进制时给出明确错误，不静默回退。
 
 平台矩阵由 `.github/workflows/ci.yml` 构建。当前平台交付前还需验证 VSIX 安装、同版本覆盖升级、initialize、health、shutdown 和 exit。
 
@@ -84,9 +84,9 @@ TypeScript 可以负责：
 - Rust 类型使用 `PascalCase`，函数与模块使用 `snake_case`；TypeScript 遵循仓库既有 `PascalCase`/`camelCase`。
 - 测试文件使用 `*.test.ts`、`*.spec.ts` 或 Rust `#[test]`。
 - Tree-sitter range 使用字节偏移，LSP 边界必须正确转换 UTF-16 行列。
-- 不手改 `src/antlr/` 或 Tree-sitter 生成文件。
+- 不手改 Tree-sitter 生成文件（`rust/grammar/` 下的生成产物）。
 
-至少为每个行为变化覆盖一个正向场景和一个保守降级场景。涉及生产切换时还要运行主路径 ownership guard，确认扩展 bundle 没有重新引入 ANTLR 或旧 TypeScript 分析服务。
+至少为每个行为变化覆盖一个正向场景和一个保守降级场景。涉及生产主路径改动时还要确认扩展 bundle 没有重新引入 ANTLR、旧 TypeScript 分析栈或第二套语言服务。
 
 ## 提交流程
 

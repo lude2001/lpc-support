@@ -1,4 +1,4 @@
-import { NotificationType } from 'vscode-languageserver/node';
+import { NotificationType } from 'vscode-languageserver-protocol/node';
 
 export const SOURCE_FILE_CHANGE_NOTIFICATION = 'lpc/sourceFileChange';
 

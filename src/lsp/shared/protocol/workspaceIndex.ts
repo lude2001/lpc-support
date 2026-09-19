@@ -1,4 +1,4 @@
-import { NotificationType, RequestType } from 'vscode-languageserver/node';
+import { NotificationType, RequestType } from 'vscode-languageserver-protocol/node';
 import type { WorkspaceConfigSyncPayload } from './workspaceConfigSync';
 
 export const WORKSPACE_INDEX_REBUILD_REQUEST = 'lpc/workspaceIndex/rebuild';

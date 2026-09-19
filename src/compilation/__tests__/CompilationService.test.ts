@@ -1,25 +1,33 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { CompilationService } from '../CompilationService';
+import type { LpcProjectConfig } from '../../projectConfig/LpcProjectConfig';
+import type { LpccpCompilationResponse, NormalizedCompilationResult } from '../types';
+
+type LocalBackendCompileMock = jest.Mock<(request: unknown) => Promise<LpccpCompilationResponse>>;
+type RemoteBackendCompileMock = jest.Mock<(request: unknown) => Promise<NormalizedCompilationResult>>;
+type MockDiagnosticCollection = {
+    set: jest.Mock<(uri: unknown, diagnostics: vscode.Diagnostic[]) => void>;
+};
 
 describe('CompilationService', () => {
     let projectConfigService: {
-        loadForWorkspace: jest.Mock;
-        resolveWorkspacePath: jest.Mock;
+        loadForWorkspace: jest.Mock<(workspaceRoot: string) => Promise<LpcProjectConfig | undefined>>;
+        resolveWorkspacePath: jest.Mock<(workspaceRoot: string, targetPath: string) => string>;
     };
-    let localBackend: { compile: jest.Mock };
-    let remoteBackend: { compile: jest.Mock };
+    let localBackend: { compile: LocalBackendCompileMock };
+    let remoteBackend: { compile: RemoteBackendCompileMock };
 
     beforeEach(() => {
         projectConfigService = {
-            loadForWorkspace: jest.fn(),
+            loadForWorkspace: jest.fn<(workspaceRoot: string) => Promise<LpcProjectConfig | undefined>>(),
             resolveWorkspacePath: jest.fn((workspaceRoot: string, targetPath: string) => path.resolve(workspaceRoot, targetPath))
         };
         localBackend = {
-            compile: jest.fn()
+            compile: jest.fn<(request: unknown) => Promise<LpccpCompilationResponse>>()
         };
         remoteBackend = {
-            compile: jest.fn()
+            compile: jest.fn<(request: unknown) => Promise<NormalizedCompilationResult>>()
         };
 
         (vscode.workspace.getWorkspaceFolder as jest.Mock).mockReturnValue({
@@ -169,7 +177,7 @@ describe('CompilationService', () => {
         const service = new CompilationService(projectConfigService as any, localBackend as any, remoteBackend as any);
         await service.compileFile('D:/workspace/single/master.c');
 
-        const diagnosticCollection = (vscode.languages.createDiagnosticCollection as jest.Mock).mock.results[0].value;
+        const diagnosticCollection = (vscode.languages.createDiagnosticCollection as jest.Mock).mock.results[0].value as MockDiagnosticCollection;
         expect(diagnosticCollection.set).toHaveBeenCalled();
     });
 
@@ -209,7 +217,7 @@ describe('CompilationService', () => {
         const service = new CompilationService(projectConfigService as any, localBackend as any, remoteBackend as any);
         await service.compileFile('D:/workspace/single/runtime.c');
 
-        const diagnosticCollection = (vscode.languages.createDiagnosticCollection as jest.Mock).mock.results[0].value;
+        const diagnosticCollection = (vscode.languages.createDiagnosticCollection as jest.Mock).mock.results[0].value as MockDiagnosticCollection;
         const [, diagnostics] = diagnosticCollection.set.mock.calls[0];
         expect(diagnostics[0].message).toBe('bad argument');
     });

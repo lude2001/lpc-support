@@ -1,33 +1,20 @@
-import type { CompletionInstrumentation } from '../completion/completionInstrumentation';
 import type { LPCCompiler } from '../compiler';
 import type { DiagnosticsCommands } from '../diagnostics/RustDiagnosticsCommands';
-import type { DocumentAnalysisService } from '../semantic/documentAnalysisService';
-import type { FunctionDocumentationService } from '../language/documentation/FunctionDocumentationService';
-import type { TextDocumentHost, WorkspaceDocumentPathSupport } from '../language/shared/WorkspaceDocumentPathSupport';
-import type { DocumentLifecycleService } from './DocumentLifecycleService';
+import type { TextDocumentHost } from '../language/shared/WorkspaceDocumentPathSupport';
 import type { BundledEfunDocsProvider } from '../efun/BundledEfunDocsProvider';
 import type { ErrorTreeDataProvider } from '../errorTreeDataProvider';
-import type { SemanticEvaluationService } from '../semanticEvaluation/SemanticEvaluationService';
 import type { LpcProjectConfigService } from '../projectConfig/LpcProjectConfigService';
 import type { LpcProjectConfigSnapshotService } from '../projectConfig/LpcProjectConfigSnapshotService';
 import type { ProjectConfigOnboardingService } from '../projectConfig/ProjectConfigOnboardingService';
-import type { LpcFrontendService } from '../frontend/LpcFrontendService';
 import { ServiceKey } from './ServiceRegistry';
 
 export const Services = {
-    Frontend: new ServiceKey<LpcFrontendService>('Frontend'),
     EfunDocs: new ServiceKey<BundledEfunDocsProvider>('EfunDocs'),
     Compiler: new ServiceKey<LPCCompiler>('Compiler'),
     ProjectConfig: new ServiceKey<LpcProjectConfigService>('ProjectConfig'),
     ProjectConfigSnapshot: new ServiceKey<LpcProjectConfigSnapshotService>('ProjectConfigSnapshot'),
     ProjectConfigOnboarding: new ServiceKey<ProjectConfigOnboardingService>('ProjectConfigOnboarding'),
-    Analysis: new ServiceKey<DocumentAnalysisService>('Analysis'),
-    FunctionDocumentation: new ServiceKey<FunctionDocumentationService>('FunctionDocumentation'),
     TextDocumentHost: new ServiceKey<TextDocumentHost>('TextDocumentHost'),
-    DocumentPathSupport: new ServiceKey<WorkspaceDocumentPathSupport>('DocumentPathSupport'),
-    SemanticEvaluation: new ServiceKey<SemanticEvaluationService>('SemanticEvaluation'),
-    Lifecycle: new ServiceKey<DocumentLifecycleService>('Lifecycle'),
     Diagnostics: new ServiceKey<DiagnosticsCommands>('Diagnostics'),
-    ErrorTree: new ServiceKey<ErrorTreeDataProvider>('ErrorTree'),
-    CompletionInstrumentation: new ServiceKey<CompletionInstrumentation>('CompletionInstrumentation')
+    ErrorTree: new ServiceKey<ErrorTreeDataProvider>('ErrorTree')
 };

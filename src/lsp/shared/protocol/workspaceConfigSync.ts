@@ -1,4 +1,4 @@
-import { NotificationType } from 'vscode-languageserver/node';
+import { NotificationType } from 'vscode-languageserver-protocol/node';
 import type {
     InstanceResolutionFunctionMap,
     LpcResolvedConfig,

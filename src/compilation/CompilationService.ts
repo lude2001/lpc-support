@@ -7,10 +7,21 @@ import {
     LocalCompilationRequest,
     LpccpCompilationResponse,
     LpccpDirectoryFileResult,
+    LpccpDirectoryResponse,
+    LpccpFileResponse,
     LpccpRuntimeError,
     NormalizedCompilationResult,
     RemoteCompilationRequest
 } from './types';
+
+// strict 模式关闭时布尔/字符串字面量判别联合不再自动收窄，用显式类型守卫保证两种 tsconfig 下行为一致
+function isLpccpFileResult(result: LpccpCompilationResponse): result is LpccpFileResponse {
+    return result.kind === 'file';
+}
+
+function isLpccpDirectoryResult(result: LpccpCompilationResponse): result is LpccpDirectoryResponse {
+    return result.kind === 'directory';
+}
 
 type LocalBackend = {
     compile(request: LocalCompilationRequest): Promise<LpccpCompilationResponse>;
@@ -147,26 +158,28 @@ export class CompilationService {
             return;
         }
 
-        if (result.kind === 'file') {
+        if (isLpccpFileResult(result)) {
             const filePath = this.fromMudPath(workspaceRoot, result.target);
             this.setDiagnosticsForFile(filePath, this.createDiagnosticsForLocalResult(result.target, result));
             return;
         }
 
-        for (const entry of result.results ?? []) {
-            const filePath = this.fromMudPath(workspaceRoot, entry.file);
-            this.setDiagnosticsForFile(filePath, this.createDiagnosticsForLocalResult(entry.file, entry));
-        }
+        if (isLpccpDirectoryResult(result)) {
+            for (const entry of result.results ?? []) {
+                const filePath = this.fromMudPath(workspaceRoot, entry.file);
+                this.setDiagnosticsForFile(filePath, this.createDiagnosticsForLocalResult(entry.file, entry));
+            }
 
-        if (result.summary) {
-            const summary = [
-                `syntax=${result.summary.syntax_error_count ?? 0}`,
-                `reload=${result.summary.reload_failed_count ?? 0}`,
-                `runtime=${result.summary.runtime_error_count ?? 0}`,
-                `unsupported=${result.summary.unsupported_count ?? 0}`,
-                `service=${result.summary.service_error_count ?? 0}`
-            ].join(', ');
-            this.outputChannel.appendLine(`lpccp summary: ${summary}`);
+            if (result.summary) {
+                const summary = [
+                    `syntax=${result.summary.syntax_error_count ?? 0}`,
+                    `reload=${result.summary.reload_failed_count ?? 0}`,
+                    `runtime=${result.summary.runtime_error_count ?? 0}`,
+                    `unsupported=${result.summary.unsupported_count ?? 0}`,
+                    `service=${result.summary.service_error_count ?? 0}`
+                ].join(', ');
+                this.outputChannel.appendLine(`lpccp summary: ${summary}`);
+            }
         }
     }
 

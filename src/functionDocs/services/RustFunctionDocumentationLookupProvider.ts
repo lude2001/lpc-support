@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { BundledEfunDocsProvider } from '../../efun/BundledEfunDocsProvider';
 import type { FunctionDocLookup, FunctionDocSourceGroup } from '../../efun/FunctionDocLookupTypes';
-import type { LanguageWorkspaceProjectConfig } from '../../language/contracts/LanguageWorkspaceContext';
+import type { LanguageWorkspaceProjectConfig } from '../../projectConfig/LpcProjectConfig';
 import { DocCommentTagParser } from '../../language/documentation/DocCommentTagParser';
 import type {
     CallableDoc,

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import type { CallableDoc } from '../../language/documentation/types';
 import { FunctionDocumentationSnapshotService } from '../services/FunctionDocumentationSnapshotService';
 
+type SnapshotServiceLookupProvider = ConstructorParameters<typeof FunctionDocumentationSnapshotService>[0];
+
 function createDoc(
     name: string,
     key: string,
@@ -126,9 +128,9 @@ describe('FunctionDocumentationSnapshotService', () => {
         simulated.sourceKind = 'simulEfun';
         simulated.declarationKind = 'external';
         simulated.sourcePath = 'D:/workspace/secure/simul_efun.c';
-        const ensureWorkspaceStateCurrent = jest.fn().mockResolvedValue(undefined);
+        const ensureWorkspaceStateCurrent = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
         const service = new FunctionDocumentationSnapshotService({
-            getFunctionDocLookupForDocument: jest.fn(),
+            getFunctionDocLookupForDocument: jest.fn<SnapshotServiceLookupProvider['getFunctionDocLookupForDocument']>(),
             getAllFunctions: () => ['map_delete', 'write'],
             getStandardCallableDoc: (name) => name === 'map_delete' ? standard : undefined,
             getAllSimulatedFunctions: () => ['mud_log'],
@@ -194,7 +196,7 @@ describe('FunctionDocumentationSnapshotService', () => {
         standard.sourceKind = 'efun';
         standard.declarationKind = 'external';
         const service = new FunctionDocumentationSnapshotService({
-            getFunctionDocLookupForDocument: jest.fn(),
+            getFunctionDocLookupForDocument: jest.fn<SnapshotServiceLookupProvider['getFunctionDocLookupForDocument']>(),
             getAllSimulatedFunctions: () => { throw new Error('simul unavailable'); },
             getAllFunctions: () => ['map_delete'],
             getStandardCallableDoc: () => standard
@@ -220,7 +222,7 @@ describe('FunctionDocumentationSnapshotService', () => {
             name: 'target_mapping', type: 'mapping', description: '需要修改的目标映射。'
         }];
         const service = new FunctionDocumentationSnapshotService({
-            getFunctionDocLookupForDocument: jest.fn(),
+            getFunctionDocLookupForDocument: jest.fn<SnapshotServiceLookupProvider['getFunctionDocLookupForDocument']>(),
             getAllFunctions: () => ['map_delete'],
             getStandardCallableDoc: () => standard
         });

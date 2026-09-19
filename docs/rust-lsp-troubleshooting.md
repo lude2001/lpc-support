@@ -1,6 +1,6 @@
 # Rust LSP 故障排查
 
-LPC Support 的生产语言能力由 VS Code 中的 TypeScript 宿主启动随扩展打包的 Rust 语言服务器。补全、悬浮、跳转、引用、重命名、诊断、语义高亮、文档符号、格式化和工作区索引都依赖这个进程；发布包不会静默退回旧 TypeScript 分析器。
+LPC Support 的生产语言能力由 VS Code 中的 TypeScript 宿主启动随扩展打包的 Rust 语言服务器。补全、悬浮、跳转、引用、重命名、诊断、语义高亮、文档符号、格式化和工作区索引都依赖这个进程。旧 TypeScript 语言服务器已于 2026-09 正式退役并从仓库删除，Rust sidecar 是唯一语言服务器入口，不存在任何 TypeScript 回退。
 
 ## 先确认项目配置
 
@@ -18,7 +18,7 @@ npm run build:rust
 npm run test:rust-smoke
 ```
 
-不要从另一平台复制原生二进制，也不要通过恢复旧 `dist/lsp/server.js` 掩盖打包错误。
+不要从另一平台复制原生二进制。旧 TypeScript LSP server（包括 `dist/lsp/server.js` 构建路径与 `LPC_LANGUAGE_SERVER=typescript` 回退）已随退役删除，不能也不应再作为回退使用。
 
 ## 宏、include 或继承结果不正确
 
@@ -36,8 +36,8 @@ npm run test:rust-smoke
 维护者应优先使用脱敏探针复现：
 
 ```bash
-npm run probe:lsp -- --server rust --project <mudlib-root> --file <mudlib-path> --position <line:column> --semantic-tokens
-npm run probe:lsp -- --server rust --project <mudlib-root> --file <mudlib-path> --workspace-diagnostics
+npm run probe:lsp -- --project <mudlib-root> --file <mudlib-path> --position <line:column> --semantic-tokens
+npm run probe:lsp -- --project <mudlib-root> --file <mudlib-path> --workspace-diagnostics
 ```
 
 默认报告位于 `.tmp/lsp-probe/latest.json` 和 `.tmp/lsp-probe/latest.md`，不会保存项目绝对根路径、源码正文、函数体或补全候选标签。
@@ -47,7 +47,7 @@ npm run probe:lsp -- --server rust --project <mudlib-root> --file <mudlib-path> 
 冷启动需要读取并索引 mudlib；后台索引限制为一个线程，并在文件之间让出执行预算。先观察状态栏是否仍在索引，不要连续触发多个手动重建。若要量化问题，可运行：
 
 ```bash
-npm run probe:lsp -- --server rust --project <mudlib-root> --file <mudlib-path> --position <line:column> --perf --perf-iterations 30
+npm run probe:lsp -- --project <mudlib-root> --file <mudlib-path> --position <line:column> --perf --perf-iterations 30
 ```
 
 报告应同时查看启动墙钟时间、进程 CPU 时间、平均单核利用率、warm p95、超时数、分析快照重建次数和峰值常驻内存，不能只比较单次请求。
@@ -67,4 +67,4 @@ npm test -- --runInBand
 npm run package
 ```
 
-解包 VSIX 后还应确认仅包含当前平台的原生二进制、不包含 `dist/lsp/server.js`，并对包内二进制执行 stdio smoke。跨平台结果以 CI 的原生平台矩阵为准，不在单台机器上伪装验证其他平台。
+解包 VSIX 后还应确认仅包含当前平台的原生二进制、不包含任何旧 TypeScript 语言服务器产物（该构建路径已删除），并对包内二进制执行 stdio smoke。跨平台结果以 CI 的原生平台矩阵为准，不在单台机器上伪装验证其他平台。

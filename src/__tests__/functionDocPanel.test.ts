@@ -2,6 +2,15 @@ import * as vscode from 'vscode';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { FunctionDocPanel } from '../functionDocPanel';
 
+interface PanelTestMessage {
+    type: string;
+    payload?: Record<string, any>;
+    requestId?: string;
+    entries?: Array<Record<string, any>>;
+}
+
+type PanelPostMessageMock = jest.Mock<(message: PanelTestMessage) => Promise<boolean>>;
+
 function createTextDocument(filePath: string, content: string): vscode.TextDocument {
     const normalized = content.replace(/\r\n/g, '\n');
     const lines = normalized.split('\n');
@@ -16,8 +25,8 @@ function createTextDocument(filePath: string, content: string): vscode.TextDocum
     } as unknown as vscode.TextDocument;
 }
 
-function createPanel(): { panel: vscode.WebviewPanel; postMessage: jest.Mock } {
-    const postMessage = jest.fn().mockResolvedValue(true);
+function createPanel(): { panel: vscode.WebviewPanel; postMessage: PanelPostMessageMock } {
+    const postMessage = jest.fn<(message: PanelTestMessage) => Promise<boolean>>().mockResolvedValue(true);
     return {
         postMessage,
         panel: {
@@ -107,7 +116,7 @@ describe('FunctionDocPanel', () => {
             selection: undefined,
             revealRange: jest.fn()
         };
-        (vscode.window.showTextDocument as jest.Mock).mockResolvedValue(shownEditor);
+        (vscode.window.showTextDocument as jest.Mock<(...args: any[]) => Promise<unknown>>).mockResolvedValue(shownEditor);
         const panelInstance = new (FunctionDocPanel as any)(
             panel,
             createContext(),
@@ -195,7 +204,7 @@ describe('FunctionDocPanel', () => {
         };
         const openTextDocument = jest.fn(async () => simulatedDocument);
         const shownEditor = { selection: undefined, revealRange: jest.fn() };
-        (vscode.window.showTextDocument as jest.Mock).mockResolvedValue(shownEditor);
+        (vscode.window.showTextDocument as jest.Mock<(...args: any[]) => Promise<unknown>>).mockResolvedValue(shownEditor);
         const panelInstance = new (FunctionDocPanel as any)(
             panel, createContext(), provider, { openTextDocument }
         );
@@ -384,7 +393,7 @@ describe('FunctionDocPanel', () => {
             inheritedGroups: [], includeGroups: []
         });
         const provider = {
-            getFunctionDocLookupForDocument: jest.fn()
+            getFunctionDocLookupForDocument: jest.fn<(document: vscode.TextDocument, options: unknown) => Promise<any>>()
                 .mockResolvedValueOnce(lookup('D:/code/lpc/first.c', [callable]))
                 .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }))
         };
@@ -414,7 +423,7 @@ describe('FunctionDocPanel', () => {
 
     test('refreshes the root snapshot when a visible dependency is saved', async () => {
         let saveHandler: ((document: vscode.TextDocument) => void) | undefined;
-        (vscode.workspace as any).onDidSaveTextDocument = jest.fn((handler) => {
+        (vscode.workspace as any).onDidSaveTextDocument = jest.fn((handler: (document: vscode.TextDocument) => void) => {
             saveHandler = handler;
             return { dispose: jest.fn() };
         });
@@ -422,7 +431,7 @@ describe('FunctionDocPanel', () => {
         const root = createTextDocument('D:/code/lpc/main.c', '#include "helper.h"');
         const dependency = createTextDocument('D:/code/lpc/helper.h', 'int helper();');
         const provider = {
-            getFunctionDocLookupForDocument: jest.fn(async () => ({
+            getFunctionDocLookupForDocument: jest.fn(async (_document: vscode.TextDocument, _options: unknown) => ({
                 currentFile: { source: '当前文件', sourceKind: 'local', filePath: root.fileName, entries: [], docs: new Map() },
                 inheritedGroups: [],
                 includeGroups: [{
@@ -448,13 +457,14 @@ describe('FunctionDocPanel', () => {
     test('debounces rapid unsaved root edits into one fresh refresh', async () => {
         jest.useFakeTimers();
         let changeHandler: ((event: { document: vscode.TextDocument }) => void) | undefined;
-        (vscode.workspace.onDidChangeTextDocument as jest.Mock).mockImplementation((handler) => {
-            changeHandler = handler;
-            return { dispose: jest.fn() };
-        });
+        (vscode.workspace.onDidChangeTextDocument as jest.Mock).mockImplementation(
+            (handler: (event: { document: vscode.TextDocument }) => void) => {
+                changeHandler = handler;
+                return { dispose: jest.fn() };
+            });
         const root = createTextDocument('D:/code/lpc/main.c', 'int main() { return 1; }');
         const provider = {
-            getFunctionDocLookupForDocument: jest.fn(async () => ({
+            getFunctionDocLookupForDocument: jest.fn(async (_document: vscode.TextDocument, _options: unknown) => ({
                 currentFile: { source: '当前文件', sourceKind: 'local', filePath: root.fileName, entries: [], docs: new Map() },
                 inheritedGroups: [], includeGroups: []
             }))
@@ -484,17 +494,18 @@ describe('FunctionDocPanel', () => {
         jest.useFakeTimers();
         let changeHandler: ((event: { document: vscode.TextDocument }) => void) | undefined;
         let saveHandler: ((document: vscode.TextDocument) => void) | undefined;
-        (vscode.workspace.onDidChangeTextDocument as jest.Mock).mockImplementation((handler) => {
-            changeHandler = handler;
-            return { dispose: jest.fn() };
-        });
-        (vscode.workspace as any).onDidSaveTextDocument = jest.fn((handler) => {
+        (vscode.workspace.onDidChangeTextDocument as jest.Mock).mockImplementation(
+            (handler: (event: { document: vscode.TextDocument }) => void) => {
+                changeHandler = handler;
+                return { dispose: jest.fn() };
+            });
+        (vscode.workspace as any).onDidSaveTextDocument = jest.fn((handler: (document: vscode.TextDocument) => void) => {
             saveHandler = handler;
             return { dispose: jest.fn() };
         });
         const root = createTextDocument('D:/code/lpc/main.c', 'int main() { return 1; }');
         const provider = {
-            getFunctionDocLookupForDocument: jest.fn(async () => ({
+            getFunctionDocLookupForDocument: jest.fn(async (_document: vscode.TextDocument, _options: unknown) => ({
                 currentFile: { source: '当前文件', sourceKind: 'local', filePath: root.fileName, entries: [], docs: new Map() },
                 inheritedGroups: [], includeGroups: []
             }))
@@ -525,13 +536,13 @@ describe('FunctionDocPanel', () => {
         let configHandler: ((workspaceRoot: string) => void) | undefined;
         const projectConfigProvider = {
             getWorkspaceProjectConfig: jest.fn(() => ({ projectConfigPath: 'D:/code/lpc/lpc-support.json' })),
-            onDidChange: jest.fn((handler) => {
+            onDidChange: jest.fn((handler: (workspaceRoot: string) => void) => {
                 configHandler = handler;
                 return { dispose: jest.fn() };
             })
         };
         const provider = {
-            getFunctionDocLookupForDocument: jest.fn(async () => ({
+            getFunctionDocLookupForDocument: jest.fn(async (_document: vscode.TextDocument, _options: unknown) => ({
                 currentFile: { source: '当前文件', sourceKind: 'local', filePath: root.fileName, entries: [], docs: new Map() },
                 inheritedGroups: [], includeGroups: []
             }))

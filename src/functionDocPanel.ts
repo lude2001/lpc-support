@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { FunctionDocLookup } from './efun/FileFunctionDocTracker';
+import type { FunctionDocLookup } from './efun/FunctionDocLookupTypes';
 import type {
     FunctionDocumentationPanelEntry,
     FunctionDocumentationPanelSnapshot,
@@ -14,7 +14,7 @@ import {
     type FunctionDocumentationLookupProvider
 } from './functionDocs/services/FunctionDocumentationSnapshotService';
 import { renderFunctionDocPanelHtml } from './functionDocPanelTemplate';
-import type { LanguageWorkspaceProjectConfig } from './language/contracts/LanguageWorkspaceContext';
+import type { LanguageWorkspaceProjectConfig } from './projectConfig/LpcProjectConfig';
 import type { TextDocumentHost } from './language/shared/WorkspaceDocumentPathSupport';
 
 type FunctionDocLookupProvider = FunctionDocumentationLookupProvider & {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 
-const showQuickPick = jest.fn().mockResolvedValue(undefined);
+const showQuickPick = jest.fn<(items: unknown) => Promise<unknown>>().mockResolvedValue(undefined);
 const getConfiguration = jest.fn();
 
 jest.mock('vscode', () => ({

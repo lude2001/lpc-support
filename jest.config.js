@@ -56,7 +56,6 @@ module.exports = {
         '!src/test/**/*',
         '!src/**/index.ts',
         '!src/**/*.interface.ts',
-        '!src/antlr/**/*'
     ],
 
     // 覆盖率报告格式

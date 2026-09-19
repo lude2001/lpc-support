@@ -75,7 +75,7 @@ describe('extension entrypoint', () => {
             registrationOrder.push('commands');
         });
         (registerWorkspaceIndexRebuildCommand as jest.Mock).mockReset().mockReturnValue({ dispose: jest.fn() });
-        (activateLspClient as jest.Mock).mockReset().mockResolvedValue(undefined);
+        (activateLspClient as jest.Mock<() => Promise<unknown>>).mockReset().mockResolvedValue(undefined);
         (registerWorkspaceIndexController as jest.Mock).mockReset();
     });
 
@@ -95,7 +95,7 @@ describe('extension entrypoint', () => {
 
     test('activate registers workspace indexing controls when LSP starts', async () => {
         const manager = { sendRequest: jest.fn() };
-        (activateLspClient as jest.Mock).mockResolvedValue(manager);
+        (activateLspClient as jest.Mock<() => Promise<unknown>>).mockResolvedValue(manager);
 
         await activate(context);
 
@@ -109,7 +109,10 @@ describe('extension entrypoint', () => {
             registerRebuildCommand: expect.any(Function),
             onIndexReady: expect.any(Function)
         });
-        const options = (registerWorkspaceIndexController as jest.Mock).mock.calls[0][0];
+        const options = (registerWorkspaceIndexController as jest.Mock).mock.calls[0][0] as {
+            registerRebuildCommand: (handler: () => Promise<void>) => void;
+            onIndexReady: () => void;
+        };
         const handler = jest.fn(async () => undefined);
         options.registerRebuildCommand(handler);
         expect(registerWorkspaceIndexRebuildCommand).toHaveBeenCalledWith(context, handler);

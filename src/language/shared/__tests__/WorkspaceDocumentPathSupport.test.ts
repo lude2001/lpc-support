@@ -1,315 +1,44 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { describe, expect, jest, test } from '@jest/globals';
-import { WorkspaceDocumentPathSupport } from '../WorkspaceDocumentPathSupport';
+import {
+    assertOpenTextDocumentHost,
+    assertTextDocumentHost,
+    assertWorkspaceDocumentHost,
+    createVsCodeTextDocumentHost,
+    createVsCodeWorkspaceDocumentHost
+} from '../WorkspaceDocumentPathSupport';
 
-function createDocument(filePath: string): vscode.TextDocument {
-    return {
-        uri: vscode.Uri.file(filePath),
-        fileName: filePath
-    } as unknown as vscode.TextDocument;
-}
+describe('workspace document host contract', () => {
+    test('createVsCodeTextDocumentHost delegates to the VS Code workspace API', async () => {
+        const openTextDocument = jest.fn(async () => ({ uri: vscode.Uri.file('D:/w/room.c') }));
+        const getWorkspaceFolder = jest.fn(() => undefined);
+        jest.spyOn(vscode.workspace, 'openTextDocument').mockImplementation(openTextDocument as never);
+        jest.spyOn(vscode.workspace, 'getWorkspaceFolder').mockImplementation(getWorkspaceFolder as never);
 
-describe('WorkspaceDocumentPathSupport', () => {
-    test('ensures freshness before opening a workspace document', async () => {
-        const openedDocument = createDocument('D:/workspace/obj/room.c');
-        const calls: string[] = [];
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(async (target: string | vscode.Uri) => {
-                    calls.push(`open:${typeof target === 'string' ? target : target.toString()}`);
-                    return openedDocument;
-                }),
-                fileExists: jest.fn(() => true),
-                getWorkspaceFolder: jest.fn(() => undefined)
-            },
-            ensureFreshDocument: jest.fn(async (uri: vscode.Uri) => {
-                calls.push(`fresh:${uri.toString()}`);
-            })
-        });
+        const host = createVsCodeTextDocumentHost();
 
-        await expect(support.tryOpenTextDocument('D:/workspace/obj/room.c')).resolves.toBe(openedDocument);
-
-        expect(calls).toEqual([
-            `fresh:${vscode.Uri.file('D:/workspace/obj/room.c').toString()}`,
-            'open:D:/workspace/obj/room.c'
-        ]);
+        await host.openTextDocument(vscode.Uri.file('D:/w/room.c'));
+        expect(openTextDocument).toHaveBeenCalledWith(vscode.Uri.file('D:/w/room.c'));
+        expect(host.getWorkspaceFolder(vscode.Uri.file('D:/w/room.c'))).toBeUndefined();
     });
 
-    test('continues opening a workspace document when freshness invalidation fails', async () => {
-        const openedDocument = createDocument('D:/workspace/obj/room.c');
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(async () => openedDocument),
-                fileExists: jest.fn(() => true),
-                getWorkspaceFolder: jest.fn(() => undefined)
-            },
-            ensureFreshDocument: jest.fn(async () => {
-                throw new Error('invalidate failed');
-            })
-        });
+    test('createVsCodeWorkspaceDocumentHost extends the text document host with workspace search', async () => {
+        const findFiles = jest.fn(async () => []);
+        jest.spyOn(vscode.workspace, 'findFiles').mockImplementation(findFiles as never);
 
-        await expect(support.tryOpenTextDocument('D:/workspace/obj/room.c')).resolves.toBe(openedDocument);
+        const host = createVsCodeWorkspaceDocumentHost();
+
+        await host.findFiles('**/*.c');
+        expect(findFiles).toHaveBeenCalledWith('**/*.c', undefined);
+        expect(host.getWorkspaceFolders()).toBe(vscode.workspace.workspaceFolders);
     });
 
-    test('passes URI string targets through freshness unchanged', async () => {
-        const openedDocument = createDocument('D:/workspace/obj/room.c');
-        const ensureFreshDocument = jest.fn();
-        const uri = vscode.Uri.file('D:/workspace/obj/room.c').toString();
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(async () => openedDocument),
-                fileExists: jest.fn(() => true),
-                getWorkspaceFolder: jest.fn(() => undefined)
-            },
-            ensureFreshDocument
-        });
+    test('host assertions reject missing hosts and return injected ones', () => {
+        const host = createVsCodeTextDocumentHost();
 
-        await expect(support.tryOpenTextDocument(uri)).resolves.toBe(openedDocument);
-
-        expect(ensureFreshDocument).toHaveBeenCalledWith(vscode.Uri.parse(uri));
-    });
-
-    test('tryOpenTextDocument returns undefined when the host throws', async () => {
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(async () => {
-                    throw new Error('boom');
-                }),
-                fileExists: jest.fn(() => false),
-                getWorkspaceFolder: jest.fn(() => undefined)
-            }
-        });
-
-        await expect(support.tryOpenTextDocument('D:/workspace/missing.c')).resolves.toBeUndefined();
-    });
-
-    test('findWorkspaceSourceFiles prefers injected workspace file search', async () => {
-        const workspaceRoot = 'D:/workspace';
-        const findFiles = jest.fn(async () => [
-            vscode.Uri.file('D:/workspace/obj/room.c'),
-            vscode.Uri.file('D:/other/obj/outside.c'),
-            vscode.Uri.file('D:/workspace/include/config.h')
-        ]);
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(),
-                fileExists: jest.fn(() => false),
-                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } })),
-                findFiles
-            } as any
-        });
-
-        const files = await support.findWorkspaceSourceFiles(workspaceRoot, '.c');
-
-        expect(files.map((filePath) => filePath.replace(/\\/g, '/'))).toEqual([
-            'D:/workspace/obj/room.c'
-        ]);
-        expect(findFiles).toHaveBeenCalledWith(
-            expect.objectContaining({
-                pattern: '**/*.c'
-            }),
-            expect.stringContaining('node_modules')
-        );
-    });
-
-    test('resolves workspace and inherited file paths with frontend macro facts', () => {
-        const workspaceRoot = 'D:/workspace';
-        const document = createDocument('D:/workspace/obj/room.c');
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(),
-                fileExists: jest.fn(() => false),
-                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
-            },
-            analysisService: {
-                getSemanticSnapshot: jest.fn(() => ({
-                    macroDefinitions: [{
-                        name: 'ROOM_BASE',
-                        value: '"/std/base_room"',
-                        range: new vscode.Range(0, 0, 0, 0),
-                        isFunctionLike: false,
-                        sourceUri: document.uri.toString()
-                    }]
-                }))
-            } as any
-        });
-
-        expect(support.getWorkspaceRoot(document)).toBe(workspaceRoot);
-        expect(support.resolveWorkspaceFilePath(document, 'std/base_room.c', workspaceRoot)).toBe(
-            path.join(workspaceRoot, 'std', 'base_room.c')
-        );
-        expect(support.resolveInheritedFilePath(document, 'ROOM_BASE', workspaceRoot)).toBe(
-            path.join(workspaceRoot, 'std', 'base_room.c')
-        );
-    });
-
-    test('resolves object file paths from string literals and frontend macro facts through the shared owner', () => {
-        const workspaceRoot = 'D:/workspace';
-        const document = createDocument('D:/workspace/obj/room.c');
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(),
-                fileExists: jest.fn((candidate: string) => candidate.replace(/\\/g, '/') === 'D:/workspace/std/base_room.c'),
-                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
-            },
-            analysisService: {
-                getSemanticSnapshot: jest.fn(() => ({
-                    macroDefinitions: [{
-                        name: 'ROOM_BASE',
-                        value: '"/std/base_room"',
-                        range: new vscode.Range(0, 0, 0, 0),
-                        isFunctionLike: false,
-                        sourceUri: document.uri.toString()
-                    }]
-                }))
-            } as any
-        });
-
-        expect(support.resolveObjectFilePath(document, '"/std/base_room"')?.replace(/\\/g, '/')).toBe(
-            'D:/workspace/std/base_room.c'
-        );
-        expect(support.resolveObjectFilePath(document, 'ROOM_BASE')?.replace(/\\/g, '/')).toBe(
-            'D:/workspace/std/base_room.c'
-        );
-        expect(support.resolveObjectFilePath(document, 'relative_room')).toBeUndefined();
-    });
-
-    test('uses frontend macro facts for inherited and object paths', () => {
-        const workspaceRoot = 'D:/workspace';
-        const document = createDocument('D:/workspace/obj/room.c');
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(),
-                fileExists: jest.fn((candidate: string) => candidate.replace(/\\/g, '/') === 'D:/workspace/std/frontend_room.c'),
-                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
-            },
-            analysisService: {
-                getSemanticSnapshot: jest.fn(() => ({
-                    macroDefinitions: [{
-                        name: 'ROOM_BASE',
-                        value: '"/std/frontend_room"',
-                        range: new vscode.Range(0, 0, 0, 0),
-                        isFunctionLike: false,
-                        sourceUri: document.uri.toString()
-                    }]
-                }))
-            } as any
-        });
-
-        expect(support.resolveInheritedFilePath(document, 'ROOM_BASE', workspaceRoot)?.replace(/\\/g, '/')).toBe(
-            'D:/workspace/std/frontend_room.c'
-        );
-        expect(support.resolveObjectFilePath(document, 'ROOM_BASE')?.replace(/\\/g, '/')).toBe(
-            'D:/workspace/std/frontend_room.c'
-        );
-    });
-
-    test('returns unresolved macro paths when semantic macro facts are unavailable', () => {
-        const workspaceRoot = 'D:/workspace';
-        const document = createDocument('D:/workspace/obj/room.c');
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(),
-                fileExists: jest.fn(() => true),
-                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
-            },
-            analysisService: {
-                getSemanticSnapshot: jest.fn(() => {
-                    throw new Error('semantic unavailable');
-                })
-            } as any
-        });
-
-        expect(support.resolveInheritedFilePath(document, 'ROOM_BASE', workspaceRoot)).toBeUndefined();
-        expect(support.resolveObjectFilePath(document, 'ROOM_BASE')).toBeUndefined();
-    });
-
-    test('resolves system include paths from project configuration first', async () => {
-        const workspaceRoot = 'D:/workspace';
-        const document = createDocument('D:/workspace/obj/room.c');
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(),
-                fileExists: jest.fn(() => false),
-                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
-            },
-            projectConfigService: {
-                getIncludeDirectoriesForWorkspace: jest.fn(async () => ['D:/workspace/include', 'D:/workspace/include2']),
-                getPrimaryIncludeDirectoryForWorkspace: jest.fn(async () => 'D:/workspace/include')
-            } as any
-        });
-
-        await expect(support.resolveIncludeFilePaths(document, 'common/config', true, workspaceRoot)).resolves.toEqual([
-            path.join('D:/workspace/include', 'common/config.h'),
-            path.join('D:/workspace/include2', 'common/config.h')
-        ]);
-        await expect(support.resolveIncludeFilePath(document, 'common/config', true, workspaceRoot)).resolves.toBe(
-            path.join('D:/workspace/include', 'common/config.h')
-        );
-    });
-
-    test('resolves configured simulated efun path and existing code path', async () => {
-        const workspaceRoot = 'D:/workspace';
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(),
-                fileExists: jest.fn((candidate: string) =>
-                    candidate.replace(/\\/g, '/') === 'D:/workspace/adm/simul_efun.c'
-                ),
-                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
-            },
-            projectConfigService: {
-                getSimulatedEfunFileForWorkspace: jest.fn(async () => undefined)
-            } as any
-        });
-
-        const simulatedPath = await support.getConfiguredSimulatedEfunFile(workspaceRoot, {
-            resolvedConfig: {
-                simulatedEfunFile: '/adm/simul_efun'
-            }
-        } as any);
-
-        expect(simulatedPath?.replace(/\\/g, '/')).toBe('D:/workspace/adm/simul_efun.c');
-        expect(support.resolveExistingCodePath('D:/workspace/adm/simul_efun').replace(/\\/g, '/')).toBe('D:/workspace/adm/simul_efun.c');
-    });
-
-    test('resolves mudlibDirectory relative to configHellPath when project config comes from workspace sync', async () => {
-        const workspaceRoot = 'D:/code/shuiyuzhengfeng_lpc';
-        const support = new WorkspaceDocumentPathSupport({
-            host: {
-                openTextDocument: jest.fn(),
-                fileExists: jest.fn((candidate: string) =>
-                    ['D:/code/shuiyuzhengfeng_lpc/include/globals.h', 'D:/code/shuiyuzhengfeng_lpc/adm/single/simul_efun.c']
-                        .includes(candidate.replace(/\\/g, '/'))
-                ),
-                getWorkspaceFolder: jest.fn(() => ({ uri: { fsPath: workspaceRoot } }))
-            },
-            projectConfigService: {
-                getSimulatedEfunFileForWorkspace: jest.fn(async () => undefined)
-            } as any
-        });
-
-        const projectConfig = {
-            configHellPath: 'config/config.dev',
-            resolvedConfig: {
-                mudlibDirectory: '../',
-                includeDirectories: ['/include'],
-                simulatedEfunFile: '/adm/single/simul_efun'
-            }
-        } as any;
-
-        const includeDir = await support.getPrimaryIncludeDirectory(workspaceRoot, projectConfig);
-        const simulatedPath = await support.getConfiguredSimulatedEfunFile(workspaceRoot, projectConfig);
-        const inheritedPath = support.resolveInheritedFilePath(
-            createDocument('D:/code/shuiyuzhengfeng_lpc/obj/room.c'),
-            '/std/room',
-            workspaceRoot,
-            projectConfig
-        );
-
-        expect(includeDir?.replace(/\\/g, '/')).toBe('D:/code/shuiyuzhengfeng_lpc/include');
-        expect(simulatedPath?.replace(/\\/g, '/')).toBe('D:/code/shuiyuzhengfeng_lpc/adm/single/simul_efun.c');
-        expect(inheritedPath?.replace(/\\/g, '/')).toBe('D:/code/shuiyuzhengfeng_lpc/std/room.c');
+        expect(() => assertTextDocumentHost('Owner', undefined)).toThrow('Owner requires an injected TextDocumentHost');
+        expect(() => assertOpenTextDocumentHost('Owner', undefined)).toThrow('Owner requires an injected openTextDocument host');
+        expect(() => assertWorkspaceDocumentHost('Owner', undefined)).toThrow('Owner requires an injected WorkspaceDocumentHost');
+        expect(assertTextDocumentHost('Owner', host)).toBe(host);
     });
 });

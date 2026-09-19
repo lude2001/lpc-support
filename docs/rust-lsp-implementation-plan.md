@@ -1,5 +1,7 @@
 # Rust LSP 一次性重构实施计划
 
+> **退役说明（2026-09-19）**：旧 TypeScript 分析栈与 `dist/lsp/server.js` 构建路径已从仓库删除，Rust sidecar 是唯一语言服务器入口，`LPC_LANGUAGE_SERVER=typescript` 回退与 `test:lsp-parity` 差异测试命令均已移除。本文档中的 TS↔Rust parity 工作流与“开发期双实现基准”描述自此仅作为历史记录保留，不再描述当前代码结构。
+
 ## 1. 目标
 
 本项目将在一个开发分支内完成 TypeScript 语言服务器到 Rust 语言服务器的整体切换，并在满足行为兼容与性能门槛后一次性发布。

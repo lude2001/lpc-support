@@ -6,15 +6,16 @@ jest.mock('axios');
 
 describe('ErrorTreeDataProvider', () => {
     let projectConfigService: {
-        loadForWorkspace: jest.Mock;
+        loadForWorkspace: jest.Mock<(workspaceRoot?: string) => Promise<unknown>>;
     };
 
     beforeEach(() => {
         projectConfigService = {
-            loadForWorkspace: jest.fn()
+            loadForWorkspace: jest.fn<(workspaceRoot?: string) => Promise<unknown>>()
         };
 
-        (axios.get as jest.Mock).mockReset().mockResolvedValue({ data: { errors: [] } });
+        (axios.get as jest.Mock<(...args: unknown[]) => Promise<unknown>>)
+            .mockReset().mockResolvedValue({ data: { errors: [] } });
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
     });
 

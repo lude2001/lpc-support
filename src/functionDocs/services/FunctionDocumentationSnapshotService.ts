@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { FunctionDocLookup, FunctionDocSourceGroup } from '../../efun/FunctionDocLookupTypes';
 import type { CallableDoc } from '../../language/documentation/types';
-import type { LanguageWorkspaceProjectConfig } from '../../language/contracts/LanguageWorkspaceContext';
+import type { LanguageWorkspaceProjectConfig } from '../../projectConfig/LpcProjectConfig';
 import type {
     FunctionDocumentationPanelEntry,
     FunctionDocumentationPanelGroup,

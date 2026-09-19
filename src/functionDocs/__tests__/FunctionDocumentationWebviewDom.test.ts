@@ -4,6 +4,14 @@ import { JSDOM } from 'jsdom';
 import { describe, expect, jest, test } from '@jest/globals';
 import type { FunctionDocumentationPanelSnapshot } from '../contracts/FunctionDocumentationPanelProtocol';
 
+type PanelOutboundMessage = {
+    type: string;
+    protocolVersion?: number;
+    requestId?: string;
+    query?: string;
+    scopes?: string[];
+};
+
 function createSnapshot(): FunctionDocumentationPanelSnapshot {
     const sourceUri = 'file:///D:/项目/feature/damage.c';
     return {
@@ -62,11 +70,11 @@ function createSnapshot(): FunctionDocumentationPanelSnapshot {
     };
 }
 
-function createHarness(): { dom: JSDOM; postMessage: jest.Mock } {
+function createHarness(): { dom: JSDOM; postMessage: jest.Mock<(message: PanelOutboundMessage) => void> } {
     const html = fs.readFileSync(path.join(__dirname, '..', '..', 'templates', 'functionDocPanel.html'), 'utf8');
     const script = fs.readFileSync(path.join(__dirname, '..', '..', 'templates', 'functionDocPanel.js'), 'utf8');
     const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://webview.invalid/' });
-    const postMessage = jest.fn();
+    const postMessage = jest.fn<(message: PanelOutboundMessage) => void>();
     (dom.window as any).acquireVsCodeApi = () => ({ postMessage, setState: jest.fn(), getState: jest.fn() });
     dom.window.eval(script);
     return { dom, postMessage };
@@ -151,7 +159,7 @@ describe('function documentation Webview DOM', () => {
         const { dom } = createHarness();
         Object.defineProperty(dom.window.navigator, 'clipboard', {
             configurable: true,
-            value: { writeText: jest.fn().mockRejectedValue(new Error('denied')) }
+            value: { writeText: jest.fn<(text: string) => Promise<void>>().mockRejectedValue(new Error('denied')) }
         });
         dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
             data: { type: 'snapshot', payload: createSnapshot() }
@@ -242,7 +250,7 @@ describe('function documentation Webview DOM', () => {
         (dom.window.document.querySelector('[data-filter-value="efun"]') as HTMLButtonElement).click();
         expect(dom.window.document.body.textContent).toContain('正在加载 Efun');
         await new Promise<void>((resolve) => dom.window.setTimeout(resolve, 220));
-        const request = postMessage.mock.calls.findLast(([message]) => message.type === 'searchExternal')?.[0];
+        const request = [...postMessage.mock.calls].reverse().find(([message]) => message.type === 'searchExternal')?.[0];
         expect(request.scopes).toEqual(['efun']);
         dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
             data: {

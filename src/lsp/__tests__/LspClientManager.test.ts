@@ -5,18 +5,20 @@ import {
     initializeConfigurationBridge,
     WORKSPACE_CONFIG_SYNC_NOTIFICATION
 } from '../client/bridges/configurationBridge';
+import type { ConfigurationBridgeOptions } from '../client/bridges/configurationBridge';
 import {
     initializeSourceFileChangeBridge,
     SOURCE_FILE_CHANGE_NOTIFICATION
 } from '../client/bridges/sourceFileChangeBridge';
 import { LspClientManager } from '../client/LspClientManager';
 import { getRegisteredProjectConfigService } from '../../modules/coreModule';
+import type { LpcProjectConfig } from '../../projectConfig/LpcProjectConfig';
 
 const mockLanguageClientSendNotification = jest.fn();
-const mockLanguageClientSendRequest = jest.fn();
-const mockLanguageClientOnNotification = jest.fn();
-const mockLanguageClientStart = jest.fn().mockResolvedValue(undefined);
-const mockLanguageClientStop = jest.fn().mockResolvedValue(undefined);
+const mockLanguageClientSendRequest = jest.fn<(method: string, payload: unknown) => Promise<unknown>>();
+const mockLanguageClientOnNotification = jest.fn<(method: string, handler: (payload: unknown) => void) => vscode.Disposable>();
+const mockLanguageClientStart = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+const mockLanguageClientStop = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
 const mockLanguageClientDispose = jest.fn();
 const mockLanguageClientConstructor = jest.fn();
 
@@ -103,15 +105,15 @@ describe('LspClientManager activation', () => {
         vscodeMock.workspace.onDidChangeWorkspaceFolders.mockReset().mockReturnValue({ dispose: jest.fn() });
         vscodeMock.workspace.createFileSystemWatcher.mockReset().mockImplementation(() => {
             const watcher: WatcherRegistration = {
-                onDidChange: jest.fn(handler => {
+                onDidChange: jest.fn<(handler: (uri?: vscode.Uri) => void) => { dispose(): void }>(handler => {
                     watcher.__changeHandler = handler;
                     return { dispose: jest.fn() };
                 }),
-                onDidCreate: jest.fn(handler => {
+                onDidCreate: jest.fn<(handler: (uri?: vscode.Uri) => void) => { dispose(): void }>(handler => {
                     watcher.__createHandler = handler;
                     return { dispose: jest.fn() };
                 }),
-                onDidDelete: jest.fn(handler => {
+                onDidDelete: jest.fn<(handler: (uri?: vscode.Uri) => void) => { dispose(): void }>(handler => {
                     watcher.__deleteHandler = handler;
                     return { dispose: jest.fn() };
                 }),
@@ -137,8 +139,8 @@ describe('LspClientManager activation', () => {
 
     test('activateLspClient starts and tracks a manager on the public LSP path', async () => {
         const context = { subscriptions: [] } as unknown as vscode.ExtensionContext;
-        const startSpy = jest.fn().mockResolvedValue(undefined);
-        const stopSpy = jest.fn().mockResolvedValue(undefined);
+        const startSpy = jest.fn<(manager: LspClientManager) => Promise<void>>().mockResolvedValue(undefined);
+        const stopSpy = jest.fn<(manager: LspClientManager) => Promise<void>>().mockResolvedValue(undefined);
         const managerFactory = () => new LspClientManager({
             start: startSpy,
             stop: stopSpy
@@ -165,7 +167,7 @@ describe('LspClientManager activation', () => {
             loadForWorkspace: jest.fn()
         };
 
-        (initializeConfigurationBridge as jest.Mock).mockResolvedValue(bridgeDisposable);
+        (initializeConfigurationBridge as jest.Mock<(options: { client: unknown }) => Promise<vscode.Disposable>>).mockResolvedValue(bridgeDisposable);
         (getRegisteredProjectConfigService as jest.Mock).mockReturnValue(projectConfigService);
 
         const manager = await activateLspClient(context);
@@ -189,7 +191,7 @@ describe('LspClientManager activation', () => {
             projectConfigService
         });
 
-        const bridgeClient = (initializeConfigurationBridge as jest.Mock).mock.calls[0][0].client as {
+        const bridgeClient = (initializeConfigurationBridge as jest.Mock<(options: { client: unknown }) => Promise<unknown>>).mock.calls[0][0].client as {
             sendNotification: (method: string, payload: unknown) => Promise<void>;
         };
         const payload = { workspaceRoots: ['D:/workspace'], workspaces: [] };
@@ -203,12 +205,12 @@ describe('LspClientManager activation', () => {
 
         await manager?.stop();
         expect(mockLanguageClientStop).toHaveBeenCalledTimes(1);
-        expect((initializeSourceFileChangeBridge as jest.Mock).mock.results[0].value.dispose).toHaveBeenCalledTimes(1);
+        expect(((initializeSourceFileChangeBridge as jest.Mock<() => { dispose(): void }>).mock.results[0].value as { dispose(): void }).dispose).toHaveBeenCalledTimes(1);
         expect(bridgeDisposable.dispose).toHaveBeenCalledTimes(1);
     });
 
     test('initializeSourceFileChangeBridge sends lightweight source file change notifications', async () => {
-        const sendNotification = jest.fn();
+        const sendNotification = jest.fn<(method: string, payload: unknown) => Promise<void>>();
 
         const disposable = actualSourceFileChangeBridge.initializeSourceFileChangeBridge({
             client: { sendNotification }
@@ -240,8 +242,8 @@ describe('LspClientManager activation', () => {
     });
 
     test('manager stop is idempotent after start', async () => {
-        const startSpy = jest.fn().mockResolvedValue(undefined);
-        const stopSpy = jest.fn().mockResolvedValue(undefined);
+        const startSpy = jest.fn<(manager: LspClientManager) => Promise<void>>().mockResolvedValue(undefined);
+        const stopSpy = jest.fn<(manager: LspClientManager) => Promise<void>>().mockResolvedValue(undefined);
         const manager = new LspClientManager({
             start: startSpy,
             stop: stopSpy
@@ -256,8 +258,8 @@ describe('LspClientManager activation', () => {
     });
 
     test('manager can restart after a completed stop', async () => {
-        const startSpy = jest.fn().mockResolvedValue(undefined);
-        const stopSpy = jest.fn().mockResolvedValue(undefined);
+        const startSpy = jest.fn<(manager: LspClientManager) => Promise<void>>().mockResolvedValue(undefined);
+        const stopSpy = jest.fn<(manager: LspClientManager) => Promise<void>>().mockResolvedValue(undefined);
         const manager = new LspClientManager({
             start: startSpy,
             stop: stopSpy
@@ -294,7 +296,7 @@ describe('LspClientManager activation', () => {
     test('sendRequest forwards custom LSP requests when the client supports them', async () => {
         const manager = new LspClientManager({
             client: {
-                sendRequest: mockLanguageClientSendRequest
+                sendRequest: mockLanguageClientSendRequest as unknown as <T>(method: string, payload: unknown) => Promise<T>
             }
         });
         mockLanguageClientSendRequest.mockResolvedValue({ status: 'ready' });
@@ -329,12 +331,12 @@ describe('LspClientManager activation', () => {
 
     test('dispose waits for an in-flight start and shuts down exactly once', async () => {
         let resolveStart: (() => void) | undefined;
-        const startSpy = jest.fn().mockImplementation(async () => {
+        const startSpy = jest.fn<(manager: LspClientManager) => Promise<void>>().mockImplementation(async () => {
             await new Promise<void>(resolve => {
                 resolveStart = resolve;
             });
         });
-        const stopSpy = jest.fn().mockResolvedValue(undefined);
+        const stopSpy = jest.fn<(manager: LspClientManager) => Promise<void>>().mockResolvedValue(undefined);
         const manager = new LspClientManager({
             start: startSpy,
             stop: stopSpy
@@ -354,10 +356,10 @@ describe('LspClientManager activation', () => {
     test('initializeConfigurationBridge sends a synchronized config snapshot on the public LSP path', async () => {
         vscodeMock.workspace.workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
 
-        const sendNotification = jest.fn();
+        const sendNotification = jest.fn<(method: string, payload: unknown) => Promise<void>>();
         const projectConfigService = {
             getProjectConfigPath: jest.fn((workspaceRoot: string) => `${workspaceRoot}/lpc-support.json`),
-            loadForWorkspace: jest.fn().mockResolvedValue({
+            loadForWorkspace: jest.fn<(workspaceRoot: string) => Promise<LpcProjectConfig | undefined>>().mockResolvedValue({
                 version: 1,
                 configHellPath: 'config.hell',
                 preprocessorDefines: ['__PACKAGE_DB__'],
@@ -409,10 +411,10 @@ describe('LspClientManager activation', () => {
     test('initializeConfigurationBridge resyncs when workspace roots change and cleans up watchers on dispose', async () => {
         vscodeMock.workspace.workspaceFolders = [{ uri: { fsPath: 'D:/workspace-a' } }];
 
-        const sendNotification = jest.fn();
+        const sendNotification = jest.fn<(method: string, payload: unknown) => Promise<void>>();
         const projectConfigService = {
             getProjectConfigPath: jest.fn((workspaceRoot: string) => `${workspaceRoot}/lpc-support.json`),
-            loadForWorkspace: jest.fn().mockResolvedValue({
+            loadForWorkspace: jest.fn<(workspaceRoot: string) => Promise<LpcProjectConfig | undefined>>().mockResolvedValue({
                 version: 1,
                 configHellPath: 'config.hell'
             })
@@ -462,10 +464,10 @@ describe('LspClientManager activation', () => {
             { uri: { fsPath: 'D:/workspace-a' } }
         ];
 
-        const sendNotification = jest.fn();
+        const sendNotification = jest.fn<(method: string, payload: unknown) => Promise<void>>();
         const projectConfigService = {
             getProjectConfigPath: jest.fn((workspaceRoot: string) => `${workspaceRoot}\\lpc-support.json`),
-            loadForWorkspace: jest.fn((workspaceRoot: string) => Promise.resolve({
+            loadForWorkspace: jest.fn<(workspaceRoot: string) => Promise<LpcProjectConfig | undefined>>((workspaceRoot: string) => Promise.resolve({
                 version: 1,
                 configHellPath: workspaceRoot.includes('nested')
                     ? '.vscode\\nested.hell'
@@ -477,7 +479,7 @@ describe('LspClientManager activation', () => {
             mode: 'lsp',
             client: { sendNotification },
             projectConfigService
-        });
+        } as ConfigurationBridgeOptions);
 
         expect(sendNotification).toHaveBeenCalledWith(WORKSPACE_CONFIG_SYNC_NOTIFICATION, {
             workspaceRoots: ['D:/workspace-a', 'D:/workspace-a/nested'],
@@ -527,12 +529,12 @@ describe('LspClientManager activation', () => {
     test('initializeConfigurationBridge resyncs on watched file changes and reports async errors', async () => {
         vscodeMock.workspace.workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
 
-        const sendNotification = jest.fn();
+        const sendNotification = jest.fn<(method: string, payload: unknown) => Promise<void>>();
         const syncError = new Error('sync failed');
         const onError = jest.fn();
         const projectConfigService = {
             getProjectConfigPath: jest.fn((workspaceRoot: string) => `${workspaceRoot}/lpc-support.json`),
-            loadForWorkspace: jest.fn()
+            loadForWorkspace: jest.fn<(workspaceRoot: string) => Promise<LpcProjectConfig | undefined>>()
                 .mockResolvedValueOnce({
                     version: 1,
                     configHellPath: 'config.hell',

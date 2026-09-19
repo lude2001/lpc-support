@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execFileSync, fork, spawn } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
 import { createRequire } from 'module';
 import fs from 'fs';
 import os from 'os';
@@ -24,8 +24,6 @@ const {
 } = require('vscode-languageserver-protocol/node');
 const { createProtocolConnection } = require('vscode-languageserver-protocol/node');
 const {
-    IPCMessageReader,
-    IPCMessageWriter,
     StreamMessageReader,
     StreamMessageWriter
 } = require('vscode-jsonrpc/node');
@@ -52,10 +50,10 @@ async function main() {
         : undefined;
 
     fs.mkdirSync(options.outputDir, { recursive: true });
-    ensureLanguageServer(options.server);
+    ensureLanguageServer();
 
     const serverStartedAt = performance.now();
-    const server = await startServer(project, options.server);
+    const server = await startServer(project);
     const startupWallMs = performance.now() - serverStartedAt;
     try {
         const diagnosticsPromise = server.waitForDiagnostics(uri, options.diagnosticTimeoutMs);
@@ -130,13 +128,11 @@ async function main() {
                 { timedOut: true, itemCount: 0, isIncomplete: false }
             )
             : undefined;
-        const functionDocumentation = options.server === 'rust'
-            ? await runStage(
-                'functionDocumentation',
-                () => requestFunctionDocumentation(server.connection, uri),
-                { timedOut: true, currentFileCount: 0, inheritedGroupCount: 0, inheritedEntryCount: 0, includeGroupCount: 0, includeEntryCount: 0, documentedEntryCount: 0, structuredSignatureCount: 0, functionVarargsCount: 0, trueVariadicCount: 0, optionalParameterCount: 0, refParameterCount: 0, arrayParameterCount: 0 }
-            )
-            : undefined;
+        const functionDocumentation = await runStage(
+            'functionDocumentation',
+            () => requestFunctionDocumentation(server.connection, uri),
+            { timedOut: true, currentFileCount: 0, inheritedGroupCount: 0, inheritedEntryCount: 0, includeGroupCount: 0, includeEntryCount: 0, documentedEntryCount: 0, structuredSignatureCount: 0, functionVarargsCount: 0, trueVariadicCount: 0, optionalParameterCount: 0, refParameterCount: 0, arrayParameterCount: 0 }
+        );
 
         let diagnostics;
         if (options.perf) {
@@ -150,7 +146,7 @@ async function main() {
             diagnostics = await diagnosticsPromise;
         }
         const health = await server.connection.sendRequest(HEALTH_METHOD);
-        const workspaceDiagnostics = options.workspaceDiagnostics && options.server === 'rust'
+        const workspaceDiagnostics = options.workspaceDiagnostics
             ? await runStage(
                 'workspaceDiagnostics',
                 async () => summarizeWorkspaceDiagnostics(
@@ -176,7 +172,7 @@ async function main() {
         const probeWallMs = performance.now() - probeStartedAt;
 
         const report = createReport({
-            server: options.server,
+            server: 'rust',
             project,
             targetFile,
             position,
@@ -314,8 +310,7 @@ function parseOptions(args, env) {
         perf: parseBoolean(values.get('perf') ?? env.LPC_PROBE_PERF),
         perfIterations: Math.max(0, Number(values.get('perf-iterations') ?? env.LPC_PROBE_PERF_ITERATIONS ?? 0) || 0),
         semanticTokens: parseBoolean(values.get('semantic-tokens') ?? env.LPC_PROBE_SEMANTIC_TOKENS),
-        workspaceDiagnostics: parseBoolean(values.get('workspace-diagnostics') ?? env.LPC_PROBE_WORKSPACE_DIAGNOSTICS),
-        server: values.get('server') ?? env.LPC_PROBE_SERVER ?? 'typescript'
+        workspaceDiagnostics: parseBoolean(values.get('workspace-diagnostics') ?? env.LPC_PROBE_WORKSPACE_DIAGNOSTICS)
     };
 }
 
@@ -432,69 +427,31 @@ function normalizePosition(rawPosition, source) {
     return { line, character };
 }
 
-function ensureLanguageServer(server) {
-    if (server === 'rust') {
-        const executable = rustServerExecutable();
-        if (!fs.existsSync(executable)) {
-            execFileSync(process.execPath, ['scripts/build-rust-lsp.mjs'], {
-                cwd: process.cwd(),
-                stdio: 'inherit'
-            });
-        }
-        return;
-    }
-    if (server !== 'typescript') {
-        throw new Error(`Unsupported LSP server '${server}'. Use 'typescript' or 'rust'.`);
-    }
-
-    const serverModule = path.resolve(process.cwd(), 'dist', 'lsp', 'server.js');
-    try {
-        execFileSync(process.execPath, ['esbuild.mjs'], {
+function ensureLanguageServer() {
+    const executable = rustServerExecutable();
+    if (!fs.existsSync(executable)) {
+        execFileSync(process.execPath, ['scripts/build-rust-lsp.mjs'], {
             cwd: process.cwd(),
-            stdio: 'pipe'
+            stdio: 'inherit'
         });
-    } catch (error) {
-        const stderr = error && typeof error === 'object' && 'stderr' in error
-            ? String(error.stderr ?? '')
-            : '';
-        throw new Error([
-            `Failed to prepare LSP server bundle at ${serverModule}.`,
-            stderr || String(error)
-        ].join('\n'));
     }
 }
 
-async function startServer(project, serverKind) {
-    const child = serverKind === 'rust'
-        ? spawn(rustServerExecutable(), [], {
-            cwd: process.cwd(),
-            env: { ...process.env },
-            stdio: ['pipe', 'pipe', 'pipe'],
-            windowsHide: true
-        })
-        : fork(path.resolve(process.cwd(), 'dist', 'lsp', 'server.js'), ['--node-ipc'], {
-            cwd: process.cwd(),
-            env: { ...process.env },
-            silent: true,
-            stdio: ['pipe', 'pipe', 'pipe', 'ipc']
-        });
-
-    if (serverKind === 'typescript' && !child.channel) {
-        throw new Error('TypeScript LSP server process did not expose an IPC channel.');
-    }
+async function startServer(project) {
+    const child = spawn(rustServerExecutable(), [], {
+        cwd: process.cwd(),
+        env: { ...process.env },
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true
+    });
 
     const stderr = [];
     child.stderr?.on('data', (chunk) => stderr.push(String(chunk)));
 
-    const connection = serverKind === 'rust'
-        ? createProtocolConnection(
-            new StreamMessageReader(child.stdout),
-            new StreamMessageWriter(child.stdin)
-        )
-        : createProtocolConnection(
-            new IPCMessageReader(child),
-            new IPCMessageWriter(child)
-        );
+    const connection = createProtocolConnection(
+        new StreamMessageReader(child.stdout),
+        new StreamMessageWriter(child.stdin)
+    );
     const server = new ProbeServer(child, connection, stderr);
     connection.listen();
 
@@ -526,18 +483,16 @@ async function startServer(project, serverKind) {
                 }
             ]
         };
-        const workspaceReady = serverKind === 'rust'
-            ? new Promise((resolve, reject) => {
-                const timeout = setTimeout(
-                    () => reject(new Error('Timed out waiting for the Rust workspace index.')),
-                    120_000
-                );
-                connection.onNotification('lpc/workspaceIndex/ready', (result) => {
-                    clearTimeout(timeout);
-                    resolve(result);
-                });
-            })
-            : undefined;
+        const workspaceReady = new Promise((resolve, reject) => {
+            const timeout = setTimeout(
+                () => reject(new Error('Timed out waiting for the Rust workspace index.')),
+                120_000
+            );
+            connection.onNotification('lpc/workspaceIndex/ready', (result) => {
+                clearTimeout(timeout);
+                resolve(result);
+            });
+        });
         await connection.sendNotification(WORKSPACE_CONFIG_SYNC_METHOD, workspaceConfig);
         if (workspaceReady) {
             await workspaceReady;

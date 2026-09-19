@@ -7,10 +7,8 @@ import { FunctionDocPanel } from '../../functionDocPanel';
 import { RustFunctionDocumentationLookupProvider } from '../../functionDocs/services/RustFunctionDocumentationLookupProvider';
 import { createLpcCodeActionCommandHandlers } from '../../codeActions';
 import { ErrorTreeDataProvider } from '../../errorTreeDataProvider';
-import {
-    clearGlobalParsedDocumentService,
-    getGlobalParsedDocumentService
-} from '../../parser/ParsedDocumentService';
+
+type LooseMock = jest.Mock<(...args: any[]) => any>;
 
 jest.mock('../../utils/lpcprj', () => ({
     hasLpcprjCommand: jest.fn(),
@@ -35,11 +33,6 @@ jest.mock('../../errorTreeDataProvider', () => ({
     ErrorTreeDataProvider: jest.fn()
 }));
 
-jest.mock('../../parser/ParsedDocumentService', () => ({
-    getGlobalParsedDocumentService: jest.fn(),
-    clearGlobalParsedDocumentService: jest.fn()
-}));
-
 describe('registerCommands', () => {
     const expectedCommandIds = [
         'lpc.scanFolder',
@@ -62,24 +55,18 @@ describe('registerCommands', () => {
 
     let registry: ServiceRegistry;
     let context: vscode.ExtensionContext;
-    let analysisService: { getSyntaxDocument: jest.Mock };
     let efunDocsManager: { id: string; configureSimulatedEfuns: jest.Mock };
     let diagnostics: { analyzeDocument: jest.Mock; scanFolder: jest.Mock; showVariables: jest.Mock };
-    let completionInstrumentation: {
-        showReport: jest.Mock;
-        formatSummary: jest.Mock;
-        clear: jest.Mock;
-    };
     let compiler: { compileFile: jest.Mock; compileFolder: jest.Mock };
     let projectConfigService: {
-        loadForWorkspace: jest.Mock;
-        ensureConfigForWorkspace: jest.Mock;
-        getCompileConfigForWorkspace: jest.Mock;
-        updateCompileConfigForWorkspace: jest.Mock;
-        toWorkspaceRelativePath: jest.Mock;
-        resolveWorkspacePath: jest.Mock;
-        readConfigFile: jest.Mock;
-        getProjectConfigPath: jest.Mock;
+        loadForWorkspace: LooseMock;
+        ensureConfigForWorkspace: LooseMock;
+        getCompileConfigForWorkspace: LooseMock;
+        updateCompileConfigForWorkspace: LooseMock;
+        toWorkspaceRelativePath: LooseMock;
+        resolveWorkspacePath: LooseMock;
+        readConfigFile: LooseMock;
+        getProjectConfigPath: LooseMock;
     };
     let errorTreeProvider: {
         refresh: jest.Mock;
@@ -87,7 +74,6 @@ describe('registerCommands', () => {
     };
     let projectConfigSnapshotService: { getWorkspaceProjectConfig: jest.Mock };
     let projectConfigOnboardingService: { generateProjectConfig: jest.Mock };
-    let parsedDocumentService: { getStats: jest.Mock };
     let lpcprj: {
         hasLpcprjCommand: jest.Mock;
         getLpcprjStartCommand: jest.Mock;
@@ -101,9 +87,6 @@ describe('registerCommands', () => {
             globalStoragePath: '/mock/storage'
         } as vscode.ExtensionContext;
 
-        analysisService = {
-            getSyntaxDocument: jest.fn()
-        };
         efunDocsManager = {
             id: 'efun-docs-manager',
             configureSimulatedEfuns: jest.fn()
@@ -113,22 +96,17 @@ describe('registerCommands', () => {
             scanFolder: jest.fn(),
             showVariables: jest.fn()
         };
-        completionInstrumentation = {
-            showReport: jest.fn(),
-            formatSummary: jest.fn().mockReturnValue('performance summary'),
-            clear: jest.fn()
-        };
         compiler = {
             compileFile: jest.fn(),
             compileFolder: jest.fn()
         };
         projectConfigService = {
-            loadForWorkspace: jest.fn().mockResolvedValue({
+            loadForWorkspace: jest.fn<(...args: any[]) => any>().mockResolvedValue({
                 version: 1,
                 configHellPath: 'config.hell'
             }),
-            ensureConfigForWorkspace: jest.fn().mockResolvedValue(undefined),
-            getCompileConfigForWorkspace: jest.fn().mockResolvedValue({
+            ensureConfigForWorkspace: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined),
+            getCompileConfigForWorkspace: jest.fn<(...args: any[]) => any>().mockResolvedValue({
                 mode: 'remote',
                 local: {
                     useSystemCommand: false,
@@ -139,7 +117,7 @@ describe('registerCommands', () => {
                     servers: [{ name: 'Alpha', url: 'http://127.0.0.1:8080', description: 'local' }]
                 }
             }),
-            updateCompileConfigForWorkspace: jest.fn().mockImplementation(async (_workspaceRoot, updater) => ({
+            updateCompileConfigForWorkspace: jest.fn<(...args: any[]) => any>().mockImplementation(async (_workspaceRoot: unknown, updater: (config: any) => any) => ({
                 version: 1,
                 configHellPath: 'config.hell',
                 compile: updater({
@@ -156,21 +134,18 @@ describe('registerCommands', () => {
             })),
             toWorkspaceRelativePath: jest.fn((workspaceRoot: string, targetPath: string) => path.relative(workspaceRoot, targetPath)),
             resolveWorkspacePath: jest.fn((workspaceRoot: string, targetPath: string) => path.resolve(workspaceRoot, targetPath)),
-            readConfigFile: jest.fn().mockResolvedValue({ version: 1, configHellPath: 'config.hell' }),
+            readConfigFile: jest.fn<(...args: any[]) => any>().mockResolvedValue({ version: 1, configHellPath: 'config.hell' }),
             getProjectConfigPath: jest.fn().mockReturnValue('D:/workspace/lpc-support.json')
         };
         errorTreeProvider = {
             refresh: jest.fn(),
             clearErrors: jest.fn()
         };
-        parsedDocumentService = {
-            getStats: jest.fn().mockReturnValue({ size: 2, memory: 2048 })
-        };
         projectConfigSnapshotService = {
             getWorkspaceProjectConfig: jest.fn()
         };
         projectConfigOnboardingService = {
-            generateProjectConfig: jest.fn().mockResolvedValue(true)
+            generateProjectConfig: jest.fn<(...args: any[]) => any>().mockResolvedValue(true)
         };
         lpcprj = jest.requireMock('../../utils/lpcprj') as {
             hasLpcprjCommand: jest.Mock;
@@ -179,10 +154,8 @@ describe('registerCommands', () => {
         lpcprj.hasLpcprjCommand.mockReset().mockReturnValue(true);
         lpcprj.getLpcprjStartCommand.mockReset().mockImplementation((configPath: string) => `lpcprj "${configPath}"`);
 
-        registry.register(Services.Analysis, analysisService as any);
         registry.register(Services.EfunDocs, efunDocsManager as any);
         registry.register(Services.Diagnostics, diagnostics as any);
-        registry.register(Services.CompletionInstrumentation, completionInstrumentation as any);
         registry.register(Services.Compiler, compiler as any);
         registry.register(Services.ProjectConfig, projectConfigService as any);
         registry.register(Services.ProjectConfigSnapshot, projectConfigSnapshotService as any);
@@ -203,14 +176,12 @@ describe('registerCommands', () => {
 
         (ErrorTreeDataProvider as unknown as jest.Mock).mockReset().mockImplementation(() => errorTreeProvider);
         (createLpcCodeActionCommandHandlers as jest.Mock).mockClear();
-        (getGlobalParsedDocumentService as unknown as jest.Mock).mockReset().mockReturnValue(parsedDocumentService);
-        (clearGlobalParsedDocumentService as unknown as jest.Mock).mockReset();
 
         (vscode.commands.registerCommand as jest.Mock).mockClear();
         (vscode.commands.executeCommand as jest.Mock).mockClear();
         (vscode.window.createTreeView as jest.Mock).mockClear();
         (vscode.window.createStatusBarItem as jest.Mock).mockClear();
-        (vscode.window.createTerminal as jest.Mock).mockClear();
+        (vscode.window.createTerminal as LooseMock).mockClear();
         (vscode.window.showInformationMessage as jest.Mock).mockClear();
         (vscode.window.showWarningMessage as jest.Mock).mockClear();
         (vscode.window.showErrorMessage as jest.Mock).mockClear();
@@ -224,7 +195,7 @@ describe('registerCommands', () => {
 
             return {
                 get: jest.fn((key: string, defaultValue?: unknown) => defaultValue),
-                update: jest.fn().mockResolvedValue(undefined)
+                update: jest.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
             };
         });
         (vscode.workspace as any).workspaceFolders = [];
@@ -233,9 +204,12 @@ describe('registerCommands', () => {
     });
 
     function getRegisteredHandlers(): Map<string, (...args: any[]) => any> {
+        const registerCommandMock = vscode.commands.registerCommand as jest.Mock<
+            (commandId: string, handler: (...args: any[]) => any) => any
+        >;
         return new Map(
-            (vscode.commands.registerCommand as jest.Mock).mock.calls.map(
-                ([commandId, handler]) => [commandId, handler]
+            registerCommandMock.mock.calls.map(
+                ([commandId, handler]): [string, (...args: any[]) => any] => [commandId, handler]
             )
         );
     }
@@ -321,7 +295,7 @@ describe('registerCommands', () => {
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
-        (vscode.window.showQuickPick as jest.Mock)
+        (vscode.window.showQuickPick as LooseMock)
             .mockResolvedValueOnce({ value: 'local' })
             .mockResolvedValueOnce({ action: 'toggleSystemCommand' });
 
@@ -359,10 +333,10 @@ describe('registerCommands', () => {
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
-        (vscode.window.showQuickPick as jest.Mock)
+        (vscode.window.showQuickPick as LooseMock)
             .mockResolvedValueOnce({ value: 'remote' })
             .mockResolvedValueOnce({ action: 'addServer' });
-        (vscode.window.showInputBox as jest.Mock)
+        (vscode.window.showInputBox as LooseMock)
             .mockResolvedValueOnce('Beta')
             .mockResolvedValueOnce('http://127.0.0.1:8081')
             .mockResolvedValueOnce('backup');
@@ -405,7 +379,7 @@ describe('registerCommands', () => {
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
-        (vscode.window.showQuickPick as jest.Mock)
+        (vscode.window.showQuickPick as LooseMock)
             .mockResolvedValueOnce({ value: 'remote' })
             .mockResolvedValueOnce({ action: 'selectServer' })
             .mockResolvedValueOnce({
@@ -427,16 +401,16 @@ describe('registerCommands', () => {
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
-        (vscode.window.showQuickPick as jest.Mock)
+        (vscode.window.showQuickPick as LooseMock)
             .mockResolvedValueOnce({ value: 'local' })
             .mockResolvedValueOnce({ action: 'setLpccpPath' });
-        (vscode.window.showOpenDialog as jest.Mock).mockResolvedValueOnce([
+        (vscode.window.showOpenDialog as LooseMock).mockResolvedValueOnce([
             { fsPath: 'D:/workspace/tools/lpccp.exe' }
         ]);
 
         await handlers.get('lpc.manageCompilation')?.();
 
-        const localActions = (vscode.window.showQuickPick as jest.Mock).mock.calls[1][0];
+        const localActions = (vscode.window.showQuickPick as LooseMock).mock.calls[1][0];
         expect(localActions.some((entry: any) => entry.action === 'setDriverConfigPath')).toBe(false);
         expect(vscode.window.showOpenDialog).toHaveBeenCalled();
 
@@ -469,7 +443,7 @@ describe('registerCommands', () => {
         registerCommands(registry, context);
         const handlers = getRegisteredHandlers();
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
-        (vscode.window.showQuickPick as jest.Mock)
+        (vscode.window.showQuickPick as LooseMock)
             .mockResolvedValueOnce({ value: 'local' })
             .mockResolvedValueOnce({ action: 'setCompileMode' })
             .mockResolvedValueOnce({ value: 'fresh-required' });
@@ -527,7 +501,7 @@ describe('registerCommands', () => {
         const handlers = getRegisteredHandlers();
         await handlers.get('lpc.startDriver')?.();
 
-        const terminal = (vscode.window.createTerminal as jest.Mock).mock.results[0].value;
+        const terminal = (vscode.window.createTerminal as LooseMock).mock.results[0].value;
         expect(lpcprj.hasLpcprjCommand).toHaveBeenCalledTimes(1);
         expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('D:/workspace');
         expect(vscode.window.createTerminal).toHaveBeenCalledWith({

@@ -44,3 +44,13 @@ export interface LpcProjectConfig {
     resolved?: LpcResolvedConfig;
     lastSyncedAt?: string;
 }
+
+export interface LanguageWorkspaceProjectConfig {
+    projectConfigPath: string;
+    configHellPath?: string;
+    preprocessorDefines?: PreprocessorDefineList;
+    instanceResolutionFunctions?: InstanceResolutionFunctionMap;
+    resolvedConfig?: LpcResolvedConfig;
+    lastSyncedAt?: string;
+    searchEfunDefinitionInInheritanceChain?: boolean;
+}

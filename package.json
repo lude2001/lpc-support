@@ -41,11 +41,9 @@
     "workspaceContains:**/*.lpc"
   ],
   "dependencies": {
-    "antlr4ts": "^0.5.0-alpha.4",
     "axios": "^1.16.0",
     "vscode-languageclient": "^9.0.1",
-    "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.11"
+    "vscode-languageserver-protocol": "^3.17.5"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
@@ -54,7 +52,6 @@
     "@types/vscode": "^1.82.0",
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^3.9.2",
-    "antlr4ts-cli": "^0.5.0-alpha.4",
     "cheerio": "^1.2.0",
     "cross-env": "^7.0.3",
     "esbuild": "^0.25.5",
@@ -511,7 +508,7 @@
   },
   "scripts": {
     "vscode:prepublish": "cross-env NODE_ENV=production npm run build && npm run build:rust && node scripts/prepare-native-package.mjs",
-    "build": "npm run generate-parser && node esbuild.mjs",
+    "build": "node esbuild.mjs",
     "build:rust": "node scripts/build-rust-lsp.mjs",
     "benchmark:rust": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --release --package lpc-language-server --example analysis-benchmark --",
     "check:rust": "node scripts/run-cargo.mjs clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
@@ -519,22 +516,18 @@
     "test:rust-formatter": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --package lpc-language-server --example formatter-check -- test/lpc_code/yifeng-jian.c test/lpc_code/meridiand.c",
     "build:dev": "cross-env NODE_ENV=development npm run build",
     "watch": "cross-env NODE_ENV=development node esbuild.mjs --watch",
-    "generate-parser": "antlr4ts -visitor -no-listener -o src/antlr grammar/LPCLexer.g4 grammar/LPCParser.g4",
     "package": "npm run clean && node scripts/package-extension.mjs",
     "clean": "rimraf dist out",
     "check": "tsc -p tsconfig.build.json --noEmit",
     "check:all": "tsc --noEmit",
     "analyze": "cross-env NODE_ENV=development npm run build -- --analyze",
     "test": "jest",
-    "test:formatter": "jest --runInBand src/__tests__/formatPrinter.test.ts src/__tests__/formatterIntegration.test.ts src/__tests__/rangeFormatting.test.ts src/__tests__/yifengDebug.test.ts",
     "test:unit": "jest --runInBand src",
-    "test:integration": "jest --runInBand src/__tests__/providerIntegration.test.ts src/lsp/__tests__/spawnedRuntime.integration.test.ts",
     "test:e2e": "node scripts/run-vscode-lifecycle-test.mjs",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "test:performance": "jest --runInBand src/functionDocs/__tests__/FunctionDocumentationPerformance.test.ts",
     "test:rust-smoke": "node scripts/rust-lsp-smoke.mjs",
-    "test:lsp-parity": "node esbuild.mjs && npm run build:rust && node scripts/lsp-parity.mjs",
     "probe:lsp": "node scripts/lsp-probe.mjs",
     "audit:efun-arity": "node scripts/audit-efun-arity.mjs",
     "audit:efun-arity:strict": "node scripts/audit-efun-arity.mjs --strict",

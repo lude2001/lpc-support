@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { LanguageWorkspaceProjectConfig } from '../language/contracts/LanguageWorkspaceContext';
+import type { LanguageWorkspaceProjectConfig } from './LpcProjectConfig';
 import type { LpcProjectConfigService } from './LpcProjectConfigService';
 
 export class LpcProjectConfigSnapshotService implements vscode.Disposable {

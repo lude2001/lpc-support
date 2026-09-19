@@ -1,114 +1,98 @@
 # Repository Guidelines
 
 ## 项目结构与模块组织
-本仓库是 LPC 的 VS Code 扩展，当前已完成核心架构拆分。核心代码仍在 `src/`，但职责已经分层：
+本仓库是 LPC 的 VS Code 扩展。语言分析由随扩展打包的 Rust sidecar 提供，TypeScript 只保留宿主装配层：
 
 - `src/extension.ts`
-  - 仅保留激活入口，负责创建 `ServiceRegistry` 并按顺序调用模块注册函数
+  - 激活入口，负责创建 `ServiceRegistry` 并按顺序调用模块注册函数
 - `src/core/`
-  - 放服务注册与跨模块基础设施，如 `ServiceRegistry`、`ServiceKeys`、`DocumentLifecycleService`
+  - 服务注册与跨模块基础设施：`ServiceRegistry`、`ServiceKeys`（EfunDocs、Compiler、ProjectConfig、ProjectConfigSnapshot、ProjectConfigOnboarding、TextDocumentHost、Diagnostics、ErrorTree）、`CacheManager`、`DocumentCache`
 - `src/modules/`
-  - 放扩展装配层：`coreModule.ts`、`diagnosticsModule.ts`、`languageModule.ts`、`commandModule.ts`、`uiModule.ts`
-- `src/parser/`
-  - 统一解析入口与 token/trivia 能力，生产代码应优先走 `ParsedDocumentService`
-- `src/syntax/`
-  - 语法结构层；`SyntaxBuilder.ts` 为入口，具体构建逻辑已拆到 `src/syntax/builders/`
-- `src/semantic/`
-  - 语义摘要层，承接 syntax 输出
-- `src/formatter/`
-  - formatter 已正式落地；`FormattingService.ts` 是入口，`src/formatter/printer/` 下的 `FormatPrinter.ts` 与 `delegates/` 负责打印
-- `src/efun/`
-  - efun 文档系统已拆分为 `EfunDocsManager` 门面和多个子服务
-- `src/diagnostics/`
-  - 放诊断调度、变量检查面板、文件夹扫描等
-- `src/antlr/`
-  - ANTLR 生成文件，不要手改
+  - 扩展装配层：`coreModule.ts`、`diagnosticsModule.ts`、`commandModule.ts`、`uiModule.ts`
+- `src/lsp/`
+  - `client/` 是 Rust sidecar 的 LSP 客户端（`activateLspClient.ts` 只有 Rust 分支）；`shared/protocol/` 放自定义协议，依赖 `vscode-languageserver-protocol`
+- `rust/`
+  - 语言能力真源。`rust/crates/` 下：`lpc-language-server`（stdio 二进制与 LSP 调度）、`lpc-preprocessor`（预处理/宏/include）、`lpc-analysis`（语义与工作区索引）、`lpc-formatter`（CST 格式化）、`lpc-protocol`（自定义协议）；Tree-sitter grammar 在 `rust/grammar/lpc/`，生成产物不要手改
+- `src/compiler.ts`、`src/compilation/`
+  - 编译链：本地 `lpccp` 与远程 HTTP 编译后端
+- `src/functionDocPanel.ts`、`src/functionDocs/`、`src/efun/`
+  - 函数文档中心与内置 efun 文档展示（`BundledEfunDocsProvider.ts`、`BundledEfunLoader.ts`）；Javadoc 标签解析在 `src/language/documentation/DocCommentTagParser.ts`
+- `src/projectConfig/`
+  - `lpc-support.json` 与 `config.hell` 的同步、快照与新手引导
+- `src/diagnostics/RustDiagnosticsCommands.ts`、`src/errorTreeDataProvider.ts`
+  - 消费 Rust 分析快照的诊断命令与错误树视图
+- `src/glm4Client.ts`、`src/codeActions.ts`
+  - GLM-4 Javadoc 生成
+- `src/language/shared/WorkspaceDocumentPathSupport.ts`
+  - 纯 TextDocument host 契约
 
 编辑器资源位于 `syntaxes/`、`snippets/`、`media/` 和 `language-configuration.json`。  
-测试代码在 `tests/` 与 `src/**/__tests__/`，样例 LPC 文件在 `test/`。构建产物输出到 `dist/`，VSIX 产物输出到仓库根目录。
+测试代码在 `tests/` 与 `src/**/__tests__/`，样例 LPC 文件在 `test/`。构建产物输出到 `dist/`（Rust sidecar 二进制在 `dist/bin/lpc-language-server[.exe]`），VSIX 产物输出到仓库根目录。
 
 ### 当前主路径约束
 
-- 不要在生产主路径新增 `new LPCLexer(...)` / `new LPCParser(...)`
-- 不要让 Provider 或业务逻辑重新扫描全文做结构推断
-- 不要让 `src/parseCache.ts`、`src/core/ParseCache.ts` 重新成为生产真源
-- parser / syntax / semantic 的职责边界要保持明确，不要再把它们混成泛化的 “AST”
-- 项目配置优先走工作区根目录的 `lpc-support.json` 与 `config.hell` 同步结果，不要在新代码里继续直接依赖旧 `lpc.includePath` / `lpc.simulatedEfunsPath` 作为首选来源
-
-### formatter 相关约束
-
-- formatter 的结构真源是 `SyntaxDocument`，不是文本正则
-- `FormatPrinter` 的节点分派已经拆到 `declarationPrinter.ts`、`statementPrinter.ts`、`expressionRenderer.ts`、`collectionPrinter.ts`
-- 修改格式化行为时，优先补或更新 `formatPrinter.test.ts`、`formatterIntegration.test.ts`、`rangeFormatting.test.ts`
-- 真实样例回归重点覆盖 `test/lpc_code/` 下的样例，尤其是 `yifeng-jian.c`、`meridiand.c`
+- 语言服务器只有 Rust sidecar 一个入口；旧 TypeScript LSP 与 `LPC_LANGUAGE_SERVER=typescript` 回退已删除，不要恢复
+- 旧 TypeScript 分析栈（`src/parser`、`src/syntax`、`src/semantic`、`src/formatter`、`src/antlr`、`grammar/` 等）已从仓库删除，不要在生产主路径重新引入 TypeScript 侧的 LPC 解析、诊断或全文结构扫描
+- 跨文件语言能力一律消费 Rust 常驻索引及其依赖失效机制，不要在查询处理时扫描整个工作区
+- 项目配置优先走工作区根目录的 `lpc-support.json` 与 `config.hell` 同步结果，不要在新代码里直接依赖旧 `lpc.includePath` / `lpc.simulatedEfunsPath` 作为首选来源
+- 无法静态证明的动态 LPC 行为保持保守降级，不要猜测唯一结果
 
 ## 构建、测试与开发命令
 - `npm install`：安装依赖。
-- `npm run generate-parser`：根据 `grammar/*.g4` 重新生成 ANTLR 解析器。
-- `npm run build`：生成解析器并打包扩展到 `dist/`。
-- `npm run package`：生成 VSIX 安装包。
+- `npm run build`：用 esbuild 打包扩展到 `dist/`（不再生成解析器）。
+- `npm run build:rust`：构建 Rust sidecar 到 `dist/bin/`。
+- `npm run package`：生成 VSIX 安装包（`vscode:prepublish` 会依次执行 TS 构建、`build:rust` 与原生产物整理）。
 - `npm run watch`：开发模式增量构建。
 - `npm test`：运行全部 Jest 测试。
-- `npm run test:unit`、`npm run test:integration`、`npm run test:e2e`、`npm run test:performance`：按类型执行测试。
-- `npm run test:coverage`：输出覆盖率报告到 `coverage/`。
+- `npm run test:unit`、`npm run test:e2e`、`npm run test:performance`、`npm run test:coverage`：按类型执行测试。
+- `npm run check` / `npm run check:rust`：TypeScript / Rust 静态检查。
+- `npm run test:rust`、`npm run test:rust-formatter`、`npm run test:rust-smoke`：Rust 单测、formatter 回归与原生 sidecar stdio smoke。
 - `npm run clean`：清理 `dist/` 与 `out/`。
-- `npm run probe:lsp -- --project <真实LPC项目根目录> --file <LPC路径> [--position 行:列]`：在真实项目上运行本机 LSP 静态探针，用于排查编辑器诊断、跳转、悬停与补全问题。
+- `npm run probe:lsp -- --project <真实LPC项目根目录> --file <LPC路径> [--position 行:列]`：在真实项目上运行本机 LSP 静态探针（只支持 Rust sidecar），用于排查编辑器诊断、跳转、悬停与补全问题。
 
 ### 当前常用验证命令
 
 - `npx tsc --noEmit`
-  - 检查类型与未使用符号
-- `npx jest --runInBand src/__tests__/formatPrinter.test.ts src/__tests__/formatterIntegration.test.ts src/__tests__/rangeFormatting.test.ts src/__tests__/yifengDebug.test.ts`
-  - formatter 回归集
+  - 全量 tsconfig 的类型与未使用符号检查
+- `npm run check`
+  - 生产构建配置（`tsconfig.build.json`）的类型检查
+- `npm test`
+  - 全部 Jest 套件
+- `npm run test:rust`、`npm run test:rust-smoke`
+  - Rust workspace 单测与原生 sidecar stdio smoke
 
 ### 打包注意事项
 
-- `npm run build` / `npm run package` 在 `antlr4ts` 阶段可能受 JVM 默认内存影响
-- 如遇构建内存问题，优先使用：
-  - `JAVA_TOOL_OPTIONS=-Xms64m -Xmx512m`
+- VSIX 只携带当前平台的原生二进制；缺失或不匹配时客户端会给出明确启动错误，不做静默回退
+- 跨平台结果以 CI 的原生平台矩阵为准，不在单台机器上伪装验证其他平台
 
 ## 代码风格与命名约定
 项目使用 TypeScript（`tsconfig.json` 开启 `strict: true`）。保持现有风格：4 空格缩进、显式导入、语句结尾分号。  
-命名规则：类与类型使用 `PascalCase`，函数和变量使用 `camelCase`，文件名按功能命名（如 `completionProvider.ts`）。  
-命令 ID 使用 `lpc.*` 命名空间（如 `lpc.compileFile`）。
+命名规则：类与类型使用 `PascalCase`，函数和变量使用 `camelCase`，文件名按功能命名（如 `errorTreeDataProvider.ts`）。  
+命令 ID 使用 `lpc.*` 命名空间（如 `lpc.compileFile`）。Rust 侧类型用 `PascalCase`，函数与模块用 `snake_case`。
 
 ### 架构命名约定
 
-- `ParsedDocument`
-  - parser 层统一容器
-- `SyntaxDocument` / `SyntaxNode`
-  - 语法结构层
-- `SemanticSnapshot`
-  - 语义摘要层
-- 不要把 parser/syntax/semantic 产物统称为新的 “AST”
+- Rust 侧 parser / syntax / semantic / workspace index 职责独立，不要统称为新的 “AST”
+- 语言事实只从 Rust sidecar 查询；TypeScript 侧不要为同一事实建立第二套实现
 
 ## 测试规范
 测试框架为 Jest + `ts-jest`（见 `jest.config.js`）。测试文件统一使用 `*.test.ts` 或 `*.spec.ts`。  
 涉及 VS Code API 时，优先复用 `tests/mocks/MockVSCode.ts`。  
-新增功能必须附带针对性测试，重点覆盖解析、语法构建、格式化、诊断与命令行为。
+新增功能必须附带针对性测试：TypeScript 宿主行为进 Jest，语言能力进对应 Rust crate 的 `#[test]`，跨进程行为补 `scripts/rust-lsp-smoke.mjs` 场景。
 
 ### 当前重点保护网
 
-- `src/__tests__/parsedDocumentService.test.ts`
-  - 锁定统一解析服务与 trivia 契约
-- `src/__tests__/syntaxBuilder.test.ts`
-  - 锁定 syntax 节点结构与 token-backed range
-- `src/__tests__/semanticModelBuilder.test.ts`
-  - 锁定语义摘要
-- `src/__tests__/providerIntegration.test.ts`
-  - 锁定生产主路径不回退到 legacy parse cache
-- `src/__tests__/formatPrinter.test.ts`
-  - 锁定 printer 规则
-- `src/__tests__/formatterIntegration.test.ts`
-  - 锁定真实文件格式化结果
-- `src/__tests__/rangeFormatting.test.ts`
-  - 锁定选区格式化规则
-- `src/__tests__/yifengDebug.test.ts`
-  - 锁定 `yifeng-jian.c` 的关键 formatter 回归
+- `npm test`
+  - 33 个 Jest 套件 / 173 个测试，覆盖扩展激活、模块装配、LSP 客户端、项目配置、函数文档中心与编译链
+- `npm run test:rust` / `npm run check:rust`
+  - Rust workspace 单测与 clippy
+- `npm run test:rust-smoke`
+  - 原生 sidecar stdio smoke：诊断、补全、签名帮助、宏生命周期、格式化，以及 quickfix 与 range formatting 场景
 
 ### 真实项目 LSP 静态探针
 
-当用户要排查“编辑器为什么报错 / 为什么不跳转 / 为什么不补全 / hover 不对”这类问题时，优先使用本仓库的 LSP 静态探针，而不是直接猜测原因，也不要启动 driver 或走 `lpccp`。探针只模拟 VS Code 打开文件并向 `dist/lsp/server.js` 发 LSP 请求，目标是定位编辑器静态语言能力链路的问题。
+当用户要排查“编辑器为什么报错 / 为什么不跳转 / 为什么不补全 / hover 不对”这类问题时，优先使用本仓库的 LSP 静态探针，而不是直接猜测原因，也不要启动 driver 或走 `lpccp`。探针只模拟 VS Code 打开文件并向 Rust sidecar（`dist/bin/lpc-language-server[.exe]`）发 LSP 请求，目标是定位编辑器静态语言能力链路的问题；旧 `--server` 选项已随 TypeScript server 退役移除。
 
 常用命令：
 

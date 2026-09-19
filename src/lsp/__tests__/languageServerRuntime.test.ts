@@ -17,12 +17,13 @@ describe('language server runtime selection', () => {
         });
     });
 
-    test('keeps an explicit development-only TypeScript override', () => {
+    test('no longer honors a legacy TypeScript server override', () => {
         expect(resolveLanguageServerRuntime(context, {
-            LPC_LANGUAGE_SERVER: 'typescript'
+            LPC_LANGUAGE_SERVER: 'typescript',
+            LPC_RUST_SERVER_PATH: process.execPath
         }, 'win32')).toEqual({
-            kind: 'typescript',
-            module: path.join(extensionRoot, 'dist', 'lsp', 'server.js')
+            kind: 'rust',
+            command: path.resolve(process.execPath)
         });
     });
 

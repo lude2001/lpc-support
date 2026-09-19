@@ -60,68 +60,54 @@ function createPhaseAClientManager(context: vscode.ExtensionContext): LspClientM
 
 function createLanguageClient(context: vscode.ExtensionContext): LanguageClient {
     const runtime = resolveLanguageServerRuntime(context);
-    const serverOptions: ServerOptions = runtime.kind === 'rust'
-        ? {
-            run: {
-                command: runtime.command,
-                transport: TransportKind.stdio,
-                options: {
-                    env: {
-                        ...process.env,
-                        LPC_EXTENSION_ROOT: context.extensionPath,
-                        LPC_INDEX_CACHE_VERSION: String(
-                            context.extension?.packageJSON?.version ?? 'development'
-                        ),
-                        LPC_INDEX_CACHE_ROOT: path.join(
-                            context.globalStorageUri?.fsPath ?? context.extensionPath ?? process.cwd(),
-                            'workspace-index'
-                        )
-                    }
+    const serverOptions: ServerOptions = {
+        run: {
+            command: runtime.command,
+            transport: TransportKind.stdio,
+            options: {
+                env: {
+                    ...process.env,
+                    LPC_EXTENSION_ROOT: context.extensionPath,
+                    LPC_INDEX_CACHE_VERSION: String(
+                        context.extension?.packageJSON?.version ?? 'development'
+                    ),
+                    LPC_INDEX_CACHE_ROOT: path.join(
+                        context.globalStorageUri?.fsPath ?? context.extensionPath ?? process.cwd(),
+                        'workspace-index'
+                    )
                 }
-            },
-            debug: {
-                command: runtime.command,
-                transport: TransportKind.stdio,
-                options: {
-                    env: {
-                        ...process.env,
-                        LPC_EXTENSION_ROOT: context.extensionPath,
-                        LPC_INDEX_CACHE_VERSION: String(
-                            context.extension?.packageJSON?.version ?? 'development'
-                        ),
-                        LPC_INDEX_CACHE_ROOT: path.join(
-                            context.globalStorageUri?.fsPath ?? context.extensionPath ?? process.cwd(),
-                            'workspace-index'
-                        )
-                    }
+            }
+        },
+        debug: {
+            command: runtime.command,
+            transport: TransportKind.stdio,
+            options: {
+                env: {
+                    ...process.env,
+                    LPC_EXTENSION_ROOT: context.extensionPath,
+                    LPC_INDEX_CACHE_VERSION: String(
+                        context.extension?.packageJSON?.version ?? 'development'
+                    ),
+                    LPC_INDEX_CACHE_ROOT: path.join(
+                        context.globalStorageUri?.fsPath ?? context.extensionPath ?? process.cwd(),
+                        'workspace-index'
+                    )
                 }
             }
         }
-        : {
-            run: {
-                module: runtime.module,
-                transport: TransportKind.ipc
-            },
-            debug: {
-                module: runtime.module,
-                transport: TransportKind.ipc
-            }
-        };
+    };
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ language: 'lpc', scheme: 'file' }],
         outputChannel: vscode.window.createOutputChannel('LPC LSP'),
         connectionOptions: {
             maxRestartCount: 3
         },
-        errorHandler: createLspClientErrorHandler(
-            runtime.kind === 'rust' ? 'LPC Support Rust' : 'LPC Support Phase A',
-            3
-        )
+        errorHandler: createLspClientErrorHandler('LPC Support Rust', 3)
     };
 
     return new LanguageClient(
-        runtime.kind === 'rust' ? 'lpc-support-rust' : 'lpc-support-phase-a',
-        runtime.kind === 'rust' ? 'LPC Support Rust' : 'LPC Support Phase A',
+        'lpc-support-rust',
+        'LPC Support Rust',
         serverOptions,
         clientOptions
     );

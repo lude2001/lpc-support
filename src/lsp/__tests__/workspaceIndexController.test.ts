@@ -7,6 +7,28 @@ import {
     WORKSPACE_INDEX_REBUILD_REQUEST
 } from '../shared/protocol/workspaceIndex';
 
+type StatusBarMock = {
+    show: jest.Mock;
+    dispose: jest.Mock;
+    text: string;
+    tooltip: string;
+    command: undefined;
+};
+
+type RebuildResponse = {
+    status: string;
+    totalFiles: number;
+    indexedFiles: number;
+    skippedFiles: number;
+    failedFiles: number;
+    durationMs: number;
+};
+
+type SendRequestMethod = (
+    method: string,
+    params: { workspaces: Array<Record<string, unknown>> }
+) => Promise<RebuildResponse>;
+
 jest.mock('vscode', () => ({
     StatusBarAlignment: {
         Right: 2
@@ -30,10 +52,10 @@ jest.mock('vscode', () => ({
 
 const vscodeMock = jest.requireMock('vscode') as {
     window: {
-        createStatusBarItem: jest.Mock;
-        showInformationMessage: jest.Mock;
-        showWarningMessage: jest.Mock;
-        showErrorMessage: jest.Mock;
+        createStatusBarItem: jest.Mock<() => StatusBarMock>;
+        showInformationMessage: jest.Mock<(...args: unknown[]) => Promise<string | undefined>>;
+        showWarningMessage: jest.Mock<(...args: unknown[]) => Promise<string | undefined>>;
+        showErrorMessage: jest.Mock<(...args: unknown[]) => Promise<string | undefined>>;
     };
     workspace: {
         workspaceFolders: Array<{ uri: { fsPath: string } }>;
@@ -105,7 +127,7 @@ describe('workspace index controller', () => {
                 })]
             })
         );
-        const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value;
+        const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value as StatusBarMock;
         expect(statusBarItem.text).toBe('$(database) LPC Index: Ready');
     });
 
@@ -153,7 +175,7 @@ describe('workspace index controller', () => {
         } as unknown as vscode.ExtensionContext;
         const manager = {
             onNotification: jest.fn(() => ({ dispose: jest.fn() })),
-            sendRequest: jest.fn(async () => ({
+            sendRequest: jest.fn<SendRequestMethod>(async () => ({
                 status: 'ready',
                 totalFiles: 1,
                 indexedFiles: 1,
@@ -250,7 +272,7 @@ describe('workspace index controller', () => {
             failedFiles: 1
         });
 
-        const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value;
+        const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value as StatusBarMock;
         expect(manager.onNotification).toHaveBeenCalledWith(
             WORKSPACE_INDEX_PROGRESS_NOTIFICATION,
             expect.any(Function)
@@ -329,7 +351,7 @@ describe('workspace index controller', () => {
         notificationHandlers.get(WORKSPACE_INDEX_READY_NOTIFICATION)?.(ready);
 
         expect(onIndexReady).toHaveBeenCalledWith(ready);
-        const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value;
+        const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value as StatusBarMock;
         expect(statusBarItem.text).toBe('$(database) LPC Index: Ready');
     });
 });
