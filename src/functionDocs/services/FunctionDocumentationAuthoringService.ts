@@ -19,8 +19,17 @@ export class FunctionDocumentationAuthoringService {
         if (!entry.sourceRange) {
             throw new Error('所选声明缺少可编辑范围。');
         }
+        if (entry.selectionRange) {
+            const selectedName = editor.document.getText(toVsCodeRange(entry.selectionRange));
+            if (selectedName !== entry.name) {
+                throw new Error('函数声明已变化，请刷新文档中心后重试。');
+            }
+        }
 
         if (mode === 'generate' || !entry.documentation.attachedCommentRange) {
+            if (entry.documentation.hasAttachedComment || entry.documentation.attachedCommentRange) {
+                throw new Error('该函数已有文档注释，请使用补全或更新。');
+            }
             const position = new vscode.Position(entry.sourceRange.start.line, 0);
             const indent = getIndent(editor.document.lineAt(entry.sourceRange.start.line).text);
             const eol = getDocumentEol(editor.document);

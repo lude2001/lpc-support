@@ -8,6 +8,9 @@ describe('FunctionDocumentationPanelProtocol', () => {
             entryId: 'file:///safe.c#1:0-2:1',
             revision: 3
         })).toBe(true);
+        expect(isFunctionDocsToExtensionMessage({
+            type: 'generateJavadocWithAi', entryId: 'safe-entry', revision: 3
+        })).toBe(true);
     });
 
     test('rejects arbitrary path actions and malformed revisions', () => {

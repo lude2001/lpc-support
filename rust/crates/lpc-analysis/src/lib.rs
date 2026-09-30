@@ -322,6 +322,7 @@ struct DependencyGraph {
     forward: HashMap<String, HashSet<String>>,
     inherit_forward: HashMap<String, HashSet<String>>,
     reverse: HashMap<String, HashSet<String>>,
+    unresolved_reverse: HashMap<String, HashSet<String>>,
     path_targets: HashMap<String, HashSet<String>>,
     string_macros: HashMap<String, String>,
     macro_locations: HashMap<String, Vec<(String, usize)>>,
@@ -532,13 +533,6 @@ impl AnalysisDatabase {
         if version < 0 && self.files.get(uri).is_some_and(|file| file.version >= 0) {
             return;
         }
-        if self
-            .files
-            .get(uri)
-            .is_some_and(|file| file.version == version && file.revision == revision)
-        {
-            return;
-        }
         let started_at = Instant::now();
         let mut symbols = Vec::new();
         collect_symbols(tree.root_node(), source, &mut symbols);
@@ -656,12 +650,33 @@ impl AnalysisDatabase {
         }
     }
 
+    pub fn document_version(&self, uri: &str) -> Option<i32> {
+        self.files.get(uri).map(|file| file.version)
+    }
+
+    pub fn is_simulated_efun_dependency(&self, uri: &str) -> bool {
+        self.simulated_efun_files
+            .iter()
+            .flat_map(|path| self.path_target_uris(uri, path))
+            .any(|entry| self.visible_uris(&entry).contains(uri))
+    }
+
     pub fn dependent_uris(&mut self, uri: &str) -> Vec<String> {
         self.metrics.query_count += 1;
         let graph = self.dependency_graph();
         let mut visited = HashSet::new();
         let mut pending = vec![uri.to_owned()];
         while let Some(target) = pending.pop() {
+            let normalized = target.replace('\\', "/");
+            for (index, _) in normalized.match_indices('/') {
+                if let Some(consumers) = graph.unresolved_reverse.get(&normalized[index..]) {
+                    for consumer in consumers {
+                        if visited.insert(consumer.clone()) {
+                            pending.push(consumer.clone());
+                        }
+                    }
+                }
+            }
             if let Some(consumers) = graph.reverse.get(&target) {
                 for consumer in consumers {
                     if visited.insert(consumer.clone()) {
@@ -1100,6 +1115,21 @@ impl AnalysisDatabase {
         })
     }
 
+    pub fn simulated_function_documentation_lookup(
+        &mut self,
+        origin_uri: &str,
+    ) -> Option<FunctionDocumentationLookup> {
+        let mut entries = self
+            .simulated_efun_files
+            .iter()
+            .flat_map(|path| self.path_target_uris(origin_uri, path))
+            .collect::<Vec<_>>();
+        entries.sort();
+        entries
+            .into_iter()
+            .find_map(|entry_uri| self.function_documentation_lookup(&entry_uri))
+    }
+
     fn function_documentation_group(
         &self,
         uri: &str,
@@ -1295,7 +1325,7 @@ impl AnalysisDatabase {
             return Vec::new();
         }
 
-        let visible = self.visible_uris(uri);
+        let visible = self.callable_visible_uris(uri);
         let visible_locations = self
             .files
             .iter()
@@ -1441,7 +1471,7 @@ impl AnalysisDatabase {
             });
         }
         let symbols = resolved_symbols(file, &name, offset);
-        let visible = self.visible_uris(uri);
+        let visible = self.callable_visible_uris(uri);
         let mut workspace_symbols = self
             .files
             .iter()
@@ -1798,7 +1828,7 @@ impl AnalysisDatabase {
             .iter()
             .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == name)
             .map(|symbol| (file, symbol));
-        let visible = self.visible_uris(uri);
+        let visible = self.callable_visible_uris(uri);
         let mut workspace_symbols = self
             .files
             .iter()
@@ -2312,6 +2342,13 @@ impl AnalysisDatabase {
                     };
                     let is_inherit = file.inherits.iter().any(|inherit| inherit == dependency);
                     for key in self.dependency_lookup_keys(origin_uri, &resolved_dependency) {
+                        if !path_index.contains_key(&key) {
+                            graph
+                                .unresolved_reverse
+                                .entry(key.clone())
+                                .or_default()
+                                .insert(origin_uri.clone());
+                        }
                         for candidate_uri in path_index.get(&key).into_iter().flatten() {
                             if origin_uri == candidate_uri {
                                 continue;
@@ -2383,6 +2420,16 @@ impl AnalysisDatabase {
                         pending.push(dependency.clone());
                     }
                 }
+            }
+        }
+        visible
+    }
+
+    fn callable_visible_uris(&self, origin_uri: &str) -> HashSet<String> {
+        let mut visible = self.visible_uris(origin_uri);
+        for path in &self.simulated_efun_files {
+            for entry_uri in self.path_target_uris(origin_uri, path) {
+                visible.extend(self.visible_uris(&entry_uri));
             }
         }
         visible
@@ -7342,6 +7389,48 @@ mod tests {
     }
 
     #[test]
+    fn tracks_consumers_of_a_header_before_the_header_is_indexed() {
+        let mut database = database("#include \"future.h\"\nint demo() { return FUTURE; }\n");
+        assert_eq!(
+            database.dependent_uris("file:///mud/future.h"),
+            vec!["file:///demo.c".to_owned()]
+        );
+    }
+
+    #[test]
+    fn reindexes_unchanged_source_when_its_macro_environment_changes() {
+        let source = "#if FEATURE\nint enabled() { return 1; }\n#else\nint disabled() { return 0; }\n#endif\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let mut database = AnalysisDatabase::default();
+        for (value, expected) in [("0", "disabled"), ("1", "enabled")] {
+            let processed = lpc_preprocessor::Preprocessor::with_predefined([(
+                "FEATURE".to_owned(),
+                value.to_owned(),
+            )])
+            .process(source);
+            let tree = parser.parse(&processed.text, None).unwrap();
+            database.index_preprocessed_source(
+                "file:///demo.c",
+                &tree,
+                source,
+                (
+                    &processed.macro_directives,
+                    &processed.initial_definitions,
+                    &processed.includes,
+                    &processed.inactive_regions,
+                ),
+            );
+            let lookup = database
+                .function_documentation_lookup("file:///demo.c")
+                .unwrap();
+            assert_eq!(lookup.current_file.entries[0].name, expected);
+        }
+    }
+
+    #[test]
     fn invalidates_the_dependency_graph_after_document_changes() {
         let source = "inherit \"/std/first\"; void demo() { helper(); }\n";
         let mut database = database(source);
@@ -7752,6 +7841,61 @@ mod tests {
             completion.documentation.as_deref().is_some_and(
                 |documentation| documentation.contains("Simulated call documentation.")
             )
+        );
+    }
+
+    #[test]
+    fn resolves_included_simulated_efun_before_unrelated_workspace_declarations() {
+        let source = "void demo() { chinese_number(1); }\n";
+        let mut database = database(source);
+        database.set_simulated_efun_files(vec!["/adm/single/simul_efun".to_owned()]);
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for (uri, text) in [
+            (
+                "file:///mud/adm/single/simul_efun.c",
+                "#include \"/adm/simul_efun/chinese.c\"\n",
+            ),
+            (
+                "file:///mud/adm/simul_efun/chinese.c",
+                "/** Chinese number documentation. */\nstring chinese_number(int value) { return \"ok\"; }\n",
+            ),
+            (
+                "file:///mud/adm/daemon/chinese.c",
+                "string chinese_number(int value) { return \"other\"; }\n",
+            ),
+        ] {
+            let tree = parser.parse(text, None).unwrap();
+            database.index_source(uri, &tree, text);
+        }
+        let call = source.find("chinese_number").unwrap();
+        let position = byte_to_lsp_position(source, call + 2);
+        let definitions = database.definition("file:///demo.c", position);
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].uri, "file:///mud/adm/simul_efun/chinese.c");
+        let docs = database
+            .simulated_function_documentation_lookup("file:///demo.c")
+            .unwrap();
+        assert!(docs.include_groups.iter().any(|group| {
+            group.uri == "file:///mud/adm/simul_efun/chinese.c"
+                && group
+                    .entries
+                    .iter()
+                    .any(|entry| entry.name == "chinese_number")
+        }));
+        let hover = database.hover("file:///demo.c", position).unwrap();
+        assert!(hover.contents.contains("Chinese number documentation."));
+        let signature = database
+            .signature_help(
+                "file:///demo.c",
+                byte_to_lsp_position(source, call + "chinese_number(1".len()),
+            )
+            .unwrap();
+        assert_eq!(
+            signature.signatures[0].label,
+            "string chinese_number(int value)"
         );
     }
 

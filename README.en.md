@@ -371,6 +371,8 @@ Example:
 
 ## Javadoc Comments
 
+The “Generate Javadoc Comment” command uses the configured GLM model and inserts a result only after the Rust index confirms the target function has no attached documentation. It checks the generated `@brief`, `@param`, and applicable `@return` tags against the function signature and leaves the file untouched if it changes during generation. The function documentation center also offers a free deterministic “Generate Documentation Skeleton” action and a separate “Generate AI Comment” action.
+
 The extension recognizes common Javadoc-style tags:
 
 - `@brief`

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashSet, hash_map::DefaultHasher},
+    collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
     env, fs,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
@@ -62,11 +62,18 @@ enum IndexOutcome {
     Failed,
 }
 
+struct IndexOptions {
+    open_headers: Vec<(PathBuf, String)>,
+    restore_cache: bool,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct WorkspaceIndexController {
     generation: Arc<AtomicU64>,
     definitions: Arc<Mutex<Vec<(String, String)>>>,
     workspaces: Arc<Mutex<Vec<WorkspacePreprocessorConfig>>>,
+    update_sequences: Arc<Mutex<HashMap<String, u64>>>,
+    update_lock: Arc<Mutex<()>>,
 }
 
 impl WorkspaceIndexController {
@@ -75,6 +82,7 @@ impl WorkspaceIndexController {
         roots: Vec<PathBuf>,
         definitions: Vec<(String, String)>,
         workspaces: Vec<WorkspacePreprocessorConfig>,
+        open_headers: Vec<(PathBuf, String)>,
         analysis: Arc<Mutex<AnalysisDatabase>>,
         on_complete: F,
     ) where
@@ -87,13 +95,20 @@ impl WorkspaceIndexController {
             current.clone_from(&workspaces);
         }
         let generation = self.generation.fetch_add(1, Ordering::AcqRel) + 1;
-        if let Ok(mut database) = analysis.lock() {
-            database.clear_indexed();
-        }
         let generation_counter = Arc::clone(&self.generation);
+        let update_lock = Arc::clone(&self.update_lock);
         thread::Builder::new()
             .name("lpc-workspace-index".to_owned())
             .spawn(move || {
+                let Ok(_guard) = update_lock.lock() else {
+                    return;
+                };
+                if generation_counter.load(Ordering::Acquire) != generation {
+                    return;
+                }
+                if let Ok(mut database) = analysis.lock() {
+                    database.clear_indexed();
+                }
                 let result = index_roots(
                     roots,
                     definitions,
@@ -101,7 +116,10 @@ impl WorkspaceIndexController {
                     analysis,
                     generation_counter,
                     generation,
-                    true,
+                    IndexOptions {
+                        open_headers,
+                        restore_cache: true,
+                    },
                 );
                 on_complete(result);
             })
@@ -113,6 +131,7 @@ impl WorkspaceIndexController {
         roots: Vec<PathBuf>,
         definitions: Vec<(String, String)>,
         workspaces: Vec<WorkspacePreprocessorConfig>,
+        open_headers: Vec<(PathBuf, String)>,
         analysis: Arc<Mutex<AnalysisDatabase>>,
     ) -> WorkspaceIndexResult {
         if let Ok(mut current) = self.definitions.lock() {
@@ -122,6 +141,10 @@ impl WorkspaceIndexController {
             current.clone_from(&workspaces);
         }
         let generation = self.generation.fetch_add(1, Ordering::AcqRel) + 1;
+        let _guard = self
+            .update_lock
+            .lock()
+            .expect("workspace index lock poisoned");
         if let Ok(mut database) = analysis.lock() {
             database.clear_indexed();
         }
@@ -132,13 +155,35 @@ impl WorkspaceIndexController {
             analysis,
             Arc::clone(&self.generation),
             generation,
-            false,
+            IndexOptions {
+                open_headers,
+                restore_cache: false,
+            },
         )
     }
 
-    pub fn update_uri(&self, uri: String, analysis: Arc<Mutex<AnalysisDatabase>>) {
+    pub fn update_uri<F>(
+        &self,
+        uri: String,
+        open_headers: Vec<(PathBuf, String)>,
+        analysis: Arc<Mutex<AnalysisDatabase>>,
+        on_complete: F,
+    ) where
+        F: FnOnce(Vec<String>) + Send + 'static,
+    {
         let generation = self.generation.load(Ordering::Acquire);
         let generation_counter = Arc::clone(&self.generation);
+        let sequence = {
+            let mut sequences = self
+                .update_sequences
+                .lock()
+                .expect("update sequences lock poisoned");
+            let next = sequences.entry(uri.clone()).or_default();
+            *next += 1;
+            *next
+        };
+        let sequences = Arc::clone(&self.update_sequences);
+        let update_lock = Arc::clone(&self.update_lock);
         let definitions = self
             .definitions
             .lock()
@@ -150,7 +195,18 @@ impl WorkspaceIndexController {
         thread::Builder::new()
             .name("lpc-workspace-file-update".to_owned())
             .spawn(move || {
+                let Ok(_guard) = update_lock.lock() else {
+                    return;
+                };
                 if generation_counter.load(Ordering::Acquire) != generation {
+                    return;
+                }
+                if sequences
+                    .lock()
+                    .ok()
+                    .and_then(|current| current.get(&uri).copied())
+                    != Some(sequence)
+                {
                     return;
                 }
                 let Ok(url) = Url::parse(&uri) else { return };
@@ -160,6 +216,9 @@ impl WorkspaceIndexController {
                     .map_or_else(|_| Vec::new(), |mut database| database.dependent_uris(&uri));
                 let mut preprocessor = ProjectPreprocessor::default();
                 preprocessor.configure(definitions, workspaces);
+                for (path, source) in open_headers {
+                    preprocessor.set_open_header(&path, &source);
+                }
                 if !path.exists() {
                     if let Ok(mut database) = analysis.lock() {
                         database.remove_indexed(&uri);
@@ -167,11 +226,11 @@ impl WorkspaceIndexController {
                 } else {
                     index_file(&path, &mut preprocessor, &analysis);
                 }
-                for dependent_uri in dependents {
+                for dependent_uri in &dependents {
                     if generation_counter.load(Ordering::Acquire) != generation {
                         return;
                     }
-                    let Ok(dependent_url) = Url::parse(&dependent_uri) else {
+                    let Ok(dependent_url) = Url::parse(dependent_uri) else {
                         continue;
                     };
                     let Ok(dependent_path) = dependent_url.to_file_path() else {
@@ -180,6 +239,11 @@ impl WorkspaceIndexController {
                     if dependent_path.is_file() {
                         index_file(&dependent_path, &mut preprocessor, &analysis);
                     }
+                }
+                if generation_counter.load(Ordering::Acquire) == generation {
+                    let mut affected = vec![uri];
+                    affected.extend(dependents);
+                    on_complete(affected);
                 }
             })
             .expect("failed to start LPC workspace file update thread");
@@ -197,7 +261,7 @@ fn index_roots(
     analysis: Arc<Mutex<AnalysisDatabase>>,
     generation_counter: Arc<AtomicU64>,
     generation: u64,
-    use_cache: bool,
+    options: IndexOptions,
 ) -> WorkspaceIndexResult {
     let started_at = Instant::now();
     let Some(all_files) = source_files_for_generation(&roots, &generation_counter, generation)
@@ -211,7 +275,8 @@ fn index_roots(
     let configuration_fingerprint = configuration_fingerprint(&definitions, &workspaces);
     let cache_paths = workspace_cache_paths(&roots);
     let current_stamps = file_stamps(&all_files);
-    let (files, cached_files) = if use_cache {
+    let can_cache_snapshot = options.open_headers.is_empty();
+    let (files, cached_files) = if options.restore_cache && can_cache_snapshot {
         restore_workspace_cache(
             &all_files,
             &current_stamps,
@@ -239,6 +304,9 @@ fn index_roots(
     }
     let mut preprocessor = ProjectPreprocessor::default();
     preprocessor.configure(definitions, workspaces);
+    for (path, source) in options.open_headers {
+        preprocessor.set_open_header(&path, &source);
+    }
 
     for path in files {
         if generation_counter.load(Ordering::Acquire) != generation {
@@ -254,7 +322,8 @@ fn index_roots(
             IndexOutcome::Failed => result.failed_files += 1,
         }
     }
-    if result.status == "ready"
+    if can_cache_snapshot
+        && result.status == "ready"
         && generation_counter.load(Ordering::Acquire) == generation
         && let Some(cache_paths) = cache_paths.as_ref()
     {
@@ -501,6 +570,12 @@ fn index_file_with_parser(
     let Ok(mut database) = analysis.lock() else {
         return IndexOutcome::Failed;
     };
+    if database
+        .document_version(&uri)
+        .is_some_and(|version| version >= 0)
+    {
+        return IndexOutcome::Indexed;
+    }
     database.index_preprocessed_source(
         &uri,
         &tree,
@@ -623,7 +698,10 @@ mod tests {
             analysis,
             generation,
             1,
-            false,
+            IndexOptions {
+                open_headers: Vec::new(),
+                restore_cache: false,
+            },
         );
 
         assert_eq!(result.status, "cancelled");
@@ -658,6 +736,7 @@ mod tests {
                 root: root.clone(),
                 ..WorkspacePreprocessorConfig::default()
             }],
+            Vec::new(),
             analysis,
             move |result| sender.send(result).unwrap(),
         );
@@ -710,7 +789,10 @@ mod tests {
             Arc::clone(&initial_analysis),
             Arc::new(AtomicU64::new(1)),
             1,
-            false,
+            IndexOptions {
+                open_headers: Vec::new(),
+                restore_cache: false,
+            },
         );
         assert_eq!(initial_result.indexed_files, 4);
         save_workspace_cache(&cache_paths, &fingerprint, &stamps, &initial_analysis);
@@ -797,7 +879,10 @@ mod tests {
             Arc::clone(&analysis),
             generation,
             1,
-            false,
+            IndexOptions {
+                open_headers: Vec::new(),
+                restore_cache: false,
+            },
         );
 
         let caller_uri = source_file_uri(&caller_path).unwrap();
@@ -812,6 +897,45 @@ mod tests {
         assert!(definitions[0].uri.ends_with("helper.c"));
         assert_eq!(analysis.lock().unwrap().metrics().indexed_file_count, 2);
 
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn full_rebuild_uses_open_header_content_for_closed_consumers() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("lpc-open-header-{unique}"));
+        fs::create_dir_all(&root).unwrap();
+        let header = root.join("feature.h");
+        let caller = root.join("caller.c");
+        fs::write(&header, "#define FEATURE 0\n").unwrap();
+        fs::write(&caller, "#include \"feature.h\"\n#if FEATURE\nint enabled() {}\n#else\nint disabled() {}\n#endif\n").unwrap();
+        let analysis = Arc::new(Mutex::new(AnalysisDatabase::default()));
+        let result = index_roots(
+            vec![root.clone()],
+            Vec::new(),
+            vec![WorkspacePreprocessorConfig {
+                root: root.clone(),
+                ..Default::default()
+            }],
+            Arc::clone(&analysis),
+            Arc::new(AtomicU64::new(1)),
+            1,
+            IndexOptions {
+                open_headers: vec![(header, "#define FEATURE 1\n".to_owned())],
+                restore_cache: true,
+            },
+        );
+        assert_eq!(result.status, "ready");
+        let uri = source_file_uri(&caller).unwrap();
+        let lookup = analysis
+            .lock()
+            .unwrap()
+            .function_documentation_lookup(&uri)
+            .unwrap();
+        assert_eq!(lookup.current_file.entries[0].name, "enabled");
         fs::remove_dir_all(root).unwrap();
     }
 }

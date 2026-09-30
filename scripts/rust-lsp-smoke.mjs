@@ -32,12 +32,16 @@ const connection = createMessageConnection(
 );
 let semanticRefreshCount = 0;
 const workspaceIndexReadyNotifications = [];
+const workspaceIndexChangedNotifications = [];
 connection.onRequest('workspace/semanticTokens/refresh', () => {
     semanticRefreshCount += 1;
     return null;
 });
 connection.onNotification('lpc/workspaceIndex/ready', (payload) => {
     workspaceIndexReadyNotifications.push(payload);
+});
+connection.onNotification('lpc/workspaceIndex/changed', (payload) => {
+    workspaceIndexChangedNotifications.push(payload);
 });
 connection.listen();
 
@@ -117,6 +121,32 @@ try {
     if (!Array.isArray(crossFileDefinition) || !crossFileDefinition[0]?.uri?.endsWith('helper.c')) {
         throw new Error(`Rust server missed indexed definition: ${JSON.stringify(crossFileDefinition)}`);
     }
+    const helperUri = pathToFileURL(path.join(smokeWorkspace, 'helper.c')).toString();
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: { uri: helperUri, languageId: 'lpc', version: 1, text: 'int helper() { return 1; }\n' }
+    });
+    connection.sendNotification('textDocument/didChange', {
+        textDocument: { uri: helperUri, version: 2 },
+        contentChanges: [{ text: '/** Unsaved helper documentation. */\nint helper() { return 2; }\n' }]
+    });
+    connection.sendNotification('lpc/sourceFileChange', { uri: helperUri, changeType: 'changed' });
+    await waitForIndexChange(helperUri, 2);
+    const hoverAfterDiskEvent = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri: callerUri },
+        position: { line: 4, character: callerSource.split('\n')[4].indexOf('helper') + 1 }
+    });
+    if (!hoverAfterDiskEvent?.contents?.value?.includes('Unsaved helper documentation')) {
+        throw new Error(`A disk watcher event overwrote an unsaved editor snapshot: ${JSON.stringify(hoverAfterDiskEvent)}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: helperUri } });
+    await waitForIndexChange(helperUri, 2);
+    const definitionAfterClose = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: callerUri },
+        position: { line: 4, character: callerSource.split('\n')[4].indexOf('helper') + 1 }
+    });
+    if (!Array.isArray(definitionAfterClose) || definitionAfterClose[0]?.uri !== helperUri) {
+        throw new Error(`Rust server lost a workspace definition after closing its editor: ${JSON.stringify(definitionAfterClose)}`);
+    }
     const lifecycleSource = 'int lifecycle_probe() { return added_helper(); }\n';
     const lifecycleUri = pathToFileURL(path.join(smokeWorkspace, 'lifecycle.c')).toString();
     const lifecyclePosition = {
@@ -139,14 +169,10 @@ try {
         throw new Error(`Rust server resolved a file before it was added: ${JSON.stringify(definitionBeforeAdd)}`);
     }
     const addedFile = path.join(smokeWorkspace, 'added.c');
+    const addedUri = pathToFileURL(addedFile).toString();
     writeFileSync(addedFile, 'int added_helper() { return 2; }\n');
-    const rebuildAfterAdd = await connection.sendRequest(
-        'lpc/workspaceIndex/rebuild',
-        workspaceIndexRequest
-    );
-    if (rebuildAfterAdd?.status !== 'ready' || rebuildAfterAdd?.indexedFiles !== 6) {
-        throw new Error(`Rust server missed an added workspace file: ${JSON.stringify(rebuildAfterAdd)}`);
-    }
+    connection.sendNotification('lpc/sourceFileChange', { uri: addedUri, changeType: 'created' });
+    await waitForIndexChange(addedUri);
     const definitionAfterAdd = await connection.sendRequest('textDocument/definition', {
         textDocument: { uri: lifecycleUri },
         position: lifecyclePosition
@@ -155,13 +181,8 @@ try {
         throw new Error(`Rust server did not expose an added file: ${JSON.stringify(definitionAfterAdd)}`);
     }
     rmSync(addedFile);
-    const rebuildAfterDelete = await connection.sendRequest(
-        'lpc/workspaceIndex/rebuild',
-        workspaceIndexRequest
-    );
-    if (rebuildAfterDelete?.status !== 'ready' || rebuildAfterDelete?.indexedFiles !== 5) {
-        throw new Error(`Rust server retained a deleted workspace file: ${JSON.stringify(rebuildAfterDelete)}`);
-    }
+    connection.sendNotification('lpc/sourceFileChange', { uri: addedUri, changeType: 'deleted' });
+    await waitForIndexChange(addedUri);
     const definitionAfterDelete = await connection.sendRequest('textDocument/definition', {
         textDocument: { uri: lifecycleUri },
         position: lifecyclePosition
@@ -170,6 +191,73 @@ try {
         throw new Error(`Rust server resolved a deleted file: ${JSON.stringify(definitionAfterDelete)}`);
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: lifecycleUri } });
+
+    const futureCallerFile = path.join(smokeWorkspace, 'future-caller.c');
+    const futureCallerUri = pathToFileURL(futureCallerFile).toString();
+    writeFileSync(futureCallerFile, '#include "future.h"\n#if FUTURE_FLAG\nint enabled_by_future() { return 1; }\n#else\nint disabled_by_future() { return 0; }\n#endif\n');
+    connection.sendNotification('lpc/sourceFileChange', { uri: futureCallerUri, changeType: 'created' });
+    await waitForIndexChange(futureCallerUri);
+    const beforeFutureHeader = await connection.sendRequest('lpc/functionDocumentation', {
+        textDocument: { uri: futureCallerUri }
+    });
+    if (!beforeFutureHeader?.currentFile?.entries?.some(entry => entry.name === 'disabled_by_future')) {
+        throw new Error(`Closed caller did not index before its header existed: ${JSON.stringify(beforeFutureHeader)}`);
+    }
+    const futureHeaderFile = path.join(smokeWorkspace, 'future.h');
+    const futureHeaderUri = pathToFileURL(futureHeaderFile).toString();
+    writeFileSync(futureHeaderFile, '#define FUTURE_FLAG 1\n');
+    connection.sendNotification('lpc/sourceFileChange', { uri: futureHeaderUri, changeType: 'created' });
+    await waitForIndexChange(futureHeaderUri);
+    const afterFutureHeader = await connection.sendRequest('lpc/functionDocumentation', {
+        textDocument: { uri: futureCallerUri }
+    });
+    if (!afterFutureHeader?.currentFile?.entries?.some(entry => entry.name === 'enabled_by_future')
+        || afterFutureHeader.currentFile.entries.some(entry => entry.name === 'disabled_by_future')) {
+        throw new Error(`Creating a previously unresolved header did not refresh its closed consumer: ${JSON.stringify(afterFutureHeader)}`);
+    }
+
+    const headerUri = pathToFileURL(path.join(smokeWorkspace, 'macros.h')).toString();
+    const diskHeader = '/** Root directory. */\n#define ROOT_DIR "/data"\n#define MAX(left, right) ((left) > (right) ? (left) : (right))\n';
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: { uri: headerUri, languageId: 'lpc', version: 1, text: diskHeader }
+    });
+    const changedHeader = diskHeader.replace('"/data"', '"/live"');
+    connection.sendNotification('textDocument/didChange', {
+        textDocument: { uri: headerUri, version: 2 }, contentChanges: [{ text: changedHeader }]
+    });
+    await waitForIndexChange(headerUri, 2);
+    const liveRootHover = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri: callerUri }, position: { line: 1, character: callerSource.split('\n')[1].indexOf('ROOT_DIR') + 1 }
+    });
+    if (!liveRootHover?.contents?.value?.includes('"/live"')) {
+        throw new Error(`Unsaved header edit did not refresh dependent hover: ${JSON.stringify(liveRootHover)}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: headerUri } });
+    await waitForHoverText({
+        textDocument: { uri: callerUri }, position: { line: 1, character: callerSource.split('\n')[1].indexOf('ROOT_DIR') + 1 }
+    }, '"/data"');
+
+    const simulUri = pathToFileURL(path.join(simulatedDirectory, 'simul_efun.c')).toString();
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: { uri: simulUri, languageId: 'lpc', version: 1, text: 'int simul_call() { return 1; }\n' }
+    });
+    connection.sendNotification('textDocument/didChange', {
+        textDocument: { uri: simulUri, version: 2 },
+        contentChanges: [{ text: '/** Updated simulated call. */\nint simul_call() { return 2; }\n' }]
+    });
+    const liveSimulHover = await connection.sendRequest('textDocument/hover', {
+        textDocument: { uri: callerUri }, position: { line: 4, character: callerSource.split('\n')[4].indexOf('simul_call') + 1 }
+    });
+    if (!liveSimulHover?.contents?.value?.includes('Updated simulated call')) {
+        throw new Error(`Unsaved simulated-function edit did not refresh hover: ${JSON.stringify(liveSimulHover)}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: simulUri } });
+    const restoredSimulHover = await waitForHoverText({
+        textDocument: { uri: callerUri }, position: { line: 4, character: callerSource.split('\n')[4].indexOf('simul_call') + 1 }
+    }, 'int simul_call');
+    if (restoredSimulHover?.contents?.value?.includes('Updated simulated call')) {
+        throw new Error(`Closing unsaved simulated function did not restore disk semantics: ${JSON.stringify(restoredSimulHover)}`);
+    }
     const callerSemanticTokens = await connection.sendRequest('textDocument/semanticTokens/full', {
         textDocument: { uri: callerUri }
     });
@@ -739,4 +827,35 @@ function decodeSemanticTokens(data) {
         });
     }
     return tokens;
+}
+
+async function waitForIndexChange(uri, expectedCount = 1) {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+        const matching = workspaceIndexChangedNotifications.filter(
+            payload => payload?.uris?.includes(uri)
+        );
+        if (matching.length >= expectedCount) {
+            for (let count = 0; count < expectedCount; count += 1) {
+                const index = workspaceIndexChangedNotifications.findIndex(
+                    payload => payload?.uris?.includes(uri)
+                );
+                workspaceIndexChangedNotifications.splice(index, 1);
+            }
+            return;
+        }
+        await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    throw new Error(`Timed out waiting for ${expectedCount} index change notification(s) for ${uri}`);
+}
+
+async function waitForHoverText(params, expectedText) {
+    const deadline = Date.now() + 5000;
+    let last;
+    while (Date.now() < deadline) {
+        last = await connection.sendRequest('textDocument/hover', params);
+        if (last?.contents?.value?.includes(expectedText)) return last;
+        await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    throw new Error(`Timed out waiting for updated hover ${expectedText}: ${JSON.stringify(last)}`);
 }

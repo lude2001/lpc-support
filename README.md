@@ -400,6 +400,8 @@ get_actor(id)->query_name();
 
 ## Javadoc 注释
 
+命令“生成 Javadoc 注释”调用配置的 GLM 模型，只在 Rust 索引确认目标函数没有已附着文档时插入结果。返回内容必须包含与函数签名一致的 `@brief`、`@param` 和需要的 `@return`；生成期间文件发生变化时不会写入。函数文档中心另提供无需 API 的“生成文档骨架”，以及明确标注的“AI 生成注释”入口。
+
 扩展识别常见 Javadoc 风格标签：
 
 - `@brief`

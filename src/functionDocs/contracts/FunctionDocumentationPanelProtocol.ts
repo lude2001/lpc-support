@@ -153,6 +153,7 @@ export type FunctionDocsToExtensionMessage =
     | { type: 'refresh'; sessionId: string }
     | { type: 'goToDefinition'; entryId: string; revision: number }
     | { type: 'findReferences'; entryId: string; revision: number }
+    | { type: 'generateJavadocWithAi'; entryId: string; revision: number }
     | {
         type: 'searchExternal';
         requestId: string;
@@ -179,6 +180,7 @@ export function isFunctionDocsToExtensionMessage(value: unknown): value is Funct
             return typeof message.sessionId === 'string';
         case 'goToDefinition':
         case 'findReferences':
+        case 'generateJavadocWithAi':
             return typeof message.entryId === 'string'
                 && message.entryId.length > 0
                 && typeof message.revision === 'number'

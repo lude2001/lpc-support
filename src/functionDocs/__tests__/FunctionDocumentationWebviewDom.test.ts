@@ -81,6 +81,26 @@ function createHarness(): { dom: JSDOM; postMessage: jest.Mock<(message: PanelOu
 }
 
 describe('function documentation Webview DOM', () => {
+    test('offers separate skeleton and AI actions for an undocumented local function', () => {
+        const snapshot = createSnapshot();
+        snapshot.entries[0].documentation = { hasAttachedComment: false };
+        snapshot.entries[0].quality = { status: 'incomplete', issues: [], action: 'generate' };
+        snapshot.entries[0].capabilities.canGenerateDocumentation = true;
+        const { dom, postMessage } = createHarness();
+        dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
+            data: { type: 'snapshot', payload: snapshot }
+        }));
+
+        const buttons = [...dom.window.document.querySelectorAll('.action-line button')] as HTMLButtonElement[];
+        expect(buttons.map((button) => button.textContent)).toEqual(expect.arrayContaining([
+            '生成文档骨架', 'AI 生成注释'
+        ]));
+        buttons.find((button) => button.textContent === 'AI 生成注释')!.click();
+        expect(postMessage).toHaveBeenCalledWith({
+            type: 'generateJavadocWithAi', entryId: 'die-entry', revision: 7
+        });
+    });
+
     test('renders the real die fixture and keeps hostile workspace content inert', () => {
         const { dom, postMessage } = createHarness();
         expect(postMessage).toHaveBeenCalledWith({ type: 'ready', protocolVersion: 2 });

@@ -216,6 +216,12 @@ export class FunctionDocPanel {
                 } else {
                     await this.postActionResult(false, '当前声明不允许执行该文档操作。');
                 }
+            } else if (message.type === 'generateJavadocWithAi') {
+                if (entry.capabilities.canGenerateDocumentation) {
+                    await this.generateJavadocWithAi(entry);
+                } else {
+                    await this.postActionResult(false, '当前声明不允许生成 AI 注释。');
+                }
             } else {
                 await this.postActionResult(false, '当前声明不支持该操作。');
             }
@@ -523,6 +529,27 @@ export class FunctionDocPanel {
         }
         await this.update(document, true);
         await this.postActionResult(true, mode === 'generate' ? '文档骨架已生成。' : '文档缺失项已补全。');
+    }
+
+    public static refreshAfterIndexChange(): void {
+        const current = FunctionDocPanel.currentPanel;
+        if (current?.currentDocument) {
+            current.scheduleRefresh(current.currentDocument, true);
+        }
+    }
+
+    private async generateJavadocWithAi(entry: FunctionDocumentationPanelEntry): Promise<void> {
+        if (!entry.sourceUri || !(entry.selectionRange ?? entry.sourceRange)) {
+            await this.postActionResult(false, '当前声明缺少可编辑位置。');
+            return;
+        }
+        const document = await this.textDocumentHost.openTextDocument(vscode.Uri.parse(entry.sourceUri));
+        const position = toVsCodeRange(entry.selectionRange ?? entry.sourceRange!).start;
+        await vscode.window.showTextDocument(document, {
+            preview: false,
+            selection: new vscode.Range(position, position)
+        });
+        await vscode.commands.executeCommand('lpc.generateJavadoc');
     }
 
     private async postActionResult(ok: boolean, message: string): Promise<void> {

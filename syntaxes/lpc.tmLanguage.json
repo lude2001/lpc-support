@@ -207,12 +207,36 @@
 	],
 	"repository": {
 		"preprocessorDisabled": {
-			"name": "comment.block.preprocessor.lpc",
-			"begin": "^\\s*#\\s*if\\s+0\\b.*$",
-			"end": "^\\s*#\\s*endif\\b.*$",
+			"name": "meta.preprocessor.disabled.lpc",
+			"contentName": "comment.block.preprocessor.lpc",
+			"comment": "Only a literal zero is known inactive lexically; stop at a sibling branch and leave expression evaluation to Rust.",
+			"begin": "^\\s*(#\\s*(?:if|elif))\\s+0\\s*(?:/\\*.*?\\*/\\s*)*(?://.*)?$",
+			"beginCaptures": {
+				"1": { "name": "keyword.control.preprocessor.conditional.lpc" }
+			},
+			"end": "(?=^\\s*#\\s*(?:else|elif|endif)\\b)",
 			"patterns": [
 				{ "include": "#comments" },
-				{ "include": "#strings" }
+				{ "include": "#strings" },
+				{ "include": "#heredoc" },
+				{ "include": "#preprocessorDisabledNested" }
+			]
+		},
+		"preprocessorDisabledNested": {
+			"name": "meta.preprocessor.disabled.nested.lpc",
+			"begin": "^\\s*(#\\s*(?:if|ifdef|ifndef))\\b.*$",
+			"beginCaptures": {
+				"1": { "name": "keyword.control.preprocessor.conditional.lpc" }
+			},
+			"end": "^\\s*(#\\s*endif)\\b",
+			"endCaptures": {
+				"1": { "name": "keyword.control.preprocessor.conditional.lpc" }
+			},
+			"patterns": [
+				{ "include": "#comments" },
+				{ "include": "#strings" },
+				{ "include": "#heredoc" },
+				{ "include": "#preprocessorDisabledNested" }
 			]
 		},
 		"comments": {

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import axios, { AxiosInstance } from 'axios';
+import { DocCommentTagParser } from './language/documentation/DocCommentTagParser';
 
 export interface GLM4Config {
     apiKey: string;
@@ -18,7 +19,14 @@ export interface GLM4Response {
         message: {
             content: string;
         };
+        finish_reason?: string;
     }>;
+}
+
+export interface JavadocContract {
+    name: string;
+    parameters: string[];
+    returnType?: string;
 }
 
 export class GLM4Client {
@@ -270,7 +278,7 @@ export class GLM4Client {
         return modelId.trim();
     }
 
-    public async generateJavadoc(functionCode: string): Promise<string> {
+    public async generateJavadoc(functionCode: string, contract?: JavadocContract): Promise<string> {
         const systemPrompt = `你是一个专业的LPC语言代码文档生成助手。请为给定的LPC函数生成中文Javadoc风格的注释。
 
 注释格式要求：
@@ -280,10 +288,11 @@ export class GLM4Client {
    - @param 参数名 参数描述（如果有参数）
    - @return 返回值描述（如果有返回值）
    - @details 详细说明（如果需要）
-3. 注释应该解释**为什么**这样写，而不是**如何**工作
+3. 只描述能从代码证明的行为、参数与返回值；无法证明时写 TODO，不要猜测运行时效果
 4. 使用中文描述
 5. 不要包含原始代码，只返回注释
-6. 请直接返回注释内容，不要包含任何思考过程
+6. 请直接返回一个完整的 /** ... */ 注释块，不要包含代码、Markdown 围栏或思考过程
+7. @param 必须使用实际参数名，不要编造参数；void 函数不要写 @return
 
 示例格式：
 /**
@@ -294,7 +303,10 @@ export class GLM4Client {
  * @details 该函数会在 /common/bind_obj/ 目录下查找或创建绑定物品文件。
  */`;
 
-        const userPrompt = `请为以下LPC函数生成Javadoc注释：
+        const signatureFacts = contract
+            ? `\n函数名：${contract.name}\n参数名：${contract.parameters.join('、') || '无'}\n返回类型：${contract.returnType || '未知'}\n`
+            : '';
+        const userPrompt = `请为以下LPC函数生成Javadoc注释：${signatureFacts}
 
 ${functionCode}`;
 
@@ -312,14 +324,17 @@ ${functionCode}`;
                 stream: false
             });
 
-            const content = response.data.choices[0]?.message?.content;
+            const choice = response.data.choices[0];
+            if (choice?.finish_reason === 'length') {
+                throw new Error('模型输出被截断，未写入注释；请缩短选区或调整模型。');
+            }
+            const content = choice?.message?.content;
             if (!content) {
                 throw new Error('GLM-4 API返回的内容为空');
             }
 
             // 过滤掉think内容和其他非注释内容
-            const cleanedContent = this.filterThinkContent(content);
-            return cleanedContent;
+            return validateGeneratedJavadoc(this.filterThinkContent(content), contract);
         } catch (error) {
             if (axios.isAxiosError(error)) {
                 const message = error.response?.data?.error?.message || error.message;
@@ -336,7 +351,7 @@ ${functionCode}`;
      */
     private filterThinkContent(content: string): string {
         // 移除各种可能的think标签格式
-        let cleaned = content
+        return content
             // 移除<think>...</think>标签及其内容
             .replace(/<think[\s\S]*?<\/think>/gi, '')
             // 移除<thinking>...</thinking>标签及其内容
@@ -348,40 +363,45 @@ ${functionCode}`;
             .replace(/^思考：[\s\S]*?(?=\/\*\*)/im, '')
             .replace(/^思考过程：[\s\S]*?(?=\/\*\*)/im, '')
             .replace(/^Thinking:[\s\S]*?(?=\/\*\*)/im, '');
-
-        // 提取Javadoc注释块
-        const javadocMatch = cleaned.match(/\/\*\*[\s\S]*?\*\//);
-        if (javadocMatch) {
-            return javadocMatch[0].trim();
-        }
-
-        // 如果没有找到标准的Javadoc格式，尝试提取其他格式的注释
-        const blockCommentMatch = cleaned.match(/\/\*[\s\S]*?\*\//);
-        if (blockCommentMatch) {
-            return blockCommentMatch[0].trim();
-        }
-
-        // 如果仍然没有找到注释，检查是否包含@brief等标签
-        if (cleaned.includes('@brief') || cleaned.includes('@param') || cleaned.includes('@return')) {
-            // 包装成标准Javadoc格式
-            const lines = cleaned.trim().split('\n');
-            const formattedLines = lines.map(line => {
-                const trimmedLine = line.trim();
-                if (trimmedLine && !trimmedLine.startsWith('*') && !trimmedLine.startsWith('/**') && !trimmedLine.startsWith('*/')) {
-                    return ' * ' + trimmedLine;
-                }
-                return line;
-            });
-            
-            return '/**\n' + formattedLines.join('\n') + '\n */';
-        }
-
-        // 最后的回退：返回清理后的内容
-        const trimmed = cleaned.trim();
-        if (trimmed && !trimmed.startsWith('/**')) {
-            return `/**\n * ${trimmed}\n */`;
-        }
-
-        return trimmed || '/** \n * 无法生成有效的Javadoc注释\n */';
     }
+}
+
+export function validateGeneratedJavadoc(content: string, contract?: JavadocContract): string {
+    const blocks = content.match(/\/\*\*[\s\S]*?\*\//gu) ?? [];
+    if (blocks.length !== 1) {
+        throw new Error('模型未返回唯一的 Javadoc 注释块，未写入源码。');
+    }
+    const comment = blocks[0].replace(/\r\n/gu, '\n').trim();
+    const bodyLines = comment.split('\n').slice(1, -1);
+    if (bodyLines.some((line) => line.trim() && !/^\s*\*(?:\s|$)/u.test(line))) {
+        throw new Error('模型返回的 Javadoc 格式不完整，未写入源码。');
+    }
+    const parsed = new DocCommentTagParser().parse({
+        kind: 'javadoc',
+        text: comment,
+        range: {
+            start: { line: 0, character: 0 },
+            end: { line: bodyLines.length + 1, character: 2 }
+        }
+    }, contract?.returnType);
+    if (!parsed.summary?.trim() || parsed.malformedParamTagCount > 0 || parsed.duplicateReturnTagCount > 0) {
+        throw new Error('模型返回的 Javadoc 缺少摘要或包含无效标签，未写入源码。');
+    }
+    if (contract) {
+        const expected = new Set(contract.parameters);
+        const actual = parsed.params.map((parameter) => parameter.name);
+        if (actual.length !== expected.size
+            || new Set(actual).size !== actual.length
+            || actual.some((name) => !expected.has(name))
+            || parsed.params.some((parameter) => !parameter.description?.trim())) {
+            throw new Error('模型生成的 @param 与当前函数签名不一致，未写入源码。');
+        }
+        if (contract.returnType === 'void' && parsed.returns) {
+            throw new Error('void 函数的注释包含 @return，未写入源码。');
+        }
+        if (contract.returnType && contract.returnType !== 'void' && !parsed.returns?.description?.trim()) {
+            throw new Error('模型生成的注释缺少返回值说明，未写入源码。');
+        }
+    }
+    return comment;
 }

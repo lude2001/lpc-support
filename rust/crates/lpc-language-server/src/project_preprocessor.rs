@@ -36,6 +36,7 @@ pub struct ProjectPreprocessor {
     workspaces: Vec<WorkspacePreprocessorConfig>,
     header_cache: HeaderCache,
     header_relevance_cache: HashMap<PathBuf, HeaderRelevance>,
+    open_headers: HashMap<PathBuf, String>,
 }
 
 impl ProjectPreprocessor {
@@ -53,6 +54,17 @@ impl ProjectPreprocessor {
     pub fn clear_cache(&mut self) {
         self.header_cache.clear();
         self.header_relevance_cache.clear();
+    }
+
+    pub fn set_open_header(&mut self, path: &Path, source: &str) {
+        self.open_headers
+            .insert(canonical_header_path(path), source.to_owned());
+        self.clear_cache();
+    }
+
+    pub fn remove_open_header(&mut self, path: &Path) {
+        self.open_headers.remove(&canonical_header_path(path));
+        self.clear_cache();
     }
 
     pub fn process(&mut self, path: Option<&Path>, source: &str) -> PreprocessedDocument {
@@ -94,11 +106,16 @@ impl ProjectPreprocessor {
         definitions: HashMap<String, String>,
         visited: &mut HashSet<PathBuf>,
     ) -> HashMap<String, String> {
-        let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        let canonical = canonical_header_path(path);
         let relevance = if let Some(cached) = self.header_relevance_cache.get(&canonical) {
             cached.clone()
         } else {
-            let computed = header_relevance(&canonical, workspace, &mut HashSet::new());
+            let computed = header_relevance(
+                &canonical,
+                workspace,
+                &self.open_headers,
+                &mut HashSet::new(),
+            );
             self.header_relevance_cache
                 .insert(canonical.clone(), computed.clone());
             computed
@@ -114,7 +131,12 @@ impl ProjectPreprocessor {
         if !visited.insert(canonical.clone()) {
             return definitions;
         }
-        let Ok(source) = fs::read_to_string(&canonical) else {
+        let Some(source) = self
+            .open_headers
+            .get(&canonical)
+            .cloned()
+            .or_else(|| fs::read_to_string(&canonical).ok())
+        else {
             visited.remove(&canonical);
             return definitions;
         };
@@ -183,13 +205,18 @@ fn header_cache_key(relevance: &HeaderRelevance, definitions: &MacroEnvironment)
 fn header_relevance(
     path: &Path,
     workspace: &WorkspacePreprocessorConfig,
+    open_headers: &HashMap<PathBuf, String>,
     visited: &mut HashSet<PathBuf>,
 ) -> HeaderRelevance {
-    let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let canonical = canonical_header_path(path);
     if !visited.insert(canonical.clone()) {
         return HeaderRelevance::default();
     }
-    let Ok(source) = fs::read_to_string(&canonical) else {
+    let Some(source) = open_headers
+        .get(&canonical)
+        .cloned()
+        .or_else(|| fs::read_to_string(&canonical).ok())
+    else {
         return HeaderRelevance::default();
     };
     let mut relevance = HeaderRelevance::default();
@@ -227,12 +254,16 @@ fn header_relevance(
             continue;
         };
         if let Some(nested) = resolve_include(Some(&canonical), &include, system, workspace) {
-            let nested = header_relevance(&nested, workspace, visited);
+            let nested = header_relevance(&nested, workspace, open_headers, visited);
             relevance.names.extend(nested.names);
             relevance.full_environment |= nested.full_environment;
         }
     }
     relevance
+}
+
+fn canonical_header_path(path: &Path) -> PathBuf {
+    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn logical_directives(source: &str) -> Vec<String> {

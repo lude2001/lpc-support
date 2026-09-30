@@ -22,6 +22,7 @@ use url::Url;
 
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 const WORKSPACE_INDEX_READY_NOTIFICATION: &str = "lpc/workspaceIndex/ready";
+const WORKSPACE_INDEX_CHANGED_NOTIFICATION: &str = "lpc/workspaceIndex/changed";
 const SEMANTIC_TOKENS_REFRESH_REQUEST: &str = "workspace/semanticTokens/refresh";
 
 #[derive(Debug, Deserialize)]
@@ -372,6 +373,7 @@ fn run(
                         roots,
                         definitions,
                         preprocessor_workspaces,
+                        open_header_overlays(&documents),
                         Arc::clone(&analysis),
                     );
                     if result.status == "ready" {
@@ -525,6 +527,7 @@ fn run(
                             .collect(),
                         definitions,
                         preprocessor_workspaces,
+                        open_header_overlays(&documents),
                         Arc::clone(&analysis),
                         move |result| {
                             if result.status != "ready" {
@@ -585,9 +588,62 @@ fn run(
                             )?;
                         }
                     }
-                    workspace_index.update_uri(params.uri, Arc::clone(&analysis));
+                    let sender = connection.sender.clone();
+                    let open_documents = documents.iter().cloned().collect::<Vec<_>>();
+                    let analysis_for_refresh = Arc::clone(&analysis);
+                    let refresh_request_id = semantic_tokens_refresh_supported.then(|| {
+                        let id = next_server_request_id;
+                        next_server_request_id -= 1;
+                        id
+                    });
+                    workspace_index.update_uri(params.uri, open_header_overlays(&documents), Arc::clone(&analysis), move |affected| {
+                        if let Ok(mut database) = analysis_for_refresh.lock() {
+                            for document in &open_documents {
+                                if database.document_version(&document.uri) != Some(document.version) {
+                                    continue;
+                                }
+                                let diagnostics = database.diagnostics(&document.uri);
+                                let _ = sender.send(Message::Notification(Notification::new(
+                                    "textDocument/publishDiagnostics".to_owned(),
+                                    json!({ "uri": document.uri, "version": document.version, "diagnostics": diagnostics }),
+                                )));
+                            }
+                        }
+                        let _ = sender.send(Message::Notification(Notification::new(
+                            WORKSPACE_INDEX_CHANGED_NOTIFICATION.to_owned(),
+                            json!({ "uris": affected }),
+                        )));
+                        if let Some(refresh_request_id) = refresh_request_id {
+                            let _ = sender.send(Message::Request(Request::new(
+                                RequestId::from(refresh_request_id),
+                                SEMANTIC_TOKENS_REFRESH_REQUEST.to_owned(),
+                                Value::Null,
+                            )));
+                        }
+                    });
                     continue;
                 }
+                let document_change_uri = matches!(
+                    notification.method.as_str(),
+                    "textDocument/didOpen" | "textDocument/didChange" | "textDocument/didClose"
+                )
+                .then(|| {
+                    notification
+                        .params
+                        .pointer("/textDocument/uri")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                })
+                .flatten();
+                let closed_uri = (notification.method == "textDocument/didClose")
+                    .then(|| document_change_uri.clone())
+                    .flatten();
+                let cross_file_refresh_before = document_change_uri.as_ref().is_some_and(|uri| {
+                    analysis.lock().ok().is_some_and(|mut database| {
+                        !database.dependent_uris(uri).is_empty()
+                            || database.is_simulated_efun_dependency(uri)
+                    })
+                });
                 let mut database = analysis
                     .lock()
                     .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
@@ -598,6 +654,79 @@ fn run(
                     &mut syntax,
                     &mut database,
                 )?;
+                drop(database);
+                if let Some(uri) = document_change_uri {
+                    if is_header_uri(&uri) && closed_uri.is_none() {
+                        let sender = connection.sender.clone();
+                        workspace_index.update_uri(
+                            uri.clone(),
+                            open_header_overlays(&documents),
+                            Arc::clone(&analysis),
+                            move |affected| {
+                                let _ = sender.send(Message::Notification(Notification::new(
+                                    WORKSPACE_INDEX_CHANGED_NOTIFICATION.to_owned(),
+                                    json!({ "uris": affected }),
+                                )));
+                            },
+                        );
+                    }
+                    connection
+                        .sender
+                        .send(Message::Notification(Notification::new(
+                            WORKSPACE_INDEX_CHANGED_NOTIFICATION.to_owned(),
+                            json!({ "uris": [uri] }),
+                        )))?;
+                    if semantic_tokens_refresh_supported
+                        && (is_header_uri(&uri) || cross_file_refresh_before)
+                    {
+                        connection.sender.send(Message::Request(Request::new(
+                            RequestId::from(next_server_request_id),
+                            SEMANTIC_TOKENS_REFRESH_REQUEST.to_owned(),
+                            Value::Null,
+                        )))?;
+                        next_server_request_id -= 1;
+                    }
+                }
+                if let Some(uri) = closed_uri {
+                    let sender = connection.sender.clone();
+                    let open_documents = documents.iter().cloned().collect::<Vec<_>>();
+                    let analysis_for_refresh = Arc::clone(&analysis);
+                    let refresh_request_id = semantic_tokens_refresh_supported.then(|| {
+                        let id = next_server_request_id;
+                        next_server_request_id -= 1;
+                        id
+                    });
+                    workspace_index.update_uri(
+                        uri,
+                        open_header_overlays(&documents),
+                        Arc::clone(&analysis),
+                        move |affected| {
+                            if let Ok(mut database) = analysis_for_refresh.lock() {
+                                for document in &open_documents {
+                                    if database.document_version(&document.uri) != Some(document.version) {
+                                        continue;
+                                    }
+                                    let diagnostics = database.diagnostics(&document.uri);
+                                    let _ = sender.send(Message::Notification(Notification::new(
+                                        "textDocument/publishDiagnostics".to_owned(),
+                                        json!({ "uri": document.uri, "version": document.version, "diagnostics": diagnostics }),
+                                    )));
+                                }
+                            }
+                            let _ = sender.send(Message::Notification(Notification::new(
+                                WORKSPACE_INDEX_CHANGED_NOTIFICATION.to_owned(),
+                                json!({ "uris": affected }),
+                            )));
+                            if let Some(refresh_request_id) = refresh_request_id {
+                                let _ = sender.send(Message::Request(Request::new(
+                                    RequestId::from(refresh_request_id),
+                                    SEMANTIC_TOKENS_REFRESH_REQUEST.to_owned(),
+                                    Value::Null,
+                                )));
+                            }
+                        },
+                    );
+                }
             }
             Message::Response(_) => {}
         }
@@ -746,6 +875,15 @@ fn handle_request(
             connection,
             request.id,
             analysis.function_documentation_lookup(&params.text_document.uri),
+        );
+    }
+
+    if request.method == "lpc/simulatedFunctionDocumentation" {
+        let params: DocumentVariablesParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.simulated_function_documentation_lookup(&params.text_document.uri),
         );
     }
 
@@ -1014,6 +1152,9 @@ fn handle_notification(
             let document = documents
                 .get(&uri)
                 .context("opened document was not retained")?;
+            if is_header_uri(&uri) {
+                syntax.set_open_header(&uri, &document.text);
+            }
             let snapshot = syntax.open(document)?;
             analysis.update_preprocessed(
                 &uri,
@@ -1034,6 +1175,9 @@ fn handle_notification(
                 params.text_document.version,
                 analysis.diagnostics(&uri),
             )?;
+            if is_header_uri(&uri) {
+                refresh_other_open_documents(connection, documents, syntax, analysis, &uri)?;
+            }
         }
         "textDocument/didChange" => {
             let params: DidChangeParams = serde_json::from_value(notification.params)?;
@@ -1043,6 +1187,9 @@ fn handle_notification(
             let document = documents
                 .get(&uri)
                 .context("changed document was not retained")?;
+            if is_header_uri(&uri) {
+                syntax.set_open_header(&uri, &document.text);
+            }
             let snapshot =
                 syntax.change(document, &change.edits, change.contains_full_replacement)?;
             analysis.update_preprocessed(
@@ -1059,14 +1206,97 @@ fn handle_notification(
                 ),
             );
             publish_diagnostics(connection, uri.clone(), version, analysis.diagnostics(&uri))?;
+            if is_header_uri(&uri) {
+                refresh_other_open_documents(connection, documents, syntax, analysis, &uri)?;
+            } else {
+                let dependents = analysis.dependent_uris(&uri);
+                for dependent in documents
+                    .iter()
+                    .filter(|document| dependents.contains(&document.uri))
+                {
+                    publish_diagnostics(
+                        connection,
+                        dependent.uri.clone(),
+                        dependent.version,
+                        analysis.diagnostics(&dependent.uri),
+                    )?;
+                }
+            }
         }
         "textDocument/didClose" => {
             let params: DidCloseParams = serde_json::from_value(notification.params)?;
             documents.close(&params.text_document.uri);
             syntax.close(&params.text_document.uri);
             analysis.remove(&params.text_document.uri);
+            if is_header_uri(&params.text_document.uri) {
+                syntax.remove_open_header(&params.text_document.uri);
+                refresh_other_open_documents(
+                    connection,
+                    documents,
+                    syntax,
+                    analysis,
+                    &params.text_document.uri,
+                )?;
+            }
         }
         _ => {}
+    }
+    Ok(())
+}
+
+fn is_header_uri(uri: &str) -> bool {
+    Url::parse(uri)
+        .ok()
+        .and_then(|uri| uri.to_file_path().ok())
+        .is_some_and(|path| {
+            path.extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("h"))
+        })
+}
+
+fn open_header_overlays(documents: &DocumentStore) -> Vec<(PathBuf, String)> {
+    documents
+        .iter()
+        .filter(|document| is_header_uri(&document.uri))
+        .filter_map(|document| {
+            let path = Url::parse(&document.uri).ok()?.to_file_path().ok()?;
+            Some((path, document.text.clone()))
+        })
+        .collect()
+}
+
+fn refresh_other_open_documents(
+    connection: &Connection,
+    documents: &DocumentStore,
+    syntax: &mut SyntaxStore,
+    analysis: &mut AnalysisDatabase,
+    changed_uri: &str,
+) -> Result<()> {
+    for document in documents
+        .iter()
+        .filter(|document| document.uri != changed_uri)
+    {
+        let snapshot = syntax.open(document)?;
+        analysis.update_preprocessed(
+            &document.uri,
+            document.version,
+            document.revision,
+            &snapshot.tree,
+            &document.text,
+            (
+                &snapshot.macro_directives,
+                &snapshot.predefined_macros,
+                &snapshot.includes,
+                &snapshot.inactive_regions,
+            ),
+        );
+        publish_diagnostics(
+            connection,
+            document.uri.clone(),
+            document.version,
+            analysis.diagnostics(&document.uri),
+        )?;
     }
     Ok(())
 }

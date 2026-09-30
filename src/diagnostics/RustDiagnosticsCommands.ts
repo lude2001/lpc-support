@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { LspClientManager } from '../lsp/client/LspClientManager';
+import { WORKSPACE_INDEX_CHANGED_NOTIFICATION } from '../lsp/shared/protocol/workspaceIndex';
 
 interface LspRange {
     start: { line: number; character: number };
@@ -34,12 +35,31 @@ export interface DiagnosticsCommands extends vscode.Disposable {
 
 export class RustDiagnosticsCommands implements DiagnosticsCommands {
     private readonly diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc-folder-scan');
+    private scannedUriPrefix: string | undefined;
+    private scanRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+    private scanRevision = 0;
+    private readonly variablePanels = new Map<string, { panel: vscode.WebviewPanel; document: vscode.TextDocument }>();
+    private variableRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+    private variableRefreshGeneration = 0;
 
     public constructor(
         context: vscode.ExtensionContext,
         private readonly manager: LspClientManager | undefined
     ) {
         context.subscriptions.push(this.diagnosticCollection);
+        if (typeof manager?.onNotification === 'function') {
+            context.subscriptions.push(manager.onNotification(
+                WORKSPACE_INDEX_CHANGED_NOTIFICATION,
+                () => this.scheduleSnapshotRefresh()
+            ));
+        }
+        if (typeof vscode.workspace.onDidChangeTextDocument === 'function') {
+            context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
+                if (this.variablePanels.has(event.document.uri.toString())) {
+                    this.scheduleVariableRefresh();
+                }
+            }));
+        }
     }
 
     public async showVariables(): Promise<void> {
@@ -79,6 +99,8 @@ export class RustDiagnosticsCommands implements DiagnosticsCommands {
                 cancellable: false
             }, async () => {
                 const uriPrefix = `${folder.toString().replace(/\/$/, '')}/`;
+                this.scannedUriPrefix = uriPrefix;
+                const revision = ++this.scanRevision;
                 const entries = await this.manager?.sendRequest<WorkspaceDiagnosticsEntry[]>(
                     'lpc/workspaceDiagnostics',
                     { uriPrefix }
@@ -86,6 +108,7 @@ export class RustDiagnosticsCommands implements DiagnosticsCommands {
                 if (!entries) {
                     throw new Error('Rust LPC 语言服务器尚未就绪');
                 }
+                if (revision !== this.scanRevision || this.scannedUriPrefix !== uriPrefix) return;
                 this.diagnosticCollection.clear();
                 let diagnosticCount = 0;
                 for (const entry of entries) {
@@ -104,7 +127,74 @@ export class RustDiagnosticsCommands implements DiagnosticsCommands {
     }
 
     public dispose(): void {
+        if (this.scanRefreshTimer) clearTimeout(this.scanRefreshTimer);
+        if (this.variableRefreshTimer) clearTimeout(this.variableRefreshTimer);
+        this.variablePanels.clear();
         this.diagnosticCollection.dispose();
+    }
+
+    private scheduleSnapshotRefresh(): void {
+        if (this.scannedUriPrefix) {
+            this.scanRevision += 1;
+            if (this.scanRefreshTimer) clearTimeout(this.scanRefreshTimer);
+            this.scanRefreshTimer = setTimeout(() => {
+                this.scanRefreshTimer = undefined;
+                void this.refreshScannedFolder();
+            }, 1000);
+        }
+        this.scheduleVariableRefresh();
+    }
+
+    private async refreshScannedFolder(): Promise<void> {
+        const uriPrefix = this.scannedUriPrefix;
+        if (!uriPrefix) return;
+        const revision = ++this.scanRevision;
+        try {
+            const entries = await this.manager?.sendRequest<WorkspaceDiagnosticsEntry[]>(
+                'lpc/workspaceDiagnostics', { uriPrefix }
+            );
+            if (!entries || revision !== this.scanRevision || this.scannedUriPrefix !== uriPrefix) return;
+            this.diagnosticCollection.clear();
+            for (const entry of entries) {
+                this.diagnosticCollection.set(
+                    vscode.Uri.parse(entry.uri), entry.diagnostics.map(toVsCodeDiagnostic)
+                );
+            }
+        } catch (error) {
+            console.error('[lpc] Failed to refresh scanned folder diagnostics', error);
+        }
+    }
+
+    private scheduleVariableRefresh(): void {
+        if (this.variablePanels.size === 0) return;
+        this.variableRefreshGeneration += 1;
+        if (this.variableRefreshTimer) clearTimeout(this.variableRefreshTimer);
+        this.variableRefreshTimer = setTimeout(() => {
+            this.variableRefreshTimer = undefined;
+            void this.refreshVariablePanels();
+        }, 250);
+    }
+
+    private async refreshVariablePanels(): Promise<void> {
+        const generation = this.variableRefreshGeneration;
+        for (const [uri, current] of this.variablePanels) {
+            const version = current.document.version;
+            try {
+                const variables = await this.manager?.sendRequest<RustVariableEntry[]>(
+                    'lpc/documentVariables', { textDocument: { uri } }
+                );
+                if (!variables || this.variablePanels.get(uri) !== current
+                    || current.document.version !== version
+                    || generation !== this.variableRefreshGeneration) continue;
+                current.panel.webview.html = renderVariablesHtml(
+                    variables.filter((entry) => entry.unused),
+                    variables.filter((entry) => !entry.local),
+                    variables.filter((entry) => entry.local)
+                );
+            } catch (error) {
+                console.error('[lpc] Failed to refresh variable list', error);
+            }
+        }
     }
 
     private showVariablesPanel(document: vscode.TextDocument, variables: RustVariableEntry[]): void {
@@ -118,6 +208,11 @@ export class RustDiagnosticsCommands implements DiagnosticsCommands {
         const globals = variables.filter((entry) => !entry.local);
         const locals = variables.filter((entry) => entry.local);
         panel.webview.html = renderVariablesHtml(unused, globals, locals);
+        const uri = document.uri.toString();
+        this.variablePanels.set(uri, { panel, document });
+        panel.onDidDispose(() => {
+            if (this.variablePanels.get(uri)?.panel === panel) this.variablePanels.delete(uri);
+        });
         panel.webview.onDidReceiveMessage((message: { command?: string; line?: number; character?: number }) => {
             if (message.command !== 'jumpToVariable'
                 || typeof message.line !== 'number'

@@ -1,8 +1,21 @@
 import * as vscode from 'vscode';
-import { GLM4Client } from './glm4Client';
+import { GLM4Client, type JavadocContract } from './glm4Client';
 import type { LspClientManager } from './lsp/client/LspClientManager';
 
 const RENAME_COMMAND_IDS = ['lpc.renameVarToSnakeCase', 'lpc.renameVarToCamelCase'] as const;
+
+interface RustDocumentationEntry {
+    name: string;
+    range: {
+        start: { line: number; character: number };
+        end: { line: number; character: number };
+    };
+    documentationRange?: unknown;
+    structuredSignature?: {
+        returnType?: string;
+        parameters: Array<{ name?: string }>;
+    };
+}
 
 export interface LpcCommandHandler {
     id: string;
@@ -60,6 +73,7 @@ async function generateJavadocCommand(
     }
 
     const selection = editor.selection;
+    const documentVersion = editor.document.version;
 
     try {
         await vscode.window.withProgress({
@@ -71,6 +85,7 @@ async function generateJavadocCommand(
 
             let functionText: string | undefined;
             let functionStartLine: number | undefined;
+            let declarationRange: vscode.Range | undefined;
             if (!selection.isEmpty) {
                 functionText = editor.document.getText(selection);
                 functionStartLine = selection.start.line;
@@ -97,6 +112,7 @@ async function generateJavadocCommand(
                     );
                     functionText = editor.document.getText(range);
                     functionStartLine = range.start.line;
+                    declarationRange = range;
                 }
             }
 
@@ -105,13 +121,46 @@ async function generateJavadocCommand(
                 return;
             }
 
+            const lookup = await lspClientManager?.sendRequest<{
+                currentFile: { entries: RustDocumentationEntry[] };
+            }>('lpc/functionDocumentation', {
+                textDocument: { uri: editor.document.uri.toString() }
+            });
+            const entries = lookup?.currentFile?.entries ?? [];
+            const matchingEntries = entries.filter((entry) => declarationRange
+                ? entry.range.start.line === declarationRange.start.line
+                    && entry.range.start.character === declarationRange.start.character
+                : entry.range.start.line >= selection.start.line
+                    && entry.range.end.line <= selection.end.line);
+            if (matchingEntries.length !== 1) {
+                vscode.window.showErrorMessage('无法确认唯一的函数声明，请选择完整函数后重试。');
+                return;
+            }
+            const target = matchingEntries[0];
+            if (target.documentationRange) {
+                vscode.window.showInformationMessage('该函数已有文档注释，请使用函数文档中心补全或更新。');
+                return;
+            }
+            functionStartLine = target.range.start.line;
+            const contract: JavadocContract | undefined = target.structuredSignature
+                && target.structuredSignature.parameters.every((parameter) => Boolean(parameter.name))
+                ? {
+                    name: target.name,
+                    parameters: target.structuredSignature.parameters.map((parameter) => parameter.name!),
+                    returnType: target.structuredSignature.returnType
+                }
+                : undefined;
+
             progress.report({ increment: 30, message: '解析函数信息...' });
 
             const alwaysShowModelSelector = config.get<boolean>('glm4.alwaysShowModelSelector', false);
             const rememberLastModel = config.get<boolean>('glm4.rememberLastModel', true);
             const lastSelectedModel = config.get<string>('glm4.lastSelectedModel', '');
+            const configuredModel = config.get<string>('glm4.model', 'GLM-4-Flash-250414');
 
-            const selectedModel = await selectModel(alwaysShowModelSelector, rememberLastModel, lastSelectedModel);
+            const selectedModel = await selectModel(
+                alwaysShowModelSelector, rememberLastModel, lastSelectedModel, configuredModel
+            );
             if (!selectedModel) {
                 vscode.window.showInformationMessage('已取消生成Javadoc注释');
                 return;
@@ -120,16 +169,26 @@ async function generateJavadocCommand(
             const glm4Client = GLM4Client.fromVSCodeConfigWithModel(selectedModel);
             progress.report({ increment: 50, message: `使用模型 ${selectedModel} 调用API...` });
 
-            const javadocComment = await glm4Client.generateJavadoc(functionText);
+            const javadocComment = await glm4Client.generateJavadoc(functionText, contract);
             progress.report({ increment: 80, message: '插入注释...' });
+
+            if (editor.document.version !== documentVersion) {
+                vscode.window.showErrorMessage('生成期间文档已变化，未写入注释；请重新执行。');
+                return;
+            }
 
             const insertPosition = new vscode.Position(functionStartLine, 0);
             const indent = getLineIndentation(editor.document, functionStartLine);
-            const formattedComment = formatJavadocComment(javadocComment, indent);
+            const eol = editor.document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+            const formattedComment = formatJavadocComment(javadocComment, indent, eol);
 
-            await editor.edit((editBuilder) => {
-                editBuilder.insert(insertPosition, formattedComment + '\n');
+            const applied = await editor.edit((editBuilder) => {
+                editBuilder.insert(insertPosition, formattedComment + eol);
             });
+
+            if (!applied) {
+                throw new Error('编辑器未接受注释插入，请重新执行。');
+            }
 
             progress.report({ increment: 100, message: '完成' });
             vscode.window.showInformationMessage('Javadoc注释生成成功！');
@@ -143,7 +202,8 @@ async function generateJavadocCommand(
 async function selectModel(
     alwaysShowModelSelector: boolean,
     rememberLastModel: boolean,
-    lastSelectedModel: string
+    lastSelectedModel: string,
+    configuredModel: string
 ): Promise<string | undefined> {
     if (alwaysShowModelSelector) {
         return GLM4Client.selectModel();
@@ -153,7 +213,7 @@ async function selectModel(
         return lastSelectedModel;
     }
 
-    return GLM4Client.selectModel();
+    return configuredModel;
 }
 
 function getLineIndentation(document: vscode.TextDocument, lineNumber: number): string {
@@ -162,9 +222,9 @@ function getLineIndentation(document: vscode.TextDocument, lineNumber: number): 
     return match ? match[1] : '';
 }
 
-function formatJavadocComment(comment: string, indent: string): string {
+function formatJavadocComment(comment: string, indent: string, eol: string): string {
     return comment
-        .split('\n')
+        .split(/\r?\n/u)
         .map((line) => line.trim() === '' ? indent : indent + line)
-        .join('\n');
+        .join(eol);
 }

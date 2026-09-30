@@ -4,6 +4,11 @@ import type { WorkspaceConfigSyncPayload } from './workspaceConfigSync';
 export const WORKSPACE_INDEX_REBUILD_REQUEST = 'lpc/workspaceIndex/rebuild';
 export const WORKSPACE_INDEX_PROGRESS_NOTIFICATION = 'lpc/workspaceIndex/progress';
 export const WORKSPACE_INDEX_READY_NOTIFICATION = 'lpc/workspaceIndex/ready';
+export const WORKSPACE_INDEX_CHANGED_NOTIFICATION = 'lpc/workspaceIndex/changed';
+
+export interface WorkspaceIndexChangedPayload {
+    uris: string[];
+}
 
 export interface WorkspaceIndexRebuildParams extends WorkspaceConfigSyncPayload {
 }

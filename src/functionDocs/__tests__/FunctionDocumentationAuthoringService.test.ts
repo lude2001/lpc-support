@@ -22,6 +22,28 @@ function createEntry(): FunctionDocumentationPanelEntry {
 }
 
 describe('FunctionDocumentationAuthoringService', () => {
+    test('refuses to edit a stale declaration or duplicate an attached comment', async () => {
+        const entry = createEntry();
+        entry.selectionRange = {
+            start: { line: 2, character: 18 }, end: { line: 2, character: 21 }
+        };
+        const edit = jest.fn();
+        const document = {
+            getText: jest.fn(() => 'old_name'),
+            lineAt: jest.fn(() => ({ text: 'void old_name() {}' }))
+        };
+        const editor = { document, edit } as unknown as vscode.TextEditor;
+        const service = new FunctionDocumentationAuthoringService();
+
+        await expect(service.apply(editor, entry, 'generate')).rejects.toThrow('声明已变化');
+        document.getText.mockReturnValue('die');
+        entry.documentation.attachedCommentRange = {
+            start: { line: 0, character: 0 }, end: { line: 1, character: 3 }
+        };
+        await expect(service.apply(editor, entry, 'generate')).rejects.toThrow('已有文档注释');
+        expect(edit).not.toHaveBeenCalled();
+    });
+
     test('generates a deterministic parameter-aware skeleton and omits return for void', async () => {
         const insert = jest.fn();
         const editor = {

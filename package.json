@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.52.13",
+  "version": "0.52.14",
   "publisher": "ludexiang",
   "author": {
     "name": "easyCat",
@@ -61,7 +61,9 @@
     "rimraf": "^5.0.10",
     "tree-sitter-cli": "^0.27.0",
     "ts-jest": "^29.1.1",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   },
   "overrides": {
     "follow-redirects": "1.16.0",

@@ -142,13 +142,10 @@ describe('RustFunctionDocumentationLookupProvider', () => {
         (vscode.workspace as any).getWorkspaceFolder = jest.fn(() => ({
             uri: vscode.Uri.file('D:/mud')
         }));
-        const sendRequest = jest.fn(async (_method: string, payload: any) => {
-            if (!payload.textDocument.uri.endsWith('/adm/single/simul_efun.c')) {
-                return undefined;
-            }
+        const sendRequest = jest.fn(async () => {
             return {
                 currentFile: {
-                    uri: payload.textDocument.uri,
+                    uri: 'file:///D:/mud/adm/single/simul_efun.c',
                     sourceKind: 'local',
                     depth: 0,
                     entries: [{
@@ -173,7 +170,26 @@ describe('RustFunctionDocumentationLookupProvider', () => {
                     }]
                 },
                 inheritedGroups: [],
-                includeGroups: []
+                includeGroups: [{
+                    uri: 'file:///D:/mud/adm/simul_efun/chinese.c',
+                    sourceKind: 'include',
+                    depth: 1,
+                    entries: [{
+                        name: 'chinese_number',
+                        signature: 'string chinese_number(int value)',
+                        parameters: ['int value'],
+                        returnObjects: [],
+                        range: {
+                            start: { line: 11, character: 0 },
+                            end: { line: 11, character: 44 }
+                        },
+                        selectionRange: {
+                            start: { line: 11, character: 7 },
+                            end: { line: 11, character: 21 }
+                        },
+                        hasBody: true
+                    }]
+                }]
             };
         });
         const provider = new RustFunctionDocumentationLookupProvider(
@@ -188,12 +204,52 @@ describe('RustFunctionDocumentationLookupProvider', () => {
 
         await provider.ensureWorkspaceStateCurrent(document, projectConfig);
 
-        expect(provider.getAllSimulatedFunctions(document, projectConfig)).toEqual(['mud_write']);
+        expect(provider.getAllSimulatedFunctions(document, projectConfig)).toEqual(['mud_write', 'chinese_number']);
         expect(provider.getSimulatedDoc('mud_write', document, projectConfig)).toEqual(expect.objectContaining({
             summary: 'Write to the player.',
             sourceKind: 'simulEfun',
             declarationKind: 'external'
         }));
         expect(sendRequest).toHaveBeenCalledTimes(1);
+        expect(sendRequest).toHaveBeenCalledWith('lpc/simulatedFunctionDocumentation', {
+            textDocument: { uri: document.uri.toString() }
+        });
+        expect(provider.getSimulatedDoc('chinese_number', document, projectConfig)).toEqual(expect.objectContaining({
+            sourceKind: 'simulEfun',
+            declarationKind: 'external'
+        }));
+    });
+
+    test('retries an unavailable Rust snapshot and refreshes later searches', async () => {
+        (vscode.workspace as any).getWorkspaceFolder = jest.fn(() => ({
+            uri: vscode.Uri.file('D:/mud')
+        }));
+        const sendRequest = jest.fn<(...args: any[]) => Promise<any>>()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValue({
+                currentFile: {
+                    uri: 'file:///D:/mud/adm/single/simul_efun.c',
+                    sourceKind: 'local',
+                    depth: 0,
+                    entries: []
+                },
+                inheritedGroups: [],
+                includeGroups: []
+            });
+        const provider = new RustFunctionDocumentationLookupProvider(
+            { sendRequest } as any,
+            { getAllFunctions: () => [], getStandardCallableDoc: jest.fn() } as any
+        );
+        const document = { uri: vscode.Uri.file('D:/mud/demo.c') } as vscode.TextDocument;
+        const projectConfig = {
+            projectConfigPath: 'D:/mud/lpc-support.json',
+            resolvedConfig: { simulatedEfunFile: '/adm/single/simul_efun' }
+        };
+
+        await provider.ensureWorkspaceStateCurrent(document, projectConfig);
+        await provider.ensureWorkspaceStateCurrent(document, projectConfig);
+        await provider.ensureWorkspaceStateCurrent(document, projectConfig);
+
+        expect(sendRequest).toHaveBeenCalledTimes(3);
     });
 });

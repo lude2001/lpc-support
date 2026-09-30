@@ -73,6 +73,18 @@ describe('FunctionDocPanel', () => {
         }
     });
 
+    test('schedules a fresh documentation snapshot after source index changes', () => {
+        const document = createTextDocument('D:/workspace/look.c', 'int look() { return 1; }\n');
+        const scheduleRefresh = jest.fn();
+        (FunctionDocPanel as any).currentPanel = { currentDocument: document, scheduleRefresh };
+        try {
+            FunctionDocPanel.refreshAfterIndexChange();
+            expect(scheduleRefresh).toHaveBeenCalledWith(document, true);
+        } finally {
+            (FunctionDocPanel as any).currentPanel = undefined;
+        }
+    });
+
     test('publishes declaration-preserving structured snapshot without embedding source data in HTML', async () => {
         const { panel, postMessage } = createPanel();
         const callable = {

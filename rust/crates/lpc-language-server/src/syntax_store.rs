@@ -73,6 +73,18 @@ impl SyntaxStore {
         self.preprocessor.clear_cache();
     }
 
+    pub fn set_open_header(&mut self, uri: &str, source: &str) {
+        if let Some(path) = Url::parse(uri).ok().and_then(|uri| uri.to_file_path().ok()) {
+            self.preprocessor.set_open_header(&path, source);
+        }
+    }
+
+    pub fn remove_open_header(&mut self, uri: &str) {
+        if let Some(path) = Url::parse(uri).ok().and_then(|uri| uri.to_file_path().ok()) {
+            self.preprocessor.remove_open_header(&path);
+        }
+    }
+
     pub fn get(&self, uri: &str) -> Option<&SyntaxSnapshot> {
         self.snapshots.get(uri)
     }

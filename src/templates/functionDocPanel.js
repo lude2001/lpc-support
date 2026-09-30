@@ -359,8 +359,11 @@
                 ? entry.capabilities.canCompleteDocumentation
                 : authorMode === 'update' && entry.capabilities.canUpdateDocumentation;
         if (canAuthor) {
-            const label = authorMode === 'generate' ? '生成文档' : authorMode === 'update' ? '更新文档' : '补全文档';
+            const label = authorMode === 'generate' ? '生成文档骨架' : authorMode === 'update' ? '更新文档' : '补全文档';
             actions.append(actionButton(label, 'authorDocumentation', entry, authorMode, true));
+        }
+        if (entry.capabilities.canGenerateDocumentation) {
+            actions.append(actionButton('AI 生成注释', 'generateJavadocWithAi', entry));
         }
         header.append(title, actions);
         elements.detailPanel.append(header);

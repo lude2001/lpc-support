@@ -5,6 +5,7 @@ import { activate, deactivate } from '../extension';
 import { FunctionDocPanel } from '../functionDocPanel';
 import { activateLspClient } from '../lsp/client/activateLspClient';
 import { registerWorkspaceIndexController } from '../lsp/client/workspaceIndexController';
+import { WORKSPACE_INDEX_CHANGED_NOTIFICATION } from '../lsp/shared/protocol/workspaceIndex';
 import { registerCommands, registerWorkspaceIndexRebuildCommand } from '../modules/commandModule';
 import { getRegisteredProjectConfigService, registerCoreServices } from '../modules/coreModule';
 import { registerDiagnostics } from '../modules/diagnosticsModule';
@@ -21,7 +22,8 @@ jest.mock('../modules/coreModule', () => ({
 
 jest.mock('../functionDocPanel', () => ({
     FunctionDocPanel: {
-        refreshCurrent: jest.fn()
+        refreshCurrent: jest.fn(),
+        refreshAfterIndexChange: jest.fn()
     }
 }));
 
@@ -94,13 +96,19 @@ describe('extension entrypoint', () => {
     });
 
     test('activate registers workspace indexing controls when LSP starts', async () => {
-        const manager = { sendRequest: jest.fn() };
+        const manager = { sendRequest: jest.fn(), onNotification: jest.fn().mockReturnValue({ dispose: jest.fn() }) };
         (activateLspClient as jest.Mock<() => Promise<unknown>>).mockResolvedValue(manager);
 
         await activate(context);
 
         expect(registerDiagnostics).toHaveBeenCalledWith(registry, context, manager);
         expect(registerCommands).toHaveBeenCalledWith(registry, context, manager);
+        expect(manager.onNotification).toHaveBeenCalledWith(
+            WORKSPACE_INDEX_CHANGED_NOTIFICATION,
+            expect.any(Function)
+        );
+        (manager.onNotification.mock.calls[0][1] as () => void)();
+        expect(FunctionDocPanel.refreshAfterIndexChange).toHaveBeenCalled();
 
         expect(registerWorkspaceIndexController).toHaveBeenCalledWith({
             context,

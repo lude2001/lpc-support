@@ -133,6 +133,13 @@ async function main() {
             () => requestFunctionDocumentation(server.connection, uri),
             { timedOut: true, currentFileCount: 0, inheritedGroupCount: 0, inheritedEntryCount: 0, includeGroupCount: 0, includeEntryCount: 0, documentedEntryCount: 0, structuredSignatureCount: 0, functionVarargsCount: 0, trueVariadicCount: 0, optionalParameterCount: 0, refParameterCount: 0, arrayParameterCount: 0 }
         );
+        const simulatedFunctionDocumentation = project.resolvedConfig?.simulatedEfunFile
+            ? await runStage(
+                'simulatedFunctionDocumentation',
+                () => requestFunctionDocumentation(server.connection, uri, 'lpc/simulatedFunctionDocumentation'),
+                { timedOut: true, found: false, currentFileCount: 0, includeGroupCount: 0, includeEntryCount: 0 }
+            )
+            : undefined;
 
         let diagnostics;
         if (options.perf) {
@@ -185,6 +192,7 @@ async function main() {
             signatureHelp,
             completion,
             functionDocumentation,
+            simulatedFunctionDocumentation,
             semanticTokens,
             workspaceDiagnostics,
             performanceStages: options.perf ? performanceStages : undefined,
@@ -652,8 +660,8 @@ async function requestSignatureHelp(connection, uri, position) {
     };
 }
 
-async function requestFunctionDocumentation(connection, uri) {
-    const result = await connection.sendRequest('lpc/functionDocumentation', {
+async function requestFunctionDocumentation(connection, uri, method = 'lpc/functionDocumentation') {
+    const result = await connection.sendRequest(method, {
         textDocument: { uri }
     });
     const currentEntries = result?.currentFile?.entries ?? [];
@@ -665,6 +673,7 @@ async function requestFunctionDocumentation(connection, uri) {
         ...includeGroups.flatMap(group => group.entries ?? [])
     ];
     return {
+        found: Boolean(result),
         currentFileCount: currentEntries.length,
         inheritedGroupCount: inheritedGroups.length,
         inheritedEntryCount: inheritedGroups.reduce((total, group) => total + (group.entries?.length ?? 0), 0),
@@ -905,6 +914,7 @@ function createReport({
     signatureHelp,
     completion,
     functionDocumentation,
+    simulatedFunctionDocumentation,
     semanticTokens,
     workspaceDiagnostics,
     performanceStages,
@@ -950,7 +960,8 @@ function createReport({
             hover,
             signatureHelp,
             completion,
-            functionDocumentation
+            functionDocumentation,
+            simulatedFunctionDocumentation
         },
         performance: performanceStages?.map(stage => sanitizePerformanceStage(project, stage)),
         performanceBenchmarks: performanceBenchmarks?.map(stage => sanitizePerformanceStage(project, stage))
@@ -1248,6 +1259,10 @@ function renderMarkdown(report) {
         lines.push(`- Structured signatures: ${docs.structuredSignatureCount}; function varargs ${docs.functionVarargsCount}; true varargs ${docs.trueVariadicCount}; optional parameters ${docs.optionalParameterCount}; ref parameters ${docs.refParameterCount}; array parameters ${docs.arrayParameterCount}`);
     } else {
         lines.push('- Function docs: not requested');
+    }
+    if (report.requests.simulatedFunctionDocumentation) {
+        const docs = report.requests.simulatedFunctionDocumentation;
+        lines.push(`- Simulated function docs: ${docs.found ? 'found' : 'missing'}; entry ${docs.currentFileCount}; include ${docs.includeGroupCount} groups/${docs.includeEntryCount} entries${docs.timedOut ? ' (timed out)' : ''}`);
     }
 
     if (Array.isArray(report.performance) && report.performance.length > 0) {

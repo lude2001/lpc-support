@@ -143,34 +143,30 @@ export class RustFunctionDocumentationLookupProvider implements FunctionDocument
         document?: vscode.TextDocument,
         projectConfig?: LanguageWorkspaceProjectConfig
     ): Promise<void> {
+        if (!document) {
+            return;
+        }
         const key = workspaceKey(document, projectConfig);
-        if (this.simulatedDocs.has(key)) {
+        const lookup = await this.manager.sendRequest<RustFunctionDocumentationLookup>(
+            'lpc/simulatedFunctionDocumentation',
+            { textDocument: { uri: document.uri.toString() } }
+        );
+        if (!lookup) {
             return;
         }
         const docs = new Map<string, CallableDoc>();
-        this.simulatedDocs.set(key, docs);
-        const entryCandidates = resolveSimulatedEfunCandidates(document, projectConfig);
-        for (const entryFile of entryCandidates) {
-            const lookup = await this.manager.sendRequest<RustFunctionDocumentationLookup>(
-                'lpc/functionDocumentation',
-                { textDocument: { uri: vscode.Uri.file(entryFile).toString() } }
-            );
-            if (!lookup) {
-                continue;
+        for (const group of [lookup.currentFile, ...lookup.inheritedGroups, ...lookup.includeGroups]) {
+            const filePath = vscode.Uri.parse(group.uri).fsPath;
+            for (const entry of group.entries) {
+                const callable = this.materializeEntry(group, filePath, entry);
+                docs.set(entry.name, {
+                    ...callable,
+                    sourceKind: 'simulEfun',
+                    declarationKind: 'external'
+                });
             }
-            for (const group of [lookup.currentFile, ...lookup.inheritedGroups, ...lookup.includeGroups]) {
-                const filePath = vscode.Uri.parse(group.uri).fsPath;
-                for (const entry of group.entries) {
-                    const callable = this.materializeEntry(group, filePath, entry);
-                    docs.set(entry.name, {
-                        ...callable,
-                        sourceKind: 'simulEfun',
-                        declarationKind: 'external'
-                    });
-                }
-            }
-            break;
         }
+        this.simulatedDocs.set(key, docs);
     }
 
     private materializeGroup(group: RustFunctionDocumentationGroup): FunctionDocSourceGroup {
@@ -354,35 +350,4 @@ function workspaceKey(
         ?.uri.fsPath
         ?? projectConfig?.projectConfigPath
         ?? '<no-workspace>';
-}
-
-function resolveSimulatedEfunCandidates(
-    document?: vscode.TextDocument,
-    projectConfig?: LanguageWorkspaceProjectConfig
-): string[] {
-    const configured = projectConfig?.resolvedConfig?.simulatedEfunFile;
-    if (!configured) {
-        return [];
-    }
-    const workspaceRoot = vscode.workspace.getWorkspaceFolder(document?.uri ?? vscode.Uri.file(projectConfig.projectConfigPath))
-        ?.uri.fsPath
-        ?? path.dirname(projectConfig.projectConfigPath);
-    const mudlibDirectory = projectConfig.resolvedConfig?.mudlibDirectory;
-    const mudlibRoot = !mudlibDirectory
-        ? workspaceRoot
-        : isNativeAbsolutePath(mudlibDirectory)
-            ? mudlibDirectory
-            : projectConfig.configHellPath
-                ? path.resolve(path.dirname(path.resolve(workspaceRoot, projectConfig.configHellPath)), mudlibDirectory)
-                : path.resolve(workspaceRoot, mudlibDirectory);
-    const entryPath = isNativeAbsolutePath(configured)
-        ? configured
-        : path.join(mudlibRoot, configured.replace(/^[/\\]+/u, ''));
-    return path.extname(entryPath)
-        ? [entryPath]
-        : [`${entryPath}.c`, `${entryPath}.h`, entryPath];
-}
-
-function isNativeAbsolutePath(targetPath: string): boolean {
-    return /^[A-Za-z]:[\\/]/u.test(targetPath) || targetPath.startsWith('\\\\');
 }
