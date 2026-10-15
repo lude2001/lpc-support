@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { registerAnalysisInspector } from '../analysisInspector/AnalysisInspectorPanel';
 import { createLpcCodeActionCommandHandlers } from '../codeActions';
 import { Services } from '../core/ServiceKeys';
 import { ServiceRegistry } from '../core/ServiceRegistry';
@@ -86,6 +87,8 @@ export function registerCommands(
     const projectConfigOnboardingService = registry.get(Services.ProjectConfigOnboarding);
     const errorTreeProvider = registry.get(Services.ErrorTree);
     const textDocumentHost = registry.get(Services.TextDocumentHost) as TextDocumentHost;
+
+    registerAnalysisInspector(context, lspClientManager);
 
     register(context, 'lpc.scanFolder', () => {
         diagnostics.scanFolder();

@@ -222,6 +222,11 @@ impl WorkspaceIndexController {
                 if !path.exists() {
                     if let Ok(mut database) = analysis.lock() {
                         database.remove_indexed(&uri);
+                        // VS Code percent-encodes a Windows drive's colon in watcher URIs,
+                        // while Url::from_file_path uses a literal colon for indexed files.
+                        if let Some(indexed_uri) = source_file_uri(&path) {
+                            database.remove_indexed(&indexed_uri);
+                        }
                     }
                 } else {
                     index_file(&path, &mut preprocessor, &analysis);

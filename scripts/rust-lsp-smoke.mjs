@@ -66,6 +66,9 @@ try {
     if (initialize?.serverInfo?.name !== 'lpc-language-server') {
         throw new Error(`Unexpected server info: ${JSON.stringify(initialize?.serverInfo)}`);
     }
+    if (!initialize.capabilities.workspaceSymbolProvider || !initialize.capabilities.documentHighlightProvider) {
+        throw new Error('Rust server did not advertise workspace symbols and document highlights.');
+    }
     const completionTriggers = initialize?.capabilities?.completionProvider?.triggerCharacters ?? [];
     for (const trigger of ['.', '>', ':', '#', '"', '<', '/']) {
         if (!completionTriggers.includes(trigger)) {
@@ -114,6 +117,47 @@ try {
             text: callerSource
         }
     });
+    const indexedSymbols = await connection.sendRequest('workspace/symbol', { query: 'simul_call' });
+    if (indexedSymbols.length !== 1 || !indexedSymbols[0].location.uri.endsWith('simul_efun.c')) {
+        throw new Error(`Workspace symbol search missed a closed indexed file: ${JSON.stringify(indexedSymbols)}`);
+    }
+    const navigationUri = pathToFileURL(path.join(smokeWorkspace, 'navigation.c')).toString();
+    const navigationSource = '#define FLAG 1\n#if 0\nint hidden_navigation;\n#endif\nint navigation_global;\nint navigation_probe(int value) { value++; return value; }\nint other_probe(int value) { return value; }\n';
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: { uri: navigationUri, languageId: 'lpc', version: 1, text: navigationSource }
+    });
+    const navigationSymbols = await connection.sendRequest('workspace/symbol', { query: 'navigation' });
+    if (navigationSymbols.some(symbol => symbol.name === 'hidden_navigation') || !navigationSymbols.some(symbol => symbol.name === 'navigation_probe')) {
+        throw new Error(`Workspace symbols did not respect the active editor snapshot: ${JSON.stringify(navigationSymbols)}`);
+    }
+    const highlights = await connection.sendRequest('textDocument/documentHighlight', {
+        textDocument: { uri: navigationUri }, position: { line: 5, character: 26 }
+    });
+    if (highlights.length !== 3 || highlights.some(highlight => highlight.range.start.line !== 5)) {
+        throw new Error(`Document highlights crossed a function scope: ${JSON.stringify(highlights)}`);
+    }
+    const inspection = await connection.sendRequest('lpc/analysisInspection', {
+        textDocument: { uri: navigationUri }, position: { line: 5, character: 26 }
+    });
+    if (inspection?.version !== 1 || inspection.inactiveRanges.length !== 1
+        || inspection.preprocessedText.includes('hidden_navigation') || inspection.macros[0]?.name !== 'FLAG'
+        || inspection.analysis.symbol?.definitions[0]?.uri !== navigationUri) {
+        throw new Error(`Unexpected analysis inspection snapshot: ${JSON.stringify(inspection)}`);
+    }
+    connection.sendNotification('textDocument/didChange', {
+        textDocument: { uri: navigationUri, version: 2 }, contentChanges: [{ text: 'int replacement_navigation() { return 1; }\n' }]
+    });
+    const changedSymbols = await connection.sendRequest('workspace/symbol', { query: 'navigation' });
+    if (changedSymbols.some(symbol => symbol.name === 'navigation_probe') || !changedSymbols.some(symbol => symbol.name === 'replacement_navigation')) {
+        throw new Error(`Workspace symbols retained stale declarations: ${JSON.stringify(changedSymbols)}`);
+    }
+    const changedInspection = await connection.sendRequest('lpc/analysisInspection', {
+        textDocument: { uri: navigationUri }, position: { line: 0, character: 7 }
+    });
+    if (changedInspection.version !== 2 || changedInspection.macros.length !== 0 || changedInspection.inactiveRanges.length !== 0) {
+        throw new Error('Analysis inspection did not follow the edited version.');
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: navigationUri } });
     const crossFileDefinition = await connection.sendRequest('textDocument/definition', {
         textDocument: { uri: callerUri },
         position: { line: 4, character: callerSource.split('\n')[4].indexOf('helper') + 1 }
@@ -181,8 +225,9 @@ try {
         throw new Error(`Rust server did not expose an added file: ${JSON.stringify(definitionAfterAdd)}`);
     }
     rmSync(addedFile);
-    connection.sendNotification('lpc/sourceFileChange', { uri: addedUri, changeType: 'deleted' });
-    await waitForIndexChange(addedUri);
+    const deletedWatcherUri = process.platform === 'win32' ? addedUri.replace(/^file:\/\/\/([a-z]):/i, 'file:///$1%3A') : addedUri;
+    connection.sendNotification('lpc/sourceFileChange', { uri: deletedWatcherUri, changeType: 'deleted' });
+    await waitForIndexChange(deletedWatcherUri);
     const definitionAfterDelete = await connection.sendRequest('textDocument/definition', {
         textDocument: { uri: lifecycleUri },
         position: lifecyclePosition
@@ -231,6 +276,13 @@ try {
     });
     if (!liveRootHover?.contents?.value?.includes('"/live"')) {
         throw new Error(`Unsaved header edit did not refresh dependent hover: ${JSON.stringify(liveRootHover)}`);
+    }
+    const liveInspection = await connection.sendRequest('lpc/analysisInspection', {
+        textDocument: { uri: callerUri }, position: { line: 1, character: callerSource.split('\n')[1].indexOf('ROOT_DIR') + 1 }
+    });
+    if (liveInspection.analysis?.symbol?.macroValue !== '"/live"'
+        || !liveInspection.analysis.dependencies.some(dependency => dependency.kind === 'simulatedEfun' && dependency.targets.length === 1)) {
+        throw new Error('Analysis inspection did not follow an unsaved dependency or show the simulated-efun entry.');
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: headerUri } });
     await waitForHoverText({

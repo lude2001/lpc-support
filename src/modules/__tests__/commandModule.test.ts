@@ -38,6 +38,7 @@ describe('registerCommands', () => {
         'lpc.scanFolder',
         'lpc.showVariables',
         'lpc.showFunctionDoc',
+        'lpc.showAnalysisInspector',
         'lpc.errorTree.refresh',
         'lpc.errorTree.clear',
         'lpc.errorTree.openErrorLocation',

@@ -71,6 +71,11 @@ struct SemanticTokensParams {
 type DocumentSymbolParams = SemanticTokensParams;
 
 #[derive(Debug, Deserialize)]
+struct WorkspaceSymbolParams {
+    query: String,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PositionedDocumentParams {
     text_document: TextDocumentIdentifier,
@@ -221,6 +226,8 @@ fn main() -> Result<()> {
                 "range": false
             },
             "documentSymbolProvider": true,
+            "workspaceSymbolProvider": true,
+            "documentHighlightProvider": true,
             "foldingRangeProvider": true,
             "definitionProvider": true,
             "hoverProvider": true,
@@ -858,6 +865,43 @@ fn handle_request(
             request.id,
             analysis.document_variables(&params.text_document.uri),
         );
+    }
+
+    if request.method == "workspace/symbol" {
+        let params: WorkspaceSymbolParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.workspace_symbols(&params.query),
+        );
+    }
+
+    if request.method == "textDocument/documentHighlight" {
+        let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
+        return send_ok(
+            connection,
+            request.id,
+            analysis.document_highlights(&params.text_document.uri, params.position),
+        );
+    }
+
+    if request.method == "lpc/analysisInspection" {
+        let params: PositionedDocumentParams = serde_json::from_value(request.params)?;
+        let uri = &params.text_document.uri;
+        let result = documents.get(uri).zip(syntax.get(uri)).map(|(document, snapshot)| {
+            json!({
+                "uri": uri, "version": document.version, "revision": snapshot.revision,
+                "preprocessedText": snapshot.preprocessed_text,
+                "inactiveRanges": snapshot.inactive_regions.iter().map(|region| byte_range_to_lsp(&document.text, region.range.start_byte..region.range.end_byte)).collect::<Vec<_>>(),
+                "macros": snapshot.macro_directives.iter().map(|fact| json!({
+                    "name": fact.name, "kind": fact.kind, "value": fact.value,
+                    "range": byte_range_to_lsp(&document.text, fact.range.start_byte..fact.range.end_byte)
+                })).collect::<Vec<_>>(),
+                "initialMacros": snapshot.predefined_macros,
+                "analysis": analysis.inspect_analysis(uri, params.position)
+            })
+        });
+        return send_ok(connection, request.id, result);
     }
 
     if request.method == "lpc/enclosingFunction" {

@@ -54,6 +54,14 @@ The extension ships with a Rust language server matched to your operating system
 - Start a development driver
 - Unified compile-management entry point
 
+### Navigation and analysis inspector
+
+Use **Ctrl+T** (Windows / Linux) or **Cmd+T** (macOS) to search indexed functions, global variables, types, and macros. Search supports fuzzy matching and returns up to 512 results; narrow the query to find more specific declarations. Cursor highlights identify occurrences of the same declaration within the current document, respecting local scopes and macro redefinitions.
+
+Run **LPC: 打开 LPC 分析查看器** or use the inspect icon in the editor title bar to view symbol origins, macro replacement text, inactive regions, direct include / inherit dependencies, and configured global-header / simulated-efun entries. Source locations are clickable. The inspector follows cursor movements, unsaved edits, and dependency updates.
+
+The static preprocessing view preserves line numbers and blanks directives and inactive regions. It does not expand macro calls or includes and is not the FluffOS compiler's full preprocessor output. Unresolved dynamic targets are shown without guessing a unique declaration.
+
 ## Installation
 
 You can install the extension in one of these ways:

@@ -10,9 +10,11 @@ use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, Parser, Tree};
 
 mod documentation;
+mod navigation;
 
 pub use documentation::CallableDocumentation;
 use documentation::parse_callable_documentation;
+pub use navigation::{AnalysisInspection, DocumentHighlight, WorkspaceSymbol};
 
 type PreprocessedEnvironment<'a> = (
     &'a [MacroDirectiveFact],

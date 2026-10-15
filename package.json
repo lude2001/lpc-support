@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.52.14",
+  "version": "0.52.15",
   "publisher": "ludexiang",
   "author": {
     "name": "easyCat",
@@ -155,6 +155,12 @@
         }
       },
       {
+        "command": "lpc.showAnalysisInspector",
+        "title": "打开 LPC 分析查看器",
+        "category": "LPC",
+        "icon": "$(inspect)"
+      },
+      {
         "command": "lpc.rebuildWorkspaceIndex",
         "title": "重建 LPC 工作区索引",
         "category": "LPC"
@@ -233,6 +239,11 @@
         }
       ],
       "editor/title": [
+        {
+          "command": "lpc.showAnalysisInspector",
+          "when": "resourceLangId == lpc",
+          "group": "navigation@2"
+        },
         {
           "command": "lpc.showFunctionDoc",
           "when": "resourceLangId == lpc",
@@ -525,6 +536,7 @@
     "test": "jest",
     "test:unit": "jest --runInBand src",
     "test:e2e": "node scripts/run-vscode-lifecycle-test.mjs",
+    "test:vscode-navigation": "node scripts/run-vscode-navigation-test.mjs",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "test:performance": "jest --runInBand src/functionDocs/__tests__/FunctionDocumentationPerformance.test.ts",
