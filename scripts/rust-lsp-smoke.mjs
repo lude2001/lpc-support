@@ -8,6 +8,7 @@ import {
     StreamMessageReader,
     StreamMessageWriter
 } from 'vscode-jsonrpc/node.js';
+import { verifySyntaxCoverage } from './syntax-coverage-smoke.mjs';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 const executableName = process.platform === 'win32'
@@ -823,6 +824,8 @@ try {
         throw new Error(`Rust server could not format async/await: ${JSON.stringify(asyncFormatting)}`);
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: asyncUri } });
+
+    await verifySyntaxCoverage(connection, smokeWorkspace, () => latestDiagnostics);
 
     const stressIterations = 100;
     const answerLineEnd = 'int answer = query(1);'.length;

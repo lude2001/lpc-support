@@ -227,6 +227,7 @@ dependencies = [
 name = "lpc-formatter"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "tree-sitter",
  "tree-sitter-lpc-support",
 ]
@@ -478,6 +479,7 @@ name = "tree-sitter-lpc-support"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "serde_json",
  "tree-sitter",
  "tree-sitter-language",
 ]

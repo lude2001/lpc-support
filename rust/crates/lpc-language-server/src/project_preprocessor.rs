@@ -28,11 +28,13 @@ pub struct WorkspacePreprocessorConfig {
     pub root: PathBuf,
     pub include_directories: Vec<PathBuf>,
     pub global_include_file: Option<String>,
+    pub efun_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ProjectPreprocessor {
     base_definitions: Vec<(String, String)>,
+    efun_names: Vec<String>,
     workspaces: Vec<WorkspacePreprocessorConfig>,
     header_cache: HeaderCache,
     header_relevance_cache: HashMap<PathBuf, HeaderRelevance>,
@@ -40,6 +42,11 @@ pub struct ProjectPreprocessor {
 }
 
 impl ProjectPreprocessor {
+    pub fn set_efuns(&mut self, names: Vec<String>) {
+        self.efun_names = names;
+        self.clear_cache();
+    }
+
     pub fn configure(
         &mut self,
         base_definitions: Vec<(String, String)>,
@@ -74,7 +81,9 @@ impl ProjectPreprocessor {
             .cloned()
             .or_else(|| self.workspaces.first().cloned());
         let Some(workspace) = workspace else {
-            return Preprocessor::with_predefined(definitions).process(source);
+            return Preprocessor::with_predefined(definitions)
+                .with_efuns(self.efun_names.clone())
+                .process(source);
         };
 
         let mut visited = HashSet::new();
@@ -159,9 +168,9 @@ impl ProjectPreprocessor {
         definitions: HashMap<String, String>,
         visited: &mut HashSet<PathBuf>,
     ) -> PreprocessedDocument {
-        Preprocessor::with_predefined(definitions).process_with_include_resolver(
-            source,
-            |include, system, current_definitions| {
+        Preprocessor::with_predefined(definitions)
+            .with_efuns(workspace.efun_names.clone())
+            .process_with_include_resolver(source, |include, system, current_definitions| {
                 let header_path = resolve_include(path, include, system, workspace)?;
                 Some(self.header_definitions(
                     &header_path,
@@ -169,8 +178,7 @@ impl ProjectPreprocessor {
                     current_definitions.clone(),
                     visited,
                 ))
-            },
-        )
+            })
     }
 }
 
@@ -185,6 +193,10 @@ fn header_cache_key(relevance: &HeaderRelevance, definitions: &MacroEnvironment)
         let Some(value) = definitions.get(&name) else {
             continue;
         };
+        // A caller-provided macro can also paste names in the header's #if.
+        if value.contains("##") {
+            relevant.extend(definitions.keys().cloned());
+        }
         for nested in identifiers_in(value) {
             if relevant.insert(nested.clone()) {
                 pending.push(nested);
@@ -219,7 +231,11 @@ fn header_relevance(
     else {
         return HeaderRelevance::default();
     };
-    let mut relevance = HeaderRelevance::default();
+    // Token pasting can construct macro names absent from the directive text.
+    let mut relevance = HeaderRelevance {
+        full_environment: source.contains("##"),
+        ..Default::default()
+    };
     for directive in logical_directives(&source) {
         let mut fields = directive.splitn(2, char::is_whitespace);
         let name = fields.next().unwrap_or_default();
@@ -268,26 +284,23 @@ fn canonical_header_path(path: &Path) -> PathBuf {
 
 fn logical_directives(source: &str) -> Vec<String> {
     let mut directives = Vec::new();
-    let mut current = String::new();
-    for line in source.lines() {
-        let trimmed = line.trim_start();
-        if current.is_empty() {
-            let Some(body) = trimmed.strip_prefix('#') else {
-                continue;
-            };
-            current.push_str(body.trim_start());
-        } else {
-            current.push(' ');
-            current.push_str(trimmed);
+    let mut offset = 0;
+    let mut consumed_until = 0;
+    // Over-collecting a directive inside inactive text is safe for cache keys;
+    // omitting a dependency after a multiline comment is not.
+    for line in source.split_inclusive('\n') {
+        if offset >= consumed_until && line.trim_start().starts_with('#') {
+            let (logical, consumed) = lpc_preprocessor::logical_directive(&source[offset..]);
+            consumed_until = offset + consumed;
+            directives.push(
+                logical
+                    .trim_start()
+                    .trim_start_matches('#')
+                    .trim_start()
+                    .to_owned(),
+            );
         }
-        if current.trim_end().ends_with('\\') {
-            current.truncate(current.trim_end().len().saturating_sub(1));
-            continue;
-        }
-        directives.push(std::mem::take(&mut current));
-    }
-    if !current.is_empty() {
-        directives.push(current);
+        offset += line.len();
     }
     directives
 }
@@ -386,6 +399,85 @@ mod tests {
     use super::*;
 
     #[test]
+    fn keeps_efun_conditions_available_without_a_workspace_folder() {
+        let mut processor = ProjectPreprocessor::default();
+        processor.set_efuns(vec!["sizeof".to_owned()]);
+        let source = "#if efun_defined(sizeof)\nint selected;\n#else\nint hidden;\n#endif\n";
+        for _ in 0..2 {
+            let processed = processor.process(None, source);
+            assert!(processed.text.contains("int selected;"));
+            assert!(!processed.text.contains("int hidden;"));
+            processor.configure(Vec::new(), Vec::new());
+        }
+    }
+
+    #[test]
+    fn invalidates_compound_macro_conditions_when_the_environment_or_open_header_changes() {
+        let root = std::env::temp_dir().join(format!(
+            "lpc-compound-header-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let header = root.join("feature.h");
+        let source_path = root.join("demo.c");
+        let header_text = "#if DOUBLE(LEVEL) == 4 /* note\ncontinued */ && efun_defined(sizeof) && CAT(FEATURE, 1)\n#define ENABLED 1\n#else\n#define ENABLED 0\n#endif\n";
+        fs::write(&header, header_text).unwrap();
+        let mut processor = ProjectPreprocessor::default();
+        processor.configure(
+            Vec::new(),
+            vec![WorkspacePreprocessorConfig {
+                root: root.clone(),
+                efun_names: vec!["sizeof".to_owned()],
+                ..Default::default()
+            }],
+        );
+        let source = |level| {
+            format!(
+                "#define DOUBLE(x) ((x) * 2)\n#define CAT(a,b) a ## b\n#define LEVEL {level}\n#define FEATURE1 1\n#include \"feature.h\"\n#if ENABLED\nint enabled;\n#else\nint disabled;\n#endif\n"
+            )
+        };
+        assert!(
+            processor
+                .process(Some(&source_path), &source(2))
+                .text
+                .contains("int enabled;")
+        );
+        assert!(
+            processor
+                .process(
+                    Some(&source_path),
+                    &source(2).replace("FEATURE1 1", "FEATURE1 0")
+                )
+                .text
+                .contains("int disabled;")
+        );
+        assert!(
+            processor
+                .process(Some(&source_path), &source(1))
+                .text
+                .contains("int disabled;")
+        );
+        processor.set_open_header(&header, &header_text.replace("== 4", "== 2"));
+        assert!(
+            processor
+                .process(Some(&source_path), &source(1))
+                .text
+                .contains("int enabled;")
+        );
+        processor.remove_open_header(&header);
+        assert!(
+            processor
+                .process(Some(&source_path), &source(1))
+                .text
+                .contains("int disabled;")
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imports_direct_nested_and_global_header_macros_before_condition_evaluation() {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -426,6 +518,7 @@ mod tests {
                 root: root.clone(),
                 include_directories: vec![PathBuf::from("include")],
                 global_include_file: Some("global.h".to_owned()),
+                ..WorkspacePreprocessorConfig::default()
             }],
         );
         let processed = processor.process(Some(&source_path), source);
@@ -487,6 +580,7 @@ mod tests {
                 root: root.clone(),
                 include_directories: vec![PathBuf::from("include")],
                 global_include_file: None,
+                ..WorkspacePreprocessorConfig::default()
             }],
         );
         let processed = processor.process(Some(&source_path), source);

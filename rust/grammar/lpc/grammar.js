@@ -35,6 +35,8 @@ module.exports = grammar({
   externals: $ => [
     $.heredoc_literal,
     $.macro_identifier,
+    $._trailing_dot_float,
+    $.type_identifier,
   ],
 
   supertypes: $ => [
@@ -43,13 +45,11 @@ module.exports = grammar({
   ],
 
   conflicts: $ => [
-    [$.parameter, $._type],
-    [$.parameter, $._type, $._expression],
-    [$.argument_list, $.parenthesized_expression],
-    [$.struct_declaration, $._type],
-    [$.class_declaration, $._type],
-    [$._type, $._expression],
-    [$._type],
+    [$.custom_type, $._expression],
+    [$.parameter, $.custom_type],
+    [$.parameter, $.custom_type, $._expression],
+    [$.macro_annotation, $.parameter_list, $.macro_control_statement],
+    [$.macro_control_statement, $.macro_invocation],
     [$.source_file, $._expression],
   ],
 
@@ -84,20 +84,18 @@ module.exports = grammar({
       seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'),
     )),
 
-    function_declaration: $ => seq(
+    function_declaration: $ => prec(1, seq(
       repeat($.modifier),
-      optional(field('return_type', $._type)),
+      optional(field('return_type', choice($._type, alias($.macro_return_type, $.custom_type)))),
       repeat('*'),
       field('name', $.identifier),
       field('parameters', $.parameter_list),
       choice(field('body', $.block), ';'),
-    ),
+    )),
 
-    variable_declaration: $ => seq(
-      repeat($.modifier),
-      field('type', $._type),
-      commaSep1($.variable_declarator),
-      ';',
+    variable_declaration: $ => choice(
+      seq(repeat($.modifier), field('type', $._type), commaSep1($.variable_declarator), ';'),
+      seq(repeat1($.modifier), commaSep1($.variable_declarator), ';'),
     ),
 
     variable_declarator: $ => seq(
@@ -125,6 +123,7 @@ module.exports = grammar({
     ),
 
     struct_declaration: $ => seq(
+      repeat($.modifier),
       'struct',
       field('name', $.identifier),
       '{',
@@ -133,6 +132,7 @@ module.exports = grammar({
     ),
 
     class_declaration: $ => seq(
+      repeat($.modifier),
       'class',
       field('name', $.identifier),
       '{',
@@ -140,12 +140,12 @@ module.exports = grammar({
       '}',
     ),
 
-    field_declaration: $ => seq($._type, repeat('*'), $.identifier, ';'),
+    field_declaration: $ => seq(field('type', $._type), commaSep1(seq(repeat('*'), field('name', $.identifier))), ';'),
 
     modifier_section: $ => seq(repeat1($.modifier), ':'),
 
-    inherit_declaration: $ => seq('inherit', $._expression, ';'),
-    include_declaration: $ => seq('include', $._expression, ';'),
+    inherit_declaration: $ => seq(repeat($.modifier), 'inherit', field('path', $._expression), ';'),
+    include_declaration: $ => seq('include', field('path', $._expression), ';'),
 
     modifier: _ => choice(
       'private',
@@ -160,9 +160,20 @@ module.exports = grammar({
 
     _type: $ => choice(
       $.primitive_type,
-      seq(choice('struct', 'class'), optional($.identifier)),
-      seq($.identifier, repeat('*')),
+      $.class_type,
+      $.promise_type,
+      $.array_type,
+      $.custom_type,
     ),
+
+    custom_type: $ => $.identifier,
+    // Restrict the lookahead token to function headers. In expression contexts,
+    // `value * helper(...)` must remain multiplication rather than a type hint.
+    macro_return_type: $ => alias($.type_identifier, $.identifier),
+
+    class_type: $ => seq(choice('struct', 'class'), field('name', $.identifier)),
+    promise_type: $ => seq('promise', optional(seq('<', field('payload', choice($.primitive_type, $.class_type, $.array_type)), optional('*'), '>'))),
+    array_type: $ => seq(choice($.primitive_type, $.class_type, $.promise_type), 'array'),
 
     primitive_type: _ => choice(
       'int',
@@ -176,7 +187,6 @@ module.exports = grammar({
       'void',
       'array',
       'closure',
-      '__TREE__',
     ),
 
     block: $ => seq('{', repeat(choice($.variable_declaration, $._statement)), '}'),
@@ -194,10 +204,16 @@ module.exports = grammar({
       $.break_statement,
       $.continue_statement,
       $.empty_statement,
+      $.macro_control_statement,
     ),
 
-    expression_statement: $ => seq($._expression, ';'),
+    expression_statement: $ => seq($._sequence_expression, ';'),
     empty_statement: _ => ';',
+
+    macro_control_statement: $ => prec.right(seq(
+      field('name', choice($.identifier, alias($.macro_identifier, $.identifier))), '(', optional($.argument_list), ')',
+      field('body', $.block), optional(seq('else', field('alternative', $.block))),
+    )),
 
     if_statement: $ => prec.right(seq(
       'if',
@@ -216,7 +232,7 @@ module.exports = grammar({
       '(',
       optional(choice($.variable_declaration_without_semicolon, $.expression_list)),
       ';',
-      optional($._expression),
+      optional($._sequence_expression),
       ';',
       optional($.expression_list),
       ')',
@@ -241,7 +257,7 @@ module.exports = grammar({
 
     foreach_variable: $ => seq(
       optional($._type),
-      optional('ref'),
+      optional(choice('ref', '&')),
       repeat('*'),
       $.identifier,
     ),
@@ -249,9 +265,10 @@ module.exports = grammar({
     switch_statement: $ => seq(
       'switch',
       '(',
-      $._expression,
+      $._sequence_expression,
       ')',
       '{',
+      repeat($.variable_declaration),
       repeat($.switch_section),
       '}',
     ),
@@ -262,17 +279,16 @@ module.exports = grammar({
       seq('default', ':'),
     ),
 
-    return_statement: $ => seq('return', optional($._expression), ';'),
+    return_statement: $ => seq('return', optional($._sequence_expression), ';'),
     break_statement: _ => seq('break', ';'),
     continue_statement: _ => seq('continue', ';'),
 
     expression_list: $ => seq(
-      commaSep1(choice(
-        $._expression,
-        seq('...', $._expression),
-      )),
+      commaSep1(choice($._expression, $.spread_expression)),
       optional(','),
     ),
+
+    spread_expression: $ => seq($._expression, '...'),
 
     _expression: $ => choice(
       $.assignment_expression,
@@ -282,6 +298,9 @@ module.exports = grammar({
       $.update_expression,
       $.cast_expression,
       $.catch_expression,
+      $.acatch_expression,
+      $.time_expression,
+      $.tree_expression,
       $.postfix_expression,
       $.anonymous_function,
       $.new_expression,
@@ -292,11 +311,13 @@ module.exports = grammar({
       $.parenthesized_expression,
       $.number_literal,
       $.string_literal,
+      $.template_string,
       $.heredoc_literal,
       $.character_literal,
       $.parameter_placeholder,
       $.captured_expression,
       $.reference_expression,
+      $.qualified_identifier,
       $.macro_concatenation,
       $.macro_invocation,
       $.identifier,
@@ -351,7 +372,11 @@ module.exports = grammar({
       field('value', $._expression),
     )),
 
-    catch_expression: $ => prec(PREC.UNARY, seq('catch', choice(seq('(', $._expression, ')'), $.block))),
+    catch_expression: $ => seq('catch', $._special_body),
+    acatch_expression: $ => seq('acatch', $._special_body),
+    time_expression: $ => seq('time_expression', $._special_body),
+    tree_expression: $ => seq('__TREE__', $._special_body),
+    _special_body: $ => choice(seq('(', $._sequence_expression, ')'), $.block),
 
     postfix_expression: $ => prec.left(PREC.POSTFIX, seq(
       field('value', choice(
@@ -359,16 +384,20 @@ module.exports = grammar({
         $.array_literal,
         $.mapping_literal,
         $.new_expression,
+        $.catch_expression,
+        $.acatch_expression,
+        $.time_expression,
+        $.tree_expression,
+        $.closure_expression,
+        $.template_string,
         $.captured_expression,
         $.macro_invocation,
         $.identifier,
         $.string_literal,
         $.heredoc_literal,
-        $.number_literal,
         $.character_literal,
         $.parameter_placeholder,
-        seq('::', $.identifier),
-        seq('efun', '::', $.identifier),
+        $.qualified_identifier,
       )),
       repeat1(choice(
         $.call_suffix,
@@ -380,13 +409,14 @@ module.exports = grammar({
     )),
 
     call_suffix: $ => prec(PREC.CALL, seq('(', optional($.argument_list), ')')),
-    member_suffix: $ => seq(choice('->', '.', '::'), $.identifier),
-    subscript_suffix: $ => seq('[', optional($.slice_expression), ']'),
+    member_suffix: $ => seq(choice('->', '.', '::', '?.'), $.identifier),
+    subscript_suffix: $ => seq(choice('[', seq(choice('?.', '.?'), '[')), optional($.slice_expression), ']'),
+    qualified_identifier: $ => prec(PREC.POSTFIX, choice(seq('::', $.identifier), seq(choice('efun', $.primitive_type), '::', $.identifier))),
 
     slice_expression: $ => choice(
-      $._expression,
-      seq(optional(choice($._expression, seq('<', $._expression))), '..', optional(seq(optional('<'), $._expression))),
-      seq('<', $._expression),
+      $._sequence_expression,
+      seq(optional(choice($._sequence_expression, seq('<', $._sequence_expression))), '..', optional(seq(optional('<'), $._sequence_expression))),
+      seq('<', $._sequence_expression),
     ),
 
     argument_list: $ => seq(
@@ -398,7 +428,7 @@ module.exports = grammar({
     new_expression: $ => seq(
       'new',
       '(',
-      commaSep1(choice($._expression, $.struct_initializer)),
+      commaSep1(choice($._expression, $.class_type, $.struct_initializer)),
       ')',
     ),
 
@@ -409,64 +439,64 @@ module.exports = grammar({
     ),
 
     closure_expression: $ => seq(
-      '(:',
+      token(seq('(', /\s*/, ':')),
       optional(commaSep1(choice(
         seq('$', $.identifier),
         seq($._expression, optional('...')),
       ))),
-      ':)',
+      token(seq(':', /\s*/, ')')),
     ),
 
     concatenated_string: $ => prec.left(PREC.ADDITIVE + 1, choice(
       prec.dynamic(3, seq(
         $.identifier,
-        repeat1($.string_literal),
+        repeat1(choice($.string_literal, $.template_string)),
         $.postfix_expression,
-        repeat(choice($.string_literal, $.identifier)),
+        repeat(choice(choice($.string_literal, $.template_string), $.identifier)),
       )),
       prec.dynamic(3, seq(
-        repeat1($.string_literal),
+        repeat1(choice($.string_literal, $.template_string)),
         $.postfix_expression,
-        repeat(choice($.string_literal, $.identifier)),
+        repeat(choice(choice($.string_literal, $.template_string), $.identifier)),
       )),
       prec.dynamic(2, seq(
         $.identifier,
-        repeat1($.string_literal),
+        repeat1(choice($.string_literal, $.template_string)),
         $.macro_invocation,
-        repeat(choice($.string_literal, $.identifier, $.macro_invocation)),
+        repeat(choice(choice($.string_literal, $.template_string), $.identifier, $.macro_invocation)),
       )),
       prec.dynamic(2, seq(
-        $.string_literal,
+        choice($.string_literal, $.template_string),
         $.macro_invocation,
-        repeat(choice($.string_literal, $.identifier, $.macro_invocation)),
+        repeat(choice(choice($.string_literal, $.template_string), $.identifier, $.macro_invocation)),
       )),
       seq(
-        $.string_literal,
-        repeat1(choice($.string_literal, $.identifier, $.macro_invocation)),
+        choice($.string_literal, $.template_string),
+        repeat1(choice(choice($.string_literal, $.template_string), $.identifier, $.macro_invocation)),
       ),
       seq(
         $.identifier,
-        $.string_literal,
-        repeat(choice($.identifier, $.string_literal, $.macro_invocation)),
+        choice($.string_literal, $.template_string),
+        repeat(choice($.identifier, choice($.string_literal, $.template_string), $.macro_invocation)),
       ),
       seq(
         $.identifier,
         repeat1($.identifier),
-        $.string_literal,
-        repeat(choice($.identifier, $.string_literal, $.macro_invocation)),
+        choice($.string_literal, $.template_string),
+        repeat(choice($.identifier, choice($.string_literal, $.template_string), $.macro_invocation)),
       ),
       seq(
         $.heredoc_literal,
-        repeat1(choice($.string_literal, $.identifier, $.macro_invocation)),
+        repeat1(choice(choice($.string_literal, $.template_string), $.identifier, $.macro_invocation)),
       ),
       seq(
         $.identifier,
         $.heredoc_literal,
-        repeat(choice($.identifier, $.string_literal, $.macro_invocation)),
+        repeat(choice($.identifier, choice($.string_literal, $.template_string), $.macro_invocation)),
       ),
       seq(
         $.macro_invocation,
-        repeat1(choice($.string_literal, $.identifier)),
+        repeat1(choice(choice($.string_literal, $.template_string), $.identifier)),
       ),
     )),
 
@@ -476,20 +506,24 @@ module.exports = grammar({
     parenthesized_expression: $ => seq('(', choice($._expression, $.comma_expression), ')'),
     comma_expression: $ => seq($._expression, repeat1(seq(',', $._expression))),
 
-    number_literal: _ => token(choice(
-      /0[xX][0-9a-fA-F_]+/,
-      /0[bB][01_]+/,
-      /0[0-7_]+/,
-      /[0-9][0-9_]*\.[0-9_]+([eE][+-]?[0-9_]+)?/,
-      /[0-9][0-9_]*[eE][+-]?[0-9_]+/,
-      /[0-9][0-9_]*/,
-    )),
+    number_literal: $ => choice($._trailing_dot_float, token(choice(
+      /0[xX][0-9a-fA-F](_?[0-9a-fA-F])*/,
+      /0[bB][01](_?[01])*/,
+      /[0-9](_?[0-9])*\.(_?[0-9])+([eE][+-]?[0-9](_?[0-9])*)?/,
+      /[0-9](_?[0-9])*[eE][+-]?[0-9](_?[0-9])*/,
+      /[0-9](_?[0-9])*/,
+    ))),
+
+    template_string: $ => seq('`', repeat(choice($.template_text, '$', $.template_interpolation)), '`'),
+    template_text: _ => token.immediate(repeat1(choice(/[^`\\$]/, /\\[\s\S]/, /\$[^{`\\]/))),
+    template_interpolation: $ => seq('${', field('value', $._expression), '}'),
 
     string_literal: _ => token(seq('"', repeat(choice(/[^"\\]/, /\\(.|\r?\n)/)), '"')),
-    character_literal: _ => token(seq("'", choice(/[^'\\\r\n]/, /\\./), "'")),
+    character_literal: _ => token(seq("'", choice(/[^'\\\r\n]/, /\\x[0-9a-fA-F]+/, /\\[0-7]+/, /\\./), "'")),
     parameter_placeholder: _ => token(/\$[0-9]+/),
-    captured_expression: $ => seq('$', '(', $._expression, ')'),
-    reference_expression: $ => prec(PREC.UNARY, seq('ref', $._expression)),
+    captured_expression: $ => seq('$', '(', $._sequence_expression, ')'),
+    reference_expression: $ => prec(PREC.UNARY, seq(choice('ref', '&'), $._expression)),
+    _sequence_expression: $ => choice($._expression, $.comma_expression),
     macro_concatenation: $ => prec.left(PREC.ADDITIVE + 1, seq($.identifier, repeat1($.identifier))),
     macro_invocation: $ => seq(
       field('name', alias($.macro_identifier, $.identifier)),

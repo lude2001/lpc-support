@@ -93,7 +93,9 @@ fn classify(node: Node<'_>, source: &str, facts: &SemanticTokenFacts) -> Option<
     match node.kind() {
         "primitive_type" => Some((1, 0)),
         "number_literal" => Some((10, 0)),
-        "string_literal" | "character_literal" => Some((11, 0)),
+        "string_literal" | "character_literal" | "template_text" | "heredoc_literal" => {
+            Some((11, 0))
+        }
         "comment" => Some((12, 0)),
         "preprocessor_directive" => Some((8, 0)),
         "modifier" => Some((0, 0)),
@@ -125,6 +127,7 @@ fn classify_identifier(
             Some((2, DECLARATION_MODIFIER))
         }
         "field_declaration" => Some((7, DECLARATION_MODIFIER)),
+        "class_type" | "custom_type" => Some((2, 0)),
         "member_suffix" => Some((member_token_type(parent), 0)),
         "postfix_expression" if is_direct_call(parent, node) => {
             Some(classify_call(node, parent, source, facts))
@@ -356,6 +359,29 @@ mod tests {
     use tree_sitter::Parser;
 
     use super::*;
+
+    #[test]
+    fn keeps_template_text_separate_from_interpolation_symbols_and_types() {
+        let source = "class Pair { int x, y; } class Pair point; string demo(int value) { return `text=${value}`; }";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        assert!(!tree.root_node().has_error());
+        let tokens = decode(&encode(&tree, source, &SemanticTokenFacts::default()));
+        let token_at = |marker: &str| {
+            tokens
+                .iter()
+                .find(|token| token.1 == source.rfind(marker).unwrap() as u32)
+                .unwrap()
+                .3
+        };
+        assert_eq!(token_at("text="), 11);
+        assert_ne!(token_at("value}`"), 11);
+        assert_eq!(token_at("Pair point"), 2);
+        assert_eq!(token_at("y;"), 7);
+    }
 
     #[test]
     fn emits_legend_compatible_delta_encoded_tokens() {

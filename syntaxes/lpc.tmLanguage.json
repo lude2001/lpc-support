@@ -41,11 +41,11 @@
 		},
 		{
 			"name": "meta.closure.lpc",
-			"begin": "(\\(:)",
+			"begin": "(\\(\\s*:)",
 			"beginCaptures": {
 				"1": { "name": "punctuation.definition.closure.begin.lpc" }
 			},
-			"end": "(:\\))",
+			"end": "(:\\s*\\))",
 			"endCaptures": {
 				"1": { "name": "punctuation.definition.closure.end.lpc" }
 			},
@@ -261,13 +261,28 @@
 		"strings": {
 			"patterns": [
 				{
+					"name": "string.template.lpc",
+					"begin": "`",
+					"end": "`",
+					"patterns": [
+						{ "name": "constant.character.escape.lpc", "match": "\\\\." },
+						{
+							"name": "meta.interpolation.lpc",
+							"contentName": "meta.embedded.expression.lpc",
+							"begin": "\\$\\{",
+							"end": "\\}",
+							"patterns": [{ "include": "#templateCode" }]
+						}
+					]
+				},
+				{
 					"name": "string.quoted.double.lpc",
 					"begin": "\"",
 					"end": "\"",
 					"patterns": [
 						{
 							"name": "constant.character.escape.lpc",
-							"match": "\\\\."
+							"match": "\\\\(?:x[0-9a-fA-F]+|[0-7]+|.)"
 						}
 					]
 				},
@@ -276,14 +291,20 @@
 					"begin": "'",
 					"end": "'",
 					"patterns": [
-						{ "name": "constant.character.escape.lpc", "match": "\\\\." }
+						{ "name": "constant.character.escape.lpc", "match": "\\\\(?:x[0-9a-fA-F]+|[0-7]+|.)" }
 					]
 				}
 			]
 		},
+		"templateCode": {
+			"patterns": [
+				{ "begin": "\\{", "end": "\\}", "patterns": [{ "include": "#templateCode" }] },
+				{ "include": "$self" }
+			]
+		},
 		"memberAccess": {
 			"name": "meta.member-access.lpc",
-			"match": "(->|\\.)(\\s*)([a-zA-Z_][a-zA-Z0-9_]*)",
+			"match": "(->|\\?\\.|\\.)(\\s*)([a-zA-Z_][a-zA-Z0-9_]*)",
 			"captures": {
 				"1": { "name": "keyword.operator.member.lpc" },
 				"3": { "name": "entity.name.function.member.lpc" }
@@ -303,7 +324,7 @@
 		},
 		"functionCall": {
 			"name": "meta.function-call.lpc",
-			"match": "\\b(?!if\\b|else\\b|while\\b|for\\b|foreach\\b|switch\\b|catch\\b|return\\b|new\\b|inherit\\b|include\\b)([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+			"match": "\\b(?!if\\b|else\\b|while\\b|for\\b|foreach\\b|switch\\b|catch\\b|acatch\\b|time_expression\\b|__TREE__\\b|return\\b|new\\b|inherit\\b|include\\b)([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
 			"captures": {
 				"1": { "name": "entity.name.function.fallback.lpc" }
 			}
@@ -312,7 +333,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.lpc",
-					"match": "\\b(if|else|while|for|do|switch|case|default|break|continue|return|foreach|catch|include|in|new|ref|await)\\b"
+					"match": "\\b(if|else|while|for|do|switch|case|default|break|continue|return|foreach|catch|acatch|time_expression|__TREE__|include|in|new|ref|await)\\b"
 				},
 				{
 					"name": "keyword.other.lpc",
@@ -324,7 +345,7 @@
 			"patterns": [
 				{
 					"name": "storage.type.lpc",
-					"match": "\\b(void|int|string|object|array|mapping|float|buffer|mixed|function|class|struct)\\b"
+					"match": "\\b(void|int|string|object|array|mapping|float|buffer|mixed|function|class|struct|promise)\\b"
 				}
 			]
 		},
@@ -339,16 +360,12 @@
 					"match": "\\b0[bB][01_]+\\b"
 				},
 				{
-					"name": "constant.numeric.octal.lpc",
-					"match": "\\b0[0-7_]+\\b"
-				},
-				{
 					"name": "constant.numeric.float.lpc",
-					"match": "\\b(?:(?:\\d*\\.\\d+)|(?:\\d+\\.\\d*))(?:[eE][+-]?\\d+)?\\b|\\b\\d+[eE][+-]?\\d+\\b"
+					"match": "\\b(?:[0-9](?:_?[0-9])*\\.(?:_?[0-9])+(?:[eE][+-]?[0-9](?:_?[0-9])*)?\\b|[0-9](?:_?[0-9])*[eE][+-]?[0-9](?:_?[0-9])*\\b|[0-9](?:_?[0-9])*\\.(?![.A-Za-z0-9_]))"
 				},
 				{
 					"name": "constant.numeric.integer.lpc",
-					"match": "\\b\\d+\\b"
+					"match": "\\b[0-9](?:_?[0-9])*\\b"
 				}
 			]
 		},
@@ -356,17 +373,17 @@
 			"patterns": [
 				{
 					"name": "keyword.operator.lpc",
-					"match": "(?:<<=|>>=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|->|::|\\.\\.\\.|\\.\\.|<<|>>|=|\\+|-|\\*|/|%|<|>|!|&|\\||\\^|~|\\?|:)"
+					"match": "(?:<<=|>>=|\\?\\?=|&&=|\\|\\|=|\\?\\?|\\?\\.|\\.\\?|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|->|::|\\.\\.\\.|\\.\\.|<<|>>|=|\\+|-|\\*|/|%|<|>|!|&|\\||\\^|~|\\?|:)"
 				}
 			]
 		},
 		"arrayDelimiter": {
 			"name": "string.heredoc.lpc",
-			"begin": "@@([A-Z_][A-Z0-9_]*)\\s*$",
+			"begin": "@@([A-Za-z0-9_]+)\\s*$",
 			"beginCaptures": {
 				"1": { "name": "entity.name.tag.heredoc.begin.lpc" }
 			},
-			"end": "^(\\1;)\\s*",
+			"end": "^(\\1)(?![A-Za-z0-9_])",
 			"endCaptures": {
 				"1": { "name": "entity.name.tag.heredoc.end.lpc" }
 			},
@@ -374,11 +391,11 @@
 		},
 		"heredoc": {
 			"name": "string.heredoc.lpc",
-			"begin": "@([A-Z_][A-Z0-9_]*)\\s*$",
+			"begin": "@([A-Za-z0-9_]+)\\s*$",
 			"beginCaptures": {
 				"1": { "name": "entity.name.tag.heredoc.begin.lpc" }
 			},
-			"end": "^(\\1)\\s*",
+			"end": "^(\\1)(?![A-Za-z0-9_])",
 			"endCaptures": {
 				"1": { "name": "entity.name.tag.heredoc.end.lpc" }
 			},

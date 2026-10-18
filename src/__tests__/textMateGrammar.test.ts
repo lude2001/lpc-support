@@ -97,8 +97,12 @@ describe('TextMate LPC grammar', () => {
     test('covers LPC delimiter forms that semantic tokens may receive late', () => {
         const grammar = loadGrammar();
 
-        expect(grammar.repository.heredoc.begin).toBe('@([A-Z_][A-Z0-9_]*)\\s*$');
-        expect(grammar.repository.arrayDelimiter.begin).toBe('@@([A-Z_][A-Z0-9_]*)\\s*$');
+        for (const [rule, prefix] of [[grammar.repository.heredoc, '@'], [grammar.repository.arrayDelimiter, '@@']] as const) {
+            const pattern = new RegExp(rule.begin);
+            expect(pattern.test(`${prefix}UPPER_MARKER`)).toBe(true);
+            expect(pattern.test(`${prefix}lowercase_marker`)).toBe(true);
+            expect(pattern.test(`${prefix}bad-marker`)).toBe(false);
+        }
         expect(grammar.repository.heredoc.patterns).toEqual([]);
         expect(grammar.repository.arrayDelimiter.patterns).toEqual([]);
     });

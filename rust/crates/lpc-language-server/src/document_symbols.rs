@@ -64,12 +64,18 @@ fn type_symbol(node: Node<'_>, source: &str, kind: u32) -> Vec<DocumentSymbol> {
     let children: Vec<_> = node
         .named_children(&mut cursor)
         .filter(|child| child.kind() == "field_declaration")
-        .filter_map(|field| {
+        .flat_map(|field| {
             let mut field_cursor = field.walk();
-            let field_name = field
+            field
                 .named_children(&mut field_cursor)
-                .find(|child| child.kind() == "identifier")?;
-            Some(create_symbol(field_name, field, source, 8, None))
+                .filter(|child| {
+                    child.kind() == "identifier"
+                        && field
+                            .child_by_field_name("type")
+                            .is_none_or(|type_node| type_node.id() != child.id())
+                })
+                .map(|name| create_symbol(name, field, source, 8, None))
+                .collect::<Vec<_>>()
         })
         .collect();
     vec![create_symbol(name, node, source, kind, Some(children))]

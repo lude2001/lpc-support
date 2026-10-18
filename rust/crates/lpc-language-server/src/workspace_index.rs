@@ -19,7 +19,7 @@ use url::Url;
 use crate::project_preprocessor::{ProjectPreprocessor, WorkspacePreprocessorConfig};
 
 const MAX_SOURCE_BYTES: u64 = 8 * 1024 * 1024;
-const WORKSPACE_INDEX_CACHE_SCHEMA_VERSION: u32 = 1;
+const WORKSPACE_INDEX_CACHE_SCHEMA_VERSION: u32 = 2;
 const WORKSPACE_INDEX_CACHE_ROOT_ENV: &str = "LPC_INDEX_CACHE_ROOT";
 const WORKSPACE_INDEX_CACHE_VERSION_ENV: &str = "LPC_INDEX_CACHE_VERSION";
 
@@ -355,8 +355,10 @@ fn configuration_fingerprint(
     for workspace in workspaces {
         let mut include_directories = workspace.include_directories.clone();
         include_directories.sort();
+        let mut efuns = workspace.efun_names.clone();
+        efuns.sort();
         value.push_str(&format!(
-            ";root={};includes={include_directories:?};global={:?}",
+            ";root={};includes={include_directories:?};efuns={efuns:?};global={:?}",
             workspace.root.to_string_lossy(),
             workspace.global_include_file
         ));

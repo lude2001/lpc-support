@@ -69,6 +69,10 @@ impl SyntaxStore {
         self.preprocessor.configure(definitions, workspaces);
     }
 
+    pub fn set_efuns(&mut self, names: Vec<String>) {
+        self.preprocessor.set_efuns(names);
+    }
+
     pub fn invalidate_preprocessor_cache(&mut self) {
         self.preprocessor.clear_cache();
     }

@@ -2,6 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+mod expression;
+mod lexical;
+pub use lexical::logical_directive;
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceRange {
@@ -64,13 +68,20 @@ struct ConditionalFrame {
 #[derive(Debug, Clone, Default)]
 pub struct Preprocessor {
     predefined: HashMap<String, String>,
+    efuns: HashSet<String>,
 }
 
 impl Preprocessor {
     pub fn with_predefined(predefined: impl IntoIterator<Item = (String, String)>) -> Self {
         Self {
             predefined: predefined.into_iter().collect(),
+            efuns: HashSet::new(),
         }
+    }
+
+    pub fn with_efuns(mut self, efuns: impl IntoIterator<Item = String>) -> Self {
+        self.efuns = efuns.into_iter().collect();
+        self
     }
 
     pub fn process(&self, source: &str) -> PreprocessedDocument {
@@ -93,7 +104,8 @@ impl Preprocessor {
         let mut inactive_regions = Vec::new();
         let mut macro_directives = Vec::new();
         let mut offset = 0_usize;
-        let mut directive_continuation = false;
+        let mut consumed_until = 0;
+        let mut lexical = lexical::LexicalState::default();
 
         for line_with_ending in source.split_inclusive('\n') {
             let line = line_with_ending
@@ -109,22 +121,25 @@ impl Preprocessor {
             let current_active = frames.last().is_none_or(|frame| frame.active);
             let mut directive = false;
 
-            if directive_continuation {
+            if offset < consumed_until {
+                mask_non_newline(&mut output[offset..offset + line_with_ending.len()]);
+                offset += line_with_ending.len();
+                continue;
+            }
+            if (!current_active || lexical.in_code()) && trimmed.starts_with('#') {
                 directive = true;
-                directive_continuation = line.trim_end().ends_with('\\');
-            } else if let Some(body) = trimmed.strip_prefix('#') {
-                directive = true;
-                directive_continuation = line.trim_end().ends_with('\\');
-                let physical_arguments = split_directive(body.trim_start()).1;
-                let logical = splice_continued_directive(
-                    body.trim_start(),
-                    &source[offset + line_with_ending.len()..],
-                );
-                let body = logical.as_str();
+                let (logical, consumed) = lexical::logical_directive(&source[offset..]);
+                consumed_until = offset + consumed;
+                let body = logical
+                    .trim_start()
+                    .strip_prefix('#')
+                    .unwrap_or_default()
+                    .trim_start();
                 let (name, arguments) = split_directive(body);
+                let arguments_start = offset + logical.len().saturating_sub(arguments.len());
                 match name {
                     "if" => {
-                        let condition = evaluate_condition(arguments, &definitions);
+                        let condition = expression::evaluate(arguments, &definitions, &self.efuns);
                         frames.push(ConditionalFrame {
                             parent_active: current_active,
                             branch_taken: condition,
@@ -149,8 +164,8 @@ impl Preprocessor {
                     }
                     "elif" => {
                         if let Some(frame) = frames.last_mut() {
-                            let condition =
-                                !frame.branch_taken && evaluate_condition(arguments, &definitions);
+                            let condition = !frame.branch_taken
+                                && expression::evaluate(arguments, &definitions, &self.efuns);
                             frame.active = frame.parent_active && condition;
                             frame.branch_taken |= condition;
                         }
@@ -166,8 +181,8 @@ impl Preprocessor {
                     }
                     "define" if current_active => {
                         if let Some((key, value)) = parse_define(arguments) {
-                            let start_byte =
-                                offset + line.len().saturating_sub(physical_arguments.len());
+                            let start_byte = arguments_start;
+                            let value = compact_macro_whitespace(value);
                             macro_directives.push(MacroDirectiveFact {
                                 name: key.to_owned(),
                                 kind: MacroDirectiveKind::Define,
@@ -175,15 +190,15 @@ impl Preprocessor {
                                     start_byte,
                                     end_byte: start_byte + key.len(),
                                 },
-                                value: Some(value.to_owned()),
+                                value: Some(value.clone()),
                             });
-                            definitions.insert(key.to_owned(), value.to_owned());
+                            definitions.insert(key.to_owned(), value);
                         }
                     }
                     "undef" if current_active => {
                         let key = first_word(arguments);
                         if !key.is_empty() {
-                            let start_byte = offset + line.len().saturating_sub(arguments.len());
+                            let start_byte = arguments_start;
                             macro_directives.push(MacroDirectiveFact {
                                 name: key.to_owned(),
                                 kind: MacroDirectiveKind::Undef,
@@ -208,11 +223,9 @@ impl Preprocessor {
                                 })
                         });
                         if let Some((path, system, relative_start, relative_end)) = parsed {
-                            let arguments_offset =
-                                line.len().saturating_sub(physical_arguments.len());
                             let include_range = SourceRange {
-                                start_byte: offset + arguments_offset + relative_start,
-                                end_byte: offset + arguments_offset + relative_end,
+                                start_byte: arguments_start + relative_start,
+                                end_byte: arguments_start + relative_end,
                             };
                             includes.push(IncludeFact {
                                 path: path.clone(),
@@ -251,6 +264,11 @@ impl Preprocessor {
             }
 
             let line_active = frames.last().is_none_or(|frame| frame.active);
+            if directive {
+                lexical = lexical::LexicalState::default();
+            } else if line_active {
+                lexical.scan_line(line);
+            }
             if directive || !line_active {
                 mask_non_newline(&mut output[offset..offset + line_with_ending.len()]);
                 if !directive && !line_active && !line.is_empty() {
@@ -283,23 +301,32 @@ impl Preprocessor {
     }
 }
 
-fn splice_continued_directive(first_line: &str, remaining_source: &str) -> String {
-    let mut logical = first_line.to_owned();
-    if !logical.trim_end().ends_with('\\') {
-        return logical;
-    }
-
-    for next_with_ending in remaining_source.split_inclusive('\n') {
-        let trimmed_end = logical.trim_end().len();
-        logical.truncate(trimmed_end.saturating_sub(1));
-        logical.push(' ');
-        let next = next_with_ending.trim_end_matches(['\r', '\n']);
-        logical.push_str(next.trim_start());
-        if !next.trim_end().ends_with('\\') {
-            break;
+fn compact_macro_whitespace(value: &str) -> String {
+    let mut result = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+    for character in value.chars() {
+        if let Some(delimiter) = quote {
+            result.push(character);
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == delimiter {
+                quote = None;
+            }
+        } else if matches!(character, '\"' | '\'') {
+            quote = Some(character);
+            result.push(character);
+        } else if character.is_whitespace() {
+            if !result.ends_with(' ') {
+                result.push(' ');
+            }
+        } else {
+            result.push(character);
         }
     }
-    logical
+    result.trim().to_owned()
 }
 
 fn parse_define(arguments: &str) -> Option<(&str, &str)> {
@@ -354,110 +381,6 @@ fn first_word(value: &str) -> &str {
     &value[..boundary]
 }
 
-fn evaluate_condition(expression: &str, definitions: &HashMap<String, String>) -> bool {
-    evaluate_value(expression, definitions, 0) != 0
-}
-
-fn evaluate_value(expression: &str, definitions: &HashMap<String, String>, depth: usize) -> i64 {
-    if depth > 32 {
-        return 0;
-    }
-    let expression = trim_balanced_parentheses(expression.trim());
-    for operator in ["||", "&&", "==", "!=", ">=", "<=", ">", "<"] {
-        if let Some(index) = find_top_level_operator(expression, operator) {
-            let left = evaluate_value(&expression[..index], definitions, depth + 1);
-            let right = evaluate_value(
-                &expression[index + operator.len()..],
-                definitions,
-                depth + 1,
-            );
-            return match operator {
-                "||" => i64::from(left != 0 || right != 0),
-                "&&" => i64::from(left != 0 && right != 0),
-                "==" => i64::from(left == right),
-                "!=" => i64::from(left != right),
-                ">=" => i64::from(left >= right),
-                "<=" => i64::from(left <= right),
-                ">" => i64::from(left > right),
-                "<" => i64::from(left < right),
-                _ => 0,
-            };
-        }
-    }
-    if let Some(rest) = expression.strip_prefix('!') {
-        return i64::from(evaluate_value(rest, definitions, depth + 1) == 0);
-    }
-    if let Some(rest) = expression.strip_prefix("defined") {
-        let name = rest
-            .trim()
-            .trim_start_matches('(')
-            .trim_end_matches(')')
-            .trim();
-        return i64::from(definitions.contains_key(name));
-    }
-    if let Some(hex) = expression
-        .strip_prefix("0x")
-        .or_else(|| expression.strip_prefix("0X"))
-    {
-        return i64::from_str_radix(hex, 16).unwrap_or(0);
-    }
-    if let Ok(value) = expression.parse::<i64>() {
-        return value;
-    }
-    definitions.get(first_word(expression)).map_or(0, |value| {
-        let value = value.trim();
-        if value.is_empty() {
-            1
-        } else {
-            evaluate_value(value, definitions, depth + 1)
-        }
-    })
-}
-
-fn trim_balanced_parentheses(mut expression: &str) -> &str {
-    loop {
-        if !expression.starts_with('(') || !expression.ends_with(')') {
-            return expression;
-        }
-        let mut depth = 0_i32;
-        let mut closes_at_end = false;
-        for (index, character) in expression.char_indices() {
-            match character {
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        closes_at_end = index + character.len_utf8() == expression.len();
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-        if !closes_at_end {
-            return expression;
-        }
-        expression = expression[1..expression.len() - 1].trim();
-    }
-}
-
-fn find_top_level_operator(expression: &str, operator: &str) -> Option<usize> {
-    let bytes = expression.as_bytes();
-    let operator = operator.as_bytes();
-    let mut depth = 0_i32;
-    let mut index = 0_usize;
-    while index + operator.len() <= bytes.len() {
-        match bytes[index] {
-            b'(' => depth += 1,
-            b')' => depth -= 1,
-            _ if depth == 0 && bytes[index..].starts_with(operator) => return Some(index),
-            _ => {}
-        }
-        index += 1;
-    }
-    None
-}
-
 fn parse_include(arguments: &str) -> Option<(String, bool, usize, usize)> {
     let start = arguments.find(['"', '<'])?;
     let opening = arguments.as_bytes()[start];
@@ -510,6 +433,96 @@ pub fn referenced_macros(source: &str) -> HashSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn evaluates_driver_integer_precedence_and_function_macros() {
+        for (condition, expected) in [
+            ("(1 + 1) == 2", true),
+            ("2 * 3 == 6", true),
+            ("6 & 2", true),
+            ("1 << 2 == 4", true),
+            ("1 ? 1 : 0", true),
+            ("3 > 2 > 1", false),
+            ("0b10 == 2", true),
+            ("010 == 10", true),
+            ("'\\x41' == 65", true),
+            ("'\\101' == 65", true),
+            ("~0 != 0", true),
+            ("1 /* note */", true),
+            ("8 - 3 - 2 == 3", true),
+            ("1 + 1 * 2 == 3", true),
+            ("DOUBLE(2) == 4", true),
+            ("VALUE * 2 == 3", true),
+            ("DOUBLE(DOUBLE(2)) == 8", true),
+            ("CAT(0x1, 0) == 16", true),
+            ("CAT(PREFIX, 1) == 42", true),
+            ("defined(VALUE) && !defined(MISSING)", true),
+            ("efun_defined(sizeof)", true),
+            ("efun_defined(missing_efun)", false),
+        ] {
+            let source = format!(
+                "#define DOUBLE(x) ((x) * 2)\n#define CAT(a,b) a ## b\n#define VALUE 1+1\n#define PREFIX 9\n#define PREFIX1 42\n#if {condition}\nint yes;\n#else\nint no;\n#endif\n"
+            );
+            let result = Preprocessor::default()
+                .with_efuns(["sizeof".to_owned()])
+                .process(&source);
+            assert_eq!(
+                result.text.contains("int yes;"),
+                expected,
+                "{condition}: {}",
+                result.text
+            );
+            assert_eq!(result.text.contains("int no;"), !expected, "{condition}");
+            assert_eq!(result.text.len(), source.len());
+        }
+    }
+
+    #[test]
+    fn preserves_directive_text_in_comments_strings_and_text_blocks() {
+        for literal in [
+            "/*\n#if 0\n*/\n",
+            "string s = @END\n#if 0\nEND;\n",
+            "string *s = @@END\n#if 0\nEND;\n",
+            "string s = `text\n#if 0\n`;\n",
+            "string s = `outer ${`inner ${1}`}\n#if 0\n`;\n",
+        ] {
+            let source = format!("{literal}int visible;\n");
+            let result = Preprocessor::default().process(&source);
+            assert_eq!(result.text, source);
+            assert!(result.inactive_regions.is_empty());
+        }
+        let source =
+            "#define LEVEL 1 /* comment\n continued */ + 2\n#if LEVEL == 3\nint visible;\n#endif\n";
+        let result = Preprocessor::default().process(source);
+        assert!(result.text.contains("int visible;"));
+        assert!(!result.text.contains("continued"));
+        assert_eq!(result.text.len(), source.len());
+        assert_eq!(
+            &source[result.macro_directives[0].range.start_byte
+                ..result.macro_directives[0].range.end_byte],
+            "LEVEL"
+        );
+    }
+
+    #[test]
+    fn terminates_recursive_and_malformed_conditions_without_panicking() {
+        let processor = Preprocessor::with_predefined([
+            ("A".to_owned(), "B".to_owned()),
+            ("B".to_owned(), "A".to_owned()),
+        ]);
+        for condition in [
+            "A",
+            "1 / 0",
+            "1 << -1",
+            "defined(",
+            "1 +",
+            "\"中文\"",
+            "'中'",
+            "'",
+        ] {
+            let _ = processor.process(&format!("#if {condition}\nint yes;\n#endif\n"));
+        }
+    }
 
     #[test]
     fn masks_inactive_branches_without_changing_offsets() {

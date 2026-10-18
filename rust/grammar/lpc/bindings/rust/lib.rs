@@ -12,6 +12,37 @@ pub const NODE_TYPES: &str = include_str!("../../src/node-types.json");
 #[cfg(test)]
 mod tests {
     #[test]
+    fn rejects_invalid_numeric_literals() {
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&super::LANGUAGE.into()).unwrap();
+        for literal in [".5", "1.e3", "1__2"] {
+            let source = format!("mixed demo() {{ return {literal}; }}");
+            assert!(
+                parser.parse(source, None).unwrap().root_node().has_error(),
+                "{literal}"
+            );
+        }
+    }
+
+    #[test]
+    fn covers_driver_syntax_matrix() {
+        let cases: serde_json::Value =
+            serde_json::from_str(include_str!("../../test/coverage.json")).unwrap();
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&super::LANGUAGE.into()).unwrap();
+        for case in cases.as_array().unwrap() {
+            let source = case["source"].as_str().unwrap();
+            let tree = parser.parse(source, None).unwrap();
+            assert!(
+                !tree.root_node().has_error(),
+                "{}: {}",
+                case["id"],
+                tree.root_node().to_sexp()
+            );
+        }
+    }
+
+    #[test]
     fn parses_async_functions_and_await_with_unary_precedence() {
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(&super::LANGUAGE.into()).unwrap();

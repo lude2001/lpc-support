@@ -61,6 +61,35 @@ describe('LPC TextMate conditional compilation', () => {
         expect(scopesAt(lines[2], tokens[2], 'async')).toContain('string.quoted.double.lpc');
     });
 
+    test('highlights promise, acatch and time_expression as language syntax', () => {
+        const lines = ['promise<int> pending;', 'async mixed f() { return acatch(await next()); }', 'int elapsed = time_expression { work(); };'];
+        const tokens = tokenize(lines);
+        expect(scopesAt(lines[0], tokens[0], 'promise')).toContain('storage.type.lpc');
+        expect(scopesAt(lines[1], tokens[1], 'acatch')).toContain('keyword.control.lpc');
+        expect(scopesAt(lines[2], tokens[2], 'time_expression')).toContain('keyword.control.lpc');
+    });
+
+    test('keeps template text and nested interpolated code in their own scopes', () => {
+        const line = 'string s = `hello ${`inner ${value + 1}`} tail`; int after;';
+        const tokens = tokenize([line])[0];
+        expect(scopesAt(line, tokens, 'hello')).toContain('string.template.lpc');
+        expect(scopesAt(line, tokens, 'inner')).toContain('string.template.lpc');
+        expect(scopesAt(line, tokens, 'value')).toContain('meta.embedded.expression.lpc');
+        expect(scopesAt(line, tokens, '1')).toContain('constant.numeric.integer.lpc');
+        expect(scopesAt(line, tokens, 'tail')).toContain('string.template.lpc');
+        expect(scopesAt(line, tokens, 'after')).not.toContain('string.template.lpc');
+    });
+
+    test('recognizes literal boundaries, optional access and lowercase text markers', () => {
+        const lines = ['float x = 1.; float y = 1_2.5e-2; mixed v = m?.key;', 'string *a = @@end', 'hello', 'ending', 'end;', 'return 1;'];
+        const tokens = tokenize(lines);
+        expect(scopesAt(lines[0], tokens[0], '1.')).toContain('constant.numeric.float.lpc');
+        expect(scopesAt(lines[0], tokens[0], '1_2.5e-2')).toContain('constant.numeric.float.lpc');
+        expect(scopesAt(lines[0], tokens[0], '?.')).toContain('keyword.operator.member.lpc');
+        expect(scopesAt(lines[3], tokens[3], 'ending')).toContain('string.heredoc.lpc');
+        expect(scopesAt(lines[5], tokens[5], 'return')).toContain('keyword.control.lpc');
+    });
+
     test('restores keyword highlighting in the else branch and after endif', () => {
         const lines = ['#if 0', 'return 1;', '#else', 'if (flag) return file;', '#endif', 'return 0;'];
         const tokens = tokenize(lines);

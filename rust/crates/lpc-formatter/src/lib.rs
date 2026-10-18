@@ -117,7 +117,10 @@ struct Printer<'a> {
 impl Printer<'_> {
     fn render_source(&self, root: Node<'_>) -> String {
         let mut cursor = root.walk();
-        let children: Vec<_> = root.named_children(&mut cursor).collect();
+        let children: Vec<_> = root
+            .named_children(&mut cursor)
+            .filter(|child| child.kind() != "preprocessor_directive")
+            .collect();
         let mut parts = Vec::new();
         for (index, child) in children.iter().enumerate() {
             if index > 0 {
@@ -180,14 +183,17 @@ impl Printer<'_> {
     }
 
     fn render_variable_declaration(&self, node: Node<'_>, depth: usize) -> String {
-        let Some(type_node) = node.child_by_field_name("type") else {
-            return format!("{}{}", self.indent(depth), self.inline(node));
-        };
-        let prefix = self.inline_range(node.start_byte(), type_node.end_byte());
         let mut cursor = node.walk();
-        let declarators = node
+        let declarator_nodes = node
             .named_children(&mut cursor)
             .filter(|child| child.kind() == "variable_declarator")
+            .collect::<Vec<_>>();
+        let Some(first_declarator) = declarator_nodes.first() else {
+            return format!("{}{}", self.indent(depth), self.inline(node));
+        };
+        let prefix = self.inline_range(node.start_byte(), first_declarator.start_byte());
+        let declarators = declarator_nodes
+            .into_iter()
             .map(|declarator| self.render_declarator(declarator, depth))
             .collect::<Vec<_>>()
             .join(", ");
@@ -215,13 +221,12 @@ impl Printer<'_> {
             .named_children(&mut cursor)
             .filter(|child| child.kind() == "field_declaration")
             .collect();
+        let header = node
+            .child_by_field_name("name")
+            .map(|name| self.inline_range(node.start_byte(), name.end_byte()))
+            .unwrap_or_else(|| format!("{} {name}", node.kind().trim_end_matches("_declaration")));
         let mut lines = vec![
-            format!(
-                "{}{} {}",
-                self.indent(depth),
-                node.kind().trim_end_matches("_declaration"),
-                name
-            ),
+            format!("{}{header}", self.indent(depth)),
             format!("{}{{", self.indent(depth)),
         ];
         lines.extend(
@@ -378,9 +383,7 @@ impl Printer<'_> {
         let mut cursor = node.walk();
         let children: Vec<_> = node.named_children(&mut cursor).collect();
         let expression = children.first().copied();
-        let sections = children
-            .into_iter()
-            .filter(|child| child.kind() == "switch_section");
+        let sections = children.into_iter().skip(1);
         let mut lines = vec![
             format!(
                 "{}switch ({})",
@@ -391,7 +394,7 @@ impl Printer<'_> {
             ),
             format!("{}{{", self.indent(depth)),
         ];
-        lines.extend(sections.map(|section| self.render_switch_section(section, depth + 1)));
+        lines.extend(sections.map(|section| self.render(section, depth + 1)));
         lines.push(format!("{}}}", self.indent(depth)));
         lines.join("\n")
     }
@@ -484,7 +487,7 @@ impl Printer<'_> {
 
     fn expression(&self, node: Node<'_>, depth: usize) -> String {
         match node.kind() {
-            "heredoc_literal" => self.text(node).to_owned(),
+            "heredoc_literal" | "template_string" => self.text(node).to_owned(),
             "array_literal" => self.render_collection_at(node, "({", "})", depth),
             "mapping_literal" => self.render_collection_at(node, "([", "])", depth),
             "new_expression" => self.render_collection_at(node, "new(", ")", depth),
@@ -552,8 +555,10 @@ impl Printer<'_> {
                     .join(", ")
             }
             "closure_expression" => {
-                let raw = self.inline(node);
-                let body = raw.trim_start_matches("(:").trim_end_matches(":)").trim();
+                let raw = self.text(node);
+                let first = raw.find(':').map_or(0, |offset| offset + 1);
+                let last = raw.rfind(':').unwrap_or(raw.len());
+                let body = self.inline_range(node.start_byte() + first, node.start_byte() + last);
                 format!("(: {body} :)")
             }
             _ => self.inline(node),
@@ -679,7 +684,11 @@ fn lex_inline(source: &str) -> Vec<&str> {
             start += 1;
             continue;
         }
-        let end = if matches!(bytes[start], b'"' | b'\'') {
+        let end = if bytes[start].is_ascii_digit() {
+            number_end(bytes, start)
+        } else if bytes[start] == b'`' {
+            template_end(bytes, start, 0)
+        } else if matches!(bytes[start], b'"' | b'\'') {
             quoted_end(bytes, start)
         } else if bytes[start].is_ascii_alphanumeric()
             || bytes[start] == b'_'
@@ -701,6 +710,44 @@ fn lex_inline(source: &str) -> Vec<&str> {
     tokens
 }
 
+fn number_end(bytes: &[u8], start: usize) -> usize {
+    let mut end = start;
+    if bytes.get(start) == Some(&b'0')
+        && matches!(bytes.get(start + 1), Some(b'x' | b'X' | b'b' | b'B'))
+    {
+        end += 2;
+        while end < bytes.len() && (bytes[end].is_ascii_hexdigit() || bytes[end] == b'_') {
+            end += 1;
+        }
+        return end;
+    }
+    while end < bytes.len() && (bytes[end].is_ascii_digit() || bytes[end] == b'_') {
+        end += 1;
+    }
+    if bytes.get(end) == Some(&b'.') && bytes.get(end + 1) != Some(&b'.') {
+        end += 1;
+        while end < bytes.len() && (bytes[end].is_ascii_digit() || bytes[end] == b'_') {
+            end += 1;
+        }
+    }
+    if matches!(bytes.get(end), Some(b'e' | b'E')) {
+        let mut exponent = end + 1;
+        if matches!(bytes.get(exponent), Some(b'+' | b'-')) {
+            exponent += 1;
+        }
+        let digits = exponent;
+        while exponent < bytes.len()
+            && (bytes[exponent].is_ascii_digit() || bytes[exponent] == b'_')
+        {
+            exponent += 1;
+        }
+        if exponent > digits {
+            end = exponent;
+        }
+    }
+    end
+}
+
 fn quoted_end(bytes: &[u8], start: usize) -> usize {
     let quote = bytes[start];
     let mut index = start + 1;
@@ -716,10 +763,59 @@ fn quoted_end(bytes: &[u8], start: usize) -> usize {
     bytes.len()
 }
 
+fn template_end(bytes: &[u8], start: usize, depth: usize) -> usize {
+    if depth >= 128 {
+        return bytes.len();
+    }
+    let mut index = start + 1;
+    let mut braces = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'\\' {
+            index = (index + 2).min(bytes.len());
+            continue;
+        }
+        if braces == 0 {
+            if bytes[index] == b'`' {
+                return index + 1;
+            }
+            if bytes[index..].starts_with(b"${") {
+                braces = 1;
+                index += 2;
+                continue;
+            }
+        } else if bytes[index] == b'`' {
+            index = template_end(bytes, index, depth + 1);
+            continue;
+        } else if matches!(bytes[index], b'"' | b'\'') {
+            index = quoted_end(bytes, index);
+            continue;
+        } else if bytes[index..].starts_with(b"//") {
+            while index < bytes.len() && bytes[index] != b'\n' {
+                index += 1;
+            }
+            continue;
+        } else if bytes[index..].starts_with(b"/*") {
+            index += 2;
+            while index + 1 < bytes.len() && !bytes[index..].starts_with(b"*/") {
+                index += 1;
+            }
+            index = (index + 2).min(bytes.len());
+            continue;
+        } else if bytes[index] == b'{' {
+            braces += 1;
+        } else if bytes[index] == b'}' {
+            braces -= 1;
+        }
+        index += 1;
+    }
+    bytes.len()
+}
+
 fn multi_operator_end(bytes: &[u8], start: usize) -> usize {
     const OPERATORS: &[&str] = &[
-        "<<=", ">>=", "??=", "...", "->", "::", "(:", ":)", "++", "--", "+=", "-=", "*=", "/=",
-        "%=", "==", "!=", ">=", "<=", "&&", "||", "<<", ">>", "..",
+        "<<=", ">>=", "??=", "||=", "&&=", "...", "?.", ".?", "->", "::", "(:", ":)", "++", "--",
+        "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "==", "!=", ">=", "<=", "&&", "||", "??",
+        "<<", ">>", "..",
     ];
     let remaining = std::str::from_utf8(&bytes[start..]).unwrap_or_default();
     OPERATORS
@@ -732,8 +828,10 @@ fn needs_space(previous: &str, current: &str) -> bool {
     if previous.is_empty() || matches!(current, ")" | "]" | ";" | "," | ":)" | "++" | "--") {
         return false;
     }
-    if matches!(previous, "(" | "[" | "(:" | "$" | "->" | "." | "::")
-        || matches!(current, "(" | "[" | "->" | "." | "::")
+    if matches!(
+        previous,
+        "(" | "[" | "(:" | "$" | "->" | "." | "::" | "?." | ".?"
+    ) || matches!(current, "(" | "[" | "->" | "." | "::" | "?." | ".?" | "...")
     {
         return false;
     }
@@ -832,6 +930,65 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn preserves_syntax_structure_across_the_driver_matrix() {
+        let cases: serde_json::Value =
+            serde_json::from_str(include_str!("../../../grammar/lpc/test/coverage.json")).unwrap();
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        for case in cases.as_array().unwrap() {
+            let source = case["source"].as_str().unwrap();
+            let tree = parser.parse(source, None).unwrap();
+            let formatted = format_document(&tree, source, FormatterConfig::default())
+                .unwrap_or_else(|| panic!("formatter rejected {}", case["id"]));
+            let formatted_tree = parser.parse(&formatted, None).unwrap();
+            assert!(
+                !formatted_tree.root_node().has_error(),
+                "{}: {formatted}",
+                case["id"]
+            );
+            assert_eq!(
+                tree.root_node().to_sexp(),
+                formatted_tree.root_node().to_sexp(),
+                "{}: {formatted}",
+                case["id"]
+            );
+            assert_eq!(
+                named_leaf_values(tree.root_node(), source),
+                named_leaf_values(formatted_tree.root_node(), &formatted),
+                "{} changed a name or literal value",
+                case["id"]
+            );
+            assert_eq!(format(&formatted), formatted, "{}", case["id"]);
+        }
+    }
+
+    fn named_leaf_values(node: Node<'_>, source: &str) -> Vec<(String, String)> {
+        if matches!(node.kind(), "comment" | "preprocessor_directive") {
+            return Vec::new();
+        }
+        if matches!(
+            node.kind(),
+            "identifier"
+                | "primitive_type"
+                | "modifier"
+                | "number_literal"
+                | "string_literal"
+                | "template_text"
+                | "heredoc_literal"
+                | "character_literal"
+                | "parameter_placeholder"
+        ) {
+            return vec![(node.kind().to_owned(), source[node.byte_range()].to_owned())];
+        }
+        let mut cursor = node.walk();
+        node.named_children(&mut cursor)
+            .flat_map(|child| named_leaf_values(child, source))
+            .collect()
+    }
+
     fn format(source: &str) -> String {
         let mut parser = Parser::new();
         parser
@@ -858,6 +1015,40 @@ mod tests {
         assert!(output.contains("await async_yield();"), "{output}");
         assert!(output.contains("return await next() + 1;"), "{output}");
         assert_eq!(format(&output), output);
+    }
+
+    #[test]
+    fn preserves_complete_class_types_and_nested_closure_layers() {
+        for keyword in ["class", "struct"] {
+            let source = format!("{keyword} Point {{ int x; }} {keyword} Point p, *points;");
+            let output = format(&source);
+            assert!(output.contains(&format!("{keyword} Point p,")), "{output}");
+            assert!(output.contains("points;"), "{output}");
+            let mut parser = tree_sitter::Parser::new();
+            parser
+                .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+                .unwrap();
+            assert_eq!(
+                parser.parse(&source, None).unwrap().root_node().to_sexp(),
+                parser.parse(&output, None).unwrap().root_node().to_sexp()
+            );
+            assert_eq!(format(&output), output);
+        }
+        let output = format("function demo() { return (: (: $1 + 1 :) :); }");
+        assert_eq!(output.matches("(:").count(), 2, "{output}");
+        assert_eq!(output.matches(":)").count(), 2, "{output}");
+        assert_eq!(format(&output), output);
+    }
+
+    #[test]
+    fn preserves_scientific_literals_as_single_tokens() {
+        for literal in ["1e-3", "1e+3", "1.25e-2", "1_2.5E+2"] {
+            let output = format(&format!("float demo() {{ return {literal}; }}"));
+            assert!(output.contains(&format!("return {literal};")), "{output}");
+            assert_eq!(format(&output), output);
+        }
+        let output = format("mixed demo(int *a) { return a[1..5]; }");
+        assert!(output.contains("1 .. 5"), "{output}");
     }
 
     #[test]

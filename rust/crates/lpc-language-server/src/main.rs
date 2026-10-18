@@ -283,6 +283,11 @@ fn run(
 ) -> Result<()> {
     let mut documents = DocumentStore::default();
     let mut syntax = SyntaxStore::new()?;
+    let efun_names = efuns
+        .iter()
+        .map(|efun| efun.name.clone())
+        .collect::<Vec<_>>();
+    syntax.set_efuns(efun_names.clone());
     let analysis = Arc::new(Mutex::new(AnalysisDatabase::default()));
     analysis
         .lock()
@@ -336,8 +341,11 @@ fn run(
                             .flat_map(|workspace| workspace.preprocessor_defines.iter().cloned())
                             .collect::<Vec<_>>(),
                     );
-                    let preprocessor_workspaces =
-                        preprocessor_workspace_configs(&params.workspace_roots, &params.workspaces);
+                    let preprocessor_workspaces = preprocessor_workspace_configs(
+                        &params.workspace_roots,
+                        &params.workspaces,
+                        &efun_names,
+                    );
                     let roots: Vec<_> = params
                         .workspace_roots
                         .into_iter()
@@ -467,8 +475,11 @@ fn run(
                             .flat_map(|workspace| workspace.preprocessor_defines.iter().cloned())
                             .collect::<Vec<_>>(),
                     );
-                    let preprocessor_workspaces =
-                        preprocessor_workspace_configs(&params.workspace_roots, &params.workspaces);
+                    let preprocessor_workspaces = preprocessor_workspace_configs(
+                        &params.workspace_roots,
+                        &params.workspaces,
+                        &efun_names,
+                    );
                     syntax.configure_preprocessor(
                         definitions.clone(),
                         preprocessor_workspaces.clone(),
@@ -746,6 +757,7 @@ fn run(
 fn preprocessor_workspace_configs(
     roots: &[String],
     workspaces: &[WorkspaceConfigSnapshot],
+    efun_names: &[String],
 ) -> Vec<WorkspacePreprocessorConfig> {
     roots
         .iter()
@@ -766,6 +778,7 @@ fn preprocessor_workspace_configs(
                     })
                     .unwrap_or_default(),
                 global_include_file: resolved.and_then(|config| config.global_include_file.clone()),
+                efun_names: efun_names.to_vec(),
             }
         })
         .collect()

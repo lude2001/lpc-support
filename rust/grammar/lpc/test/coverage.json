@@ -1,0 +1,982 @@
+[
+  {
+    "id": "primitive_int",
+    "source": "int demo(int x) { return x; }\n",
+    "driverRule": "atomic_type: L_BASIC_TYPE"
+  },
+  {
+    "id": "primitive_float",
+    "source": "float demo(float x) { return x; }\n",
+    "driverRule": "atomic_type: L_BASIC_TYPE"
+  },
+  {
+    "id": "primitive_string",
+    "source": "string demo(string x) { return x; }\n",
+    "driverRule": "atomic_type: L_BASIC_TYPE"
+  },
+  {
+    "id": "primitive_object",
+    "source": "object demo(object x) { return x; }\n",
+    "driverRule": "atomic_type: L_BASIC_TYPE"
+  },
+  {
+    "id": "primitive_mixed",
+    "source": "mixed demo(mixed x) { return x; }\n",
+    "driverRule": "atomic_type: L_BASIC_TYPE"
+  },
+  {
+    "id": "primitive_mapping",
+    "source": "mapping demo(mapping x) { return x; }\n",
+    "driverRule": "atomic_type: L_BASIC_TYPE"
+  },
+  {
+    "id": "primitive_function",
+    "source": "function demo(function x) { return x; }\n",
+    "driverRule": "atomic_type: L_BASIC_TYPE"
+  },
+  {
+    "id": "primitive_buffer",
+    "source": "buffer demo(buffer x) { return x; }\n",
+    "driverRule": "atomic_type: L_BASIC_TYPE"
+  },
+  {
+    "id": "primitive_void",
+    "source": "void demo() { return; }\n",
+    "driverRule": "atomic_type: L_BASIC_TYPE"
+  },
+  {
+    "id": "bare_promise",
+    "source": "promise demo(promise p) { return p; }\n",
+    "driverRule": "atomic_type: L_PROMISE"
+  },
+  {
+    "id": "promise_int",
+    "source": "promise<int> demo(promise<int> p) { return p; }\n",
+    "driverRule": "atomic_type: L_PROMISE < basic_type optional_star >"
+  },
+  {
+    "id": "promise_payload_array",
+    "source": "promise<int *> demo(promise<int *> p) { return p; }\n",
+    "driverRule": "atomic_type"
+  },
+  {
+    "id": "promise_array",
+    "source": "promise<int> *pending; void demo() { promise<int> *values = pending; }\n",
+    "driverRule": "basic_type + optional_star"
+  },
+  {
+    "id": "promise_class",
+    "source": "class Point { int x; } promise<class Point> demo(promise<class Point> p) { return p; }\n",
+    "driverRule": "atomic_type"
+  },
+  {
+    "id": "array_star",
+    "source": "int *items; int *demo(int *values) { return values; }\n",
+    "driverRule": "basic_type / optional_star"
+  },
+  {
+    "id": "array_keyword",
+    "source": "int array items; int array demo(int array values) { return values; }\n",
+    "driverRule": "basic_type: opt_atomic_type L_ARRAY"
+  },
+  {
+    "id": "bare_array",
+    "source": "array items; array demo(array values) { return values; }\n",
+    "driverRule": "basic_type: opt_atomic_type L_ARRAY"
+  },
+  {
+    "id": "modifier_private",
+    "source": "private int demo() { return 1; }\n",
+    "driverRule": "type_modifier_list"
+  },
+  {
+    "id": "modifier_public",
+    "source": "public int demo() { return 1; }\n",
+    "driverRule": "type_modifier_list"
+  },
+  {
+    "id": "modifier_protected",
+    "source": "protected int demo() { return 1; }\n",
+    "driverRule": "type_modifier_list"
+  },
+  {
+    "id": "modifier_static",
+    "source": "static int demo() { return 1; }\n",
+    "driverRule": "type_modifier_list"
+  },
+  {
+    "id": "modifier_nomask",
+    "source": "nomask int demo() { return 1; }\n",
+    "driverRule": "type_modifier_list"
+  },
+  {
+    "id": "modifier_nosave",
+    "source": "nosave int demo() { return 1; }\n",
+    "driverRule": "type_modifier_list"
+  },
+  {
+    "id": "modifier_varargs",
+    "source": "varargs int demo() { return 1; }\n",
+    "driverRule": "type_modifier_list"
+  },
+  {
+    "id": "modifier_section",
+    "source": "private: int x; public: int demo() { return x; }\n",
+    "driverRule": "modifier_change"
+  },
+  {
+    "id": "global_multi",
+    "source": "int x = 1, y = 2, *values = ({ 1 });\n",
+    "driverRule": "name_list"
+  },
+  {
+    "id": "global_implicit_type",
+    "source": "private x; public y = 1;\n",
+    "driverRule": "type: type_modifier_list opt_basic_type"
+  },
+  {
+    "id": "function_implicit_type",
+    "source": "demo(x) { return x; }\n",
+    "driverRule": "function / opt_basic_type / param_decl"
+  },
+  {
+    "id": "prototype",
+    "source": "int demo(int, string);\n",
+    "driverRule": "function: block_or_semi"
+  },
+  {
+    "id": "inherit_plain",
+    "source": "inherit \"/std/base\";\n",
+    "driverRule": "inheritance"
+  },
+  {
+    "id": "inherit_private",
+    "source": "private inherit \"/std/base\";\n",
+    "driverRule": "inheritance: type_modifier_list L_INHERIT string_const"
+  },
+  {
+    "id": "inherit_multiple_modifiers",
+    "source": "protected nomask inherit \"/std/base\";\n",
+    "driverRule": "inheritance"
+  },
+  {
+    "id": "inherit_concat",
+    "source": "inherit (\"/std/\" + \"base\");\n",
+    "driverRule": "inheritance / string_const"
+  },
+  {
+    "id": "class_basic",
+    "source": "class Point { int x; string name; } class Point p;\n",
+    "driverRule": "type_decl"
+  },
+  {
+    "id": "struct_basic",
+    "source": "struct Point { int x; } struct Point p;\n",
+    "driverRule": "type_decl; STRUCT_STRUCT option"
+  },
+  {
+    "id": "class_multi_field",
+    "source": "class Point { int x, y; string name, *tags; }\n",
+    "driverRule": "member_name_list"
+  },
+  {
+    "id": "class_private",
+    "source": "private class Point { int x; }\n",
+    "driverRule": "class_header: type_modifier_list L_CLASS identifier"
+  },
+  {
+    "id": "class_new",
+    "source": "class Point { int x; } class Point demo() { return new(class Point); }\n",
+    "driverRule": "function_call: L_NEW ( L_CLASS L_DEFINED_NAME opt_class_init )"
+  },
+  {
+    "id": "class_new_fields",
+    "source": "class Point { int x; int y; } class Point demo() { return new(class Point, x: 1, y: 2); }\n",
+    "driverRule": "function_call / class_init"
+  },
+  {
+    "id": "new_object",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return new(\"/std/base\"); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_3d",
+    "source": "mixed demo(mixed x, mixed y) { return x = y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_2b3d",
+    "source": "mixed demo(mixed x, mixed y) { return x += y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_2d3d",
+    "source": "mixed demo(mixed x, mixed y) { return x -= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_2a3d",
+    "source": "mixed demo(mixed x, mixed y) { return x *= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_2f3d",
+    "source": "mixed demo(mixed x, mixed y) { return x /= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_253d",
+    "source": "mixed demo(mixed x, mixed y) { return x %= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_7c3d",
+    "source": "mixed demo(mixed x, mixed y) { return x |= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_263d",
+    "source": "mixed demo(mixed x, mixed y) { return x &= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_5e3d",
+    "source": "mixed demo(mixed x, mixed y) { return x ^= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_3c3c3d",
+    "source": "mixed demo(mixed x, mixed y) { return x <<= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_3e3e3d",
+    "source": "mixed demo(mixed x, mixed y) { return x >>= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_3f3f3d",
+    "source": "mixed demo(mixed x, mixed y) { return x ??= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_7c7c3d",
+    "source": "mixed demo(mixed x, mixed y) { return x ||= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "assignment_26263d",
+    "source": "mixed demo(mixed x, mixed y) { return x &&= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_add",
+    "source": "mixed demo(mixed x, mixed y) { return x + y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_subtract",
+    "source": "mixed demo(mixed x, mixed y) { return x - y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_multiply",
+    "source": "mixed demo(mixed x, mixed y) { return x * y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_divide",
+    "source": "mixed demo(mixed x, mixed y) { return x / y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_mod",
+    "source": "mixed demo(mixed x, mixed y) { return x % y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_or",
+    "source": "mixed demo(mixed x, mixed y) { return x | y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_xor",
+    "source": "mixed demo(mixed x, mixed y) { return x ^ y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_and",
+    "source": "mixed demo(mixed x, mixed y) { return x & y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_eq",
+    "source": "mixed demo(mixed x, mixed y) { return x == y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_ne",
+    "source": "mixed demo(mixed x, mixed y) { return x != y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_ge",
+    "source": "mixed demo(mixed x, mixed y) { return x >= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_gt",
+    "source": "mixed demo(mixed x, mixed y) { return x > y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_le",
+    "source": "mixed demo(mixed x, mixed y) { return x <= y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_lt",
+    "source": "mixed demo(mixed x, mixed y) { return x < y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_shift_l",
+    "source": "mixed demo(mixed x, mixed y) { return x << y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_shift_r",
+    "source": "mixed demo(mixed x, mixed y) { return x >> y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_land",
+    "source": "mixed demo(mixed x, mixed y) { return x && y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_lor",
+    "source": "mixed demo(mixed x, mixed y) { return x || y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "binary_nullish",
+    "source": "mixed demo(mixed x, mixed y) { return x ?? y; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_negative",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return -x; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_not",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return !x; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_complement",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return ~x; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_pre_inc",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return ++x; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_pre_dec",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return --x; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_post_inc",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return x++; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_post_dec",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return x--; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_conditional",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return x ? y : z; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_cast",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return (int)x; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "operator_cast_array",
+    "source": "mixed demo(mixed x, mixed y, mixed z) { return (string *)x; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "async_basic",
+    "source": "async int child() { return 1; } private async int demo() { return await child(); }\n",
+    "driverRule": "L_TYPE_MODIFIER FUNC_ASYNC / L_AWAIT expr"
+  },
+  {
+    "id": "await_precedence",
+    "source": "async int child() { return 1; } async int demo() { return await child() + 1; }\n",
+    "driverRule": "L_AWAIT expr %prec !"
+  },
+  {
+    "id": "acatch_expr",
+    "source": "async int child() { return 1; } async mixed demo() { return acatch(await child()); }\n",
+    "driverRule": "acatch: L_ACATCH ... expr_or_block"
+  },
+  {
+    "id": "acatch_block",
+    "source": "async int child() { return 1; } async mixed demo() { return acatch { int x = await child(); }; }\n",
+    "driverRule": "acatch: L_ACATCH ... expr_or_block"
+  },
+  {
+    "id": "catch_expr",
+    "source": "mixed demo(int x) { return catch(x + 1); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "catch_block",
+    "source": "mixed demo() { return catch { int x = 1; x++; }; }\n",
+    "driverRule": "catch / expr_or_block"
+  },
+  {
+    "id": "catch_postfix",
+    "source": "mixed demo() { return catch(1)[0]; }\n",
+    "driverRule": "primary_expr catch / primary_expr [comma_expr]"
+  },
+  {
+    "id": "catch_comma",
+    "source": "mixed demo(int x) { return catch(x = 1, x + 1); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "time_expr",
+    "source": "mixed demo(int x) { return time_expression(x + 1); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "time_block",
+    "source": "mixed demo() { return time_expression { int x = 1; x++; }; }\n",
+    "driverRule": "time_expression: L_TIME_EXPRESSION ... expr_or_block"
+  },
+  {
+    "id": "time_comma",
+    "source": "mixed demo(int x) { return time_expression(x = 1, x + 1); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "sscanf_basic",
+    "source": "mixed demo(int x) { return sscanf(\"1\", \"%d\", x); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "parse_command_basic",
+    "source": "mixed demo(string x) { return parse_command(\"get sword\", ({}), \"%s\", x); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "debug_tree_block",
+    "source": "void demo() { __TREE__ { int x = 1; x++; }; }\n",
+    "driverRule": "tree / DEBUG option"
+  },
+  {
+    "id": "debug_tree_expr",
+    "source": "mixed demo(int x) { return __TREE__(x + 1); }\n",
+    "driverRule": "tree / DEBUG option"
+  },
+  {
+    "id": "comma_parenthesized",
+    "source": "mixed demo(int x, int y) { return (x = 1, y = 2, x + y); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "comma_statement",
+    "source": "void demo() { int x, y; x = 1, y = 2; }\n",
+    "driverRule": "statement: comma_expr ;"
+  },
+  {
+    "id": "comma_return",
+    "source": "int demo() { int x = 1; return x++, x; }\n",
+    "driverRule": "stmt_return: L_RETURN comma_expr ;"
+  },
+  {
+    "id": "comma_for_condition",
+    "source": "void demo() { int x = 0, y = 1; for (; x++, y; x++) {} }\n",
+    "driverRule": "for_expr: comma_expr"
+  },
+  {
+    "id": "comma_switch",
+    "source": "int demo(int x, int y) { switch (x++, y) { case 1: return x; } return 0; }\n",
+    "driverRule": "switch_header: L_SWITCH ( comma_expr )"
+  },
+  {
+    "id": "comma_index",
+    "source": "mixed demo(mixed *x, int y) { return x[y = 0, y]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "comma_reverse_index",
+    "source": "mixed demo(mixed *x, int y) { return x[< (y = 1), y]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "comma_capture",
+    "source": "mixed demo(int x) { return (: $(x = 1, x) :); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "if_while_do",
+    "source": "int demo(int x) { if (x) x++; else x--; while (x < 10) { x++; } do { x--; } while (x > 1); return x; }\n",
+    "driverRule": "statement"
+  },
+  {
+    "id": "condition_comma",
+    "source": "int demo(int x, int y) { if (x++, y) x++; while (x++, y) break; do { continue; } while (x++, y); return x; }\n",
+    "driverRule": "stmt_cond / stmt_while / stmt_do"
+  },
+  {
+    "id": "for_basic",
+    "source": "void demo() { for (int i = 0; i < 10; i++) {} }\n",
+    "driverRule": "stmt_for"
+  },
+  {
+    "id": "for_comma",
+    "source": "void demo() { int x, y; for (x = 0, y = 0; x < 10; x++, y++) {} }\n",
+    "driverRule": "stmt_for / for_expr"
+  },
+  {
+    "id": "foreach_one",
+    "source": "int demo(int *values) { int total = 0; foreach (int x in values) total += x; return total; }\n",
+    "driverRule": "stmt_foreach"
+  },
+  {
+    "id": "foreach_two",
+    "source": "void demo(mapping values) { foreach (string key, mixed value in values) { value = key; } }\n",
+    "driverRule": "foreach_vars"
+  },
+  {
+    "id": "foreach_ref_amp",
+    "source": "void demo(int *values) { foreach (int &value in values) value++; }\n",
+    "driverRule": "single_new_local_def: arg_type optional_star new_local_name / arg_type ref"
+  },
+  {
+    "id": "foreach_ref_word",
+    "source": "void demo(int *values) { foreach (int ref value in values) value++; }\n",
+    "driverRule": "single_new_local_def / arg_type ref"
+  },
+  {
+    "id": "switch_basic",
+    "source": "int demo(int x) { switch(x) { case ..0: return 0; case 1..5: return 1; case 6..: return 2; default: return 3; } }\n",
+    "driverRule": "stmt_switch / case"
+  },
+  {
+    "id": "switch_locals",
+    "source": "int demo(int x) { switch(x) { int y; case 1: y = 2; return y; default: return 0; } }\n",
+    "driverRule": "stmt_switch: ... { local_declarations case switch_block }"
+  },
+  {
+    "id": "block_interleaved",
+    "source": "int demo() { int x = 1; x++; int y = 2; return x + y; }\n",
+    "driverRule": "statements: local_declaration_statement statements"
+  },
+  {
+    "id": "call_local",
+    "source": "mixed demo(mixed x) { return demo2(x); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_efun",
+    "source": "mixed demo(mixed x) { return efun::sizeof(x); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_efun_new",
+    "source": "mixed demo() { return efun::new(\"/std/base\"); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_inherited",
+    "source": "mixed demo(mixed x) { return ::demo2(x); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_named_inherited",
+    "source": "mixed demo(mixed x) { return base::demo2(x); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_typed_scope",
+    "source": "mixed demo(mixed x) { return int::demo2(x); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_arrow",
+    "source": "mixed demo(object x, mixed y) { return x->demo2(y); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_function_pointer",
+    "source": "mixed demo(function x, mixed y) { return (*x)(y); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_indexed",
+    "source": "mixed demo(function *x, mixed y) { return x[0](y); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_spread",
+    "source": "mixed demo(mixed *x) { return sprintf(\"%d\", x...); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_ref_amp",
+    "source": "mixed demo(int x) { return demo2(&x); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "call_ref_word",
+    "source": "mixed demo(int x) { return demo2(ref x); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "parameter_ref_amp",
+    "source": "void demo(int &x) { x++; }\n",
+    "driverRule": "arg_type: basic_type ref"
+  },
+  {
+    "id": "parameter_ref_word",
+    "source": "void demo(int ref x) { x++; }\n",
+    "driverRule": "arg_type: basic_type ref"
+  },
+  {
+    "id": "parameter_varargs",
+    "source": "int demo(int x, mixed rest...) { return x; }\n",
+    "driverRule": "argument: argument_list L_DOT_DOT_DOT"
+  },
+  {
+    "id": "parameter_default",
+    "source": "int demo(int x: (: 1 :)) { return x; }\n",
+    "driverRule": "optional_default_arg_value"
+  },
+  {
+    "id": "parameter_default_comma",
+    "source": "int demo(int x: (: 1, 2 :)) { return x; }\n",
+    "driverRule": "optional_default_arg_value / comma_expr"
+  },
+  {
+    "id": "lambda_function",
+    "source": "mixed demo() { return function(int value) { return value + 1; }; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "closure_empty",
+    "source": "mixed demo() { return (: :); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "closure_expression",
+    "source": "mixed demo() { return (: $1 + 1 :); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "closure_named",
+    "source": "int triple(int x) { return x * 3; } function demo() { return (: triple :); }\n",
+    "driverRule": "L_FUNCTION_OPEN L_DEFINED_NAME : )"
+  },
+  {
+    "id": "closure_bound",
+    "source": "int triple(int x) { return x * 3; } function demo() { return (: triple, 3 :); }\n",
+    "driverRule": "L_FUNCTION_OPEN L_DEFINED_NAME , arg_list : )"
+  },
+  {
+    "id": "closure_efun_ref",
+    "source": "mixed demo() { return (: efun::sizeof :); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "closure_efun_bound",
+    "source": "mixed demo() { return (: efun::sizeof, ({1}) :); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "closure_nested",
+    "source": "mixed demo() { return (: (: $1 + 1 :) :); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "closure_capture",
+    "source": "mixed demo(int x) { return (: $(x) + $1 :); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "closure_open_whitespace",
+    "source": "mixed demo() { return ( : $1 + 1 :); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "closure_close_whitespace",
+    "source": "mixed demo() { return (: $1 + 1 : ); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "array_basic",
+    "source": "mixed demo() { return ({1, 2, 3,}); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "array_spread",
+    "source": "mixed demo(mixed *x) { return ({1, x..., 3}); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "mapping_basic",
+    "source": "mixed demo() { return ([\"x\": 1, \"y\": 2,]); }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "slice_index",
+    "source": "mixed demo(mixed *x) { return x[0]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "slice_reverse",
+    "source": "mixed demo(mixed *x) { return x[<1]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "slice_nn",
+    "source": "mixed demo(mixed *x) { return x[0..1]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "slice_rn",
+    "source": "mixed demo(mixed *x) { return x[<2..1]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "slice_rr",
+    "source": "mixed demo(mixed *x) { return x[<2..<1]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "slice_nr",
+    "source": "mixed demo(mixed *x) { return x[0..<1]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "slice_ne",
+    "source": "mixed demo(mixed *x) { return x[0..]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "slice_re",
+    "source": "mixed demo(mixed *x) { return x[<2..]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "slice_or",
+    "source": "mixed demo(mixed *x) { return x[..<1]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "member_dot",
+    "source": "mixed demo(mapping x) { return x.key; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "optional_dot",
+    "source": "mixed demo(mapping x) { return x?.key; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "optional_index",
+    "source": "mixed demo(mapping x) { return x?.[\"key\"]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "optional_reverse_notation",
+    "source": "mixed demo(mapping x) { return x.?[\"key\"]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "optional_chain",
+    "source": "mixed demo(mapping x) { return x?.key?.[0]; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_decimal",
+    "source": "mixed demo() { return 123; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_decimal_separated",
+    "source": "mixed demo() { return 1_000; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_hex",
+    "source": "mixed demo() { return 0xFF_FF; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_binary",
+    "source": "mixed demo() { return 0b10_01; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_octal",
+    "source": "mixed demo() { return 0123; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_float",
+    "source": "mixed demo() { return 1.25; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_float_exp",
+    "source": "mixed demo() { return 1.25e-2; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_float_exp_integer",
+    "source": "mixed demo() { return 1e3; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_float_trailing_dot",
+    "source": "mixed demo() { return 1.; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_char",
+    "source": "mixed demo() { return 'a'; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_char_newline",
+    "source": "mixed demo() { return '\\n'; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_char_hex",
+    "source": "mixed demo() { return '\\x41'; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_char_octal",
+    "source": "mixed demo() { return '\\101'; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "literal_string",
+    "source": "mixed demo() { return \"hello\"; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "string_adjacent",
+    "source": "mixed demo() { return \"hello\" \"world\"; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "string_continuation",
+    "source": "string demo() { return \"a\\\nb\"; }\n",
+    "driverRule": "lexer SC_STRING_BODY backslash-newline"
+  },
+  {
+    "id": "heredoc_text",
+    "source": "string demo() { return @END\nhello\nworld\nEND;\n}\n",
+    "driverRule": "lexer heredoc @"
+  },
+  {
+    "id": "heredoc_array",
+    "source": "string *demo() { return @@END\nhello\nworld\nEND;\n}\n",
+    "driverRule": "lexer heredoc @@"
+  },
+  {
+    "id": "heredoc_empty",
+    "source": "string demo() { return @END\nEND;\n}\n",
+    "driverRule": "lexer heredoc @"
+  },
+  {
+    "id": "template_plain",
+    "source": "mixed demo() { return `hello`; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "template_interpolation",
+    "source": "mixed demo(int x) { return `value=${x}`; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "template_nested",
+    "source": "mixed demo(int x) { return `outer=${`inner=${x}`}`; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "template_adjacent",
+    "source": "mixed demo(int x) { return \"prefix\" `value=${x}` \"suffix\"; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "macro_type",
+    "source": "#define INTEGER int\nINTEGER demo(INTEGER x) { return x; }\n",
+    "driverRule": "macro expansion before parser"
+  },
+  {
+    "id": "macro_syntax",
+    "source": "#define IF if\nvoid demo(int x) { IF (x) { x++; } }\n",
+    "driverRule": "macro expansion before parser"
+  },
+  {
+    "id": "macro_decl",
+    "source": "#define DECL(name) int name = 1\nDECL(value);\nint demo() { return value; }\n",
+    "driverRule": "macro-generated declarations"
+  },
+  {
+    "id": "numeric_format_1e2d3",
+    "source": "mixed demo() { return 1e-3; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "numeric_format_1e2b3",
+    "source": "mixed demo() { return 1e+3; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "numeric_format_12e25e2b2",
+    "source": "mixed demo() { return 1.25e+2; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "numeric_format_15f22e5e2d2",
+    "source": "mixed demo() { return 1_2.5e-2; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "numeric_format_0Xff",
+    "source": "mixed demo() { return 0Xff; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "numeric_format_0B10",
+    "source": "mixed demo() { return 0B10; }\n",
+    "driverRule": "expr / primary_expr"
+  },
+  {
+    "id": "foreach_existing_variables",
+    "driverRule": "foreach_variable / statement",
+    "source": "void demo(mixed *items) { mixed item; foreach (item in items) item++; foreach (item in items) { item++; } }\n"
+  },
+  {
+    "id": "multiply_function_call",
+    "driverRule": "expr / multiplicative",
+    "source": "int helper(int x) { return x; } int demo(int level) { return (level * helper(level)); }\n"
+  }
+]

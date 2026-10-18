@@ -543,7 +543,7 @@ impl AnalysisDatabase {
         collect_identifiers(tree.root_node(), &mut identifiers);
         let mut value_references = Vec::new();
         collect_value_references(tree.root_node(), source, &mut value_references);
-        let diagnostics = collect_diagnostics(tree, source);
+        let mut diagnostics = collect_diagnostics(tree, source);
         let folding_ranges = collect_folding_ranges(tree, source);
         let mut calls = Vec::new();
         collect_calls(tree.root_node(), source, &mut calls);
@@ -569,6 +569,13 @@ impl AnalysisDatabase {
             &macros,
         ));
         expansion_macros.extend(macros.clone());
+        collect_type_diagnostics(
+            tree.root_node(),
+            source,
+            None,
+            &expansion_macros,
+            &mut diagnostics,
+        );
         let macro_expansion_references =
             collect_macro_expansion_references(source, &identifiers, &expansion_macros);
         let macro_generated_symbols =
@@ -2572,7 +2579,11 @@ impl AnalysisDatabase {
             else {
                 return false;
             };
-            if operator == MemberOperator::Dot {
+            if operator == MemberOperator::Dot
+                || self
+                    .typed_member_definition(uri, identifier.start, name)
+                    .is_some()
+            {
                 return self
                     .typed_member_definition(uri, identifier.start, name)
                     .is_some_and(|location| location == *target);
@@ -2755,8 +2766,8 @@ impl AnalysisDatabase {
 
     fn receiver_type_name(&self, uri: &str, member_start: usize) -> Option<String> {
         let file = self.files.get(uri)?;
-        let (operator, receiver) = member_access_context(&file.source, member_start)?;
-        if operator != MemberOperator::Dot {
+        let (_, receiver) = member_access_context(&file.source, member_start)?;
+        if file.source.get(..member_start)?.trim_end().ends_with("?.") {
             return None;
         }
         let symbol = resolved_symbols(file, &receiver, member_start)
@@ -3603,9 +3614,12 @@ pub struct CompletionCandidate {
 }
 
 const KEYWORDS: &[&str] = &[
+    "acatch",
+    "array",
     "async",
     "await",
     "break",
+    "buffer",
     "case",
     "catch",
     "class",
@@ -3624,7 +3638,10 @@ const KEYWORDS: &[&str] = &[
     "mixed",
     "new",
     "object",
+    "nomask",
+    "nosave",
     "private",
+    "promise",
     "protected",
     "public",
     "ref",
@@ -3634,6 +3651,8 @@ const KEYWORDS: &[&str] = &[
     "string",
     "struct",
     "switch",
+    "time_expression",
+    "__TREE__",
     "varargs",
     "void",
     "while",
@@ -3826,16 +3845,13 @@ fn collect_raw_include_dependencies(source: &str, dependencies: &mut Vec<String>
 }
 
 fn collect_syntax_dependencies(node: Node<'_>, source: &str, output: &mut Vec<String>) {
-    if matches!(node.kind(), "inherit_declaration" | "include_declaration") {
-        let mut cursor = node.walk();
-        if let Some(value) = node
-            .named_children(&mut cursor)
-            .next()
+    if matches!(node.kind(), "inherit_declaration" | "include_declaration")
+        && let Some(value) = node
+            .child_by_field_name("path")
             .and_then(|child| child.utf8_text(source.as_bytes()).ok())
             .map(strip_quoted_path)
-        {
-            output.push(value.to_owned());
-        }
+    {
+        output.push(value.to_owned());
     }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
@@ -3852,16 +3868,13 @@ fn collect_inherits(root: Node<'_>, source: &str) -> Vec<String> {
 }
 
 fn collect_inherit_nodes(node: Node<'_>, source: &str, output: &mut Vec<String>) {
-    if node.kind() == "inherit_declaration" {
-        let mut cursor = node.walk();
-        if let Some(value) = node
-            .named_children(&mut cursor)
-            .next()
+    if node.kind() == "inherit_declaration"
+        && let Some(value) = node
+            .child_by_field_name("path")
             .and_then(|child| child.utf8_text(source.as_bytes()).ok())
             .map(strip_quoted_path)
-        {
-            output.push(value.to_owned());
-        }
+    {
+        output.push(value.to_owned());
     }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
@@ -4085,7 +4098,13 @@ fn collect_macro_generated_symbols(
         if arguments.len() != definition.parameters.len() {
             continue;
         }
-        let expanded = expand_function_macro(&definition.value, &definition.parameters, &arguments);
+        let mut expanded =
+            expand_function_macro(&definition.value, &definition.parameters, &arguments);
+        if source[invocation_range.clone()].trim_end().ends_with(';')
+            && !expanded.trim_end().ends_with(';')
+        {
+            expanded.push(';');
+        }
         let parser = parser.get_or_insert_with(|| {
             let mut parser = Parser::new();
             parser
@@ -4548,15 +4567,9 @@ fn collect_type_definitions(root: Node<'_>, source: &str) -> Vec<TypeDefinition>
         {
             let mut child_cursor = field.walk();
             let children = field.named_children(&mut child_cursor).collect::<Vec<_>>();
-            let has_primitive_type = children
-                .iter()
-                .any(|child| child.kind() == "primitive_type");
-            let custom_type = (!has_primitive_type)
-                .then(|| children.iter().find(|child| child.kind() == "identifier"))
-                .flatten()
-                .copied();
+            let type_node = field.child_by_field_name("type");
             for member in children.iter().filter(|child| child.kind() == "identifier") {
-                if custom_type.is_some_and(|type_node| type_node.id() == member.id()) {
+                if type_node.is_some_and(|type_node| type_node.id() == member.id()) {
                     continue;
                 }
                 members.push(TypeMember {
@@ -4908,20 +4921,26 @@ fn identifier_is_value_reference(identifier: Node<'_>, source: &str) -> bool {
             | "inherit_declaration"
             | "include_declaration"
             | "macro_concatenation"
+            | "class_type"
+            | "custom_type"
+            | "qualified_identifier"
     )
 }
 
 fn collect_calls(node: Node<'_>, source: &str, output: &mut Vec<CallSite>) {
-    let direct_macro = matches!(node.kind(), "macro_annotation" | "macro_invocation")
-        .then(|| {
-            let name = node.child_by_field_name("name")?;
-            let mut cursor = node.walk();
-            let arguments = node
-                .named_children(&mut cursor)
-                .find(|child| child.kind() == "argument_list")?;
-            Some((name, Some(arguments)))
-        })
-        .flatten();
+    let direct_macro = matches!(
+        node.kind(),
+        "macro_annotation" | "macro_invocation" | "macro_control_statement"
+    )
+    .then(|| {
+        let name = node.child_by_field_name("name")?;
+        let mut cursor = node.walk();
+        let arguments = node
+            .named_children(&mut cursor)
+            .find(|child| child.kind() == "argument_list")?;
+        Some((name, Some(arguments)))
+    })
+    .flatten();
     let postfix_call = (node.kind() == "postfix_expression")
         .then(|| {
             let value = node.child_by_field_name("value")?;
@@ -5381,9 +5400,148 @@ fn collect_diagnostics(tree: &Tree, source: &str) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     collect_error_nodes(tree.root_node(), source, &mut diagnostics, false);
     collect_empty_heredoc_diagnostics(tree.root_node(), source, &mut diagnostics);
-    collect_type_diagnostics(tree.root_node(), source, None, &mut diagnostics);
     collect_local_declaration_position_diagnostics(tree.root_node(), source, &mut diagnostics);
+    collect_async_context_diagnostics(tree.root_node(), source, false, false, &mut diagnostics);
+    collect_invalid_type_and_assignment_diagnostics(tree.root_node(), source, &mut diagnostics);
     diagnostics
+}
+
+fn collect_invalid_type_and_assignment_diagnostics(
+    node: Node<'_>,
+    source: &str,
+    output: &mut Vec<Diagnostic>,
+) {
+    let target = if node.kind() == "assignment_expression" {
+        node.child_by_field_name("left")
+    } else if node.kind() == "update_expression"
+        || (node.kind() == "postfix_expression"
+            && ["++", "--"]
+                .iter()
+                .any(|suffix| text(node, source).trim_end().ends_with(suffix)))
+    {
+        Some(node)
+    } else {
+        None
+    };
+    if let Some(target) = target
+        && is_direct_optional_target(target, source)
+    {
+        output.push(Diagnostic {
+            range: byte_range_to_lsp(source, target.byte_range()),
+            severity: 1,
+            code: "lpc.optionalAssignment",
+            source: "lpc-rust",
+            message: "可选访问结果不能直接用作赋值目标".to_owned(),
+        });
+    }
+    if node.kind() == "promise_type"
+        && node
+            .child_by_field_name("payload")
+            .is_some_and(|payload| text(payload, source) == "void")
+        && !node
+            .children(&mut node.walk())
+            .any(|child| child.kind() == "*")
+    {
+        output.push(Diagnostic {
+            range: byte_range_to_lsp(source, node.byte_range()),
+            severity: 1,
+            code: "lpc.promiseType",
+            source: "lpc-rust",
+            message: "promise 的值类型不能为 void".to_owned(),
+        });
+    }
+    if node.kind() == "modifier"
+        && text(node, source) == "async"
+        && node
+            .parent()
+            .is_some_and(|parent| parent.kind() != "function_declaration")
+    {
+        output.push(Diagnostic {
+            range: byte_range_to_lsp(source, node.byte_range()),
+            severity: 1,
+            code: "lpc.asyncModifier",
+            source: "lpc-rust",
+            message: "async 只能修饰函数声明".to_owned(),
+        });
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_invalid_type_and_assignment_diagnostics(child, source, output);
+    }
+}
+
+fn is_direct_optional_target(node: Node<'_>, source: &str) -> bool {
+    if matches!(
+        node.kind(),
+        "parenthesized_expression" | "update_expression"
+    ) {
+        return node
+            .named_child(0)
+            .is_some_and(|child| is_direct_optional_target(child, source));
+    }
+    if node.kind() != "postfix_expression" {
+        return false;
+    }
+    let mut cursor = node.walk();
+    let suffix = node
+        .named_children(&mut cursor)
+        .filter(|child| {
+            matches!(
+                child.kind(),
+                "member_suffix" | "subscript_suffix" | "call_suffix"
+            )
+        })
+        .last();
+    if let Some(suffix) = suffix {
+        return ["?.", ".?"]
+            .iter()
+            .any(|prefix| text(suffix, source).starts_with(prefix));
+    }
+    node.child_by_field_name("value")
+        .is_some_and(|value| is_direct_optional_target(value, source))
+}
+
+fn collect_async_context_diagnostics(
+    node: Node<'_>,
+    source: &str,
+    mut asynchronous: bool,
+    no_suspend: bool,
+    output: &mut Vec<Diagnostic>,
+) {
+    if node.kind() == "function_declaration" {
+        let mut cursor = node.walk();
+        asynchronous = node
+            .named_children(&mut cursor)
+            .any(|child| child.kind() == "modifier" && text(child, source) == "async");
+    } else if matches!(node.kind(), "anonymous_function" | "closure_expression") {
+        asynchronous = false;
+    }
+    // Captures execute in their enclosing context; an unresolved enclosing
+    // functional context must not be diagnosed as a proven illegal suspension.
+    if node.kind() == "captured_expression" {
+        return;
+    }
+    let awaiting = node.kind() == "unary_expression" && text(node, source).starts_with("await");
+    let catching = node.kind() == "acatch_expression";
+    if (awaiting || catching) && (!asynchronous || no_suspend) {
+        let keyword = if awaiting { "await" } else { "acatch" };
+        output.push(Diagnostic {
+            range: byte_range_to_lsp(source, node.start_byte()..node.start_byte() + keyword.len()),
+            severity: 1,
+            code: "lpc.asyncContext",
+            source: "lpc-rust",
+            message: if !asynchronous {
+                format!("{keyword} 只能直接用于 async 函数体内")
+            } else {
+                format!("catch 和 time_expression 内不能使用 {keyword}，请使用 acatch")
+            },
+        });
+    }
+    let no_suspend = no_suspend || matches!(node.kind(), "catch_expression" | "time_expression");
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_async_context_diagnostics(child, source, asynchronous, no_suspend, output);
+    }
 }
 
 fn collect_empty_heredoc_diagnostics(node: Node<'_>, source: &str, output: &mut Vec<Diagnostic>) {
@@ -5414,8 +5572,7 @@ fn is_empty_heredoc(value: &str) -> bool {
     let delimiter = opening
         .trim_end_matches('\r')
         .trim()
-        .strip_prefix('@')
-        .unwrap_or_default()
+        .trim_start_matches('@')
         .trim();
     if delimiter.is_empty() {
         return false;
@@ -5562,6 +5719,7 @@ fn collect_type_diagnostics(
     node: Node<'_>,
     source: &str,
     return_type: Option<&str>,
+    macros: &[MacroDefinition],
     output: &mut Vec<Diagnostic>,
 ) {
     if node.kind() == "anonymous_function" {
@@ -5577,7 +5735,11 @@ fn collect_type_diagnostics(
                 .bytes()
                 .filter(|byte| *byte == b'*')
                 .count();
-            Some(format!("{base}{}", "*".repeat(pointers)))
+            resolve_type_alias(
+                &format!("{base}{}", "*".repeat(pointers)),
+                node.start_byte(),
+                macros,
+            )
         })
         .flatten();
     let function_return_type = declared_return_type.as_deref().or(return_type);
@@ -5585,6 +5747,7 @@ fn collect_type_diagnostics(
         && let Some(expected) = node
             .child_by_field_name("type")
             .and_then(|value| value.utf8_text(source.as_bytes()).ok())
+            .and_then(|value| resolve_type_alias(value, node.start_byte(), macros))
     {
         let mut cursor = node.walk();
         for declarator in node
@@ -5621,8 +5784,51 @@ fn collect_type_diagnostics(
     }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_type_diagnostics(child, source, function_return_type, output);
+        collect_type_diagnostics(child, source, function_return_type, macros, output);
     }
+}
+
+fn resolve_type_alias(
+    expected: &str,
+    position: usize,
+    macros: &[MacroDefinition],
+) -> Option<String> {
+    let mut value = expected.trim().to_owned();
+    let mut visited = HashSet::new();
+    for _ in 0..32 {
+        let end = ascii_identifier_end(value.as_bytes(), 0);
+        let name = &value[..end];
+        if matches!(
+            name,
+            "int"
+                | "float"
+                | "string"
+                | "object"
+                | "mixed"
+                | "mapping"
+                | "function"
+                | "buffer"
+                | "void"
+                | "array"
+                | "closure"
+                | "class"
+                | "struct"
+                | "promise"
+        ) {
+            return Some(value);
+        }
+        if !visited.insert(name.to_owned()) {
+            return None;
+        }
+        let definition = macros.iter().rev().find(|definition| {
+            !definition.function_like
+                && definition.name == name
+                && (definition.selection.is_empty() || definition.selection.start < position)
+                && position < definition.active_until
+        })?;
+        value = format!("{}{}", definition.value.trim(), &value[end..]);
+    }
+    None
 }
 
 fn report_type_mismatch(
@@ -5678,12 +5884,25 @@ fn is_zero_integer_literal(node: Node<'_>, source: &str) -> bool {
 
 fn literal_type<'a>(node: Node<'_>, source: &'a str) -> Option<&'a str> {
     match node.kind() {
-        "string_literal" | "concatenated_string" | "heredoc_literal" => Some("string"),
+        "string_literal" | "concatenated_string" | "template_string" => Some("string"),
+        "heredoc_literal" => Some(if text(node, source).starts_with("@@") {
+            "mixed*"
+        } else {
+            "string"
+        }),
         "character_literal" => Some("int"),
-        "number_literal" => node
-            .utf8_text(source.as_bytes())
-            .ok()
-            .map(|value| if value.contains('.') { "float" } else { "int" }),
+        "number_literal" => node.utf8_text(source.as_bytes()).ok().map(|value| {
+            if !value.starts_with("0x")
+                && !value.starts_with("0X")
+                && !value.starts_with("0b")
+                && !value.starts_with("0B")
+                && value.contains(['.', 'e', 'E'])
+            {
+                "float"
+            } else {
+                "int"
+            }
+        }),
         "array_literal" => Some("mixed*"),
         "mapping_literal" => Some("mapping"),
         _ => None,
@@ -5691,6 +5910,12 @@ fn literal_type<'a>(node: Node<'_>, source: &'a str) -> Option<&'a str> {
 }
 
 fn types_compatible(expected: &str, actual: &str) -> bool {
+    let normalized = expected.replace(" array", "*").replace(' ', "");
+    let expected = if normalized == "array" {
+        "mixed*"
+    } else {
+        normalized.as_str()
+    };
     expected == "mixed"
         || expected == actual
         || (matches!(expected, "int" | "float" | "status")
@@ -6320,7 +6545,9 @@ fn member_access_context(
     let (operator, receiver_prefix) = if let Some(receiver) = prefix.strip_suffix("->") {
         (MemberOperator::Arrow, receiver.trim_end())
     } else {
-        let receiver = prefix.strip_suffix('.')?;
+        let receiver = prefix
+            .strip_suffix("?.")
+            .or_else(|| prefix.strip_suffix('.'))?;
         (MemberOperator::Dot, receiver.trim_end())
     };
     let bytes = receiver_prefix.as_bytes();
@@ -6752,6 +6979,9 @@ fn lsp_position_to_byte(source: &str, position: Position) -> Option<usize> {
 pub fn position_to_byte(source: &str, position: Position) -> Option<usize> {
     lsp_position_to_byte(source, position)
 }
+
+#[cfg(test)]
+mod syntax_coverage_tests;
 
 #[cfg(test)]
 mod tests {
