@@ -26,6 +26,11 @@ export interface WorkspaceConfigSyncSnapshot {
 export interface WorkspaceConfigSyncPayload {
     workspaceRoots: string[];
     workspaces: WorkspaceConfigSyncSnapshot[];
+    formatting?: {
+        indentSize: number;
+        printWidth: number;
+        braceStyle: 'allman' | 'kr';
+    };
 }
 
 export const WorkspaceConfigSyncNotification = {

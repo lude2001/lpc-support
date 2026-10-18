@@ -52,12 +52,24 @@ npm run probe:lsp -- --project <mudlib-root> --file <mudlib-path> --position <li
 
 生产 formatter 位于 `rust/crates/lpc-formatter/`，结构真源是 Tree-sitter CST。修改时必须验证：
 
-- 语法错误或不安全预处理结构会拒绝格式化，而不是猜测并改坏源码。
-- heredoc 正文、关闭标记、CRLF 和尾部换行保持不变。
-- 全文与 range formatting 对完整节点保持一致。
-- 输出再次格式化应幂等，并能重新解析为无错误语法树。
+- `source.rs` 从生成 grammar 的 CST 取得 token 边界；只将指令掩码用于原文结构解析，不求值或丢弃条件编译分支。宏身份消费 Rust 预处理快照，不能为格式化扫描工作区。
+- `layout.rs` 只规划空白编辑；指令、宏调用参数、注释与字面量保持原文，已有换行序列和尾部换行保留。长列表断行向外层传播，并在有界迭代后稳定。
+- 生产入口重新解析候选，核对 token 原文 / 次序、CST 形状与幂等性；有效分支存在语法错误或检查失败时不返回编辑。未启用分支不能解析的片段作为原文保护。
+- 全文与 range formatting 使用相同计划和保护；选区另行检查结果幂等性。Allman / K&R、行宽、空格 / 制表符要覆盖配置实时同步及无工作区文件场景。
+- 这些静态不变量不等于运行时语义证明，尤其不承诺 `__LINE__` 等源码位置相关行为不变。
 
 重点真实样例为 `test/lpc_code/yifeng-jian.c` 与 `test/lpc_code/meridiand.c`。
+
+全量验收必须在源码副本上运行，候选写入单独的新目录，不对真实项目执行批量格式化：
+
+```bash
+node scripts/run-cargo.mjs run --release --manifest-path rust/Cargo.toml -p lpc-language-server --example formatter-audit -- <source-copy> <new-candidate-directory>
+node scripts/verify-formatter-corpus.mjs <source-copy> <candidates> <audit.json> <FluffOS-checkout>/tools/lpc-syntax/tokenizer.mjs
+```
+
+第一条命令的标准输出保存为 `audit.json`，包含相对文件名、成功 / 原样 / 拒绝数量、生效分支结构核验与耗时，不写源码正文。第二条使用独立驱动 checkout 的 tokenizer 检查实际变更文件，记录参考实现哈希；它是开发验收工具，不打包或接入生产解析路径。两者必须分别查看结果，不能将安全拒绝计作格式化成功。
+
+参考 FluffOS 的[格式化器安全检查](https://github.com/fluffos/fluffos/blob/master/tools/lpc-syntax/format.mjs)与[语料验收工具](https://github.com/fluffos/fluffos/blob/master/tools/lpc-syntax/bin/format-corpus.mjs)。上游采用 token 布局；本扩展继续维护 Rust / CST 空白编辑路径。
 
 ## TypeScript 宿主改动
 

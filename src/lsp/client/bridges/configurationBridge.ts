@@ -91,7 +91,12 @@ export async function createWorkspaceConfigSyncPayload(
 
     return {
         workspaceRoots,
-        workspaces
+        workspaces,
+        formatting: {
+            indentSize: formatIndentSize,
+            printWidth: readFormatNumber('format.printWidth', 100, 0, 400),
+            braceStyle: vscode.workspace.getConfiguration?.('lpc')?.get?.('format.braceStyle') === 'kr' ? 'kr' : 'allman'
+        }
     };
 }
 
@@ -116,7 +121,14 @@ function readEnforceLocalVariableDeclarationAtBlockStart(): boolean {
 }
 
 function readFormatIndentSize(): number {
-    return vscode.workspace.getConfiguration?.('lpc')?.get?.<number>('format.indentSize', 4) ?? 4;
+    return readFormatNumber('format.indentSize', 4, 1, 16);
+}
+
+function readFormatNumber(key: string, fallback: number, minimum: number, maximum: number): number {
+    const value = vscode.workspace.getConfiguration?.('lpc')?.get?.<unknown>(key, fallback);
+    return typeof value === 'number' && Number.isInteger(value)
+        ? Math.min(maximum, Math.max(minimum, value))
+        : fallback;
 }
 
 async function attemptResync(

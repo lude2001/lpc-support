@@ -123,6 +123,15 @@ struct WorkspaceConfigSyncParams {
     workspace_roots: Vec<String>,
     #[serde(default)]
     workspaces: Vec<WorkspaceConfigSnapshot>,
+    formatting: Option<FormatterPreferences>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct FormatterPreferences {
+    indent_size: Option<usize>,
+    print_width: Option<usize>,
+    brace_style: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -294,7 +303,7 @@ fn run(
         .expect("analysis lock poisoned")
         .set_external_functions(efuns);
     let workspace_index = WorkspaceIndexController::default();
-    let mut format_indent_size = 4_usize;
+    let mut formatter_config = FormatterConfig::default();
     let mut next_server_request_id = -1_i32;
 
     for message in &connection.receiver {
@@ -329,11 +338,7 @@ fn run(
                                 .search_efun_definition_in_inheritance_chain
                                 .unwrap_or(false)
                         });
-                    format_indent_size = params
-                        .workspaces
-                        .iter()
-                        .find_map(|workspace| workspace.format_indent_size)
-                        .unwrap_or(4);
+                    formatter_config = formatter_preferences(&params);
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
@@ -432,7 +437,7 @@ fn run(
                     &documents,
                     &syntax,
                     &mut database,
-                    format_indent_size,
+                    formatter_config,
                 )?;
             }
             Message::Notification(notification) => {
@@ -463,11 +468,7 @@ fn run(
                                 .search_efun_definition_in_inheritance_chain
                                 .unwrap_or(false)
                         });
-                    format_indent_size = params
-                        .workspaces
-                        .iter()
-                        .find_map(|workspace| workspace.format_indent_size)
-                        .unwrap_or(4);
+                    formatter_config = formatter_preferences(&params);
                     let definitions = definitions_from_list(
                         &params
                             .workspaces
@@ -849,7 +850,7 @@ fn handle_request(
     documents: &DocumentStore,
     syntax: &SyntaxStore,
     analysis: &mut AnalysisDatabase,
-    format_indent_size: usize,
+    formatter_config: FormatterConfig,
 ) -> Result<()> {
     if request.method == HEALTH_METHOD {
         let analysis_metrics = analysis.metrics();
@@ -1087,15 +1088,23 @@ fn handle_request(
         let snapshot = syntax
             .get(&uri)
             .with_context(|| format!("formatting requested without syntax for {uri}"))?;
-        let config = formatting_config(&params.options, format_indent_size);
-        let edits = lpc_formatter::format_document(&snapshot.tree, &document.text, config)
-            .map(|new_text| {
-                vec![json!({
-                    "range": byte_range_to_lsp(&document.text, 0..document.text.len()),
-                    "newText": new_text
-                })]
-            })
-            .unwrap_or_default();
+        let config = formatting_config(&params.options, formatter_config);
+        let context = formatting_context(snapshot);
+        let edits = lpc_formatter::format_document_checked(
+            &snapshot.tree,
+            &document.text,
+            config,
+            &context,
+        )
+        .ok()
+        .filter(|new_text| new_text != &document.text)
+        .map(|new_text| {
+            vec![json!({
+                "range": byte_range_to_lsp(&document.text, 0..document.text.len()),
+                "newText": new_text
+            })]
+        })
+        .unwrap_or_default();
         return send_ok(connection, request.id, edits);
     }
 
@@ -1112,13 +1121,17 @@ fn handle_request(
             .context("range formatting start is outside the document")?;
         let end = position_to_byte(&document.text, params.range.end)
             .context("range formatting end is outside the document")?;
-        let edits = lpc_formatter::format_range(
+        let context = formatting_context(snapshot);
+        let edits = lpc_formatter::format_range_checked(
             &snapshot.tree,
             &document.text,
             start,
             end,
-            formatting_config(&params.options, format_indent_size),
+            formatting_config(&params.options, formatter_config),
+            &context,
         )
+        .ok()
+        .filter(|(range, new_text)| document.text[range.clone()] != *new_text)
         .map(|(range, new_text)| {
             vec![json!({
                 "range": byte_range_to_lsp(&document.text, range),
@@ -1177,16 +1190,51 @@ fn handle_request(
     )
 }
 
-fn formatting_config(
-    options: &FormattingOptions,
-    configured_indent_size: usize,
-) -> FormatterConfig {
-    // The LPC formatter has historically emitted spaces. Keep accepting the
-    // standard LSP option while making the extension's explicit LPC setting
-    // authoritative for both formatting entry points.
-    let _requested_spaces = options.insert_spaces;
+fn formatting_config(options: &FormattingOptions, config: FormatterConfig) -> FormatterConfig {
     FormatterConfig {
-        indent_size: configured_indent_size.clamp(1, 16),
+        indent_size: config.indent_size.clamp(1, 16),
+        use_tabs: !options.insert_spaces,
+        ..config
+    }
+}
+
+fn formatter_preferences(params: &WorkspaceConfigSyncParams) -> FormatterConfig {
+    let defaults = FormatterPreferences::default();
+    let preferences = params.formatting.as_ref().unwrap_or(&defaults);
+    FormatterConfig {
+        indent_size: preferences
+            .indent_size
+            .or_else(|| {
+                params
+                    .workspaces
+                    .iter()
+                    .find_map(|workspace| workspace.format_indent_size)
+            })
+            .unwrap_or(4),
+        print_width: preferences.print_width.unwrap_or(100),
+        brace_style: match preferences.brace_style.as_deref() {
+            Some("kr") => lpc_formatter::BraceStyle::SameLine,
+            _ => lpc_formatter::BraceStyle::Allman,
+        },
+        use_tabs: false,
+    }
+}
+
+fn formatting_context(
+    snapshot: &lpc_language_server::syntax_store::SyntaxSnapshot,
+) -> lpc_formatter::FormatContext {
+    lpc_formatter::FormatContext {
+        macro_names: snapshot
+            .predefined_macros
+            .keys()
+            .cloned()
+            .chain(
+                snapshot
+                    .macro_directives
+                    .iter()
+                    .map(|directive| directive.name.clone()),
+            )
+            .collect(),
     }
 }
 
@@ -1516,13 +1564,29 @@ mod tests {
         let spaces = FormattingOptions {
             insert_spaces: true,
         };
-        assert_eq!(formatting_config(&spaces, 2).indent_size, 2);
-        assert_eq!(formatting_config(&spaces, 32).indent_size, 16);
+        let config = FormatterConfig {
+            indent_size: 2,
+            ..FormatterConfig::default()
+        };
+        assert_eq!(formatting_config(&spaces, config).indent_size, 2);
+        assert!(!formatting_config(&spaces, config).use_tabs);
+        assert_eq!(
+            formatting_config(
+                &spaces,
+                FormatterConfig {
+                    indent_size: 32,
+                    ..config
+                }
+            )
+            .indent_size,
+            16
+        );
 
         let tabs = FormattingOptions {
             insert_spaces: false,
         };
-        assert_eq!(formatting_config(&tabs, 2).indent_size, 2);
+        assert_eq!(formatting_config(&tabs, config).indent_size, 2);
+        assert!(formatting_config(&tabs, config).use_tabs);
     }
 
     #[test]
@@ -1541,5 +1605,22 @@ mod tests {
             Some(true)
         );
         assert_eq!(params.workspaces[0].format_indent_size, Some(2));
+        assert_eq!(formatter_preferences(&params).indent_size, 2);
+    }
+
+    #[test]
+    fn uses_formatter_preferences_without_workspace_and_resets_defaults() {
+        let params: WorkspaceConfigSyncParams = serde_json::from_value(json!({
+            "workspaceRoots": [],
+            "formatting": {"indentSize": 3, "printWidth": 40, "braceStyle": "kr"}
+        }))
+        .unwrap();
+        let config = formatter_preferences(&params);
+        assert_eq!(config.indent_size, 3);
+        assert_eq!(config.print_width, 40);
+        assert_eq!(config.brace_style, lpc_formatter::BraceStyle::SameLine);
+        let empty: WorkspaceConfigSyncParams =
+            serde_json::from_value(json!({"workspaceRoots": []})).unwrap();
+        assert_eq!(formatter_preferences(&empty), FormatterConfig::default());
     }
 }

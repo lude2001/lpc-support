@@ -237,6 +237,8 @@ get_actor(id)->query_name();
 - `lpc.enforceLocalVariableDeclarationAtBlockStart`：启用或关闭局部变量必须声明在块开头的检查
 - `lpc.searchEfunDefinitionInInheritanceChain`：允许“转到定义”在继承链中寻找 efun 的源码重写（默认关闭）
 - `lpc.format.indentSize`：格式化缩进宽度
+- `lpc.format.printWidth`：参数与实参列表的目标行宽，默认 100，0 禁用自动换行
+- `lpc.format.braceStyle`：花括号风格，默认 `allman`，可选 `kr`
 - `lpc.javadoc.enableAutoGeneration`：启用 Javadoc 注释生成
 - `lpc.glm4.*`：配置 GLM-4 注释生成能力
 
@@ -323,20 +325,28 @@ get_actor(id)->query_name();
 
 扩展提供文档格式化和选区格式化，重点覆盖：
 
-- 函数、`if / else`、循环和匿名函数的 Allman 风格换行
+- 函数、`if / else`、循环和匿名函数的 Allman / K&R 风格换行
 - `mapping`、数组和 `new(..., field : value)` 结构化数据块布局
 - `struct` / `class` 定义
 - `switch` 范围标签
 - 常见 `foreach` 头部
-- heredoc、预处理行、复杂多行宏和行尾注释的保守处理
+- 长参数 / 实参列表与嵌套集合的换行
+- 文件中途的预处理指令与条件编译各分支，保持原有 include / inherit 顺序
+- 宏参数、注释、字符串、模板字符串和 heredoc 原文保护
 
 当前可用配置：
 
 ```json
 {
-  "lpc.format.indentSize": 4
+  "lpc.format.indentSize": 4,
+  "lpc.format.printWidth": 100,
+  "lpc.format.braceStyle": "allman"
 }
 ```
+
+设置修改后即时生效。空格或制表符跟随编辑器的 `editor.insertSpaces`；缩进宽度由 `lpc.format.indentSize` 决定。行宽非零值按 20–400 列处理，是列表布局的目标值；宏参数、注释和字符串不会为满足行宽而被拆写。已有多行列表保持展开，已有空行、各处 LF / CRLF 和文件尾换行保留。
+
+格式化使用 Rust / Tree-sitter CST，仅改写节点之间的空白。提交编辑前会重新解析、核对受保护原文与 token 顺序，并检查再次格式化是否稳定。语法错误、资源超限或无法证明安全时返回空编辑；选区按完整语句或声明处理，跨多个顶层声明时可能扩展到全文。该检查不执行 FluffOS，也不证明 `__LINE__` 等依赖源码位置的运行结果保持一致。
 
 ## 编译管理
 

@@ -9,6 +9,7 @@ import {
     StreamMessageWriter
 } from 'vscode-jsonrpc/node.js';
 import { verifySyntaxCoverage } from './syntax-coverage-smoke.mjs';
+import { verifyFormatterUpgrade } from './formatter-upgrade-smoke.mjs';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 const executableName = process.platform === 'win32'
@@ -826,6 +827,7 @@ try {
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: asyncUri } });
 
     await verifySyntaxCoverage(connection, smokeWorkspace, () => latestDiagnostics);
+    await verifyFormatterUpgrade(connection, smokeWorkspace);
 
     const stressIterations = 100;
     const answerLineEnd = 'int answer = query(1);'.length;

@@ -6,6 +6,35 @@ mod expression;
 mod lexical;
 pub use lexical::logical_directive;
 
+/// Physical source spans of directives, including continued lines and comments.
+/// This does not evaluate branches: consumers such as the formatter must keep
+/// directives in every branch and must not interpret `#` inside literal text.
+pub fn source_directive_ranges(source: &str) -> Vec<SourceRange> {
+    let mut lexical = lexical::LexicalState::default();
+    let mut ranges = Vec::new();
+    let mut offset = 0;
+    let mut consumed_until = 0;
+    for line in source.split_inclusive('\n') {
+        if offset < consumed_until {
+            offset += line.len();
+            continue;
+        }
+        if lexical.in_code() && line.trim_start().starts_with('#') {
+            let start = offset + line.len() - line.trim_start().len();
+            let (_, consumed) = logical_directive(&source[start..]);
+            consumed_until = start + consumed;
+            ranges.push(SourceRange {
+                start_byte: start,
+                end_byte: consumed_until,
+            });
+        } else {
+            lexical.scan_line(line);
+        }
+        offset += line.len();
+    }
+    ranges
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceRange {
@@ -433,6 +462,25 @@ pub fn referenced_macros(source: &str) -> HashSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_directives_keep_all_branches_and_skip_literal_hashes() {
+        let source = "/*\n#if COMMENT\n*/\nstring s = `text\n#if TEMPLATE\n`;\n#if 0\n#define JOIN(x) x \\\n + 1\n#else\n#define JOIN(x) #x /* a\n b */\n#endif\n";
+        let directives = source_directive_ranges(source)
+            .into_iter()
+            .map(|range| &source[range.start_byte..range.end_byte])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            directives,
+            [
+                "#if 0\n",
+                "#define JOIN(x) x \\\n + 1\n",
+                "#else\n",
+                "#define JOIN(x) #x /* a\n b */\n",
+                "#endif\n"
+            ]
+        );
+    }
 
     #[test]
     fn evaluates_driver_integer_precedence_and_function_macros() {

@@ -2,7 +2,7 @@
   "name": "lpc-support",
   "displayName": "LPC[FluffOS]",
   "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.52.18",
+  "version": "0.52.19",
   "publisher": "ludexiang",
   "author": {
     "name": "easyCat",
@@ -300,11 +300,31 @@
           "description": "启用保守的 LPC 类型检查诊断。关闭后不会产生 lpc.type.* 诊断。"
         },
         "lpc.format.indentSize": {
-          "type": "number",
+          "type": "integer",
           "default": 4,
           "minimum": 2,
           "maximum": 8,
-          "description": "LPC formatter indentation size"
+          "description": "LPC 格式化缩进宽度；使用空格或制表符跟随编辑器设置。"
+        },
+        "lpc.format.printWidth": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 0,
+          "maximum": 400,
+          "description": "LPC 参数与实参列表的目标行宽。0 禁用自动换行；非零值按 20–400 列处理。宏参数、注释与字符串保持原文，不强制截断。"
+        },
+        "lpc.format.braceStyle": {
+          "type": "string",
+          "enum": [
+            "allman",
+            "kr"
+          ],
+          "enumDescriptions": [
+            "左花括号独占一行",
+            "左花括号跟随声明或控制语句"
+          ],
+          "default": "allman",
+          "description": "LPC 格式化的花括号风格，修改后即时生效。"
         },
         "lpc.glm4.apiKey": {
           "type": "string",

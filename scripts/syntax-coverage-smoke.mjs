@@ -48,7 +48,7 @@ export async function verifySyntaxCoverage(connection, workspace, publishedDiagn
         await connection.sendRequest('lpc/health');
         assert.deepEqual(publishedDiagnostics()?.diagnostics, []);
         const repeated = await connection.sendRequest('textDocument/formatting', { textDocument, options: { tabSize: 4, insertSpaces: true } });
-        assert.equal(repeated[0]?.newText, formatted);
+        assert.deepEqual(repeated, []);
     } finally {
         connection.sendNotification('textDocument/didClose', { textDocument });
     }

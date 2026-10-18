@@ -67,6 +67,7 @@ const actualSourceFileChangeBridge = jest.requireActual('../client/bridges/sourc
 jest.mock('vscode', () => ({
     workspace: {
         workspaceFolders: [],
+        getConfiguration: jest.fn(),
         onDidChangeConfiguration: jest.fn(() => ({ dispose: jest.fn() })),
         onDidChangeWorkspaceFolders: jest.fn(() => ({ dispose: jest.fn() })),
         createFileSystemWatcher: jest.fn()
@@ -89,6 +90,7 @@ type WatcherRegistration = {
 const vscodeMock = jest.requireMock('vscode') as {
     workspace: {
         workspaceFolders: Array<{ uri: { fsPath: string } }>;
+        getConfiguration: jest.Mock;
         onDidChangeConfiguration: jest.Mock;
         onDidChangeWorkspaceFolders: jest.Mock;
         createFileSystemWatcher: jest.Mock;
@@ -101,6 +103,7 @@ const vscodeMock = jest.requireMock('vscode') as {
 describe('LspClientManager activation', () => {
     beforeEach(() => {
         vscodeMock.workspace.workspaceFolders = [];
+        vscodeMock.workspace.getConfiguration.mockReset();
         vscodeMock.workspace.onDidChangeConfiguration.mockReset().mockReturnValue({ dispose: jest.fn() });
         vscodeMock.workspace.onDidChangeWorkspaceFolders.mockReset().mockReturnValue({ dispose: jest.fn() });
         vscodeMock.workspace.createFileSystemWatcher.mockReset().mockImplementation(() => {
@@ -380,6 +383,7 @@ describe('LspClientManager activation', () => {
             WORKSPACE_CONFIG_SYNC_NOTIFICATION,
             {
                 workspaceRoots: ['D:/workspace'],
+                formatting: { indentSize: 4, printWidth: 100, braceStyle: 'allman' },
                 workspaces: [
                     {
                         workspaceRoot: 'D:/workspace',
@@ -408,6 +412,47 @@ describe('LspClientManager activation', () => {
         disposable.dispose();
     });
 
+    test('formatter preferences resync live even without workspace folders', async () => {
+        let preferences = { 'format.indentSize': 2, 'format.printWidth': 60, 'format.braceStyle': 'kr' };
+        vscodeMock.workspace.getConfiguration.mockImplementation(() => ({
+            get: (key: string, fallback: unknown) => preferences[key as keyof typeof preferences] ?? fallback
+        }));
+        const sendNotification = jest.fn<(method: string, payload: unknown) => Promise<void>>();
+        const projectConfigService = {
+            getProjectConfigPath: jest.fn<(workspaceRoot: string) => string>(),
+            loadForWorkspace: jest.fn<(workspaceRoot: string) => Promise<LpcProjectConfig | undefined>>()
+        };
+        const disposable = await actualConfigurationBridge.initializeConfigurationBridge({
+            client: { sendNotification }, projectConfigService
+        });
+        expect(sendNotification).toHaveBeenLastCalledWith(WORKSPACE_CONFIG_SYNC_NOTIFICATION, {
+            workspaceRoots: [], workspaces: [], formatting: { indentSize: 2, printWidth: 60, braceStyle: 'kr' }
+        });
+        preferences = { 'format.indentSize': 4, 'format.printWidth': 0, 'format.braceStyle': 'allman' };
+        const handler = vscodeMock.workspace.onDidChangeConfiguration.mock.calls[0][0] as () => Promise<void>;
+        await handler();
+        expect(sendNotification).toHaveBeenLastCalledWith(WORKSPACE_CONFIG_SYNC_NOTIFICATION, {
+            workspaceRoots: [], workspaces: [], formatting: { indentSize: 4, printWidth: 0, braceStyle: 'allman' }
+        });
+        expect(projectConfigService.loadForWorkspace).not.toHaveBeenCalled();
+        disposable.dispose();
+    });
+
+    test('formatter settings normalize invalid or extreme user values before Rust synchronization', async () => {
+        const values: Record<string, unknown> = { 'format.indentSize': 1e100, 'format.printWidth': '80', 'format.braceStyle': false };
+        vscodeMock.workspace.getConfiguration.mockImplementation(() => ({ get: (key: string) => values[key] }));
+        const projectConfigService = {
+            getProjectConfigPath: jest.fn<(workspaceRoot: string) => string>(),
+            loadForWorkspace: jest.fn<(workspaceRoot: string) => Promise<LpcProjectConfig | undefined>>()
+        };
+        const payload = await actualConfigurationBridge.createWorkspaceConfigSyncPayload(projectConfigService);
+        expect(payload.formatting).toEqual({ indentSize: 16, printWidth: 100, braceStyle: 'allman' });
+        values['format.indentSize'] = Number.NaN;
+        values['format.printWidth'] = -5;
+        expect((await actualConfigurationBridge.createWorkspaceConfigSyncPayload(projectConfigService)).formatting)
+            .toEqual({ indentSize: 4, printWidth: 0, braceStyle: 'allman' });
+    });
+
     test('initializeConfigurationBridge resyncs when workspace roots change and cleans up watchers on dispose', async () => {
         vscodeMock.workspace.workspaceFolders = [{ uri: { fsPath: 'D:/workspace-a' } }];
 
@@ -432,6 +477,7 @@ describe('LspClientManager activation', () => {
 
         expect(sendNotification).toHaveBeenNthCalledWith(2, WORKSPACE_CONFIG_SYNC_NOTIFICATION, {
             workspaceRoots: ['D:/workspace-b'],
+            formatting: { indentSize: 4, printWidth: 100, braceStyle: 'allman' },
             workspaces: [
                 {
                     workspaceRoot: 'D:/workspace-b',
@@ -483,6 +529,7 @@ describe('LspClientManager activation', () => {
 
         expect(sendNotification).toHaveBeenCalledWith(WORKSPACE_CONFIG_SYNC_NOTIFICATION, {
             workspaceRoots: ['D:/workspace-a', 'D:/workspace-a/nested'],
+            formatting: { indentSize: 4, printWidth: 100, braceStyle: 'allman' },
             workspaces: [
                 {
                     workspaceRoot: 'D:/workspace-a',

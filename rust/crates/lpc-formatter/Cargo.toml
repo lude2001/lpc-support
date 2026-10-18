@@ -8,7 +8,8 @@ rust-version.workspace = true
 
 [dependencies]
 tree-sitter.workspace = true
+tree-sitter-lpc-support = { path = "../../grammar/lpc" }
+lpc-preprocessor = { path = "../lpc-preprocessor" }
 
 [dev-dependencies]
-tree-sitter-lpc-support = { path = "../../grammar/lpc" }
 serde_json.workspace = true
