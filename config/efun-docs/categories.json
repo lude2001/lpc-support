@@ -21,6 +21,7 @@
     "write_buffer"
   ],
   "调用相关函数（Calls）": [
+    "async_yield",
     "call_other",
     "call_out",
     "call_out_walltime",

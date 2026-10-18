@@ -851,6 +851,16 @@ mod tests {
     }
 
     #[test]
+    fn preserves_async_modifier_and_await_expressions() {
+        let output =
+            format("private async void drain(){await async_yield();return await next()+1;}");
+        assert!(output.contains("private async void drain()"), "{output}");
+        assert!(output.contains("await async_yield();"), "{output}");
+        assert!(output.contains("return await next() + 1;"), "{output}");
+        assert_eq!(format(&output), output);
+    }
+
+    #[test]
     fn preserves_multi_character_operators() {
         let output = format("void test(){if(a>=b && c==d){value+=1;}}");
         assert!(output.contains("if (a >= b && c == d)"));

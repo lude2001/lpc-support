@@ -142,5 +142,14 @@ mod tests {
         assert!(write.signatures.iter().any(|signature| {
             signature.minimum_arguments == 1 && signature.maximum_arguments == Some(1)
         }));
+        let async_yield = functions
+            .iter()
+            .find(|function| function.name == "async_yield")
+            .unwrap();
+        assert!(async_yield.signatures.iter().any(|signature| {
+            signature.label == "promise async_yield()"
+                && signature.minimum_arguments == 0
+                && signature.maximum_arguments == Some(0)
+        }));
     }
 }

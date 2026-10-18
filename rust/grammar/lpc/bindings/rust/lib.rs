@@ -12,6 +12,46 @@ pub const NODE_TYPES: &str = include_str!("../../src/node-types.json");
 #[cfg(test)]
 mod tests {
     #[test]
+    fn parses_async_functions_and_await_with_unary_precedence() {
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&super::LANGUAGE.into()).unwrap();
+        let source = concat!(
+            "private async void drain() { await async_yield(); }\n",
+            "async int compute(int value) { return await value + 1; }\n",
+        );
+        let tree = parser.parse(source, None).unwrap();
+        let root = tree.root_node();
+        assert!(!root.has_error(), "{}", root.to_sexp());
+        let drain = root.named_child(0).unwrap();
+        assert_eq!(drain.named_child(1).unwrap().kind(), "modifier");
+        let expression = drain
+            .child_by_field_name("body")
+            .unwrap()
+            .named_child(0)
+            .unwrap()
+            .named_child(0)
+            .unwrap();
+        assert_eq!(expression.kind(), "unary_expression");
+        assert_eq!(
+            expression.named_child(0).unwrap().kind(),
+            "postfix_expression"
+        );
+        let compute = root.named_child(1).unwrap();
+        let sum = compute
+            .child_by_field_name("body")
+            .unwrap()
+            .named_child(0)
+            .unwrap()
+            .named_child(0)
+            .unwrap();
+        assert_eq!(sum.kind(), "binary_expression");
+        assert_eq!(
+            sum.child_by_field_name("left").unwrap().kind(),
+            "unary_expression"
+        );
+    }
+
+    #[test]
     fn loads_generated_language() {
         let mut parser = tree_sitter::Parser::new();
         parser

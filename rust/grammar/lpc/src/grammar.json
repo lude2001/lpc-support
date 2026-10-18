@@ -699,6 +699,10 @@
         {
           "type": "STRING",
           "value": "nomask"
+        },
+        {
+          "type": "STRING",
+          "value": "async"
         }
       ]
     },
@@ -2195,6 +2199,10 @@
               {
                 "type": "STRING",
                 "value": "*"
+              },
+              {
+                "type": "STRING",
+                "value": "await"
               }
             ]
           },

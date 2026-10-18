@@ -798,6 +798,32 @@ try {
         textDocument: { uri: configuredDiagnosticsUri }
     });
 
+    const asyncUri = 'file:///workspace/async_probe.c';
+    const asyncSource = 'async void pause_async() { await async_yield(); }\nprivate async void drain() { await pause_async(); await async_yield(); }\n';
+    connection.sendNotification('textDocument/didOpen', {
+        textDocument: { uri: asyncUri, languageId: 'lpc', version: 1, text: asyncSource }
+    });
+    const asyncDiagnostics = await connection.sendRequest('lpc/workspaceDiagnostics', {
+        uriPrefix: asyncUri
+    });
+    if (!Array.isArray(asyncDiagnostics) || asyncDiagnostics.some(entry => entry.diagnostics.length !== 0)
+        || latestDiagnostics?.uri !== asyncUri || latestDiagnostics.diagnostics.length !== 0) {
+        throw new Error(`Rust server reported diagnostics for async/await: ${JSON.stringify({ asyncDiagnostics, latestDiagnostics })}`);
+    }
+    const asyncDefinitions = await connection.sendRequest('textDocument/definition', {
+        textDocument: { uri: asyncUri }, position: { line: 1, character: 36 }
+    });
+    if (asyncDefinitions.length !== 1 || asyncDefinitions[0].range.start.line !== 0) {
+        throw new Error(`Rust server lost the awaited function definition: ${JSON.stringify(asyncDefinitions)}`);
+    }
+    const asyncFormatting = await connection.sendRequest('textDocument/formatting', {
+        textDocument: { uri: asyncUri }, options: { tabSize: 4, insertSpaces: true }
+    });
+    if (!asyncFormatting[0]?.newText.includes('private async void drain()\n{\n  await pause_async();')) {
+        throw new Error(`Rust server could not format async/await: ${JSON.stringify(asyncFormatting)}`);
+    }
+    connection.sendNotification('textDocument/didClose', { textDocument: { uri: asyncUri } });
+
     const stressIterations = 100;
     const answerLineEnd = 'int answer = query(1);'.length;
     const residentSamples = [];

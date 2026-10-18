@@ -52,6 +52,15 @@ describe('LPC TextMate conditional compilation', () => {
         expect(scopes).toContain('keyword.control.lpc');
     }
 
+    test('highlights async and await without treating identifier prefixes as keywords', () => {
+        const lines = ['private async void drain() {', '    await async_yield();', '    string message = "async await";', '}'];
+        const tokens = tokenize(lines);
+        expect(scopesAt(lines[0], tokens[0], 'async')).toContain('keyword.other.lpc');
+        expect(scopesAt(lines[1], tokens[1], 'await')).toContain('keyword.control.lpc');
+        expect(scopesAt(lines[1], tokens[1], 'async_yield')).not.toContain('keyword.other.lpc');
+        expect(scopesAt(lines[2], tokens[2], 'async')).toContain('string.quoted.double.lpc');
+    });
+
     test('restores keyword highlighting in the else branch and after endif', () => {
         const lines = ['#if 0', 'return 1;', '#else', 'if (flag) return file;', '#endif', 'return 0;'];
         const tokens = tokenize(lines);

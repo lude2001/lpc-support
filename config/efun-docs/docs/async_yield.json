@@ -1,0 +1,16 @@
+{
+  "name": "async_yield",
+  "summary": "返回在驱动下一轮事件循环处理后以 0 完成的 promise。在 async 函数中使用 await async_yield()，可暂停当前函数，让驱动处理网络输入、命令和到期定时器后再恢复。",
+  "details": "这是协作式让出执行机会的操作，适用于分批处理较长任务。仅等待已经完成的 promise 不保证经过下一轮事件循环；async_yield() 也不会重置当前求值预算。",
+  "reference": ["call_out", "call_out_walltime"],
+  "category": "调用相关函数（Calls）",
+  "signatures": [
+    {
+      "label": "promise async_yield()",
+      "returnType": "promise",
+      "isVariadic": false,
+      "parameters": [],
+      "arity": { "min": 0, "max": 0 }
+    }
+  ]
+}

@@ -155,6 +155,7 @@ module.exports = grammar({
       'nosave',
       'static',
       'nomask',
+      'async',
     ),
 
     _type: $ => choice(
@@ -333,7 +334,7 @@ module.exports = grammar({
     ),
 
     unary_expression: $ => prec.right(PREC.UNARY, seq(
-      choice('+', '-', '!', '~', '*'),
+      choice('+', '-', '!', '~', '*', 'await'),
       $._expression,
     )),
 

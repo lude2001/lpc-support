@@ -312,11 +312,11 @@
 			"patterns": [
 				{
 					"name": "keyword.control.lpc",
-					"match": "\\b(if|else|while|for|do|switch|case|default|break|continue|return|foreach|catch|include|in|new|ref)\\b"
+					"match": "\\b(if|else|while|for|do|switch|case|default|break|continue|return|foreach|catch|include|in|new|ref|await)\\b"
 				},
 				{
 					"name": "keyword.other.lpc",
-					"match": "\\b(inherit|private|protected|public|static|nomask|varargs|nosave)\\b"
+					"match": "\\b(inherit|private|protected|public|static|nomask|varargs|nosave|async)\\b"
 				}
 			]
 		},

@@ -1823,6 +1823,14 @@
     "named": false
   },
   {
+    "type": "async",
+    "named": false
+  },
+  {
+    "type": "await",
+    "named": false
+  },
+  {
     "type": "break",
     "named": false
   },

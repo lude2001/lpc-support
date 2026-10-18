@@ -3603,6 +3603,8 @@ pub struct CompletionCandidate {
 }
 
 const KEYWORDS: &[&str] = &[
+    "async",
+    "await",
     "break",
     "case",
     "catch",
@@ -6766,6 +6768,45 @@ mod tests {
         let mut database = AnalysisDatabase::default();
         database.update("file:///demo.c", 1, 1, &tree, source);
         database
+    }
+
+    #[test]
+    fn resolves_async_function_calls_without_await_identifier_diagnostics() {
+        let source = concat!(
+            "async void async_yield() {}\n",
+            "private async void drain() { await async_yield(); await async_yield(); }\n",
+        );
+        let mut analysis = database(source);
+        assert!(analysis.diagnostics("file:///demo.c").is_empty());
+        let call = byte_to_lsp_position(source, source.find("await async_yield").unwrap() + 8);
+        let definitions = analysis.definition("file:///demo.c", call);
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].range.start.line, 0);
+        assert!(
+            analysis
+                .hover("file:///demo.c", call)
+                .unwrap()
+                .contents
+                .contains("async void async_yield")
+        );
+        for keyword in ["async", "await"] {
+            assert!(
+                analysis
+                    .completion_candidates(
+                        "file:///demo.c",
+                        byte_to_lsp_position(source, source.len())
+                    )
+                    .iter()
+                    .any(|candidate| candidate.label == keyword && candidate.kind == 14)
+            );
+        }
+        let broken = "private async void drain() { await async_yield(; }\n";
+        assert!(
+            database(broken)
+                .diagnostics("file:///demo.c")
+                .iter()
+                .any(|diagnostic| diagnostic.code == "syntax-error")
+        );
     }
 
     #[test]
