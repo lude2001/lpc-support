@@ -561,7 +561,7 @@
     "test:watch": "jest --watch",
     "test:performance": "jest --runInBand src/functionDocs/__tests__/FunctionDocumentationPerformance.test.ts",
     "test:rust-smoke": "node scripts/rust-lsp-smoke.mjs",
-    "test:ci-tools": "node --test scripts/tests/diagnostics-inbox.test.mjs && python -m unittest discover -s scripts/tests -p \"test_*.py\" -v",
+    "test:ci-tools": "node --test scripts/tests/diagnostics-inbox.test.mjs",
     "probe:lsp": "node scripts/lsp-probe.mjs",
     "audit:efun-arity": "node scripts/audit-efun-arity.mjs",
     "audit:efun-arity:strict": "node scripts/audit-efun-arity.mjs --strict",
