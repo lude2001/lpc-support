@@ -94,7 +94,7 @@ TypeScript 可以负责：
 
 CI 在每个平台打包后运行该原生 sidecar 的 stdio smoke，全部通过才上传对应 artifact。LSP 测试按 URI 和文档版本等待诊断通知；依赖刷新可能交错发布其他文件的诊断，不得用“最后一份通知”代表当前用例，也不得为消除测试失败而过滤真实诊断。
 
-市场发布只走独立的手动入口，默认仅核验指定成功 main CI 的六个原始产物。版本与 SHA 一致性检查、OIDC 配置、正式发布和部分失败补齐见[手动市场发布](marketplace-release.md)。工作流变更同样需要 PR 和 required checks，不能通过账号豁免直接推送 main。
+维护者从同一次成功的 main CI 下载六个平台的 VSIX，再到 Marketplace 网页手动更新扩展。平台包对应关系、下载、上传及补齐步骤见[通过网页发布到 VS Code Marketplace](marketplace-release.md)。工作流变更同样需要 PR 和 required checks，不能通过账号豁免直接推送 main。
 
 ## 命名和测试
 
@@ -118,4 +118,4 @@ CI 在每个平台打包后运行该原生 sidecar 的 stdio smoke，全部通�
 - [README](../README.md)
 - [Rust LSP 一次性重构实施计划](rust-lsp-implementation-plan.md)
 - [Rust LSP 故障排查](rust-lsp-troubleshooting.md)
-- [手动发布到 VS Code Marketplace](marketplace-release.md)
+- [通过网页发布到 VS Code Marketplace](marketplace-release.md)
