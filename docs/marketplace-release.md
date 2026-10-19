@@ -45,6 +45,12 @@ workflow 必须已经合并到默认分支才能在 Actions 显示手动入口�
 
 ### 1. 建立发布身份
 
+先确认维护者拥有可管理的 Microsoft Entra 租户，并具有应用注册权限。现有的 Microsoft 个人账号、Marketplace 发布者及已上架扩展，不会自动为 GitHub 工作流提供 Entra 租户或上传权限；后续仍更新原有发布者下的同一个扩展。
+
+若没有租户，按[微软租户开通说明](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-create-new-tenant)准备账号，可从 [Azure Free 入口](https://azure.microsoft.com/en-us/free/)开始。注册中的个人信息、手机 / 银行卡验证和服务条款应由维护者本人完成；资格、验证与费用以微软当前页面为准。发布身份配置不需要创建虚拟机等计算资源。
+
+本地配置时可使用 `az login --use-device-code --allow-no-subscriptions`。身份验证完成后还需用 `az account list --all` 确认可用的租户上下文；若列表为空，应先完成租户开通或切换到有权限的租户，再注册应用。
+
 在 Microsoft Entra 中建立应用注册及对应 service principal，记录 **Application (client) ID** 与 **Directory (tenant) ID**。也可以使用官方指南中的用户分配托管身份。不要创建长期客户端密钥。
 
 为该身份添加 GitHub Actions 联合凭据：
