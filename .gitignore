@@ -68,3 +68,7 @@ tmp/
 
 # Rust build outputs
 rust/target/
+
+# Release tooling test bytecode
+__pycache__/
+*.pyc

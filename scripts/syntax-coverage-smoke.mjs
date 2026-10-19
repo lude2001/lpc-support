@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export async function verifySyntaxCoverage(connection, workspace, publishedDiagnostics) {
+export async function verifySyntaxCoverage(connection, workspace, waitForDiagnostics) {
     const uri = pathToFileURL(path.join(workspace, 'syntax-coverage.c')).toString();
     const textDocument = { uri };
     const source = [
@@ -23,8 +23,7 @@ export async function verifySyntaxCoverage(connection, workspace, publishedDiagn
     try {
         const inspection = await connection.sendRequest('lpc/analysisInspection', { textDocument, position: { line: 2, character: 15 } });
         assert.equal(inspection.version, 1);
-        assert.equal(publishedDiagnostics()?.uri, uri);
-        assert.deepEqual(publishedDiagnostics()?.diagnostics, []);
+        assert.deepEqual((await waitForDiagnostics(uri, 1)).diagnostics, []);
         const diagnostics = await connection.sendRequest('lpc/workspaceDiagnostics', { uriPrefix: uri });
         assert.deepEqual(diagnostics, []);
         const docs = await connection.sendRequest('lpc/functionDocumentation', { textDocument });
@@ -46,7 +45,7 @@ export async function verifySyntaxCoverage(connection, workspace, publishedDiagn
         assert.equal((formatted.match(/\(:/g) ?? []).length, 2);
         connection.sendNotification('textDocument/didChange', { textDocument: { uri, version: 2 }, contentChanges: [{ text: formatted }] });
         await connection.sendRequest('lpc/health');
-        assert.deepEqual(publishedDiagnostics()?.diagnostics, []);
+        assert.deepEqual((await waitForDiagnostics(uri, 2)).diagnostics, []);
         const repeated = await connection.sendRequest('textDocument/formatting', { textDocument, options: { tabSize: 4, insertSpaces: true } });
         assert.deepEqual(repeated, []);
     } finally {
@@ -68,7 +67,7 @@ export async function verifySyntaxCoverage(connection, workspace, publishedDiagn
         const inspection = await connection.sendRequest('lpc/analysisInspection', { textDocument, position: { line: 5, character: 8 } });
         assert(inspection.preprocessedText.includes('int coverage_selected()'));
         assert(!inspection.preprocessedText.includes('int coverage_hidden()'));
-        assert.deepEqual(publishedDiagnostics()?.diagnostics, []);
+        assert.deepEqual((await waitForDiagnostics(uri, 3)).diagnostics, []);
         const symbols = await connection.sendRequest('workspace/symbol', { query: 'coverage_generated' });
         assert.equal(symbols.length, 1);
         assert.equal(symbols[0].location.uri, uri);

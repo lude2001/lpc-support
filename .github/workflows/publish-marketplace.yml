@@ -1,0 +1,179 @@
+name: Publish to VS Code Marketplace
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: 'Successful main-branch CI run ID containing all six native VSIX packages'
+        required: true
+        type: string
+      version:
+        description: 'Exact version already inside those packages, for example 0.52.19'
+        required: true
+        type: string
+      operation:
+        description: 'verify = no Marketplace login; identity = read identity ID only; publish = formal release'
+        required: true
+        default: verify
+        type: choice
+        options:
+          - verify
+          - identity
+          - publish
+      resume:
+        description: 'Resume this same CI release after a partial publish; skip already existing version/platform pairs'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vscode-marketplace-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Verify six CI packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      head_sha: ${{ steps.prepare.outputs.head_sha }}
+      version: ${{ steps.prepare.outputs.version }}
+      plan_sha256: ${{ steps.prepare.outputs.plan_sha256 }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Checkout release tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Verify source run, archive digests and native packages
+        id: prepare
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: >-
+          python scripts/marketplace_release.py prepare
+          --run-id "$RELEASE_CI_RUN_ID"
+          --version "$RELEASE_VERSION"
+          --directory verified-release
+      - name: Preserve the exact verified packages and release plan
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-marketplace-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verified-release/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Marketplace identity or formal publication
+    needs: prepare
+    if: ${{ inputs.operation == 'identity' || inputs.operation == 'publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: vscode-marketplace
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      RELEASE_CI_RUN_ID: ${{ inputs.ci_run_id }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      RELEASE_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      RELEASE_PLAN_SHA256: ${{ needs.prepare.outputs.plan_sha256 }}
+      AZURE_CORE_OUTPUT: none
+    steps:
+      - name: Checkout release tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Download only the artifact verified by the prepare job
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+          path: verified-release
+      - name: Recheck plan and package bytes before authentication
+        run: >-
+          python scripts/marketplace_release.py verify
+          --run-id "$RELEASE_CI_RUN_ID"
+          --version "$RELEASE_VERSION"
+          --sha "$RELEASE_HEAD_SHA"
+          --plan-sha256 "$RELEASE_PLAN_SHA256"
+          --directory verified-release
+      - name: Check one-time identity configuration
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          python - <<'PY'
+          import os, uuid
+          for name in ('AZURE_CLIENT_ID', 'AZURE_TENANT_ID'):
+              try:
+                  uuid.UUID(os.environ.get(name, ''))
+              except ValueError:
+                  raise SystemExit(f'Configure {name} in the vscode-marketplace environment; see docs/marketplace-release.md')
+          PY
+      - name: Set up Node.js
+        if: ${{ inputs.operation == 'publish' }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked publishing tooling without lifecycle scripts
+        if: ${{ inputs.operation == 'publish' }}
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Authenticate using GitHub OIDC
+        uses: azure/login@935127ca5bb3c4b02c9c2c10060028383878f33f # v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Read the identity resource ID for one-time publisher membership
+        if: ${{ inputs.operation == 'identity' }}
+        run: |
+          python - <<'PY'
+          import os, subprocess, uuid
+          result = subprocess.run([
+              'az', 'rest', '--url', 'https://app.vssps.visualstudio.com/_apis/profile/profiles/me',
+              '--resource', '499b84ac-1321-427f-aa17-267ca6975798', '--query', 'id', '--output', 'tsv'
+          ], check=True, capture_output=True, text=True)
+          identity = str(uuid.UUID(result.stdout.strip()))
+          message = f'Marketplace identity resource ID: `{identity}`. Add this identity as Contributor to publisher ludexiang. No package was published.\n'
+          print(message)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as stream:
+              stream.write(message)
+          PY
+      - name: Publish the prepared packages without rebuilding
+        if: ${{ inputs.operation == 'publish' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python scripts/marketplace_release.py publish --execute
+          --run-id "$RELEASE_CI_RUN_ID"
+          --version "$RELEASE_VERSION"
+          --sha "$RELEASE_HEAD_SHA"
+          --plan-sha256 "$RELEASE_PLAN_SHA256"
+          --directory verified-release
+      - name: Preserve partial or complete publication results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: marketplace-publish-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: verified-release/publish-results.json
+          if-no-files-found: ignore
+          retention-days: 30
