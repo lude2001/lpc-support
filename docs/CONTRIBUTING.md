@@ -36,6 +36,7 @@ npm run check:rust
 npm run test:rust
 npm run test:rust-formatter
 npm run test:rust-smoke
+npm run test:ci-tools
 npm test -- --runInBand
 ```
 
@@ -85,11 +86,15 @@ TypeScript 可以负责：
 
 `npm run package` 会清理产物、构建当前平台 Rust release binary，并生成带平台标签的 VSIX。发布包必须：
 
-- 只携带当前 `win32-x64`、`linux-x64`、`linux-arm64`、`darwin-x64` 或 `darwin-arm64` 原生二进制。
+- 只携带当前 `win32-x64`、`win32-arm64`、`linux-x64`、`linux-arm64`、`darwin-x64` 或 `darwin-arm64` 原生二进制。
 - 不再包含任何 TypeScript 语言服务器产物（旧 `dist/lsp/server.js` 构建路径已随退役删除）。
 - 在缺失或不匹配二进制时给出明确错误，不静默回退。
 
 平台矩阵由 `.github/workflows/ci.yml` 构建。当前平台交付前还需验证 VSIX 安装、同版本覆盖升级、initialize、health、shutdown 和 exit。
+
+CI 在每个平台打包后运行该原生 sidecar 的 stdio smoke，全部通过才上传对应 artifact。LSP 测试按 URI 和文档版本等待诊断通知；依赖刷新可能交错发布其他文件的诊断，不得用“最后一份通知”代表当前用例，也不得为消除测试失败而过滤真实诊断。
+
+市场发布只走独立的手动入口，默认仅核验指定成功 main CI 的六个原始产物。版本与 SHA 一致性检查、OIDC 配置、正式发布和部分失败补齐见[手动市场发布](marketplace-release.md)。工作流变更同样需要 PR 和 required checks，不能通过账号豁免直接推送 main。
 
 ## 命名和测试
 
@@ -113,3 +118,4 @@ TypeScript 可以负责：
 - [README](../README.md)
 - [Rust LSP 一次性重构实施计划](rust-lsp-implementation-plan.md)
 - [Rust LSP 故障排查](rust-lsp-troubleshooting.md)
+- [手动发布到 VS Code Marketplace](marketplace-release.md)

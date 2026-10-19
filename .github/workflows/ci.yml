@@ -25,19 +25,24 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout FluffOS
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: lude2001/fluffos
           path: fluffos
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
+
+      - name: Set up Python for release tooling tests
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -51,7 +56,10 @@ jobs:
           rustup default 1.98.1
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
+
+      - name: Test CI diagnostics and manual release guards
+        run: npm run test:ci-tools
 
       - name: Type check
         run: npm run check
@@ -124,9 +132,9 @@ jobs:
       JAVA_TOOL_OPTIONS: -Xms64m -Xmx512m
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -140,9 +148,11 @@ jobs:
         with:
           toolchain: 1.98.1
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
       - name: Package native extension
         run: npm run package
+      - name: Smoke-test the native sidecar included in this platform package
+        run: npm run test:rust-smoke
       - name: Upload platform VSIX
         uses: actions/upload-artifact@v4
         with:

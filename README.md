@@ -478,6 +478,8 @@ object get_equipment(string type);
 
 ## 参考与开发范式
 
+维护者的六平台打包验收、OIDC 一次性配置及手动市场发布步骤，见[手动发布到 VS Code Marketplace](docs/marketplace-release.md)。日常提交不会触发市场发布。
+
 `lpc-support` 在推进 LPC 静态分析和语言服务能力时，参考过 [`jlchmura/lpc-language-server`](https://github.com/jlchmura/lpc-language-server) 项目的一些实现思路和问题建模，并继续围绕 VS Code 扩展、工作区配置、FluffOS 开发驱动、本地编译和保守诊断链路做集成。
 
 关于这条路线背后的开发环境边界和 LPC 开发范式整理，可以阅读 [`docs/lpc-support-development-paradigm.md`](https://github.com/lude2001/lpc-support/blob/main/docs/lpc-support-development-paradigm.md)。

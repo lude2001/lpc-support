@@ -1,0 +1,6 @@
+# This GitHub-hosted preview label is already exercised by the native ARM CI.
+# actionlint's runner allowlist does not yet include the VS2026 image. This
+# declaration affects linting only, not where GitHub allocates runners.
+self-hosted-runner:
+  labels:
+    - windows-11-vs2026-arm

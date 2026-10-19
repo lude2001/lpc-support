@@ -10,6 +10,7 @@ import {
 } from 'vscode-jsonrpc/node.js';
 import { verifySyntaxCoverage } from './syntax-coverage-smoke.mjs';
 import { verifyFormatterUpgrade } from './formatter-upgrade-smoke.mjs';
+import { DiagnosticsInbox } from './diagnostics-inbox.mjs';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 const executableName = process.platform === 'win32'
@@ -47,9 +48,9 @@ connection.onNotification('lpc/workspaceIndex/changed', (payload) => {
 });
 connection.listen();
 
-let latestDiagnostics;
+const diagnosticsInbox = new DiagnosticsInbox();
 connection.onNotification('textDocument/publishDiagnostics', (params) => {
-    latestDiagnostics = params;
+    diagnosticsInbox.accept(params);
 });
 const smokeWorkspace = mkdtempSync(path.join(tmpdir(), 'lpc-rust-smoke-'));
 
@@ -692,8 +693,9 @@ try {
     if (!Array.isArray(formatting) || !formatting[0]?.newText?.includes('int query(int amount)\n{')) {
         throw new Error(`Rust server returned unexpected formatting edits: ${JSON.stringify(formatting)}`);
     }
-    if (!latestDiagnostics || latestDiagnostics.version !== 2 || latestDiagnostics.diagnostics.length !== 0) {
-        throw new Error(`Rust server returned unexpected diagnostics: ${JSON.stringify(latestDiagnostics)}`);
+    const formattedDiagnostics = await diagnosticsInbox.waitFor(uri, 2);
+    if (formattedDiagnostics.diagnostics.length !== 0) {
+        throw new Error(`Rust server returned unexpected diagnostics: ${JSON.stringify(formattedDiagnostics)}`);
     }
 
     const refreshCountBeforeConfigSync = semanticRefreshCount;
@@ -754,20 +756,21 @@ try {
         }
     });
     await connection.sendRequest('lpc/health');
-    const configuredCodes = new Set(latestDiagnostics?.diagnostics?.map(item => item.code));
+    const configuredDiagnostics = await diagnosticsInbox.waitFor(configuredDiagnosticsUri, 1);
+    const configuredCodes = new Set(configuredDiagnostics.diagnostics.map(item => item.code));
     for (const expectedCode of [
         'unusedGlobalVar',
         'unusedParam',
         'localVariableDeclarationPosition'
     ]) {
         if (!configuredCodes.has(expectedCode)) {
-            throw new Error(`Rust server missed configured diagnostic ${expectedCode}: ${JSON.stringify(latestDiagnostics)}`);
+            throw new Error(`Rust server missed configured diagnostic ${expectedCode}: ${JSON.stringify(configuredDiagnostics)}`);
         }
     }
-    const unusedGlobalDiagnostic = latestDiagnostics?.diagnostics
+    const unusedGlobalDiagnostic = configuredDiagnostics.diagnostics
         ?.find(item => item.code === 'unusedGlobalVar');
     if (!unusedGlobalDiagnostic) {
-        throw new Error(`Rust server did not publish an unusedGlobalVar diagnostic for quick fix: ${JSON.stringify(latestDiagnostics)}`);
+        throw new Error(`Rust server did not publish an unusedGlobalVar diagnostic for quick fix: ${JSON.stringify(configuredDiagnostics)}`);
     }
     const quickFix = await connection.sendRequest('textDocument/codeAction', {
         textDocument: { uri: configuredDiagnosticsUri },
@@ -808,9 +811,10 @@ try {
     const asyncDiagnostics = await connection.sendRequest('lpc/workspaceDiagnostics', {
         uriPrefix: asyncUri
     });
+    const asyncPublishedDiagnostics = await diagnosticsInbox.waitFor(asyncUri, 1);
     if (!Array.isArray(asyncDiagnostics) || asyncDiagnostics.some(entry => entry.diagnostics.length !== 0)
-        || latestDiagnostics?.uri !== asyncUri || latestDiagnostics.diagnostics.length !== 0) {
-        throw new Error(`Rust server reported diagnostics for async/await: ${JSON.stringify({ asyncDiagnostics, latestDiagnostics })}`);
+        || asyncPublishedDiagnostics.diagnostics.length !== 0) {
+        throw new Error(`Rust server reported diagnostics for async/await: ${JSON.stringify({ asyncDiagnostics, asyncPublishedDiagnostics })}`);
     }
     const asyncDefinitions = await connection.sendRequest('textDocument/definition', {
         textDocument: { uri: asyncUri }, position: { line: 1, character: 36 }
@@ -826,7 +830,7 @@ try {
     }
     connection.sendNotification('textDocument/didClose', { textDocument: { uri: asyncUri } });
 
-    await verifySyntaxCoverage(connection, smokeWorkspace, () => latestDiagnostics);
+    await verifySyntaxCoverage(connection, smokeWorkspace, (uri, version) => diagnosticsInbox.waitFor(uri, version));
     await verifyFormatterUpgrade(connection, smokeWorkspace);
 
     const stressIterations = 100;
@@ -887,6 +891,7 @@ try {
     await connection.sendNotification('exit');
     console.log(`Rust LSP smoke test passed (server ${health.serverVersion}).`);
 } finally {
+    diagnosticsInbox.dispose();
     connection.dispose();
     if (!child.killed) {
         child.kill();
