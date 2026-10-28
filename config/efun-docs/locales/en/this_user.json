@@ -1,0 +1,3 @@
+{
+  "summary": "Return the player object that called the current function. Even when called from the player object itself, this_player() and this_object() can return different values. this_player(1), which returns the player object that initiated the call, can differ from this_player() in some circumstances, such as when an administrator uses command() to force a player to execute a command.\n\n   this_user() is an alias for this_player()."
+}

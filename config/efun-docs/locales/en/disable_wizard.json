@@ -1,0 +1,3 @@
+{
+    "summary": "Reverse enable_wizard() by removing wizard privileges from the current player object."
+}

@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS develop package efun.",
+    "details": "Queries or controls malloc debugging information and returns text for the selected debugging item. It is mainly intended for driver development and memory troubleshooting."
+}

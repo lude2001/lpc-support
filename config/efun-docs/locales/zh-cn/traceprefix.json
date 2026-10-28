@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS develop 包中的 Efun。",
+    "details": "查询或设置 trace 输出的路径前缀过滤条件，用于限制调试跟踪信息范围。"
+}

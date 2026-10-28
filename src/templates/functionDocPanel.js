@@ -2,6 +2,28 @@
     'use strict';
 
     const vscode = acquireVsCodeApi();
+    const localizationElement = document.getElementById('function-panel-localization');
+    let messages = {};
+    try {
+        const payload = JSON.parse(localizationElement?.textContent || '{}');
+        if (payload.messages && typeof payload.messages === 'object' && !Array.isArray(payload.messages)) {
+            messages = payload.messages;
+        }
+    } catch {
+        // Missing or invalid resources use the English source messages.
+    }
+    localizationElement?.remove();
+
+    function localize(message, ...args) {
+        const translated = Object.prototype.hasOwnProperty.call(messages, message) ? messages[message] : undefined;
+        const template = typeof translated === 'string' ? translated : message;
+        const values = args.length === 1 && args[0] !== null && typeof args[0] === 'object' ? args[0] : args;
+        return template.replace(/{([^}]+)}/g, (match, key) => {
+            const value = values[key];
+            return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+                ? String(value) : match;
+        });
+    }
     const state = {
         sessionId: undefined,
         revision: -1,
@@ -52,16 +74,18 @@
     function setSnapshotStatus(snapshot) {
         setStatus(
             snapshot.status === 'ready'
-                ? `${snapshot.entries.length} 个声明`
+                ? localize('{0} declarations', snapshot.entries.length)
                 : snapshot.status === 'partial'
-                    ? `部分结果 · ${snapshot.diagnostics.length} 个诊断`
-                    : `分析失败${snapshot.diagnostics.length ? ` · ${snapshot.diagnostics[0].message}` : ''}`,
+                    ? localize('Partial results · {0} diagnostics', snapshot.diagnostics.length)
+                    : snapshot.diagnostics.length
+                        ? localize('Analysis failed · {0}', snapshot.diagnostics[0].message)
+                        : localize('Analysis failed'),
             snapshot.status === 'ready' ? undefined : snapshot.status === 'partial' ? 'warning' : 'error'
         );
     }
 
     function normalize(value) {
-        return (value || '').toLocaleLowerCase('zh-CN');
+        return (value || '').toLowerCase();
     }
 
     function entrySearchText(entry, group) {
@@ -114,41 +138,41 @@
 
     function sourceLabel(sourceKind) {
         return {
-            local: '当前文件',
-            inherit: '继承',
-            include: '包含',
-            simulEfun: '模拟函数',
-            efun: 'Efun'
+            local: localize('Current file'),
+            inherit: localize('Inherited'),
+            include: localize('Included'),
+            simulEfun: localize('Simulated efuns'),
+            efun: localize('Efun')
         }[sourceKind] || sourceKind;
     }
 
     function declarationLabel(kind) {
-        return kind === 'prototype' ? '原型' : kind === 'external' ? '外部' : '实现';
+        return kind === 'prototype' ? localize('Prototype') : kind === 'external' ? localize('External') : localize('Implementation');
     }
 
     function qualityLabel(status) {
         return {
-            complete: '完整',
-            incomplete: '待补充',
-            inconsistent: '不一致',
-            notApplicable: '不适用'
+            complete: localize('Complete'),
+            incomplete: localize('Incomplete'),
+            inconsistent: localize('Inconsistent'),
+            notApplicable: localize('Not applicable')
         }[status] || status;
     }
 
     function relationLabel(status) {
         return {
-            overrides: '覆盖继承实现',
-            overridden: '已被当前文件覆盖',
-            ambiguous: '继承冲突',
-            unresolved: '关系未完整解析'
+            overrides: localize('Overrides inherited implementation'),
+            overridden: localize('Overridden by the current file'),
+            ambiguous: localize('Inheritance conflict'),
+            unresolved: localize('Relationships are not fully resolved')
         }[status];
     }
 
     function externalLoadingLabel() {
         if (state.externalScopes.length === 1) {
-            return state.externalScopes[0] === 'simulEfun' ? '正在加载模拟函数' : '正在加载 Efun';
+            return state.externalScopes[0] === 'simulEfun' ? localize('Loading simulated efuns') : localize('Loading efuns');
         }
-        return '正在加载外部函数';
+        return localize('Loading external functions');
     }
 
     function createExternalLoadingState(compact = false) {
@@ -162,7 +186,7 @@
         const copy = createElement('span', { className: 'catalog-loading-copy' });
         copy.append(
             createElement('strong', { text: externalLoadingLabel() }),
-            createElement('span', { text: compact ? '…' : '正在读取结构化签名与文档，请稍候。' })
+            createElement('span', { text: compact ? '…' : localize('Reading structured signatures and documentation. Please wait.') })
         );
         loading.append(spinner, copy);
         return loading;
@@ -246,7 +270,7 @@
                 }));
                 row.append(createElement('div', {
                     className: 'function-summary',
-                    text: entry.documentation.summary || '暂无简要说明'
+                    text: entry.documentation.summary || localize('No summary available')
                 }));
                 row.addEventListener('click', () => selectEntry(entry.id));
                 entriesElement.append(row);
@@ -267,15 +291,15 @@
                 const empty = createElement('div', { className: 'empty-state' });
                 empty.append(
                     createElement('div', { className: 'empty-glyph', text: '∅' }),
-                    createElement('h2', { text: '没有匹配的声明' }),
-                    createElement('p', { text: '调整搜索内容或筛选条件后重试。' })
+                    createElement('h2', { text: localize('No matching declarations') }),
+                    createElement('p', { text: localize('Adjust the search or filters and try again.') })
                 );
                 elements.functionList.append(empty);
             }
         } else if (renderedCount < totalExpandedMatchingCount) {
             const loadMore = createElement('button', {
                 className: 'load-more',
-                text: `继续加载（剩余 ${totalExpandedMatchingCount - renderedCount}）`
+                text: localize('Load more ({0} remaining)', totalExpandedMatchingCount - renderedCount)
             });
             loadMore.type = 'button';
             loadMore.addEventListener('click', () => {
@@ -309,8 +333,8 @@
             const empty = createElement('div', { className: 'empty-state' });
             empty.append(
                 createElement('div', { className: 'empty-glyph', text: '{ }' }),
-                createElement('h2', { text: '选择一个函数' }),
-                createElement('p', { text: '从左侧目录查看结构化签名、来源关系与文档质量。' })
+                createElement('h2', { text: localize('Select a function') }),
+                createElement('p', { text: localize('Select an item in the catalogue to view structured signatures, source relationships, and documentation quality.') })
             );
             elements.detailPanel.append(empty);
             return;
@@ -332,22 +356,22 @@
         const position = entry.selectionRange && entry.selectionRange.start || entry.sourceRange && entry.sourceRange.start;
         const sourceText = [
             group && group.workspaceRelativePath,
-            position ? `第 ${position.line + 1} 行，第 ${position.character + 1} 列` : undefined
+            position ? localize('Line {0}, column {1}', position.line + 1, position.character + 1) : undefined
         ].filter(Boolean).join(' · ');
         title.append(createElement('div', { className: 'source-line', text: sourceText }));
 
         const actions = createElement('div', { className: 'action-line' });
-        if (entry.capabilities.canGoToDefinition) actions.append(actionButton('跳转到定义', 'goToDefinition', entry));
-        if (entry.capabilities.canFindReferences) actions.append(actionButton('查找引用', 'findReferences', entry));
+        if (entry.capabilities.canGoToDefinition) actions.append(actionButton(localize('Go to definition'), 'goToDefinition', entry));
+        if (entry.capabilities.canFindReferences) actions.append(actionButton(localize('Find references'), 'findReferences', entry));
         if (entry.capabilities.canCopySignature) {
-            const copy = createElement('button', { className: 'action-button', text: '复制签名' });
+            const copy = createElement('button', { className: 'action-button', text: localize('Copy signatures') });
             copy.type = 'button';
             copy.addEventListener('click', async () => {
                 try {
                     await navigator.clipboard.writeText(entry.signatures.map(signature => signature.label).join('\n'));
-                    setStatus('签名已复制', undefined);
+                    setStatus(localize('Signatures copied'), undefined);
                 } catch {
-                    setStatus('复制签名失败，请检查剪贴板权限。', 'error');
+                    setStatus(localize('Could not copy signatures. Check clipboard permissions.'), 'error');
                 }
             });
             actions.append(copy);
@@ -359,11 +383,11 @@
                 ? entry.capabilities.canCompleteDocumentation
                 : authorMode === 'update' && entry.capabilities.canUpdateDocumentation;
         if (canAuthor) {
-            const label = authorMode === 'generate' ? '生成文档骨架' : authorMode === 'update' ? '更新文档' : '补全文档';
+            const label = authorMode === 'generate' ? localize('Generate documentation skeleton') : authorMode === 'update' ? localize('Update documentation') : localize('Complete documentation');
             actions.append(actionButton(label, 'authorDocumentation', entry, authorMode, true));
         }
         if (entry.capabilities.canGenerateDocumentation) {
-            actions.append(actionButton('AI 生成注释', 'generateJavadocWithAi', entry));
+            actions.append(actionButton(localize('Generate comment with AI'), 'generateJavadocWithAi', entry));
         }
         header.append(title, actions);
         elements.detailPanel.append(header);
@@ -379,7 +403,7 @@
             entry.signatures.forEach((signature, index) => {
                 const tab = createElement('button', {
                     className: `signature-tab ${index === selectedSignatureIndex ? 'is-active' : ''}`.trim(),
-                    text: `签名 ${index + 1}`,
+                    text: localize('Signature {0}', index + 1),
                     title: signature.label
                 });
                 tab.type = 'button';
@@ -402,24 +426,24 @@
             pre.append(createElement('code', { text: signature.label }));
             card.append(pre);
             const meta = createElement('div', { className: 'signature-meta' });
-            if (signature.returnType) meta.append(badge(`返回 ${signature.returnType}`));
-            if (signature.isFunctionVarargs) meta.append(badge('函数级 varargs'));
-            if (signature.isParameterVariadic) meta.append(badge('变长参数'));
+            if (signature.returnType) meta.append(badge(localize('Returns {0}', signature.returnType)));
+            if (signature.isFunctionVarargs) meta.append(badge(localize('Function-level varargs')));
+            if (signature.isParameterVariadic) meta.append(badge(localize('Variadic parameters')));
             if (signature.arity) {
                 const max = signature.arity.max === null || signature.arity.max === undefined ? '∞' : signature.arity.max;
-                meta.append(badge(`参数 ${signature.arity.min}–${max}`));
+                meta.append(badge(localize('Parameters {0}–{1}', signature.arity.min, max)));
             }
             card.append(meta);
             signatures.append(card);
         }
-        appendSection(elements.detailPanel, '函数签名', signatures);
+        appendSection(elements.detailPanel, localize('Function signatures'), signatures);
 
         const parameters = visibleSignatures.flatMap(signature => signature.parameters);
         if (parameters.length > 0) {
             const table = createElement('table', { className: 'parameter-table' });
             const thead = createElement('thead');
             const headerRow = createElement('tr');
-            for (const label of ['参数', '类型', '属性', '说明']) headerRow.append(createElement('th', { text: label }));
+            for (const label of [localize('Parameter'), localize('Type'), localize('Attributes'), localize('Description')]) headerRow.append(createElement('th', { text: label }));
             thead.append(headerRow);
             const tbody = createElement('tbody');
             for (const parameter of parameters) {
@@ -427,50 +451,50 @@
                 const nameCell = createElement('td');
                 nameCell.append(createElement('code', { text: parameter.name }));
                 const typeCell = createElement('td');
-                typeCell.append(createElement('code', { text: parameter.type || '未指定' }));
-                const flags = [parameter.optional ? '可选' : '', parameter.variadic ? '变长' : '', parameter.defaultValueText ? `默认 ${parameter.defaultValueText}` : ''].filter(Boolean).join(' · ');
+                typeCell.append(createElement('code', { text: parameter.type || localize('Unspecified') }));
+                const flags = [parameter.optional ? localize('Optional') : '', parameter.variadic ? localize('Variadic') : '', parameter.defaultValueText ? localize('Default {0}', parameter.defaultValueText) : ''].filter(Boolean).join(' · ');
                 row.append(
                     nameCell,
                     typeCell,
                     createElement('td', { className: flags ? '' : 'muted', text: flags || '—' }),
-                    createElement('td', { className: parameter.description ? '' : 'muted', text: parameter.description || '暂无说明' })
+                    createElement('td', { className: parameter.description ? '' : 'muted', text: parameter.description || localize('No description available') })
                 );
                 tbody.append(row);
             }
             table.append(thead, tbody);
-            appendSection(elements.detailPanel, '参数', table);
+            appendSection(elements.detailPanel, localize('Parameters'), table);
         }
 
         const returnTypes = [...new Set(entry.signatures.map(signature => signature.returnType).filter(Boolean))];
         if (returnTypes.length > 0 || entry.documentation.returns) {
             const returns = createElement('div', { className: 'doc-copy' });
-            returns.append(createElement('p', { text: `类型：${returnTypes.join(' / ') || entry.documentation.returns.type || '未指定'}` }));
+            returns.append(createElement('p', { text: localize('Type: {0}', returnTypes.join(' / ') || entry.documentation.returns.type || localize('Unspecified')) }));
             returns.append(createElement('p', {
                 className: entry.documentation.returns && entry.documentation.returns.description ? '' : 'muted',
-                text: entry.documentation.returns && entry.documentation.returns.description || '暂无返回值说明'
+                text: entry.documentation.returns && entry.documentation.returns.description || localize('No return value description')
             }));
-            appendSection(elements.detailPanel, '返回值', returns);
+            appendSection(elements.detailPanel, localize('Return value'), returns);
         }
 
-        if (entry.documentation.summary) appendSection(elements.detailPanel, '简要说明', createElement('div', { className: 'doc-copy', text: entry.documentation.summary }));
-        if (entry.documentation.details) appendSection(elements.detailPanel, '详细说明', createElement('div', { className: 'doc-copy', text: entry.documentation.details }));
-        if (entry.documentation.note) appendSection(elements.detailPanel, '注意事项', createElement('div', { className: 'doc-copy', text: entry.documentation.note }));
+        if (entry.documentation.summary) appendSection(elements.detailPanel, localize('Summary'), createElement('div', { className: 'doc-copy', text: entry.documentation.summary }));
+        if (entry.documentation.details) appendSection(elements.detailPanel, localize('Details'), createElement('div', { className: 'doc-copy', text: entry.documentation.details }));
+        if (entry.documentation.note) appendSection(elements.detailPanel, localize('Notes'), createElement('div', { className: 'doc-copy', text: entry.documentation.note }));
         if (entry.documentation.returnObjects && entry.documentation.returnObjects.length > 0) {
-            appendSection(elements.detailPanel, '返回对象提示', createElement('div', { className: 'doc-copy', text: entry.documentation.returnObjects.join('\n') }));
+            appendSection(elements.detailPanel, localize('Return object hints'), createElement('div', { className: 'doc-copy', text: entry.documentation.returnObjects.join('\n') }));
         }
 
         const quality = createElement('div', { className: `quality-panel ${entry.quality.status === 'complete' ? 'is-complete' : ''}` });
-        quality.append(createElement('strong', { text: `文档状态：${qualityLabel(entry.quality.status)}` }));
+        quality.append(createElement('strong', { text: localize('Documentation status: {0}', qualityLabel(entry.quality.status)) }));
         if (entry.quality.issues.length > 0) {
             const list = createElement('ul');
             for (const issue of entry.quality.issues) list.append(createElement('li', { text: issue.message }));
             quality.append(list);
         } else if (entry.quality.status === 'notApplicable') {
-            quality.append(createElement('p', { text: '当前声明不参与文档完整度评估。' }));
+            quality.append(createElement('p', { text: localize('This declaration is not included in documentation completeness assessment.') }));
         } else {
-            quality.append(createElement('p', { text: '结构化声明与文档字段一致。' }));
+            quality.append(createElement('p', { text: localize('The structured declaration and documentation fields are consistent.') }));
         }
-        appendSection(elements.detailPanel, '文档质量', quality);
+        appendSection(elements.detailPanel, localize('Documentation quality'), quality);
     }
 
     function actionButton(label, type, entry, mode, primary) {
@@ -546,7 +570,7 @@
         });
     });
     document.addEventListener('keydown', event => {
-        if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'k') {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
             event.preventDefault();
             elements.searchInput.focus();
         }
@@ -555,7 +579,7 @@
         const message = event.data;
         if (!message || typeof message !== 'object') return;
         if (message.type === 'loading') {
-            if (!state.sessionId || message.sessionId === state.sessionId) setStatus(message.stage || '正在刷新', 'loading');
+            if (!state.sessionId || message.sessionId === state.sessionId) setStatus(message.stage || localize('Refreshing'), 'loading');
         } else if (message.type === 'snapshot') {
             acceptSnapshot(message.payload);
         } else if (message.type === 'actionResult' && message.message) {
@@ -566,7 +590,7 @@
             state.externalLoading = false;
             state.searchTextCache.clear();
             if (message.diagnostics && message.diagnostics.length > 0) {
-                setStatus(message.diagnostics.map(item => item.message).join('；'), 'warning');
+                setStatus(message.diagnostics.map(item => item.message).join('\n'), 'warning');
             } else if (state.snapshot) {
                 setSnapshotStatus(state.snapshot);
             }

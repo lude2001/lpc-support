@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS 2.23 新增 efun。当前函数结束时调用函数指针 *f，即使函数因运行时错误而结束也会调用。\n\n参考教程：https://bbs.mud.ren/threads/158",
+    "details": "示例\nvoid create()\n   {\n     ::create();\n\n     defer( (: enable_commands :) );\n   }\n\n   defer() 会在 create() 函数执行结束后调用 enable_commands() efun。传给 defer() 的参数可以是任意函数类型。"
+}

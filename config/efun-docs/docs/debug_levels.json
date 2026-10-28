@@ -1,7 +1,5 @@
 {
   "name": "debug_levels",
-  "summary": "debug_levels 内置函数",
-  "category": "内部处理相关函数（Internals）",
   "signatures": [
     {
       "label": "debug_levels()",
@@ -12,5 +10,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "internals"
 }

@@ -1,0 +1,4 @@
+{
+    "summary": "Hash `str` using the SHA1 algorithm.\n\nAvailable only when `PACKAGE_SHA1` was defined when compiling the driver.",
+    "details": "Example\nsha1(\"something\") = \"1af17e73721dbe0c40011b82ed4bb1a7dbe3ce29\""
+}

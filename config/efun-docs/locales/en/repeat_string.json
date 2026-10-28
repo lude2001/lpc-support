@@ -1,0 +1,3 @@
+{
+    "summary": "Repeats string `str` the specified number of times `i` and returns the new string. If i <= 0, returns an empty string. For i > 0, the generated string must not exceed the configured maximum string length."
+}

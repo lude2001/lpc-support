@@ -1,0 +1,4 @@
+{
+    "summary": "has_gmcp 内置函数",
+    "details": "名称\nhas_gmcp() - 判断指定交互玩家的客户端是否已启用 GMCP 协议。\n\n说明\n如果交互玩家的客户端已启用 GMCP 协议，返回非零值；否则返回 0。\n\n另见\ngmcp_enable(4), gmcp(4), send_gmcp(3)"
+}

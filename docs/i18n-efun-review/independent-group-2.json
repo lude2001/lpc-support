@@ -1,0 +1,1688 @@
+{
+    "group": 2,
+    "reviewer": "/root/m1_snippet_locale_review",
+    "hashMode": "sha256-canonical-json-v1",
+    "items": [
+        {
+            "name": "act_mxp",
+            "sourceSha256": "fd13400f8669e071f52f022dbff0bd844446ce992cb24d84c0a234f8c6a4c82b",
+            "enSha256": "24085a1dd64778bcd6566f0b9a1613804558a82edea808a79ef5379101aa473a",
+            "zhCnSha256": "82787644e2ae1ad0695e1578a4820e4a72e1a47da451f4a0802b0dc1dee61dc8",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "all_inventory",
+            "sourceSha256": "17d3fa803f3a461ca7ade3ae079bb386b2e491fc96d05ef7ab8f05a74cad06e8",
+            "enSha256": "8cc96832565794808006b653406a70f2b851a5c663f34c2f8895d9dcbfb75e67",
+            "zhCnSha256": "375b607b89a51df75ac5db1c8c499acf732f454bf1577dd2adcae3f5993e1ba6",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "allocate_buffer",
+            "sourceSha256": "c0237327f3d05e8ff384116cc228afde7800b5efb4a67a2aefd420c56fe8f550",
+            "enSha256": "a4e38262038488a137840d89a0f4a1b98a5ea6cc76d6b812b0bb5320c1a44b43",
+            "zhCnSha256": "b82bc454d03f9f8bdee38ea4c001eca95588d5153ad849ffb412fba343c9adb9",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": [
+                {
+                    "field": "summary",
+                    "kind": "source-condition",
+                    "detail": "原文把元素数量/size误写成“元素的数值必须 > 0”，又说元素初始化为0；两语译文忠实保留，因此不是新翻译偏移。维护驱动检查的是size < 0，并允许size == 0。建议统一源文及两语为“缓冲区长度size必须>=0且不超过配置上限，所有字节初始化为0”。",
+                    "reference": "D:/code/fluffos/src/vm/internal/base/buffer.cc:27-39; D:/code/fluffos/docs/efun/buffers/allocate_buffer.md:16-18 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/vm/internal/base/buffer.cc:27-43 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已对照 buffer.cc:27-43，确认检查字节长度 size，允许 0 返回空缓冲区，并用 calloc 将字节初始化为 0；中英文均已准确修正。"
+                    }
+                },
+                {
+                    "field": "summary",
+                    "kind": "source-default",
+                    "detail": "原文和译文写FLUFFOS默认上限400000；维护驱动配置表maximum buffer size的默认值是1 << 20，即1048576。建议说明上限由运行时maximum buffer size控制，并在需要列默认值时标明所核对驱动版本，不把400000继续作为当前驱动默认值。",
+                    "reference": "D:/code/fluffos/src/base/internal/rc.cc:83; D:/code/fluffos/src/vm/internal/base/buffer.cc:28-33 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/base/internal/rc.cc:83-84; src/vm/internal/base/buffer.cc:28-33 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已对照 rc.cc:83-84，当前默认为 1 << 20；两语删除过时的 400000 默认值并明确由运行时配置控制，未引入跨版本默认值承诺。"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "arrayp",
+            "sourceSha256": "3c287607eebbf7f32ae7d0c5ffa88860a4312bbd91eda89a5a9fa638681f5e0d",
+            "enSha256": "b9b91715b45b188f4a7c5245eee6a03ca4a70adb804d610e81e756954fed72db",
+            "zhCnSha256": "f7945ee294b69d355038fe97a320b8294adc1ec8d1411fd81f21aa649148c700",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "async_db_exec",
+            "sourceSha256": "588574cf9a1bde522e2b8c270abeb8f61d125f79c6b4070ee79910626d5d658a",
+            "enSha256": "7a30a659730dfda79ab5d4670bd2d7c35c5f70782dc229b150f57b9f1eb6471d",
+            "zhCnSha256": "42d3fcce3291714ee0644ec72ade3d97f2b425ca4c79de47871cb8dd9019aef1",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "async_write",
+            "sourceSha256": "9310e008d8fd4bfc3b23fb3c6bc85caa9a1b1d75be955cd9683474aa5693330e",
+            "enSha256": "40d0e6555bc23d1f3ef2aaf41ebaf4721a90a30662f7a9ef55fe8a893d20223a",
+            "zhCnSha256": "40c5f4cd08485f7b0f521b440f1dc9e6b180d4d7de03d88181dbd731d7dd1d69",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "author_stats",
+            "sourceSha256": "dd11efe6cdd228aefa7447f8f174b83abb49a4886b68283e102cebd04f65d638",
+            "enSha256": "3da8b8ba13c836a3b69eb8b693b0d65386940ca0344bcf1460bf3e7e5f03a550",
+            "zhCnSha256": "e06d8b0e15894ad1f032311db8e576743879fd847bb3b6822eccccd3c8c90a3b",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": [
+                {
+                    "field": "summary",
+                    "kind": "source-key-list",
+                    "detail": "源文键列表重复errors，遗漏objects；两语忠实保留该错误。维护驱动get_info实际写入moves、errors、heart_beats、array_size、objects五个键，与源文示例一致。维护文档author_stats.md另列cost/worth，但这些键不在当前实现中，不能据该文档补入。建议仅把源文及两语键列表末尾的重复errors改为objects，保留现有五键示例。",
+                    "reference": "D:/code/fluffos/src/packages/mudlib_stats/mudlib_stats.cc:548-557; D:/code/fluffos/docs/efun/mudlib/author_stats.md:22-23 (documentation differs from implementation) @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/packages/mudlib_stats/mudlib_stats.cc:548-557 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已核对 get_info 的五次 add_mapping_pair，两语末尾重复 errors 已改为 objects，保留原五键示例，没有补入实现不存在的 cost/worth。"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "buffer_transcode",
+            "sourceSha256": "6659dea26cfbe0d707d89de0271aac30e2d715543265b58404c096bf2fe2ee3b",
+            "enSha256": "ddaa8ca01c948cde1ba6d36f54b781a83ae7f039feda7b3b4e6793b84a9ca5e5",
+            "zhCnSha256": "38aabe09be48f79f10901810aa9567181bd53dbdb8efef7ed0bafbc9c6196512",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "call_other",
+            "sourceSha256": "59179e6bc90878fd232137ebefa6265462bf840fa83ff42e3a2a69ef13ff2b47",
+            "enSha256": "b4070a3c5df5218073a4ca49fbb40296e2bf44b66bb2b9d5a472e9e42d700531",
+            "zhCnSha256": "072c14b02f6b44cc8716207e2d481d7290d60de253aad5eb6f0e0b894cd51aa1",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "call_out_walltime",
+            "sourceSha256": "351f06a71268d4781981f6ba8d1c61035b5ad06bfc6d99354169964aebdf698d",
+            "enSha256": "11ff94c53503c5761bb299a05270a04754fede0f9e1ebf333c98353200f696db",
+            "zhCnSha256": "a978acfd2a71e10578c5851f83edc521a206ac8377e73abc0b5e56c103cd5653",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "catch",
+            "sourceSha256": "5ef5c00c6b5813519b8a14188622d5dbb9427f60bf6cffaac2c1f9eda5de0a9e",
+            "enSha256": "560b8c0fcc4870c67fd1584d02765536dde9ba0c5ca95c74f356fc160b92cc82",
+            "zhCnSha256": "986819d6a1f39c4a84753905555d48fa9f41865e533a27197a633757d74dca9c",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": [
+                {
+                    "field": "summary",
+                    "kind": "source-control-flow",
+                    "detail": "原文及英文译文称throw()“抛出错误并返回非零值”，这会误导控制流。维护实现f_throw把值交给catch_value后调用throw_error进行非局部跳转；throw()本身不返回，包围的catch()才返回被抛出的值。建议同时修正源文和两语，将throw与catch的返回主体区分，并保留驱动错误字符串与任意抛出值的差别。",
+                    "reference": "D:/code/fluffos/src/packages/core/efuns_main.cc:2958-2962; D:/code/fluffos/docs/efun/calls/throw.md:12-29 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/packages/core/efuns_main.cc:2958-2962; docs/efun/calls/throw.md:12-29,63-80 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已核对 f_throw 与 throw.md，两语明确 throw() 不返回，由最近外层 catch() 原样返回任意抛出值，并区分驱动错误的前导星号与 throw(0) 无法区分正常完成的边界。"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "children",
+            "sourceSha256": "a8f216849f64baf6bbcb5990174e77b14430707135bbe9f06d6ac988ba4279f2",
+            "enSha256": "a36756ab3d4d45ba8756048812356e7a6fefef993c16f1da4c03d0c48c850b03",
+            "zhCnSha256": "ea146012d403542db16d752646f9ccca9abb32f4b22065b3ef4d92939d7f6771",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "clear_bit",
+            "sourceSha256": "80a2be133b0460eda9a7d37e3983b88117b3f117f88d57ceffa26e69fd051011",
+            "enSha256": "6eeef87d1f0f30a1dfa361cd6300fc54b2a33423aa2e877fea26fe7f7bbc9a35",
+            "zhCnSha256": "724b0808eb38a314875b765b0115969b248be70ba2aa2ab1e2e1c01461bc502b",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "clonep",
+            "sourceSha256": "471dc59603362869bfc186af635fdfc0ca5d4fa5518b91ccc188f4fd4a19fc4f",
+            "enSha256": "0df1891abf6e1bbedc8ec769bf2b816d2f0136f417f09ea4781b32fe29080a21",
+            "zhCnSha256": "b7701ab2ca1d07dbe81844315e5ec2b67eba1626cae2b121658bc8ea6fdbdca0",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "compress",
+            "sourceSha256": "37264eebab689929ae0aa8decf073915dc91cdb43ee7a393218365dbc9ae1d75",
+            "enSha256": "4038b834b9bfb4897e06435e04ba6dcbe155e8d30d4005ea2304ac5c55e2f803",
+            "zhCnSha256": "df39644a4cfe1bb92180d31003614283ef93c91d2d2e63e76f5003d4cd4b6447",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "copy",
+            "sourceSha256": "30afd88472dfb444485eb49ebc92fdee37755bc39764c01573882357b29dc140",
+            "enSha256": "17ba98c5ac1ca9c570640863767eed235e5baca6a6cdb5cde728554f4dcc5755",
+            "zhCnSha256": "28e500acb6b6e5071bc9a7b5a3030e5a621f9eb0bef1164892874849be104509",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "crc32",
+            "sourceSha256": "0f13fb5bd3b5221b2c6b5a373652c0db0699ceb6e24d58a4e2b7624b081cfbaf",
+            "enSha256": "9a6e9d8848fe8a594d5fbfea86e0758cf59274e1a6b67a7c6104f1324d2674ac",
+            "zhCnSha256": "896c856ea50f8034d6e0ea91355b0fb12e54dc2dd7513bd82ed97dbe86f9a360",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "db_close",
+            "sourceSha256": "5a3df282798978d1b76419b66864dcf28cee53da97e1ca32ed5422b4d60afead",
+            "enSha256": "9611fde65a4f18ae86e7062a1d88ed03b7c1c7684290472920de781b167d9925",
+            "zhCnSha256": "b70507ac22fc53f5ff8214f4bb377da2a19e6641f737fc8d52bc648f173f9614",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "db_exec",
+            "sourceSha256": "be6ed4bc88154317f0bc07a8afbafc3f9ed41f75f4ea2f97f01f6e7eddf29081",
+            "enSha256": "dba4129ad48b0247f5ca562cc1363b6b0409ea055406c03a6c268104b3c4d15c",
+            "zhCnSha256": "a5756c0efdb07fbc6c5a1873761087bdba1cb8b1b15a5ba0964b085c27012252",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "db_status",
+            "sourceSha256": "d719fc13f799475a5e4e79b3c9b774f3934f4b5efc3bb079deae85f9ff97bd1b",
+            "enSha256": "48e6e0c2578a0a781d191d76f09cdda4f6847153f0cf78fc811dd3189a6e28b3",
+            "zhCnSha256": "887d3bc0cd542c57565eaca52add30240153f61fee3c4672a5c51e45fb82f6bd",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "debug_message",
+            "sourceSha256": "f11777097398a88bc38f10e7107a24c25f924de54a76329c32d66a5fac87abe6",
+            "enSha256": "373c918817649698c5a276931c0e3b6a129b3d716dcfe4a1cad500aff3442f57",
+            "zhCnSha256": "76af55885036e48df103b556036a743cbbccf340bf110e2ee50b02e730811077",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "deep_inventory",
+            "sourceSha256": "40d8b8967a392b5758a85a01a164e5c96d9a77cffe526b9b7ad5ffbc91b83722",
+            "enSha256": "b67cf0890f299a9b186e4d29b2530c34857f405bd19558fcb8c20cdc5e74c6ef",
+            "zhCnSha256": "8b6737573471f0ef9b4cade3c84cff801a3909f50d51ba027c5c6f16f4b5440c",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "destructed_objects",
+            "sourceSha256": "b7de1e6e6736033c0e68a17f9024479603a888e7eb40d5644937a4f959699058",
+            "enSha256": "b3c97674ee90d091c1565c03533397c02f3346d3f8b1d12a21cc611b15935d14",
+            "zhCnSha256": "5e0a922bae2cafd6cac3c81fefc5db46a2cfb46de3d9d6d436c2686b6bdc9a4d",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "disassemble_class",
+            "sourceSha256": "d1d0d6839d708b8ee4fec713eb26fb0d2209252885c1fb8b6dd155db8c13763c",
+            "enSha256": "1d6457d71603bdc13cbc0fc61f16c8c7995be80501ab8744cc4b85726964194c",
+            "zhCnSha256": "c51c1ad0e4a60374a369faf0ff0cfe2459d07198c10da51bad70a68d7b386d7c",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "dotprod",
+            "sourceSha256": "038be0f38fe76c108c05adc1c4b4cd496c235894d06980c690ae752d47f1d8c5",
+            "enSha256": "70baf7d3432c2974cf54a9074d8d1c338dcc0f1a521b1a1afb8f17fe03113b8d",
+            "zhCnSha256": "af6d01b173b9291e2d82a91f82ed45cee3759259be39bdc4cb32c98e6b962793",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "dump_prog",
+            "sourceSha256": "f427ef66bd0276e37f02fceb9165b13c0b3dd70bab349a34e6f38b30479e7c12",
+            "enSha256": "a572ca996a24fb27891cde35d5ef28a32a4d204381044b83d31a8ef320d9214b",
+            "zhCnSha256": "de43c6dc728bde1557e610523f7a273cbcf9cdea8ac95469f6b731f0c2eee2a1",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "dumpallobj",
+            "sourceSha256": "52a581fdbd931c449f9d402babb508e848dfdfd8e29e15b80e85a75a9ad2b1a7",
+            "enSha256": "26ada015fcd3b79ebc377529e40462871314f2ed9b90c55eb80dcd18bbdb5576",
+            "zhCnSha256": "1f10b68d072b2c4da604a29b90b0101d1d443c36374a65149f65868178614e18",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "ed_start",
+            "sourceSha256": "b992eea7db23e911372a686a99f6b6843d25d1f0ea9dce019e6a7a022a68b099",
+            "enSha256": "eab7ce851e7eca3dde95279aa4e4a9007086bf0ee61580ea9f68dab8b9974c38",
+            "zhCnSha256": "ca1d7eb38e84ee04ceb07ff0093bea16a8049728ffacf164f74d00c9933665e9",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "enable_wizard",
+            "sourceSha256": "382e8dfc2c4825c6ba8c9f8fab506a6d0935e3a31182468e476579f228acaff0",
+            "enSha256": "a68f684b374e2e51cddd3b9d4ec869ecb015195005936f81753a792a756898d3",
+            "zhCnSha256": "592211a662cf7981b03b105361ec529bf14e90ec5d921256c9517075ab1dbb04",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "eval_cost",
+            "sourceSha256": "904e3bb24ca1200cdf5e838a6d00be75d125c8279c519927162d63679913fabf",
+            "enSha256": "d0a385c22c361e0d75243203d98744daaa8479f53b76c668143a0a8702657209",
+            "zhCnSha256": "5cd51f2ab20e2386ddef3539c894bdf9b278c62dcf94ecbeae8ff2e75ca349d2",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "exec",
+            "sourceSha256": "8a5aaafd9f297239465482db5e87511f9aec380b4198f2f73a3d4c236dd55575",
+            "enSha256": "ca2c4fea5323213a7672a123e7354e78b783f6425cc3a248ec42764541788442",
+            "zhCnSha256": "da840050f9130bf6f4f819ea21cab44466e34e0d25bbbb14175e88a494800064",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "explode_reversible",
+            "sourceSha256": "16fa7684c5ab713b89f99df763e652160f4ea8a4b38bdb8bf1d983c42b8ad77c",
+            "enSha256": "a33e2c4920f6ac96479de2e1b25db33c6b5f38188cee7e55823ed43d638061a2",
+            "zhCnSha256": "759722ee07f77ab980dbe62af22cc545284037aec7938fc9a7a2532e1129f1ec",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "fetch_class_member",
+            "sourceSha256": "b7d4b6e03222dd84101c771bff44f3d7f2c79b64385adfc0022d798b7d7ef310",
+            "enSha256": "158f3ce8fd5644f993e58e417b35f66a474f87e687d7eb6dfa9059eab97f9a41",
+            "zhCnSha256": "9247931cd9974505e4110d6fdc72146eca6da168dff7da3a2cb5514d4960cc71",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "file_name",
+            "sourceSha256": "df88655e4f71b88cb0cbd92e97ce5e04c0cf673ee116228117720039080a0324",
+            "enSha256": "c8ba8e382fc02598afd8f2f36e9cb1627ba7567ab4825b21ba477ab09ef776c0",
+            "zhCnSha256": "c716ce36c57e0235b4693981b15fd907fd474edd62a758e6ca5078b162f87398",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "filter_array",
+            "sourceSha256": "7ed96bae76b5de7291671d3d6d7ac64fa17531aba10bccba1cd8798a96a62414",
+            "enSha256": "1433ceb5c0e998714aa36bd0abead804ce0840a40607c0c63a7f4fb3df329c60",
+            "zhCnSha256": "4358c4c17f1164f4333d6c8736029b30c8caac60f59fe8fe5ea82e76f7727f68",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": [
+                {
+                    "field": "summary",
+                    "kind": "source-predicate",
+                    "detail": "源文及译文把保留元素的条件限定为回调返回1；维护实现使用!IS_ZERO(v)，并非严格等于1。建议按维护实现把条件改为返回非零/真值，保留原有参数传递顺序和过滤结果含义。",
+                    "reference": "D:/code/fluffos/src/vm/internal/base/array.cc:583-609 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/vm/internal/base/array.cc:583-609 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已核对 array.cc:604-609 的 !IS_ZERO(v)，两语均改为非零/真值保留元素，参数传递顺序与子数组含义未变。"
+                    }
+                },
+                {
+                    "field": "summary",
+                    "kind": "source-identifier",
+                    "detail": "源文的filter_arry()拼写错误被译文原样保留。应在源文事实修订中一并改为filter_array()，再更新两语及对应内容哈希；这不是译文擅改的函数身份。",
+                    "reference": "D:/code/fluffos/src/packages/core/core.spec:307 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/packages/core/core.spec:307 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "两语普通正文 filter_arry() 已最小修正为 filter_array()，没有改变签名、参数或示例。"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "find_living",
+            "sourceSha256": "f566c75c6ffcf1d0a97f9b7116d66870744df63af4208daa0d8cbe9768d7b67f",
+            "enSha256": "fd119b7a9c4b1d5f6343c24aee6b412af3e1790ad729f0b947a4134967ff8a73",
+            "zhCnSha256": "41f0328af95015914098ca10cac7b3f58ed804987c8d6cd6ebdddd7de87dc200",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "first_inventory",
+            "sourceSha256": "32e4236e381d09e51b9d685867f96cd039f29a4995de34239573fa7f5500649b",
+            "enSha256": "988b5d413883b63d46982d7830a4aa41ea3da775fb48039f94116dfb7743eac7",
+            "zhCnSha256": "d6c7f5f5c96f095647c4ebe1ae1963a58a42b0b997b91689779d3fec38d3fe57",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "flush_messages",
+            "sourceSha256": "27e07e54d02c1c43f959a219a460ae5187352f327e2c25cbf149caafb7f9cbe7",
+            "enSha256": "8ccdd636b60fea69abd50652c273d57399e344df7d2beffbaac2d67e1cc921ad",
+            "zhCnSha256": "264e613315704def36cf8f06a469a5eb11c7e5750612b07d64ad19b96587a016",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "function_profile",
+            "sourceSha256": "70b6f841151d1e8284092fd18b11fde71f2c2cb03986fc62a7d90794efb23b8e",
+            "enSha256": "a901fcbe312b623945ef635f532ee532cdb760fd6de51181205ee6cedbabab4e",
+            "zhCnSha256": "5fdff23fa3079519ebda2654c2524dcdb0c7df43b11dac028c63640d5cb48b40",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "get_char",
+            "sourceSha256": "7aefa050e0f127252d4845f17fd905d590f90f9e2cb36e49af2cc6281b8c62a2",
+            "enSha256": "c4968b1cbd4db060c82ec1e41f8a2ec6c9d06fd365b3637c2c8e171d5b2829bf",
+            "zhCnSha256": "00683f3041933caf62d2e40c92d745209dd335a826329744e91554be21b5a65d",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "get_garbage",
+            "sourceSha256": "c628af313da0ff5ac4c03ceeee9be1a8a2f683bf1d57f3a446bb683621d5dbd2",
+            "enSha256": "f6f34378da84f0b46959f4c8506ccb02fc0eaa39d841764838faf700d01972af",
+            "zhCnSha256": "9cf0e465918c0f24f83f93f6b3ca99881a82f4c49690d1245b5ca59c546b5d02",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": [
+                {
+                    "field": "summary",
+                    "kind": "source-meaning",
+                    "detail": "原文“没有映射其它对象”被英文忠实译成do not map other objects，而参考文档的对应词是aren't shadowing another object，应为“没有投影其它对象”。进一步核对实现，garbage_check实际要求ob->ref==1和O_CLONE，并按NO_ENVIRONMENT/NO_SHADOWS配置检查super/shadowing；它没有直接检查inventory的表达式。建议事实修订以实现为准，先修正map/shadow术语，并核实原文无inventory表述能否由引用计数等条件推出，不仅按旧文档补写条件。保留MAX_ARRAY_SIZE截断规则。",
+                    "reference": "D:/code/fluffos/src/packages/contrib/contrib.cc:2516-2538; D:/code/fluffos/docs/efun/contrib/get_garbage.md:7-19 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/packages/contrib/contrib.cc:2516-2542 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已逐分支核对 garbage_check 的 ref == 1、O_CLONE 和 NO_ENVIRONMENT/NO_SHADOWS 组合条件，两语准确说明 super/shadowing 并明确无独立 inventory 检查，保留 MAX_ARRAY_SIZE 截断。"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "getuid",
+            "sourceSha256": "23a2961c77dab8714a6bb288a64f3303376abd466dc30cbdd75c5f21e7cf0f88",
+            "enSha256": "478ebea00a9d7d39d1fd4e8db5869f5624e8bc00143499c822345c8bcfe05a44",
+            "zhCnSha256": "709e52e2a51c8ef12742621802a8e3f68b101592eff97b541de362548185cb27",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "has_msp",
+            "sourceSha256": "c432090edf209c81209aa0cb8792162516554e1bd6544bb768aa18c324b67168",
+            "enSha256": "963f14996ec39151028c4b0afc36cae3489ed238356d79d595f9fee73e925ed1",
+            "zhCnSha256": "9a33d6c32f98bf369cc5a60c7f2ec3a761a643a4b4a99cb5722395b2c2997bbd",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "hash",
+            "sourceSha256": "f5b60db71f7b25b2a96dbd8ab918a4035c3fb5b24bf273046ebe63a4e1170fc6",
+            "enSha256": "dd9e180d2fbfd86441459766ce11e3752c7edc4da32845b70dea735363d27aee",
+            "zhCnSha256": "9187b048e806ce8a8f5e4b1f6b5339dd4f78833fdb04d201d6db288d6ea29c91",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "http_decode_form",
+            "sourceSha256": "d5dbac5e46f24b095401cf3c3cd2abebb5f94757abae972745f597d5cf175d70",
+            "enSha256": "2f34a361fcecaee75b0d5bc9f9c3105ecf2eeda4e1350e194c227fd6dc01477d",
+            "zhCnSha256": "2b5f29ad5950b6284c26a1654017ed825869fac4a856e36815017ecc8c33a8bf",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "http_parser_create",
+            "sourceSha256": "d5298a34445fe272cf4ac1a3b328bf9cbe5965615d254d6b411483143cebcade",
+            "enSha256": "1604e8f29e27857624cde9cc998a236268ffb7013a67cc4558f254106c317f0a",
+            "zhCnSha256": "b8794c0758d45574b447acbc960785afbe1a317e98b2a72db7fecbc0702508c8",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "http_response_parser_create",
+            "sourceSha256": "35d40eab9a5bd01f75750c0063c6d675bfc714e19cc4533ef6a146208f4fbda5",
+            "enSha256": "0c26e13d91a1329da7953c35282701a06b18b2e353f1e8dfba546d71b810eb61",
+            "zhCnSha256": "6b9a1a83f70fc3049bddeb82444ea7823c7361b2924ec84881608770005d521b",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "implode",
+            "sourceSha256": "694bc7825cd73b57066ae7941e4b244078a04675e342e5f0ca2c0de52680c24c",
+            "enSha256": "930bbb3fbfee7cbcd60ddae990853182034d94b22b6cf60a7d114f2d1111336e",
+            "zhCnSha256": "334537bd8755a07ca5704845f758a1cbdfb9947e76813b71c785456365f54a50",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "inherit_list",
+            "sourceSha256": "bbf4fc2f2737a4a4c0ca6eba9f54533af1c5b7b1fce908de732b439cb990ede0",
+            "enSha256": "4b47264a83748b0f87b2e293c6fa91f5cb0684b28d6e4d9bbe360b7b19508713",
+            "zhCnSha256": "0f1e0fafe1b2d7e2c6550e416c4d2d1a4b147badd4a13ffed95030dac87f3188",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "interactive",
+            "sourceSha256": "4084172913a95654a18ef2a716c17af4b0c66d0a9aa5126ee152dd6357c4679b",
+            "enSha256": "bd29fa0bbd3984ad8e815f35f2002f972ae12da6df05c8dc9369ffa87de9c44e",
+            "zhCnSha256": "999cc8129359623f47b9528fbb71d252532064d5a136e3ead279bf54b43fef95",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "json_decode",
+            "sourceSha256": "fd8954211c71eebcbf3c4abcbaf371fdba66cd03e019ebad4de74727feeee479",
+            "enSha256": "d238690458eaee32a8ef420a29a2540b58c27dead234fab86560d87b074402b3",
+            "zhCnSha256": "9b7b4134dd6eba826d19bf9a79c48a7ac58a4d6d79c0928d77e98ffce0a64c95",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "keys",
+            "sourceSha256": "fb35258da9f9931c43ef4db63ecb7c8a5778878f782f48dd615d5ed31fb42433",
+            "enSha256": "9c7b61f9865edd9ad991c259b2f2411ead6f92548bc6b22f28c4b542d293b8c2",
+            "zhCnSha256": "4fbb10e92839be1355510df3043a27419d6b806ae123118ff909721515f6c545",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "livings",
+            "sourceSha256": "6114c39043e847e692a0cdcfc0ca0083e69a4c336a080b430c8a7a53ce43a267",
+            "enSha256": "bdffedf484a797bda8e49d9ecc52fcbc953e5de08027e1498066750070b86b45",
+            "zhCnSha256": "a52004acdf5f09f4d35fdf3e97dfe35fd9d400dbc4d285d8cfecd587fe2e4a8c",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "log",
+            "sourceSha256": "983c3ecb929bdbb9a33147367446526917799696bbdcdc23ea67bc3d25e02154",
+            "enSha256": "f0e9ec94f8e95caa942603a2b3f49387fd60434e1d221810ebbc52177c3cc8e2",
+            "zhCnSha256": "e801fdf7ac0d93c9ac16384ce5bd268d17aa9833df841db465acb4f647805c98",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "lookat_rotate",
+            "sourceSha256": "dedeac836bc00710658805a6b1cfbea94ec216b857bdfb7f5ccf68965c508d17",
+            "enSha256": "b726ca0ec2073e947d63488292402104ae77d9e6c5c2259decc00617800b23d5",
+            "zhCnSha256": "bf4b6f70b84850bc5c034bb67f221ce6e16b037a5f6bb0e277122530459afea2",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "ltrim",
+            "sourceSha256": "9fd7b9a06fdd9958f94c9bb7c3156c1041d3ed19ebababf278d2d8d5283ea3a3",
+            "enSha256": "9b4f6cdb34b420345e979379a948132fd8076d96d61a8b74ebc6a3656b723102",
+            "zhCnSha256": "e397ff0fe906d682285752f974fda44203ba553d5328e573cb5b1fff5b895e82",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "map_array",
+            "sourceSha256": "fa9622e49dd9d2dc153a47539bd576c4161994959233e3922004f4ef42570df3",
+            "enSha256": "d898fe263f48bf17afb8943d8578544714db00b7fd06a88ece324b023c1fe256",
+            "zhCnSha256": "0087e45c4a575db40eed3c3d5be805674cfbf142bd1cafe8c0bbe32e89ad822b",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "mapp",
+            "sourceSha256": "d6384d0bf81b36da73ce856bd328c15b9b8fbcb7d27a1259a5d55388907c12f6",
+            "enSha256": "7e25b1b0adc7f19839ef1be502c2c45adec1e6f5b012b1c42275276376995e48",
+            "zhCnSha256": "10bd6356bc2abe06f99ed8af5bdf937abddd80bff6d4978b329547f1a2c1d93e",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "match_path",
+            "sourceSha256": "5e9ac2d80bd6606ba72256944e751a83f0dc3df34b31c62cb28465290ab40c47",
+            "enSha256": "e6e17023ba5e05ca02e99f160d6dc3b112ea1b5e7a77aa085e5d0773aeaaa32a",
+            "zhCnSha256": "d9ce083b931c8ddd77d3fc6f52af8ed4a54f42b78172825aa547b2a6104d43ed",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "member_array",
+            "sourceSha256": "b45b0d0d3c075381c2dc870a3878cff5e1b25054a05f29d3e536ab0ac8003e9c",
+            "enSha256": "a0a0e7281ff356bd221378ae70f3c983a7acc81eb4843cb093d450b98cb5c71d",
+            "zhCnSha256": "5e62fcbc7677267f2bbb161e925e32759d7f6fc2fb8f0415ebeed1232ae15e2d",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": [
+                {
+                    "field": "summary",
+                    "kind": "source-boundary",
+                    "detail": "源文“从start指定位置之后开始”及英文after that position都排除了start本身；维护实现字符串查找从sp->u.string+i开始，数组循环也从i开始。建议两语及源文改为“从start及其之后/at or after start”，避免漏掉边界处的匹配。原例子不触及该边界，因而未暴露此源问题。",
+                    "reference": "D:/code/fluffos/src/packages/core/efuns_main.cc:1055,1080; D:/code/fluffos/docs/efun/arrays/member_array.md:18-21 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/packages/core/efuns_main.cc:1055,1080 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已核对 strchr(string+i) 和数组从 i 开始的循环，两语明确 start 包含自身，-1 与原示例不变。"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "message",
+            "sourceSha256": "907a0d0bca421e4bdc298608b41f9133c456d925b8a3e81f14958d15af95630d",
+            "enSha256": "13caf518a0fc89bb99ba2aac399afa5550a8e963d2ff6c7ce274e4089e7c1b8b",
+            "zhCnSha256": "8a2a670597e765ad08d6adb5f2b2cbc56684f0d6dcef32f6dffd0dc231478468",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": [
+                {
+                    "field": "summary",
+                    "kind": "source-target-scope",
+                    "detail": "源文与译文都说非living目标将消息发给“其environment中的对象”。维护实现对目标ob调用all_inventory(ob,1)，再以recurse=0投递，针对的是该目标的内容物inventory，而非environment(ob)的同级对象。维护message.md也沿用了environment措辞，因此这里以实现为证据。建议统一修订源文/两语为目标的inventory或内容物，保持exclude规则不变。",
+                    "reference": "D:/code/fluffos/src/vm/internal/simulate.cc:2563-2603; D:/code/fluffos/src/packages/core/efuns_main.cc:1234 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/vm/internal/simulate.cc:2563-2603; src/packages/core/efuns_main.cc:1234 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已核对 do_message 的 O_LISTENER/interactive 分支与 all_inventory(ob,1) 后 recurse=0 调用，两语改为非监听、非交互目标的内容物范围，保留环境支持条件及 exclude 规则。"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "moncontrol",
+            "sourceSha256": "4e12c194f0c285451272a8ec3a7fc371c5f2eb60362e70dcff214121e1fceab0",
+            "enSha256": "2f02180de2cf2cd3bfb88ece507911097575844355ae023315e7456005418607",
+            "zhCnSha256": "cda59ba7e388d90994d047a9c11c5600cc974c742fab9af91a55c3ea57065ee3",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "named_livings",
+            "sourceSha256": "91a2732fe8c20e2536b1b4d6888f8075a329b44ff8b3b425230b430e05dbe03f",
+            "enSha256": "02c4da0e6819eb7866cbd801e00356d85d6c005d7f5b8f72aa25274bc05d6795",
+            "zhCnSha256": "e67479f62ceb7ff1b1e23341fd3dea3e4ca3726ecde4679a1b092b9060a953de",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "next_bit",
+            "sourceSha256": "2dbf745ae044de79c89c1018913eefc11adde80b53d6fec6ed7b2d09cde497da",
+            "enSha256": "3db2373ce06e827f1e069b7abca0c84a0a6565e0d16c84449689f4c8afd8849a",
+            "zhCnSha256": "3aa0bc47040d7abacb324e1f678a00d192cb103cb7655af73ff3bacf785d7e76",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "notify_fail",
+            "sourceSha256": "66a60cf0e04e5b7185fe2310fb252f1825450ac7d3e821cd53e83a315efbf314",
+            "enSha256": "3bac397131ce1a70cada607b48ba1e56ea12f4ff912dd7f1486a8502cd6ade15",
+            "zhCnSha256": "32d44e0eedc73bf31c010421172e18fda9437c48ac39f40a7ae6bf00ee885ca3",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "objectp",
+            "sourceSha256": "e69bb471be6b394a0e1293799deba64a4fe4c4b2988e625a2df0cab05a35c14b",
+            "enSha256": "d763e51e69417cc7c46bd5eedea39266fa672d343e1a8c9e9290a3bd0877966f",
+            "zhCnSha256": "d2813567c020145af1154723ddc87285b0b76c777c844e4aa982f409d46b6958",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "opcprof",
+            "sourceSha256": "f868c526ec506782684f53502ececeac5ea5ff07681dca4f4b69b57d631bb103",
+            "enSha256": "bb0184bf88d839bf190545dfd937de596474c6776089ad1add04a5f82b0c3e35",
+            "zhCnSha256": "8c5046965c56ce992a6937a0c1a4c3b3dc58d9759b5c86f3a1e1c48212491ea3",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "parse_add_synonym",
+            "sourceSha256": "65e33739e35f8431590611512f395202ef58ee4d2ddb5404104822f0c860fcc1",
+            "enSha256": "65aab1af5db87af467bbe69b2ebdb05ee08ec26cc38d27261ef20a3ed2679e5c",
+            "zhCnSha256": "983bd73adc7ee2df2cb5a5c69dfca1997abcf1ad5a7b77c3c9bbaa11638414b2",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "parse_init",
+            "sourceSha256": "1b3a24e9af1b64b65c79c9a6d8592449e3b6130f0fb35acc241488c758f31f67",
+            "enSha256": "303db9b4ff2d2cc53502148d21e936ff5f63a1fbab7582b8801e6ae9d4ee015b",
+            "zhCnSha256": "47ce93db99b7dd5467489feb5230b5d2bdffa6c0a1ae6ef61f5df1edfc949e7d",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "parse_remove",
+            "sourceSha256": "d006f16c10efe16fdb3e60ef23ce5335c162e930460d1a5a14e8fd2afafc6ac1",
+            "enSha256": "d8e63a9e189b7c98edef56232c9df3812e847b80d0c341e89e71b12f0fde7848",
+            "zhCnSha256": "8610f0eade45b0a9f225afa228ed93ad05eb9d5b3c282cfc064d8700aaa37f98",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "pcre_cache",
+            "sourceSha256": "086344afdf25eb082f45a97c90f4e3ff616168b26a5b702dddabea5c0462648d",
+            "enSha256": "3531694cba32fae9be4add7a2d4d2cb44c10cea59913c8c05fea15cd5bfecdcf",
+            "zhCnSha256": "30a9466153848b4e53ec0c2cae16ca32a4dd70131e77147a902054e17f2ddc6c",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "pcre_match_all",
+            "sourceSha256": "cc6d03df372c7dda73b0c003c478962d09f046f93de6be4afbe1bc1e9352d8e9",
+            "enSha256": "af373ebbf1b49a0ad3a5544963a635ea03521f498e80f4a4d76c3bdc92c24cad",
+            "zhCnSha256": "81d12d68b44f7a582208c6741b2ffba8ec6951fc73b72c8816ce9a5845b57cc4",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "pcre_version",
+            "sourceSha256": "91caf3dc716e29a2344c6bf9f769602cb5fd479fb6e8406ff8ff4a391d2c3e96",
+            "enSha256": "1be754b65ffab5b26468106654d9a7701b5c0614a9f2f6efee31443071494b06",
+            "zhCnSha256": "398e71d9b9dc1995fb47906f6ba44cc5a1b9a3b910acfa98771258304155c18c",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "pointerp",
+            "sourceSha256": "d9f71b6a9271a401c9aca0b4771353d3d9e4eab6c585546aa3fe2cabdc3208e7",
+            "enSha256": "4072fb75a10399eec8aa16ee08b416275f917f218b93a530bb08307b442e52fd",
+            "zhCnSha256": "2ea5c14a10fa00580e64d66a0525b85ac9991f84538fc1e785b5c235350514cb",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "previous_object",
+            "sourceSha256": "1d1f5e32e9d244e3a047a86eeab2ea1ba82e754928629a9670baa7680f5c9ddd",
+            "enSha256": "fead3dfd429daa6ffe8b9620b368e58d87dc8ac4eb1dc36dc92f7e7b5ac8c5cb",
+            "zhCnSha256": "548fecc3efa4de708dc32656aa2f8f358e7b0c3f590b2cd58986b54c4ad5da33",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "query_charmode",
+            "sourceSha256": "b2a4b61e856f7a5df17f994de6078914869aa3b8f0d39b1c55b97034954eaf1c",
+            "enSha256": "c85dc66cfb26ee704985fa1b9800c58ac32af724d9aff622d7a5ea1ae0d89dde",
+            "zhCnSha256": "63faa7c2a64b8ac8b37deeb17165fec5e600ee8e2e6e3c84a3a9a346069d3c80",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "query_heart_beat",
+            "sourceSha256": "04e39496aeacb56dff18af0436c83a451caa848650ffac0c2fabb9a059d8dcf8",
+            "enSha256": "2e713ce2756e4d07a754a15543ac58fe2eaae97bee0513d5a420cb0eb1c4bf4e",
+            "zhCnSha256": "67aa8831b38ed91d43894d060cbbe0549bacc053f0b829aa55c676790e2ee80c",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "query_ip_name",
+            "sourceSha256": "9995ab136910d8861baa080ba6e9e608a59415a0d1b1860e082e7a7aadc0d026",
+            "enSha256": "fec85e35bdfdbec6c8d571db8019bb3dbdcae77592fbb78216d25df7bbbcab6a",
+            "zhCnSha256": "0522ebf1aab5d7314a862babf8e401283b77196bd1b2789f2f25a86523552b5f",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "query_load_average",
+            "sourceSha256": "65081c00aacd36a95af74a1bd649d3c9f6427812be28e7d0b517cf459a0caf60",
+            "enSha256": "1f33b658ddddf2d0fbc04a25842eb50451c72142a7f30bafa611657c9b6d2dca",
+            "zhCnSha256": "a7e3cc2ac651fcb832ebdb91f0f894cd51694abe1d023354bc84cae0442be59e",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "query_notify_fail",
+            "sourceSha256": "fe78a1d38ccddfb71c42fd4912a707cc0a401f1dd352d027761c696bdfe5f2c4",
+            "enSha256": "05e5a5e36539e56086b2d0ce1bbd67120bbe5c44f062bf67469f3ccf5b1da7ff",
+            "zhCnSha256": "066439afece9253e64127c732a99005bcbc1c1d2641a7933cf2982709e427385",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "query_replaced_program",
+            "sourceSha256": "6b69606c70f8721f839f5e4b0b1baf678faa0a88ce582e579bb5bcb22dc430b0",
+            "enSha256": "b256a753535ffc98ebbe76d416e2dead9302ff08634439ba253d0cbaa020515c",
+            "zhCnSha256": "3639d15da62c5c2c8da8a14b47092a5754185b23ab89278c2ea02d7e36f4c608",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "query_snooping",
+            "sourceSha256": "5664336e9d0d7e377007220f01c6fd4925bae4903289803fa4a64c8c50609838",
+            "enSha256": "860f1c5b3bbe83f6f3795597e039c0d138d5989d450a8f441c8c27bd2d5cc487",
+            "zhCnSha256": "e80b0a18360558c13388e899badf710e5313900d116a3e690b8967e18570bf7b",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "read_buffer",
+            "sourceSha256": "1039ad88b168bc8dc4b63d85d5da237ccbf7832319b8fb3994762fa4d9a7d37e",
+            "enSha256": "47844163cb09b381adb701db1eef37e2343cb7318fc63323f78891b3e449980e",
+            "zhCnSha256": "e9915b79fc60a5848fac14951f36985e350c145ccd29fedb55aa474815dc0432",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "real_time",
+            "sourceSha256": "f226fb8097933ff8c57e5c0e9a73ecc03b8bab016aec10dbc76e7603e9e62c30",
+            "enSha256": "b60007b6106fa5ffbbf8dbae2bd85deb935e5b4a3d4fd8c71c7eaf3b899e874c",
+            "zhCnSha256": "0247a56b8a2341cd77022c42555ccefcdd5923b5ebe74b5ba102790ef0d5f1e9",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": [
+                {
+                    "field": "summary",
+                    "kind": "source-unit",
+                    "detail": "源文及两语写自epoch以来的总毫秒数；维护实现f_real_time直接push_number(time(nullptr))，单位为秒。建议把源文及两语的单位一起改为秒，不改任何驱动实现或时间数值。",
+                    "reference": "D:/code/fluffos/src/packages/contrib/contrib.cc:15-16 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/src/packages/contrib/contrib.cc:15-16 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已核对 f_real_time 直接 push_number(time(nullptr))，两语仅将毫秒改为秒，epoch 与北京时间对应关系不变。"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "recompile_object",
+            "sourceSha256": "be2fddce91a699a26d001b802dd1b186065f9075ffd9dd941fb1bfc7d200e244",
+            "enSha256": "c94e515a5ebfadf1ff8d6c4b23efac67ed56f1138cae47455f25857bbb18284a",
+            "zhCnSha256": "6789c8fc6ef7ed596af5961453c8dde2074d38e4b2fb63983747c07aec587ec1",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details",
+                "note"
+            ],
+            "issues": []
+        },
+        {
+            "name": "reg_assoc",
+            "sourceSha256": "e022135dfa143f87e7fad40d63d9c2bc86f739d7b75c8689795204631110a5cc",
+            "enSha256": "34cbc331eb668b1e1e4876496794ea41e0bd0718a90a3f707cbcc7f05b7ceaed",
+            "zhCnSha256": "1fbd285a60d6b938dd8a761016f468ae993fb3cd536c142e88951766b841042e",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "remove_action",
+            "sourceSha256": "d2f82b6c0558ee7078a7807749fca7c2e523f4174d1a01e6c556c72bbb064035",
+            "enSha256": "60ede757b8568bfcc7d6f884f1252429d2180586062af7ccd1111a11db0175f9",
+            "zhCnSha256": "e2359dcab71aa53e41d72128fc1993626d3ec47047e4dae6dc6ea7f91881e7d3",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "remove_get_char",
+            "sourceSha256": "a42d23a927fa93faf8d75489aec825d77170009952d8870152d52b147a295a02",
+            "enSha256": "102f2788b01b3eb866b7a0ec35322b373d45023157b6223b4b523b41c84b2609",
+            "zhCnSha256": "0a7962978c0d4a0d9d6fe0319f4f257e60eecc66667eaded4c7d1d171dadb292",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "rename",
+            "sourceSha256": "d93e2169efc04d44060ac1424851e0d63a29e3bbc9dd007061d7b12b2967a6f5",
+            "enSha256": "6076e6a5128f1386a7d12b6e4a9dd8135fda862961ae9184a0ca96bac409b43a",
+            "zhCnSha256": "defa5a013fc9323d50e197684e4f800b169df6d25fd24d06038c9501270af2c1",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "replace_dollars",
+            "sourceSha256": "1ff31441facc3e8cb040298ffc2312460d92bbce659ba27f96dc7b9d645d6879",
+            "enSha256": "c341bdc650c532f63bcb3a9e2c085fef65dcb44f422202648cd3aa45f3434d08",
+            "zhCnSha256": "db90d72c44f9f126e977f2d5e823e0aef89685ce7e04ae96365849816c99b427",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "replace_objects",
+            "sourceSha256": "71c2629b2954f519934b83a74b0004be7e24b6b1dd071948fcab577729230f9b",
+            "enSha256": "8e4a03fe37d0cd35c5ef43a60a7bafc429326c39539e5855a6e75d250b006b62",
+            "zhCnSha256": "4d84c7fd49d1c5a62d949511ca0a71c89d8ae4ea26f69ff527c6279a73ccb83f",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "replaceable",
+            "sourceSha256": "6a8899fc872a4943305984c2673fbb0c41aa4ff6811cda537b734cc4b9d88583",
+            "enSha256": "d3b29d5fc931c7e93716fc2b74c1c19f0a5416fbbf08f4cd26562564cd2bad73",
+            "zhCnSha256": "2a872b6cdec2934e5e104e33a81788e1113d2049e0528e95b5edac15e50d0664",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "request_term_type",
+            "sourceSha256": "58393c31b4d6ed3040295790905b4dd7fc4e2f27923232d75a5ca0d8f2f19159",
+            "enSha256": "2f332599ed9ee68bf6d02eb4b2d84cc8b56b67b4fb5676a68c43967ecd6735b3",
+            "zhCnSha256": "c8c5d1448016f2be88f9113e14f34c1ff8656f5d63e165dddd0e774fdce133d4",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "restore_from_string",
+            "sourceSha256": "09ff56efc68d689bc24fad271dda644a0eee8a94515fb61adf8062f9e571bbe2",
+            "enSha256": "f87c24460c8a98763ab92df3d70856121678b14cf0800bdbf812c7bb95f5d620",
+            "zhCnSha256": "99fcce67167960b3cfd2962db198e60ce1d9444621c9145f90c13832d6bc612e",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "rm",
+            "sourceSha256": "3c060d61162e7e6d7d782d7d65c5be99080e3eec2ead680d0c3df8f7f2afd5e9",
+            "enSha256": "ff89604d7baeff86f3a2f353cd78b0090c8b299f7487d7669ba8fe3638f4a977",
+            "zhCnSha256": "32ad70e16e20d7c8d8d1928f63300bb65c1896af9eda81760eb6c9a1a8d71549",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "rotate_x",
+            "sourceSha256": "ab1076fb98ef9a847b925ff4e0addd84671519be37f727ed65ac921b708a21d8",
+            "enSha256": "f38503c3295362c956d987a59bef155352cbf789ffb7ab7349a980c733d34042",
+            "zhCnSha256": "f54f6ac600da94932c137d379c42836f21f5e5d50d34f78b258cac08cbc2a8c7",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "roulette_wheel",
+            "sourceSha256": "5c40ba2cc39aa5c951d421fb70a7e0f8fbc23996462292b91511c0d34bb14b3a",
+            "enSha256": "0acb6c3c08126633e13a930735069eefe305830a616a81453fbe3d79b383c70a",
+            "zhCnSha256": "96a24d82013432bc454baf8be0f5d7a04cb5a6ef5a28544c170a5ede58951239",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "rusage",
+            "sourceSha256": "46b2baa6baf46b685ce2efbc736ff84d240b0cdb00bf5093f7ca9f481770f239",
+            "enSha256": "be503110f75d1ea562b76db1c275540af58af37c1f7b97bb660546bcd8883978",
+            "zhCnSha256": "4e0f940a1066a67e5575dd62a1e5ae7f701e6580b2f6e78ba82ba2c73387cf81",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "say",
+            "sourceSha256": "e4671116dd1463b7a881deb18e1b03edda8ac4f8c6f3bcb34b1781bc98be06ca",
+            "enSha256": "fb7632429825e716538bc703d656de6977a3e0fd6bf6b4ebbd1c2a1aff865c99",
+            "zhCnSha256": "f0bca46525671d321bf6e76fd3d03e9e9de3f544bae480cca7428cd7dcdc23f5",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "send_gmcp",
+            "sourceSha256": "6fe7926fb26340b11b63af4cb0521c72bafc5a035c54e88f7219b3b34e34dd44",
+            "enSha256": "5d2e187e04b1ea56c00e149f181449146afc964714ad10de29cfe3bb057dc9f0",
+            "zhCnSha256": "0a1ec683b277cb1846717a0679154049f846691c78e6a4ddf07beae77b63b23f",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "send_zmp",
+            "sourceSha256": "dad82c0f0b03edd687943b0c708bb6c68a6826e7ef6f951a16880704ea7af4bc",
+            "enSha256": "aaa345682e5e146ea914880a7a42b5d7a612125a47b36db642d7e0f5f17a2994",
+            "zhCnSha256": "14df5c41e4e29a5e365aafd59c277d7b85a5a91aaa44b2f25a141788d51befe4",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "set_clean_up",
+            "sourceSha256": "ad50ad74789c36d61bc5d66c25e3c678da6655986ede9b9f24333d6f997f7385",
+            "enSha256": "7ef4047b65670fdb4f3d9b6ca98195a2cb4179b0d25859d2d10d9cfca751fd05",
+            "zhCnSha256": "eca06f8444323153a5e489a80fa511719cbc45abf31b8563a5ba06a4008ad9f0",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "set_encoding",
+            "sourceSha256": "2e6b8b6cc41e4a7e07482294265443f51c82488356b0830499c281d2c24735af",
+            "enSha256": "8e7fb7f1a14b252ef862f4c7d6ed66fccd182c820856521bb2ab509100822091",
+            "zhCnSha256": "6a385c5b72dfe5a51b807ca42bdcd7aebb87041f584697835e97a325042e9c51",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "set_hide",
+            "sourceSha256": "794d5d76444e52a28e64013ba1c9ae53a6bbcb4304bd0c1fa695b1e0f52d25ec",
+            "enSha256": "5e6822f4751d82aabbf551c4b9683776e38ad540ed9353b9b1c19eb67aebb2cf",
+            "zhCnSha256": "2c762b0bcc15eb59f41c88e5bc7735f79c5d3a1d2ca4f4d31006c1002815274f",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "set_malloc_mask",
+            "sourceSha256": "09e48cc23aefd094c3a78c39962dc89df2630999775e12d6a7cdbe103ce2e88d",
+            "enSha256": "9e76dcc380451c7389ac0d648e24e17bb5d21a648f2581672610130381386ba2",
+            "zhCnSha256": "fe9c8309e5267f21a89a5da87d06c43f4edbf38874845273212e35d8bbff8d82",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "set_privs",
+            "sourceSha256": "43bc89a714aaedb68851fd88156cdfc92624b2c22b4e95054bdcc7c6f2c11edf",
+            "enSha256": "6405a7ddca3ff51442f904bdc9c6c6e221f6fa04b52da3877991d93dc858a127",
+            "zhCnSha256": "7e53dcbe44f374acbcb487de08a70815ab4e817341b7020fd77aa9f2310d7987",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "set_this_user",
+            "sourceSha256": "0daae580e06d797cf538051d7b9efc472a6d2a1a139a333feabce880458a87ff",
+            "enSha256": "ddda0256689df54db29d1289d0839e51ee05710d7e89806d834f23a3e550bffe",
+            "zhCnSha256": "7320bb03bb509b4d32f1341d798661ce3c7de3f2d79ff24f18cbd1dba61d06ff",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "shadow",
+            "sourceSha256": "bfc636d6000ea62982649c586ba12c4d10e1481d08634b1c95b09c6531e00ab6",
+            "enSha256": "ffee0902ca6d71e434297ea3642065a01e0fb39f00589b76a4a36e3d05054222",
+            "zhCnSha256": "cf9da86f5f37063577bbf9297938501ae6a7c68ab9ecfbdfc09ce0a62ffd06f1",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "shuffle",
+            "sourceSha256": "bbf1698100133e2d258323cc251cc8679dea0b3245428791ac3088d70089cc49",
+            "enSha256": "1c0ee91232fabf1368e05f258282c87dfe07407ca3b9be499ceee55c0f172832",
+            "zhCnSha256": "f6f7d2cfc0a4b13371b024ae7759d786ec04c979ae310bd8b356fc46355470c6",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "sizeof",
+            "sourceSha256": "7fa40be3971da3e25b68af528f65d1c441452a93ed43d1ad4af557d5d4696c12",
+            "enSha256": "f4e09a782f862058288a9c2d344e6c069ba0ae4b427fe5c7e7fa1269c4beda2a",
+            "zhCnSha256": "bfebc09211bc86f1d8de1d3d1e6c191fdd88e528ac0e4af2c785b1b64ba1d513",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "socket_acquire",
+            "sourceSha256": "1133f1ba75c8ae40ffd9ccbd5b122581eb2b593f3a388184b65edd76e1b3d76a",
+            "enSha256": "ec0266a2a2d08461c40d80271b603b21b8249c02478e67a2ffe05d7f72f2b789",
+            "zhCnSha256": "15bcf3514496655eb8373e642bd902816cd95a0c37c5228a9c593243d9321137",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "socket_close",
+            "sourceSha256": "583c49ebfef12095ecc6984ec40f3b237994312cf980ac543fb6d7f372461f6a",
+            "enSha256": "8953742eaa48977271e03bbd86bd95ab019c433be9994787e4bb5caad3367a1a",
+            "zhCnSha256": "f7225c1ead6fd1833fee1da73124399f8896838b23625712134673a95c4fa7d3",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "socket_error",
+            "sourceSha256": "75f705f6a1416f5593f0047199b598190fa9f4a8ee9ea1b5a8c0e54f35fe91ff",
+            "enSha256": "583615a23357dab954e8c26f64ccf16b05d2bc541c3c526615565efb2cbafad4",
+            "zhCnSha256": "d1ad7e6592b04babb590b80fa6187c1221d0b5d94ef5420cd28f28637eb854d7",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "socket_release",
+            "sourceSha256": "818d53c731097bdd5509c783e60c0ebb8d52e48392f617a27583f091d98f8ef3",
+            "enSha256": "482777605bb1df4f31e4875602fc5485fd368421beddbce538eb861f02be5abf",
+            "zhCnSha256": "e9bbf3daccf7e766ceaeb05f6fc21601c31fad626cd9dfe558b62ee4245003de",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "socket_write",
+            "sourceSha256": "19f887ae09b1b1c2ee23cad4db034fdf51218de5e71b2792d15b289fea3993b8",
+            "enSha256": "37b49f629ca37b92eed00566e27e16f4fe2a862a20829345437674280278105d",
+            "zhCnSha256": "98e1802a44e1c9599128cdb8639a5ccd356fa042a880c234f1a76f747291b0ca",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "sqrt",
+            "sourceSha256": "4a7efd796c4ad43ae10f1a9fc2e2e08609e67532cd0ac355e5d70c67d3e98dc3",
+            "enSha256": "a5290435237fcddca5d17786d0da4f67dfad3a68572b06df30b5a80b62e24cba",
+            "zhCnSha256": "4622c5021cda0ea91ff45a5843d969e61716b5bbc812f214048ea802b2960516",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "stat",
+            "sourceSha256": "78682273616256613d9a1de7719937926952d79817a59938c8e2c113c906f645",
+            "enSha256": "9e02971368b354b106814b5b52ac0b0dfdaf7aa56a03588314d9e18fd5766e99",
+            "zhCnSha256": "56d8ff533b3a0ad86bc490c7bf15ebeb38483ccbfcf39bbbbf9210ef6bb0316c",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "strcmp",
+            "sourceSha256": "e180ee50641f04b5705036a83590646ec1dfc52c7d5fd51414274dd2aaf9e39e",
+            "enSha256": "da423e4cf25bc727b9d5561289d3c2e1a0e5ed84a7b4c1e1689454b555d6893d",
+            "zhCnSha256": "225098acc1f97be543b96b2c82649e86a357cfc5e2415ac4a89a2f2172c164c2",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": [
+                {
+                    "field": "summary",
+                    "kind": "source-identifier",
+                    "detail": "源文把第二个字符串标识符写作tow，英文按要求原样保留；维护用法为strcmp(string one, string two)。建议在源文修订时把tow改为two并同步两语，保留负数/0/正数的比较语义。",
+                    "reference": "D:/code/fluffos/docs/efun/strings/strcmp.md:12-20 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                    "status": "resolved",
+                    "resolution": {
+                        "reference": "D:/code/fluffos/docs/efun/strings/strcmp.md:12-20 @ b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37",
+                        "detail": "已核对 strcmp(string one,string two) 及比较契约，两语将错误操作数 tow 改为 two，负数/0/正数语义不变，author ledger 记录精确 inline-code 差异。"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "string_difference",
+            "sourceSha256": "d3a5be5fc7cd4ed58abfb41a36f92e09217885d6a14490d66167a366ae145ad2",
+            "enSha256": "b15f83334c53017560a24b916cbaa33f5aa583985d7f619f1656b6695ab72a15",
+            "zhCnSha256": "f3054cf4a7e13ff6dba5f218eece62fc2e482ea9b2d78289e5d52aeb4cd96880",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "strlen",
+            "sourceSha256": "63bdbe7d6a1014800d194a590cb43c6209791fd0dc475638597a871bd84bee79",
+            "enSha256": "77b4fb6543fd42b70c300f287c9031de9d90e4d04da40955b2757651411f2402",
+            "zhCnSha256": "37041b960aee622523ea368bf76241b60250974c82fdd19f1ed92ff5af2049db",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "strwidth",
+            "sourceSha256": "384bfcc6f45e6bc6343f04517e0e1b0d73a4a926b97cdfb78c70ec8af85764e0",
+            "enSha256": "e50d5ed9309bd7feb36abd06fc60b3467ab26e69f48457fb01dfc92b26f3ed3e",
+            "zhCnSha256": "7324064ae48e27b9f11f41f1e07103176e9a6b6eb606e828296377ad2e4f4d21",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "tan",
+            "sourceSha256": "a65de3e0dc49e74429b31394eee03ee792f4706687b445f7f180cd45088ab3d4",
+            "enSha256": "6e3f64dc6f414dde5e7973c72530c5d1bc117d5c0de2a602ee5ca2b347cc0e69",
+            "zhCnSha256": "394a891fc07d533eb5f2c048b2fbed80295e0f93ffcb4866e7496ee9f7be296e",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "telnet_ga",
+            "sourceSha256": "e50f2c465e828a6e42ac5ea9c4609a58f8c7a701414f118b2b55227940035c5b",
+            "enSha256": "93b08b2e91a4d52d42c7ad5f4d3171272a4afbfb8e108d53fee53831ae86c3f4",
+            "zhCnSha256": "0c739565de3c3da96390f8e94e483fec9c20dd2a30cd4c0ad1958bf123db9916",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "terminal_colour",
+            "sourceSha256": "225c54d2839190c528b983b1a805c6b3c7c16864695e670d2cd1933df3edfd2c",
+            "enSha256": "5971f2356b5cbb10431491e6b2ec78c725df6c3b2ade125f7ed8ae6211436f97",
+            "zhCnSha256": "a63db4349c53a2a91d20acd8362ce9d3e4f00919fceaef76d055267ccf43906d",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "this_interactive",
+            "sourceSha256": "61addfedd9772e05523a140645cbddf553dda51124f497d1644edac034f16e58",
+            "enSha256": "2168f9e1560b332c607ad1451e4be728416500afc0ce1b45f4693e66d8c6cece",
+            "zhCnSha256": "59d59f8ffd8e3d3d7ebcb17e700755492eb148dd6094f489f1017d123486d86f",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "this_user",
+            "sourceSha256": "abc347a7cdf44d120840074ca231ea87dbc1e02f7362f36ed5e94bf45d18cd46",
+            "enSha256": "21b5e52c5465ea2ec046fbe4dacc23b596eaffcff11e0f4821176e759689272e",
+            "zhCnSha256": "6803c12693cd3da9dae8e949752c0569b59c37985968a172aa55b8539135a8d1",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "time_expression",
+            "sourceSha256": "1571d3804a883331bc879deedd5adbbf87fb3005a85d697bb153378d8ee33ce7",
+            "enSha256": "261110c838ea2e595939f206e1019c189ea222ac1906800148c3cbde4d2ff6f2",
+            "zhCnSha256": "7a340136f1c5c245a77cfdfa418683f3c9b86208f93d873563b0d66886403356",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "to_float",
+            "sourceSha256": "42631b2cf5dc167ed38ca6eb2fd100e795ac0ffda28ed86c235200c97f66647e",
+            "enSha256": "a1af5b7765bcd127b8dd15079e49cb2142693d79502412c496dbbf0913053b12",
+            "zhCnSha256": "19f19f2d3dd2af0add329e668250c9e57df1be4bc6acf3baeacc7a1312019bd1",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "trace_end",
+            "sourceSha256": "3eb32bdcc5f6855d9f3eed2596f274e3b220e755f7bfe2832a2f3d009000dc27",
+            "enSha256": "fad3e1ebfd625d28aa73265a0b62ece0736bafa65d5b330a9764f0280998743d",
+            "zhCnSha256": "860b1fabf73be39b349215ab00e752a1a6f712cdb4628c1950e319556698338f",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "translate",
+            "sourceSha256": "37b1131d93d8320c1abf888c3492d20966275de12bf4867c72a92cc4cbaee564",
+            "enSha256": "4aad3c3ee1d69fff2b24052db293e8dde84a2901982e692021830895949ea6bb",
+            "zhCnSha256": "fdb77c99b18589d212ce05d754df56243aa254173d1617e11ff41e5c266d63f0",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "uncompress",
+            "sourceSha256": "b5f82cb6ee6987bf341d8180306f411045dc244f0d017d99d45a308ba9d15bd9",
+            "enSha256": "7f26df6940edda404d57544bf1488318a9ab8e540699fd4a3f4bbbf684d004aa",
+            "zhCnSha256": "f3c5f2f683795771c1a017c37d17faea72ef4090de739ebaaab1dbeabc5e5aca",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "unique_array",
+            "sourceSha256": "613c040ac9ec5648de42f02269f0899f93432925cf857e87ab80ef7f5d728061",
+            "enSha256": "d426be425038b23398ac49188200c2ce6cc4d72f7aabab95006d8233033fea80",
+            "zhCnSha256": "a5fd1ad6d247f285f71e481c8683daa8480368b8b2db4d4ded3298f2959c1ebf",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "issues": []
+        },
+        {
+            "name": "uptime",
+            "sourceSha256": "2c31779cc58c1c5b85fce052939c4a23aae4d5427930a11a94bf0195fb2cebd6",
+            "enSha256": "f12464916349d257cc6ff2a5420dace8bc999ac5cf31ee4f80f01c14aec6a53b",
+            "zhCnSha256": "8c3b1d029a80c40ecbe25db308aba2662ac9f075ba59989ed37b594b9122e76e",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "userp",
+            "sourceSha256": "7144db805f586ea8f123d4391fa6593fa12ce311771e49561454de09b3a31fad",
+            "enSha256": "18571e0818ecb7d17d7d2ed6d81ea1243f7b29cfaec713b82170ece151dfbb65",
+            "zhCnSha256": "3fb306b657dd319ad03ee4d44f238e7ec787e56921d69d044cfcbff57b35f621",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "variables",
+            "sourceSha256": "e284658322a77075029b22a83f4b5431a96fe799902b5e6671ae313298ad016b",
+            "enSha256": "a24391eb6a523aa363b17e7b5a58c5d1a6b065802842909454b6ee33c302feeb",
+            "zhCnSha256": "9f40e2f6dc74afa448395f890796ef2d9ae60d3fd063fa1d08281bb0cd7f89dd",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "wizardp",
+            "sourceSha256": "188979b1cb9ecf0ec5b817685a30b1cb17dfecf8fa8507d4772b1c12c384fa9b",
+            "enSha256": "f1b9792773f5e8f7ced068011a00460da6784a94582adc31752741778c8ecee6",
+            "zhCnSha256": "1b12a93aeddcf6c3faa6bff9c606c5649ec5374d6896d5b5b1645991dd9cbc46",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        },
+        {
+            "name": "write_bytes",
+            "sourceSha256": "bd0b0bfa00a5c386ffdd3516c62484e91dc62eb86d5fb6a854053f3e9e6d6e7d",
+            "enSha256": "081fb43c258590b89381eaa0bb607c31e0c40152085becac8127087b84104e65",
+            "zhCnSha256": "c2a2db13a9a90474610b36c3779664833f444dd796d8dd1c12ed2754db870bd2",
+            "status": "reviewed",
+            "reviewedFields": [
+                "summary"
+            ],
+            "issues": []
+        }
+    ]
+}

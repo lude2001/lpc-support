@@ -1,0 +1,3 @@
+{
+    "summary": "Returns 0 if `ob` does not inherit `file`, 1 if it inherits the latest version, or 2 if it inherits an older version. If omitted, `ob` defaults to this_object()."
+}

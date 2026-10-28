@@ -1,0 +1,3 @@
+{
+    "summary": "Creates a link from `reference` to `original`. The driver calls valid_link(original, reference) in the master object. If valid_link() returns 0, link() fails. If it returns 1, link() succeeds and returns 1 when rename() with corresponding arguments would succeed.\n\nThis efun creates a hard link, not a symbolic link."
+}

@@ -1,7 +1,5 @@
 {
   "name": "parse_dump",
-  "summary": "parse_dump 内置函数",
-  "category": "语法分析相关函数（Parsing）",
   "signatures": [
     {
       "label": "string parse_dump()",
@@ -13,5 +11,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "parsing"
 }

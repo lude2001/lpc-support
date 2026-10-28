@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS sockets package efun.",
+  "details": "Create an HTTP response-parser state object for parsing HTTP response data in chunks."
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "reset_eval_cost() 将剩余求值预算重置为最大求值预算。\n\n此函数相当于 set_eval_limit(int default: 0);"
+}

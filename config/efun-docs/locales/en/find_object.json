@@ -1,0 +1,3 @@
+{
+    "summary": "Finds an object already loaded in the game by file name `str`. For a cloned object, obtain its file name with file_name(). Returns 0 if the object does not exist or has not been loaded; otherwise returns the object reference.\n\nIf optional `flag` is 1 (the default is 0), the effect is equivalent to load_object()."
+}

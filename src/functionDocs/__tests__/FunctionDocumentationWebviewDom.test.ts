@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { JSDOM } from 'jsdom';
+import * as vscode from 'vscode';
 import { describe, expect, jest, test } from '@jest/globals';
 import type { FunctionDocumentationPanelSnapshot } from '../contracts/FunctionDocumentationPanelProtocol';
+import { renderFunctionDocPanelHtml } from '../../functionDocPanelTemplate';
 
 type PanelOutboundMessage = {
     type: string;
@@ -70,10 +72,23 @@ function createSnapshot(): FunctionDocumentationPanelSnapshot {
     };
 }
 
-function createHarness(): { dom: JSDOM; postMessage: jest.Mock<(message: PanelOutboundMessage) => void> } {
-    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'templates', 'functionDocPanel.html'), 'utf8');
+function createHarness(
+    language = 'zh-cn',
+    configure?: (document: Document) => void
+): { dom: JSDOM; postMessage: jest.Mock<(message: PanelOutboundMessage) => void> } {
+    const localizationEnv = vscode.env as { language: string };
+    let html: string;
+    try {
+        localizationEnv.language = language;
+        html = renderFunctionDocPanelHtml(path.join(__dirname, '..', '..'), {
+            cspSource: 'vscode-webview://test', asWebviewUri: (uri: vscode.Uri) => uri
+        } as unknown as vscode.Webview, vscode.Uri.file('D:/extension'), 'dom-test-nonce');
+    } finally {
+        localizationEnv.language = 'zh-cn';
+    }
     const script = fs.readFileSync(path.join(__dirname, '..', '..', 'templates', 'functionDocPanel.js'), 'utf8');
     const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://webview.invalid/' });
+    configure?.(dom.window.document);
     const postMessage = jest.fn<(message: PanelOutboundMessage) => void>();
     (dom.window as any).acquireVsCodeApi = () => ({ postMessage, setState: jest.fn(), getState: jest.fn() });
     dom.window.eval(script);
@@ -81,6 +96,158 @@ function createHarness(): { dom: JSDOM; postMessage: jest.Mock<(message: PanelOu
 }
 
 describe('function documentation Webview DOM', () => {
+    test.each(['en', 'zh-cn'])('localizes static, dynamic, accessible, search, and error states in %s', (language) => {
+        const { dom, postMessage } = createHarness(language);
+        const document = dom.window.document;
+        const chinese = language === 'zh-cn';
+        try {
+            expect(document.documentElement.lang).toBe(chinese ? 'zh-CN' : 'en');
+            expect(document.querySelector('h1')?.textContent).toBe(chinese ? '函数文档中心' : 'Function Documentation Center');
+            expect(document.getElementById('function-list')?.getAttribute('aria-label')).toBe(chinese ? '函数声明列表' : 'Function declaration list');
+            expect(document.getElementById('search-input')?.getAttribute('aria-label')).toBe(chinese ? '搜索函数文档' : 'Search function documentation');
+            expect(document.getElementById('status-text')?.textContent).toBe(chinese ? '正在连接语言服务' : 'Connecting to the language service');
+            expect(document.querySelector('#detail-panel h2')?.textContent).toBe(chinese ? '选择一个函数' : 'Select a function');
+            dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'loading', sessionId: 'session' } }));
+            expect(document.getElementById('status-text')?.textContent).toBe(chinese ? '正在刷新' : 'Refreshing');
+
+            const snapshot = createSnapshot();
+            snapshot.entries[0].signatures[0].parameters[0].optional = true;
+            snapshot.entries[0].signatures[0].parameters[0].variadic = true;
+            snapshot.entries[0].signatures[0].parameters[0].defaultValueText = 'literal_中文';
+            snapshot.entries[0].signatures.push({
+                label: 'void die()', returnType: 'void', parameters: [], isFunctionVarargs: false, isParameterVariadic: false
+            });
+            dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', payload: snapshot } }));
+            expect(document.getElementById('status-text')?.textContent).toBe(chinese ? '2 个声明' : '2 declarations');
+            expect(document.querySelector('.source-line')?.textContent).toBe(chinese ? '第 9 行，第 14 列' : 'Line 9, column 14');
+            expect(document.querySelector('.signature-tab')?.textContent).toBe(chinese ? '签名 1' : 'Signature 1');
+            expect(document.querySelector('.parameter-table')?.textContent).toContain(chinese ? '默认 literal_中文' : 'Default literal_中文');
+            expect(document.querySelector('.parameter-table')?.textContent).toContain('杀死角色的对象');
+            expect(document.querySelector('.quality-panel')?.textContent).toContain(chinese ? '文档状态：完整' : 'Documentation status: Complete');
+            const references = [...document.querySelectorAll('.action-button')].find(button =>
+                button.textContent === (chinese ? '查找引用' : 'Find references')) as HTMLButtonElement;
+            references.click();
+            expect(postMessage).toHaveBeenCalledWith({ type: 'findReferences', entryId: 'die-entry', revision: 7 });
+
+            (document.querySelector('[data-filter-value="include"]') as HTMLButtonElement).click();
+            const search = document.getElementById('search-input') as HTMLInputElement;
+            search.value = 'HOSTILE';
+            search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+            expect(document.querySelectorAll('.function-row')).toHaveLength(1);
+            expect(document.querySelector('.function-row')?.getAttribute('data-entry-id')).toBe('hostile-entry');
+            search.value = 'no_such_function';
+            search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+            expect(document.querySelector('#function-list h2')?.textContent).toBe(chinese ? '没有匹配的声明' : 'No matching declarations');
+            document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'K', ctrlKey: true, bubbles: true }));
+            expect(document.activeElement).toBe(search);
+
+            const failed = createSnapshot();
+            failed.revision = 8;
+            failed.status = 'failed';
+            failed.groups = [];
+            failed.entries = [];
+            failed.diagnostics = [{
+                code: 'analysis-failed', severity: 'error', stage: 'analysis', recoverable: true,
+                message: 'Driver <raw> error {0}'
+            }];
+            dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', payload: failed } }));
+            expect(document.getElementById('status-text')?.textContent).toBe(chinese
+                ? '分析失败 · Driver <raw> error {0}' : 'Analysis failed · Driver <raw> error {0}');
+            expect(document.getElementById('status-text')?.title).toBe('Driver <raw> error {0}');
+            expect(document.getElementById('status-dot')?.classList.contains('is-error')).toBe(true);
+            expect(document.querySelector('raw')).toBeNull();
+            expect(document.querySelector('#detail-panel h2')?.textContent).toBe(chinese ? '选择一个函数' : 'Select a function');
+        } finally {
+            dom.window.close();
+        }
+    });
+
+    test.each(['en', 'zh-cn'])('localizes external loading and empty results while preserving requests in %s', async (language) => {
+        const { dom, postMessage } = createHarness(language);
+        const document = dom.window.document;
+        try {
+            const snapshot = createSnapshot();
+            snapshot.capabilities.supportsExternalSearch = true;
+            dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', payload: snapshot } }));
+            (document.querySelector('[data-filter-value="simulEfun"]') as HTMLButtonElement).click();
+            expect(document.querySelector('.catalog-loading strong')?.textContent).toBe(language === 'zh-cn'
+                ? '正在加载模拟函数' : 'Loading simulated efuns');
+            expect(document.querySelector('.catalog-loading')?.getAttribute('aria-live')).toBe('polite');
+            expect(document.getElementById('function-list')?.getAttribute('aria-busy')).toBe('true');
+            await new Promise<void>(resolve => dom.window.setTimeout(resolve, 220));
+            const request = postMessage.mock.calls.find(([message]) => message.type === 'searchExternal')?.[0];
+            expect(request).toMatchObject({ type: 'searchExternal', query: '', scopes: ['simulEfun'] });
+            dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
+                data: {
+                    type: 'externalSearchResult', requestId: request!.requestId, groups: [], entries: [],
+                    diagnostics: [{ message: 'Raw external source failure' }]
+                }
+            }));
+            expect(document.getElementById('status-text')?.textContent).toBe('Raw external source failure');
+            expect(document.getElementById('status-dot')?.classList.contains('is-warning')).toBe(true);
+            expect(document.getElementById('function-list')?.getAttribute('aria-busy')).toBe('false');
+            expect(document.querySelector('#function-list h2')?.textContent).toBe(language === 'zh-cn'
+                ? '没有匹配的声明' : 'No matching declarations');
+        } finally {
+            dom.window.close();
+        }
+    });
+
+    test.each(['missing', 'invalid'])('uses English dynamic messages when bootstrap resources are %s', (resourceState) => {
+        const { dom } = createHarness('zh-cn', document => {
+            const resource = document.getElementById('function-panel-localization')!;
+            if (resourceState === 'missing') resource.remove();
+            else resource.textContent = '{invalid json';
+        });
+        try {
+            dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', payload: createSnapshot() } }));
+            expect(dom.window.document.getElementById('status-text')?.textContent).toBe('2 declarations');
+            expect(dom.window.document.querySelector('.quality-panel')?.textContent).toContain('Documentation status: Complete');
+        } finally {
+            dom.window.close();
+        }
+    });
+
+    test('falls back for missing or invalid message values and matches native primitive placeholder formatting', () => {
+        const { dom } = createHarness('zh-cn', document => {
+            document.getElementById('function-panel-localization')!.textContent = JSON.stringify({
+                locale: 'zh-cn', messages: {
+                    'Complete': '译文完整',
+                    '{0} declarations': 42,
+                    'Line {0}, column {1}': '{{0}} {0} {1} {missing}'
+                }
+            });
+        });
+        try {
+            dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', payload: createSnapshot() } }));
+            expect(dom.window.document.getElementById('status-text')?.textContent).toBe('2 declarations');
+            expect(dom.window.document.querySelector('.quality-panel')?.textContent).toContain('Documentation status: 译文完整');
+            expect(dom.window.document.querySelector('.source-line')?.textContent).toBe('{{0}} 9 14 {missing}');
+        } finally {
+            dom.window.close();
+        }
+    });
+
+    test('keeps translated dynamic messages inert when resources contain markup', () => {
+        const hostile = '</script><img src=x onerror="alert(1)">';
+        const { dom } = createHarness('zh-cn', document => {
+            document.getElementById('function-panel-localization')!.textContent = JSON.stringify({
+                locale: 'zh-cn', messages: { 'No matching declarations': hostile }
+            });
+        });
+        try {
+            const empty = createSnapshot();
+            empty.entries = [];
+            empty.groups = [];
+            dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', payload: empty } }));
+            expect(dom.window.document.querySelector('#function-list h2')?.textContent).toBe(hostile);
+            expect(dom.window.document.querySelectorAll('img')).toHaveLength(0);
+            expect(dom.window.document.querySelectorAll('script')).toHaveLength(1);
+        } finally {
+            dom.window.close();
+        }
+    });
+
     test('offers separate skeleton and AI actions for an undocumented local function', () => {
         const snapshot = createSnapshot();
         snapshot.entries[0].documentation = { hasAttachedComment: false };

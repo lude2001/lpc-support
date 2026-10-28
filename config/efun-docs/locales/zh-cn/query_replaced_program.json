@@ -1,0 +1,3 @@
+{
+  "summary": "如果对象调用过 replace_program，此函数返回替换所用对象的路径。如果未提供 ob，对象默认为 this_object()。"
+}

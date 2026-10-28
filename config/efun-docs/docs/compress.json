@@ -1,7 +1,5 @@
 {
   "name": "compress",
-  "summary": "compress 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "buffer compress(string | buffer)",
@@ -18,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

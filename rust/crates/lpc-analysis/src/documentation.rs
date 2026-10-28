@@ -2,6 +2,8 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::Locale;
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CallableDocumentation {
@@ -18,6 +20,21 @@ pub struct CallableDocumentation {
     pub return_objects: Vec<String>,
     pub extra_tags: Vec<DocumentationTag>,
     pub issues: Vec<DocumentationIssue>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub enum DocumentationContent {
+    Structured(Box<CallableDocumentation>),
+    Raw(String),
+}
+
+impl DocumentationContent {
+    pub fn render_markdown(&self, locale: Locale) -> String {
+        match self {
+            Self::Structured(documentation) => documentation.render_markdown_for_locale(locale),
+            Self::Raw(markdown) => markdown.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -191,6 +208,10 @@ pub fn parse_callable_documentation(
 
 impl CallableDocumentation {
     pub fn render_markdown(&self) -> String {
+        self.render_markdown_for_locale(Locale::En)
+    }
+
+    pub fn render_markdown_for_locale(&self, locale: Locale) -> String {
         let mut sections = Vec::new();
         if let Some(summary) = self.summary.as_deref() {
             sections.push(summary.to_owned());
@@ -208,13 +229,18 @@ impl CallableDocumentation {
                     let description = parameter
                         .description
                         .as_deref()
-                        .map(|value| format!("：{}", indent_continuation(value)))
+                        .map(|value| {
+                            format!("{}{}", locale.text(": ", "："), indent_continuation(value))
+                        })
                         .unwrap_or_default();
                     format!("- `{}`{type_label}{description}", parameter.name)
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            sections.push(format!("**参数**\n\n{parameters}"));
+            sections.push(format!(
+                "**{}**\n\n{parameters}",
+                locale.text("Parameters", "参数")
+            ));
         }
         if let Some(returns) = self.returns.as_ref() {
             let mut value = returns
@@ -224,19 +250,29 @@ impl CallableDocumentation {
                 .unwrap_or_default();
             if let Some(description) = returns.description.as_deref() {
                 if !value.is_empty() {
-                    value.push('：');
+                    value.push_str(locale.text(": ", "："));
                 }
                 value.push_str(description);
             }
             if !value.is_empty() {
-                sections.push(format!("**返回值**\n\n{value}"));
+                sections.push(format!(
+                    "**{}**\n\n{value}",
+                    locale.text("Returns", "返回值")
+                ));
             }
         }
         if let Some(details) = self.details.as_deref() {
-            sections.push(format!("**详细说明**\n\n{details}"));
+            sections.push(format!(
+                "**{}**\n\n{details}",
+                locale.text("Details", "详细说明")
+            ));
         }
         if let Some(note) = self.note.as_deref() {
-            sections.push(format!("> **备注**  \n> {}", note.replace('\n', "\n> ")));
+            sections.push(format!(
+                "> **{}**  \n> {}",
+                locale.text("Note", "备注"),
+                note.replace('\n', "\n> ")
+            ));
         }
         for tag in &self.extra_tags {
             if let Some(value) = tag.value.as_deref() {
@@ -469,6 +505,156 @@ fn indent_continuation(value: &str) -> String {
 mod tests {
     use super::*;
 
+    fn structured_documentation() -> CallableDocumentation {
+        CallableDocumentation {
+            raw_text: "/** 原始文档\r\n */".to_owned(),
+            summary: Some("**Parameters** 用户标题\n```lpc\nreturn 1;\n```".to_owned()),
+            parameters: vec![
+                ParameterDocumentation {
+                    type_name: Some("mapping *".to_owned()),
+                    name: "data".to_owned(),
+                    description: Some("参数说明: keep this\n第二行".to_owned()),
+                },
+                ParameterDocumentation {
+                    type_name: None,
+                    name: "ob".to_owned(),
+                    description: None,
+                },
+            ],
+            returns: Some(ReturnDocumentation {
+                type_name: Some("object".to_owned()),
+                description: Some("返回正文 / return description".to_owned()),
+            }),
+            details: Some("原文 **Returns**\n- `/obj/中文.c`".to_owned()),
+            note: Some("保留 @param\nEnglish note.".to_owned()),
+            return_objects: vec!["/obj/中文.c".to_owned()],
+            extra_tags: vec![DocumentationTag {
+                name: "warning".to_owned(),
+                value: Some("警告原文 / Warning @inherit".to_owned()),
+            }],
+            issues: vec![DocumentationIssue {
+                code: "stale-parameter-name".to_owned(),
+                parameter_name: Some("old_name".to_owned()),
+            }],
+        }
+    }
+
+    #[test]
+    fn renders_localized_structure_without_translating_user_content_or_facts() {
+        let documentation = structured_documentation();
+        let original = documentation.clone();
+        let english = documentation.render_markdown_for_locale(Locale::En);
+        let chinese = documentation.render_markdown_for_locale(Locale::ZhCn);
+        assert_eq!(
+            english,
+            concat!(
+                "**Parameters** 用户标题\n```lpc\nreturn 1;\n```\n\n",
+                "**Parameters**\n\n",
+                "- `data` (`mapping *`): 参数说明: keep this\n  第二行\n- `ob`\n\n",
+                "**Returns**\n\n`object`: 返回正文 / return description\n\n",
+                "**Details**\n\n原文 **Returns**\n- `/obj/中文.c`\n\n",
+                "> **Note**  \n> 保留 @param\n> English note.\n\n",
+                "**@warning**\n\n警告原文 / Warning @inherit",
+            )
+        );
+        assert_eq!(
+            chinese,
+            concat!(
+                "**Parameters** 用户标题\n```lpc\nreturn 1;\n```\n\n",
+                "**参数**\n\n",
+                "- `data` (`mapping *`)：参数说明: keep this\n  第二行\n- `ob`\n\n",
+                "**返回值**\n\n`object`：返回正文 / return description\n\n",
+                "**详细说明**\n\n原文 **Returns**\n- `/obj/中文.c`\n\n",
+                "> **备注**  \n> 保留 @param\n> English note.\n\n",
+                "**@warning**\n\n警告原文 / Warning @inherit",
+            )
+        );
+        assert_eq!(documentation, original);
+    }
+
+    #[test]
+    fn no_argument_markdown_uses_english_structure() {
+        let documentation = structured_documentation();
+        assert_eq!(
+            documentation.render_markdown(),
+            documentation.render_markdown_for_locale(Locale::En)
+        );
+    }
+
+    #[test]
+    fn raw_documentation_is_returned_byte_for_byte_in_both_locales() {
+        for raw in [
+            "",
+            "\r\n  **参数**：保留\n```lpc\nwrite(\"@return 原文\");\n```\n\0",
+        ] {
+            let content = DocumentationContent::Raw(raw.to_owned());
+            for locale in [Locale::En, Locale::ZhCn] {
+                assert_eq!(content.render_markdown(locale).as_bytes(), raw.as_bytes());
+            }
+        }
+    }
+
+    #[test]
+    fn documentation_content_round_trips_without_materializing_a_locale() {
+        let documentation = structured_documentation();
+        for content in [
+            DocumentationContent::Structured(Box::new(documentation.clone())),
+            DocumentationContent::Raw("\r\n**备注** 用户 Markdown\n".to_owned()),
+        ] {
+            let serialized =
+                serde_json::to_string(&content).expect("serialize documentation facts");
+            let restored: DocumentationContent =
+                serde_json::from_str(&serialized).expect("deserialize documentation facts");
+            assert_eq!(restored, content);
+            assert_eq!(
+                restored.render_markdown(Locale::En),
+                content.render_markdown(Locale::En)
+            );
+            assert_eq!(
+                restored.render_markdown(Locale::ZhCn),
+                content.render_markdown(Locale::ZhCn)
+            );
+        }
+        let structured = serde_json::to_value(DocumentationContent::Structured(Box::new(
+            documentation.clone(),
+        )))
+        .unwrap();
+        assert_eq!(
+            structured.get("Structured"),
+            Some(&serde_json::to_value(documentation).unwrap())
+        );
+        assert_eq!(
+            serde_json::to_value(DocumentationContent::Raw("original".to_owned())).unwrap(),
+            serde_json::json!({ "Raw": "original" })
+        );
+        assert!(serde_json::from_str::<DocumentationContent>("\"old cached Markdown\"").is_err());
+    }
+
+    #[test]
+    fn sparse_documentation_keeps_existing_section_omission_rules() {
+        let mut documentation = parse_callable_documentation("/** */", None, &[]);
+        documentation.returns = Some(ReturnDocumentation {
+            type_name: None,
+            description: Some("仅正文: unchanged".to_owned()),
+        });
+        assert_eq!(
+            documentation.render_markdown_for_locale(Locale::En),
+            "**Returns**\n\n仅正文: unchanged"
+        );
+        assert_eq!(
+            documentation.render_markdown_for_locale(Locale::ZhCn),
+            "**返回值**\n\n仅正文: unchanged"
+        );
+        documentation.returns.as_mut().unwrap().description = None;
+        documentation.extra_tags.push(DocumentationTag {
+            name: "custom".to_owned(),
+            value: None,
+        });
+        for locale in [Locale::En, Locale::ZhCn] {
+            assert!(documentation.render_markdown_for_locale(locale).is_empty());
+        }
+    }
+
     #[test]
     fn parses_lossless_structured_javadoc_and_quality_issues() {
         let comment = concat!(
@@ -527,7 +713,7 @@ mod tests {
                 .iter()
                 .any(|issue| issue.code == "duplicate-return-tag")
         );
-        let markdown = parsed.render_markdown();
+        let markdown = parsed.render_markdown_for_locale(Locale::ZhCn);
         assert!(markdown.contains("参数续行"));
         assert!(markdown.contains("**@warning**"));
         assert!(markdown.contains("> **备注**"));

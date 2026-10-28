@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import type { CallableDoc } from '../../language/documentation/types';
 import type {
     PanelDocumentationIssue,
@@ -23,7 +24,7 @@ export class DocumentationQualityService {
         if (!doc.summary?.trim()) {
             issues.push({
                 code: 'missing-summary',
-                message: '缺少简要说明。'
+                message: vscode.l10n.t('Missing summary.')
             });
         }
 
@@ -38,7 +39,7 @@ export class DocumentationQualityService {
                     issues.push({
                         code: 'missing-param-description',
                         parameterName: parameter.name,
-                        message: `参数 ${parameter.name} 缺少说明。`
+                        message: vscode.l10n.t('Parameter {0} has no description.', parameter.name)
                     });
                 }
             }
@@ -50,7 +51,7 @@ export class DocumentationQualityService {
         if (returnTypes.some((returnType) => returnType !== 'void') && !doc.returns?.description?.trim()) {
             issues.push({
                 code: 'missing-return-description',
-                message: '缺少返回值说明。'
+                message: vscode.l10n.t('Missing return value description.')
             });
         }
 
@@ -73,12 +74,12 @@ export class DocumentationQualityService {
 function getConsistencyIssueMessage(code: string, parameterName?: string): string {
     switch (code) {
         case 'duplicate-param-tag':
-            return `参数 ${parameterName ?? '未知'} 存在重复标签。`;
+            return vscode.l10n.t('Parameter {0} has duplicate tags.', parameterName ?? vscode.l10n.t('Unknown'));
         case 'stale-parameter-name':
-            return `文档中的参数 ${parameterName ?? '未知'} 已不在函数签名中。`;
+            return vscode.l10n.t('Documented parameter {0} is no longer in the function signature.', parameterName ?? vscode.l10n.t('Unknown'));
         case 'duplicate-return-tag':
-            return '存在重复的返回值标签。';
+            return vscode.l10n.t('Duplicate return value tags.');
         default:
-            return '存在无法关联到函数签名的参数标签。';
+            return vscode.l10n.t('Some parameter tags cannot be matched to the function signature.');
     }
 }

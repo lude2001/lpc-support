@@ -1,0 +1,3 @@
+{
+    "summary": "Starts collecting trace information, including LPC function-level execution data.\n\nThe driver stops collecting and writes the output to `filename` when trace_end() is called or after `auto_stop_sec` seconds. If omitted, auto_stop_sec defaults to 10 seconds.\n\nDo not leave tracing enabled for a long time, or memory may be exhausted."
+}

@@ -1,0 +1,4 @@
+{
+  "summary": "开始编辑文件",
+  "details": "名称\ned_start() - 启动 ed 会话\n\n用法\nstring ed_start(string file | void, int restricted | void)\n\n说明\n只有未定义 __OLD_ED__ 时，此函数才可用。\n\n   启动内部编辑器，并可选择载入 'file' 进行编辑。返回编辑器产生的输出。编辑会话保持活动状态，后续可调用 ed_cmd() 向其发送命令。\n\n   如果 restricted 为 1，将禁用切换当前编辑文件的命令。\n\n   每个对象在同一时间只能有一个活动的 ed 会话。"
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "Similar to find_living(), but search only objects that are interactive players or were previously players."
+}

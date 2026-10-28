@@ -1,0 +1,3 @@
+{
+  "summary": "Return an array of pointers to all living objects. See the living() efun for the definition of a living object."
+}

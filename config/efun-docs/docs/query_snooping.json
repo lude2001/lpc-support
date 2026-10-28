@@ -1,11 +1,9 @@
 {
   "name": "query_snooping",
-  "summary": "如果玩家对象 `ob` 正在监听其他玩家对象，返回被监听的对象，否则返回 0 。",
   "reference": [
     "snoop",
     "query_snoop"
   ],
-  "category": "互动对象(玩家)相关函数（Interactive）",
   "signatures": [
     {
       "label": "object query_snooping( object ob )",
@@ -22,5 +20,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "interactive"
 }

@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets package efun.",
+    "details": "URL-encode a string by escaping characters that cannot appear directly in URL parameters."
+}

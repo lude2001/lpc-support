@@ -1,0 +1,3 @@
+{
+    "summary": "Attempts to match a command string against the given pattern. FluffOS treats parse_command as a compiler operator: the first three arguments are required, and the remaining destination variables are variadic."
+}

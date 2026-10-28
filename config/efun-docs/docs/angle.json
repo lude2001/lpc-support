@@ -1,7 +1,5 @@
 {
   "name": "angle",
-  "summary": "计算角度",
-  "category": "浮点运算相关函数（Floats）",
   "signatures": [
     {
       "label": "float angle(int *|float *, int *|float *)",
@@ -22,5 +20,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "floats"
 }

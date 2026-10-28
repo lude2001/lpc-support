@@ -1,0 +1,3 @@
+{
+  "summary": "string *fun defaults to ({ \"create\", \"__INIT\" }) and contains a list of functions which may be ignored for checking.\n\n   Check whether the object defines functions of its own, apart from create and __INIT.\n\n   Return 0 if object `ob` defines local functions; otherwise return 1."
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "Return a mapping containing program information with the following entries:\n   header size : int\n   code size : int\n   function size : int\n   var size : int\n   class size : int\n   inherit size : int\n   saved type size : int\n   total size : int\n\nIf the object is omitted, include all objects in the game.\n\nRequires PACKAGE_CONTRIB to be defined when compiling the driver."
+}

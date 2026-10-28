@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 
 export type LanguageServerRuntime = { kind: 'rust'; command: string };
 
@@ -18,8 +18,7 @@ export function resolveLanguageServerRuntime(
 
     if (!fs.existsSync(command)) {
         throw new Error(
-            `The bundled Rust LPC language server is missing at ${command}. `
-            + 'Reinstall the platform-specific extension package or run npm run build:rust.'
+            vscode.l10n.t('The bundled Rust LPC language server is missing at {0}. Reinstall the platform-specific extension package or run npm run build:rust.', command)
         );
     }
 

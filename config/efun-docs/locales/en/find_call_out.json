@@ -1,0 +1,4 @@
+{
+    "summary": "Find a pending call by function name or handle. For a string argument, find the first pending call named 'func' and return the number of seconds remaining. Return -1 if no call is found. For an integer argument, find the call with the specified 'handle' and return the seconds remaining, or -1 if it is not found.\n\nThis searches calls scheduled by call_out() or call_out_walltime(). A fractional remaining time is rounded down to an integer.",
+    "details": "Example\nint handle = call_out(\"func\", 10);\nprintf(\"剩余时间：%O\\n\", find_call_out(handle));\n// 剩余时间：10\n\nint handle = call_out(\"func\", 10.75);\nprintf(\"剩余时间：%O\\n\", find_call_out(handle));\n// 剩余时间：10"
+}

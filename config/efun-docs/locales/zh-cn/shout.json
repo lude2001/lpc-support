@@ -1,0 +1,3 @@
+{
+    "summary": "对 this_player() 以外的所有活着的对象发送信息 `str`。\n   注意：此efun不会调用receive_message() apply；shout()函数输出的最大长度为__LARGEST_PRINTABLE_STRING__，默认为65535字节（utf8编码一个汉字占3个字节）。"
+}

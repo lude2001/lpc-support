@@ -9,11 +9,15 @@ use lpc_preprocessor::{InactiveRegion, IncludeFact, MacroDirectiveFact, MacroDir
 use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, Parser, Tree};
 
+mod diagnostic_message;
 mod documentation;
+mod locale;
 mod navigation;
 
-pub use documentation::CallableDocumentation;
+use diagnostic_message::{DiagnosticFact, DiagnosticMessage, TypeContext};
 use documentation::parse_callable_documentation;
+pub use documentation::{CallableDocumentation, DocumentationContent};
+pub use locale::Locale;
 pub use navigation::{AnalysisInspection, DocumentHighlight, WorkspaceSymbol};
 
 type PreprocessedEnvironment<'a> = (
@@ -273,7 +277,7 @@ struct TypeMember {
     name: String,
     selection: std::ops::Range<usize>,
     detail: String,
-    documentation: Option<String>,
+    documentation: Option<DocumentationContent>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -283,7 +287,7 @@ struct MacroDefinition {
     selection: std::ops::Range<usize>,
     function_like: bool,
     parameters: Vec<String>,
-    documentation: Option<String>,
+    documentation: Option<DocumentationContent>,
     active_until: usize,
 }
 
@@ -296,7 +300,7 @@ struct FileAnalysis {
     type_definitions: Vec<TypeDefinition>,
     identifiers: Vec<std::ops::Range<usize>>,
     value_references: Vec<std::ops::Range<usize>>,
-    diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<DiagnosticFact>,
     folding_ranges: Vec<FoldingRange>,
     calls: Vec<CallSite>,
     assignments: Vec<AssignmentFact>,
@@ -341,7 +345,33 @@ struct ReferenceResolutionCache {
 pub struct ExternalFunction {
     pub name: String,
     pub summary: Option<String>,
+    pub details: Option<String>,
+    pub note: Option<String>,
     pub signatures: Vec<ExternalSignature>,
+}
+
+impl ExternalFunction {
+    /// Render already-loaded text; language queries never read resource files.
+    pub fn documentation(&self, locale: Locale) -> Option<String> {
+        let mut sections = Vec::new();
+        if let Some(summary) = self.summary.as_ref() {
+            sections.push(summary.clone());
+        }
+        if let Some(details) = self.details.as_ref() {
+            sections.push(format!(
+                "**{}**\n\n{details}",
+                locale.text("Details", "详细说明")
+            ));
+        }
+        if let Some(note) = self.note.as_ref() {
+            sections.push(format!(
+                "> **{}**  \n> {}",
+                locale.text("Note", "备注"),
+                note.replace('\n', "\n> ")
+            ));
+        }
+        (!sections.is_empty()).then(|| sections.join("\n\n"))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -374,6 +404,7 @@ pub struct SemanticTokenFacts {
 
 #[derive(Debug, Default)]
 pub struct AnalysisDatabase {
+    locale: Locale,
     files: HashMap<String, FileAnalysis>,
     external_functions: HashMap<String, ExternalFunction>,
     predefined_macros: HashMap<String, String>,
@@ -397,9 +428,17 @@ struct IndexedAnalysisCache {
     files: HashMap<String, FileAnalysis>,
 }
 
-const INDEXED_ANALYSIS_CACHE_SCHEMA_VERSION: u32 = 1;
+const INDEXED_ANALYSIS_CACHE_SCHEMA_VERSION: u32 = 2;
 
 impl AnalysisDatabase {
+    pub fn locale(&self) -> Locale {
+        self.locale
+    }
+
+    pub fn set_locale(&mut self, locale: Locale) {
+        self.locale = locale;
+    }
+
     pub fn set_external_functions(&mut self, functions: Vec<ExternalFunction>) {
         self.external_functions = functions
             .into_iter()
@@ -726,10 +765,15 @@ impl AnalysisDatabase {
         &mut self,
         bytes: &[u8],
     ) -> Result<HashSet<String>, serde_json::Error> {
-        let cache: IndexedAnalysisCache = serde_json::from_slice(bytes)?;
-        if cache.schema_version != INDEXED_ANALYSIS_CACHE_SCHEMA_VERSION {
+        #[derive(Deserialize)]
+        struct CacheHeader {
+            schema_version: u32,
+        }
+        let header: CacheHeader = serde_json::from_slice(bytes)?;
+        if header.schema_version != INDEXED_ANALYSIS_CACHE_SCHEMA_VERSION {
             return Ok(HashSet::new());
         }
+        let cache: IndexedAnalysisCache = serde_json::from_slice(bytes)?;
 
         let mut imported = HashSet::new();
         for (uri, file) in cache.files {
@@ -805,11 +849,21 @@ impl AnalysisDatabase {
                     });
             if reference_count <= 1 && !used_by_macro {
                 let (code, message) = if symbol.kind == SymbolKind::Parameter {
-                    ("unusedParam", format!("未使用的参数: {}", symbol.name))
+                    (
+                        "unusedParam",
+                        DiagnosticMessage::UnusedParameter {
+                            name: symbol.name.clone(),
+                        },
+                    )
                 } else {
-                    ("unusedVar", format!("局部变量 '{}' 未被使用", symbol.name))
+                    (
+                        "unusedVar",
+                        DiagnosticMessage::UnusedLocal {
+                            name: symbol.name.clone(),
+                        },
+                    )
                 };
-                diagnostics.push(Diagnostic {
+                diagnostics.push(DiagnosticFact {
                     range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
                     severity: if symbol.kind == SymbolKind::Parameter {
                         4
@@ -834,12 +888,14 @@ impl AnalysisDatabase {
                     .filter(|range| file.source.get((*range).clone()) == Some(symbol.name.as_str()))
                     .count();
                 if reference_count <= 1 {
-                    diagnostics.push(Diagnostic {
+                    diagnostics.push(DiagnosticFact {
                         range: byte_range_to_lsp(&file.source, symbol.selection.clone()),
                         severity: 4,
                         code: "unusedGlobalVar",
                         source: "lpc-support",
-                        message: format!("全局变量 '{}' 未被使用", symbol.name),
+                        message: DiagnosticMessage::UnusedGlobal {
+                            name: symbol.name.clone(),
+                        },
                     });
                 }
             }
@@ -877,12 +933,14 @@ impl AnalysisDatabase {
                 && !is_known_lpc_name(&call.name)
                 && !suppress_undefined_diagnostics
             {
-                diagnostics.push(Diagnostic {
+                diagnostics.push(DiagnosticFact {
                     range: byte_range_to_lsp(&file.source, call.range.clone()),
                     severity: 2,
                     code: "lpc.undefinedFunction",
                     source: "lpc-support",
-                    message: format!("未定义函数: {}", call.name),
+                    message: DiagnosticMessage::UndefinedFunction {
+                        name: call.name.clone(),
+                    },
                 });
                 continue;
             }
@@ -899,15 +957,15 @@ impl AnalysisDatabase {
                 && !accepts_source_signature
                 && !accepts_external_signature
             {
-                diagnostics.push(Diagnostic {
+                diagnostics.push(DiagnosticFact {
                     range: byte_range_to_lsp(&file.source, call.range.clone()),
                     severity: 2,
                     code: "lpc.argumentCountMismatch",
                     source: "lpc-support",
-                    message: format!(
-                        "函数 {} 参数数量不匹配: 当前 {} 个",
-                        call.name, call.argument_count
-                    ),
+                    message: DiagnosticMessage::ArgumentCountMismatch {
+                        name: call.name.clone(),
+                        actual: call.argument_count,
+                    },
                 });
             }
         }
@@ -949,16 +1007,21 @@ impl AnalysisDatabase {
                 {
                     continue;
                 }
-                diagnostics.push(Diagnostic {
+                diagnostics.push(DiagnosticFact {
                     range: byte_range_to_lsp(&file.source, reference.clone()),
                     severity: 2,
                     code: "lpc.undefinedSymbol",
                     source: "lpc-support",
-                    message: format!("未定义符号: {name}"),
+                    message: DiagnosticMessage::UndefinedSymbol {
+                        name: name.to_owned(),
+                    },
                 });
             }
         }
         diagnostics
+            .into_iter()
+            .map(|diagnostic| diagnostic.into_diagnostic(self.locale))
+            .collect()
     }
 
     fn dependencies_fully_resolved(&self, origin_uri: &str) -> bool {
@@ -1399,15 +1462,23 @@ impl AnalysisDatabase {
             } else {
                 String::new()
             };
-            let documentation = definition.documentation.as_deref().unwrap_or_default();
+            let documentation = definition
+                .documentation
+                .as_ref()
+                .map(|documentation| documentation.render_markdown(self.locale))
+                .unwrap_or_default();
             let definition_line =
                 byte_range_to_lsp(&macro_file.source, definition.selection.clone())
                     .start
                     .line
                     + 1;
+            let defined_in = match self.locale {
+                Locale::En => format!("Defined in [source]({macro_uri}#L{definition_line})"),
+                Locale::ZhCn => format!("定义于[源码]({macro_uri}#L{definition_line})"),
+            };
             return Some(HoverResult {
                 contents: format!(
-                    "```lpc\n#define {}{} {}\n```{}\n\nDefined in [source]({macro_uri}#L{definition_line})",
+                    "```lpc\n#define {}{} {}\n```{}\n\n{defined_in}",
                     definition.name,
                     parameters,
                     definition.value,
@@ -1425,7 +1496,9 @@ impl AnalysisDatabase {
         {
             return Some(HoverResult {
                 contents: format!(
-                    "```lpc\n#define {name} {value}\n```\n\nWorkspace predefined macro"
+                    "```lpc\n#define {name} {value}\n```\n\n{}",
+                    self.locale
+                        .text("Workspace predefined macro", "工作区预定义宏")
                 ),
                 range: byte_range_to_lsp(&file.source, identifier),
             });
@@ -1439,7 +1512,7 @@ impl AnalysisDatabase {
                     .map(|signature| signature.label.as_str())
                     .collect::<Vec<_>>()
                     .join("\n");
-                let summary = external.summary.as_deref().unwrap_or_default();
+                let summary = external.documentation(self.locale).unwrap_or_default();
                 return Some(HoverResult {
                     contents: format!("```lpc\n{signatures}\n```\n\n{summary}"),
                     range: byte_range_to_lsp(&file.source, identifier),
@@ -1462,7 +1535,7 @@ impl AnalysisDatabase {
                         format!(
                             "```lpc\n{}\n```\n\n{}",
                             symbol.detail,
-                            documentation.render_markdown()
+                            documentation.render_markdown_for_locale(self.locale)
                         )
                     }
                     None => format!("```lpc\n{}\n```", symbol.detail),
@@ -1519,7 +1592,7 @@ impl AnalysisDatabase {
                         format!(
                             "```lpc\n{}\n```\n\n{}",
                             symbol.detail,
-                            documentation.render_markdown()
+                            documentation.render_markdown_for_locale(self.locale)
                         )
                     }
                     None => format!("```lpc\n{}\n```", symbol.detail),
@@ -1534,7 +1607,7 @@ impl AnalysisDatabase {
             .map(|signature| signature.label.as_str())
             .collect::<Vec<_>>()
             .join("\n");
-        let summary = external.summary.as_deref().unwrap_or_default();
+        let summary = external.documentation(self.locale).unwrap_or_default();
         Some(HoverResult {
             contents: format!("```lpc\n{signatures}\n```\n\n{summary}"),
             range: byte_range_to_lsp(&file.source, identifier),
@@ -1783,6 +1856,7 @@ impl AnalysisDatabase {
                     &file.source,
                     open,
                     offset,
+                    self.locale,
                 ));
             }
             let locations = self.scoped_symbol_locations(uri, &qualifier, &name);
@@ -1795,7 +1869,11 @@ impl AnalysisDatabase {
                     && byte_range_to_lsp(&target.source, symbol.selection.clone())
                         == locations[0].range
             })?;
-            let signatures = vec![signature_information_from_symbol(target, symbol)];
+            let signatures = vec![signature_information_from_symbol(
+                target,
+                symbol,
+                self.locale,
+            )];
             return Some(SignatureHelp {
                 active_parameter: active_parameter_for_signatures(
                     &file.source[open + 1..offset],
@@ -1817,7 +1895,9 @@ impl AnalysisDatabase {
                         .into_iter()
                         .map(move |symbol| (target, symbol))
                 })
-                .map(|(target, symbol)| signature_information_from_symbol(target, symbol))
+                .map(|(target, symbol)| {
+                    signature_information_from_symbol(target, symbol, self.locale)
+                })
                 .collect::<Vec<_>>();
             if signatures.is_empty() {
                 return None;
@@ -1866,7 +1946,11 @@ impl AnalysisDatabase {
         let callable =
             local_symbol.or_else(|| (workspace_symbols.len() == 1).then(|| workspace_symbols[0]));
         if let Some((defining_file, symbol)) = callable {
-            let signatures = vec![signature_information_from_symbol(defining_file, symbol)];
+            let signatures = vec![signature_information_from_symbol(
+                defining_file,
+                symbol,
+                self.locale,
+            )];
             return Some(SignatureHelp {
                 active_parameter: active_parameter_for_signatures(
                     &file.source[open + 1..offset],
@@ -1884,6 +1968,7 @@ impl AnalysisDatabase {
             &file.source,
             open,
             offset,
+            self.locale,
         ))
     }
 
@@ -1948,7 +2033,7 @@ impl AnalysisDatabase {
                                 .to_ascii_lowercase()
                                 .starts_with(&normalized_prefix)
                     })
-                    .map(completion_from_external_function)
+                    .map(|function| completion_from_external_function(function, self.locale))
                     .collect::<Vec<_>>();
                 candidates.sort_by(|left, right| left.label.cmp(&right.label));
                 return candidates;
@@ -1968,7 +2053,7 @@ impl AnalysisDatabase {
                                 .to_ascii_lowercase()
                                 .starts_with(&normalized_prefix))
                 })
-                .map(|(file, symbol)| completion_from_symbol_in_file(file, symbol))
+                .map(|(file, symbol)| completion_from_symbol_in_file(file, symbol, self.locale))
                 .collect::<Vec<_>>();
             candidates.sort_by(|left, right| left.label.cmp(&right.label));
             candidates.dedup_by(|left, right| left.label == right.label);
@@ -2019,7 +2104,7 @@ impl AnalysisDatabase {
             }) {
                 candidates.insert(
                     symbol.name.clone(),
-                    completion_from_symbol_in_file(file, symbol),
+                    completion_from_symbol_in_file(file, symbol, self.locale),
                 );
             }
         }
@@ -2038,12 +2123,12 @@ impl AnalysisDatabase {
         {
             candidates
                 .entry(symbol.name.clone())
-                .or_insert_with(|| completion_from_symbol_in_file(file, symbol));
+                .or_insert_with(|| completion_from_symbol_in_file(file, symbol, self.locale));
         }
         for function in self.external_functions.values() {
             candidates
                 .entry(function.name.clone())
-                .or_insert_with(|| completion_from_external_function(function));
+                .or_insert_with(|| completion_from_external_function(function, self.locale));
         }
         let macro_offset = completion_offset.unwrap_or_default();
         for definition in self
@@ -2053,7 +2138,7 @@ impl AnalysisDatabase {
         {
             candidates
                 .entry(definition.name.clone())
-                .or_insert_with(|| completion_from_macro(definition));
+                .or_insert_with(|| completion_from_macro(definition, self.locale));
         }
         for (name, value) in self
             .predefined_macros
@@ -2062,7 +2147,7 @@ impl AnalysisDatabase {
         {
             candidates
                 .entry(name.clone())
-                .or_insert_with(|| completion_from_predefined_macro(name, value));
+                .or_insert_with(|| completion_from_predefined_macro(name, value, self.locale));
         }
         for keyword in KEYWORDS {
             candidates
@@ -3287,7 +3372,7 @@ impl AnalysisDatabase {
         });
         let mut candidates = symbols
             .into_iter()
-            .map(|(file, symbol)| completion_from_symbol_in_file(file, symbol))
+            .map(|(file, symbol)| completion_from_symbol_in_file(file, symbol, self.locale))
             .collect::<Vec<_>>();
         candidates.dedup_by(|left, right| left.label == right.label);
         Some(candidates)
@@ -3332,6 +3417,7 @@ impl AnalysisDatabase {
                         .into_iter()
                         .map(move |symbol| (symbol, function_documentation(file, symbol)))
                 }),
+            self.locale,
         )
     }
 
@@ -3376,7 +3462,10 @@ impl AnalysisDatabase {
                 label: member.name.clone(),
                 kind: 5,
                 detail: Some(member.detail.clone()),
-                documentation: member.documentation.clone(),
+                documentation: member
+                    .documentation
+                    .as_ref()
+                    .map(|documentation| documentation.render_markdown(self.locale)),
                 insert_text: None,
                 insert_text_format: None,
             })
@@ -3447,8 +3536,12 @@ impl AnalysisDatabase {
                         == lsp_position_to_byte(&file.source, location.range.start)
                             .unwrap_or(usize::MAX)
             })?;
-        Some(match member.documentation.as_deref() {
-            Some(documentation) => format!("```lpc\n{}\n```\n\n{documentation}", member.detail),
+        Some(match member.documentation.as_ref() {
+            Some(documentation) => format!(
+                "```lpc\n{}\n```\n\n{}",
+                member.detail,
+                documentation.render_markdown(self.locale)
+            ),
             None => format!("```lpc\n{}\n```", member.detail),
         })
     }
@@ -3470,7 +3563,10 @@ impl AnalysisDatabase {
                         CompletionCandidate {
                             label: (*directive).to_owned(),
                             kind: 14,
-                            detail: Some(format!("预处理指令: {directive}")),
+                            detail: Some(format!(
+                                "{}: {directive}",
+                                self.locale.text("Preprocessor directive", "预处理指令")
+                            )),
                             documentation: None,
                             insert_text: None,
                             insert_text_format: None,
@@ -3480,9 +3576,9 @@ impl AnalysisDatabase {
             }
             DirectiveCompletionContext::IncludePath | DirectiveCompletionContext::InheritPath => {
                 let detail = if context == DirectiveCompletionContext::InheritPath {
-                    "继承路径"
+                    self.locale.text("Inherit path", "继承路径")
                 } else {
-                    "包含路径"
+                    self.locale.text("Include path", "包含路径")
                 };
                 for uri in self.files.keys() {
                     let normalized = uri_path_without_extension(uri);
@@ -3678,7 +3774,7 @@ enum MemberOperator {
     Dot,
 }
 
-fn completion_from_symbol(symbol: &Symbol) -> CompletionCandidate {
+fn completion_from_symbol(symbol: &Symbol, locale: Locale) -> CompletionCandidate {
     let insert_text = (symbol.kind == SymbolKind::Function).then(|| {
         symbol.structured_signature.as_ref().map_or_else(
             || function_snippet(&symbol.name, &symbol.parameters),
@@ -3696,20 +3792,27 @@ fn completion_from_symbol(symbol: &Symbol) -> CompletionCandidate {
         documentation: symbol
             .documentation
             .as_ref()
-            .map(CallableDocumentation::render_markdown),
+            .map(|documentation| documentation.render_markdown_for_locale(locale)),
         insert_text_format: insert_text.as_ref().map(|_| 2),
         insert_text,
     }
 }
 
-fn completion_from_symbol_in_file(file: &FileAnalysis, symbol: &Symbol) -> CompletionCandidate {
-    let mut candidate = completion_from_symbol(symbol);
-    candidate.documentation =
-        function_documentation(file, symbol).map(CallableDocumentation::render_markdown);
+fn completion_from_symbol_in_file(
+    file: &FileAnalysis,
+    symbol: &Symbol,
+    locale: Locale,
+) -> CompletionCandidate {
+    let mut candidate = completion_from_symbol(symbol, locale);
+    candidate.documentation = function_documentation(file, symbol)
+        .map(|documentation| documentation.render_markdown_for_locale(locale));
     candidate
 }
 
-fn completion_from_external_function(function: &ExternalFunction) -> CompletionCandidate {
+fn completion_from_external_function(
+    function: &ExternalFunction,
+    locale: Locale,
+) -> CompletionCandidate {
     let parameters = function
         .signatures
         .first()
@@ -3722,13 +3825,13 @@ fn completion_from_external_function(function: &ExternalFunction) -> CompletionC
             .signatures
             .first()
             .map(|signature| signature.label.clone()),
-        documentation: function.summary.clone(),
+        documentation: function.documentation(locale),
         insert_text: Some(function_snippet(&function.name, parameters)),
         insert_text_format: Some(2),
     }
 }
 
-fn completion_from_macro(definition: &MacroDefinition) -> CompletionCandidate {
+fn completion_from_macro(definition: &MacroDefinition, locale: Locale) -> CompletionCandidate {
     let insert_text = definition
         .function_like
         .then(|| function_snippet(&definition.name, &definition.parameters));
@@ -3736,18 +3839,29 @@ fn completion_from_macro(definition: &MacroDefinition) -> CompletionCandidate {
         label: definition.name.clone(),
         kind: 21,
         detail: Some(format!("#define {}", definition.value)),
-        documentation: definition.documentation.clone(),
+        documentation: definition
+            .documentation
+            .as_ref()
+            .map(|documentation| documentation.render_markdown(locale)),
         insert_text_format: insert_text.as_ref().map(|_| 2),
         insert_text,
     }
 }
 
-fn completion_from_predefined_macro(name: &str, value: &str) -> CompletionCandidate {
+fn completion_from_predefined_macro(
+    name: &str,
+    value: &str,
+    locale: Locale,
+) -> CompletionCandidate {
     CompletionCandidate {
         label: name.to_owned(),
         kind: 21,
         detail: Some(format!("#define {value}")),
-        documentation: Some("Workspace predefined macro".to_owned()),
+        documentation: Some(
+            locale
+                .text("Workspace predefined macro", "工作区预定义宏")
+                .to_owned(),
+        ),
         insert_text_format: None,
         insert_text: None,
     }
@@ -5020,10 +5134,11 @@ fn collect_assignments(node: Node<'_>, source: &str, output: &mut Vec<Assignment
     }
 }
 
-fn leading_documentation(source: &str, declaration_start: usize) -> Option<String> {
+fn leading_documentation(source: &str, declaration_start: usize) -> Option<DocumentationContent> {
     let comment = leading_doc_comment(source, declaration_start)?;
     let documentation = parse_callable_documentation(comment, None, &[]);
-    (!is_file_documentation(&documentation)).then(|| documentation.render_markdown())
+    (!is_file_documentation(&documentation))
+        .then(|| DocumentationContent::Structured(Box::new(documentation)))
 }
 
 fn leading_callable_documentation(
@@ -5165,7 +5280,10 @@ fn build_callable_parameter_facts(node: Node<'_>, source: &str) -> CallableParam
     }
 }
 
-fn leading_macro_documentation(source: &str, declaration_start: usize) -> Option<String> {
+fn leading_macro_documentation(
+    source: &str,
+    declaration_start: usize,
+) -> Option<DocumentationContent> {
     if let Some(documentation) = leading_documentation(source, declaration_start) {
         return Some(documentation);
     }
@@ -5179,7 +5297,7 @@ fn leading_macro_documentation(source: &str, declaration_start: usize) -> Option
             .filter(|line| !line.is_empty())
             .collect::<Vec<_>>()
             .join("\n");
-        return (!rendered.is_empty()).then_some(rendered);
+        return (!rendered.is_empty()).then_some(DocumentationContent::Raw(rendered));
     }
     let mut lines = Vec::new();
     for line in prefix.lines().rev() {
@@ -5191,7 +5309,7 @@ fn leading_macro_documentation(source: &str, declaration_start: usize) -> Option
     }
     lines.reverse();
     let rendered = lines.join("\n");
-    (!rendered.is_empty()).then_some(rendered)
+    (!rendered.is_empty()).then_some(DocumentationContent::Raw(rendered))
 }
 
 fn leading_doc_comment(source: &str, declaration_start: usize) -> Option<&str> {
@@ -5396,7 +5514,7 @@ fn uri_path_ends_with(uri: &str, suffix: &str) -> bool {
         .is_some_and(|path| path.to_ascii_lowercase().ends_with(suffix))
 }
 
-fn collect_diagnostics(tree: &Tree, source: &str) -> Vec<Diagnostic> {
+fn collect_diagnostics(tree: &Tree, source: &str) -> Vec<DiagnosticFact> {
     let mut diagnostics = Vec::new();
     collect_error_nodes(tree.root_node(), source, &mut diagnostics, false);
     collect_empty_heredoc_diagnostics(tree.root_node(), source, &mut diagnostics);
@@ -5409,7 +5527,7 @@ fn collect_diagnostics(tree: &Tree, source: &str) -> Vec<Diagnostic> {
 fn collect_invalid_type_and_assignment_diagnostics(
     node: Node<'_>,
     source: &str,
-    output: &mut Vec<Diagnostic>,
+    output: &mut Vec<DiagnosticFact>,
 ) {
     let target = if node.kind() == "assignment_expression" {
         node.child_by_field_name("left")
@@ -5426,12 +5544,12 @@ fn collect_invalid_type_and_assignment_diagnostics(
     if let Some(target) = target
         && is_direct_optional_target(target, source)
     {
-        output.push(Diagnostic {
+        output.push(DiagnosticFact {
             range: byte_range_to_lsp(source, target.byte_range()),
             severity: 1,
             code: "lpc.optionalAssignment",
             source: "lpc-rust",
-            message: "可选访问结果不能直接用作赋值目标".to_owned(),
+            message: DiagnosticMessage::OptionalAssignment,
         });
     }
     if node.kind() == "promise_type"
@@ -5442,12 +5560,12 @@ fn collect_invalid_type_and_assignment_diagnostics(
             .children(&mut node.walk())
             .any(|child| child.kind() == "*")
     {
-        output.push(Diagnostic {
+        output.push(DiagnosticFact {
             range: byte_range_to_lsp(source, node.byte_range()),
             severity: 1,
             code: "lpc.promiseType",
             source: "lpc-rust",
-            message: "promise 的值类型不能为 void".to_owned(),
+            message: DiagnosticMessage::PromiseVoid,
         });
     }
     if node.kind() == "modifier"
@@ -5456,12 +5574,12 @@ fn collect_invalid_type_and_assignment_diagnostics(
             .parent()
             .is_some_and(|parent| parent.kind() != "function_declaration")
     {
-        output.push(Diagnostic {
+        output.push(DiagnosticFact {
             range: byte_range_to_lsp(source, node.byte_range()),
             severity: 1,
             code: "lpc.asyncModifier",
             source: "lpc-rust",
-            message: "async 只能修饰函数声明".to_owned(),
+            message: DiagnosticMessage::AsyncFunctionOnly,
         });
     }
     let mut cursor = node.walk();
@@ -5506,7 +5624,7 @@ fn collect_async_context_diagnostics(
     source: &str,
     mut asynchronous: bool,
     no_suspend: bool,
-    output: &mut Vec<Diagnostic>,
+    output: &mut Vec<DiagnosticFact>,
 ) {
     if node.kind() == "function_declaration" {
         let mut cursor = node.walk();
@@ -5525,15 +5643,19 @@ fn collect_async_context_diagnostics(
     let catching = node.kind() == "acatch_expression";
     if (awaiting || catching) && (!asynchronous || no_suspend) {
         let keyword = if awaiting { "await" } else { "acatch" };
-        output.push(Diagnostic {
+        output.push(DiagnosticFact {
             range: byte_range_to_lsp(source, node.start_byte()..node.start_byte() + keyword.len()),
             severity: 1,
             code: "lpc.asyncContext",
             source: "lpc-rust",
             message: if !asynchronous {
-                format!("{keyword} 只能直接用于 async 函数体内")
+                DiagnosticMessage::AsyncContext {
+                    keyword: keyword.to_owned(),
+                }
             } else {
-                format!("catch 和 time_expression 内不能使用 {keyword}，请使用 acatch")
+                DiagnosticMessage::SuspensionInCatch {
+                    keyword: keyword.to_owned(),
+                }
             },
         });
     }
@@ -5544,19 +5666,23 @@ fn collect_async_context_diagnostics(
     }
 }
 
-fn collect_empty_heredoc_diagnostics(node: Node<'_>, source: &str, output: &mut Vec<Diagnostic>) {
+fn collect_empty_heredoc_diagnostics(
+    node: Node<'_>,
+    source: &str,
+    output: &mut Vec<DiagnosticFact>,
+) {
     if node.kind() == "heredoc_literal"
         && node
             .utf8_text(source.as_bytes())
             .ok()
             .is_some_and(is_empty_heredoc)
     {
-        output.push(Diagnostic {
+        output.push(DiagnosticFact {
             range: byte_range_to_lsp(source, node.byte_range()),
             severity: 2,
             code: "emptyMultilineString",
             source: "lpc-support",
-            message: "空的多行字符串".to_owned(),
+            message: DiagnosticMessage::EmptyHeredoc,
         });
     }
     let mut cursor = node.walk();
@@ -5586,7 +5712,7 @@ fn is_empty_heredoc(value: &str) -> bool {
             .is_empty()
 }
 
-fn file_name_diagnostics(uri: &str) -> Vec<Diagnostic> {
+fn file_name_diagnostics(uri: &str) -> Vec<DiagnosticFact> {
     let segment = uri.rsplit(['/', '\\']).next().unwrap_or(uri);
     let file_name = percent_decode(segment);
     let (stem, extension) = file_name
@@ -5606,12 +5732,14 @@ fn file_name_diagnostics(uri: &str) -> Vec<Diagnostic> {
     };
     let mut diagnostics = Vec::new();
     if !matches!(extension, "c" | "h") {
-        diagnostics.push(Diagnostic {
+        diagnostics.push(DiagnosticFact {
             range: point,
             severity: 2,
             code: "fileNaming",
             source: "lpc-support",
-            message: format!("文件扩展名应为 .c 或 .h，而不是 .{extension}"),
+            message: DiagnosticMessage::FileExtension {
+                extension: extension.to_owned(),
+            },
         });
     }
     if stem.is_empty()
@@ -5621,21 +5749,21 @@ fn file_name_diagnostics(uri: &str) -> Vec<Diagnostic> {
                 || ('\u{4e00}'..='\u{9fa5}').contains(&character)
         })
     {
-        diagnostics.push(Diagnostic {
+        diagnostics.push(DiagnosticFact {
             range: point,
             severity: 2,
             code: "fileNaming",
             source: "lpc-support",
-            message: "文件名应由字母（可大写/小写）、数字、下划线、连字符或中文组成".to_owned(),
+            message: DiagnosticMessage::FileNameCharacters,
         });
     }
     if stem.chars().count() > 100 {
-        diagnostics.push(Diagnostic {
+        diagnostics.push(DiagnosticFact {
             range: point,
             severity: 2,
             code: "fileNaming",
             source: "lpc-support",
-            message: "文件名过长，建议不超过 100 个字符".to_owned(),
+            message: DiagnosticMessage::FileNameLength,
         });
     }
     diagnostics
@@ -5673,7 +5801,7 @@ fn hex_value(value: u8) -> Option<u8> {
 fn collect_local_declaration_position_diagnostics(
     node: Node<'_>,
     source: &str,
-    output: &mut Vec<Diagnostic>,
+    output: &mut Vec<DiagnosticFact>,
 ) {
     if node.kind() == "block" {
         let mut has_executable = false;
@@ -5686,12 +5814,12 @@ fn collect_local_declaration_position_diagnostics(
                         .get(last_executable_end..child.start_byte())
                         .is_some_and(contains_preprocessor_branch_directive);
                 if has_executable && !separated_by_branch_directive {
-                    output.push(Diagnostic {
+                    output.push(DiagnosticFact {
                         range: byte_range_to_lsp(source, child.byte_range()),
                         severity: 1,
                         code: "localVariableDeclarationPosition",
                         source: "lpc-support",
-                        message: "局部变量定义必须在可执行语句或代码块的开头。".to_owned(),
+                        message: DiagnosticMessage::LocalDeclarationPosition,
                     });
                 }
                 if separated_by_branch_directive {
@@ -5720,7 +5848,7 @@ fn collect_type_diagnostics(
     source: &str,
     return_type: Option<&str>,
     macros: &[MacroDefinition],
-    output: &mut Vec<Diagnostic>,
+    output: &mut Vec<DiagnosticFact>,
 ) {
     if node.kind() == "anonymous_function" {
         return;
@@ -5762,7 +5890,13 @@ fn collect_type_diagnostics(
                         prefix.bytes().filter(|byte| *byte == b'*').count()
                     });
                 let expected = format!("{}{}", expected.trim(), "*".repeat(pointers));
-                report_type_mismatch(&expected, value, source, output, "变量初始化");
+                report_type_mismatch(
+                    &expected,
+                    value,
+                    source,
+                    output,
+                    TypeContext::VariableInitializer,
+                );
             }
         }
     }
@@ -5771,14 +5905,18 @@ fn collect_type_diagnostics(
     {
         let mut cursor = node.walk();
         if let Some(value) = node.named_children(&mut cursor).next() {
-            report_type_mismatch(expected, value, source, output, "返回值");
+            report_type_mismatch(expected, value, source, output, TypeContext::ReturnValue);
         } else if !matches!(expected.trim(), "void" | "mixed") {
-            output.push(Diagnostic {
+            output.push(DiagnosticFact {
                 range: byte_range_to_lsp(source, node.byte_range()),
                 severity: 2,
                 code: "lpc.typeMismatch",
                 source: "lpc-support",
-                message: format!("返回值类型不匹配: 期望 {}，实际 void", expected.trim()),
+                message: DiagnosticMessage::TypeMismatch {
+                    context: TypeContext::ReturnValue,
+                    expected: expected.trim().to_owned(),
+                    actual: "void".to_owned(),
+                },
             });
         }
     }
@@ -5835,8 +5973,8 @@ fn report_type_mismatch(
     expected: &str,
     value: Node<'_>,
     source: &str,
-    output: &mut Vec<Diagnostic>,
-    context: &str,
+    output: &mut Vec<DiagnosticFact>,
+    context: TypeContext,
 ) {
     let Some(actual) = literal_type(value, source) else {
         return;
@@ -5847,15 +5985,16 @@ fn report_type_mismatch(
     if types_compatible(expected.trim(), actual) {
         return;
     }
-    output.push(Diagnostic {
+    output.push(DiagnosticFact {
         range: byte_range_to_lsp(source, value.byte_range()),
         severity: 2,
         code: "lpc.typeMismatch",
         source: "lpc-support",
-        message: format!(
-            "{context}类型不匹配: 期望 {}，实际 {actual}",
-            expected.trim()
-        ),
+        message: DiagnosticMessage::TypeMismatch {
+            context,
+            expected: expected.trim().to_owned(),
+            actual: actual.to_owned(),
+        },
     });
 }
 
@@ -5926,7 +6065,7 @@ fn types_compatible(expected: &str, actual: &str) -> bool {
 fn collect_error_nodes(
     node: Node<'_>,
     source: &str,
-    output: &mut Vec<Diagnostic>,
+    output: &mut Vec<DiagnosticFact>,
     parent_error: bool,
 ) {
     let is_error = node.is_error() || node.is_missing();
@@ -5937,15 +6076,17 @@ fn collect_error_nodes(
         } else {
             node.byte_range()
         };
-        output.push(Diagnostic {
+        output.push(DiagnosticFact {
             range: byte_range_to_lsp(source, range),
             severity: 1,
             code: "syntax-error",
             source: "lpc-rust",
             message: if node.is_missing() {
-                format!("缺少语法元素 `{}`", node.kind())
+                DiagnosticMessage::MissingSyntax {
+                    kind: node.kind().to_owned(),
+                }
             } else {
-                "无法解析此处的 LPC 语法".to_owned()
+                DiagnosticMessage::InvalidSyntax
             },
         });
     }
@@ -6228,12 +6369,13 @@ fn parameter_shape(parameter: &str) -> String {
 
 fn render_function_symbol_hover<'a>(
     symbols: impl IntoIterator<Item = (&'a Symbol, Option<&'a CallableDocumentation>)>,
+    locale: Locale,
 ) -> Option<String> {
     let mut entries = HashMap::<&str, Vec<String>>::new();
     for (symbol, callable_documentation) in symbols {
         let documentation = entries.entry(symbol.detail.as_str()).or_default();
         if let Some(value) = callable_documentation {
-            documentation.push(value.render_markdown());
+            documentation.push(value.render_markdown_for_locale(locale));
         }
     }
     if entries.is_empty() {
@@ -6342,7 +6484,11 @@ fn active_parameter_for_signatures(
     }
 }
 
-fn signature_information_from_symbol(file: &FileAnalysis, symbol: &Symbol) -> SignatureInformation {
+fn signature_information_from_symbol(
+    file: &FileAnalysis,
+    symbol: &Symbol,
+    locale: Locale,
+) -> SignatureInformation {
     let documentation = function_documentation(file, symbol);
     let parameter_labels = symbol
         .structured_signature
@@ -6361,7 +6507,8 @@ fn signature_information_from_symbol(file: &FileAnalysis, symbol: &Symbol) -> Si
             .as_ref()
             .map(|signature| signature.label.clone())
             .unwrap_or_else(|| symbol.detail.clone()),
-        documentation: documentation.map(CallableDocumentation::render_markdown),
+        documentation: documentation
+            .map(|documentation| documentation.render_markdown_for_locale(locale)),
         parameters: parameter_labels
             .into_iter()
             .map(|label| parameter_information_from_symbol(documentation, label))
@@ -6393,13 +6540,14 @@ fn signature_help_from_external(
     source: &str,
     open: usize,
     offset: usize,
+    locale: Locale,
 ) -> SignatureHelp {
     let signatures = external
         .signatures
         .iter()
         .map(|signature| SignatureInformation {
             label: signature.label.clone(),
-            documentation: external.summary.clone(),
+            documentation: external.documentation(locale),
             parameters: signature
                 .parameters
                 .iter()
@@ -7000,6 +7148,293 @@ mod tests {
         database
     }
 
+    fn indexed_database(uri: &str, source: &str) -> AnalysisDatabase {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut database = AnalysisDatabase::default();
+        database.index_source(uri, &tree, source);
+        database
+    }
+
+    #[test]
+    fn projects_bilingual_diagnostics_without_changing_facts_or_rebuilding() {
+        let source =
+            "int value = \"original text\";\nvoid demo() { int unused; missing_call(); }\n";
+        let mut analysis = database(source);
+        assert_eq!(analysis.locale(), Locale::En);
+        let initial_builds = analysis.metrics().snapshot_build_count;
+        let english = analysis.diagnostics("file:///demo.c");
+        assert!(
+            english
+                .iter()
+                .any(|diagnostic| diagnostic.message == "Undefined function: missing_call")
+        );
+        assert!(english.iter().any(|diagnostic| diagnostic.message
+            == "Variable initializer type mismatch: expected int, got string"));
+
+        analysis.set_locale(Locale::ZhCn);
+        let chinese = analysis.diagnostics("file:///demo.c");
+        assert!(
+            chinese
+                .iter()
+                .any(|diagnostic| diagnostic.message == "未定义函数: missing_call")
+        );
+        assert!(
+            chinese
+                .iter()
+                .any(|diagnostic| diagnostic.message
+                    == "变量初始化类型不匹配: 期望 int，实际 string")
+        );
+        assert_eq!(english.len(), chinese.len());
+        for (english, chinese) in english.iter().zip(&chinese) {
+            assert_eq!(
+                (
+                    english.range,
+                    english.severity,
+                    english.code,
+                    english.source
+                ),
+                (
+                    chinese.range,
+                    chinese.severity,
+                    chinese.code,
+                    chinese.source
+                )
+            );
+        }
+        let workspace = analysis.workspace_diagnostics("file:///");
+        assert_eq!(workspace.len(), 1);
+        assert_eq!(workspace[0].diagnostics, chinese);
+        assert_eq!(analysis.metrics().snapshot_build_count, initial_builds);
+    }
+
+    #[test]
+    fn caches_message_keys_and_arguments_independently_of_session_language() {
+        let uri = "file:///cache/demo.c";
+        let source = "int original_name = \"original user text\";\n";
+        let mut analysis = indexed_database(uri, source);
+        let english = analysis.diagnostics(uri);
+        let bytes = analysis.export_indexed_cache().unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            value["schema_version"],
+            INDEXED_ANALYSIS_CACHE_SCHEMA_VERSION
+        );
+        let message = &value["files"][uri]["diagnostics"][0]["message"];
+        assert_eq!(message["key"], "diagnostic.type-mismatch");
+        assert_eq!(message["args"]["context"], "variable-initializer");
+        assert_eq!(message["args"]["expected"], "int");
+        assert_eq!(message["args"]["actual"], "string");
+        assert!(value.get("locale").is_none());
+
+        analysis.set_locale(Locale::ZhCn);
+        let chinese = analysis.diagnostics(uri);
+        assert_ne!(english[0].message, chinese[0].message);
+        assert_eq!(analysis.export_indexed_cache().unwrap(), bytes);
+
+        for locale in [Locale::En, Locale::ZhCn] {
+            let mut restored = AnalysisDatabase::default();
+            restored.set_locale(locale);
+            assert!(restored.import_indexed_cache(&bytes).unwrap().contains(uri));
+            let expected = if locale == Locale::En {
+                &english
+            } else {
+                &chinese
+            };
+            assert_eq!(restored.diagnostics(uri), *expected);
+            assert_eq!(restored.metrics().snapshot_build_count, 0);
+        }
+    }
+
+    #[test]
+    fn rejects_legacy_cache_before_deserializing_materialized_or_missing_fact_fields() {
+        let mut analysis = AnalysisDatabase::default();
+        for legacy_message in [serde_json::json!("旧的中文诊断"), serde_json::Value::Null] {
+            let legacy = serde_json::to_vec(&serde_json::json!({
+                "schema_version": 1,
+                "files": { "file:///legacy.c": { "diagnostics": [{ "message": legacy_message }] } }
+            }))
+            .unwrap();
+            assert!(analysis.import_indexed_cache(&legacy).unwrap().is_empty());
+            assert_eq!(analysis.metrics().indexed_file_count, 0);
+        }
+
+        let uri = "file:///cache/demo.c";
+        let current = indexed_database(uri, "int value = \"original\";\n");
+        let mut corrupted: serde_json::Value =
+            serde_json::from_slice(&current.export_indexed_cache().unwrap()).unwrap();
+        corrupted["files"][uri]["diagnostics"][0]["message"] = serde_json::json!("旧的中文诊断");
+        assert!(
+            analysis
+                .import_indexed_cache(&serde_json::to_vec(&corrupted).unwrap())
+                .is_err()
+        );
+        assert_eq!(analysis.metrics().indexed_file_count, 0);
+    }
+
+    #[test]
+    fn renders_function_macro_and_member_documents_from_structured_cache_facts() {
+        let uri = "file:///cache/docs.c";
+        let source = concat!(
+            "/**\n * @brief Original macro summary.\n * @param int item Original argument.\n */\n",
+            "#define DOC_MACRO(item) item\n",
+            "// **参数** original Markdown\n#define RAW_MACRO 1\n",
+            "struct Payload {\n",
+            "  /**\n   * @brief Original member summary.\n   * @details Original member details.\n   */\n",
+            "  string name;\n}\n",
+            "/**\n * @brief Original function summary.\n * @param int value Original value.\n * @return int Original return.\n */\n",
+            "int documented(int value) { return value; }\n",
+            "void demo() { struct Payload payload; payload.name; DOC_MACRO(1); documented(1); }\n"
+        );
+        let mut original = indexed_database(uri, source);
+        let bytes = original.export_indexed_cache().unwrap();
+        let cached = &original.files[uri];
+        assert!(matches!(
+            cached
+                .macros
+                .iter()
+                .find(|definition| definition.name == "DOC_MACRO")
+                .unwrap()
+                .documentation,
+            Some(DocumentationContent::Structured(_))
+        ));
+        assert!(matches!(
+            cached
+                .macros
+                .iter()
+                .find(|definition| definition.name == "RAW_MACRO")
+                .unwrap()
+                .documentation,
+            Some(DocumentationContent::Raw(_))
+        ));
+        assert!(matches!(
+            cached.type_definitions[0].members[0].documentation,
+            Some(DocumentationContent::Structured(_))
+        ));
+
+        let function_position =
+            byte_to_lsp_position(source, source.rfind("documented(1)").unwrap() + 3);
+        let macro_position =
+            byte_to_lsp_position(source, source.rfind("DOC_MACRO(1)").unwrap() + 3);
+        let member_position = byte_to_lsp_position(
+            source,
+            source.rfind("payload.name").unwrap() + "payload.na".len(),
+        );
+        let signature_position = byte_to_lsp_position(
+            source,
+            source.rfind("documented(1)").unwrap() + "documented(1".len(),
+        );
+        let definitions = original.definition(uri, function_position);
+        for (locale, parameters_title, returns_title, details_title) in [
+            (Locale::En, "**Parameters**", "**Returns**", "**Details**"),
+            (Locale::ZhCn, "**参数**", "**返回值**", "**详细说明**"),
+        ] {
+            let mut restored = AnalysisDatabase::default();
+            restored.set_locale(locale);
+            restored.import_indexed_cache(&bytes).unwrap();
+            let function = restored.hover(uri, function_position).unwrap();
+            assert!(function.contents.contains(parameters_title));
+            assert!(function.contents.contains(returns_title));
+            assert!(function.contents.contains("Original function summary."));
+            assert_eq!(restored.definition(uri, function_position), definitions);
+            let macro_hover = restored.hover(uri, macro_position).unwrap();
+            assert!(macro_hover.contents.contains(parameters_title));
+            assert!(macro_hover.contents.contains("Original argument."));
+            let member_hover = restored.hover(uri, member_position).unwrap();
+            assert!(member_hover.contents.contains(details_title));
+            assert!(member_hover.contents.contains("Original member details."));
+            let member = restored
+                .completion_candidates(uri, member_position)
+                .into_iter()
+                .find(|item| item.label == "name")
+                .unwrap();
+            assert!(member.documentation.unwrap().contains(details_title));
+            let signature = restored.signature_help(uri, signature_position).unwrap();
+            assert!(
+                signature.signatures[0]
+                    .documentation
+                    .as_ref()
+                    .unwrap()
+                    .contains(returns_title)
+            );
+            assert_eq!(
+                signature.signatures[0].parameters[0]
+                    .documentation
+                    .as_deref(),
+                Some("Original value.")
+            );
+            let candidate = restored
+                .completion_candidates(uri, function_position)
+                .into_iter()
+                .find(|item| item.label == "documented")
+                .unwrap();
+            assert!(candidate.documentation.unwrap().contains(parameters_title));
+            assert_eq!(
+                candidate.insert_text.as_deref(),
+                Some("documented(${1:value})")
+            );
+            let raw = restored.files[uri]
+                .macros
+                .iter()
+                .find(|definition| definition.name == "RAW_MACRO")
+                .unwrap();
+            assert_eq!(
+                raw.documentation.as_ref().unwrap().render_markdown(locale),
+                "**参数** original Markdown"
+            );
+            assert_eq!(restored.metrics().snapshot_build_count, 0);
+            assert_eq!(
+                serde_json::from_slice::<serde_json::Value>(
+                    &restored.export_indexed_cache().unwrap()
+                )
+                .unwrap(),
+                serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn localizes_predefined_macro_and_directive_copy_without_changing_candidates() {
+        let source = "void demo() { RAW_MACRO; }\n";
+        let mut analysis = database(source);
+        analysis.set_predefined_macros(vec![("RAW_MACRO".to_owned(), "original_value".to_owned())]);
+        let position = byte_to_lsp_position(source, source.find("RAW_MACRO").unwrap() + 4);
+        let mut identities = Vec::new();
+        for (locale, expected_macro, expected_directive) in [
+            (
+                Locale::En,
+                "Workspace predefined macro",
+                "Preprocessor directive: include",
+            ),
+            (Locale::ZhCn, "工作区预定义宏", "预处理指令: include"),
+        ] {
+            analysis.set_locale(locale);
+            let hover = analysis.hover("file:///demo.c", position).unwrap();
+            assert!(hover.contents.contains(expected_macro));
+            assert!(hover.contents.contains("#define RAW_MACRO original_value"));
+            let candidate = analysis
+                .completion_candidates("file:///demo.c", position)
+                .into_iter()
+                .find(|item| item.label == "RAW_MACRO")
+                .unwrap();
+            assert_eq!(candidate.documentation.as_deref(), Some(expected_macro));
+            identities.push((candidate.label, candidate.detail, candidate.insert_text));
+            let directive = analysis.directive_completion_candidates(
+                "file:///demo.c",
+                0,
+                DirectiveCompletionContext::PreprocessorDirective,
+                "include",
+            );
+            assert_eq!(directive[0].detail.as_deref(), Some(expected_directive));
+            assert_eq!(directive[0].label, "include");
+        }
+        assert_eq!(identities[0], identities[1]);
+        assert_eq!(analysis.metrics().snapshot_build_count, 1);
+    }
+
     #[test]
     fn resolves_async_function_calls_without_await_identifier_diagnostics() {
         let source = concat!(
@@ -7075,6 +7510,7 @@ mod tests {
     fn reports_empty_dynamic_heredoc_literals() {
         let source = "string help() { return @HELP\n   \nHELP; }\n";
         let mut empty_database = database(source);
+        empty_database.set_locale(Locale::ZhCn);
         let diagnostics = empty_database.diagnostics("file:///demo.c");
         assert!(diagnostics.iter().any(|diagnostic| {
             diagnostic.code == "emptyMultilineString" && diagnostic.message == "空的多行字符串"
@@ -7094,6 +7530,7 @@ mod tests {
     fn preserves_file_name_diagnostics_for_percent_encoded_uris() {
         let source = "int value;\n";
         let mut database = database(source);
+        database.set_locale(Locale::ZhCn);
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
@@ -7335,6 +7772,8 @@ mod tests {
         database.set_external_functions(vec![ExternalFunction {
             name: "write".to_owned(),
             summary: Some("driver output".to_owned()),
+            details: None,
+            note: None,
             signatures: vec![ExternalSignature {
                 label: "void write(mixed value)".to_owned(),
                 parameters: vec!["mixed value".to_owned()],
@@ -7369,6 +7808,8 @@ mod tests {
         database.set_external_functions(vec![ExternalFunction {
             name: "write".to_owned(),
             summary: None,
+            details: None,
+            note: None,
             signatures: Vec::new(),
         }]);
         let position = byte_to_lsp_position(source, source.rfind("write").unwrap());
@@ -7543,6 +7984,8 @@ mod tests {
         database.set_external_functions(vec![ExternalFunction {
             name: "write".to_owned(),
             summary: Some("write docs".to_owned()),
+            details: None,
+            note: None,
             signatures: vec![ExternalSignature {
                 label: "void write(mixed value)".to_owned(),
                 parameters: vec!["mixed value".to_owned()],
@@ -8017,6 +8460,8 @@ mod tests {
         database.set_external_functions(vec![ExternalFunction {
             name: "sizeof".to_owned(),
             summary: None,
+            details: None,
+            note: None,
             signatures: Vec::new(),
         }]);
         database.set_simulated_efun_files(vec!["/adm/single/simul_efun".to_owned()]);
@@ -8873,6 +9318,7 @@ mod tests {
             "void demo() { resolve_model()->world_object_button(0); }\n",
         );
         let mut analysis = database(source);
+        analysis.set_locale(Locale::ZhCn);
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
@@ -9232,9 +9678,12 @@ mod tests {
             "}\n",
         );
         let mut database = database(source);
+        database.set_locale(Locale::ZhCn);
         database.set_external_functions(vec![ExternalFunction {
             name: "sizeof".to_owned(),
             summary: None,
+            details: None,
+            note: None,
             signatures: vec![ExternalSignature {
                 label: "int sizeof(mixed value)".to_owned(),
                 parameters: vec!["mixed value".to_owned()],
@@ -9268,6 +9717,7 @@ mod tests {
             "}\n",
         );
         let mut database = database(source);
+        database.set_locale(Locale::ZhCn);
         let diagnostics = database.diagnostics("file:///demo.c");
         let undefined_symbols = diagnostics
             .iter()
@@ -9941,6 +10391,7 @@ mod tests {
             "void demo() { battle_choices(0, \"unarmed\"); }\n",
         );
         let mut database = database(source);
+        database.set_locale(Locale::ZhCn);
         let hover = database
             .hover(
                 "file:///demo.c",
@@ -10157,6 +10608,8 @@ mod tests {
         database.set_external_functions(vec![ExternalFunction {
             name: "write".to_owned(),
             summary: Some("向当前玩家输出信息。".to_owned()),
+            details: None,
+            note: None,
             signatures: vec![ExternalSignature {
                 label: "void write(mixed str)".to_owned(),
                 parameters: vec!["mixed str".to_owned()],
@@ -10249,6 +10702,8 @@ mod tests {
             ExternalFunction {
                 name: "overloaded".to_owned(),
                 summary: None,
+                details: None,
+                note: None,
                 signatures: vec![
                     ExternalSignature {
                         label: "mixed overloaded(mixed value)".to_owned(),
@@ -10267,6 +10722,8 @@ mod tests {
             ExternalFunction {
                 name: "variadic".to_owned(),
                 summary: None,
+                details: None,
+                note: None,
                 signatures: vec![
                     ExternalSignature {
                         label: "mixed variadic()".to_owned(),

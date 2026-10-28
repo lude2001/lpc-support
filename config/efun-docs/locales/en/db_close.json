@@ -1,0 +1,3 @@
+{
+  "summary": "Close the database connection identified by the given handle.\n\n   Return 1 on success and 0 on failure. An error is raised if the specified handle does not exist."
+}

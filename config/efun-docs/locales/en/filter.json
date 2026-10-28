@@ -1,0 +1,3 @@
+{
+    "summary": "If `x` is an array, filter() behaves like filter_array(). If `x` is a mapping, it behaves like filter_mapping(). If `x` is a string, each character is passed to the filter function as an integer. Characters for which the function returns 0 are removed; other characters are retained."
+}

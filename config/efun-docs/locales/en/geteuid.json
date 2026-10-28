@@ -1,0 +1,3 @@
+{
+    "summary": "For an object argument, return that object's effective user ID (euid). For a function pointer, return the effective user ID of the object that created it. If that object had no euid when the function pointer was created, use the object's uid instead. If no object is specified, use this_object()."
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "If <light_level_adjustment> is 0, queries the object's current light level. A positive value increases its light level; a negative value decreases it.\n\nThis function requires #undef NO_LIGHT in local_options.\n\nTranslator's note: in principle, this is an easily simulated game feature and should not need to be provided by the driver. Since the driver provides it, prefer the driver implementation."
+}

@@ -1,6 +1,5 @@
 {
   "name": "pcre_assoc",
-  "summary": "analog with reg_assoc efun for backwards compatibility reasons but utilizing the PCRE library.",
   "reference": [
     "pcre_cache",
     "pcre_extract",
@@ -8,7 +7,6 @@
     "pcre_version",
     "pcre_replace"
   ],
-  "category": "PCRE 相关函数(PCRE)",
   "signatures": [
     {
       "label": "mixed *pcre_assoc(string input, string *patterns, mixed *token_aray, void|mixed default)",
@@ -38,5 +36,6 @@
         "max": 5
       }
     }
-  ]
+  ],
+  "categoryId": "pcre"
 }

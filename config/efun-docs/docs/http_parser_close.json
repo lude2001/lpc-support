@@ -1,8 +1,5 @@
 {
   "name": "http_parser_close",
-  "summary": "FluffOS sockets package efun.",
-  "details": "关闭并释放由 http_parser_create 创建的 HTTP 请求解析器状态。",
-  "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {
       "label": "void http_parser_close( mixed )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "sockets"
 }

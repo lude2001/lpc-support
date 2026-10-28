@@ -1,0 +1,5 @@
+{
+  "summary": "Recompile an object's program in place according to the current driver semantics and return the number of affected objects.",
+  "details": "Recompile the program definition of a loaded object to refresh its code during development. The caller must handle object-state migration, rollback on failure, and the order in which related dependent objects are refreshed.",
+  "note": "The hot_reload daemon in the testsuite is a development example; it does not mean every project enables hot reloading by default."
+}

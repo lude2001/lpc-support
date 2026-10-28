@@ -1,0 +1,4 @@
+{
+    "summary": "The time_ns built-in function.",
+    "details": "NAME\ntime_ns() - return the number of nanoseconds since January 1, 1970\n\nSYNOPSIS\nint time_ns( void );\n\nDESCRIPTION\nReturns the number of nanoseconds since midnight (GMT) on January 1, 1970.\n\nAdded on May 30, 2023 in branch 3478cc2.\n\nSEE ALSO\ntime(3), ctime(3), localtime(3), time_expression(3), uptime(3), perf_counter_ns(3)"
+}

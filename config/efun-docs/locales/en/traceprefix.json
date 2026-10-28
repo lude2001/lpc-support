@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS develop package efun.",
+    "details": "Query or set the path-prefix filter for trace output, limiting the scope of debugging traces."
+}

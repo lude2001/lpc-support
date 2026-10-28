@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS develop package efun.",
+  "details": "Set the malloc debugging mask to control the scope of driver memory-debugging information collected."
+}

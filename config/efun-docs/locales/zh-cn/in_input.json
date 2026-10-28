@@ -1,0 +1,4 @@
+{
+    "summary": "检查是否在输入状态",
+    "details": "名称\nin_input() - 判断玩家是否正在通过 input_to 输入\n\n用法\nint in_input( object default : F_THIS_OBJECT );\n\n说明\n如果对象当前正在通过 input_to 或 get_char 输入，返回 1。\n\n参见\nget_char(3), input_to(3)"
+}

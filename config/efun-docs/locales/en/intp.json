@@ -1,0 +1,3 @@
+{
+    "summary": "Returns 1 if `arg` is an integer, or 0 otherwise."
+}

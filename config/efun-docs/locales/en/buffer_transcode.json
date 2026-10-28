@@ -1,0 +1,3 @@
+{
+  "summary": "Convert buffer `src` from encoding `from_encoding` to a buffer encoded as `to_encoding`."
+}

@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS sockets 软件包中的 Efun。",
+  "details": "创建一个 HTTP 响应解析器状态对象，用于分段解析 HTTP 响应数据。"
+}

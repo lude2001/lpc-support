@@ -1,10 +1,8 @@
 {
   "name": "master",
-  "summary": "返回主控对象指针，游戏运行时配置文件中的 `master file` 设置指定主控对象文件位置。",
   "reference": [
     "find_object"
   ],
-  "category": "对象相关函数（Objects）",
   "signatures": [
     {
       "label": "object master( void )",
@@ -16,5 +14,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "objects"
 }

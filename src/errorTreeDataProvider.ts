@@ -36,12 +36,12 @@ class ErrorTreeItem extends vscode.TreeItem {
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         this.tooltip = `${fullError}`;
-        this.description = `(line ${line})`;
+        this.description = vscode.l10n.t('(line {0})', line);
         this.iconPath = new vscode.ThemeIcon(type === 'compile' ? 'error' : 'bug');
         this.contextValue = 'errorItem'; // 添加contextValue以支持右键菜单
         this.command = {
             command: 'lpc.errorTree.openErrorLocation',
-            title: 'Open Error Location',
+            title: vscode.l10n.t('Open Error Location'),
             arguments: [this]
         };
     }
@@ -73,7 +73,7 @@ class FileTreeItem extends vscode.TreeItem {
             line = error.line;
             label = error.message.trim();
             type = 'runtime';
-            fullError = `Count: ${error.count}\n${error.message}`;
+            fullError = vscode.l10n.t('Count: {0}\n{1}', error.count, error.message);
         }
         this.children.push(new ErrorTreeItem(label, this.file, line, type, fullError));
     }
@@ -103,7 +103,7 @@ export class ErrorTreeDataProvider implements vscode.TreeDataProvider<vscode.Tre
 
     public getChildren(element?: vscode.TreeItem): Thenable<vscode.TreeItem[]> {
         if (!this._activeServerAddress) {
-            return Promise.resolve([new vscode.TreeItem("No error server selected.")]);
+            return Promise.resolve([new vscode.TreeItem(vscode.l10n.t('No error server selected.'))]);
         }
 
         if (element instanceof FileTreeItem) {
@@ -115,7 +115,7 @@ export class ErrorTreeDataProvider implements vscode.TreeDataProvider<vscode.Tre
             const allErrors: (CompileError | RuntimeError)[] = [...(this._errorData[0] || []), ...(this._errorData[1] || [])];
 
             if (allErrors.length === 0) {
-                const item = new vscode.TreeItem("太棒了！没有发现任何错误。", vscode.TreeItemCollapsibleState.None);
+                const item = new vscode.TreeItem(vscode.l10n.t('No errors found.'), vscode.TreeItemCollapsibleState.None);
                 item.iconPath = new vscode.ThemeIcon('check');
                 return Promise.resolve([item]);
             }
@@ -146,12 +146,12 @@ export class ErrorTreeDataProvider implements vscode.TreeDataProvider<vscode.Tre
 
         if (!this._activeServerAddress) {
             this._errorData = [[], []];
-            vscode.window.setStatusBarMessage('Error Viewer: No active server.', 5000);
+            vscode.window.setStatusBarMessage(vscode.l10n.t('Error Viewer: No active server.'), 5000);
             this._onDidChangeTreeData.fire();
             return;
         }
-        vscode.window.setStatusBarMessage(`LPC Error Viewer: ${this._activeServerName}`, 5000);
-        vscode.window.setStatusBarMessage('$(sync~spin) Fetching LPC errors...', 2000);
+        vscode.window.setStatusBarMessage(vscode.l10n.t('LPC Error Viewer: {0}', this._activeServerName ?? ''), 5000);
+        vscode.window.setStatusBarMessage(vscode.l10n.t('$(sync~spin) Fetching LPC errors...'), 2000);
         try {
             const compilePromise = axios.get(`${this._activeServerAddress}/error_info/get_compile_errors`);
             const runtimePromise = axios.get(`${this._activeServerAddress}/error_info/get_runtime_errors`);
@@ -159,9 +159,9 @@ export class ErrorTreeDataProvider implements vscode.TreeDataProvider<vscode.Tre
             this._errorData = [compileRes.data.errors || [], runtimeRes.data.errors || []];
         } catch (error) {
             this._errorData = [[], []];
-            let errorMessage = 'Failed to fetch errors.';
+            let errorMessage = vscode.l10n.t('Failed to fetch errors.');
             if (axios.isAxiosError(error) && error.code === 'ECONNREFUSED') {
-                errorMessage = `Connection to ${this._activeServerAddress} refused.`;
+                errorMessage = vscode.l10n.t('Connection to {0} refused.', this._activeServerAddress);
             }
             vscode.window.showErrorMessage(errorMessage);
         }
@@ -172,10 +172,10 @@ export class ErrorTreeDataProvider implements vscode.TreeDataProvider<vscode.Tre
         if (!this._activeServerAddress) return;
         try {
             await axios.get(`${this._activeServerAddress}/error_info/clear_all_errors`);
-            vscode.window.showInformationMessage('Errors cleared successfully.');
+            vscode.window.showInformationMessage(vscode.l10n.t('Errors cleared successfully.'));
             this.refresh();
         } catch (error) {
-            vscode.window.showErrorMessage('Failed to clear errors.');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to clear errors.'));
         }
     }
 

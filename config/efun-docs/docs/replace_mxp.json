@@ -1,8 +1,5 @@
 {
   "name": "replace_mxp",
-  "summary": "FluffOS dwlib package efun.",
-  "details": "转义或替换字符串中的 MXP 相关特殊字符，使文本适合输出到支持 MXP 的客户端。",
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "string replace_mxp( string )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

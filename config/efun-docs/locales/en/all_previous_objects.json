@@ -1,0 +1,3 @@
+{
+    "summary": "Returns an array of all objects that called the current function, equivalent to previous_object(-1). Calling a local function does not change the current object's previous_object()."
+}

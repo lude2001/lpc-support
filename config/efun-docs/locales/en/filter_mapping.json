@@ -1,0 +1,3 @@
+{
+    "summary": "Returns a mapping filtered by `ob->fun()` or function pointer `f`. Each key/value pair is passed to the filter function, followed in order by any `extra` arguments. A pair is removed when the filter returns 0 and retained otherwise. The filter arguments have the form: fun(mixed key, mixed value, mixed extra,...);\n\nThis is essentially the filter() efun overload: mapping filter(mapping, string | function, ...);"
+}

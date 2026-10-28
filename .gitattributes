@@ -1,6 +1,13 @@
 # Set default behavior to automatically normalize line endings.
 * text=auto
 
+# Localization checks compare generated JSON deterministically on every platform.
+/package.nls*.json text eol=lf
+/l10n/**/*.json text eol=lf
+/config/efun-docs/locales/**/*.json text eol=lf
+/tests/fixtures/localization/*.json text eol=lf
+/docs/i18n-efun-review/*.json text eol=lf
+
 # Exclude development-only files from git archive exports.
 src/**/__tests__/ export-ignore
 tests/ export-ignore

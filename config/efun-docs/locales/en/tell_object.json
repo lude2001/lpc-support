@@ -1,0 +1,3 @@
+{
+    "summary": "Sends message `str` to object `ob`. If it is a player, the message is displayed to that player. Otherwise it is caught by the object's catch_tell() apply."
+}

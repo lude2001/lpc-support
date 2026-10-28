@@ -1,6 +1,5 @@
 {
   "name": "objectp",
-  "summary": "如果 `arg` 是对象，返回 1。",
   "reference": [
     "mapp",
     "stringp",
@@ -13,7 +12,6 @@
     "undefinedp",
     "classp"
   ],
-  "category": "对象相关函数（Objects）",
   "signatures": [
     {
       "label": "int objectp( mixed arg )",
@@ -30,5 +28,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "objects"
 }

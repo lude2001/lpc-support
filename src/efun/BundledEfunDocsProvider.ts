@@ -21,7 +21,7 @@ export class BundledEfunDocsProvider {
             );
         });
         void this.bundledDocsReady.catch((error) => {
-            console.error('加载内置 Efun 文档失败', error);
+            console.error(vscode.l10n.t('Failed to load bundled efun documentation'), error);
         });
     }
 
@@ -39,9 +39,13 @@ export class BundledEfunDocsProvider {
         );
     }
 
+    public getCategoryLabel(categoryId: string): string {
+        return this.loader.getCategoryLabel(categoryId);
+    }
+
     public async configureSimulatedEfuns(): Promise<void> {
         await vscode.window.showInformationMessage(
-            '模拟函数入口文件来自 config.hell 的 simulated efun file，请修改 lpc-support.json 的 configHellPath 或对应 driver 配置文件。'
+            vscode.l10n.t('The simulated efun entry file comes from simulated efun file in config.hell. Update configHellPath in lpc-support.json or the corresponding driver configuration file.')
         );
     }
 }

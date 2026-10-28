@@ -1,9 +1,50 @@
 import * as vscode from 'vscode';
-import { describe, expect, jest, test } from '@jest/globals';
+import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { RustFunctionDocumentationLookupProvider } from '../services/RustFunctionDocumentationLookupProvider';
 
 describe('RustFunctionDocumentationLookupProvider', () => {
-    test('materializes structured docs and dependency groups without parsing LPC in TS', async () => {
+    const locales = [
+        { language: 'en', unavailable: 'The Rust language server did not return function documentation data.' },
+        { language: 'zh-cn', unavailable: 'Rust 语言服务器未返回函数文档数据。' }
+    ];
+
+    afterEach(() => {
+        (vscode.env as { language: string }).language = 'zh-cn';
+    });
+
+    test.each(locales)('reports a missing Rust snapshot in $language without changing the request', async locale => {
+        (vscode.env as { language: string }).language = locale.language;
+        const sendRequest = jest.fn(async () => undefined);
+        const bundledEfuns = { getAllFunctions: jest.fn(() => []), getStandardCallableDoc: jest.fn() };
+        const provider = new RustFunctionDocumentationLookupProvider({ sendRequest } as any, bundledEfuns as any);
+        const document = { uri: vscode.Uri.parse('file:///mud/demo.c') } as vscode.TextDocument;
+
+        await expect(provider.getFunctionDocLookupForDocument(document)).rejects.toThrow(new Error(locale.unavailable));
+
+        expect(sendRequest).toHaveBeenCalledTimes(1);
+        expect(sendRequest).toHaveBeenCalledWith('lpc/functionDocumentation', {
+            textDocument: { uri: document.uri.toString() }
+        });
+        expect(bundledEfuns.getStandardCallableDoc).not.toHaveBeenCalled();
+    });
+
+    test.each(locales)('preserves an external Rust request failure verbatim in $language', async locale => {
+        (vscode.env as { language: string }).language = locale.language;
+        const original = new Error('Raw sidecar failure: 原始消息 {0}');
+        const sendRequest = jest.fn(async () => { throw original; });
+        const provider = new RustFunctionDocumentationLookupProvider(
+            { sendRequest } as any, { getAllFunctions: () => [], getStandardCallableDoc: jest.fn() } as any
+        );
+        const document = { uri: vscode.Uri.parse('file:///mud/demo.c') } as vscode.TextDocument;
+
+        await expect(provider.getFunctionDocLookupForDocument(document)).rejects.toBe(original);
+        expect(sendRequest).toHaveBeenCalledWith('lpc/functionDocumentation', {
+            textDocument: { uri: document.uri.toString() }
+        });
+    });
+
+    test.each(locales)('materializes identical structured facts and user docs without parsing LPC in $language', async locale => {
+        (vscode.env as { language: string }).language = locale.language;
         const sendRequest = jest.fn(async () => ({
             currentFile: {
                 uri: 'file:///mud/demo.c',

@@ -1,0 +1,3 @@
+{
+    "summary": "Introduced in FluffOS 1.33. Finds the minimum value in array `arr` (int|float|string). If `flag` is omitted or 0, returns the minimum value; otherwise returns the index of the first occurrence of that minimum."
+}

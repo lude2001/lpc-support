@@ -1,0 +1,4 @@
+{
+    "summary": "Returns the value of global variable `arg` defined in object `ob`. If omitted, `ob` defaults to this_object(). The variable must be defined in that object and must not be private.\n\nRequires the driver to be compiled with PACKAGE_CONTRIB.\n\nThis efun poses a security risk. Prefer overriding it with a simulated efun that performs security checks.",
+    "details": "Example\nint weight = fetch_variable( \"weight\", this_player() ) ;\n   printf(\"%d\\n\", weight) ;"
+}

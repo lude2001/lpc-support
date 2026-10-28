@@ -1,0 +1,4 @@
+{
+    "summary": "Introduced in FluffOS 2.23. Calls function pointer *f when the current function ends, even if it ends because of a runtime error.\n\nTutorial: https://bbs.mud.ren/threads/158",
+    "details": "Example\nvoid create()\n   {\n     ::create();\n\n     defer( (: enable_commands :) );\n   }\n\n   The effect the defer() function has is it will cause the enable_commands() efun to be called after the execution of the create() function ends.  The argument passed to defer() can be any function type."
+}

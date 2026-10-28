@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS core 软件包中的 Efun。",
+  "details": "设置当前交互用户对象。该函数与 set_this_player 相关，通常只应在 driver 或底层框架明确需要时使用。"
+}

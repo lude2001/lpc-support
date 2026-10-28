@@ -1,0 +1,4 @@
+{
+    "summary": "remove_charmode 内置函数",
+    "details": "名称\nremove_charmode() - 将交互对象切换为行模式\n\n用法\nint remove_charmode(object);\n\n说明\n将交互对象切换为行模式。\n\n缺少参数时返回 -1。\n出错时返回 -2，例如对象已销毁或不是交互对象。\n否则返回清除了 char_mode 的当前 input_to 标志。\n\n参见\nquery_charmode(3), input_to(3), get_char(3)"
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "Returns the English words for number `num`. Returns `many` if num > 99999, num < 0, or `max` is supplied and num > max."
+}

@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS json package efun.",
+    "details": "Format a JSON string and return more readable text. The optional integer argument controls indentation or formatting options."
+}

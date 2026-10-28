@@ -1,7 +1,5 @@
 {
   "name": "query_notify_destruct",
-  "summary": "query_notify_destruct 内置函数",
-  "category": "对象相关函数（Objects）",
   "signatures": [
     {
       "label": "query_notify_destruct()",
@@ -12,5 +10,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "objects"
 }

@@ -1,8 +1,5 @@
 {
   "name": "vowel",
-  "summary": "FluffOS dwlib package efun.",
-  "details": "判断字符码对应的字符是否为元音，常用于英文文本冠词或短描述处理。",
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "int vowel( int )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

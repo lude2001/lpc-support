@@ -614,4 +614,85 @@ describe('FunctionDocPanel', () => {
             type: 'actionResult', ok: false, message: '文档已变化，请刷新后重试。'
         }));
     });
+
+    test.each([
+        { language: 'en', accepted: true },
+        { language: 'zh-cn', accepted: true },
+        { language: 'en', accepted: false },
+        { language: 'zh-cn', accepted: false }
+    ])('uses the safe-fix action ID in $language when accepted=$accepted', async ({ language, accepted }) => {
+        const localizationEnv = vscode.env as { language: string };
+        const { panel, postMessage } = createPanel();
+        const document = createTextDocument(
+            'D:/workspace/documented.c',
+            '/**\n * @brief Existing summary.\n * @param value First description.\n * @param value Duplicate description.\n */\nvoid run(int value) {}'
+        );
+        const callable = {
+            name: 'run', declarationKey: 'run-entry', sourceKind: 'local', declarationKind: 'implementation',
+            summary: 'Existing summary.',
+            attachedCommentRange: { start: { line: 0, character: 0 }, end: { line: 4, character: 3 } },
+            sourceRange: { start: { line: 5, character: 0 }, end: { line: 5, character: 22 } },
+            selectionRange: { start: { line: 5, character: 5 }, end: { line: 5, character: 8 } },
+            signatures: [{
+                label: 'void run(int value)', returnType: 'void', isVariadic: false,
+                parameters: [{ name: 'value', type: 'int', description: 'First description.' }]
+            }],
+            documentationIssues: [{ code: 'duplicate-param-tag', parameterName: 'value' }]
+        };
+        const provider = {
+            getFunctionDocLookupForDocument: jest.fn(async () => ({
+                currentFile: {
+                    source: 'documented.c', sourceKind: 'local', filePath: document.fileName,
+                    entries: [callable], docs: new Map([['run', callable]])
+                },
+                inheritedGroups: [], includeGroups: []
+            }))
+        };
+        const shownEditor = { document };
+        (vscode.window.showTextDocument as jest.Mock<(...args: any[]) => Promise<unknown>>).mockResolvedValue(shownEditor);
+        const warning = vscode.window.showWarningMessage as jest.Mock<(...args: any[]) => Promise<unknown>>;
+        warning.mockResolvedValueOnce({
+            title: accepted ? 'A different display title' : language === 'en' ? 'Apply safe fixes' : '应用安全修复',
+            actionId: accepted ? 'applySafeFixes' : 'anotherAction'
+        });
+        const panelInstance = new (FunctionDocPanel as any)(
+            panel, createContext(), provider, { openTextDocument: jest.fn(async () => document) }
+        );
+        const apply = jest.fn<(...args: any[]) => Promise<boolean>>().mockResolvedValue(true);
+        panelInstance.authoringService.apply = apply;
+        panelInstance.webviewReady = true;
+
+        try {
+            localizationEnv.language = language;
+            await panelInstance.update(document, true);
+            await panelInstance.handleMessage({
+                type: 'authorDocumentation', entryId: 'run-entry',
+                revision: panelInstance.acceptedSnapshot.revision, mode: 'update'
+            });
+
+            expect(warning).toHaveBeenCalledWith(
+                language === 'en'
+                    ? 'Safe fixes will be applied to inconsistent documentation tags.'
+                    : '即将对不一致的文档标签应用安全修复。',
+                expect.objectContaining({ modal: true }),
+                { title: language === 'en' ? 'Apply safe fixes' : '应用安全修复', actionId: 'applySafeFixes' }
+            );
+            if (accepted) {
+                expect(apply).toHaveBeenCalledWith(shownEditor, expect.objectContaining({ name: 'run' }), 'update', {
+                    removeDuplicateTags: true, removeStaleParamTags: false, removeOrphanParamTags: false
+                });
+            } else {
+                expect(apply).not.toHaveBeenCalled();
+            }
+            expect(postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+                type: 'actionResult', ok: accepted,
+                message: accepted
+                    ? language === 'en' ? 'Missing documentation completed.' : '文档缺失项已补全。'
+                    : language === 'en' ? 'Documentation update cancelled.' : '已取消文档更新。'
+            }));
+        } finally {
+            panelInstance.dispose();
+            localizationEnv.language = 'zh-cn';
+        }
+    });
 });

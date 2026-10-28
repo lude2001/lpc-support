@@ -1,0 +1,4 @@
+{
+  "summary": "Return the subset of array `arr` whose elements pass the method `fun` in object `ob`, or function pointer `f`. Each element of `arr` is passed to the filter function. Any additional `extra` arguments are also passed to it. If the filter returns a nonzero (truthy) value, the element is included in the result; otherwise it is excluded. If `arr` is not an array, mapping, or string, filter_array() returns 0.\n\n   This function is essentially the filter() efun: mixed filter(mixed *, string | function, ...);",
+  "details": "See also\nfilter(3), filter_mapping(3), sort_array(3), map_array(3)\n\nReturn semantics:\nThe filtered subarray, or 0."
+}

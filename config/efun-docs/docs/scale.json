@@ -1,7 +1,5 @@
 {
   "name": "scale",
-  "summary": "scale 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "float *scale(float *, float, float, float)",
@@ -30,5 +28,6 @@
         "max": 4
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

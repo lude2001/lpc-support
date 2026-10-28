@@ -56,6 +56,11 @@ jobs:
       - name: Test CI diagnostics handling
         run: npm run test:ci-tools
 
+      - name: Check localization resources and contracts
+        run: |
+          npm run check:l10n
+          npm run test:l10n
+
       - name: Type check
         run: npm run check
 
@@ -74,10 +79,14 @@ jobs:
           npm run test:rust
           npm run test:rust-formatter
 
+      - name: Compare TypeScript and Rust Efun localization consumers
+        run: npm run test:efun-localization-consumers
+
       - name: Build and smoke-test Rust LSP
         run: |
           npm run build:rust
           npm run test:rust-smoke
+          npm run test:rust-localization
 
       - name: Run tests
         run: npm test -- --runInBand
@@ -87,6 +96,9 @@ jobs:
 
       - name: Package extension
         run: npm run package
+
+      - name: Verify packaged bilingual resources and native target
+        run: node --input-type=module -e "import fs from 'node:fs'; import {checkVsixLocalization} from './scripts/localization/check-vsix-localization.mjs'; const files=fs.readdirSync('.').filter(f=>f.startsWith('lpc-support-')&&f.endsWith('.vsix')); if(files.length!==1) throw new Error('Expected exactly one built VSIX'); console.log(JSON.stringify(await checkVsixLocalization(files[0],{target:'win32-x64'})));"
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
@@ -146,8 +158,12 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Package native extension
         run: npm run package
+      - name: Verify packaged bilingual resources and native target
+        run: node --input-type=module -e "import fs from 'node:fs'; import {checkVsixLocalization} from './scripts/localization/check-vsix-localization.mjs'; const files=fs.readdirSync('.').filter(f=>f.startsWith('lpc-support-')&&f.endsWith('.vsix')); if(files.length!==1) throw new Error('Expected exactly one built VSIX'); console.log(JSON.stringify(await checkVsixLocalization(files[0],{target:'${{ matrix.target }}'})));"
       - name: Smoke-test the native sidecar included in this platform package
-        run: npm run test:rust-smoke
+        run: |
+          npm run test:rust-smoke
+          npm run test:rust-localization
       - name: Upload platform VSIX
         uses: actions/upload-artifact@v4
         with:

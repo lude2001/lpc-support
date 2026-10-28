@@ -5,6 +5,7 @@ import { ErrorTreeDataProvider } from '../errorTreeDataProvider';
 jest.mock('axios');
 
 describe('ErrorTreeDataProvider', () => {
+    afterEach(() => { (vscode.env as { language: string }).language = 'zh-cn'; });
     let projectConfigService: {
         loadForWorkspace: jest.Mock<(workspaceRoot?: string) => Promise<unknown>>;
     };
@@ -43,7 +44,11 @@ describe('ErrorTreeDataProvider', () => {
         expect(axios.get).toHaveBeenCalledWith('http://127.0.0.1:8081/error_info/get_runtime_errors');
     });
 
-    test('returns placeholder when project config does not provide remote servers', async () => {
+    test.each([
+        ['en', 'No error server selected.'],
+        ['zh-cn', '未选择错误服务器。']
+    ])('localizes the missing remote server placeholder in %s', async (language, message) => {
+        (vscode.env as { language: string }).language = language;
         projectConfigService.loadForWorkspace.mockResolvedValue({
             version: 1,
             configHellPath: 'config.hell',
@@ -60,7 +65,7 @@ describe('ErrorTreeDataProvider', () => {
         const children = await provider.getChildren();
 
         expect(axios.get).not.toHaveBeenCalled();
-        expect(children[0].label).toBe('No error server selected.');
+        expect(children[0].label).toBe(message);
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

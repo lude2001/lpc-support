@@ -1,8 +1,5 @@
 {
   "name": "moncontrol",
-  "summary": "FluffOS develop package efun.",
-  "details": "开启或关闭 driver profiling 采样控制，主要用于性能分析和开发调试。",
-  "category": "内部处理相关函数（Internals）",
   "signatures": [
     {
       "label": "void moncontrol( int )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "internals"
 }

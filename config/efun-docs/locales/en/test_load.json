@@ -1,0 +1,3 @@
+{
+    "summary": "Added in FluffOS 2.25. Test whether `file` can be loaded into the game. Return 1 if it can, or 0 otherwise."
+}

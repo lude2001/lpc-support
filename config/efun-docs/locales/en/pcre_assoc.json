@@ -1,0 +1,3 @@
+{
+    "summary": "analog with reg_assoc efun for backwards compatibility reasons but utilizing the PCRE library."
+}

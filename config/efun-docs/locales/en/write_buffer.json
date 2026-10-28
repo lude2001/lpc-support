@@ -1,0 +1,4 @@
+{
+    "summary": "If 'dest' is a file, then 'source' must be an int (and will be  written\n   to the file in network-byte-order), a buffer, or a string, and 'source'\n   will be written to the file 'dest' starting at byte # 'start'.\n\n   If 'dest' is a buffer, then 'source' will be written  into  the  buffer\n   starting  at  byte  # 'start' in the buffer.  If 'source' is an int, it\n   will be written in network-byte-order.",
+    "details": "Author\nTruilkan"
+}

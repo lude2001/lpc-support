@@ -1,0 +1,3 @@
+{
+  "summary": "Return an array containing all keys of mapping `m`.\n\n   For example, if:\n\n   mapping m;\n   m = ([\"hp\" : 35, \"sp\" : 42, \"mass\" : 100]);\n\n   then\n\n   keys(m) == ({\"hp\", \"sp\", \"mass\"})\n\n   The keys are not returned in a fixed order, but their order corresponds to that of the values returned by values()."
+}

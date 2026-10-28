@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS develop 包中的 Efun。",
+    "details": "设置 driver trace 调试级别，并返回此前的 trace 设置。"
+}

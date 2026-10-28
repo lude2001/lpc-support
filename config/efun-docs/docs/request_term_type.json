@@ -1,7 +1,5 @@
 {
   "name": "request_term_type",
-  "summary": "FluffOS 2.4 新增efun。",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "void request_term_type()",
@@ -13,5 +11,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

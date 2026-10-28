@@ -1,0 +1,3 @@
+{
+  "summary": "Return the player object that initiated the call. This always returns the original player object, equivalent to this_player(1), unlike this_player(), which can be affected by enable_commands() or command()."
+}

@@ -19,7 +19,7 @@ use url::Url;
 use crate::project_preprocessor::{ProjectPreprocessor, WorkspacePreprocessorConfig};
 
 const MAX_SOURCE_BYTES: u64 = 8 * 1024 * 1024;
-const WORKSPACE_INDEX_CACHE_SCHEMA_VERSION: u32 = 2;
+const WORKSPACE_INDEX_CACHE_SCHEMA_VERSION: u32 = 3;
 const WORKSPACE_INDEX_CACHE_ROOT_ENV: &str = "LPC_INDEX_CACHE_ROOT";
 const WORKSPACE_INDEX_CACHE_VERSION_ENV: &str = "LPC_INDEX_CACHE_VERSION";
 
@@ -769,7 +769,11 @@ mod tests {
         let source_path = root.join("caller.c");
         fs::write(&header_path, "#define VALUE 1\n").unwrap();
         fs::write(&included_path, "int included() { return VALUE; }\n").unwrap();
-        fs::write(&standalone_path, "int standalone() { return 1; }\n").unwrap();
+        fs::write(
+            &standalone_path,
+            "int standalone() { int unused = 1; return 1; }\n",
+        )
+        .unwrap();
         fs::write(
             &source_path,
             "#include \"shared.h\"\n#include \"included.c\"\nint caller() { return VALUE; }\n",
@@ -789,6 +793,10 @@ mod tests {
             analysis: root.join("cache/analysis.json"),
         };
         let initial_analysis = Arc::new(Mutex::new(AnalysisDatabase::default()));
+        initial_analysis
+            .lock()
+            .unwrap()
+            .set_locale(lpc_analysis::Locale::ZhCn);
         let initial_result = index_roots(
             roots.clone(),
             Vec::new(),
@@ -802,6 +810,19 @@ mod tests {
             },
         );
         assert_eq!(initial_result.indexed_files, 4);
+        let standalone_uri = url::Url::from_file_path(&standalone_path)
+            .unwrap()
+            .to_string();
+        let chinese_diagnostics = initial_analysis
+            .lock()
+            .unwrap()
+            .diagnostics(&standalone_uri);
+        assert!(
+            chinese_diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "unusedVar"
+                    && diagnostic.message.contains("未被使用"))
+        );
         save_workspace_cache(&cache_paths, &fingerprint, &stamps, &initial_analysis);
 
         let restored_analysis = Arc::new(Mutex::new(AnalysisDatabase::default()));
@@ -814,6 +835,57 @@ mod tests {
         );
         assert!(unchanged.is_empty());
         assert_eq!(cached_files, 4);
+        let mut restored = restored_analysis.lock().unwrap();
+        assert_eq!(restored.locale(), lpc_analysis::Locale::En);
+        let english_diagnostics = restored.diagnostics(&standalone_uri);
+        assert_eq!(
+            chinese_diagnostics
+                .iter()
+                .map(|diagnostic| (
+                    diagnostic.range,
+                    diagnostic.severity,
+                    diagnostic.code,
+                    diagnostic.source
+                ))
+                .collect::<Vec<_>>(),
+            english_diagnostics
+                .iter()
+                .map(|diagnostic| (
+                    diagnostic.range,
+                    diagnostic.severity,
+                    diagnostic.code,
+                    diagnostic.source
+                ))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            english_diagnostics
+                .iter()
+                .zip(&chinese_diagnostics)
+                .any(|(english, chinese)| english.message != chinese.message)
+        );
+        drop(restored);
+
+        let manifest_bytes = fs::read(&cache_paths.manifest).unwrap();
+        let mut previous_manifest: serde_json::Value =
+            serde_json::from_slice(&manifest_bytes).unwrap();
+        previous_manifest["schemaVersion"] =
+            serde_json::json!(WORKSPACE_INDEX_CACHE_SCHEMA_VERSION - 1);
+        fs::write(
+            &cache_paths.manifest,
+            serde_json::to_vec(&previous_manifest).unwrap(),
+        )
+        .unwrap();
+        let (files_to_reindex, cached_files) = restore_workspace_cache(
+            &files,
+            &stamps,
+            &fingerprint,
+            Some(&cache_paths),
+            &Arc::new(Mutex::new(AnalysisDatabase::default())),
+        );
+        assert_eq!(files_to_reindex.len(), files.len());
+        assert_eq!(cached_files, 0);
+        fs::write(&cache_paths.manifest, manifest_bytes).unwrap();
 
         fs::write(&standalone_path, "int standalone() { return 12; }\n").unwrap();
         let changed_source_stamps = file_stamps(&files);

@@ -1,0 +1,4 @@
+{
+    "summary": "query_privs 内置函数",
+    "details": "名称\nquery_privs() - 返回对象的 privs 字符串\n\n用法\nstring query_privs( object ob | void );\n\n说明\n返回对象的 privs 字符串。该字符串在编译时通过调用主控对象中的 privs_file() 确定，可通过 set_privs() 外部函数修改。\n\n仅在编译驱动时定义了 PRIVS 的情况下可用。\n\n参见\nprivs_file(4), set_privs(3)"
+}

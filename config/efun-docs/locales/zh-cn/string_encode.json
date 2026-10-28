@@ -1,0 +1,3 @@
+{
+    "summary": "将 utf-8 编码的字符串 `str` 编码为 `encoding` 编码的缓冲区。"
+}

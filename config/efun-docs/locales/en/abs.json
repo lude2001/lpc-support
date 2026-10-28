@@ -1,0 +1,3 @@
+{
+    "summary": "Returns the absolute value of the argument.\n\nThis efun was introduced in FluffOS 2.0. In MUDOS, implement it as a simulated efun."
+}

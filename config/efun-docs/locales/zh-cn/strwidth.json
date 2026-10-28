@@ -1,0 +1,3 @@
+{
+  "summary": "FluffOS 2.1 新增efun，strwidth() 返回字符串 'str' 的显示宽度。\n\n   驱动使用 https://www.unicode.org/reports/tr11/tr11-36.html 中定义的规则计算字符宽度。\n   控制字符没有宽度；宽字符（包括表情符号）占两列。sprintf() 布局字符串时也使用这一规则。"
+}

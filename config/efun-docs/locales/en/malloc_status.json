@@ -1,0 +1,4 @@
+{
+    "summary": "The malloc_status built-in function.",
+    "details": "NAME\nmalloc_status() - report various statistics related to memory usage.\n\nSYNOPSIS\nstring malloc_status();\n\nDESCRIPTION\nThis  function  writes  memory usage statistics to the caller's screen.\n   This function replaces the hardcoded 'malloc' command in vanilla 3.1.2.\n   Note  that  the  output  produced by malloc_status() depends upon which\n   memory management package is chosen  in  options.h  when  building  the\n   driver.\n\nSEE ALSO\nmud_status(3), dumpallobj(3), memory_info(3)"
+}

@@ -1,0 +1,4 @@
+{
+  "summary": "socket_close() 关闭 socket `s`，这将释放一个 socket 位置以供使用。",
+  "details": "返回值：\n成功返回 EESUCCESS ，失败返回代表以下错误的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性"
+}

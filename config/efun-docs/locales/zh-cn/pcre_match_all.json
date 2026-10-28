@@ -1,0 +1,4 @@
+{
+  "summary": "pcre_match_all 内置函数",
+  "details": "名称\npcre_match_all() - 查找所有匹配项\n\n用法\nmixed pcre_match_all(string input, string pattern);\n\n说明\n与 PHP 的 preg_match_all 类似，此函数返回一个字符串数组组成的数组，\n   包含所有匹配项及捕获组。\n\n示例\n// https://tools.ietf.org/html/rfc3986#appendix-B\n   pcre_match_all(\"http://www.ics.uci.edu/pub/ietf/uri/#Related\",\n                      \"^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?\" ));\n\n   返回\n     ({ /* sizeof() == 1 */\n       ({ /* sizeof() == 10 */\n         \"http://www.ics.uci.edu/pub/ietf/uri/#Related\",\n             \"http:\",\n             \"http\",\n             \"//www.ics.uci.edu\",\n             \"www.ics.uci.edu\",\n             \"/pub/ietf/uri/\",\n             \"\",\n             \"\",\n             \"#Related\",\n             \"Related\"\n       })\n     }),\n\n   整个字符串中共有 1 个匹配项。数组的第一项是匹配的子字符串，后续各项是全部捕获组。"
+}

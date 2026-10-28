@@ -1,0 +1,4 @@
+{
+    "summary": "Set or clear an operating-system environment variable permitted by the driver's writable-variable allowlist.",
+    "details": "Set an operating-system environment variable that LPC is allowed to modify. Omitting value clears the variable. The driver configuration determines whether writing is permitted."
+}

@@ -1,6 +1,5 @@
 {
   "name": "cos",
-  "summary": "Returns the cosine of its argument, 'f', measured in radians.",
   "reference": [
     "acos",
     "asin",
@@ -8,7 +7,6 @@
     "sin",
     "tan"
   ],
-  "category": "浮点运算相关函数（Floats）",
   "signatures": [
     {
       "label": "float cos( float f )",
@@ -25,5 +23,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "floats"
 }

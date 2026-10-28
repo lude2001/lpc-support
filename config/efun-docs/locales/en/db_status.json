@@ -1,0 +1,3 @@
+{
+  "summary": "Return a string describing the current database connection status, including all database handles."
+}

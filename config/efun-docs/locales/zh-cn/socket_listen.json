@@ -1,0 +1,4 @@
+{
+    "summary": "为了接收连接，需要先使用 socket_create() 创建 socket，再使用 socket_bind() 绑定，随后使用 socket_listen() 进入监听模式，最后使用 socket_accept() 接收连接。监听支持 MUD、STREAM、STREAM_BINARY、STREAM_TLS 和 STREAM_TLS_BINARY 模式；数据报模式不能监听。\n\n要建立可用的 TLS 服务器，应在监听前通过 socket_set_option() 配置 SO_TLS_CERT 和 SO_TLS_KEY。缺少其中任一项时，驱动会记录警告，而不会立即拒绝 socket_listen()。\n\n   参数 `listen_callback` 是监听中的 socket 收到连接请求时驱动程序调用的函数名称，函数原型格式如下：\n\n   void listen_callback(int fd)\n\n   其中参数 `fd` 是正在监听中的 socket 连接。",
+    "details": "返回语义：\n成功时返回 EESUCCESS，失败（错误）时返回代表以下意义的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性\n   EEMODENOTSUPP  不支持的 Socket 模式\n   EENOADDR       Socket 没有绑定地址\n   EEISCONN       Socket 已连接\n   EELISTEN       监听有问题"
+}

@@ -1,0 +1,3 @@
+{
+  "summary": "This function is available only when the driver is compiled without NO_WIZARD defined.\n\n   Calling enable_wizard() for an interactive object (player) makes wizardp() return true (1) for that object. It gives the player these three privileges:\n\n   1. Access to the restricted modes of ed when RESTRICTED_ED is defined at driver compile time.\n   2. Receipt of detailed runtime error information.\n   3. Access to the trace() and traceprefix() efuns."
+}

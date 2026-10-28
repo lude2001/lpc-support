@@ -1,0 +1,4 @@
+{
+    "summary": "Convert a string, an existing buffer, or an integer array into a buffer. Integer array elements must be byte values in the range 0..255.",
+    "details": "Convert a string's byte contents to a buffer. For a buffer argument, return the corresponding buffer value. For an array argument, form a byte sequence from its integer elements in the range 0..255."
+}

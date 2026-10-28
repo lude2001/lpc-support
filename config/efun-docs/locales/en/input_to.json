@@ -1,0 +1,3 @@
+{
+    "summary": "Pass the player's next input to the local function `fun`. The driver does not parse the input characters.\n\ninput_to() listens without blocking: the calling object continues executing rather than waiting for user input.\n\nIf input_to() is called more than once during the same execution, only the first call takes effect.\n\nIf the optional `flag` is nonzero, input characters are not echoed and are not shown to snoopers, which is useful when entering passwords.\n\nWhen `fun` executes, the input is its first argument, as a string. Arguments after `flag` in the call to input_to() are passed as additional arguments to `fun`.\n\nUsage is similar to get_char(), except that it receives a string rather than a single character."
+}

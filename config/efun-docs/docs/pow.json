@@ -1,12 +1,10 @@
 {
   "name": "pow",
-  "summary": "pow() 返回 x 的 y 次方。如果 x 是 0.0，y 必须是正整数，如果 x 是负数，y 必须是整数。",
   "reference": [
     "exp",
     "log",
     "sqrt"
   ],
-  "category": "浮点运算相关函数（Floats）",
   "signatures": [
     {
       "label": "float pow( int | float x, int | float y )",
@@ -27,5 +25,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "floats"
 }

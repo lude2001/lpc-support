@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { spawn } from 'child_process';
+import * as vscode from 'vscode';
 import { LocalLpccpCompilationBackend } from '../LocalLpccpCompilationBackend';
 
 jest.mock('child_process', () => ({
@@ -30,6 +31,7 @@ function createSpawnProcess(exitCode: number, stdout = '', stderr = '') {
 }
 
 describe('LocalLpccpCompilationBackend', () => {
+    afterEach(() => { (vscode.env as { language: string }).language = 'zh-cn'; });
     beforeEach(() => {
         (spawn as jest.Mock).mockReset();
     });
@@ -209,7 +211,11 @@ describe('LocalLpccpCompilationBackend', () => {
         })).rejects.toThrow('cannot connect to compile service pipe');
     });
 
-    test('throws clear error when stdout is not valid JSON', async () => {
+    test.each([
+        ['en', 'lpccp returned invalid JSON'],
+        ['zh-cn', 'lpccp 返回的 JSON 无效']
+    ])('throws a localized error for invalid JSON in %s', async (language, message) => {
+        (vscode.env as { language: string }).language = language;
         const backend = new LocalLpccpCompilationBackend();
         (spawn as jest.Mock).mockReturnValue(createSpawnProcess(0, 'not-json'));
 
@@ -221,7 +227,7 @@ describe('LocalLpccpCompilationBackend', () => {
                 useSystemCommand: true,
                 driverConfigPath: 'D:/mud/etc/config.test'
             }
-        })).rejects.toThrow('lpccp returned invalid JSON');
+        })).rejects.toThrow(message);
     });
 });
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals';

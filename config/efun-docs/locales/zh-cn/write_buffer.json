@@ -1,0 +1,4 @@
+{
+    "summary": "如果 'dest' 是文件，'source' 必须是整数、buffer 或字符串；整数以网络字节序写入。将 'source' 从文件 'dest' 的字节位置 'start' 开始写入。\n\n如果 'dest' 是 buffer，将 'source' 写入该 buffer，从字节位置 'start' 开始。如果 'source' 是整数，以网络字节序写入。",
+    "details": "作者\nTruilkan"
+}

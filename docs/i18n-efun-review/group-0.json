@@ -1,0 +1,1894 @@
+{
+    "group": 0,
+    "hashMode": "sha256-canonical-json-v1",
+    "items": [
+        {
+            "name": "abs",
+            "sourceSha256": "e59643511b6c5057dbba5763ea9e9d1f630fb80f928529ada0b363f031ecbf8d",
+            "enSha256": "42557fd15e92cb3d41a5542e6da9eccb2b508aba4499b3c44a40c6063366fdeb",
+            "zhCnSha256": "5baabc62f2cf9204148a4e29c8b7c51026e8d24badf8058cdc5c2aa4830920a2",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "add_a",
+            "sourceSha256": "8d22a93b250662d9e1a0547db16f92ca149c3c500950ff9f4b7200e31d937d0f",
+            "enSha256": "c4c965d4498b04e53c6a44fc4f9e14fcb38954ee9622c95d4912db2822da0f92",
+            "zhCnSha256": "68e26fa33470bb92067384899880ab20f71d8ec45043d445d639ad1c19496c16",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "all_previous_objects",
+            "sourceSha256": "c290944f41a6d11e72ea11d6d5762a4c65af787daef3391ddedc8c59f958d34b",
+            "enSha256": "80eaf74df8d7ab4c18e2213d3b0d976bf8c612586e2d653585202c302f75e744",
+            "zhCnSha256": "eb06a3215614925580e366f9b989ba4d88a830a7969536c2a3926e13fd80815f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "allocate_mapping",
+            "sourceSha256": "ffa115b33164979a2aa4ba2efe79df546354c44b842bffb1670e6f0188c2e27f",
+            "enSha256": "265a388fc96588e269ca758dfdc38a2139958c437e271fa19d6d638daa7d19c4",
+            "zhCnSha256": "66767e9d61a074b178c1973b96dbb1e6faafdd52ec323f4ebdca0dec8122cd52",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Independent review correction: the overload returns a mapping. The original inline examples and complete details examples are preserved verbatim."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/efuns_main.cc:75-99",
+                    "detail": "Correct the overload result from array/数组 to mapping/映射; all paths set T_MAPPING. Restore source inline example spacing exactly: x= allocate_mapping(200); and x =([ ]);."
+                }
+            ]
+        },
+        {
+            "name": "asin",
+            "sourceSha256": "7ef86f8a16619235c158f03a10d058fcce2520344ca0fa39dfb3bb17066124ba",
+            "enSha256": "c1769626301280a6f5f46ac639906ca0b34137ce216daccc89d96d2c5e8c3473",
+            "zhCnSha256": "33c9ab15e5223b1690e291238e2f91afb1d86b01aec103fabffdaa719916ba2f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "async_getdir",
+            "sourceSha256": "6c60f0ab5a7914937f8204278e6d8a6fd1d1b21d3eaf651b4c516491f7eb65c8",
+            "enSha256": "ce6363b2428f64506938e9eccf05afcb8a78f5962ebe498f9df7227951581e75",
+            "zhCnSha256": "f0a5952b019ccf9bcc218fba78062568e719beaa3af818dc2b2fc0d3e5ad164b",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The callback example, including its original Chinese comments, was preserved verbatim."
+            ],
+            "retainedFragments": [
+                {
+                    "field": "summary",
+                    "text": "// 当目录不存在时返回0",
+                    "reason": "code-example"
+                },
+                {
+                    "field": "summary",
+                    "text": "// 没有匹配文件时返回空数组",
+                    "reason": "code-example"
+                },
+                {
+                    "field": "summary",
+                    "text": "// 匹配的文件名数组",
+                    "reason": "code-example"
+                }
+            ]
+        },
+        {
+            "name": "async_yield",
+            "sourceSha256": "03a2e588d101220ad3d571ec04ce71044635236e7687e6e6ef2afc4436cc9f7c",
+            "enSha256": "dd3076c153ac630e48a82570dace21f3a59d7df10d35127f996ea4a7bb6f3aee",
+            "zhCnSha256": "ef1035be134a2c162c81ce2ce106c4ad73cfd2b66907b76eb2a71ceb26d8bfde",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "base_name",
+            "sourceSha256": "041b1518b62f4c6cdd82396e2727f703c5104799ceca367842cc02d85f2c552f",
+            "enSha256": "f1ba754f152359d00a2c685d139fe255427939b05e9d1fded7257e34c8a703ff",
+            "zhCnSha256": "50f72768be4da4c98f4733f0bbc9b76f2b9b4c1053509c1191a0b2c927243e2f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "bufferp",
+            "sourceSha256": "9402f85352f36e7efe65f2ee2145459817307d2ecbf2d2512bf2a3ded0678518",
+            "enSha256": "f097ecb692163c968dfb8f1644d82e7eff11b0bdabd0068f224e05018d975f66",
+            "zhCnSha256": "8a370c7593b1a586a0b4a9cff90c47956380e13c6bccd9d04a71b1b6d6775517",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "call_out",
+            "sourceSha256": "4ed66425f912ea604b08107d383abf0bda999b906fa8be50a0e2b4d9ad9274ad",
+            "enSha256": "fdd30703ee66e1563e5f4ab6d3258c26a34a8ec9f516ff70d9e26ab880da715d",
+            "zhCnSha256": "200dfee6aa30e3eb301bce7cf079c2d7a707b3367f5aa3b99222e9c2fb7d2213",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Independent review correction resolved fractional-delay units from the maintained implementation; this entry still documents its original callback/handle form, without inventing an undocumented signature."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/call_out.cc:145-154,744-764",
+                    "detail": "Both integer and floating-point delays are seconds; the implementation multiplies both by 1000 before scheduling by gameticks. Remove the implication that a float argument changes its unit to milliseconds."
+                }
+            ]
+        },
+        {
+            "name": "call_stack",
+            "sourceSha256": "4301ef6fdd7af12ff8d925ac82f3d5e127b5891b1cf898b4e4c393109be36c84",
+            "enSha256": "9956b8074e3b861ec0dc642234834437577b739794174947834097023b87635e",
+            "zhCnSha256": "b9eafdf4df8c86100d5a14885d16a3189116f8ea88287d17a44641d7995eb688",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Independent review correction makes both mode-0 paragraphs agree with the implementation and unchanged filename examples. Chinese user literals in sample output remain unchanged."
+            ],
+            "retainedFragments": [
+                {
+                    "field": "details",
+                    "text": "\"杨宇(test)\"",
+                    "reason": "code-literal"
+                }
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/efuns_main.cc:283-294,311-328",
+                    "detail": "Mode 0 returns program filenames; mode 2 returns function names. Correct both repeated mode-0 descriptions while preserving all modes and the original sample output."
+                }
+            ]
+        },
+        {
+            "name": "ceil",
+            "sourceSha256": "1552883d57b9ac58415694004ca71262d70cb42cdf24cf705fd848247236b412",
+            "enSha256": "e3f0cebbcb2270816ccf89d1ed2d20e8007500c274b80d7601aac92ed141910c",
+            "zhCnSha256": "a3e740b1ea54bc7815e97fbdffddbf0895608c6a961660ae26d09673c64842c6",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "classes",
+            "sourceSha256": "94a5c4756db2f5852bc20fc6dd270572e33eb9f348125c7b10ee789a41d583ed",
+            "enSha256": "5fcc29b63de46501137e8ad8a7eab71e089ceceb869d1360ef6966e3894932e0",
+            "zhCnSha256": "964c6fae9582686549cb089fa2e192269691a5f9d6d0017a8945f9192203fca6",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The original full-width punctuation and quoted names in the illustrated return format are preserved."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/contrib/contrib.cc:3095-3142",
+                    "detail": "The efun enumerates program class definitions, not class-valued variables or instances. It returns class names without the flag and class/member metadata for any nonzero flag. The illustrated return-format token is unchanged."
+                }
+            ]
+        },
+        {
+            "name": "clear_debug_level",
+            "sourceSha256": "47a93d66fe5ed5344bc5b24316526aa4ee2493c0c73597024d6bcbd9a5154cb1",
+            "enSha256": "9c60dc9b37120546fde10774be4e887b849fd004fa2575fa29ea3d39555d9115",
+            "zhCnSha256": "48272cdb5d2a43252dae522b80d84c967d50a96ab8aded5d9f41eec0ad77a1a6",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/clear_debug_level/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "command",
+            "sourceSha256": "2d7e839b39f389093a21b4b5d749bdd4aa783d2316dd4dde27ce09d34ee01963",
+            "enSha256": "9819a3400ea63d8cca25af5dff00749b2773901cc5651e36898b9cb036458a8b",
+            "zhCnSha256": "42bfbc3d856afd3e21ecde6bc591b7826bd871d215c1265e56c84309623d5889",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "compress_file",
+            "sourceSha256": "85b0dc001132cc1a578a428a8fad368a67f44aac77a7c35b6d788f742189332a",
+            "enSha256": "2d68f285f449da0f1b495614f2d47efac34a079c7fa52c976593d470422c32ad",
+            "zhCnSha256": "1ead8396d448aeaf1e75ddaa7fa1526e2cd17e91d1ffcd558652e6573b76fcc5",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/compress_file/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "cos",
+            "sourceSha256": "b32f4c7575436138d05230fbbecc70a05a7e8a6f062916285dfab356a0f0c4dd",
+            "enSha256": "02b4fa92d0517dc7652d5a51a5d088dbaaa0e46b5b1bb83e39ce647bab0b1987",
+            "zhCnSha256": "e3834428c75215596aa942d7c2864bfddab2982cc8a5d320b8ad897049d0ee50",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "crypt",
+            "sourceSha256": "05adf7046ed0ff8e16b0374a13b90d8a18324757c82a4fd794a9809726ffdaa3",
+            "enSha256": "abe56b7251572e57c4f1771138dbf5629c1992407479c1d112ebae77765229c6",
+            "zhCnSha256": "4a74191143aa98645251b5e2cf83f2f51cb4ec41e04d14215904c44675a95445",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "All code and original comments in the password example are retained verbatim."
+            ],
+            "retainedFragments": [
+                {
+                    "field": "details",
+                    "text": "// 将用户输入转化为加密密码",
+                    "reason": "code-example"
+                },
+                {
+                    "field": "details",
+                    "text": "// 将加密后的密码存储在用户账号存档中",
+                    "reason": "code-example"
+                },
+                {
+                    "field": "details",
+                    "text": "// 将登录输入与存储的加密密码进行比较",
+                    "reason": "code-example"
+                },
+                {
+                    "field": "details",
+                    "text": "// 有效密码",
+                    "reason": "code-example"
+                },
+                {
+                    "field": "details",
+                    "text": "// 无效的密码尝试",
+                    "reason": "code-example"
+                }
+            ]
+        },
+        {
+            "name": "db_commit",
+            "sourceSha256": "bdd7159960c9a209ce3fb422b1d09cab831adfd13d88ff65549b1910bb560337",
+            "enSha256": "16dccd40706a3e5edc03891e669f390d898529e914115a29d732eb9e6f8115f0",
+            "zhCnSha256": "a07ce3ad05396aeb5cd85f15d23d28f6f16458f782fce13efee55abac6486f39",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Independent review correction qualifies the summary using maintained backend definitions; the details accurately retain the unimplemented status."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/db/db.cc:126-169,237-265",
+                    "detail": "All maintained backend definitions have null commit callbacks. f_db_commit defaults to 0, checks valid_database, rejects an invalid handle, and only invokes a non-null commit callback. Qualify the conceptual behavior and retain the existing not-implemented details and signature."
+                }
+            ]
+        },
+        {
+            "name": "db_fetch",
+            "sourceSha256": "f000c9825a7b49e13f7d9fa840d0a8e73f0968cb93a2167a495ffb92737bcebf",
+            "enSha256": "696a2d5f4a3a2791b3a068ae808879606f6b17214a66e8f83ebf4a0d8ab4187a",
+            "zhCnSha256": "24fd507f2b4411a3e56e22a4295b940f844d94dfcc16356700a12d4cf9241faf",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The database example and its original user-facing Chinese string literal are preserved verbatim."
+            ],
+            "retainedFragments": [
+                {
+                    "field": "details",
+                    "text": "\"查询结果为空\\n\"",
+                    "reason": "code-literal"
+                }
+            ]
+        },
+        {
+            "name": "debug_info",
+            "sourceSha256": "1356debf11967a050bccd4011ce043962648304a09c92df7978868257040bf00",
+            "enSha256": "02f7705be2a53bb4fea4749f4465ac3b1e85de1b3952cffa954fa0b89d5e2e5c",
+            "zhCnSha256": "4c6390d862f670e308079cbc83054c044c20bba9bb380ddeffb3ca8ea0a55e4c",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The complete diagnostic output example is retained verbatim, including paths, identifiers, numbers and Chinese user-data literals."
+            ],
+            "retainedFragments": [
+                {
+                    "field": "details",
+                    "text": "\"小\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"男性\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"泥巴\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"头部\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"颈部\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"胸口\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"后心\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"左肩\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"右肩\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"左臂\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"右臂\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"左手\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"右手\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"腰间\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"小腹\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"左腿\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"右腿\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"左脚\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"右脚\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"小泥巴\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"人类\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"扬州人氏\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"位\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"普通百姓\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"没有\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"锦缎(jinduan)\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "\"仙履(shoes)\"",
+                    "reason": "code-literal"
+                }
+            ]
+        },
+        {
+            "name": "debugmalloc",
+            "sourceSha256": "0e0db22549263f38d536cc56c043789f799e96192fbf101aa49af01b65419be2",
+            "enSha256": "b451b4303084e57aeac94fef66c7dddaa301833baf074e32154c40adbccb7c6c",
+            "zhCnSha256": "4bf708a597515c1ce15c310627f1b45b63b7313e81b87e58560de2a18eb8562a",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "defer",
+            "sourceSha256": "f6434fca0ba090e5740c2ef3f8e45b7b7c758bcbed15926f5e108287eb07fc90",
+            "enSha256": "1a5bb38b450f7fa8c0c68f145d07e5e0c319f4d46f7972424bff541f8e7a9d73",
+            "zhCnSha256": "833f6a69dd750b2fa8a6302e3b979a124bb05790f0d0ee5d79e87152df9ca381",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "disable_commands",
+            "sourceSha256": "48abbb13bc1f92960be4c36712ce6f44dd8931f7fbfad27b1fad7efd57b957c1",
+            "enSha256": "3f1da47c13467f492c814508d61ba809c45185823c3f01a7d92d82265b143fbe",
+            "zhCnSha256": "4ac6d4d0fca4bffbc1efc2e41e86518cbaf4ecdb16fd3632e82e550c9695dcb8",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "distance",
+            "sourceSha256": "a4c1b4cf815864e67c7003febf4e1afcd343591cff91fffa23991737e3c3edfd",
+            "enSha256": "ac921985ac3033f19bfcab795cab1ede5aa8ec7d22006302a90d8ff93ce859b8",
+            "zhCnSha256": "e459d98e8df84fed1028edafdd4c7864d61bcde1923e6f3fda13f88821ba6541",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "dump_file_descriptors",
+            "sourceSha256": "d2f0df130ecb368e92af2691e7d0d88e1110a7068f9bc50e04e82a938e36d38e",
+            "enSha256": "47e0e0d658d8a2f59c11c9b182dc44309a5b1652dac7056dc6268ffcfb0cd89f",
+            "zhCnSha256": "bcd5ca60b8dd99eb2b923bafd642c7fc070e8e3b4174bc82f011ea31ee35aa78",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Independent review correction labels the old functional description and output table as historical. The exact unsupported message and descriptor table remain unchanged."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "details",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/efuns_main.cc:3254-3261",
+                    "detail": "The implementation only returns the literal unsupported message. Add a bilingual current-behavior qualification without changing the historical table, signature, or literal diagnostic output."
+                }
+            ]
+        },
+        {
+            "name": "dump_stralloc",
+            "sourceSha256": "ba7a9ce28dda13bddae1bb6c4a7a7be22340d0de7912b6bba0310d2da85e45b9",
+            "enSha256": "fbeb8ce3d273d077327d3b91328245edb0261021a509d3f30fb003f6d1f106d2",
+            "zhCnSha256": "ea4f9ae3a8128dded077b2d8db238bac28ffb8d0b460b3f1384b5e600774cd90",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/dump_stralloc/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "ed",
+            "sourceSha256": "073b647aa6c3ba7135d3af65537eb29580959945f693ff1fd6cee71ffdbe592e",
+            "enSha256": "e398a102e363585fa1604e4e59971b3f4299780367beeeb42944cad21dd70066",
+            "zhCnSha256": "f804f3ed4d6f50d541391a8965e4502ef14452bac2200e8f4ef85cac94ec6011",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "element_of",
+            "sourceSha256": "aeb2d992e071285d700500634ef48438192d10373cda48075042bb6db3d25680",
+            "enSha256": "614138800653fab22e7ad7f212aa73c091a86462d2b0053dbb864cacc089698f",
+            "zhCnSha256": "28306860f4b1452d0cdb03474533838b73c6188daa770090809bd6a5eb763a15",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "environment",
+            "sourceSha256": "8c48cd1be9214d4ae32055ff6d1b12708db76da6404449f9f943ad2e6c86259f",
+            "enSha256": "da3ec9aefbc97549eaf05216d347865464d2967c0f9d5397c1eb1aacb932b087",
+            "zhCnSha256": "dfaa8690f015cefded9f634f44e6bf2ba394d1f7d58cd543d94cc1af2523d188",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "evaluate",
+            "sourceSha256": "7c8f91d7d95d64490dd2337bf7005bae679f16c5132d1c8916109bb9854e2e4b",
+            "enSha256": "c4eefa81233cc567996dbefcc089ad148e39e0d73ef2e791149b882b6fb37831",
+            "zhCnSha256": "782f292b08b4525bfe50dcd99fc7ed0c4e2adb26b566626cb82a8bd0456cec00",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "exp",
+            "sourceSha256": "a783144fa83afd853afec543afb33305cd357408393ee2b29ddcc6a2d82cc220",
+            "enSha256": "177ae38fbbd8e6c24c3db777310d0de28f11e95e7854680d12635232ceac2362",
+            "zhCnSha256": "78241ca96e27b01b4d225657e5fdd2a5473d595585af5bab6bac1176dd0e7d2e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "export_uid",
+            "sourceSha256": "46c4c72b856868b7dd0d03bfaf776f1f5bcd454ef0f79d1ebf0504f6dd485cfc",
+            "enSha256": "b846a1a25c4b6d05dbc3cfaae2a208a5dd4415268536ca426da49c1563aca217",
+            "zhCnSha256": "8f760e11a4297fdcfcc800c43c286888d05473ae59b4d192e92948906fe3b0a7",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "fetch_variable",
+            "sourceSha256": "1d14470990739e8114e39d87e253b18dee09f06a38f69d94c128ace9ae838fe9",
+            "enSha256": "3f56cc74dba4b314e228402bf56ed6d80ad80b8346c63ded741e9a327183dca7",
+            "zhCnSha256": "bc2ff5f725d4e65a2dc0bfdbdc5995ebbb717bf3ed7c6de7f37995939937d5e5",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Independent review correction, explicitly authorized by root, removes the extra quote after weight in both preserved examples. No other example content changes."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "details",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/fetch_variable/fields/details",
+                    "detail": "Root explicitly authorized the minimal syntax correction in both locales: printf(\"%d\\n\", weight\") ; -> printf(\"%d\\n\", weight) ;. Delete only the extra quote after weight; preserve the format literal, whitespace and remaining example. The example has no inline-code or fenced-code markup."
+                }
+            ]
+        },
+        {
+            "name": "file_size",
+            "sourceSha256": "f347a9fdbe32393a024c8b75a0e5f606275721f470356fede8b6f56bd68bcce3",
+            "enSha256": "95f963af8e2466c87f87a33c66c57e8615f2f5faeea440d6edb2f97cd3da911f",
+            "zhCnSha256": "b8e11587f131243b8cd97fd5d6e26a17b5dd3e645155a58b607392c83f2967c7",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "filter_mapping",
+            "sourceSha256": "a360ece31ca93b57da57d621b92ca935cbf687852540ef707183de33b12dc36b",
+            "enSha256": "5f2fcd02a0d21423b38221d1838076b2a5c9b5e2299a54ca0bbcc2217376b289",
+            "zhCnSha256": "81fe0d871136d045fa038c9d5b22421315060efe7a77551b909c279988367b87",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "find_object",
+            "sourceSha256": "fd8ad7d697da07918bb8e68ec05bbefc0832904c1e4bd9799772e4324c78b9a6",
+            "enSha256": "6e5b6769b341d22249923564cf053d45e59faf74b43b198b76cff34c584ba182",
+            "zhCnSha256": "ce195b3491711ca049d5a0b685822a883ac8011e53f047eacfd306ee7751380c",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "floatp",
+            "sourceSha256": "25e90643b3d4856744e259fbf8011221420fe720941ed7f6ee09027df1d5d21b",
+            "enSha256": "ec19b1c800c524c5105c4e758604572b699e8d356b0258dd6dbb75625810cf46",
+            "zhCnSha256": "384efd48c3f97cc928ad6a30c34b71b669064c9942615e13a8e1361c369d70c6",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "function_exists",
+            "sourceSha256": "fb26972c180747c6cd86ea922a8a9643f47928e9a9a7575a8762c8fc52f0ae21",
+            "enSha256": "bcdcf4b70860ea495d29d2be3874cfce78adcb3039218869e42b01afb426b184",
+            "zhCnSha256": "2044e55c9b7ddfc1abd83ab79bce8035d543793b54fe298d698331f5d3f0eed4",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The conditional-compilation example, including its existing // todo code comment, is preserved verbatim."
+            ]
+        },
+        {
+            "name": "functionp",
+            "sourceSha256": "5cc4a58bb766e122a3a3ec46786f251170be0624c558d17e881ec80b3b8d8338",
+            "enSha256": "91401283ebf54b293d98e61eb3ee892280215636938c991f53efb15eaf3c3b06",
+            "zhCnSha256": "0d3342d5a3e7a90ce19b4b0e7c16fc8a0751a29832322f8246de8196f6e784da",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Function-pointer constants, values and the complete header example are preserved verbatim."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/efuns_main.cc:843-859",
+                    "detail": "Correct the Chinese source typo 非零针 to 非零值. The implementation returns function type/flags for T_FUNCTION and 0 otherwise; English and all constants/examples remain unchanged."
+                }
+            ]
+        },
+        {
+            "name": "get_config",
+            "sourceSha256": "cd099aaace8a02bcd172d2505b5f694f44bc005d596254d5d28ab8b5e1c316fb",
+            "enSha256": "6607daf170b72a60a60fd1f2b96e471804ea4ba99834f1a51b56715c3d43634c",
+            "zhCnSha256": "46418f31db2e241f656c4ea1d3dc9e118706cb13eea3f80b0bd1f348214621df",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The complete runtime_config.h example is retained verbatim, including comments, macro names and numeric values."
+            ]
+        },
+        {
+            "name": "get_os_env",
+            "sourceSha256": "c4d135a34a0f62d0dd180d5bcd93fdd0c031e7cb67d139ea8b8f8de82ea25c16",
+            "enSha256": "6b23148e4842753c2ad0bd41275925efd067db1d6d53407f0c79f54ecfe2b318",
+            "zhCnSha256": "7a1457c07c37fed009c79c6cdd2610acd7948bc49bc174db75641cea7308f414",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "has_gmcp",
+            "sourceSha256": "c046f03309d20934c680aee1797a2f0b1a44a8961177fe6ec285f15442eac340",
+            "enSha256": "74e9c1fd4df9aa24a64e6eeebd461cbe6add4744b4c3b80edc6d3181459a8f2c",
+            "zhCnSha256": "5f15575df9e4b28d93b5b7651598ea7ed14195ddacbc9d984006ef58b3d000b3",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "has_mxp",
+            "sourceSha256": "afc1393fb61a796d4e06db244b5de67ea53ea739e6d10f4307ffe374f3853165",
+            "enSha256": "bdfeecebb377475502f07ecaf9cffe8f7e0b510ae2b64d6b777cc86404ed0b67",
+            "zhCnSha256": "ed31a69206073bb8b605e2a14656273f4863ebcafc1903d430094769bc70dd67",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/has_mxp/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "heart_beats",
+            "sourceSha256": "82a4279f75e762a753b6a51707661fea92cf5ad1b8fd4dee36910f07a43563df",
+            "enSha256": "606bddb4d8703ce230c53f9fae76ea86a6977b9b38336ec0e69c1e93a0219d7a",
+            "zhCnSha256": "eb781b2f46bdad3eede2226a432948707ef081f321bc399803e5767b7ad8819a",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "http_decode_query",
+            "sourceSha256": "4e756ca69c8aaf29da4dde2148b43e71a66b84733f2dab227ad35b4f80552e39",
+            "enSha256": "894dde48d332c54fae703da9553f4704c9ccb1a46c0b84e26e8410c6667c2ecf",
+            "zhCnSha256": "37d2ad983969e24dac94d356b3f4e340d91999761fe51fe0d8a12e868d5ce31f",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "http_parser_feed",
+            "sourceSha256": "ecdbfc1057ff4f6b3dcf81ae93a4f5a9e43947acab49181c171991e304e00702",
+            "enSha256": "fd6714305d7032d3de02f7c72c0f5562641d707593c4c05ec478ccaf6cb8ab4b",
+            "zhCnSha256": "41beddc1c794a615cd661b070cc071b369bf8dee53328855038d0ca83dbc0ff8",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "http_response_parser_feed",
+            "sourceSha256": "c89472e6ff860ae9a1ab187caf4c16c057a7553badb16bac2e189bf4d987b1d4",
+            "enSha256": "238465620a8d7e4ec4509d0a276a3aee900f8e0a70620176f7c7231590c91436",
+            "zhCnSha256": "46995896ad532714a8e33ee620ba1c68664c170a1bb7bb09eb89c9b622c292c2",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "in_edit",
+            "sourceSha256": "a507d0a313ed8e6c77b331cbeb3fcf4200f87c255eb8a968b21b8790ae4d516f",
+            "enSha256": "2becc42f5644903a2a5d196b69f1561c4b3f7530496df83c286e039661c9e03a",
+            "zhCnSha256": "b001686bec45a906fc0d137499c1866e8fc0e18db682583e1fdb075edffc376d",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "inherits",
+            "sourceSha256": "df9fd3108ea788a2c07c8f62f374c65cfe7e7caa688cea2e651a697c859740c6",
+            "enSha256": "f1ff5b17c9fc5b4e832dacd078e7f7529654f3f673298190645d1204ebf23c0a",
+            "zhCnSha256": "cca61efb84958611d23089ffc77e43e3c6e4b1e2a0f6905d649a1a74f0556d42",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "intp",
+            "sourceSha256": "ddb803bf88ac47668f1a401d218cf03ce92729866bbd62361ea20be1d704d415",
+            "enSha256": "670722bbdbc5b0df01c471bb597b1e6e89edddd305601b2d33f02054fb519096",
+            "zhCnSha256": "fc6e7034513d019d6a6054b52ce0a25c91186b23cae82cee8866dd24f4af807a",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "json_encode",
+            "sourceSha256": "8eb81a17d65b4a4c4d3f28509b56be465bc8fd9cc678f0e40ef3659365908e1a",
+            "enSha256": "590ebd3a51a229bea0457cbba8e1cdf6738c4a2dca9ce82cb052a49bce3abe03",
+            "zhCnSha256": "e81b4ec8acb10cc5dd8bc02080489c0d91666f1bae3e4afa39f61b0d8920b7ab",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "link",
+            "sourceSha256": "08a86988c16a6c8b304fd6e4ff39a1583ebe65367ad5db3c3e612cdca9624af0",
+            "enSha256": "b83742bffcc278702ff4c5145b0611c093a8a09253adc8756849abe391664c85",
+            "zhCnSha256": "859b1defb43ff190a042241543d231dbbffdc2d18b827a725084435a1b4f0cbe",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "load_object",
+            "sourceSha256": "75c7f69cf617ef0f81743dda018ff55021358a88a76b88510001a9cd81febe38",
+            "enSha256": "2543dcd0a616ecf05b6ff439eef89b9cdc56be8164c23e8a5fd71f6537cdc9d0",
+            "zhCnSha256": "ca987cb91b48436b50f619159ed208b870d89d8a5e3843d577981be563e227db",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "log10",
+            "sourceSha256": "10be5a7a0806429f7bf52c644e6dac32b73be1bd772f544649dcbb32355a4d91",
+            "enSha256": "eda995cf36c0f2683b19d5eca8dfce9693b2c53f10acedecb696dfe490a27218",
+            "zhCnSha256": "20e2e31689b8176dde12d0e660ff59254bdeca0993d259aeff7550f06040cf07",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "lookat_rotate2",
+            "sourceSha256": "245d3aedb053b141652ef3532ce6402f3bf57c14665ac0e088ae924145a7c816",
+            "enSha256": "a06f95bbb9bc9a886af049036b996f10888966af352e41be8c166eb0599c42c3",
+            "zhCnSha256": "7cb6f0d6cb34ccf1d8a48b615785880e136d66199f5b19d27af9aee482e9fa32",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/lookat_rotate2/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "malloc_status",
+            "sourceSha256": "55fa97358443d69fb4e0502464f479a19d3a1885735ff97d37c3b66de0f822c8",
+            "enSha256": "675a6dcb0c08b4f77f0caba48737035710f3cffb7acb8b85ddcc0d1e82d8029e",
+            "zhCnSha256": "3f06fe3054d8687fcdd72e8af22e95adf7837276e4a39af1bfc5fb5fdd08a3a1",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "map_delete",
+            "sourceSha256": "03e2e8ee3a9e2e49d0781c77cc387c3380afbdd06e28b18c9d512b509679151a",
+            "enSha256": "41bb4a2e43436246c2c43aeb63bcd8229e4199376a28ccbda7b69852bc3820d5",
+            "zhCnSha256": "fc6f7a12da918f120859648f3609d1b5f321bef722910d8ccb3fd6ca1afe246b",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "mapping_origin_stats",
+            "sourceSha256": "a5bb335c7fed295113e651cb3ac31e2797d5095fce31cffedda56ab6464e47fb",
+            "enSha256": "b61da0f81897db87f4be2e41f1228188a16d2f2915ad81ff9289664fe10a645c",
+            "zhCnSha256": "37dfb02871ec9e2d98cf10a9994e9cd84360b5ea96d465d5f02c595d8e0c27cf",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "max",
+            "sourceSha256": "8216634e8ab3318af08dd8595845e701668e1b794c242bb95221005fbb0e701b",
+            "enSha256": "6a0410b558e49fb01c824337e40727f8e0f3767d40910ec54a063319680d900d",
+            "zhCnSha256": "3e256a308251c730cbdf0f6f213aaafb47e2a9c5984e8d6d699f434cbe2cd1fb",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "memory_info",
+            "sourceSha256": "073041d4171071953de27f3725aabdd688e65fe63f9542aed4fa06791d57e477",
+            "enSha256": "95f6832aa2a7d99e6c460dc8b134f7ccbb20c4a2f8b8e780aa291c995b2fdf9f",
+            "zhCnSha256": "dffd6350190da3864b242d6afcb0c1fe2d9d10f462221c3d6f7229844af311ec",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "min",
+            "sourceSha256": "ea061b7b30021b574118181fa82647cfc2a9dd96b977c7aad91906ffa790deaa",
+            "enSha256": "cffd42a0a9704ed0fa00f8a5f2cbf624f1cb1b044f0bfdc8f6f908860946d0bc",
+            "zhCnSha256": "8bfada2c488558060a661c8cc8595e5e4b6ca8ac63a9657e30e4b2bc3b7cb501",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "move_object",
+            "sourceSha256": "dffef85980e00d0b545136e7ad4b8ad4717a8f05f803c2f464737790c6ea23dc",
+            "enSha256": "fa2c8ee71008983c80284ac596349d9b62c6375b2eb419b4fdb1ad28ec2ce923",
+            "zhCnSha256": "0b0e7f6021317698ab35de5ff25c9ce15cdf36563a78f8ee82a6697286733b04",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "network_stats",
+            "sourceSha256": "16d918744a8555dae0b3e719a4ad6714e1ae75dbc9621b0cfd53e8d6bbe9958c",
+            "enSha256": "50e59647bd8d865472edab0cef5e32efd8ed3308c712c51322dbf446b32843fa",
+            "zhCnSha256": "ee7a97264a93b0d37aa577da39244f453a14c6dc779a079cb9e97e4b3a74de8b",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "next_inventory",
+            "sourceSha256": "50c7fd0c4146c3b5fc5e428a94753a053cce16c2a5e80387e22ead22c3ae9be9",
+            "enSha256": "95cf70370048cc7d21a169233f6a595981c0b92de4e354f1fb0f2443012a43b8",
+            "zhCnSha256": "f1b96b62ddff60b9e6ec77eba2f9dcc32a52a89bd4db277bf7ee88e598b3df74",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "nullp",
+            "sourceSha256": "2f0ca614f950a2b4242d552a55df6cf630d05bd85bbabe02c63dc0f74f375215",
+            "enSha256": "713b54da667b74b15cb52c5dea8f47bfc500a093c9927b41687a91cfdb75e31f",
+            "zhCnSha256": "d9b2fca7f02963cd68239760e3ef75e5a734cfef7441b0c0e2b7d4a0f38108e4",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "objects",
+            "sourceSha256": "c3eab65381389b9307259bf5659022010003fbaead13625b9603a41f71646d04",
+            "enSha256": "9e1248029181de39e2c5fffc3ea46ee265c2cb48ba48a66c5315467cd14fe39f",
+            "zhCnSha256": "371ec6a5cb9fb96574fa852e63108f754f3c9ed7b905fd290cd2499489e473b5",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "origin",
+            "sourceSha256": "72430ddbd5a3c07b8987d2f93b657d54701aa3591f0ee98ff59d91879aed188a",
+            "enSha256": "7a9b6ceea2e9b00620aa31a794ddf17d0c63c6c11ad35242e13c0fbee0a246d8",
+            "zhCnSha256": "42f0f1f73a476b59dc2eb5a632ab2378b4a74cb00941a744e375eb42ba403c5a",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "All origin constants, string values and header comments are preserved verbatim."
+            ]
+        },
+        {
+            "name": "parse_command",
+            "sourceSha256": "12836f3ad7950615b2aac581a7641dd510b6d0485a9df236261609fc5ef063be",
+            "enSha256": "1b98c15afb49c84c03da852ba2894e64a4caf74039419720ca4e845e875f5e10",
+            "zhCnSha256": "0d0d59858c0166a3ac20e1ae94f4a66e3f33820ce4743ed070b1487c327a174c",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "parse_my_rules",
+            "sourceSha256": "31f837cba38af27cb24dde80adedf3550599fca8bedb354b9aaf44db0b7a48dc",
+            "enSha256": "9e8a78d6e9bba324723d1bce3808ed481e4847aeb4c8ad6a35bbb362727f35f8",
+            "zhCnSha256": "05baf96267861a635e53c06835ab0c3b3e54695faf8a2639a925fb080bbb07bf",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/parse_my_rules/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "parse_sentence",
+            "sourceSha256": "f5633d017c8eb398891fc46bf16b1d0570c231fb872ffb9c9481de3849143521",
+            "enSha256": "6b0ad67ea043acb9047638df7f083af1700a49808038b85da2afcc6b23879937",
+            "zhCnSha256": "278c0ae92e3f3a07d51960cff844a35f457d1a7112363fa9f439ac406923fac5",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "pcre_extract",
+            "sourceSha256": "a005bcb58eeccb352112d9a313326f3ad14d2c2230dfe883af15b71b8e325d63",
+            "enSha256": "b66c7b0d5ae490c5d1fe2bf54f0c036015c343e6696cb6ce03b9f2bc7e70aa96",
+            "zhCnSha256": "2b6f92e43c88c2d60fc109475deeb2a6208e81001fabf7cde7d97e23ef747968",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "pcre_replace",
+            "sourceSha256": "d36c29928461294a3614adb8f34de8e3648667c7d7326fdfb3e5c906d7408844",
+            "enSha256": "a5bb0c3147a32670520176227dffa2217bed0ee6a70b229eea1f748cc709fdba",
+            "zhCnSha256": "aebc0a3efe2f3273af70f2df7254362ea207e613e6681072cdae7c6d82d4e0a1",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "perf_counter_ns",
+            "sourceSha256": "3e8d9f0e4d425cca0f4d81e88cfc78e81bfae2b070f0ae08c247f7074a8dbf40",
+            "enSha256": "1eb545fbf3f1b13837890751fd83c8a96f07d35d8ab0011bb2a0a938b4f2762c",
+            "zhCnSha256": "2f52be44aca0d4ef8dd3d6b18db9ffc288de77872d9f82264a28c7c62b80c79b",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "pow",
+            "sourceSha256": "c4c56f6501a7e72fb81166afa57bd8a923cac4a7d3ff042e3aafcf3cf9784081",
+            "enSha256": "197c4ce697ad4464b337fa182bd82b9cb5bcb37c0f067a5fea6c676cdf1cb18f",
+            "zhCnSha256": "66b77c05b06204342290ce07a9109aefd90e533d445bf10a9fac14446ec0102f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "printf",
+            "sourceSha256": "e771a8bf4173e3670572c0334ac1c771671e7a50359a35343f6ba6a802609c51",
+            "enSha256": "6ff619fc416eed8d34d23867ebf7f5893bdc9dacc65d4362e835afd3cf8dc2fb",
+            "zhCnSha256": "2bd292bcc5eaadb25dc39184f491c3786e3e47ca0827bf2e7d129b0c87d84034",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_ed_mode",
+            "sourceSha256": "b68ee45a8c1137a80fa15bc22dd66eddf471cfd264c83319f24f1319df9b547a",
+            "enSha256": "4dcc08769cf91e70268cd541084c4ed2b4d1864890833a6e7286e8d6a1a3c9c6",
+            "zhCnSha256": "a3943019dd9f0a6f8214c2d649169d1922d7efcd5e0bec12ecfc2ea93778b896",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_host_name",
+            "sourceSha256": "af0e65ee7e1214af5b483eed3106a4eb2e8b45960bd4f703b97ee58000098443",
+            "enSha256": "3eab207841897ab3e696d29a3c96a5bb075384f9910eba437bf78d6876b4b8fc",
+            "zhCnSha256": "522459d5c63c7b42d8cdf23a6ea42278a9796f672e2299e86432dd5ed998eddc",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_ip_number",
+            "sourceSha256": "d6344e1b8db0ff23468381a6648f19d8b840fc37d4772ed8a018a38d7077a5b0",
+            "enSha256": "f4cb49287f9af45bbe38891a6472763f3f8b6f316e9acae6a7d056beb32bf27a",
+            "zhCnSha256": "510127fc887a2b96edd9057d078b71ce6c8beb16b4a344d39c5338b3b93aed5c",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_multiple_short",
+            "sourceSha256": "d5707704ca404497e7c001473b69509190122f38da4d41c530e0ee7a07eb925c",
+            "enSha256": "b886569aae884776dee994c8404f5a378048ddf716c98ab4ed2bb305e2a6d3e7",
+            "zhCnSha256": "10ce06e26ef7d28a4c1ccfb0f4d26aff81c24305b95b7d939e7bd75cd772cee9",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_num",
+            "sourceSha256": "edc46d1178afc90e548bd6059408b855652e538b8121fbe4fa1a929ba25cf975",
+            "enSha256": "99036f4004f12435c47847e230fbc98ef6017823425394c1fe8d6db86b146226",
+            "zhCnSha256": "0e627a05268c992165a68edbd0fd4011ca9ab4d1a18faa0605ff490be03f44a9",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_shadowing",
+            "sourceSha256": "808a5622778edfcad3312b682024986d91ac02d908ba313b513dc9e090b61075",
+            "enSha256": "bda71550e9f74e929357a1d87ba6d08c0af23e2ab6e1e642f37deb3f48946dc3",
+            "zhCnSha256": "7fea7e9fbc6b2dca286c2f85f887da26da5a30d06fa63c3f2cffcdb2874f6854",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_verb",
+            "sourceSha256": "e6e3d216df7ff9b81d814de9d925f29fe434432182f1ab3c801d96cd75a80732",
+            "enSha256": "7a0f323353ce1b225bfe19180d9494ade4b9cdec8b6bf69871c9193fd7ed83ff",
+            "zhCnSha256": "c46e6456cafcc2f49ee710650cbccf89c37a8155b920bf347b0c26dde877c5c3",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/add_action.cc:7,310-311,345-358,384-398,832-838; src/base/internal/strutils.cc:193-200",
+                    "detail": "MAX_VERB_BUFF is 100 bytes; copied input is limited to 99 bytes and u8_strncpy preserves complete UTF-8 characters. Other branches return s->verb directly. Correct the unit and qualify the scope instead of claiming a universal 99-character limit."
+                }
+            ]
+        },
+        {
+            "name": "read_bytes",
+            "sourceSha256": "a5be3002ac4b6cddcde7abf6e446f2224485ef354b39f61dd5b17d36052be64f",
+            "enSha256": "09c987cbeb7fa8ff384b57a1cd3605cbf0621d2ccf362cdffa45d19405fb3804",
+            "zhCnSha256": "b047680d979d8f79ed5ff25d883ed82b6a8678b4416e2a575aa1bb78a2f2fa13",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "receive",
+            "sourceSha256": "8ddc00e081ca8edc9abb4b7a4b18ed046a66fc017d40e9cf9b626ca4f77e7148",
+            "enSha256": "ce0c34322e91232efc778e7a7064f39e499b34e984f83a7f4d988580c18d4215",
+            "zhCnSha256": "5800f479dfe75e4f4c1fc9d9a755b9fbc18e243b56461cbc06cd487a385c2181",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "reference_allowed",
+            "sourceSha256": "38cb8d17cd3c1b8876849f0ed4eee6357384a639392c7d9f9cdbf1060e144485",
+            "enSha256": "66501b8371395c96b2d229dff8cd0306233fbef6962f9fb4d19e5b47ac48aa32",
+            "zhCnSha256": "b29e5eed647c8e0272557776ff2dbcf9b72ff7b3bbc6eaadbe1c4f70cbaff02d",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "regexp",
+            "sourceSha256": "c8f90a72fcf43f46a6ca7956a4d208fd734254d59b01f2abe9a00eb95b1926b9",
+            "enSha256": "690be4eeeeacffa6c227877f38f9bd60b352888c727b7ac60a3f273629902c30",
+            "zhCnSha256": "0849c2c757954e64c37e5f966a7bfd0138fa424b59bb4cc76a5b4a2c005ed1eb",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "remove_call_out",
+            "sourceSha256": "965d266fca41681b78c06ca1378778c5f9cc5422175c9f5f7ba1c9813304adc7",
+            "enSha256": "afe70ba8a75be6b9fc7ddec25c819f2c3bc4889a38beae32d7c871f0c6a7aa30",
+            "zhCnSha256": "addc85b3179daaf0ed3a000024221eaccd990b863d7cc009c7993d838cef1e6e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "remove_interactive",
+            "sourceSha256": "aaf1614a859fdf1aeacfefafd2979608b95eb03c160af676980c42e241c3a9b4",
+            "enSha256": "842da53b6ed0f68a427c798e75f10f5f9a33e47fc03f59a9943ef7d30ee11cb4",
+            "zhCnSha256": "bbc417ba1014dc2e8421f83501744cfd75beca57860bb84260fcd4caa0102742",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "repeat_string",
+            "sourceSha256": "55fd593c8b76ed2c5050298da244b1c73d24bc1806d03a4bfa340fb7e45d9b5c",
+            "enSha256": "4d2ff535427d7b6e1caa8ba0a492ce69882e0f0b8f17a3c8ab8804e62b9b2308",
+            "zhCnSha256": "fdb400cd88fa5ecaf9633c95df4fca2468b98e83fc8d06d33983e683c7c35e6b",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "replace_html",
+            "sourceSha256": "2de4b53172deb554bdc453e4b194cc2bcc5db01640c82b7bfb4210d433d10360",
+            "enSha256": "88a6c7ab6269f0fbe7d0a80fa1a672e8571deead11a475d9bcac3a318843e5c0",
+            "zhCnSha256": "eea68bf9066441fd4e9530fc89ef513721b9c119f28e085ad76ab789f8f298f8",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "replace_program",
+            "sourceSha256": "a76b3eb2b3f670eb9a6d4e56ddde7a9aae7ee3a87681f0bd747b2462a9e8a324",
+            "enSha256": "eaa3fb8926bc07447db34587d5c7d8b72b0e27bb86d8cd491dadbf4a6f3ff28e",
+            "zhCnSha256": "23a6d71bc2541e5cf28e73d1e2f395a3deb6088cdc49928af6b39155110b4565",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "request_clean_up",
+            "sourceSha256": "be0a47907a6fb4b6006f01e681747479f93ce27428480111dc9f6e8cdf680edb",
+            "enSha256": "2447d5fcc270a319c7ddca4d588c7c886ce684082e8b23f5496fb9260a1c661a",
+            "zhCnSha256": "8f0c6d1d1e71c9bf97f5dcca854b4fa83d9d1066ad80dc988fa7efeb428a56f9",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "reset_eval_cost",
+            "sourceSha256": "a37be970277db55e4f5adb6a35ffd0ba8526edcb400bdd4ae3be1f433c7bbdea",
+            "enSha256": "1f738ae66ac309f9dbb568d86b301c1dd3aae333cda3b8046013a1e165d33c7b",
+            "zhCnSha256": "4c6b0cdfbfd13ecfdbfec710762215fec3c1b99c681fb6de928d94a3eb906132",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "restore_object",
+            "sourceSha256": "c1ea506e0c5ea74c979089ffe43d48535527b76dbd0ffa2f69e6c45ed0a5c7c7",
+            "enSha256": "90147881c89ce027af6ec52f2a33351201db5337b645608979774a73ec81cdb2",
+            "zhCnSha256": "d2d1fb66717b22addd86927ae33eca7f86dab5bc2421e3084e611a23350851c8",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "rmdir",
+            "sourceSha256": "5251cd42377f28081e776b0bc00a18f04c748319df93b5131f8c3418bc6fecc7",
+            "enSha256": "525379950f3c6d2d47832521b6707b6b0aa4ae1fac868bb54d67c02d820a1041",
+            "zhCnSha256": "9a3bc10045f869ef6e59738d72b2496c3f20d6641c0c15223606beec5819bd8c",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "rotate_y",
+            "sourceSha256": "ba96b39f9347556e8e95b6dff31cc7a80e0c916e7e71bacce9b5dacaed7318ea",
+            "enSha256": "557512f3d7dc339abf35e0226f701f2456ddffbfe7be05c0916f653e2b8eeb2f",
+            "zhCnSha256": "56af242ee2cc6fad5171404089eb131fff84723eccb02a720fd59584b60f2102",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/rotate_y/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "round",
+            "sourceSha256": "daec871c2c3e889a42eaea40c41cb665869401a08bcd15fedbe45fbfa10b85be",
+            "enSha256": "56cf50e2d71ff0a5d3ddde86ab040cf75f7cd2aaf41c155d09c043e5113ea58e",
+            "zhCnSha256": "e8cda4bafa219811ebe70cdf9128dee40fb050a707ca7c211033ab8cbaa2a6e0",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "save_object",
+            "sourceSha256": "be610d8853b399889cf8dda724f56395ca59a33aa9ca1aacf7026bf1822c0352",
+            "enSha256": "ab6eada9f4e23580bf9b847e0d4363e1e73b08b6079b6138fea41e923f6ac4d3",
+            "zhCnSha256": "a780fa9320d12d713d61337e54b5ebcab41f1b732c3cc215b59ea7310625e7a0",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "scale",
+            "sourceSha256": "fd702880ed25d8189ccbf4ab25b900de5b4f5dbb9366ffa9d7fc11ea3dc34030",
+            "enSha256": "feb27bce568f234bb928615d45c7310e3f813739b0fbdae6b40c88fa89ecfaac",
+            "zhCnSha256": "ff9ed06c65553f487be0fb93341391071d5d45e18581b65087ecdbfae611b7c5",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/scale/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "send_msdp_variable",
+            "sourceSha256": "87d9e9ec0471c4342f8c17dde834736a6462104cd40d9352cefebd7b2c6fcf5f",
+            "enSha256": "86dcc265ac671d77e67cb80a86fd40aaa500c0ab342be731c7abd6677320933a",
+            "zhCnSha256": "9a33d6c32f98bf369cc5a60c7f2ec3a761a643a4b4a99cb5722395b2c2997bbd",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The original documentation explicitly reports missing upstream content. This translation preserves that limitation and adds no functional behavior.",
+                "Independent review resolution: the existing bilingual summary already accurately states that the original documentation has no description. It is retained without inventing behavior; existing examples, if any, remain unchanged."
+            ]
+        },
+        {
+            "name": "set_author",
+            "sourceSha256": "4154c3269c0096a65b79ada6e382fd9a0f308a4638ea1f931d4bffb7b88964bd",
+            "enSha256": "ed24072af105fc990f35de213654dcecc9ef8145ea752ea20d8c2dac4dcc2938",
+            "zhCnSha256": "ae6eb9eb09a9593d5f8f8774d1533271251b5eb1c95b8638e4ac2600466f0cb4",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "set_config",
+            "sourceSha256": "af8eaa8a3da933c72039b7f454d1add913b23680e09d222b4caafbd11a9db3ad",
+            "enSha256": "c90b3964e7cafe0970236e7832a643fcbe08df51f8c0c53184468947d37be50e",
+            "zhCnSha256": "2911f2d2c1e37ea228869de9f6bb9c3adc9c25fc7e69734ddad967d67548dd04",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/set_config/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "set_eval_limit",
+            "sourceSha256": "14b95d720f0173a58353bd84d2c221477c8b2806556cda0e5cf2130cff11e210",
+            "enSha256": "7464e5de5f80b88ce5daa8bb0adefd89111e573b0e23d4acf560377a1397273e",
+            "zhCnSha256": "9a042cff719ccf4368f3fabff0fb66ba21adae70ebc4e50b30b8219565857f8b",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "set_light",
+            "sourceSha256": "0ece7928a6674bfd8aa4bdfe7ea9cc38cb892769671dbab59863dc384c5be03d",
+            "enSha256": "10531ad8a0a7f64d3ca2f10bfc05f6fd3a28873aa14bd49c25373f0a4fcc2535",
+            "zhCnSha256": "e94a1cf4cb31e2b05f286a4e1c8241f929bac04d23caaa7ee6921cb635229ffd",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "set_notify_destruct",
+            "sourceSha256": "3e36e819c0c42c85534ea2d1c6a19a7413b05138d8539a6179fb208dd6d797fb",
+            "enSha256": "b7319ed9cc726216e1878a49237901a3ad4d2821a838913424a8931f0ce5a935",
+            "zhCnSha256": "648e8bdd7078a9f8d0368114ccd5a80a4d31c53c0381d7963cb06fe69aa76aba",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/set_notify_destruct/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "set_reset",
+            "sourceSha256": "ed1d83435f1c82307321734e2b3e87625312cdca2afb5cbce6213d2e57776616",
+            "enSha256": "89e58ee84bb0d9ab28679698064b575a2387564d63639b8600e9884310cde487",
+            "zhCnSha256": "3fed75efbf4620b870601d7751473cc6f38fcdf819eb24d2de7fe8898bbe175e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "seteuid",
+            "sourceSha256": "ff82f8d7b19a9a54eca9d7d76c08b7eb6cb2a90362f66000e8ddbe12592aa6cb",
+            "enSha256": "1f377f995f12ecc89005a3b9872883ea136fb7581172d4500da1be3b1190144a",
+            "zhCnSha256": "8c52ee17a6e1b10fceed8c261dc4bb887ee143b1d30aa7e2050c5b7d422f1ccc",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "shallow_inherit_list",
+            "sourceSha256": "d2234063b682b7a8777028eb0c42d2b41c8b94a55057fee86fb42ea7232f2b79",
+            "enSha256": "da6724e0f1c4a0f07ae96297ef41d9e17aafab00d93cce447adfb968f5245511",
+            "zhCnSha256": "8233915c61b2e024967883e746522dc4d231568e68a832ca3256da4b90877017",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The source example names inherit_list(A) although this entry is shallow_inherit_list. The reference is retained without changing behavior or the example."
+            ]
+        },
+        {
+            "name": "shutdown",
+            "sourceSha256": "fc32e7b002b17e31c06c2182aad9f080b1c970108cf38bd564e1d4c024afdcbe",
+            "enSha256": "ae6ce8c398de92c0b13d7756dfda25325492d45143ece8fda5b10fa5c52e1fdc",
+            "zhCnSha256": "eadb96c54f33062d8740b5e478787be28545dc3fd075db7d588e296cf54d0ee3",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The source shutdown-mode description, including its restart caveat, is preserved without asserting a newer driver contract."
+            ]
+        },
+        {
+            "name": "snoop",
+            "sourceSha256": "a6e918234da4f392d4e24d6a56341dd177ca62ffd8a5a666cdbf364e780f8658",
+            "enSha256": "678a05d75518898713ce7946c5b522a3c5651c6ab992397d4be285e74070eb54",
+            "zhCnSha256": "bc8e067bc44dcb17ce12e3e1821a9113da9dc1c29de8800706ed8123a64a4e9f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "socket_address",
+            "sourceSha256": "4c7c51ebf070d8204df80d112a243f853fd67101e9bf1463a0fed97f28c00edd",
+            "enSha256": "03645252610e923db833ce2c159705613450e9b858258539ac251d4eecfc8576",
+            "zhCnSha256": "34ea622d6482a97188e532983a5514271af26e0e8a61b9112a63bf96aa0cdbd8",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "socket_connect",
+            "sourceSha256": "7084f1f098930fa1f0afdee9cb963dbb2ac6c1df3c8f8d97d8fa264dbda174d0",
+            "enSha256": "b048a2358660db746aee379c4a41ea159975374712a4088c81417537d9c97c78",
+            "zhCnSha256": "476bc6918153d08d9050f46ef8936f35fdf122440a1ac13c71366452d55b2f32",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "socket_get_option",
+            "sourceSha256": "4055b2e7a76e0b03ac3419ddc920b2ce73d513029245d1f394adbe774c6ac43b",
+            "enSha256": "1cb64560c39ef5668f99e78140757261db7027a7e94ce68813d292cb19927bb5",
+            "zhCnSha256": "0bd12ca2b8fec50e9d7ba751092fdc06ca67b6a804a725b1f0a4b74e63d94841",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The original summary consists only of // todo. This translation states that the source lacks a description; it does not invent option behavior.",
+                "Independent review resolution: the existing bilingual summary already accurately states that the original documentation has no description. It is retained without inventing behavior; existing examples, if any, remain unchanged."
+            ]
+        },
+        {
+            "name": "socket_set_option",
+            "sourceSha256": "d02e6a7a73fe430c56878640bf8f956a040931a8976ee05f99cf87d2761cab96",
+            "enSha256": "b9cca7d678a1576e5272282432cc472fcaf6a78200cbfd3fe63d7b03f559b085",
+            "zhCnSha256": "a34e31ddf38a52893b6e1e88b24335d7bf452ab3131bbc1ef5cc95991b0e90f7",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The original summary consists only of // todo. Its existing TLS option example is preserved verbatim, without adding an undocumented API contract.",
+                "Independent review resolution: the existing bilingual summary already accurately states that the original documentation has no description. It is retained without inventing behavior; existing examples, if any, remain unchanged."
+            ]
+        },
+        {
+            "name": "sort_array",
+            "sourceSha256": "4258066f5623b773a2abb4caea177e867bf2fc8e17404e6e1fb397ea10ba8f2b",
+            "enSha256": "d091823154f73d6ca4bda00561c4b4d3d9f6e52a2edae4222f58c5c2d0e58748",
+            "zhCnSha256": "de9f0b2d68aa9321729ff03d8c60f11c0f8a657a2b2eca7177930557e3f7fb32",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "sscanf",
+            "sourceSha256": "828240a291f6e78691838f8adb47fc63a0925b8c6b8eb30a013fce51fcd52204",
+            "enSha256": "6b9bac6abfa7a7faca4153d4c1b8d0dee6ba5a135d116df5f7c55c7de7e4ef55",
+            "zhCnSha256": "8f20bb62f801b4ef1f7b9e3b07f40ea71a4ac483df40e82d4547600c705804dd",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "All sscanf input/output code examples and literals are preserved verbatim; only surrounding section headings and prose are translated.",
+                "Independent review correction restored the original two spaces before str1 and str2 in the inline sscanf example. No format string, argument, result or other example changed."
+            ]
+        },
+        {
+            "name": "store_class_member",
+            "sourceSha256": "b45e2b7217b7725f23dc3646a661a467ef52c790a8ea28b8e22eacf5d7c7fd91",
+            "enSha256": "bf0fa64f66df3764b5c572ba3ba9eea64a7d2b0d40907b4d423d7846951cdd93",
+            "zhCnSha256": "fb7eef613bfa1a5c94bdea7346c171e2797825575f27361d39aff736873d1fa2",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "strftime",
+            "sourceSha256": "9a7f30b2749fb74a2827286c8b1328d0223a1e6982eef306b9b9919f91ac7af7",
+            "enSha256": "2de0b49ad8093877ae5682e3471ab50c366a58390d57664b50fe25d65aa9e002",
+            "zhCnSha256": "b682475dcb6ee32e50ddb22b3864bb14ef11ecda42c17a7024d19c2d955b62dd",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "string_encode",
+            "sourceSha256": "bd2493e6a5ea6f1302239fde8ab2270321ce9190e338e7c9c0152277eac6757c",
+            "enSha256": "ff98f2d8f91e80d0ecfef4ed44305ed06ff925376754c9258f480d7c01392f69",
+            "zhCnSha256": "638a23b09f7080d51b4dc96353e2425dd18d17c4e4cf6266339f26cb1701a1a6",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "strptime",
+            "sourceSha256": "db4beabfd3ccaf641167364cde510c93c45a3e42504df4c8e1a26c5b55d64c37",
+            "enSha256": "75d0164d8c0e0e48f3ff55a1bab84f5cef1163611c7e5ab0e883de789c4d5eb0",
+            "zhCnSha256": "948c481a2bf14831705bb21c1469e85188bb8b0d119bd2b0638cd3d9e35c579a",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "sys_network_ports",
+            "sourceSha256": "944e277ba3a53c36a28271a4da574269eb742e554d50a2e1f85659babc482424",
+            "enSha256": "c3734f8a2fa268f2573a1f3d48ee8dcaa57bd76a6a1b127e55539b0c234773e5",
+            "zhCnSha256": "6d7344a4d1d028bfdbe0a106ebdc0869e0f527865997ea56004ab1ae91609434",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "tell_object",
+            "sourceSha256": "46e57a71e75f6489b7a2ccbaaf6865147ca60180f4dff859c82c4e066f33e2d0",
+            "enSha256": "6ddbbe824f3250a4c116b464059a825b7f67d91eae1c16a5196d0a7adb5679b4",
+            "zhCnSha256": "4256c62f97cd85b513398143c7f533a2c6119888d4ce095d8ff298d8b533da7e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "telnet_msp_oob",
+            "sourceSha256": "75fc3151271d1e4f4b392edadcdbb0373a1548b61ee3b01223ae15fb228acd56",
+            "enSha256": "13da5d16803612d69fe3366ef8e4aec3252368fb9ff0d2a404809250192acfc3",
+            "zhCnSha256": "66a9a9b72d1147899381cd7e9aa12b9b61daece6f2ec6b530bd1559188f8dfce",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "test_bit",
+            "sourceSha256": "55824c477f556784705c090499a83fdb1b82cfae122256b28adc295b0fe6d800",
+            "enSha256": "2b541edfe920e6a2c1d3cb773227f507e2a160196113c4773801881ed41b4565",
+            "zhCnSha256": "d3e29409fc9e8bb5a1526787691f2706708da6c0fd58933495f187da782d0de9",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "this_object",
+            "sourceSha256": "7594180601a00e53fbba4e937f2ca3d816bcd5905a496eae9a1705bd644eaeaf",
+            "enSha256": "d24f14d70c0e6a4c0a22cb58bad72f6af585cb7ae0fb2f646b65e20fbd1f50ee",
+            "zhCnSha256": "15dbfb3c95e8a239ebcb7f87bf3bb6975bff821beae73a166d12fa14d3cca16e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "throw",
+            "sourceSha256": "fd9aeb09b2f42d5cb879450ab8b3eff5ac8958a814563f61d23c2c6b6d171f95",
+            "enSha256": "7bd6476e4cd38261093e4af1428965dcee43915989a9f60bf9eb4e551c394a87",
+            "zhCnSha256": "fe2d0e24a754421d2f78d449d4561c9c368d25af22eb00b747a04e27b5634c72",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "The original thrown Chinese string literal and the complete example are retained verbatim."
+            ],
+            "retainedFragments": [
+                {
+                    "field": "summary",
+                    "text": "\"出错啦！\"",
+                    "reason": "code-literal"
+                }
+            ]
+        },
+        {
+            "name": "time_ns",
+            "sourceSha256": "b196d018c269f6fafc1a0132d0a76d4b815b1b163ec3cf71639a574081d623fe",
+            "enSha256": "af04fb8d19ca89743b3f74455debf1a92ca887806b0a7bf6628c6a8f2cc3c5a7",
+            "zhCnSha256": "196eb47735cd91eddb6a44514596deef888ab32a2493f54b1ca0f1565196e824",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Independent review correction establishes the missing year from the introducing commit; the source date corresponds to Beijing time. No timestamp behavior or example changes."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "details",
+                    "reference": "D:/code/fluffos@3478cc2ed60bc903db4736948188a5603d83aa69 (git show -s --format=fuller)",
+                    "detail": "Correct only the truncated introduction year 202 -> 2023. The introducing EFUN: time_ns() commit is dated 2023-05-29 10:44:35 -0700, which is 2023-05-30 01:44:35 in Beijing; retain the source May 30 date and commit identifier."
+                }
+            ]
+        },
+        {
+            "name": "to_int",
+            "sourceSha256": "603819194ced4c2b72aa072b16c3cd42351544df27c03d073f9ac19e3eb3c135",
+            "enSha256": "7de497f218777ef3d7660d4425dec5b7bc74b4289df37d3344e854d22c1fe5c6",
+            "zhCnSha256": "bafbd27a4fee65e51be23255416682dbf2bfed9b5cb092d50ca7d186914a2a9a",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Independent review correction resolves negative-number rounding from the maintained float-to-integer conversion; the original positive examples are unchanged."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/efuns_main.cc:3007-3014",
+                    "detail": "The floating-point case converts the real value to LPC_INT, discarding the fractional part toward zero. Remove floor/向下取整 terminology, which would incorrectly describe negative inputs. Existing positive-value examples remain unchanged."
+                }
+            ]
+        },
+        {
+            "name": "trace_start",
+            "sourceSha256": "38265664164fa5a2ac9498566b96fa64020cdb7952c5388780520b956c957bf5",
+            "enSha256": "50b65af5e0d288d0a8dcb1ac0833b0a15768a52b4e53e81478675c4696416008",
+            "zhCnSha256": "35d5d63ac72b6a6887eaf8a435ae80f8004149b5032eba0258e9d6fc374b39f5",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "trim",
+            "sourceSha256": "594c287187176ff81979534269916e55c9607a8f7996862091fc682bcac3d570",
+            "enSha256": "3e8e9749921a05ffd1bb959c2ca74696c5c7d37131d7a3cf128482b7f3b088e7",
+            "zhCnSha256": "aaa94763252136270eb604852bc410af90ac7723b2464d4ef178dc92a5599eca",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "uncompress_file",
+            "sourceSha256": "80630ef4bf6342035bc6408b9ea859e14ad4680b60cab0acca5b5d1548cd8539",
+            "enSha256": "f41abfa6791910089775db9b63286991f61f074328fe9ff182552fcbf7b7482f",
+            "zhCnSha256": "b598a975fb7ca4280ab09bb0f48bc58845d2f390a0289c39b47c71e767ab4a60",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/uncompress_file/fields/summary",
+                    "detail": "The locked source contains only the builtin label. State that no behavioral description was provided in both locales; do not infer operation, flags, defaults, return values or driver availability from the function name."
+                }
+            ],
+            "notes": [
+                "Independent review resolution: original missing-description boundary is explicit; no behavioral contract was invented."
+            ]
+        },
+        {
+            "name": "unique_mapping",
+            "sourceSha256": "a6c1cda135c219e3d981445743baf80be37f7e3535659dd5aa76805e141a7c6e",
+            "enSha256": "56d0ca44a17639ceb6762198e279ba2f40d5af1d66c602dbe95f0bf8d71d2d75",
+            "zhCnSha256": "071e0649a5681ecbbcfde9cc583698b6cd2f80b10b2948ea6e761a01017cfe83",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "url_decode",
+            "sourceSha256": "23fee41f00770b2604f67745e35493bc1b1a2e59425ffa152d19b19ffbf29a05",
+            "enSha256": "6cfe2013d319ddc27b85c243bf6fb3f25dec52a128ca46bd6334a6586e521d3c",
+            "zhCnSha256": "0c48e00e6809ed0b03986e0e4efcdf66770a70bdbb25685ee6c45ca64e69b8aa",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "users",
+            "sourceSha256": "ed2cfbaa230e4ec997036209105e5f0e0ce7cfe21fc3fd52b8b272dc15592aa9",
+            "enSha256": "ff415c1fc075a6e8497fdc0aaa468f56c8ae425937690c9103fc0565ee8d0784",
+            "zhCnSha256": "63dbd349b18b20dfc2934cca72f11f3516c544a2341ac9b687280dd2992b7f22",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "virtualp",
+            "sourceSha256": "3e32a278858450a6fcb5b82375ec72850faf6f894f2c248522f53662212040a3",
+            "enSha256": "2fcb6ce8ea04ce63b60fbb2eb3f557e0e0d41324e9491740a53f0eef698db450",
+            "zhCnSha256": "2009a3e33f6421339c1d5974660cdf21bbcdfb9f26b04a24edfc7b18c77eab6b",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "write",
+            "sourceSha256": "3336c25a08750c5447b7809b5a711418b81d7525ea9bb3d5637cec7f1ac3e5a4",
+            "enSha256": "167e47309c36bb595d0f0931a642e7072756169ee42030ef4f528261b71942f7",
+            "zhCnSha256": "f996bcbd27e2bf70d516abcaa0229531f150cf1b146d1932d90629f61e66c145",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "write_file",
+            "sourceSha256": "1ea237becd173bb4b2abe624563245d56afc8b4cd3ba157e8514946bf5224691",
+            "enSha256": "44dabed5511743ba00582d170119aaba765bd47d18a79c05c484503840050f84",
+            "zhCnSha256": "00575a6b692575fc8ac9aaa1e903c731a259b5939a90e11f64c244f5ff558b79",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        }
+    ]
+}

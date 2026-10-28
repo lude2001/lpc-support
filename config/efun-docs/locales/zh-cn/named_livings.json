@@ -1,0 +1,3 @@
+{
+  "summary": "返回一个包括游戏中所有呼叫过 enable_commands() 和 set_living_name() 外部函数的对象的数组。"
+}

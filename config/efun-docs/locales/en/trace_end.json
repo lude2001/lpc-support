@@ -1,0 +1,3 @@
+{
+  "summary": "Stop tracing and output the results immediately.\n\n   This efun has no effect if tracing is not enabled."
+}

@@ -1,8 +1,5 @@
 {
   "name": "http_response_parser_create",
-  "summary": "FluffOS sockets package efun.",
-  "details": "创建一个 HTTP 响应解析器状态对象，用于分段解析 HTTP 响应数据。",
-  "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {
       "label": "mixed http_response_parser_create()",
@@ -14,5 +11,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "sockets"
 }

@@ -1,0 +1,4 @@
+{
+    "summary": "query_host_name() returns the server host name.",
+    "details": "Return semantics:\nReturns the host-name string on success, or an empty string on failure."
+}

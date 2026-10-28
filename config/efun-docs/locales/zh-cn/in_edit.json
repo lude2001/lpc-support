@@ -1,0 +1,4 @@
+{
+    "summary": "检查是否在编辑状态",
+    "details": "名称\nin_edit() - 判断玩家是否正在使用编辑器\n\n用法\nstring in_edit( object default : F_THIS_OBJECT );\n\n说明\n如果指定对象在编辑器中，返回正在编辑的文件名；否则返回 0。\n\n另见\ned(3), in_input(3)"
+}

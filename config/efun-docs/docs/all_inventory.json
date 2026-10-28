@@ -1,12 +1,10 @@
 {
   "name": "all_inventory",
-  "summary": "返回在指定对象 `ob` 中的所有对象组成的数组。如果没有指定参数 `ob` ，默认对象为 this_object()。",
   "reference": [
     "first_inventory",
     "next_inventory",
     "deep_inventory"
   ],
-  "category": "对象相关函数（Objects）",
   "signatures": [
     {
       "label": "object *all_inventory( object ob | void )",
@@ -24,5 +22,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "objects"
 }

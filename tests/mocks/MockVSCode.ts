@@ -3,6 +3,9 @@
  * 用于单元测试的VS Code API模拟
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
+
 // 基本类型
 export class CancellationTokenSource {
     private cancelled = false;
@@ -34,6 +37,11 @@ export class Uri {
     ) {}
 
     static parse(uri: string): Uri {
+        if (/^https?:\/\//i.test(uri)) {
+            const parsed = new URL(uri);
+            return new Uri(parsed.protocol.slice(0, -1), parsed.host, parsed.pathname,
+                parsed.search.slice(1), parsed.hash.slice(1));
+        }
         return new Uri(
             'file',
             '',
@@ -63,6 +71,9 @@ export class Uri {
     }
 
     toString(): string {
+        if (this.scheme === 'http' || this.scheme === 'https') {
+            return `${this.scheme}://${this.authority}${this.path}${this.query ? `?${this.query}` : ''}${this.fragment ? `#${this.fragment}` : ''}`;
+        }
         return `${this.scheme}:///${this.path}`;
     }
 
@@ -520,9 +531,51 @@ export const commands = {
 };
 
 export const env = {
+    // Existing fixtures describe the original Simplified Chinese UI.
+    // Locale-specific tests can set this independently of configuration.
+    language: 'zh-cn',
     openExternal: jest.fn().mockResolvedValue(true),
     clipboard: {
         writeText: jest.fn().mockResolvedValue(undefined)
+    }
+};
+
+let chineseLocalizationBundle: Record<string, string> | undefined;
+
+function getLocalizationBundle(): Record<string, string> | undefined {
+    if (env.language.toLowerCase() !== 'zh-cn') {
+        return undefined;
+    }
+    if (!chineseLocalizationBundle) {
+        const bundlePath = path.resolve(__dirname, '../../l10n/bundle.l10n.zh-cn.json');
+        chineseLocalizationBundle = fs.existsSync(bundlePath)
+            ? JSON.parse(fs.readFileSync(bundlePath, 'utf8')) as Record<string, string>
+            : {};
+    }
+    return chineseLocalizationBundle;
+}
+
+export const l10n = {
+    get bundle(): Record<string, string> | undefined {
+        return getLocalizationBundle();
+    },
+    get uri(): Uri | undefined {
+        return env.language.toLowerCase() === 'zh-cn'
+            ? Uri.file(path.resolve(__dirname, '../../l10n/bundle.l10n.zh-cn.json'))
+            : undefined;
+    },
+    t(messageOrOptions: string | { message: string; args?: unknown[] | Record<string, unknown> }, ...values: unknown[]): string {
+        const message = typeof messageOrOptions === 'string' ? messageOrOptions : messageOrOptions.message;
+        const args = typeof messageOrOptions === 'string'
+            ? values.length === 1 && typeof values[0] === 'object' && values[0] !== null
+                ? values[0] as Record<string, unknown>
+                : values
+            : messageOrOptions.args ?? [];
+        const translated = getLocalizationBundle()?.[message] ?? message;
+        return translated.replace(/\{([^}]+)\}/g, (match, key: string) => {
+            const value = args[key as keyof typeof args];
+            return value === undefined || value === null ? match : String(value);
+        });
     }
 };
 

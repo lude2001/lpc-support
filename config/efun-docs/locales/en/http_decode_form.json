@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS sockets package efun.",
+  "details": "Parse a form-encoded request-body string and return a mapping of keys to values."
+}

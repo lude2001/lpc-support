@@ -1,0 +1,4 @@
+{
+    "summary": "sys_network_ports 内置函数",
+    "details": "名称\nsys_network_ports() - 显示活动的网络端口\n\n用法\nmixed *sys_network_ports(void);\n\n说明\n返回一个数组，其中每个子数组对应一个正在使用的网络端口。\n此 efun 于 2023年6月1日 commit 181308d 中新增。\n\n返回值\n每个活动端口对应的子数组形式为：\n\n       ({ (string) type, (int) port, (int) tls, })\n\n另见\nnetwork_stats(3)"
+}

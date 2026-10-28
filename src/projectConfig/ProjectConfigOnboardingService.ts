@@ -5,9 +5,9 @@ import type { LpcProjectConfigService } from './LpcProjectConfigService';
 import type { LpcProjectConfigSnapshotService } from './LpcProjectConfigSnapshotService';
 
 export const ONBOARDING_ACTIONS = {
-    generate: '一键生成配置',
-    viewDocs: '查看文档',
-    neverRemind: '不再提示'
+    generate: 'generate-config',
+    viewDocs: 'view-docs',
+    neverRemind: 'never-remind'
 } as const;
 
 export interface LpcProjectDetectionResult {
@@ -102,29 +102,32 @@ export class ProjectConfigOnboardingService implements vscode.Disposable {
         }
 
         this.promptedWorkspaceRoots.add(normalizedRoot);
+        const actions = [
+            { title: vscode.l10n.t('Generate configuration'), action: ONBOARDING_ACTIONS.generate },
+            { title: vscode.l10n.t('View documentation'), action: ONBOARDING_ACTIONS.viewDocs },
+            { title: vscode.l10n.t('Do not remind me again'), action: ONBOARDING_ACTIONS.neverRemind }
+        ];
         const selection = await vscode.window.showInformationMessage(
-            '检测到当前工作区可能是 LPC (MUD) 项目，但尚未创建 lpc-support.json 配置文件。',
-            ONBOARDING_ACTIONS.generate,
-            ONBOARDING_ACTIONS.viewDocs,
-            ONBOARDING_ACTIONS.neverRemind
+            vscode.l10n.t('This workspace appears to be an LPC (MUD) project, but lpc-support.json has not been created.'),
+            ...actions
         );
 
-        if (selection === ONBOARDING_ACTIONS.generate) {
+        if (selection?.action === ONBOARDING_ACTIONS.generate) {
             const created = await this.generateProjectConfig(workspaceRoot);
             if (created) {
-                void vscode.window.showInformationMessage('已生成 lpc-support.json，LPC 项目配置已就绪。');
+                void vscode.window.showInformationMessage(vscode.l10n.t('Created lpc-support.json. The LPC project configuration is ready.'));
             } else {
-                void vscode.window.showErrorMessage('生成 lpc-support.json 失败，请稍后重试。');
+                void vscode.window.showErrorMessage(vscode.l10n.t('Failed to create lpc-support.json. Try again later.'));
             }
             return;
         }
 
-        if (selection === ONBOARDING_ACTIONS.viewDocs) {
+        if (selection?.action === ONBOARDING_ACTIONS.viewDocs) {
             void vscode.env.openExternal(vscode.Uri.parse(this.getDocumentationUri()));
             return;
         }
 
-        if (selection === ONBOARDING_ACTIONS.neverRemind) {
+        if (selection?.action === ONBOARDING_ACTIONS.neverRemind) {
             await this.deps.memento.update(ProjectConfigOnboardingService.DISMISSED_STATE_KEY, true);
         }
     }

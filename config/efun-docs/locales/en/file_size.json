@@ -1,0 +1,3 @@
+{
+    "summary": "file_size() returns the size of `file` in bytes. Returns -1 if the file does not exist or cannot be read due to permissions, or -2 if `file` is a directory."
+}

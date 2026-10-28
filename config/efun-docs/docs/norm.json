@@ -1,7 +1,5 @@
 {
   "name": "norm",
-  "summary": "计算向量范数",
-  "category": "浮点运算相关函数（Floats）",
   "signatures": [
     {
       "label": "float norm(int *|float * f)",
@@ -18,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "floats"
 }

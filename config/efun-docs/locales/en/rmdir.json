@@ -1,0 +1,4 @@
+{
+    "summary": "Removes directory 'dir'.",
+    "details": "Return semantics:\nReturns 1 on success or 0 on failure."
+}

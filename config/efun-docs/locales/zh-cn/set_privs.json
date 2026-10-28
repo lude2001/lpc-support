@@ -1,0 +1,4 @@
+{
+  "summary": "set_privs 内置函数",
+  "details": "名称\nset_privs() - 设置对象的 privs 字符串\n\n用法\nvoid set_privs( object ob, int | string privs );\n\n说明\n将 'ob' 的 privs 字符串设置为 'privs'。\n\n   只有驱动编译时定义了 PRIVS，此函数才可用。\n\n参照\nprivs_file(4), query_privs(3)"
+}

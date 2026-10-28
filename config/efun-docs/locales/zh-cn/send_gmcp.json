@@ -1,0 +1,4 @@
+{
+  "summary": "send_gmcp 内置函数",
+  "details": "名称\nsend_gmcp() - 发送 GMCP 消息\n\n用法\nvoid send_gmcp( string message );\n\n说明\n将 this_object() 的 GMCP 'message' 发送给用户的客户端。\n\n   消息体的格式参见：http://www.gammon.com.au/gmcp, https://github.com/keneanung/GMCPAdditions\n\n   注意：send_gmcp() 只能在用户对象中调用。\n\n参照\ngmcp_enable(4), gmcp(4), has_gmcp(3)"
+}

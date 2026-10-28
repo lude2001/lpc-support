@@ -1,0 +1,3 @@
+{
+    "summary": "With two arguments, makes `snooper` begin snooping on `snoopee`. Omitting the second argument disables all snooping by `snooper`. A simulated efun is normally used to enforce snoop() security.\n\nOn success, returns `snoopee` in the two-argument form or `snooper` in the one-argument form. Returns 0 on failure."
+}

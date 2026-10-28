@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS develop 包中的 Efun。",
+    "details": "检查 driver 内存分配状态并返回调试信息。可选参数用于控制检查或输出细节，主要面向开发和排障场景。"
+}

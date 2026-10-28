@@ -1,10 +1,8 @@
 {
   "name": "min",
-  "summary": "FluffOS 1.33新增efun，寻找数组 `arr` (int|float|string) 中的最小值，如果参数 `flag` 缺省或值为 0，函数返回最小值，否则返回第一个最小值的索引。",
   "reference": [
     "max"
   ],
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "mixed min(mixed * arr)",
@@ -41,5 +39,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

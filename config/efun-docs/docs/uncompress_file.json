@@ -1,7 +1,5 @@
 {
   "name": "uncompress_file",
-  "summary": "uncompress_file 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "int uncompress_file(string, string | void)",
@@ -23,5 +21,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

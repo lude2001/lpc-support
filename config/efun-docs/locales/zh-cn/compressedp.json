@@ -1,0 +1,4 @@
+{
+    "summary": "compressedp 内置函数",
+    "details": "名称\ncompressedp() - 判断交互连接是否使用 telopt compress\n\n用法\nint compressedp(object ob);\n\n说明\n从 FluffOS 1.4 开始提供，返回交互连接是否使用 telopt compress。需要 #ifdef PACKAGE_COMPRESS。"
+}

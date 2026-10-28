@@ -1,0 +1,3 @@
+{
+    "summary": "For a mapping argument, map() behaves like map_mapping(); for an array argument, it behaves like map_array(). For a string argument, each character is converted to an integer and passed to the processing function. A nonzero integer result is converted back to a character and replaces the original character; a result of 0 leaves it unchanged."
+}

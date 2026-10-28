@@ -1,0 +1,3 @@
+{
+    "summary": "Read the specified number of lines from `file` into a string. The second and third arguments are optional; if only the filename is supplied, read the entire file.\n\n`start_line` selects the first line to read, and `number_of_lines ` is the number of lines. Return 0 if the starting line is beyond the end of the file or the requested line count is negative.\n\nReturn 0 if the file does not exist."
+}

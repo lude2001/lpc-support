@@ -1,8 +1,8 @@
 {
   "name": "lpc-support",
-  "displayName": "LPC[FluffOS]",
-  "description": "LPC (LP MUD Creation Language) 语言支持",
-  "version": "0.52.19",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
+  "version": "0.52.20",
   "publisher": "ludexiang",
   "author": {
     "name": "easyCat",
@@ -102,53 +102,53 @@
     "snippets": [
       {
         "language": "lpc",
-        "path": "./snippets/lpc.json"
+        "path": "%snippetPath%"
       }
     ],
     "commands": [
       {
         "command": "lpc.startDriver",
-        "title": "启动MUD驱动",
-        "category": "LPC"
+        "title": "%commands.lpc.startDriver.title%",
+        "category": "%commands.category.lpc%"
       },
       {
         "command": "lpc.showVariables",
-        "title": "显示所有 LPC 变量"
+        "title": "%commands.lpc.showVariables.title%"
       },
       {
         "command": "lpc.scanFolder",
-        "title": "扫描文件夹中未使用的变量",
-        "category": "LPC"
+        "title": "%commands.lpc.scanFolder.title%",
+        "category": "%commands.category.lpc%"
       },
       {
         "command": "lpc.compileFile",
-        "title": "编译LPC文件",
-        "category": "LPC"
+        "title": "%commands.lpc.compileFile.title%",
+        "category": "%commands.category.lpc%"
       },
       {
         "command": "lpc.compileFolder",
-        "title": "批量编译LPC文件",
-        "category": "LPC"
+        "title": "%commands.lpc.compileFolder.title%",
+        "category": "%commands.category.lpc%"
       },
       {
         "command": "lpc.manageCompilation",
-        "title": "编译管理",
-        "category": "LPC"
+        "title": "%commands.lpc.manageCompilation.title%",
+        "category": "%commands.category.lpc%"
       },
       {
         "command": "lpc.configureSimulatedEfuns",
-        "title": "查看模拟函数入口配置来源",
-        "category": "LPC"
+        "title": "%commands.lpc.configureSimulatedEfuns.title%",
+        "category": "%commands.category.lpc%"
       },
       {
         "command": "lpc.initProjectConfig",
-        "title": "初始化 LPC 项目配置",
-        "category": "LPC"
+        "title": "%commands.lpc.initProjectConfig.title%",
+        "category": "%commands.category.lpc%"
       },
       {
         "command": "lpc.showFunctionDoc",
-        "title": "显示函数文档面板",
-        "category": "LPC",
+        "title": "%commands.lpc.showFunctionDoc.title%",
+        "category": "%commands.category.lpc%",
         "icon": {
           "light": "./media/function-doc-light.svg",
           "dark": "./media/function-doc-dark.svg"
@@ -156,37 +156,37 @@
       },
       {
         "command": "lpc.showAnalysisInspector",
-        "title": "打开 LPC 分析查看器",
-        "category": "LPC",
+        "title": "%commands.lpc.showAnalysisInspector.title%",
+        "category": "%commands.category.lpc%",
         "icon": "$(inspect)"
       },
       {
         "command": "lpc.rebuildWorkspaceIndex",
-        "title": "重建 LPC 工作区索引",
-        "category": "LPC"
+        "title": "%commands.lpc.rebuildWorkspaceIndex.title%",
+        "category": "%commands.category.lpc%"
       },
       {
         "command": "lpc.generateJavadoc",
-        "title": "生成Javadoc注释",
-        "category": "LPC"
+        "title": "%commands.lpc.generateJavadoc.title%",
+        "category": "%commands.category.lpc%"
       },
       {
         "command": "lpc.errorTree.refresh",
-        "title": "刷新",
+        "title": "%commands.lpc.errorTree.refresh.title%",
         "icon": "$(refresh)"
       },
       {
         "command": "lpc.errorTree.clear",
-        "title": "清空所有错误",
+        "title": "%commands.lpc.errorTree.clear.title%",
         "icon": "$(clear-all)"
       },
       {
         "command": "lpc.errorTree.openErrorLocation",
-        "title": "打开错误位置"
+        "title": "%commands.lpc.errorTree.openErrorLocation.title%"
       },
       {
         "command": "lpc.errorTree.copyError",
-        "title": "复制错误信息",
+        "title": "%commands.lpc.errorTree.copyError.title%",
         "icon": "$(copy)"
       }
     ],
@@ -255,7 +255,7 @@
       "activitybar": [
         {
           "id": "lpc-activitybar",
-          "title": "LPC",
+          "title": "%viewsContainers.lpc-activitybar.title%",
           "icon": "media/function-doc-dark.svg"
         }
       ]
@@ -264,7 +264,7 @@
       "lpc-activitybar": [
         {
           "id": "lpcErrorTree",
-          "name": "错误诊断中心",
+          "name": "%views.lpcErrorTree.name%",
           "type": "tree",
           "icon": "$(error)"
         }
@@ -272,46 +272,46 @@
     },
     "configuration": {
       "type": "object",
-      "title": "LPC Support Configuration",
+      "title": "%configuration.title%",
       "properties": {
         "lpc.enableUnusedGlobalVarCheck": {
           "type": "boolean",
           "default": false,
-          "description": "启用未使用的全局变量检查。默认关闭，以避免 LPC 继承链和头文件共享变量导致的误报。"
+          "description": "%configuration.lpc.enableUnusedGlobalVarCheck.description%"
         },
         "lpc.enableUnusedParameterCheck": {
           "type": "boolean",
           "default": false,
-          "description": "启用未使用的函数参数检查。只检查带函数体的实现并忽略下划线前缀参数；默认关闭，以避免回调和覆盖函数的约定参数产生噪声。"
+          "description": "%configuration.lpc.enableUnusedParameterCheck.description%"
         },
         "lpc.enforceLocalVariableDeclarationAtBlockStart": {
           "type": "boolean",
           "default": false,
-          "description": "启用“局部变量定义必须在可执行语句或代码块开头”的检查。FluffOS 新版本通常不需要此限制。"
+          "description": "%configuration.lpc.enforceLocalVariableDeclarationAtBlockStart.description%"
         },
         "lpc.searchEfunDefinitionInInheritanceChain": {
           "type": "boolean",
           "default": false,
-          "description": "对 efun（驱动内置函数）调用执行“转到定义”时是否搜索继承链。默认关闭：efun 调用直接返回“未找到”，避免遍历继承链带来的延迟。仅当你在继承链（而非模拟函数库 simul_efun）中重写了 efun 时才需要开启。"
+          "description": "%configuration.lpc.searchEfunDefinitionInInheritanceChain.description%"
         },
         "lpc.enableTypeChecking": {
           "type": "boolean",
           "default": true,
-          "description": "启用保守的 LPC 类型检查诊断。关闭后不会产生 lpc.type.* 诊断。"
+          "description": "%configuration.lpc.enableTypeChecking.description%"
         },
         "lpc.format.indentSize": {
           "type": "integer",
           "default": 4,
           "minimum": 2,
           "maximum": 8,
-          "description": "LPC 格式化缩进宽度；使用空格或制表符跟随编辑器设置。"
+          "description": "%configuration.lpc.format.indentSize.description%"
         },
         "lpc.format.printWidth": {
           "type": "integer",
           "default": 100,
           "minimum": 0,
           "maximum": 400,
-          "description": "LPC 参数与实参列表的目标行宽。0 禁用自动换行；非零值按 20–400 列处理。宏参数、注释与字符串保持原文，不强制截断。"
+          "description": "%configuration.lpc.format.printWidth.description%"
         },
         "lpc.format.braceStyle": {
           "type": "string",
@@ -320,77 +320,77 @@
             "kr"
           ],
           "enumDescriptions": [
-            "左花括号独占一行",
-            "左花括号跟随声明或控制语句"
+            "%configuration.lpc.format.braceStyle.enumDescriptions.allman%",
+            "%configuration.lpc.format.braceStyle.enumDescriptions.kr%"
           ],
           "default": "allman",
-          "description": "LPC 格式化的花括号风格，修改后即时生效。"
+          "description": "%configuration.lpc.format.braceStyle.description%"
         },
         "lpc.glm4.apiKey": {
           "type": "string",
           "default": "",
-          "description": "智谱AI GLM-4 API密钥，用于生成Javadoc注释"
+          "description": "%configuration.lpc.glm4.apiKey.description%"
         },
         "lpc.glm4.model": {
           "type": "string",
           "default": "GLM-4-Flash-250414",
-          "description": "GLM-4模型类型，支持预设模型或自定义模型名称。预设模型包括: glm-4, glm-4-flash, glm-z1-flash, GLM-4.5-Flash, GLM-4-Flash-250414"
+          "description": "%configuration.lpc.glm4.model.description%"
         },
         "lpc.glm4.allowCustomModel": {
           "type": "boolean",
           "default": true,
-          "description": "允许用户在生成Javadoc时选择自定义模型"
+          "description": "%configuration.lpc.glm4.allowCustomModel.description%"
         },
         "lpc.glm4.baseUrl": {
           "type": "string",
           "default": "https://open.bigmodel.cn/api/paas/v4",
-          "description": "GLM-4 API基础URL"
+          "description": "%configuration.lpc.glm4.baseUrl.description%"
         },
         "lpc.glm4.timeout": {
           "type": "number",
           "default": 30000,
           "minimum": 5000,
           "maximum": 120000,
-          "description": "API请求超时时间（毫秒）"
+          "description": "%configuration.lpc.glm4.timeout.description%"
         },
         "lpc.javadoc.enableAutoGeneration": {
           "type": "boolean",
           "default": true,
-          "description": "启用自动生成Javadoc注释功能"
+          "description": "%configuration.lpc.javadoc.enableAutoGeneration.description%"
         },
         "lpc.glm4.alwaysShowModelSelector": {
           "type": "boolean",
           "default": false,
-          "description": "每次生成Javadoc时都显示模型选择界面，关闭后将直接使用默认模型"
+          "description": "%configuration.lpc.glm4.alwaysShowModelSelector.description%"
         },
         "lpc.glm4.rememberLastModel": {
           "type": "boolean",
           "default": true,
-          "description": "记住上次选择的模型，下次生成时优先使用"
+          "description": "%configuration.lpc.glm4.rememberLastModel.description%"
         },
         "lpc.glm4.lastSelectedModel": {
           "type": "string",
           "default": "",
-          "description": "上次选择的模型名称（自动保存）"
+          "description": "%configuration.lpc.glm4.lastSelectedModel.description%"
         },
         "lpc.glm4.customModels": {
           "type": "array",
           "default": [],
-          "description": "用户自定义的模型列表",
+          "description": "%configuration.lpc.glm4.customModels.description%",
           "items": {
             "type": "object",
             "properties": {
               "name": {
                 "type": "string",
-                "description": "模型显示名称"
+                "description": "%configuration.lpc.glm4.customModels.items.name.description%"
               },
               "id": {
                 "type": "string",
-                "description": "模型ID"
+                "description": "%configuration.lpc.glm4.customModels.items.id.description%"
               },
               "description": {
                 "type": "string",
-                "description": "模型描述"
+                "description": "%configuration.lpc.glm4.customModels.items.description.description%"
               }
             },
             "required": [
@@ -398,6 +398,20 @@
               "id"
             ]
           }
+        },
+        "lpc.documentation.language": {
+          "type": "string",
+          "enum": [
+            "zh-cn",
+            "en"
+          ],
+          "default": "zh-cn",
+          "scope": "resource",
+          "description": "%configuration.lpc.documentation.language.description%",
+          "enumDescriptions": [
+            "%configuration.lpc.documentation.language.enumDescriptions.zh-cn%",
+            "%configuration.lpc.documentation.language.enumDescriptions.en%"
+          ]
         }
       }
     },
@@ -421,95 +435,95 @@
     "semanticTokenTypes": [
       {
         "id": "keyword",
-        "description": "关键字"
+        "description": "%semanticTokenTypes.keyword.description%"
       },
       {
         "id": "lpcType",
         "superType": "type",
-        "description": "LPC 基础类型"
+        "description": "%semanticTokenTypes.lpcType.description%"
       },
       {
         "id": "type",
-        "description": "类型关键字"
+        "description": "%semanticTokenTypes.type.description%"
       },
       {
         "id": "variable",
-        "description": "变量"
+        "description": "%semanticTokenTypes.variable.description%"
       },
       {
         "id": "parameter",
-        "description": "函数参数"
+        "description": "%semanticTokenTypes.parameter.description%"
       },
       {
         "id": "function",
-        "description": "函数名"
+        "description": "%semanticTokenTypes.function.description%"
       },
       {
         "id": "method",
         "superType": "function",
-        "description": "对象方法"
+        "description": "%semanticTokenTypes.method.description%"
       },
       {
         "id": "property",
         "superType": "variable",
-        "description": "成员/属性"
+        "description": "%semanticTokenTypes.property.description%"
       },
       {
         "id": "macro",
-        "description": "宏或常量"
+        "description": "%semanticTokenTypes.macro.description%"
       },
       {
         "id": "number",
-        "description": "数字"
+        "description": "%semanticTokenTypes.number.description%"
       },
       {
         "id": "string",
-        "description": "字符串"
+        "description": "%semanticTokenTypes.string.description%"
       },
       {
         "id": "comment",
-        "description": "注释"
+        "description": "%semanticTokenTypes.comment.description%"
       },
       {
         "id": "operator",
-        "description": "运算符"
+        "description": "%semanticTokenTypes.operator.description%"
       },
       {
         "id": "builtin",
         "superType": "function",
-        "description": "内置函数"
+        "description": "%semanticTokenTypes.builtin.description%"
       },
       {
         "id": "simulatedEfun",
         "superType": "function",
-        "description": "模拟外部函数"
+        "description": "%semanticTokenTypes.simulatedEfun.description%"
       },
       {
         "id": "inactive",
         "superType": "comment",
-        "description": "未启用的条件编译代码"
+        "description": "%semanticTokenTypes.inactive.description%"
       }
     ],
     "semanticTokenModifiers": [
       {
         "id": "declaration",
-        "description": "声明位置"
+        "description": "%semanticTokenModifiers.declaration.description%"
       },
       {
         "id": "local",
-        "description": "局部符号"
+        "description": "%semanticTokenModifiers.local.description%"
       },
       {
         "id": "defaultLibrary",
-        "description": "内置库符号"
+        "description": "%semanticTokenModifiers.defaultLibrary.description%"
       },
       {
         "id": "readonly",
-        "description": "只读符号"
+        "description": "%semanticTokenModifiers.readonly.description%"
       },
       {
         "id": "static",
-        "description": "静态符号"
+        "description": "%semanticTokenModifiers.static.description%"
       }
     ],
     "semanticTokenScopes": [
@@ -541,6 +555,9 @@
   "scripts": {
     "vscode:prepublish": "cross-env NODE_ENV=production npm run build && npm run build:rust && node scripts/prepare-native-package.mjs",
     "build": "node esbuild.mjs",
+    "build:l10n": "node scripts/localization/build-bundles.mjs --write",
+    "check:l10n": "node scripts/localization/build-bundles.mjs --check && node scripts/localization/efun-baseline.mjs --check && node scripts/localization/check-efun-localization.mjs",
+    "test:l10n": "node --test scripts/localization/build-bundles.test.mjs scripts/localization/efun-baseline.test.mjs scripts/localization/manifest-localization.test.mjs scripts/tests/localization-text-inventory.test.mjs scripts/localization/check-efun-localization.test.mjs scripts/localization/check-vsix-localization.test.mjs",
     "build:rust": "node scripts/build-rust-lsp.mjs",
     "benchmark:rust": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --release --package lpc-language-server --example analysis-benchmark --",
     "check:rust": "node scripts/run-cargo.mjs clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
@@ -561,12 +578,16 @@
     "test:watch": "jest --watch",
     "test:performance": "jest --runInBand src/functionDocs/__tests__/FunctionDocumentationPerformance.test.ts",
     "test:rust-smoke": "node scripts/rust-lsp-smoke.mjs",
+    "test:rust-localization": "node scripts/localization/rust-localization-smoke.mjs",
     "test:ci-tools": "node --test scripts/tests/diagnostics-inbox.test.mjs",
     "probe:lsp": "node scripts/lsp-probe.mjs",
     "audit:efun-arity": "node scripts/audit-efun-arity.mjs",
     "audit:efun-arity:strict": "node scripts/audit-efun-arity.mjs --strict",
     "audit:efun-arity:strict-arity": "node scripts/audit-efun-arity.mjs --strict-arity",
-    "audit:rust-syntax": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --release --package lpc-language-server --example syntax_audit --"
+    "audit:rust-syntax": "node scripts/run-cargo.mjs run --manifest-path rust/Cargo.toml --release --package lpc-language-server --example syntax_audit --",
+    "test:efun-localization-consumers": "node scripts/localization/check-efun-consumers.mjs",
+    "check:vsix-localization": "node scripts/localization/check-vsix-localization.mjs",
+    "test:vscode-localization": "node scripts/run-vscode-localization-test.mjs"
   },
   "license": "MIT",
   "icon": "icon.png",
@@ -582,6 +603,9 @@
     "README.en.md",
     "CHANGELOG.md",
     "icon.png",
-    "LICENSE"
-  ]
+    "LICENSE",
+    "package.nls*.json",
+    "l10n/bundle.l10n*.json"
+  ],
+  "l10n": "./l10n"
 }

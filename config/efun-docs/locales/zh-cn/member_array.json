@@ -1,0 +1,4 @@
+{
+  "summary": "返回 `item` 在数组或字符串 `arr` 中首次出现的位置。如果指定起始位置 `start`，则从指定位置开始查询（包含该位置）；如果没有找到则返回 -1。\n\n   如果第二个参数是字符串，第一个参数必须是一个 int，表示要在该字符串中查找的字符。",
+  "details": "示例\n{\n    member_array( \"red\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) ) ;\n    // 0\n\n    member_array( \"red\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) , 1) ;\n    // 2\n\n    member_array( \"blue\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) , 3) ;\n    // -1\n\n    member_array( \"purple\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) ) ;\n    // -1\n\n    member_array('F', \"Drink the FluffOS Kool-Aid!\") ;\n    // 10\n\n    member_array('Z', \"Drink the FluffOS Kool-Aid!\") ;\n    // -1\n}"
+}

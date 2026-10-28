@@ -1,0 +1,3 @@
+{
+    "summary": "Returns the name of the current command, or 0 if execution was not initiated through a command. This can distinguish which command invoked a function when multiple commands share the same function.\n\nWhen the parser copies a verb from user input, it retains at most 99 UTF-8 bytes without splitting a character, enough for 33 Chinese characters encoded with three bytes each. This is a byte limit, not a limit of 99 Unicode characters, and does not apply uniformly to registered verbs returned directly."
+}

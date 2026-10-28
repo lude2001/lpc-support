@@ -1,0 +1,3 @@
+{
+    "summary": "Sets object `ob` to reset `time` seconds from now. If `time` is omitted, the driver's general reset timing is used, according to:\n\n   reset_time = current_time + reset_time / 2 + random(reset_time / 2)"
+}

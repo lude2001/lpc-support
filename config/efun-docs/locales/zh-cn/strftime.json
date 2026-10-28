@@ -1,0 +1,3 @@
+{
+    "summary": "使用格式字符串格式化给定的时间，参见 https://en.cppreference.com/w/cpp/chrono/c/strftime"
+}

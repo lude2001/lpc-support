@@ -1,0 +1,18 @@
+[
+    { "input": null, "expected": "en", "reason": "A client that omits its locale uses English." },
+    { "input": "", "expected": "en", "reason": "An empty locale uses the default resource." },
+    { "input": "en", "expected": "en", "reason": "English uses the source messages." },
+    { "input": "en-US", "expected": "en", "reason": "English regions use the source messages." },
+    { "input": "en-gb", "expected": "en", "reason": "English regions use the source messages." },
+    { "input": "zh-cn", "expected": "zh-cn", "reason": "The VS Code Simplified Chinese language identifier is supported." },
+    { "input": "zh-CN", "expected": "zh-cn", "reason": "LSP locale identifiers are compared case-insensitively." },
+    { "input": "ZH-CN", "expected": "zh-cn", "reason": "Locale casing does not change the supported language." },
+    { "input": "zh", "expected": "en", "reason": "Do not invent an alias that the VS Code runtime bundle does not load." },
+    { "input": "zh-Hans", "expected": "en", "reason": "A script tag is not a shipped VS Code bundle filename." },
+    { "input": "zh-SG", "expected": "en", "reason": "An unshipped region must not create mixed-language host and server output." },
+    { "input": "zh-tw", "expected": "en", "reason": "Traditional Chinese is outside this release's translated locales." },
+    { "input": "zh_cn", "expected": "en", "reason": "An underscore identifier is not a shipped locale." },
+    { "input": "de", "expected": "en", "reason": "Untranslated display languages use English." },
+    { "input": "fr-ca", "expected": "en", "reason": "Untranslated regions use English." },
+    { "input": "ja", "expected": "en", "reason": "Untranslated display languages use English." }
+]

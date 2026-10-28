@@ -1,0 +1,4 @@
+{
+    "summary": "Split `str` using the delimiter string `del` and return an array of the resulting strings.",
+    "details": "Examples\nexplode(str, \" \") returns an array of all words in `str`.\nexplode(str, \"\") returns an array of all characters in `str`."
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "This efun is an interface to the driver add_message() function, intended to display a message to the current object. Returns 1 if the current object is an interactive player, or 0 otherwise. It should normally be called from receive_snoop() or receive_message()."
+}

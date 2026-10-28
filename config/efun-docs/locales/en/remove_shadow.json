@@ -1,0 +1,3 @@
+{
+    "summary": "Unlink the specified object from its shadow chain without destructing it.\n\nFor `ob`, return 0 if the object is unavailable or neither shadows another object nor is shadowed. Otherwise unlink it from its neighboring shadows and return 1.\n\nAvailable only when NO_SHADOWS was not defined when compiling the driver."
+}

@@ -1,0 +1,3 @@
+{
+  "summary": "dump_prog() dumps program information for object `ob` to `file`. The dump fails if the file is not writable. If no output file is specified, the dump is written to /PROG_DUMP.\n\n   `flag` defaults to 0. A value of 1 includes disassembly information; a value of 2 includes line-number information."
+}

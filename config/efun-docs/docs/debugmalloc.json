@@ -1,8 +1,5 @@
 {
   "name": "debugmalloc",
-  "summary": "FluffOS develop package efun.",
-  "details": "查询或控制 malloc 调试信息，返回与指定调试项相关的文本结果。主要用于 driver 开发和内存问题排查。",
-  "category": "内部处理相关函数（Internals）",
   "signatures": [
     {
       "label": "string debugmalloc( string, int default: 0 )",
@@ -24,5 +21,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "internals"
 }

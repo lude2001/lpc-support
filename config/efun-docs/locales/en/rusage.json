@@ -1,0 +1,4 @@
+{
+  "summary": "Return information gathered by the getrusage() system call. Times in the report are measured in milliseconds.\n\n   An example of using rusage():\n\nvoid create()\n{\n    mapping info;\n\n    info = rusage();\n    write(\"user time = \" + info[\"utime\"] + \"ms\\n\");\n    write(\"system time = \" + info[\"stime\"] + \"ms\\n\");\n}\n\nThe mapping returned by rusage() includes these keys: utime, stime, maxrss, ixrss, idrss, isrss, minflt, majflt, nswap, inblock, oublock, msgsnd, msgrcv, nsignals, nvcsw, nivcsw",
+  "details": "Example\n> eval return rusage()\nResult = ([ /* sizeof() == 16 */\n  \"utime\" : 2187,\n  \"idrss\" : 0,\n  \"nsignals\" : 0,\n  \"msgsnd\" : 0,\n  \"isrss\" : 0,\n  \"ixrss\" : 0,\n  \"msgrcv\" : 0,\n  \"inblock\" : 0,\n  \"minflt\" : 12647,\n  \"nswap\" : 0,\n  \"majflt\" : 0,\n  \"nvcsw\" : 0,\n  \"nivcsw\" : 0,\n  \"maxrss\" : 47240,\n  \"stime\" : 1265,\n  \"oublock\" : 0,\n])"
+}

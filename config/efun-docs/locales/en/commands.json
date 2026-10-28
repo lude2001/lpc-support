@@ -1,0 +1,3 @@
+{
+    "summary": "Return information about the commands available to the current object as an array of arrays, with four elements per command. The first is the command name added by add_action(); the second is the command flag, the third argument of add_action(), usually 0; the third is the object defining the command; and the fourth is the function called by the command, represented as a function pointer."
+}

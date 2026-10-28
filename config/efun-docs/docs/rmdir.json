@@ -1,13 +1,10 @@
 {
   "name": "rmdir",
-  "summary": "删除目录 'dir'。",
-  "details": "Return semantics:\n成功返回 1 ，失败返回 0 。",
   "reference": [
     "rm",
     "mkdir",
     "link"
   ],
-  "category": "文件系统相关函数（Filesystem）",
   "signatures": [
     {
       "label": "int rmdir( string dir )",
@@ -24,5 +21,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "filesystem"
 }

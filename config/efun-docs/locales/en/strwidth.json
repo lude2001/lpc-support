@@ -1,0 +1,3 @@
+{
+  "summary": "Added in FluffOS 2.1. Return the display width of string 'str'.\n\n   The driver uses rules defined in https://www.unicode.org/reports/tr11/tr11-36.html to calcuate character width.\n   Control characters has no width, Wide characters, including emojis are two column wide. This rule is also used by sprintf() to layout strings."
+}

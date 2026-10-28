@@ -1,7 +1,5 @@
 {
   "name": "compress_file",
-  "summary": "compress_file 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "int compress_file(string, string | void)",
@@ -23,5 +21,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

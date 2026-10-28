@@ -1,0 +1,3 @@
+{
+    "summary": "The first form is identical to clone_object(). Note that clone_object() is an alias for new().\n\nThe second form initializes a struct/class variable, for example:\n\n   class example {\n       string name;\n       int age;\n       string *lover;\n   }\n\n   void create()\n   {\n       // 变量\n       class example instance = new(class example);\n       // 赋值\n       instance->age = 24;\n       instance->name = \"Ivy\";\n       instance->lover = ({\"Alice\", \"Vivian\", \"lucy\"});\n       // ...\n   }\n\nValues can also be supplied directly when initializing a class variable:\n       class example instance = new(class example, name:\"ivy\", age:24, lover:({\"Alice\",\"Vivian\"}))"
+}

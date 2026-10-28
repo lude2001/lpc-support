@@ -1,5 +1,5 @@
 {
-  "数组相关函数（Arrays）": [
+  "arrays": [
     "allocate",
     "arrayp",
     "element_of",
@@ -11,7 +11,7 @@
     "sort_array",
     "unique_array"
   ],
-  "缓冲区相关函数（Buffers）": [
+  "buffers": [
     "allocate_buffer",
     "buffer_transcode",
     "bufferp",
@@ -20,7 +20,7 @@
     "to_buffer",
     "write_buffer"
   ],
-  "调用相关函数（Calls）": [
+  "calls": [
     "async_yield",
     "call_other",
     "call_out",
@@ -35,7 +35,7 @@
     "this_object",
     "throw"
   ],
-  "结构体（类）相关函数（Class）": [
+  "class": [
     "assemble_class",
     "classes",
     "classp",
@@ -44,7 +44,7 @@
     "num_classes",
     "store_class_member"
   ],
-  "数据库相关函数（DB）": [
+  "db": [
     "async_db_exec",
     "db_close",
     "db_commit",
@@ -54,13 +54,13 @@
     "db_rollback",
     "db_status"
   ],
-  "在线编辑相关函数（ED）": [
+  "ed": [
     "ed",
     "ed_cmd",
     "ed_start",
     "query_ed_mode"
   ],
-  "文件系统相关函数（Filesystem）": [
+  "filesystem": [
     "async_getdir",
     "async_read",
     "async_write",
@@ -78,7 +78,7 @@
     "write_bytes",
     "write_file"
   ],
-  "浮点运算相关函数（Floats）": [
+  "floats": [
     "acos",
     "angle",
     "asin",
@@ -101,13 +101,13 @@
     "tan",
     "to_int"
   ],
-  "函数相关函数（Functions）": [
+  "functions": [
     "bind",
     "defer",
     "evaluate",
     "functionp"
   ],
-  "常规函数（General）": [
+  "general": [
     "filter",
     "json_decode",
     "json_encode",
@@ -120,7 +120,7 @@
     "typeof",
     "undefinedp"
   ],
-  "互动对象(玩家)相关函数（Interactive）": [
+  "interactive": [
     "act_mxp",
     "add_action",
     "command",
@@ -175,7 +175,7 @@
     "wizardp",
     "write"
   ],
-  "内部处理相关函数（Internals）": [
+  "internals": [
     "cache_stats",
     "check_memory",
     "clear_debug_level",
@@ -203,7 +203,7 @@
     "trace",
     "traceprefix"
   ],
-  "映射相关函数（Mappings）": [
+  "mappings": [
     "allocate_mapping",
     "filter_mapping",
     "keys",
@@ -214,7 +214,7 @@
     "unique_mapping",
     "values"
   ],
-  "MUDLIB相关函数（Mudlib）": [
+  "mudlib": [
     "author_stats",
     "domain_stats",
     "export_uid",
@@ -231,13 +231,13 @@
     "set_privs",
     "seteuid"
   ],
-  "数字相关函数（Numbers）": [
+  "numbers": [
     "intp",
     "random",
     "secure_random",
     "to_float"
   ],
-  "对象相关函数（Objects）": [
+  "objects": [
     "all_inventory",
     "children",
     "clone_object",
@@ -271,7 +271,7 @@
     "tell_room",
     "virtualp"
   ],
-  "语法分析相关函数（Parsing）": [
+  "parsing": [
     "parse_add_rule",
     "parse_add_synonym",
     "parse_command",
@@ -283,7 +283,7 @@
     "parse_sentence",
     "query_verb"
   ],
-  "PCRE 相关函数(PCRE)": [
+  "pcre": [
     "pcre_assoc",
     "pcre_cache",
     "pcre_extract",
@@ -293,7 +293,7 @@
     "pcre_replace_callback",
     "pcre_version"
   ],
-  "SOCKET相关函数（Sockets）": [
+  "sockets": [
     "http_build_response",
     "http_decode_form",
     "http_decode_query",
@@ -320,7 +320,7 @@
     "url_decode",
     "url_encode"
   ],
-  "字符串相关函数（Strings）": [
+  "strings": [
     "capitalize",
     "clear_bit",
     "crypt",
@@ -351,7 +351,7 @@
     "test_bit",
     "trim"
   ],
-  "系统相关函数（System）": [
+  "system": [
     "all_previous_objects",
     "call_out_info",
     "ctime",
@@ -383,7 +383,7 @@
     "trace_start",
     "uptime"
   ],
-  "FluffOS新增函数（Contrib）": [
+  "contrib": [
     "abs",
     "add_a",
     "base_name",
@@ -437,7 +437,7 @@
     "vowel",
     "zonetime"
   ],
-  "未归类函数": [
+  "uncategorized": [
     "compress",
     "compress_file",
     "dump_jemalloc",

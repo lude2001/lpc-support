@@ -1,7 +1,5 @@
 {
   "name": "id_matrix",
-  "summary": "id_matrix 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "float *id_matrix()",
@@ -13,5 +11,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

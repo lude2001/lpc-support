@@ -82,6 +82,45 @@ TypeScript 可以负责：
 
 如果宿主侧需要新的源码事实，先增加一个最小、脱敏的 Rust 自定义请求，再在 TypeScript 中做展示适配。
 
+## 中英文本地化
+
+界面支持 `en` 与 `zh-cn`，未知或缺省界面语言回退为英文。新增用户可见文案时，同时维护以下资源：
+
+- 清单文案在 `package.nls.json` 与 `package.nls.zh-cn.json` 中保持全键对应；命令、协议、配置和语义 token 的技术标识不随语言变化。
+- TypeScript 宿主使用字面英文模板 `vscode.l10n.t()`，译文放在 `l10n/source/*.json`，格式为英文模板到中文字符串的映射。动态值使用占位参数，两种语言的占位符必须一致；Webview 按 HTML 上下文转义译文与动态值。
+- `npm run build:l10n` 从源词表生成 `l10n/bundle.l10n*.json`。提交源词表和生成资源，通过检查确认同步，避免直接修改生成文件。
+- Rust 接收会话的界面语言，在输出边界渲染诊断、快速修复与结构化文档。诊断 code、severity、range、导航位置和编辑内容保持同一事实；缓存保存可再次按语言渲染的结构，不缓存某个会话的译文。用户注释正文和外部错误输出保持原文。
+- Efun 的 `config/efun-docs/docs/` 与 `categories.json` 保存结构和稳定分类 ID；`locales/en/`、`locales/zh-cn/` 只保存对应的 `summary`、`details`、`note`，维持原字段存在性。修改译文不应改变签名、参数身份、arity 或分类成员关系。原文缺少说明时明确标注，不推测行为；确需修正原文错误时记录固定源码证据、保护内容差异和独立复核结果。
+- 原生片段的两份资源保留相同的条目键、prefix 和 body，仅 description 本地化。资源路径不同，VS Code 的隐藏状态与使用记录按语言分别保存。
+
+注释写入语言是独立设置 `lpc.documentation.language`，可选 `zh-cn` / `en`，默认 `zh-cn`。文档骨架与 AI 生成均应读取该设置，不用界面语言推断；已有注释不自动翻译。
+
+本地验证：
+
+```bash
+npm run build:l10n
+npm run check:l10n
+npm run test:l10n
+npm run test:efun-localization-consumers
+npm run build:rust
+npm run test:rust-localization
+npm run check:vsix-localization -- <明确的VSIX路径> --target win32-x64
+```
+
+`check:l10n` 只读检查资源同步、Efun 结构基线及译文契约，不能借由自动重建基线接受漂移。消费者测试对照 TypeScript 与 Rust 实际加载的 413 份双语文档和签名，会用 Cargo 运行专用 exporter。Rust 双语 stdio 测试使用隔离的临时源码、子进程和缓存，覆盖诊断路由、快速修复、文档与跨语言缓存恢复；必须先构建当前源码的 sidecar。它不启动 FluffOS，也不使用真实 mudlib。
+
+CI 在主任务运行资源、契约和消费者检查，并在六个平台的原生包构建后运行双语 stdio 测试。本机成功不能代替六平台结果，自动测试也不能代替 VS Code 实例中的语言切换、片段和 Webview 交互验收。
+
+`check:vsix-localization` 直接读取 ZIP，不提取或执行文件，核对清单/NLS/bundle/原生片段、全部 Efun 正文及结构、当前独立复核记录、资源引用、VSIX 平台、可执行文件头和 checksum；Unix 包还要保留执行位。六个平台的 CI 都执行此门禁。合成头格式测试只证明检查器行为，不能算作对应平台运行通过。
+
+原生界面验收先准备专用 VS Code 测试运行时与兼容的官方中文语言包目录，再运行：
+
+```powershell
+npm run test:vscode-localization -- --vscode-executable-path <测试Code.exe> --extensions-dir <专用语言包目录> --report .tmp/i18n/vscode-native.json --screenshots-dir .tmp/i18n/native-shots
+```
+
+此入口不安装扩展或隐式下载运行时；显式 `--version <版本>` 才会下载该版本。运行时使用自己创建的临时用户数据、合成工作区、缓存和子进程，依次测试 en/zh-cn，并验证真实原生中文界面与语言包注册，不能只检查 `--locale`。`--hold` 支持在本任务窗口等待截图目测，创建它打印的 continue 文件后继续。任何清理残留都必须按报告中的自有根目录核对，不能按进程名停止其他实例。不得指向正在使用的游戏工作区、普通用户扩展目录或用户数据目录。
+
 ## 打包与平台
 
 `npm run package` 会清理产物、构建当前平台 Rust release binary，并生成带平台标签的 VSIX。发布包必须：

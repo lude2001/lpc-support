@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS develop package efun.",
+  "details": "Enable or disable driver profiling sampling control, primarily for performance analysis and development debugging."
+}

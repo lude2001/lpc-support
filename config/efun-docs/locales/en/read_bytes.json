@@ -1,0 +1,3 @@
+{
+    "summary": "Reads `length` bytes from file `path` starting at byte offset `start` and returns them as a string. The value of (start + length) must not exceed the file size, or the read fails. If the third argument is omitted, reads from the specified offset to the end of the file. If the last two arguments are omitted, reads the entire file."
+}

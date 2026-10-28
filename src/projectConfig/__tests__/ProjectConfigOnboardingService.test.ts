@@ -83,8 +83,32 @@ describe('ProjectConfigOnboardingService', () => {
         update: jest.fn(() => Promise.resolve(undefined))
     });
 
+    const locales = [
+        {
+            language: 'en', generate: 'Generate configuration', viewDocs: 'View documentation', neverRemind: 'Do not remind me again',
+            prompt: 'This workspace appears to be an LPC (MUD) project, but lpc-support.json has not been created.',
+            success: 'Created lpc-support.json. The LPC project configuration is ready.'
+        },
+        {
+            language: 'zh-cn', generate: '一键生成配置', viewDocs: '查看文档', neverRemind: '不再提示',
+            prompt: '检测到当前工作区可能是 LPC (MUD) 项目，但尚未创建 lpc-support.json 配置文件。',
+            success: '已生成 lpc-support.json，LPC 项目配置已就绪。'
+        }
+    ];
+
+    type PromptAction = vscode.MessageItem & { action: string };
     const createPromptMock = (selection: string | undefined) =>
-        jest.fn(() => Promise.resolve(selection));
+        jest.fn((_message: string, ...buttons: PromptAction[]) =>
+            Promise.resolve(buttons.find(button => button.action === selection)));
+
+    const expectLocalizedActions = (prompt: ReturnType<typeof createPromptMock>, locale: typeof locales[number]) => {
+        expect(prompt).toHaveBeenCalledWith(
+            locale.prompt,
+            { title: locale.generate, action: 'generate-config' },
+            { title: locale.viewDocs, action: 'view-docs' },
+            { title: locale.neverRemind, action: 'never-remind' }
+        );
+    };
 
     beforeEach(() => {
         workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lpc-onboarding-service-'));
@@ -96,6 +120,7 @@ describe('ProjectConfigOnboardingService', () => {
         (vscode.env as any).openExternal = originalOpenExternal;
         (vscode.workspace as any).workspaceFolders = originalWorkspaceFolders;
         (vscode.workspace as any).onDidChangeWorkspaceFolders = originalOnDidChangeWorkspaceFolders;
+        (vscode.env as { language: string }).language = 'zh-cn';
         jest.restoreAllMocks();
     });
 
@@ -143,7 +168,8 @@ describe('ProjectConfigOnboardingService', () => {
         expect(showInformationMessage).not.toHaveBeenCalled();
     });
 
-    test('prompts for a detected mud workspace and generates config on demand', async () => {
+    test.each(locales)('prompts and generates the same project config in $language', async locale => {
+        (vscode.env as { language: string }).language = locale.language;
         fs.writeFileSync(path.join(workspaceRoot, 'config.hell'), 'name : demo\n');
         const showInformationMessage = createPromptMock(ONBOARDING_ACTIONS.generate);
         const { service, snapshotService } = createService({ showInformationMessage });
@@ -151,16 +177,19 @@ describe('ProjectConfigOnboardingService', () => {
         await service.checkAndPromptWorkspace(workspaceRoot);
 
         const promptCalls = showInformationMessage.mock.calls.filter(
-            (call: any[]) => typeof call[1] === 'string' && call[1] === ONBOARDING_ACTIONS.generate
+            call => call.slice(1).some(button => typeof button === 'object' && button.action === ONBOARDING_ACTIONS.generate)
         );
         expect(promptCalls).toHaveLength(1);
+        expectLocalizedActions(showInformationMessage, locale);
+        expect(showInformationMessage).toHaveBeenLastCalledWith(locale.success);
         expect(fs.existsSync(path.join(workspaceRoot, 'lpc-support.json'))).toBe(true);
         const written = JSON.parse(fs.readFileSync(path.join(workspaceRoot, 'lpc-support.json'), 'utf8'));
         expect(written.configHellPath).toBe('config.hell');
         expect(snapshotService.refreshWorkspaceSnapshot).toHaveBeenCalledWith(workspaceRoot);
     });
 
-    test('records dismissal when the user chooses never remind again', async () => {
+    test.each(locales)('records the same dismissal action in $language', async locale => {
+        (vscode.env as { language: string }).language = locale.language;
         fs.writeFileSync(path.join(workspaceRoot, 'config.hell'), 'name : demo\n');
         const showInformationMessage = createPromptMock(ONBOARDING_ACTIONS.neverRemind);
         const memento = createMemento();
@@ -168,20 +197,40 @@ describe('ProjectConfigOnboardingService', () => {
 
         await service.checkAndPromptWorkspace(workspaceRoot);
 
+        expectLocalizedActions(showInformationMessage, locale);
         expect(memento.update).toHaveBeenCalledWith(ProjectConfigOnboardingService.DISMISSED_STATE_KEY, true);
         expect(fs.existsSync(path.join(workspaceRoot, 'lpc-support.json'))).toBe(false);
     });
 
-    test('opens documentation when the user chooses view docs', async () => {
+    test.each(locales)('opens the same documentation for the view-docs action in $language', async locale => {
+        (vscode.env as { language: string }).language = locale.language;
         fs.writeFileSync(path.join(workspaceRoot, 'config.hell'), 'name : demo\n');
         const showInformationMessage = createPromptMock(ONBOARDING_ACTIONS.viewDocs);
         const { service } = createService({ showInformationMessage });
 
         await service.checkAndPromptWorkspace(workspaceRoot);
 
+        expectLocalizedActions(showInformationMessage, locale);
         expect(vscode.env.openExternal).toHaveBeenCalledWith(
             expect.objectContaining({ toString: expect.any(Function) })
         );
+        expect((vscode.env.openExternal as jest.Mock).mock.calls[0][0].toString()).toBe('https://example.com/lpc-support');
+        expect(fs.existsSync(path.join(workspaceRoot, 'lpc-support.json'))).toBe(false);
+    });
+
+    test.each(locales)('takes no action when onboarding is closed in $language', async locale => {
+        (vscode.env as { language: string }).language = locale.language;
+        fs.writeFileSync(path.join(workspaceRoot, 'config.hell'), 'name : demo\n');
+        const showInformationMessage = createPromptMock(undefined);
+        const memento = createMemento();
+        const { service, snapshotService } = createService({ showInformationMessage, memento });
+
+        await service.checkAndPromptWorkspace(workspaceRoot);
+
+        expectLocalizedActions(showInformationMessage, locale);
+        expect(memento.update).not.toHaveBeenCalled();
+        expect(snapshotService.refreshWorkspaceSnapshot).not.toHaveBeenCalled();
+        expect(vscode.env.openExternal).not.toHaveBeenCalled();
         expect(fs.existsSync(path.join(workspaceRoot, 'lpc-support.json'))).toBe(false);
     });
 

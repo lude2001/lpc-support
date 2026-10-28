@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import * as vscode from 'vscode';
 import { LocalCompilationRequest, LpccpCompilationResponse, LpccpCompileMode } from './types';
 
 export class LocalLpccpCompilationBackend {
@@ -35,17 +36,17 @@ export class LocalLpccpCompilationBackend {
                         resolve(parsed);
                         return;
                     } catch {
-                        reject(new Error('lpccp returned invalid JSON'));
+                        reject(new Error(vscode.l10n.t('lpccp returned invalid JSON')));
                         return;
                     }
                 }
 
                 if (code === 2) {
-                    reject(new Error(stderr.trim() || 'lpccp request failed'));
+                    reject(new Error(stderr.trim() || vscode.l10n.t('lpccp request failed')));
                     return;
                 }
 
-                reject(new Error('lpccp returned invalid JSON'));
+                reject(new Error(vscode.l10n.t('lpccp returned invalid JSON')));
             });
         });
     }
@@ -59,7 +60,7 @@ export class LocalLpccpCompilationBackend {
             return request.localConfig.lpccpPath;
         }
 
-        throw new Error('lpccp executable path is required');
+        throw new Error(vscode.l10n.t('lpccp executable path is required'));
     }
 
     private createArgs(request: LocalCompilationRequest): string[] {

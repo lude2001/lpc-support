@@ -1,0 +1,4 @@
+{
+  "summary": "set_privs builtin function.",
+  "details": "NAME\nset_privs() - set the privs string for an object\n\nSYNOPSIS\nvoid set_privs( object ob, int | string privs );\n\nDESCRIPTION\nSets the privs string for 'ob' to 'privs'.\n\n   This efun is only available if PRIVS is defined at driver compile time.\n\nSEE ALSO\nprivs_file(4), query_privs(3)"
+}

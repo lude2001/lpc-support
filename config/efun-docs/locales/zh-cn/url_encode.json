@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets 包中的 Efun。",
+    "details": "对字符串进行 URL 编码，转义不能直接出现在 URL 参数中的字符。"
+}

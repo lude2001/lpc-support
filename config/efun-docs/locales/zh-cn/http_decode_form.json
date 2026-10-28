@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS sockets 软件包中的 Efun。",
+  "details": "解析表单编码的请求体字符串并返回键值 mapping。"
+}

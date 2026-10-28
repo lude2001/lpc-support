@@ -1,0 +1,3 @@
+{
+  "summary": "Dump a list of statistics for all loaded objects. Without an argument, the information is written to /OBJ_DUMP. If `filename` is supplied, the information is written to that file."
+}

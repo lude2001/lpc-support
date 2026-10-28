@@ -1,0 +1,4 @@
+{
+    "summary": "secure_random 内置函数",
+    "details": "名称\nsecure_random() - 返回不可预测的伪随机数，但可能稍慢\n\n用法\nint secure_random( int n );\n\n说明\n返回 [0 .. (n -1)] 范围内的密码学安全随机数，包含两个端点。\n\n在 Linux 和 OSX 上，本函数显式使用 /dev/urandom 提供的随机性；在 windows 上，具体实现由系统实现决定。"
+}

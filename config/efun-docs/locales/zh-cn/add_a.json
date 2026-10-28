@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib 包提供的 efun。",
+    "details": "根据英文单词发音为字符串添加不定冠词，返回带有 a/an 前缀的短语。"
+}

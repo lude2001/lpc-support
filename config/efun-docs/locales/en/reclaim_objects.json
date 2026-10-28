@@ -1,0 +1,3 @@
+{
+    "summary": "Recheck all loaded objects and free leftover objects. This may release a large amount of memory, depending on the MUD code. An object is leftover if it is referenced only by global variables in destructed objects. Return the number of objects cleaned up.\n\nThe FLUFFOS driver now calls this function automatically."
+}

@@ -59,7 +59,9 @@ async function run() {
     await vscode.commands.executeCommand('lpc.showAnalysisInspector');
     await waitFor(async () => {
         const inspection = await readInspector();
-        return inspection?.status.includes(`版本 ${document.version}`) && inspection.text.includes('已解析到声明');
+        const chinese = vscode.env.language.toLowerCase() === 'zh-cn';
+        return inspection?.status.includes(`${chinese ? '版本' : 'Version'} ${document.version}`)
+            && inspection.text.includes(chinese ? '已解析到声明' : 'Resolved to a declaration');
     }, 'the actual inspector webview to render the current Rust snapshot');
     const focus = vscode.window.activeTextEditor;
     assert.strictEqual(focus?.document.uri.toString(), document.uri.toString(), 'The inspector must preserve source editor focus.');
@@ -75,7 +77,7 @@ async function readInspector() {
             const documents = [document];
             for (let index = 0; index < documents.length; index++) {
                 const doc = documents[index];
-                if (doc.querySelector('.title')?.textContent === 'LPC 分析查看器') {
+                if (doc.querySelector('.title')?.textContent === ${JSON.stringify(vscode.env.language.toLowerCase() === 'zh-cn' ? 'LPC 分析查看器' : 'LPC Analysis Inspector')}) {
                     return { status: doc.getElementById('status').textContent, text: doc.body.textContent };
                 }
                 for (const frame of doc.querySelectorAll('iframe')) { try { if (frame.contentDocument) documents.push(frame.contentDocument); } catch {} }

@@ -34,6 +34,7 @@ jest.mock('../../errorTreeDataProvider', () => ({
 }));
 
 describe('registerCommands', () => {
+    afterEach(() => { (vscode.env as { language: string }).language = 'zh-cn'; });
     const expectedCommandIds = [
         'lpc.scanFolder',
         'lpc.showVariables',
@@ -495,7 +496,11 @@ describe('registerCommands', () => {
         expect(vscode.window.showTextDocument).not.toHaveBeenCalled();
     });
 
-    test('starts the driver in a terminal with configHellPath from lpc-support.json when lpcprj is available', async () => {
+    test.each([
+        ['en', 'MUD Driver'],
+        ['zh-cn', 'MUD 驱动']
+    ])('starts the driver with the same config path and a localized terminal in %s', async (language, terminalName) => {
+        (vscode.env as { language: string }).language = language;
         (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: 'D:/workspace' } }];
 
         registerCommands(registry, context);
@@ -506,7 +511,7 @@ describe('registerCommands', () => {
         expect(lpcprj.hasLpcprjCommand).toHaveBeenCalledTimes(1);
         expect(projectConfigService.loadForWorkspace).toHaveBeenCalledWith('D:/workspace');
         expect(vscode.window.createTerminal).toHaveBeenCalledWith({
-            name: 'MUD Driver',
+            name: terminalName,
             cwd: 'D:/workspace'
         });
         expect(lpcprj.getLpcprjStartCommand).toHaveBeenCalledWith('D:\\workspace\\config.hell');

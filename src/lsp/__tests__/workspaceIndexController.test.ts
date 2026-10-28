@@ -1,4 +1,4 @@
-import { describe, expect, jest, test, beforeEach } from '@jest/globals';
+import { describe, expect, jest, test, beforeEach, afterEach } from '@jest/globals';
 import type * as vscode from 'vscode';
 import { registerWorkspaceIndexController } from '../client/workspaceIndexController';
 import {
@@ -12,8 +12,21 @@ type StatusBarMock = {
     dispose: jest.Mock;
     text: string;
     tooltip: string;
-    command: undefined;
+    command: string | undefined;
 };
+
+type IndexAction = { title: string; action: string };
+
+const locales = [
+    { language: 'en', build: 'Build index', later: 'Later', idle: '$(database) LPC Index', ready: '$(database) LPC Index: Ready',
+        progress: '$(sync~spin) LPC Index: 40/100', progressDetails: '32 indexed, 7 skipped, 1 failed.' },
+    { language: 'zh-cn', build: '构建索引', later: '稍后', idle: '$(database) LPC 索引', ready: '$(database) LPC 索引：就绪',
+        progress: '$(sync~spin) LPC 索引：40/100', progressDetails: '已索引 32 个，跳过 7 个，失败 1 个。' }
+];
+
+const chooseAction = (action: string) => async (_message: unknown, ...options: unknown[]): Promise<IndexAction | undefined> =>
+    options.find((option): option is IndexAction => typeof option === 'object' && option !== null
+        && 'action' in option && option.action === action && 'title' in option && typeof option.title === 'string');
 
 type RebuildResponse = {
     status: string;
@@ -30,6 +43,8 @@ type SendRequestMethod = (
 ) => Promise<RebuildResponse>;
 
 jest.mock('vscode', () => ({
+    l10n: jest.requireActual<typeof import('vscode')>('vscode').l10n,
+    env: jest.requireActual<typeof import('vscode')>('vscode').env,
     StatusBarAlignment: {
         Right: 2
     },
@@ -51,9 +66,10 @@ jest.mock('vscode', () => ({
 }), { virtual: true });
 
 const vscodeMock = jest.requireMock('vscode') as {
+    env: { language: string };
     window: {
         createStatusBarItem: jest.Mock<() => StatusBarMock>;
-        showInformationMessage: jest.Mock<(...args: unknown[]) => Promise<string | undefined>>;
+        showInformationMessage: jest.Mock<(...args: unknown[]) => Promise<IndexAction | undefined>>;
         showWarningMessage: jest.Mock<(...args: unknown[]) => Promise<string | undefined>>;
         showErrorMessage: jest.Mock<(...args: unknown[]) => Promise<string | undefined>>;
     };
@@ -64,6 +80,7 @@ const vscodeMock = jest.requireMock('vscode') as {
 
 describe('workspace index controller', () => {
     beforeEach(() => {
+        vscodeMock.env.language = 'zh-cn';
         vscodeMock.window.createStatusBarItem.mockClear().mockReturnValue({
             show: jest.fn(),
             dispose: jest.fn(),
@@ -77,9 +94,14 @@ describe('workspace index controller', () => {
         vscodeMock.workspace.workspaceFolders = [];
     });
 
-    test('prompts once and rebuilds the workspace index when accepted', async () => {
+    afterEach(() => {
+        vscodeMock.env.language = 'zh-cn';
+    });
+
+    test.each(locales)('prompts once and rebuilds from the stable action in $language', async locale => {
+        vscodeMock.env.language = locale.language;
         vscodeMock.workspace.workspaceFolders = [{ uri: { fsPath: 'D:/mud' } }];
-        vscodeMock.window.showInformationMessage.mockResolvedValueOnce('构建索引').mockResolvedValueOnce(undefined);
+        vscodeMock.window.showInformationMessage.mockImplementationOnce(chooseAction('build')).mockResolvedValueOnce(undefined);
         const workspaceState = {
             get: jest.fn(() => false),
             update: jest.fn(async () => undefined)
@@ -117,6 +139,11 @@ describe('workspace index controller', () => {
             'lpc.workspaceIndex.prompted.d:/mud',
             true
         );
+        expect(vscodeMock.window.showInformationMessage.mock.calls[0].slice(1)).toEqual([
+            { title: locale.build, action: 'build' },
+            { title: locale.later, action: 'later' }
+        ]);
+        expect(manager.sendRequest).toHaveBeenCalledTimes(1);
         expect(manager.sendRequest).toHaveBeenCalledWith(
             WORKSPACE_INDEX_REBUILD_REQUEST,
             expect.objectContaining({
@@ -128,7 +155,39 @@ describe('workspace index controller', () => {
             })
         );
         const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value as StatusBarMock;
-        expect(statusBarItem.text).toBe('$(database) LPC Index: Ready');
+        expect(statusBarItem.text).toBe(locale.ready);
+        expect(statusBarItem.command).toBe('lpc.rebuildWorkspaceIndex');
+    });
+
+    test.each(locales)('does not rebuild for the later action in $language', async locale => {
+        vscodeMock.env.language = locale.language;
+        vscodeMock.workspace.workspaceFolders = [{ uri: { fsPath: 'D:/mud' } }];
+        vscodeMock.window.showInformationMessage.mockImplementationOnce(chooseAction('later'));
+        const context = {
+            subscriptions: [],
+            workspaceState: { get: jest.fn(() => false), update: jest.fn(async () => undefined) }
+        } as unknown as vscode.ExtensionContext;
+        const manager = { onNotification: jest.fn(() => ({ dispose: jest.fn() })), sendRequest: jest.fn() };
+
+        registerWorkspaceIndexController({
+            context,
+            manager: manager as any,
+            projectConfigService: {
+                getProjectConfigPath: jest.fn(() => 'D:/mud/lpc-support.json'),
+                loadForWorkspace: jest.fn(async () => ({ version: 1, configHellPath: 'config.hell' }))
+            } as any,
+            registerRebuildCommand: jest.fn(() => ({ dispose: jest.fn() }))
+        });
+        await flushPromises();
+
+        expect(vscodeMock.window.showInformationMessage.mock.calls[0].slice(1)).toEqual([
+            { title: locale.build, action: 'build' },
+            { title: locale.later, action: 'later' }
+        ]);
+        expect(context.workspaceState.update).toHaveBeenCalledWith('lpc.workspaceIndex.prompted.d:/mud', true);
+        expect(manager.sendRequest).not.toHaveBeenCalled();
+        const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value as StatusBarMock;
+        expect(statusBarItem.text).toBe(locale.idle);
     });
 
     test('skips the initial prompt when no workspace has LPC project config', async () => {
@@ -218,7 +277,8 @@ describe('workspace index controller', () => {
         expect(manager.sendRequest.mock.calls[0][1].workspaces).toHaveLength(1);
     });
 
-    test('updates the status bar with workspace index progress while rebuilding', async () => {
+    test.each(locales)('updates localized workspace progress while rebuilding in $language', async locale => {
+        vscodeMock.env.language = locale.language;
         vscodeMock.workspace.workspaceFolders = [{ uri: { fsPath: 'D:/mud' } }];
         const context = {
             subscriptions: [],
@@ -277,8 +337,8 @@ describe('workspace index controller', () => {
             WORKSPACE_INDEX_PROGRESS_NOTIFICATION,
             expect.any(Function)
         );
-        expect(statusBarItem.text).toBe('$(sync~spin) LPC Index: 40/100');
-        expect(statusBarItem.tooltip).toContain('已索引 32 个，跳过 7 个，失败 1 个。');
+        expect(statusBarItem.text).toBe(locale.progress);
+        expect(statusBarItem.tooltip).toContain(locale.progressDetails);
 
         finishRebuild?.();
         await rebuildPromise;
@@ -352,7 +412,7 @@ describe('workspace index controller', () => {
 
         expect(onIndexReady).toHaveBeenCalledWith(ready);
         const statusBarItem = vscodeMock.window.createStatusBarItem.mock.results[0].value as StatusBarMock;
-        expect(statusBarItem.text).toBe('$(database) LPC Index: Ready');
+        expect(statusBarItem.text).toBe('$(database) LPC 索引：就绪');
     });
 });
 

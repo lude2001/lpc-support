@@ -1,0 +1,4 @@
+{
+    "summary": "Return a string containing the current date and time. `clock` is a timestamp; if omitted, the current time is used.",
+    "details": "Example\n> eval return ctime()\nResult = \"Tue Jul 26 18:36:13 2022\""
+}

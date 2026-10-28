@@ -1,0 +1,4 @@
+{
+  "summary": "Return a textual description of socket error `error`.",
+  "details": "Return semantics:\nReturn the error description for an error, or \"socket_error: invalid error number\" otherwise."
+}

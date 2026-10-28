@@ -1,11 +1,9 @@
 {
   "name": "save_variable",
-  "summary": "保存变量的值为一个字符串，格式和 save/restore_object 外部函数相同。",
   "reference": [
     "save_object",
     "restore_variable"
   ],
-  "category": "常规函数（General）",
   "signatures": [
     {
       "label": "string save_variable( mixed var )",
@@ -22,5 +20,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "general"
 }

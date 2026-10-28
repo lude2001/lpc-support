@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib package efun.",
+    "details": "Escapes or replaces special HTML characters in a string so that the text is suitable for safely embedding in HTML output."
+}

@@ -1,0 +1,3 @@
+{
+  "summary": "Return the DNS PTR record for player `ob`'s IP address. A new player connection triggers an asynchronous reverse DNS lookup.\n\n   Until the lookup finishes, this function returns the same value as 'query_ip_number(3)'.\n\n   Afterward, a successful lookup returns the DNS PTR value for `ob`'s IP address. If the lookup fails, for example because of a network problem or a missing PTR record, the result remains the same as 'query_ip_number(3)'.\n\n   Lookup results are cached, so this function has no additional overhead."
+}

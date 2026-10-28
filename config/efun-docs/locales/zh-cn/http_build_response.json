@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets 包中的 Efun。",
+    "details": "根据 HTTP 状态码、响应头 mapping 和正文内容构造完整 HTTP 响应字符串。"
+}

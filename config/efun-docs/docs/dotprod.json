@@ -1,7 +1,5 @@
 {
   "name": "dotprod",
-  "summary": "计算点积",
-  "category": "浮点运算相关函数（Floats）",
   "signatures": [
     {
       "label": "float dotprod(int *|float *, int *|float *)",
@@ -22,5 +20,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "floats"
 }

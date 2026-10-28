@@ -1,0 +1,3 @@
+{
+    "summary": "Schedules function `fun` in the current object (this_object()) to be called after `delay` seconds, passing `arg` to `fun`.\n\nFloating-point delay values are still measured in seconds and can express fractions of a second. Scheduling uses the configured gametick interval; a gametick below 1000 milliseconds allows subsecond resolution.\n\nIf THIS_PLAYER_IN_CALL_OUT in the runtime configuration is not 1, write() and say() cannot be used in `fun`; use tell_object() instead in that case.\n\nReturns a handle identifying the call_out, which can be passed to find_call_out() and remove_call_out()."
+}

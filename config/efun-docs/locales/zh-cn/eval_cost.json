@@ -1,0 +1,3 @@
+{
+  "summary": "eval_cost() 返回在驱动判定程序陷入无限循环之前，还可以执行的指令数量。\n\n   此函数相当于set_eval_limit(int default: -1);"
+}

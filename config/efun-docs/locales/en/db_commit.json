@@ -1,0 +1,4 @@
+{
+    "summary": "Commits the last set of operations for a transactional database when the backend implements this operation. The maintained driver backends do not implement commit; with a permitted, valid database handle, this efun currently returns 0. An invalid handle raises an error, and access is checked through valid_database().\n\nA backend implementation would return 1 on success or 0 on failure.",
+    "details": "Notes\nNot yet implemented!"
+}

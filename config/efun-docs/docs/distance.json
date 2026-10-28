@@ -1,7 +1,5 @@
 {
   "name": "distance",
-  "summary": "计算两点距离",
-  "category": "浮点运算相关函数（Floats）",
   "signatures": [
     {
       "label": "float distance(int *|float *, int *|float *)",
@@ -22,5 +20,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "floats"
 }

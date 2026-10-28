@@ -1,0 +1,3 @@
+{
+    "summary": "Return statistics about the driver and mudlib. The optional `extra` defaults to 0. A nonzero `extra` produces additional information."
+}

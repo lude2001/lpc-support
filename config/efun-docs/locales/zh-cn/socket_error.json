@@ -1,0 +1,4 @@
+{
+  "summary": "socket_error() 返回 socket 错误 `error` 的文字描述",
+  "details": "返回值：\n报错时返回错误描述，否则返回 \"socket_error: invalid error number\"。"
+}

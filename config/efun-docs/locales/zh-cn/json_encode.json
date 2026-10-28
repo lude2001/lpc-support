@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS json 包提供的 efun。",
+    "details": "将 LPC 值编码为 JSON 字符串。适用于把 mapping、array、字符串、数字等可表示值输出为 JSON。"
+}

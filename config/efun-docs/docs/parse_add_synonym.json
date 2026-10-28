@@ -1,7 +1,5 @@
 {
   "name": "parse_add_synonym",
-  "summary": "parse_add_synonym 内置函数",
-  "category": "语法分析相关函数（Parsing）",
   "signatures": [
     {
       "label": "void parse_add_synonym(string, string, void | string)",
@@ -27,5 +25,6 @@
         "max": 3
       }
     }
-  ]
+  ],
+  "categoryId": "parsing"
 }

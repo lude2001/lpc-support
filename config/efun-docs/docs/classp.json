@@ -1,6 +1,5 @@
 {
   "name": "classp",
-  "summary": "如果变量 `arg` 是 class/struct 类型返回 1。",
   "reference": [
     "stringp",
     "pointerp",
@@ -13,7 +12,6 @@
     "undefinedp",
     "mapp"
   ],
-  "category": "结构体（类）相关函数（Class）",
   "signatures": [
     {
       "label": "int classp( mixed arg )",
@@ -30,5 +28,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "class"
 }

@@ -1,0 +1,3 @@
+{
+    "summary": "Returns 1 if `arg` is an object with the O_VIRTUAL flag. The driver sets this flag on objects created by the master object compile_object() method.\n\nIf no object is supplied, defaults to this_object()."
+}

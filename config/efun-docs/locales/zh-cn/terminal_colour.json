@@ -1,0 +1,4 @@
+{
+  "summary": "terminal_colour 内置函数",
+  "details": "名称\nterminal_colour - 替换字符串中的标记\n\n用法\nstring terminal_colour(string str, mapping m);\n   string terminal_colour(string str, mapping m, int wrap);\n   string terminal_colour(string str, mapping m, int wrap, int indent);\n\n说明\nterminal_colour() 将 str 中每次出现的 %^key%^ 替换为 'value'，其中 'key' 和 'value' 是映射 m 中的元素。\n\n   可选的 'wrap' 指定换行的列数，'indent' 指定第二行及后续各行的缩进量。计算换行时，假定这些标记仅改变终端模式，不产生任何可打印字符。\n\n   只有定义了 PACKAGE_CONTRIB，此函数才可用。\n\n   Tim Hollebeek  Beek@ZorkMUD, Lima Bean, IdeaExchange 以及其它地方"
+}

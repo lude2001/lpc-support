@@ -1,0 +1,3 @@
+{
+  "summary": "This efun is identical to call_out except it does not schedule the call on the game loop. Rather, in real seconds. The delay can be in seconds or fraction of a second."
+}

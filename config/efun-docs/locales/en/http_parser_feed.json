@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets package efun.",
+    "details": "Feeds a block of request data into an HTTP request parser and returns the request line, headers, or body information that can currently be parsed."
+}

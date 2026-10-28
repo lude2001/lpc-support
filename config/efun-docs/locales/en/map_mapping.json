@@ -1,0 +1,3 @@
+{
+    "summary": "Return a new mapping with the same keys as `map`, but with values produced by `ob->fun()` or the function pointer `f`. Each key and value pair is passed to the processing function, whose parameters have this form: fun(mixed key, mixed value, mixed extra,...);\n\nThis function is essentially map() restricted to mapping arguments."
+}

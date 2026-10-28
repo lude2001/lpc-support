@@ -1,6 +1,5 @@
 {
   "name": "stringp",
-  "summary": "如果参数 `arg` 是一个字符串，返回 1 。",
   "reference": [
     "mapp",
     "pointerp",
@@ -14,7 +13,6 @@
     "classp",
     "virtualp"
   ],
-  "category": "字符串相关函数（Strings）",
   "signatures": [
     {
       "label": "int stringp( mixed arg )",
@@ -31,5 +29,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "strings"
 }

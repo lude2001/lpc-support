@@ -19,8 +19,8 @@ export function registerUI(registry: ServiceRegistry, context: vscode.ExtensionC
 function registerDriverStatusBar(_context: vscode.ExtensionContext): vscode.StatusBarItem {
     const driverStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     driverStatusBarItem.command = 'lpc.startDriver';
-    driverStatusBarItem.text = '$(play) 启动驱动';
-    driverStatusBarItem.tooltip = '启动 MUD 驱动程序';
+    driverStatusBarItem.text = vscode.l10n.t('$(play) Start driver');
+    driverStatusBarItem.tooltip = vscode.l10n.t('Start the MUD driver');
     driverStatusBarItem.show();
     return driverStatusBarItem;
 }

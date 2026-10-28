@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib package efun.",
+    "details": "Combines a collection of objects or short descriptions into a human-readable list. Optional arguments control articles, quantities, and list formatting."
+}

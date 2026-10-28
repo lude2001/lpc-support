@@ -1,0 +1,3 @@
+{
+    "summary": "Return a new string with bit `n` in `str` set to 1. The original string `str` is not modified.\n\nThe upper limit for `n` is set in the runtime configuration. The new string grows automatically if needed. Each byte of the printable string holds 6 bits."
+}

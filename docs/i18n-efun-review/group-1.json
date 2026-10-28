@@ -1,0 +1,1710 @@
+{
+    "group": 1,
+    "hashMode": "sha256-canonical-json-v1",
+    "partition": "JSON filenames sorted with JavaScript default sort; zero-based index % 3 === 1",
+    "fileCount": 138,
+    "fieldCount": 183,
+    "referenceDocuments": [
+        {
+            "path": "D:/code/fluffos/docs/efun/system/time.md",
+            "sha256": "8f4c159c1d6174673d2b3b14fa44c6825f6aefd175ceb78f4333c6fdc130b100"
+        },
+        {
+            "path": "D:/code/fluffos/docs/efun/strings/rtrim.md",
+            "sha256": "d09c30b0d4ed50688c23d4d6e1ee69ef196e472b1c72f48c13fee442aba8b242"
+        },
+        {
+            "path": "D:/code/fluffos/docs/efun/sockets/socket_listen.md",
+            "sha256": "e18743705d4e7eb4710af364ed42dc637db6315215fe3c1edaebbf45e28ac7c2"
+        },
+        {
+            "path": "D:/code/fluffos/docs/efun/db/db_rollback.md",
+            "sha256": "39a724ccaf1240dc72f879be491b95d1179c22766787cc2042ae4b8e6e54409b"
+        },
+        {
+            "path": "D:/code/fluffos/docs/efun/objects/present.md",
+            "sha256": "fc00d81cea2d7329b34c18700c87ad529a1aa98c6a4a20b93217d2df433e252e"
+        },
+        {
+            "path": "D:/code/fluffos/docs/efun/async/async_read.md",
+            "sha256": "f5bd8578743570c85f0a648920269f6e98240f000a50d7d4afd6694bb3b56562"
+        },
+        {
+            "path": "D:/code/fluffos/docs/efun/mudlib/domain_stats.md",
+            "sha256": "9b803c87abe520f611baba58d2be6b5a3ef2209158699f914d7493c4bdb87c38"
+        },
+        {
+            "path": "D:/code/fluffos/docs/efun/strings/sprintf.md",
+            "sha256": "fabb8200fb3ac58d5fb14c3105fc56f92ac13955fd0f2361d645c5a32e01e254"
+        },
+        {
+            "path": "D:/code/fluffos/docs/efun/contrib/remove_shadow.md",
+            "sha256": "8e2afde60e1db8392ad84c38266b95642bcb5f6c596f736f81c755234f3fc488"
+        }
+    ],
+    "items": [
+        {
+            "name": "acos",
+            "sourceSha256": "7b02328c5d9519360840f074bbbe24d9c1455550dae1c40ea4d37de5543a0ad6",
+            "enSha256": "479fa638a8bfa5ad2b25ca7053d38e6cb6f2b786dd9a0bca6b6ea35333235560",
+            "zhCnSha256": "02615297b663bf2a7fa7a8e3accfd7e57464b2321dbdc3ee92bbb0c4f5ded3cd",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "add_action",
+            "sourceSha256": "3fdd089bb78be5f7ce8773f82beb0f1c71ea2d40b088beac76f774cd27d88e44",
+            "enSha256": "f1ccfd3eeb725ae528a3cf95f523f0bb7aa31a958028f54f24a09f862291dfa5",
+            "zhCnSha256": "38056691c2168ac39b673b64a6cb107f12e9cda7e9806f403a05f969b731d738",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "allocate",
+            "sourceSha256": "e6b22441fc6151abdbfec1273649c9cd1f28e54a4a5e4f4488d428990dd1db3c",
+            "enSha256": "d952fcdc6e73c089f3bc1150cd371cfe981eec316c02c82f3e1811abd49d212e",
+            "zhCnSha256": "ea56c8591bca83816aaecb9c3221d1da6ec5187885f811341883335f06dba926",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "angle",
+            "sourceSha256": "bccc168a7f05159963461cc8749ba16420942fbb7d7437bb4b0eadb7279d263f",
+            "enSha256": "acddba49f4822c32d7768bbc1112377d177fbae0b369253d44162817e36654c4",
+            "zhCnSha256": "49d4f44b281ce272f197afc6198b15f5b984d5390092edfa44c3409dc914ab96",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "assemble_class",
+            "sourceSha256": "fbb51c1edfe37adf164cd01a3b2ad56c7786e22d46cf1867f912e130b4edfc55",
+            "enSha256": "65981d71122c68410b2a82a3baef3d49e31f07870f158ff600164de95f10eaec",
+            "zhCnSha256": "2448b769cc3641276c52f7af147e8319d55f48cbdf17fe8f431489451e4d2368",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "async_read",
+            "sourceSha256": "0d07fdfc190c8135909d5afd31439db87ccc782588e8b8d03f78715490e2bd0b",
+            "enSha256": "6aafec76c5a437157327b5824c5afc3aaa5d83a5767069a2b65a3d47ac54e346",
+            "zhCnSha256": "1861d8e9e9f9251a2371b1d2d4d0fcd383b635af762116f68848dc06cf76fe4f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "retainedFragments": [
+                {
+                    "field": "summary",
+                    "text": "// 如果文件未读取，返回-1",
+                    "reason": "code-example"
+                },
+                {
+                    "field": "summary",
+                    "text": "// 否则返回文件的内容字符串",
+                    "reason": "code-example"
+                }
+            ],
+            "notes": [
+                "Initial review before the source correction recorded below: Source wording says both a line of text and the entire file; both statements are retained. Local reference docs/efun/async/async_read.md has the same wording and additionally documents a promise form; no new behavior was added to the translation."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/async/async.cc:342-354,428-439; docs/efun/async/async_read.md:17-19,29-31",
+                    "detail": "Replace the contradictory line-read description with file-content reading subject to the configured maximum read-file size; preserve the callback example."
+                }
+            ]
+        },
+        {
+            "name": "atan",
+            "sourceSha256": "4663b18ba561511171eb14af9e35c7a4687cf2c404f220e270ed7b8f35584f2c",
+            "enSha256": "c8552cea59455f1b947430b0854c718bc21201f27e536f014a7dcba9c4886ee1",
+            "zhCnSha256": "60df0ecf0e619aa7c3dacd2d119d1510a894a468511aa4751e2ee73b00987929",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "bind",
+            "sourceSha256": "f543cb8118155727a45ede452aa63f7ea07c873226a325a40073617a7eff2f8d",
+            "enSha256": "52bcdb9c81bec9031be3d284dfd32f8988cd8ac2692e8c4fee3cc2fd2bc4c8e7",
+            "zhCnSha256": "00bd990981a3ed7b3269651ff64b73641a312026f0a010d24e710f7c7374ede5",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "cache_stats",
+            "sourceSha256": "215c4940a3b5d98256d76c8e214a93926decfab18f83ffc3dba661314afacde0",
+            "enSha256": "d165299f43ab6bed829d072d7079a610e65a46a9e5df7cd61af1b348aff348ba",
+            "zhCnSha256": "c0a8d66760db7aff5e90c4a97b0b22c94a36d9599ecd7dbffc8c6c3822f9c542",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "call_out_info",
+            "sourceSha256": "35487f67fc0db7b83e367e59796ba80e99f5c2326618d2f6398ea18c57103ebd",
+            "enSha256": "844c1453330c4e2625a671c6ab081fccd0a00a1c62aa6a617549121a3ab72e7c",
+            "zhCnSha256": "61fc74842f79ab00490facd84ed8a3830624e226ab7f0c66c877aca098268779",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "capitalize",
+            "sourceSha256": "4fa121b821a7262bdc717f747ad82f44251db542cd69d603f213d5002ed1736d",
+            "enSha256": "02889ae70b09d3f3f6b5ce362c2ce95eb7fc23c2c20f634be7e9ae39242b4289",
+            "zhCnSha256": "5e6af5d959edc5fb91de8987db3685ac5c3a1eb2432381c54694efd62df18241",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "check_memory",
+            "sourceSha256": "2eab37c6c3788b933ec59a52d12e9e8dd7cb71f4806183eb127a3b88e1082f3e",
+            "enSha256": "9ae0bd57a0e8eae40707982340e8f182d18cc334c56e2ca262f3a9dfd835b68b",
+            "zhCnSha256": "43338c404f68b06caa55fe8d43df4550c39341cb08603a813762ef502449d8cb",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "classp",
+            "sourceSha256": "69559ef248e0d0d7ef74727d2f5ab502f52bd73b0036cd668c34d67b984c2cbf",
+            "enSha256": "bba3517b354b54d800b894571972bfb18a1e189c4814df46f9bfcc6c5993b5ad",
+            "zhCnSha256": "8bbb904734c8a899ebc075a696a4cf31ff6e8289cc8035378b1ace0fba9889ad",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "clone_object",
+            "sourceSha256": "2721f619f81e5cd9d3324b73221c7bada3e6b0bf6f875ed70fc3e65ab62f95fa",
+            "enSha256": "cc58c29ef90377cc1eae005e6748a7349ca1cbcd973ebd35f5b6adb8001c8da9",
+            "zhCnSha256": "d6bfac56803b34f6ba9192dacc54d4daf76a6a1bff606a18d403665d8a419cc5",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "commands",
+            "sourceSha256": "e6211bbd48e1b01f8fe1c36f13a5fca407a5f5c8db19ab1d653f3777c1da3210",
+            "enSha256": "36f017e326610e0a7959447da0664a0363c2a1c72a34baa5f1e06fd1157991c5",
+            "zhCnSha256": "69be11fa97ce97f18127eb443dfc74e6da6a26a4d061cadcb01f78626491a888",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "compressedp",
+            "sourceSha256": "aaa3c1b5fc0fe73116d2f1584d114f9bea46543b105302a30525228f401c6955",
+            "enSha256": "640a943ea121d3add7097d5645439488a479832b31b4ad572b1d25d0aa9a0fa3",
+            "zhCnSha256": "945a7181e9f308b0b4efd758b77653f8bd0c27b753e861ba50d4faa59c9550d4",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "cp",
+            "sourceSha256": "4b3189aec2d2457d0bbcba329b6194a6474e1b8dfed1179c2e3382655b543f7d",
+            "enSha256": "ac99dc052ddd7b99e4077f5ee27d5b00a9d792671054d610e710da19ba05b45c",
+            "zhCnSha256": "6e1d8bb81d10e4b95cdbfae3d7594d4a3e62d6c61107369124d6945dce4924ac",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "ctime",
+            "sourceSha256": "8aa458223fea177782724e280683236dba57d4bf87c9b7e1873f26e8880c4803",
+            "enSha256": "970235ef3791f1390d4b6aa294b4f3ce47789d4d6b4f76574572c7a876f31e27",
+            "zhCnSha256": "d1a21817b20cc714cf543666a9b9edd618d33a73bf4b3ecc5aaa1b4692230a20",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "db_connect",
+            "sourceSha256": "1ae7d895cca5f1fadfe951986e853da5fe16205c7100437755447ca80b4d6f94",
+            "enSha256": "f1563f966904c240f8b0b7f9cf68fee2596e30b78eebe565f65377c7a929b284",
+            "zhCnSha256": "4e0bbf99374cacaf67f7e384c05f41c5361dd65b81b3ff6dfe22e5b8c7091f32",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "retainedFragments": [
+                {
+                    "field": "summary",
+                    "text": "// SQLITE3示例",
+                    "reason": "code-example"
+                }
+            ]
+        },
+        {
+            "name": "db_rollback",
+            "sourceSha256": "32551014717522e4db20bb45ee1477b236e159118f7853b6d4b2dbed6f918f25",
+            "enSha256": "50683df6610bcf40b5262af17f3e2a0fe44486a2ebc5fcbd23aa30e90600e89d",
+            "zhCnSha256": "e7bdba569821b42e2da92c7143e3458a367d2a9d90f30d3953e4420187553f8e",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Initial review before the source correction recorded below: Source prose describes success/failure returns while details say Not yet implemented. The local reference docs/efun/db/db_rollback.md has the same inconsistency; both statements are retained."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/db/db.cc:126-169,507-540",
+                    "detail": "Distinguish the documented 1/0 convention from the unavailable maintained backend operation; valid authorized handles return 0 and invalid handles raise an error. Preserve the original Not implemented details."
+                }
+            ]
+        },
+        {
+            "name": "debug_levels",
+            "sourceSha256": "15020458b5fec795e7f44d1b7781f1ae22eb2b1841bc5c4879e559819caae9f0",
+            "enSha256": "34644af9aa248ec601238c06a1f48a33f2c1093455f428366dac1e98c1a77fc9",
+            "zhCnSha256": "5488ae22db2ad4a26521debf190db52a256cf84c5d0357d2a356b4cae198bbfd",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "deep_inherit_list",
+            "sourceSha256": "c193622dfb26d9da337fcbe10c100b844d5d9cda7d88b26301918da5232dcebb",
+            "enSha256": "905856a04b8c2760e2774b2d87dbf5f2aecdb1f63c4cf9f9bcc40900246b5677",
+            "zhCnSha256": "def73ee37c792e1ccdb681e98aa89f8a828ec8775e02b972b4289761236226af",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "destruct",
+            "sourceSha256": "291246531a1799695e1df7828019f31aa744f96d09590d1f333b5d51438b149b",
+            "enSha256": "51003176a9a2748404b0bc44c8d60a713a8477d3ec03dbaec5ca673ac9848193",
+            "zhCnSha256": "d6360aacd80dd5b60315ebe4575f26d737ec39fd61796cddc01d4872f76e83e4",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "disable_wizard",
+            "sourceSha256": "9124b5d5b742d2768d238fe54a3d08a4fd3c8d4421093be6258670ed909612ea",
+            "enSha256": "116b33159525885863051b583d4f9049e4d611678ac766947e383f4281b86705",
+            "zhCnSha256": "aea8e0cfd9fa9d99f439878ed3cca68f51a49a5558af89aa295b3e8d97698597",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "domain_stats",
+            "sourceSha256": "9b5223eb3c3ef52bbeeaa0b58875e0a6a02083a9671b6730ca3e0cee75e5ffec",
+            "enSha256": "406c77e4319cccd88ebaafec5934a997d617fef9cad72ad170b7b801ea225889",
+            "zhCnSha256": "3dd6ccb3dd48198634e06f03baeefd62c8acc34115f926745acb384d54bdbda2",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Initial review before the source correction recorded below: Source key list repeats errors and its example omits cost and worth. Local reference docs/efun/mudlib/domain_stats.md includes moves, cost, errors, heart_beats, worth, array_size, objects. Source meanings and examples are preserved rather than corrected during translation."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/mudlib_stats/mudlib_stats.cc:548-557; docs/efun/mudlib/domain_stats.md:22-23",
+                    "detail": "Replace the repeated final errors key with objects. The maintained implementation emits exactly five keys; do not add stale cost/worth keys from Markdown."
+                }
+            ]
+        },
+        {
+            "name": "dump_jemalloc",
+            "sourceSha256": "28e61bdfc03c7f37526b4731167c3792ba481e7661ce1b2eeb2ac92034af1463",
+            "enSha256": "6cd5e50aaa85c23f7886ad1f25576549589fe02fac8327cfd1f67b6318276bd0",
+            "zhCnSha256": "9821dff33ab97413283135485d304a99ef3665978e78ca8deaa36899c0410238",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "dump_trace",
+            "sourceSha256": "8aab31ae641caec02593ee48a1bedd77b6db1fb6e633ef04f2ee28a24699ab16",
+            "enSha256": "2f2bc47c9f3a285ab98f8f3883a350fa27e45519345a67625166d8fabfa62fb6",
+            "zhCnSha256": "4c6378adcc7f58fbfb5549195d3920d9f0f287d4ca0da1cba80b9e0b8f031bda",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "ed_cmd",
+            "sourceSha256": "e4579af1a2eec20be0421601bd0327a94addaa354388d62b14b8a1828741e5b8",
+            "enSha256": "6fd1aede28d7bd89c172f84e5afbe33c6e78eaac256ff2d8d070c5cc218b7e7d",
+            "zhCnSha256": "e798c81361a379a048111092f225815368389a3fe73288a21b4085cd87be4216",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "enable_commands",
+            "sourceSha256": "0fa057b505af5c735eba9d8bba16085041b68fc2c27045822a22faab362f8c0b",
+            "enSha256": "25d469e63e49b728f3957c1aef14f15bf4bc0d4a2f879faf682a4f7bcdd6f1fc",
+            "zhCnSha256": "a7d6ba0a177a26b44679a7eede03379241f5042f4280cad40e4e40d3ca82a5b1",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "error",
+            "sourceSha256": "f0e2009dc7e44bb7937e1517e43dc7ddaf0044c4a2c8ef420d3f514cd916300b",
+            "enSha256": "e5e970cfb697d178ab00b9ce3a4fdb5f42a6cdef0032459d77151011820a86e0",
+            "zhCnSha256": "81e01b2e90de161c639fba7be924a17d1f0735d0912524ca9d7bf1318014fb0c",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/efuns_main.cc:535-552; src/vm/internal/simulate.cc:2416-2437,2476,2533; docs/efun/system/error.md:16-18",
+                    "detail": "Replace resumable suspension with runtime-error unwinding to catch or another recovery boundary, and qualify debug-log tracing by the driver error handling."
+                }
+            ]
+        },
+        {
+            "name": "event",
+            "sourceSha256": "8d4c28a94360d75bfa98427e98a1d6bc406cc5b245a07f086ffd77c313ec1e32",
+            "enSha256": "0a6f0110fb4dc296178cb1fd4b786963f66de126e520f555d0c482ef9e8df7ae",
+            "zhCnSha256": "29873fbe9bdce62040e49af9ed6c12922cc8e381a02d650cf1120b0766a9ed5d",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "explode",
+            "sourceSha256": "dcfe3f80c1d232fadddf839c178ee0022086c6980ab5ffb0601b0d613d70eb4c",
+            "enSha256": "377a655cb7041f6eb90c39a30aec77e56145d372943970e7399402d93cd6c1d0",
+            "zhCnSha256": "9d1c59e1a2f410254aff92b873da990c4a6127a0bdc2f5f6180ed6535b12cf5b",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "external_start",
+            "sourceSha256": "4fac09238fb24c7014907158bb11a34c314965f49928a45cb1989cf1ad0da2a0",
+            "enSha256": "ade15fdbd5f857fe49f1708ae1c2b17a826600be68b9888d6c1c6075a751d623",
+            "zhCnSha256": "581155a61866ea8a18495d3fb5e0b8018eeb6224eda37712b8ebefea94e9fcfc",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/external/external.spec:1; src/packages/external/external.cc:38-49; tests/fixtures/localization/efun-source-text.json#/documents/external_start/fields/summary",
+                    "detail": "Document string or string-array args, and the read callback socket number followed by data. Preserve source signature and callback details."
+                }
+            ]
+        },
+        {
+            "name": "file_length",
+            "sourceSha256": "087f228ad9417a1106fc01d6ab4c6101391dc5ae02fd41f2fc6eaaaeaa372248",
+            "enSha256": "7de802f45a1f1762221523267a797a612f01ae5fde350f9862696d1a2485b212",
+            "zhCnSha256": "5e2e8b2ad895a95e01dfdd3596c57c9257d8a7ba6f6c85f1319a46bb6a98065f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "filter",
+            "sourceSha256": "baeed106878d959d75ea9a89cd2847ebb2661d0f379eb95f972765bb62889c4d",
+            "enSha256": "8892036e7f6025ed6a97243ec203f6a2d11ddf7a7c84e71d65831eaf073c6964",
+            "zhCnSha256": "54b1e7f8b371642be23ce293236081912dca81ec54be3a177f9a1a1bb4f46494",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "find_call_out",
+            "sourceSha256": "79782c0ed9aa39ce3aaf9c104b650af0091df4f8786939c84bdcbb7cc748d37b",
+            "enSha256": "4d76b0dd86329a83c85ffc0d7f7822fcd2087e7704f4e0124c080196cc952802",
+            "zhCnSha256": "ea36ef0396019952254b0ea325b4b23e739d8c1c244ee987f045bf710f6b7f49",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "retainedFragments": [
+                {
+                    "field": "details",
+                    "text": "\"剩余时间：%O\\n\"",
+                    "reason": "code-literal"
+                },
+                {
+                    "field": "details",
+                    "text": "// 剩余时间：10",
+                    "reason": "code-example"
+                }
+            ]
+        },
+        {
+            "name": "find_player",
+            "sourceSha256": "24f24ae9f929b1142c58cec8edd7c2461891d5b6afb489a3132d9a2e23d5cf21",
+            "enSha256": "51cac07613e21675d11db23dcd4acd44c957d11731c022c8c53ecb321ebbcfde",
+            "zhCnSha256": "0e5e7fa2f1e326c3f857ae8313fc73c13ed064b2684b9012d70621e0070c591d",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "floor",
+            "sourceSha256": "56dba288706524cb70d3d5461998533984bd041a77b80e0e43383bb7e876777c",
+            "enSha256": "0406e70e9f058c10716f0efb83bc96c1ea5add30d58edd8b4c680d4805a96406",
+            "zhCnSha256": "11af7e6b8390f0e057fd964a9ab59b9879e9947d7bb8859f4ab3977c08681341",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "function_owner",
+            "sourceSha256": "d70759d9fecbca3233e28f60c59e751691f41820f36fe5a76c940a9e9c5bfdf7",
+            "enSha256": "8345442deeafd2c025388ec464899c73e1b0f11e671e7263fdc52f62f7352819",
+            "zhCnSha256": "9ef9fc10dd2e3068c4a71f657bd176fb9ab9cb51ada1abee2444de394abc81a2",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "functions",
+            "sourceSha256": "63e2350fe7b08cec7e0947de5e9749554647e92828b6790a7c7da67ab56ad7a6",
+            "enSha256": "7987e036c18ffeef602e77cfeeed6fb83e61931f82b4952389a2c98444cf1ff2",
+            "zhCnSha256": "4de7c931f3784adee8360f4cc267f5c0d2039405c682e9e6cf8fad7ca551145c",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "retainedFragments": [
+                {
+                    "field": "summary",
+                    "text": "({ 函数名, 参数个数, 返回值类型, 参数类型 })",
+                    "reason": "code-example"
+                }
+            ]
+        },
+        {
+            "name": "get_dir",
+            "sourceSha256": "eb173518f2e50d0340c817b9ef4642d304fec2eb45b64d9ae693c5268c44887b",
+            "enSha256": "e67ebdaf1cc1ea0cfdd4774e14b3e181cc1ae9e0ca912c77c9aaea2a2d567acb",
+            "zhCnSha256": "af63966a0e6eb46ee8c53ae6dd9ab1c6e13e5d26d3f75e4d5b0337913024f68f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "retainedFragments": [
+                {
+                    "field": "summary",
+                    "text": "({ 文件名, 文件大小, 最近修改时间 })",
+                    "reason": "code-example"
+                }
+            ],
+            "notes": [
+                "Initial review before the source correction recorded below: Source says directory paths end in / but also gives \"/adm\" as an example. Both the rule and example are retained."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/file.cc:182-190,205-215; docs/efun/filesystem/get_dir.md:18-19",
+                    "detail": "Distinguish \"/adm\" entry matching from \"/adm/\" directory-content listing; retain the original \"/adm\" as the entry-match example."
+                }
+            ]
+        },
+        {
+            "name": "geteuid",
+            "sourceSha256": "5c6e1ebb7b8b564f4b555a504b7b378b0b82c9323e07c1f83852c357a781b83c",
+            "enSha256": "702e2d93f3af1f78e9d391e6ca0b5a053342a6e08494a1aa6227153e8c4fe70c",
+            "zhCnSha256": "cf2fd7c8be6a7326e0f29f92b3f32562e182c83aacc0d5dab4a0b3be783904d7",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "has_msdp",
+            "sourceSha256": "c9d10e7fb494f03215bb14cadb0e28998b8c56f627811059b75af83271693767",
+            "enSha256": "fdcd55c444dc743449339f50e2a0c1e8c186dbe097bff83a397a4b84b2265fc6",
+            "zhCnSha256": "9a33d6c32f98bf369cc5a60c7f2ec3a761a643a4b4a99cb5722395b2c2997bbd",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "has_zmp",
+            "sourceSha256": "ebbada863888c0523efa876d2a96828cafbadd8ad4599ac51823a1041bcc4cfd",
+            "enSha256": "7bbf561b4fe9be104a2700adc6fc70e684e4c62d489369bb2f4c4b2706406d78",
+            "zhCnSha256": "46f226059f1b9e5ad103521eeabe6d6916b41772b5e46d892385078995c21465",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "http_build_response",
+            "sourceSha256": "8b220b8f9baad063b18d6c517f97f443eebc86937c3c0282aa3bebdb8ec75524",
+            "enSha256": "dba4de9670435737a857d65ec2a9483412668fc4e40836fe1e71e05dbdef527c",
+            "zhCnSha256": "6f519021fe132e6c121b545c582430684a08a777aa08e7dcb28958da852e1bb1",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "http_parser_close",
+            "sourceSha256": "170180a49e95e3ce00dabe778e46934289ab8b683a551a58be6eabad996c5f47",
+            "enSha256": "e6af4eff5e83ba84de4c4f97c1a061cbbc3aadf82ae6d232783d28dd9d604f4e",
+            "zhCnSha256": "29719e133318c9a7aa4cc6d953faaafe3f920ce15dae7a9a83bb8fa1f6f3f448",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "http_response_parser_close",
+            "sourceSha256": "3dbd89fa93bd28533c325c96f51b8e77b397bb861d2338167eaf8d9293ce70d2",
+            "enSha256": "5463557a1d9a92ccb82c502e84a560494594d8502ae42acb90e20dbe1ed51e02",
+            "zhCnSha256": "75b4bf26ef98827d815d81790b1645464129b8dc2c6d989a1abb4c48c0f07ec8",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "id_matrix",
+            "sourceSha256": "955463322826a84a6af0f191d44d4327f4dffa192ae93649860dcf3dfdf4b3b4",
+            "enSha256": "b7fa9c7d1fba2b4ee7ff083d4b5f8ca9312489658edf0b5b27b0af720b851f94",
+            "zhCnSha256": "36e62eb8a4c27de3917e336a1d566f97418b010a6f7a85500fe3919900cb1353",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "in_input",
+            "sourceSha256": "45f80a40322906e40f537590e36478c09cfcd9cab419e3b538aa670ae4fb1e2c",
+            "enSha256": "519de2d17f2b80cf7c632620afcd981ca9f4c4da1b698664af5f49daf3ae267f",
+            "zhCnSha256": "68a49aafc92c6c1119c17b4513dcfd3ce78abcaa53379cd0187b47355dbe5b40",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "input_to",
+            "sourceSha256": "abecc2a43f2929bee1d2d57076f7f440ec2abfb22016013e748726fa1f79eccd",
+            "enSha256": "640033089ec96d31ed6760f1e2e8dcacfd438a5d4abfc978078499f9b20d7924",
+            "zhCnSha256": "4f6631e390e3dde086d9fc629f95181601b59d2464a26c52a844cb9994225bb6",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "is_daylight_savings_time",
+            "sourceSha256": "b702656614669b2a88ca0daf709681a2848e43a684e6fdaa52ebb2c222c56e20",
+            "enSha256": "3ad22bbfa7d79efb106cba24f9c7b6a4d09f92119b74fd23109695f4abc99b1a",
+            "zhCnSha256": "e88f2d270c6ceb91034b4227dfe1bea8f0e8bea4c7a080f47cf1877c210a6e48",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "json_format",
+            "sourceSha256": "1a2467dd7caed9ba4cb3b62e9eba4ca4990937c823109fe21903dd6dc996da39",
+            "enSha256": "3000664f8be9e11d19045ea5bf2bc0534367954f7bb06ae73c6a0acf2f77c2e2",
+            "zhCnSha256": "72e3f7a93adf41b1365673128c0f8fc8e4b89330ea72d6a89141a36f41ed220f",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "living",
+            "sourceSha256": "6c50494ea08f9b12450795016ede831d85717c3e2687c2f1286fe239759ee244",
+            "enSha256": "16771406a8a2f62776ca60550fbd19a8c3a09ddd503432d3b454c06d2b93997e",
+            "zhCnSha256": "3ce42576fe28bda753d2073f3f405e797eda0750a8d3cc806c1d72f4d3cfca03",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "localtime",
+            "sourceSha256": "010ff98764f640412246d2373c98a6c404fa61488ce5f9194dee07efe7a95d9f",
+            "enSha256": "3f48bbbb461b4e2a6338af069a1125b557709a5b5da10d4d15cc9110232af147",
+            "zhCnSha256": "a162c05acbfe796f75d4d408a4b9a80c8b51de5a1d2d9eaabd7900fe3aa6b1ba",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "retainedFragments": [
+                {
+                    "field": "summary",
+                    "text": "({秒, 分, 时, 日, 月, 年, 星期, 天, 时差, 时区, 夏令时})",
+                    "reason": "code-example"
+                }
+            ],
+            "notes": [
+                "Initial review before the source correction recorded below: Source header describes LT_YEAR as >= 1900 while the explanatory list says greater than 1900. The discrepancy is retained. Historical version-specific OS limits and timestamps are preserved; no runtime claim was added."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/core/time.cc:75-85,100-101; docs/efun/system/localtime.md:25-26,37",
+                    "detail": "Replace the prose claim of a year greater than 1900 with calendar year; retain the historical header verbatim and explicitly qualify its >=1900 comment against tm_year + 1900 and the host time range."
+                }
+            ]
+        },
+        {
+            "name": "log2",
+            "sourceSha256": "8fa915e7ad64a8ac83581fc0bcf0c442330ae01fa288826368be9cc15702e692",
+            "enSha256": "0a31694c279b6cfd28ef3860e2a4d9ce6881413c41576a83d74e62132daead1b",
+            "zhCnSha256": "4ef046cbd5c98c6ae7d6a0c491dae84a21a5b57a21bc6abd9bdd5aff9535470e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "lower_case",
+            "sourceSha256": "3766c300ae4719ae1a0d6e6fa1adffa667538111784e32522ecc22bbe89b4e96",
+            "enSha256": "f24d0a8c050ae8cbf73c34ee699e9f4f46c83662b8bac0acc3953fb6313b1058",
+            "zhCnSha256": "a0c81aa2e7fac2e750f9551632183682e6a1a5cc001e09708dfdf953c1f05c9b",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "map",
+            "sourceSha256": "a03f67505454d4a1264f2e797218aea7963bdc5efc56393b2055621fd4c06ddb",
+            "enSha256": "c32632cf7dcf68537946a73f57b63e096e636335aeee366bc7729d631b8c3459",
+            "zhCnSha256": "08e246e713715889a553983dc3d1180a4a585efe9ad4d13124cc02cd202057f2",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "map_mapping",
+            "sourceSha256": "4b8ce3c922919ebf67adbe7152873642a06215216ce1e05db7ad5601baf999a4",
+            "enSha256": "c678a189f2b59d703555406620cd1d7e007ea280ffbad6a37ee9b024994a0dd0",
+            "zhCnSha256": "73ec2f6c696e37bad5ba43f06fb6349cedbc1d6e303fa6c95d09c91049eec42a",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "master",
+            "sourceSha256": "e8d1c4226fefe4f49fddaa53591e2626404e68d92d50b473a7ee0d54e73c56b1",
+            "enSha256": "f7e5bdb503b5d9dab064ec91aa34ed9b9aad9cfb9dc0970c909f52322769e340",
+            "zhCnSha256": "3cc0ae806b64e8700f34cec98d2fc80f3d5f3d797e5199549ff2342116044512",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "max_eval_cost",
+            "sourceSha256": "cf9c210fe6ee292246068a6c9c1ea449aa3752a9e211cad9c0f2828ad78913f9",
+            "enSha256": "09ed6cc8008e611665c34330ef67df42fff115f95918fb5b9e8b026020ff986d",
+            "zhCnSha256": "beddb0c8173f80d248e4ebd424e1303409e6790c398016bd00237ffe170d7af8",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "memory_summary",
+            "sourceSha256": "fb2e03f60ea1a7551df36b2c2024a34da62896a54b2e498579027d3d6da42968",
+            "enSha256": "86fdda86723823c7299fb59adc01531ff9babcc113f2cdf2afa6e2f55cd3b1af",
+            "zhCnSha256": "1b3347271f331f847b595dfa85b8b9a197143efa51acd6390d67f8acd72438b0",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "mkdir",
+            "sourceSha256": "a0f734d79de6c80b7870a92fec86a0835fa6df680589848196d0140252a31826",
+            "enSha256": "44f13616d6fe71622927f584a106407d5d558db46ef79375fc2a9948448d797c",
+            "zhCnSha256": "0e20359f29222d10e9812f785bb9fcf2fdd549263f77d603ee66df3dbbc61e65",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "mud_status",
+            "sourceSha256": "4de6375a7fd2e4852039d70857d2ce4caf6cc6d70e5a24fedefa3c566cb10036",
+            "enSha256": "c88b27946f83cdf8d709c600c78f8ec8317f573499da150bc98681bd72219e36",
+            "zhCnSha256": "a8704aa67aabc363c5c7451cd471c74c1b6125acf13677373b342d207bd0b0a8",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "new",
+            "sourceSha256": "b3bbf88754dfb3aae0583f075394a8f3079bddaabb228321f9d8e7e22f22ce1d",
+            "enSha256": "cdb9963c081e7ffa6aa17b615edd00850afa2174ea3f5fa2f1275b494a44f5fc",
+            "zhCnSha256": "bed10dcbb1f2a36ee81498d29a30c5b07c729593d6b166b4f5726e231cdff36e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "retainedFragments": [
+                {
+                    "field": "summary",
+                    "text": "// 变量",
+                    "reason": "code-example"
+                },
+                {
+                    "field": "summary",
+                    "text": "// 赋值",
+                    "reason": "code-example"
+                }
+            ],
+            "notes": [
+                "Initial review before the source correction recorded below: The final source example spells the class name exaample. The example is preserved byte-for-byte rather than silently corrected."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/new/fields/summary (class declaration and final initialization example)",
+                    "detail": "Correct the final unfenced example typo new(class exaample, to new(class example, to match the declared class example. All other example text is unchanged."
+                }
+            ]
+        },
+        {
+            "name": "norm",
+            "sourceSha256": "a2615b50a363991d6e1d392d8ffb63f6da13b5d0f1e61b3bc52c68a1a5bae04d",
+            "enSha256": "a01e4c8bbe321aa1691f92e7de78ad1090e7a83f65ed5f669ac3e40cc8017c79",
+            "zhCnSha256": "b6d078ece92c561d1c2170130c57079b5050c6879308e74836467425e95b4727",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "num_classes",
+            "sourceSha256": "d1f8bb222dcc1b388f2622440ebb3b8fe0fa10b89774a27911b0df4b54c28151",
+            "enSha256": "242c33e07321a9cf949a688ab05bc4be8dbc35a7d85139517aec978704a9d707",
+            "zhCnSha256": "a6a05975df68815b3bacdf32fcd7048b0c2d4a8507387bc6d6b5ffff9c1f00db",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "oldcrypt",
+            "sourceSha256": "c083f083887b44321c4bee66888ad7227228a3e4937b3a325c72962604aeec63",
+            "enSha256": "f680bc1b8dd4641e3ac4736e27ff6bde5bb96d77275a982726830c9c91c8cce9",
+            "zhCnSha256": "7dd2695450027a7cafaf59f2260ffb1fcdc69f2217e1a6fa3798ed56f67895f4",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "parse_add_rule",
+            "sourceSha256": "ea60549edc0e2173bed8b8ac63c7db45c82e5efc9176dbcc3b03535a28d58c67",
+            "enSha256": "9afa80e90e89d62ad291247f01c71e23a3585ae7c9f9c8376e9166a13cdcc6cc",
+            "zhCnSha256": "019438f90ab5eea7151bd6877f9491f5e900123942f9e45e82abb463d6f17922",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "parse_dump",
+            "sourceSha256": "4c046e01450e9f355f5307c72a819c96779a91eb451d3615052f17851d5cbfa7",
+            "enSha256": "9f70a911e02e08014a45dad997389bf4f1a97080823d6280add86516921cf5dc",
+            "zhCnSha256": "3b690f8f58dca4d1733297d2adbefb6ed5db316cc801cd42f7e3f15e8df3f136",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "parse_refresh",
+            "sourceSha256": "1e82b62a8551498cd5d806eafe25128400ca7f3eb260e6a276244f330ca80c8f",
+            "enSha256": "ef286742bdc32ee5b63d6e472d913a9e9b3ef4c77ebca063f3530e623760bcd2",
+            "zhCnSha256": "ada43befd828c18854c67d4ee37860aa45818f2b2f6bf150b5cb8eb989bbf866",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Initial review before the source correction recorded below: Source refers to applies below but provides no apply list. The wording is translated without inventing a list."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/parse_refresh/fields/summary",
+                    "detail": "Remove the dangling reference to applies below, since the source provides no list; refer only to relevant applies without inventing any."
+                }
+            ]
+        },
+        {
+            "name": "pcre_assoc",
+            "sourceSha256": "54b70f4e7e51ce157f4e5e277185d18c862b02dbb71a5c78e8f9b75eaf06daaf",
+            "enSha256": "23f204ba5f74737f4f39d5b97a617d86a4a31fce8e3535e40d293cff9684dda8",
+            "zhCnSha256": "4efd580cba14cc38ab965d22d4959928616e42f0fcee6bdcd5f2672fd3be2cdf",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "pcre_match",
+            "sourceSha256": "2169a0f336ce0772f458a6b834ed4cc7c2a3533d2acb67f4f6ff8f4c960ed9ab",
+            "enSha256": "55afd8eb3f15ebf0c547136823621f14105c1842b2b5f32624522acc66a22314",
+            "zhCnSha256": "a3f57efdaef3a5a9bac37ec39b9f5ecee7385eac2d27abc6c594946988af7d3e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "pcre_replace_callback",
+            "sourceSha256": "5db40a1393da03b36caad68301b8b43625a383df9c64f902f1ed60095f11c7d3",
+            "enSha256": "4ac523933b38905d4cac4bbc6c0c083a62f5b0eac460aee68cac8445481abbe0",
+            "zhCnSha256": "6f40f20a5fd38fb6aa4a8029c70fcb23f9cae1ca1a3934e616a8efdbe9380448",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "pluralize",
+            "sourceSha256": "11cfae5ef8cbd50f1514f53e42a2f36f26d7de76f31bba929ffb4e9d9622e5d7",
+            "enSha256": "ed2c0af2984f4f4fd525f4313c8e9d57709514a675dd02f83db98cc5ac80370f",
+            "zhCnSha256": "aea4d21ff649a45e9b5b142a9300b65a69ef9cf4fb01557c6606cd9fc0e3a2a6",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "present",
+            "sourceSha256": "18bab3b63206d63128e71dc2087621944cffc1ddb277a3bb7e256d500b5537fc",
+            "enSha256": "552d31936ed47668ca744a138799958278cd35a35cb064eba99de99a2ba5678d",
+            "zhCnSha256": "24a39353c6318f0008eeac3b442fa252856a4d54806bf67bd2eb714f3b889a5b",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/vm/internal/simulate.cc:1207-1247; src/packages/core/efuns_main.cc:1435-1440",
+                    "detail": "Correct both the opening description and repeated usage row to the actual omitted-second-argument search order: current inventory, environment object itself, then environment inventory."
+                }
+            ]
+        },
+        {
+            "name": "program_info",
+            "sourceSha256": "3ff4e0307aa3cd0e92b3503d995abf3a51ff80a0c25e43b1f38da22b0b1a779e",
+            "enSha256": "57e0d9ecc7f6ee813646df3474b9acf589fa46bc60c770187a96830c8b1bad85",
+            "zhCnSha256": "d22b50cb3217f485aa564d18b2014e8e4588e74adc39b3ac47369c6d5b3dc6be",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_encoding",
+            "sourceSha256": "6a85922bb0cd134bb6dd893d13655e98517c32d65c11561dc25b7e6370ca4811",
+            "enSha256": "e47824bec302adfa955b3e669b7732e4a1d145788ed940abdb2296a85c942c42",
+            "zhCnSha256": "539a1c23d3ed86389081aec0acbc8e659023e697debf8cba607658f49d00549b",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_idle",
+            "sourceSha256": "0a188672e9794d37a180ffd7f16164b2b7e72efa64ef2bafea2e60e6f9d02075",
+            "enSha256": "349bb36121766e23ce3ec3520b7b82192870c783fa8f723a76fd9cb311ec3cd5",
+            "zhCnSha256": "301b49657048e55476bf719c6f712bf553f4da6534e06be8eefd720db8139260",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_ip_port",
+            "sourceSha256": "3d61067c0e9a9a3df849382381975b4793b108ff85a834678387db29141ba1cb",
+            "enSha256": "51c076d9cdb6ed1baba594ff1dd4ad2f93f2bc1c835cd5bbb6ee2271105f5d9a",
+            "zhCnSha256": "c37bb0ff63a171018cda22d42b721303214c8740b40d869566c57a6ca757651e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_notify_destruct",
+            "sourceSha256": "f7d5e0fff65d615d2b3d7adbe11a53de4fecb6015bc760ac39a8b71627c07412",
+            "enSha256": "25fc4984a088a711e096acd666551c055b16b4060b5971bd77e2a79a82ea4ae7",
+            "zhCnSha256": "0c399c70b94fa805b6bd39a6c9efab4079bdcdf0e58db61f7d98925c749ac5cf",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_privs",
+            "sourceSha256": "95548535ab408bbe36b26f7b05871dcbd30ad07ca32b7f797e938e4f6601b51f",
+            "enSha256": "3b4f6aa88d5a4ea89e349c7fce14159b42b4e48f1f5ea42940590fbd555276f3",
+            "zhCnSha256": "d4b5aef08b22c68bc5347feb0a7de9441e252d8f1f185d92e4b1ebff3d5a14e6",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "query_snoop",
+            "sourceSha256": "77756d9122d278852872226ab1b43c6f280840268bff75ebbb172371ec5d38e3",
+            "enSha256": "f64ba8b4e1d5f8c5998f35b85601e78d59568c4696c7e3b0c48479708a074590",
+            "zhCnSha256": "7b822867f15910ed9c4af2bf77dc8188fc09414f65ea95d2092e3d968a7c640f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "random",
+            "sourceSha256": "2e82598bc75cc0456e9dcae1cbbe2047222febe7b621a6c449fa2fef7bdcace4",
+            "enSha256": "df74e2c1da1e3025489374d33e4fe24cb4e4a7710f6dd927bead50355706f4c0",
+            "zhCnSha256": "783952c3992eafb68013f30bf4ae9455277a7c84c02ff329e46ea36d927b46ff",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "read_file",
+            "sourceSha256": "be620ab65f59785f1c03accbaa92a3f6a96c1328a2379ed9502097946ee848b1",
+            "enSha256": "55cead4ff1d7b5f23eeeae814e079f69503bf9bbaeba8afd56306479c48a29c4",
+            "zhCnSha256": "3aff27c1adb987ecbea2a5002f2f614b7abf0cc7ea9c3491cf6ec3cf8e99a9c0",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "reclaim_objects",
+            "sourceSha256": "25d273ea66d82880f6c5a20995200b9ff133e4b2c3b88c03ff71373ec26ff502",
+            "enSha256": "c5fd6e3e67742f140ea829804756eefae8a90308ba34d1c15ad4ef581b959651",
+            "zhCnSha256": "cc282fb2859dad17706382a9b236a3f248573cf38bffcaf56d227ae47629f89a",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "refs",
+            "sourceSha256": "d9717afeee1f0e9a1757b60f4d2e20935ffb1e25cb0ff6aa06b9896bb7b0d188",
+            "enSha256": "6f7717e7bbfc7ad8a8eb9dc0b72e6636f99707444aecc4dd20b6a05512bc2b82",
+            "zhCnSha256": "ba0dcf5a419878002f00427638e15d66a65dd26b319460cb9cb091826ef96fa7",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "reload_object",
+            "sourceSha256": "7df9b7beae1cacdb0d1084cfdec705e997fc7e5f0c2750a41980e46e2d35f1e9",
+            "enSha256": "6d7dbdec77027d42b95964deda63329722b47a94dd74ac8637709a32617208c0",
+            "zhCnSha256": "24d8a6b86d286859b36f5a729b4384f207d774272b7cec4f684f7ea48118770f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "remove_charmode",
+            "sourceSha256": "5ba5cee430981abffad76deb2d9c4187990cf32b0f82dde94d69980dfeff1b14",
+            "enSha256": "1a910ec08faaee918025c5a21d631db9e4db1d58ea71ff5bb9ca0fa176efc8cc",
+            "zhCnSha256": "07edd625fef417cca9b9bb4fcaf0931c0079a1acb82d799dd09d4019a611a00e",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "remove_shadow",
+            "sourceSha256": "3af70222febec7bcf4bd1d5aa0757d80bf65b8cb0d9b435773c3fce2dee3da3e",
+            "enSha256": "08cd347d56de6d9c74649dc375c2b540e1217af0320b739bd9f5930ed1875c08",
+            "zhCnSha256": "21c5431ff738e799ada7bc58b62bda37ca7485aa228459ef0755a87864c9c754",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/contrib/contrib.cc:93-112; docs/efun/contrib/remove_shadow.md:17-25",
+                    "detail": "Describe unlinking the specified object from its shadow chain, and return 0 only for an unavailable object or one that neither shadows nor is shadowed; preserve non-destruction semantics."
+                }
+            ]
+        },
+        {
+            "name": "replace",
+            "sourceSha256": "a98198fe71ae5d08813cb543441066deeaf48984437ab491729ded8f73486117",
+            "enSha256": "be2ae778880e8645db882088e1d1c83b80d9b6622721c3ce35f8a51500a25496",
+            "zhCnSha256": "70ac707b2a792fb39a908f1249afd01c2321cdacc023157cf59cfe4e3970d532",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "replace_mxp",
+            "sourceSha256": "c891622ab4379c6de9cb9758809c3c999daba261df63185db417ceddfaa1653c",
+            "enSha256": "d4fe36ce24b3cc35c745362515fd1286fce6f201fca8311e208c9f61d2f2e965",
+            "zhCnSha256": "ef84f31ea76b00f2e62e0189b173bb433f60f5183cbeae2fa814a72bff6f53b5",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "replace_string",
+            "sourceSha256": "d068745add39d4c3aaf731aea284ffd00aa89674f0a9014d6f94b67255672dd9",
+            "enSha256": "fd6afdf7a21af4da966258b90d1929d0a9917a0f0bf35bc45cdb6e538894caf1",
+            "zhCnSha256": "9505b7f4cbe3006affa2b6dc5c949b4e0106097e649884962d3d1bc4591d9431",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "request_term_size",
+            "sourceSha256": "5d30f8612d8b84412b16491f818753c9ae1008b2d9f7c5210ef8375a51536231",
+            "enSha256": "3fc1f6db8e3bbd7f3081622e71ac96eb53ee72dffc31d8c586f8bf4a353551f1",
+            "zhCnSha256": "a2b06f4dd7beb518cdd0a06fb57b958ff4a72bc767bcf8ec8838aaf296531cf7",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "resolve",
+            "sourceSha256": "ebf2865e5bba41f71db8441be397326f92a87d1009dac7f26756228b9c82d409",
+            "enSha256": "03c5768d0cf3667a1c19e88b6d7a2d4d458a5b64ad374c164914ba7349bab0a9",
+            "zhCnSha256": "15c420ba68a8151c6f0ec33d25e48e64ab5dea6cc3eb29c3ed36bfa272156edd",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "restore_variable",
+            "sourceSha256": "ad9513b8bd0397dcad5d72a9fd03e4025a589cf5a54e74a607e864ff287c98e8",
+            "enSha256": "6ae164bf925c383e58ec9103c72a7bcd746a837390777d2033c344a2b757a155",
+            "zhCnSha256": "e47283bb52cd4cf346b86f9a6c056bdf57d17cb05d70d0f6c512cbb8204dc78f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "roll_MdN",
+            "sourceSha256": "de4ceaf6674f3021df9a4d489eeae03b60a5fd4b91a31454b8d6f65aa5703185",
+            "enSha256": "4a403575a450d552b8a62af1abfc70e51fd62d63490fc6949f0a6465046f71df",
+            "zhCnSha256": "c63ec79b0bc1f405bcb62de351a1edaab208ab1cbc82d0bfa369b50cbbd19a5e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "rotate_z",
+            "sourceSha256": "2d9e870bfa1adfe525d51d38f8c13547f0124f5f6301bc05df68d66bb0f09837",
+            "enSha256": "aa023d2df5e44c6ec8d742ba777db4a8acbde67ac9feaca8787b2eda645719a2",
+            "zhCnSha256": "c5a2a57eb451182a64469a96716ae8ecf8cbbb476beceef4ff4c259cee115b73",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "rtrim",
+            "sourceSha256": "c583be8a14f8183b30cac54a58a2346053f58dd53d323fb47082a71fbc5ef44c",
+            "enSha256": "24a1776fef1297d5f4c1829578042f4150facf8f516d2cd10c7f06cfec70e119",
+            "zhCnSha256": "372e44e5c8412dd197f6c0c3c2728aa5781b127e7d0b3a2d51a6be970c92777a",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Initial review before the source correction recorded below: Source says the left side of the string. Local reference docs/efun/strings/rtrim.md says trailing characters. Translation retains the source claim and records this conflict for a separate factual correction."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/trim/trim.cc:30-38,85-86; docs/efun/strings/rtrim.md:17-18",
+                    "detail": "Correct left-side trimming to trailing/right-side trimming."
+                }
+            ]
+        },
+        {
+            "name": "save_variable",
+            "sourceSha256": "3fce0d7cc9054eca9cf55b1d7fc27d1feac79080b8ace4c7d3758da774e7f9f9",
+            "enSha256": "b00575ca09cba3831a041c63555d5c0e7cc7fa88b1b102de19a422135c89b976",
+            "zhCnSha256": "843fb5881c1d3e9b0776d1ed6281260cc2087baa337e412239d597e1299427b1",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "secure_random",
+            "sourceSha256": "1ff7f58241f998ab2952b75a587835618fd084cf976fb300eb71064f34402778",
+            "enSha256": "acf970ff23d435a05125d0ee0f5a171f61c583237bcfb4992992418c1925a3d0",
+            "zhCnSha256": "293a0763f19b3f9d68faa569224d416bc1b78a5d4d9ef877988665f035c1112f",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "send_nullbyte",
+            "sourceSha256": "b6deffc2a6fd4533737fda7a3dac4e5aa1c5f9f890f8a61de80a248091871602",
+            "enSha256": "847e406491d97d647f6f9b7898474ec74f0a45a029745bbc0424bb316df3b811",
+            "zhCnSha256": "e9d3e8aac4d530ace460e813fda164ec96e94eebda412c86281e250bd07f90d9",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "set_bit",
+            "sourceSha256": "4feb8ffb245aaf6b206452905dc13e58ea825246e1a491c408afa352497b0bfd",
+            "enSha256": "bd508e05bdd49fe7be88ef69298ccf51018e42b63eaf2cf03fabea095388749a",
+            "zhCnSha256": "c1315b15cc0f4bdf4cce31a5c54101a061f72bf40dd2466ee5aae04b23706b4d",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Initial review before the source correction recorded below: Source uses str as the input name but sr in the unchanged-string note. Both identifiers are retained."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "tests/fixtures/localization/efun-source-text.json#/documents/set_bit/fields/summary",
+                    "detail": "Correct the original-string identifier typo sr to str; bit position, growth, and six-bit storage statements remain unchanged.",
+                    "protectedChanges": [
+                        {
+                            "kind": "inline-code",
+                            "before": "sr",
+                            "after": "str"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "set_debug_level",
+            "sourceSha256": "d80a57b8f352df208b3cdbb7a6ab1dc9e6b1f4314722420af2a45f7f6c9bb6dd",
+            "enSha256": "dd8a9e0d1a7d9d064ae369fd90906d555c31fd92caea338b002b96f785fe683b",
+            "zhCnSha256": "4f4b72a0d411c147ce5feb9e920c4e2f1f6a73a5984b2b882e60a6a32f1b097f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "set_heart_beat",
+            "sourceSha256": "f7030347b2034639a1b3062ba7a9ce60c43bab56f4dcfdd2cc3b264b501532f4",
+            "enSha256": "d5535f69d5a9cd13842fc1fd8bd55a2a7ff0ebb0cd224cf272a03f7ee5a46800",
+            "zhCnSha256": "33c57cd1ad3c56c31a318d403ee9440bd33f23ae19e173bdad40a556e5b008ee",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "set_living_name",
+            "sourceSha256": "34750672006d875e86f536aa2868e1d4c075db21479807d8b4f2f57e79fe9f6f",
+            "enSha256": "4d495ecd4afea7a2bbcc2c4e55cda68686ed7483387d0df083203e22da0f194a",
+            "zhCnSha256": "7c8d68caca2765a11886d6aac7466e6d9dee6b81c24217bb0880aafda125f0f6",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "set_os_env",
+            "sourceSha256": "85372867230ab560e20b375b5b6262047e89737695795af522e64099271b2cf2",
+            "enSha256": "b663297793ba082de8839cc19758d3f3be8cb576a16d5323ddf5d5d284783f5b",
+            "zhCnSha256": "47a5732d3cebf904766ab27cc5613d828dbb0109640f32c46cf1d7ba5e40746d",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "set_this_player",
+            "sourceSha256": "baae5e99d781ef4bd17152e705f6c89666f84eb985a48fa1b41a7c91e30a645e",
+            "enSha256": "f75630a52812b1ad7ad9e8272f8104da5cb0dddee3fea8984d9a5a8c7004fc91",
+            "zhCnSha256": "fd2a29b44544e67e629c5276b45cabd9cc4e6d27208ee6e159ac5b841bbd55a1",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "sha1",
+            "sourceSha256": "d8a8a1ea067b4064382a8684a1333969ff54b4a1549c1b682d453e772e6d779f",
+            "enSha256": "27ed11627512f42334880596ed2f3ee24020d4f24bc3d6818497a8c65ea3daa3",
+            "zhCnSha256": "5b2197ad453dd636d38bee9079cdc5fbf495c6e9d763ea84ceca4c1d8d629838",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "shout",
+            "sourceSha256": "6f9f07f24c6f7ff30a50bea1bd25d1d0b722356e58b5a6cf4ef19e2025b79648",
+            "enSha256": "55015ef038e6fb3b7e1e4e7bf46822cd74af9488acc188c8d48b4d5766d668a4",
+            "zhCnSha256": "284ab32a1290d09f7c8077ba723d5a8841d13f7c28eb39d534daa7c54b680b8e",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "sin",
+            "sourceSha256": "3336c8fc675b1353b1bb7619aa6e184cd5d172a6f97126def7455714698516aa",
+            "enSha256": "d6547bb8e180639af88d3536617dcec8ee0f031d1f1a93fcbdc8d9d5c59747e1",
+            "zhCnSha256": "2f4b18b8d3a4ef97b4ef0a49fd3b1c152047bec96021aca6e2378fcbd270879f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:docs/efun/floats/sin.md:16; src/packages/math/math.cc:25",
+                    "detail": "Correct only the Chinese translation so radians qualifies the input f, not the dimensionless sine result. English remains unchanged."
+                }
+            ]
+        },
+        {
+            "name": "socket_accept",
+            "sourceSha256": "88425087b37bbe39bfe5605b9491babf52e8e5964c4bc7bf8cfafc7a24c96a22",
+            "enSha256": "e166a5b30e8e844bec3e3f1bc58ab6c113d9b207e1c2033eb95d14acab800646",
+            "zhCnSha256": "7fe22613cf7e91d44eec7bc61f96fe9dca286d364f1cbb60441a96855f9e7421",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "socket_bind",
+            "sourceSha256": "56da89ee6badec851f9487823d433af4021cc0596765a42a46540d115b71bf6f",
+            "enSha256": "caeb317197eacae01314cc8ce521a155bbb8fcc01e35143278bd6cc64c699cad",
+            "zhCnSha256": "8e17e70544761d74033e92b244662b276b9503182eec513e84775d02c3576f63",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "socket_create",
+            "sourceSha256": "c08bed215a5b9d9fd8ca8ed1e3051d143fe81aa722f0219d7b31b1538c42ef87",
+            "enSha256": "4a4fd433f6d8f64d9b3343ba3283b4d97bc991e871fac6d35c162094edf980b8",
+            "zhCnSha256": "df9c2099126a59e8f2a801bbe19427623bfc1ac6c352fe91ac07ed5603271149",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "socket_listen",
+            "sourceSha256": "7213d44f70546b2d52d809c072ff84dc71afe236e2b3a49a5d1acaee2dde8e8b",
+            "enSha256": "a152f0576d1c76511deb8f7824f621b0720093c00225e662ed1465796e3cfdc0",
+            "zhCnSha256": "b6d45ffb2657a12cba6f0d975d6f410ceec88881ef281a717dba4c39cdb86e70",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Initial review before the source correction recorded below: Source spells the mode STEAM and lists STEAM/MUD only. Local reference docs/efun/sockets/socket_listen.md lists STREAM, MUD, STREAM_TLS and STREAM_TLS_BINARY and additional TLS setup requirements. Translation preserves the source wording and does not add driver functionality."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:src/packages/sockets/socket_efuns.cc:416-421,626-670; docs/efun/sockets/socket_listen.md:18-36",
+                    "detail": "Replace STEAM and the incomplete mode restriction with supported stream modes, including normalized STREAM_BINARY; document bind-before-listen and TLS certificate/key setup without inventing immediate rejection when missing."
+                }
+            ]
+        },
+        {
+            "name": "socket_status",
+            "sourceSha256": "319194a3e8f8dcc0c794998f5ddd225e3fccf78fbc597520b1aaa604c1c61d07",
+            "enSha256": "803b035afc347ea0a1289152c938e87d9caf965c95a0b625699a12f994bb3c5e",
+            "zhCnSha256": "daec07f5ae3688eee26e861d59add0e0ded3cafef1a01fb7b9b02b61885ae1fd",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "sprintf",
+            "sourceSha256": "4fe839171edf4f7fd2e6255030f11d963184635dd2020c1b4b01d475cec886eb",
+            "enSha256": "dc3bcf6d5daba0a449a4229a24aa8189a86fc1505965a0a0b130cdea64a563be",
+            "zhCnSha256": "54983bdacb535be9636075750b22c8b48b90a72725a70de38c1af692d5b9db22",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed",
+            "retainedFragments": [
+                {
+                    "field": "summary",
+                    "text": "\".整数\"",
+                    "reason": "code-example"
+                },
+                {
+                    "field": "summary",
+                    "text": "\":整数\"",
+                    "reason": "code-example"
+                }
+            ],
+            "notes": [
+                "Initial review before the source correction recorded below: Source summary describes output to the current player while its details say the formatted string is returned. Local reference docs/efun/strings/sprintf.md distinguishes void printf from string sprintf. This source inconsistency is retained. Chinese precision placeholders remain as source format examples with English explanations."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:docs/efun/strings/sprintf.md:12-13,88-90",
+                    "detail": "Correct only the opening behavior to formatting and returning a string, preserving all format controls and examples."
+                }
+            ]
+        },
+        {
+            "name": "start_request_term_type",
+            "sourceSha256": "05e05ad7dbb6905730f4835350591533e95ac92871eb6fac11a7a620cdb84677",
+            "enSha256": "3fc1f6db8e3bbd7f3081622e71ac96eb53ee72dffc31d8c586f8bf4a353551f1",
+            "zhCnSha256": "a2b06f4dd7beb518cdd0a06fb57b958ff4a72bc767bcf8ec8838aaf296531cf7",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "store_variable",
+            "sourceSha256": "819b14e53fd58ac9a5495fb2b4ef5dc08475df12f50c3f090c80ed20d6ab1b4a",
+            "enSha256": "112daf45224a0566db461f540c4e96a50350a2bb566d6ae70a525ba2c830097f",
+            "zhCnSha256": "aa9e50164bbd16a5279faba7bc1ae587e66bd33aa86f47df879bd0e7cb7895d3",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "string_decode",
+            "sourceSha256": "edcd4c0e1b9ec20ffcd46465e1bdbe5cf86207c8e8519e5cc8cf559a84d4063f",
+            "enSha256": "c26a50fe5b339c16bb7ec76017fba5062eac35b5f9716a5e2b42b41769849724",
+            "zhCnSha256": "7bc5df8adb8c66e651c8cc3a05a5c5bb3b0d38299091503c63b3b770caef3781",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "stringp",
+            "sourceSha256": "04443e9ae71b278e03d307633564958058076323b590ae91655c024e42787651",
+            "enSha256": "b1ac1ad04a3ac0763d82068adcb54912d13e76273f73d0e3035c6863a8d84994",
+            "zhCnSha256": "df9ecf66d715bdeb7299fd017b85c1112ef7ab91727cc4bb9950ebb17dfb321f",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "strsrch",
+            "sourceSha256": "e0769ad0ce31996bb61683c9f070384edc2f44f8eb8a1bf7720ff7237916f86c",
+            "enSha256": "c6aea7e7a205f8e3a144f094cf4197c80e9425b3418593404493c7c1f946271e",
+            "zhCnSha256": "80a1baaee0c0e0aa3406436386af9f0faaf7a541d83ae44167ec9b06d311b5f3",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "sys_reload_tls",
+            "sourceSha256": "e6571be2226ba71a4ee6279626911b2f79d0ac7f2000f863e5fecac9a7c8b240",
+            "enSha256": "29a44318d2e1a06814f5baff8cc5b34aa1d1b6c9229720e44e1a325d3c8834d5",
+            "zhCnSha256": "d2c297ec987e90be2e048d15cf97612d0ea8684898fa8cae5893d5788f7711be",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "tell_room",
+            "sourceSha256": "7de0769679e8345aa495803897631c7177084a4fe993f5e5e1cfeaa3db752837",
+            "enSha256": "9b9902274c775fbaacc2ba4d93d4d7fa3e3601e90d33865b56b0a066db58104d",
+            "zhCnSha256": "aef4d130e081a083767d71dedbe2a9fc150c4f49577cc4bbb84c7db4a1afcff9",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "telnet_nop",
+            "sourceSha256": "1c0dabbe225d0f1aef8a8e4d150db36616a88d021b49694373266b3018a8b86a",
+            "enSha256": "61fa976f046c9f1d270595fbde1faa6a05923f135789b1d4fea647d3134fd8ae",
+            "zhCnSha256": "ef0197edceaadc9aafc6c89c4b6e30e41bcd35bc870a48624dc21ce324fcc1b5",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "test_load",
+            "sourceSha256": "6a3ba5812418d275e6289fcb2b37ee4d2a4757cf8cfb286e3b60206fefb41fa6",
+            "enSha256": "bf5873e6649654daf6e95e54258ad7514110e1ac863fd02de95775de36b35958",
+            "zhCnSha256": "3c38cb6508f554d3ad04ee784fdc33839e616f4e4716cc70d70286b7a9ed3894",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "this_player",
+            "sourceSha256": "837282c5bff0884b110ae1e625825b155f98d29fcc0eb6fee375cd1fa2b4080c",
+            "enSha256": "7d872529712bf5b08aeafb9a7aaa38e085561422fe85e0418a60b2de88cca64c",
+            "zhCnSha256": "c6e89e368f7ca32b09b76caf2cb924e52e6bffe9ff8279dda060086cb480a000",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "time",
+            "sourceSha256": "17e5bbc28c558cd565dff172471b2efd7f64e8db288ec4987739bd38a3926690",
+            "enSha256": "6cddb02fabbbcd1039c17da168fd0353f23c4d2a7674f0af77672671d08bcb64",
+            "zhCnSha256": "6838a859760c858cc093cfc0d5a6dc500b0410f86328f16b561f1b335d20b4ac",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed",
+            "notes": [
+                "Initial review before the source correction recorded below: Source says milliseconds since the epoch. Local reference docs/efun/system/time.md says seconds. The unit is preserved as supplied and flagged for a separate source-fact correction."
+            ],
+            "sourceCorrections": [
+                {
+                    "field": "summary",
+                    "reference": "D:/code/fluffos@b51f5ff7a1e49f94b5f83ba4cee28f32f1881e37:docs/efun/system/time.md:8,16; src/packages/core/time.cc:28-29",
+                    "detail": "Correct the epoch timestamp unit from milliseconds to seconds while preserving epoch and Beijing-time equivalence."
+                }
+            ]
+        },
+        {
+            "name": "to_buffer",
+            "sourceSha256": "b7f1d59c08fa60bf476221b9a21d891a9761770e2ff173d3e2b6ac929761d0b6",
+            "enSha256": "43387a99c3af8085986bad62766902cec55f03265f02069dfa4415a4a736076d",
+            "zhCnSha256": "9668a2bea6387514d369eaa0c4c9d9f3541c1448335babdbecf95b4b2065b376",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "trace",
+            "sourceSha256": "a2d334b7927858570772fa5d74b763fdd924e35341d942d1125ac393515f02a0",
+            "enSha256": "3b4b371a5a96886d7e4ba780d3b8e832ad59fd77dee02f36acf5c1ad28de8235",
+            "zhCnSha256": "32aeb28c837c3e6c04f5eb19cf75de3bcc47eca4f7558617517e2821c1b4acfc",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "traceprefix",
+            "sourceSha256": "ad3e24eff696c414c56fdb060ff80d6d5d31d254de80c9cec1e83db7f3ff33cb",
+            "enSha256": "67f3b1ec32889bfe84bee284b823550298c47caee6a3f11d40083996c66ab7d6",
+            "zhCnSha256": "ffb2c7ed3393ed54ab308b434c3e722fca4b1642ce1fc9401601bac63069d6a4",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "typeof",
+            "sourceSha256": "52e40588cb43cd734dc505b2ea7dea6c7c546d9a3fbea9691d6f1a0fc6888294",
+            "enSha256": "828ed5b874c67d600542118946b872829c9d860394695ce8b1d63654a7ba46a5",
+            "zhCnSha256": "42e12dab0ebcaeab34949cbd6410e8786ab8da2be836f72797c55bd90e3101c6",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "undefinedp",
+            "sourceSha256": "36126b7ceef602e5f5de15fdf952ab057964713e7336fba2f5bd575de8c30ba9",
+            "enSha256": "aecaa625fb082062aa25fc7c9286a076096d406482114e1b6162359ab2fd5bff",
+            "zhCnSha256": "2331baa487f3b35d4d793b1b6a4f782398303f2167e64441e99a4130cf0ac810",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "upper_case",
+            "sourceSha256": "6ef8d554fd74b5b3792849a3f3d1769049fdeb1344a21454c7e877fda5154774",
+            "enSha256": "54690027b1e04cf0b0b9f94e300ad8898c9d0983c9fb75cdc3ba0dcc51db5169",
+            "zhCnSha256": "a515fa0f89b4bd04a0463534d32db4e28360026996dbc1f7c7fd743f777c900a",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "url_encode",
+            "sourceSha256": "5aa6a5218824d7e3e92d45c67284bc383ddf9779f25ccdb7f795619a7c0b8804",
+            "enSha256": "5706ea28eba6e77fdc4c62bc25d5394059be946bfe4d599322dd473d72e4d6a7",
+            "zhCnSha256": "0c862c279dcd54276d9d8d011158201ef20b7994d1fa828b200eaf6139cdbff0",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "values",
+            "sourceSha256": "3f0399418515ec6979fce8781f35dde12558e113160d8b0533e9676ec6094c16",
+            "enSha256": "5cb33a5af5287680c4eb4b3ba1167b5cb6a4823eeea7c8d65135e82e80e91a4a",
+            "zhCnSha256": "8a8a20683a8ca47ad5b649e662288dedbfd94ba493bc7e6d0ddee3fe7e8092b1",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "vowel",
+            "sourceSha256": "2fa0c2e679cd9769a66527f6eda3c3bc7ddb5fdddae819fa81e9e209a54efbc7",
+            "enSha256": "a7ddb5128f596443fdaa8518232432d456162e7d775fd05172ce3fe11ff7b223",
+            "zhCnSha256": "28d6ee4ac2b41d7ebea3ccaaf3c9a62fe77e8828547b5b68163cfd9595d0aa78",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "write_buffer",
+            "sourceSha256": "ebc67db3fbddf7e020dd95e2852ea15f1a5d5ec4a521636a28d25753fa56760e",
+            "enSha256": "de044926c62f63b418418a0c14af40370d075b7ac655d74e0115189befa448b4",
+            "zhCnSha256": "8474420a787e7644c95bb368ef7a2d5fadcafa2b66406359cc45e4c0da578643",
+            "reviewedFields": [
+                "summary",
+                "details"
+            ],
+            "status": "self-reviewed"
+        },
+        {
+            "name": "zonetime",
+            "sourceSha256": "55dff295cc56b6d0723c2deb48ee068894122a78ba80a1c9ffda771a7166df75",
+            "enSha256": "156fb1e735fe8b03b31bd5f42fe2b02b04a1dfc75b99182ebf899bdfbe3ca370",
+            "zhCnSha256": "e6df6f2a1c3ed1e59acbb9538a32127e40991a5790915266eabf911dea5bb495",
+            "reviewedFields": [
+                "summary"
+            ],
+            "status": "self-reviewed"
+        }
+    ]
+}

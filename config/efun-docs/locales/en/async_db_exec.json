@@ -1,0 +1,3 @@
+{
+  "summary": "Execute an SQL statement asynchronously using the specified handle, and pass the result to function `f`."
+}

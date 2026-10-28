@@ -1,6 +1,5 @@
 {
   "name": "floatp",
-  "summary": "如果 `arg` 是一个浮点数返回 1，否则返回 0 。",
   "reference": [
     "mapp",
     "stringp",
@@ -13,7 +12,6 @@
     "undefinedp",
     "classp"
   ],
-  "category": "浮点运算相关函数（Floats）",
   "signatures": [
     {
       "label": "int floatp( mixed arg )",
@@ -30,5 +28,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "floats"
 }

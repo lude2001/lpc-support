@@ -1,0 +1,4 @@
+{
+    "summary": "time_ns 内置函数",
+    "details": "名称\ntime_ns() - 返回自 1970 年 1 月 1 日以来的纳秒数\n\n用法\nint time_ns( void );\n\n说明\n返回自 1970 年 1 月 1 日午夜（GMT）以来的纳秒数。\n\n注意：此 efun 在 2023年5月30日的 3478cc2 分支新增。\n\n另见\ntime(3), ctime(3), localtime(3), time_expression(3), uptime(3), perf_counter_ns(3)"
+}

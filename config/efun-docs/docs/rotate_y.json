@@ -1,7 +1,5 @@
 {
   "name": "rotate_y",
-  "summary": "rotate_y 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "float *rotate_y(float *, float)",
@@ -22,5 +20,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

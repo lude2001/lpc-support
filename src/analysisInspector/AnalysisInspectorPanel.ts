@@ -63,7 +63,7 @@ export class AnalysisInspectorPanel implements vscode.Disposable {
         const editor = this.editor;
         if (!editor || editor.document.languageId !== 'lpc' || editor.document.isClosed) {
             this.locations = [];
-            await this.panel.webview.postMessage({ type: 'empty', status: '请打开 LPC 文件并将光标放在要分析的位置。' });
+            await this.panel.webview.postMessage({ type: 'empty', status: vscode.l10n.t('Open an LPC file and place the cursor at the position to inspect.') });
             return;
         }
         const uri = editor.document.uri.toString();
@@ -76,16 +76,16 @@ export class AnalysisInspectorPanel implements vscode.Disposable {
             if (this.disposed || generation !== this.generation || editor.document.version !== version) return;
             if (!model || model.uri !== uri || model.version !== version) {
                 this.locations = [];
-                await this.panel.webview.postMessage({ type: 'empty', status: '当前文档的分析快照尚未就绪，请稍后刷新。' });
+                await this.panel.webview.postMessage({ type: 'empty', status: vscode.l10n.t('The analysis snapshot for this document is not ready. Refresh shortly.') });
                 return;
             }
             const view = renderInspection(model, target => vscode.workspace.asRelativePath(vscode.Uri.parse(target), true));
             this.locations = view.locations;
-            await this.panel.webview.postMessage({ type: 'snapshot', status: `版本 ${version} · 已更新`, generation, view });
+            await this.panel.webview.postMessage({ type: 'snapshot', status: vscode.l10n.t('Version {0} · Updated', version), generation, view });
         } catch (error) {
             if (this.disposed || generation !== this.generation) return;
             this.locations = [];
-            await this.panel.webview.postMessage({ type: 'empty', status: `读取分析失败：${error instanceof Error ? error.message : String(error)}` });
+            await this.panel.webview.postMessage({ type: 'empty', status: vscode.l10n.t('Failed to read analysis: {0}', error instanceof Error ? error.message : String(error)) });
         }
     }
 
@@ -102,7 +102,7 @@ export class AnalysisInspectorPanel implements vscode.Disposable {
             const range = new vscode.Range(location.range.start.line, location.range.start.character, location.range.end.line, location.range.end.character);
             await vscode.window.showTextDocument(uri, { viewColumn: vscode.ViewColumn.One, selection: range });
         } catch (error) {
-            vscode.window.showErrorMessage(`无法打开分析来源：${error instanceof Error ? error.message : String(error)}`);
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not open the analysis source: {0}', error instanceof Error ? error.message : String(error)));
         }
     }
 }
@@ -110,9 +110,9 @@ export class AnalysisInspectorPanel implements vscode.Disposable {
 export function registerAnalysisInspector(context: vscode.ExtensionContext, manager?: LspClientManager): void {
     let current: AnalysisInspectorPanel | undefined;
     context.subscriptions.push(vscode.commands.registerCommand('lpc.showAnalysisInspector', () => {
-        if (!manager) { vscode.window.showErrorMessage('Rust 语言服务器尚未启动。'); return; }
+        if (!manager) { vscode.window.showErrorMessage(vscode.l10n.t('The Rust language server has not started.')); return; }
         if (current) { current.reveal(); return; }
-        const panel = vscode.window.createWebviewPanel('lpcAnalysisInspector', 'LPC 分析查看器', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
+        const panel = vscode.window.createWebviewPanel('lpcAnalysisInspector', vscode.l10n.t('LPC Analysis Inspector'), { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, {
             enableScripts: true, localResourceRoots: []
         });
         current = new AnalysisInspectorPanel(panel, manager);

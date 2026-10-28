@@ -1,0 +1,4 @@
+{
+  "summary": "Set the clean_up scheduling time for an object. Omitting the second argument uses the driver's default behavior.",
+  "details": "Adjust clean_up scheduling for the specified object. An integer sets the scheduling delay; omitting the second argument restores the driver's default handling."
+}

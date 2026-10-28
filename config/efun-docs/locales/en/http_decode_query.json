@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets package efun.",
+    "details": "Parses a URL query string and returns a key/value mapping, suitable for processing HTTP request parameters."
+}

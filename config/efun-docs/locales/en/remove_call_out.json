@@ -1,0 +1,3 @@
+{
+    "summary": "In the first form, removes the next pending call to function `fun` in the current object and returns its remaining delay. Returns -1 if no delayed call exists for that function.\n\nThe second form identifies the next pending call by the handle returned from call_out(), removes it, and returns its remaining delay. Returns -1 if no such delayed call exists.\n\nThe third form removes all pending delayed calls in the current object and always returns 0."
+}

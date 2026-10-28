@@ -1,0 +1,3 @@
+{
+    "summary": "Returns the base file name of the specified object, excluding the part beginning with `#`. If no argument is supplied, the object defaults to this_object().\n\nThis efun was introduced in FluffOS 1.13. In MUDOS, implement it as a simulated efun."
+}

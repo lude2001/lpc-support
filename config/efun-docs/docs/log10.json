@@ -1,7 +1,5 @@
 {
   "name": "log10",
-  "summary": "计算以10为底的对数",
-  "category": "浮点运算相关函数（Floats）",
   "signatures": [
     {
       "label": "float log10(float|int)",
@@ -18,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "floats"
 }

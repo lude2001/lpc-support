@@ -1,0 +1,3 @@
+{
+    "summary": "max_eval_cost() 返回驱动认定程序陷入无限循环之前可执行的指令数量。\n\n此函数相当于set_eval_limit(int default: 1);"
+}

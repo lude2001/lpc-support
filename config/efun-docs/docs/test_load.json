@@ -1,7 +1,5 @@
 {
   "name": "test_load",
-  "summary": "FluffOS 2.25新增efun，检测文件 `file` 能否被载入游戏，可以返回 1，否则返回 0。",
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "int test_load(string file)",
@@ -18,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

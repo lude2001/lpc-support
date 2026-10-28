@@ -1,0 +1,4 @@
+{
+    "summary": "Encrypts string `str` using string `seed` as the seed. If `seed` is 0, a random seed is used.\n\nIf the encrypted form of `str` is used as the seed to encrypt `str` again, the returned string is that same seed.\n\nFluffOS and MUDOS use different encryption methods. To maintain compatibility, use the oldcrypt() efun.",
+    "details": "Example\nUsing crypt() to verify a password:\n\n// 将用户输入转化为加密密码\nstring cryptPasswd = crypt(input, 0);\n\n// 将加密后的密码存储在用户账号存档中\n\n// 将登录输入与存储的加密密码进行比较\nif (crypt(input, cryptPasswd) == cryptPasswd) {\n    // 有效密码\n} else {\n    // 无效的密码尝试\n}"
+}

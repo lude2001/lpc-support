@@ -1,0 +1,3 @@
+{
+    "summary": "max_eval_cost() returns the number of instructions that can be executed before the driver decides it is in an infinite loop.\n\nEquivalent to set_eval_limit(int default: 1);"
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "domain_stats() 和 author_stats() 返回的都是信息映射。如果没有指定参数，返回的信息是所有域或所有创建者的。如果指定参数，返回的信息映射是指定域或创建者的，映射的键为：moves、errors、heart_beats、array_size 和 objects，值为整型数值。\n\nMoves 是移入指定域（或创建者）所属对象中的对象数量。Errors 是这些对象发生的错误次数。Heart_beats 是这些对象的心跳调用次数。Array_size 是该域（或创建者）分配的数组大小，单位为字节。Objects 是该域（或创建者）创建的对象数量。\n\n如果没有指定参数，返回的映射格式如下：\n\n   ([ domain0 : info0, domain1 : info1, ... ])\n\n   其中 info0 格式如下：\n\n   ([ \"moves\" : moves, \"errors\" : errors, \"heart_beats\" : heart_beats, \"array_size\" : array_size, \"objects\" : objects ])\n\n   如果指定参数，返回的映射格式和 info0 相同。"
+}

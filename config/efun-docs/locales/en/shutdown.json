@@ -1,0 +1,3 @@
+{
+    "summary": "Shuts the driver down in a controlled manner, rather than through a forced shutdown caused by a system crash. Argument `how` specifies the shutdown mode. Use -1 to shut it down completely; other values request a restart (described in the source as ineffective).\n\nLike exec(), shutdown() requires security controls. It can be overridden by a simulated efun that checks permissions. Configure valid_override() in the master object to prevent efun::shutdown() from bypassing those checks."
+}

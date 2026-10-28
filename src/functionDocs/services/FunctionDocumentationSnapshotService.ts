@@ -78,8 +78,8 @@ export class FunctionDocumentationSnapshotService {
                 severity: 'warning' as const,
                 stage: 'configuration',
                 message: request.projectConfig.configHellPath
-                    ? '项目配置尚未从 driver 配置同步，依赖路径可能不完整。'
-                    : '当前工作区没有可用的 LPC 项目配置，依赖路径使用默认规则。',
+                    ? vscode.l10n.t('The project configuration has not been synced from the driver configuration. Dependency paths may be incomplete.')
+                    : vscode.l10n.t('No LPC project configuration is available for this workspace. Dependency paths use the default rules.'),
                 recoverable: true
             }]
             : [];
@@ -154,7 +154,7 @@ export class FunctionDocumentationSnapshotService {
                     .filter((doc): doc is CallableDoc => Boolean(doc))
                     .filter((doc) => matchesCallableDoc(doc, query))
                     .slice(0, limit);
-                this.projectExternalGroup('simulEfun', '模拟函数', docs, groups, entries);
+                this.projectExternalGroup('simulEfun', vscode.l10n.t('Simulated efuns'), docs, groups, entries);
             } catch {
                 diagnostics.push(createExternalDiagnostic('simulEfun'));
             }
@@ -167,7 +167,7 @@ export class FunctionDocumentationSnapshotService {
                     .filter((doc): doc is CallableDoc => Boolean(doc))
                     .filter((doc) => matchesCallableDoc(doc, query))
                     .slice(0, limit);
-                this.projectExternalGroup('efun', '标准 Efun', docs, groups, entries);
+                this.projectExternalGroup('efun', vscode.l10n.t('Standard efuns'), docs, groups, entries);
             } catch {
                 diagnostics.push(createExternalDiagnostic('efun'));
             }
@@ -206,7 +206,7 @@ export class FunctionDocumentationSnapshotService {
             sourceKind,
             sourceUri,
             workspaceRelativePath: getWorkspaceRelativeFilePath(source.filePath),
-            displayLabel: sourceKind === 'local' ? '当前文件' : source.source,
+            displayLabel: sourceKind === 'local' ? vscode.l10n.t('Current file') : source.source,
             depth: resolvedDepth,
             parentGroupId,
             entryIds: groupEntries.map((entry) => entry.id),
@@ -348,7 +348,9 @@ function createExternalDiagnostic(source: 'simulEfun' | 'efun'): FunctionDocumen
         code: 'external-source-unavailable',
         severity: 'warning',
         stage: source,
-        message: source === 'simulEfun' ? '模拟函数文档暂时不可用。' : '标准 Efun 文档暂时不可用。',
+        message: source === 'simulEfun'
+            ? vscode.l10n.t('Simulated efun documentation is temporarily unavailable.')
+            : vscode.l10n.t('Standard efun documentation is temporarily unavailable.'),
         recoverable: true
     };
 }

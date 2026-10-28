@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS develop 软件包中的 Efun。",
+  "details": "设置 malloc 调试掩码，用于控制 driver 内存调试信息的收集范围。"
+}
