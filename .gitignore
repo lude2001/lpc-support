@@ -6,6 +6,9 @@ out
 dist
 *.vsix
 
+# Local development environment installers
+/develop_env_package/*.exe
+
 # ANTLR generated files
 src/antlr/LPCLexer.interp
 src/antlr/LPCParser.interp
