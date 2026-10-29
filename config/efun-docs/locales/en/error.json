@@ -1,0 +1,3 @@
+{
+    "summary": "Raise the runtime error `err` and unwind the current execution to an enclosing catch or another driver error-recovery boundary; execution does not resume at the call. The driver's error handling may record the error trace in the debug log. The message is prefixed with `*`."
+}

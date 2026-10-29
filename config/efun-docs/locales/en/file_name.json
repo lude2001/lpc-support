@@ -1,0 +1,3 @@
+{
+  "summary": "Return the filename used when object `ob` was loaded. For a clone, file_name() returns the filename followed by `#` and the clone number, rather than an actual filename on disk. After game startup, clone numbering starts at 0 and increases by 1 for every clone, so each clone number is unique.\n\n   If `ob` is omitted, it defaults to this_object()."
+}

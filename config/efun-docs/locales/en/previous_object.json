@@ -1,0 +1,3 @@
+{
+  "summary": "Return the object pointer of the caller of the current function, if one exists. The int argument defaults to ０ when omitted. Calling a local function does not change previous_object() to the current object. A positive integer selects an earlier caller: previous_object(0) is equivalent to previous_object(), previous_object(1) is the previous_object() of previous_object(), and so on. previous_object(-1) returns an array of all previous_object objects."
+}

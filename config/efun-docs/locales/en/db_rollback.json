@@ -1,0 +1,4 @@
+{
+    "summary": "For transactional databases, this operation is intended to roll back the last group of operations. The documented return convention is 1 on success or 0 on failure.\n\nThe currently supported database backends have no rollback implementation. For a valid handle that passes the database permission checks, the current implementation returns 0; an invalid handle raises an error.",
+    "details": "Description\nNot yet implemented!"
+}

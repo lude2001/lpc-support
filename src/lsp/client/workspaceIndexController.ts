@@ -12,8 +12,8 @@ import {
 import type { WorkspaceConfigSyncPayload } from '../shared/protocol/workspaceConfigSync';
 
 const REBUILD_COMMAND = 'lpc.rebuildWorkspaceIndex';
-const PROMPT_CHOICE_BUILD = '构建索引';
-const PROMPT_CHOICE_LATER = '稍后';
+const PROMPT_CHOICE_BUILD = 'build';
+const PROMPT_CHOICE_LATER = 'later';
 
 export interface WorkspaceIndexControllerOptions {
     readonly context: vscode.ExtensionContext;
@@ -76,24 +76,24 @@ class WorkspaceIndexController implements vscode.Disposable {
         }
 
         const choice = await vscode.window.showInformationMessage(
-            '是否预热 LPC 工作区索引，以提升首次跳转、header owner 识别和诊断刷新体验？',
-            PROMPT_CHOICE_BUILD,
-            PROMPT_CHOICE_LATER
+            vscode.l10n.t('Build the LPC workspace index to improve initial navigation, header owner resolution, and diagnostic refresh?'),
+            { title: vscode.l10n.t('Build index'), action: PROMPT_CHOICE_BUILD },
+            { title: vscode.l10n.t('Later'), action: PROMPT_CHOICE_LATER }
         );
-        if (choice === PROMPT_CHOICE_BUILD) {
+        if (choice?.action === PROMPT_CHOICE_BUILD) {
             await this.rebuild();
         }
     }
 
     private async rebuild(): Promise<void> {
         if (this.running) {
-            vscode.window.showInformationMessage('LPC 工作区索引正在构建中。');
+            vscode.window.showInformationMessage(vscode.l10n.t('The LPC workspace index is already being built.'));
             return;
         }
 
         const payload = await this.createWorkspaceIndexPayload();
         if (payload.workspaceRoots.length === 0) {
-            vscode.window.showWarningMessage('没有可索引的 LPC 工作区。');
+            vscode.window.showWarningMessage(vscode.l10n.t('No LPC workspace is available to index.'));
             return;
         }
 
@@ -105,29 +105,29 @@ class WorkspaceIndexController implements vscode.Disposable {
                 payload
             );
             if (!result) {
-                throw new Error('LSP server did not return a workspace index result.');
+                throw new Error(vscode.l10n.t('LSP server did not return a workspace index result.'));
             }
 
             this.setReadyStatus(result);
             vscode.window.showInformationMessage(
-                `LPC 工作区索引已构建：${result.indexedFiles}/${result.totalFiles} 个文件，跳过 ${result.skippedFiles} 个，失败 ${result.failedFiles} 个。`
+                vscode.l10n.t('LPC workspace index built: {0}/{1} files, {2} skipped, {3} failed.', result.indexedFiles, result.totalFiles, result.skippedFiles, result.failedFiles)
             );
         } catch (error) {
             this.setErrorStatus(error);
-            vscode.window.showErrorMessage(`LPC 工作区索引构建失败：${error instanceof Error ? error.message : String(error)}`);
+            vscode.window.showErrorMessage(vscode.l10n.t('LPC workspace index build failed: {0}', error instanceof Error ? error.message : String(error)));
         } finally {
             this.running = false;
         }
     }
 
     private setIdleStatus(): void {
-        this.statusBarItem.text = '$(database) LPC Index';
-        this.statusBarItem.tooltip = '点击重建 LPC 工作区预热索引';
+        this.statusBarItem.text = vscode.l10n.t('$(database) LPC Index');
+        this.statusBarItem.tooltip = vscode.l10n.t('Click to rebuild the LPC workspace index');
     }
 
     private setBuildingStatus(): void {
-        this.statusBarItem.text = '$(sync~spin) LPC Index';
-        this.statusBarItem.tooltip = '正在构建 LPC 工作区预热索引';
+        this.statusBarItem.text = vscode.l10n.t('$(sync~spin) LPC Index');
+        this.statusBarItem.tooltip = vscode.l10n.t('Building the LPC workspace index');
     }
 
     private updateProgressStatus(payload: unknown): void {
@@ -135,19 +135,18 @@ class WorkspaceIndexController implements vscode.Disposable {
             return;
         }
 
-        this.statusBarItem.text = `$(sync~spin) LPC Index: ${payload.processedFiles}/${payload.totalFiles}`;
+        this.statusBarItem.text = vscode.l10n.t('$(sync~spin) LPC Index: {0}/{1}', payload.processedFiles, payload.totalFiles);
         this.statusBarItem.tooltip = [
-            `正在构建 LPC 工作区预热索引：${payload.processedFiles}/${payload.totalFiles} 个文件。`,
-            `已索引 ${payload.indexedFiles} 个，跳过 ${payload.skippedFiles} 个，失败 ${payload.failedFiles} 个。`
+            vscode.l10n.t('Building the LPC workspace index: {0}/{1} files.', payload.processedFiles, payload.totalFiles),
+            vscode.l10n.t('{0} indexed, {1} skipped, {2} failed.', payload.indexedFiles, payload.skippedFiles, payload.failedFiles)
         ].join('\n');
     }
 
     private setReadyStatus(result: WorkspaceIndexRebuildResult): void {
-        this.statusBarItem.text = '$(database) LPC Index: Ready';
-        const cacheSummary = result.cachedFiles
-            ? `，缓存恢复 ${result.cachedFiles} 个`
-            : '';
-        this.statusBarItem.tooltip = `LPC 工作区预热索引已就绪：${result.indexedFiles}/${result.totalFiles} 个文件${cacheSummary}，耗时 ${result.durationMs}ms。点击可重建。`;
+        this.statusBarItem.text = vscode.l10n.t('$(database) LPC Index: Ready');
+        this.statusBarItem.tooltip = result.cachedFiles
+            ? vscode.l10n.t('LPC workspace index ready: {0}/{1} files, {2} restored from cache, {3}ms. Click to rebuild.', result.indexedFiles, result.totalFiles, result.cachedFiles, result.durationMs)
+            : vscode.l10n.t('LPC workspace index ready: {0}/{1} files, {2}ms. Click to rebuild.', result.indexedFiles, result.totalFiles, result.durationMs);
     }
 
     private handleIndexReady(payload: unknown): void {
@@ -160,8 +159,8 @@ class WorkspaceIndexController implements vscode.Disposable {
     }
 
     private setErrorStatus(error: unknown): void {
-        this.statusBarItem.text = '$(warning) LPC Index: Error';
-        this.statusBarItem.tooltip = `LPC 工作区预热索引构建失败：${error instanceof Error ? error.message : String(error)}。点击可重试。`;
+        this.statusBarItem.text = vscode.l10n.t('$(warning) LPC Index: Error');
+        this.statusBarItem.tooltip = vscode.l10n.t('LPC workspace index build failed: {0}. Click to retry.', error instanceof Error ? error.message : String(error));
     }
 
     private async createWorkspaceIndexPayload(): Promise<WorkspaceConfigSyncPayload> {

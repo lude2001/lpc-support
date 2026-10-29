@@ -1,0 +1,3 @@
+{
+    "summary": "Restores saved variables and values from file `name` into the current object. If the optional second argument is 1, non-nosave variables are not reset to 0 before restoration (normally they are reset to 0).\n\nIf an error occurs while reading, all affected variables remain unchanged and an error is returned."
+}

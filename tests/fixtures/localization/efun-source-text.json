@@ -1,0 +1,2618 @@
+{
+  "schemaVersion": 1,
+  "hashMode": "sha256-canonical-json-v1",
+  "sourceCommit": "96f999e5e707faf7576aa4197957ca0a06a7b388",
+  "structuralFingerprint": "sha256:b365718465065a9b5799064a65453f3afc2fc9feb48aafebd991bd4752efa640",
+  "documents": {
+    "abs": {
+      "sourceSha256": "e59643511b6c5057dbba5763ea9e9d1f630fb80f928529ada0b363f031ecbf8d",
+      "fields": {
+        "summary": "返回参数的绝对值。\n\n   这是 FluffOS 2.0 新增的外部函数，在 MUDOS 中请用模拟外部函数实现。"
+      }
+    },
+    "acos": {
+      "sourceSha256": "7b02328c5d9519360840f074bbbe24d9c1455550dae1c40ea4d37de5543a0ad6",
+      "fields": {
+        "summary": "Returns the arccosine of its argument, 'f', measured in radians."
+      }
+    },
+    "act_mxp": {
+      "sourceSha256": "fd13400f8669e071f52f022dbff0bd844446ce992cb24d84c0a234f8c6a4c82b",
+      "fields": {
+        "summary": "act_mxp 内置函数"
+      }
+    },
+    "add_a": {
+      "sourceSha256": "8d22a93b250662d9e1a0547db16f92ca149c3c500950ff9f4b7200e31d937d0f",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "根据英文单词发音为字符串添加不定冠词，返回带有 a/an 前缀的短语。"
+      }
+    },
+    "add_action": {
+      "sourceSha256": "3fdd089bb78be5f7ce8773f82beb0f1c71ea2d40b088beac76f774cd27d88e44",
+      "fields": {
+        "summary": "当玩家键入的指令匹配 `cmd` 时，呼叫本地函数 `fun`，玩家指令的参数会以字符串参数传给函数 `fun`，如果指令错误必须返回0，否则 `fun` 必须返回1。\n\n   如果第二个参数 `cmd` 是一个数组，所有在数组中的指令都会呼叫函数 `fun`，你可以使用 query_verb() 外部函数找到呼叫函数的指令。\n\n   如果指令错误，会继续查找其它命令，直到返回 true 或错误信息给玩家。\n\n   通常 add_action() 只会从 init() apply 方法中调用，而且定义命令的对象必须是玩家可以接触到的，或者是玩家本身，或者被玩家携带，或者是玩家所在的房间，或者是玩家所在房间中的其它对象。\n\n   如果不指定参数 `flag`，默认为0，代表输入指令必须完全匹配 `cmd` 才可生效，如果参数 `flag` 大于 0，只需玩家输入的指令前面部分匹配 `cmd` 即可生效。其中如果 `flag` 是 1 时 query_verb() 会返回输入的完整指令，如果参数 `flag` 是 2（或3） 时 query_verb() 会返回匹配部分以后的内容，而且这两种模式下获取的参数也不一样。"
+      }
+    },
+    "all_inventory": {
+      "sourceSha256": "17d3fa803f3a461ca7ade3ae079bb386b2e491fc96d05ef7ab8f05a74cad06e8",
+      "fields": {
+        "summary": "返回在指定对象 `ob` 中的所有对象组成的数组。如果没有指定参数 `ob` ，默认对象为 this_object()。"
+      }
+    },
+    "all_previous_objects": {
+      "sourceSha256": "c290944f41a6d11e72ea11d6d5762a4c65af787daef3391ddedc8c59f958d34b",
+      "fields": {
+        "summary": "返回一个由所有调用当前函数的对象组成的数组，相当于调用previous_object(-1)。注意：调用局部函数不会改变当前对象的 previous_object()。"
+      }
+    },
+    "allocate": {
+      "sourceSha256": "e6b22441fc6151abdbfec1273649c9cd1f28e54a4a5e4f4488d428990dd1db3c",
+      "fields": {
+        "summary": "配置一个有 `size` 个元素的数组。 元素个数必须大于等于 0 且小于系统上限（通常约10000）。所有元素的值都初始化为 0。\n   第二种用法为 fluffos 新增，如果指定第二个参数且参数不是函数指针，值被初始化为指定的参数。如果第二个参数是函数指针，会以数组每个元素的下标为参数调用函数，把函数运算后的结果做为数组对应元素的初始值。\n   例如: allocate( 5, (: $1 + 3 :) ) => ({ 3, 4, 5, 6, 7 })",
+        "details": "Return semantics:\nallocate() 返回数组。"
+      }
+    },
+    "allocate_buffer": {
+      "sourceSha256": "c0237327f3d05e8ff384116cc228afde7800b5efb4a67a2aefd420c56fe8f550",
+      "fields": {
+        "summary": "分配一个有 `size` 个元素的缓冲区。元素的数值必须 > 0 而且不能超过系统上限（FLUFFOS 默认是 400000），所有元素初始化为 0 。",
+        "details": "作者\nTruilkan"
+      }
+    },
+    "allocate_mapping": {
+      "sourceSha256": "ffa115b33164979a2aa4ba2efe79df546354c44b842bffb1670e6f0188c2e27f",
+      "fields": {
+        "summary": "返回一个预分配了 `size` 个元素的映射变量，`size`大于等于0。\n\n   示例:\n   mapping x;\n   int y = 200;\n   x = allocate_mapping(y);\n\n   示例中 y 是映射 x 的初始大小。如果你已经确定映射有多少个元素，使用 allocate_mapping 初始化变量是首选方式。因为这样一次性分配所有空间的内存利用效率更高。如果你要使用映射存储 200 项资料，使用示例初始化是相当适合的。注意，以上示例并不代表只能存储 200 项资料，只是前 200 项资料能更有效的存储。\n\n   如果你需要从映射中删除大量的元素，使用 x = ([]) 来初始化映射比使用 allocate_mapping() 更好。因为在这种情况下 `size` 是无意义的， x= allocate_mapping(200); 的效果等于 x =([ ]);\n\n   allocate_mapping(array keys, mixed v):\n     - if v is an array, the returned array has keys 'keys' and values 'v' (like 3.2.x's mkmapping)\n     - if it is a function, the the mapping has keys 'keys' and values evaluate(v, key)\n     - otherwise, each key has the value 'v'",
+        "details": "示例\nallocate_mapping(0);\n// ([ ])\n\nallocate_mapping(25);\n// ([ ])\n\nallocate_mapping( ({ 1, 2, 3 }), ({ \"one\", \"two\", \"three\" }) );\n// ([ 1 : \"one\", 2 : \"two\", 3 : \"three\" ])\n\nallocate_mapping( users(), (: $1->query_name() :));\n// ([\n//     OBJ(karahd /std/user#9) : \"Karahd\",\n//     OBJ(gesslar /std/user#2) : \"Gesslar\"\n// ])\n\nallocate_mapping( ({ \"apple\", \"banana\", \"pear\" }), 25);\n// ([ \"pear\" : 25, \"apple\" : 25, \"banana\" : 25 ])"
+      }
+    },
+    "angle": {
+      "sourceSha256": "bccc168a7f05159963461cc8749ba16420942fbb7d7437bb4b0eadb7279d263f",
+      "fields": {
+        "summary": "计算角度"
+      }
+    },
+    "arrayp": {
+      "sourceSha256": "3c287607eebbf7f32ae7d0c5ffa88860a4312bbd91eda89a5a9fa638681f5e0d",
+      "fields": {
+        "summary": "如果变量 `arg` 是数组则返回1，否则返回0。\n\n   `arrayp()` 是 `pointerp()` 的别名。",
+        "details": "Return semantics:\n1 或者 0"
+      }
+    },
+    "asin": {
+      "sourceSha256": "7ef86f8a16619235c158f03a10d058fcce2520344ca0fa39dfb3bb17066124ba",
+      "fields": {
+        "summary": "Returns the arcsine of its argument, 'f', measured in radians."
+      }
+    },
+    "assemble_class": {
+      "sourceSha256": "fbb51c1edfe37adf164cd01a3b2ad56c7786e22d46cf1867f912e130b4edfc55",
+      "fields": {
+        "summary": "这是 FluffOS 2.0 新增的外部函数，用数组 `elements` 的元素实例化一个结构体(class)",
+        "details": "示例\n{\n    mixed *elements = ({ \"Foo\", 42, \"Fooville\" }) ;\n    mixed cl = assemble_class( elements ) ;\n\n    write( sprintf( \"%O\\n\", cl ) ) ;\n}\n\n结果：\n\nCLASS( 3 elements\n     \"Foo\",\n     42,\n     \"Fooville\"\n   )\n\n警告\nIf you have a previously defined class and assign the result from\n   assemble_class to a variable, the variable will be shaped from the\n   result of assemble_class. No error is caught by the shapes being\n   different, and the original specification is ignored.\n\n   class person {\n       string name ;\n       int age ;\n       string city ;\n   }\n\n   void fun()\n   {\n       class person me ;\n\n       me = assemble_class( ({ \"Would\", \"You\", \"Like\", 42, \"Bubblegums\" }) ) ;\n       write( sprintf( \"%O\\n\", me ) ) ;\n\n       // CLASS( 5 elements\n       //   \"Would\",\n       //   \"You\",\n       //   \"Like\",\n       //   42,\n       //   \"Bubblegums\"\n       //  )\n   }"
+      }
+    },
+    "async_db_exec": {
+      "sourceSha256": "588574cf9a1bde522e2b8c270abeb8f61d125f79c6b4070ee79910626d5d658a",
+      "fields": {
+        "summary": "通过指定句柄异步执行 SQL 语句，结果传给函数`f`。"
+      }
+    },
+    "async_getdir": {
+      "sourceSha256": "6c60f0ab5a7914937f8204278e6d8a6fd1d1b21d3eaf651b4c516491f7eb65c8",
+      "fields": {
+        "summary": "异步get_dir，执行结果传递给函数`f`。\n\n   如果'dir'是一个文件名（支持'*'和'?'通配符），则将返回一个字符串数组给回调函数，并包含符合规范的所有文件名。如果'dir'是一个目录名（以斜线结尾，例如：\"/u/\"、\"/adm/\"等），则返回该目录中的所有文件名。\n\n   不像get_dir例程，这个efun不需要一个整数作为第二个参数来指定更多的信息（比如文件名、文件大小、最后修改时间等）。\n\n   回调函数应该遵循以下格式：\n\n   function(mixed res) {\n       // 当目录不存在时返回0\n       // 没有匹配文件时返回空数组\n       // 匹配的文件名数组\n   }"
+      }
+    },
+    "async_read": {
+      "sourceSha256": "0d07fdfc190c8135909d5afd31439db87ccc782588e8b8d03f78715490e2bd0b",
+      "fields": {
+        "summary": "从文件中读取一行文本，并将其保存到一个字符串中。通常，read_file需要第二个和第三个参数来指定要读取的起始行和行数，但是async_read将整个文件返回给回调函数。\n\n   回调函数应该遵循以下格式：\n\n   function(mixed res) {\n       // 如果文件未读取，返回-1\n       // 否则返回文件的内容字符串\n   }"
+      }
+    },
+    "async_write": {
+      "sourceSha256": "9310e008d8fd4bfc3b23fb3c6bc85caa9a1b1d75be955cd9683474aa5693330e",
+      "fields": {
+        "summary": "将字符串'str'追加到文件'file'中。如果flag为1，则write_file将覆盖而不是追加。\n\n   不像write_file，它返回0表示失败，返回1表示成功，这个efun将会返回-1表示失败，并返回0表示成功给回调函数。\n\n   回调函数应该遵循以下格式：\n\n   function (int res) {\n       // -1表示失败\n       //  0表示成功\n   }"
+      }
+    },
+    "async_yield": {
+      "sourceSha256": "03a2e588d101220ad3d571ec04ce71044635236e7687e6e6ef2afc4436cc9f7c",
+      "fields": {
+        "summary": "返回在驱动下一轮事件循环处理后以 0 完成的 promise。在 async 函数中使用 await async_yield()，可暂停当前函数，让驱动处理网络输入、命令和到期定时器后再恢复。",
+        "details": "这是协作式让出执行机会的操作，适用于分批处理较长任务。仅等待已经完成的 promise 不保证经过下一轮事件循环；async_yield() 也不会重置当前求值预算。"
+      }
+    },
+    "atan": {
+      "sourceSha256": "4663b18ba561511171eb14af9e35c7a4687cf2c404f220e270ed7b8f35584f2c",
+      "fields": {
+        "summary": "Returns the arctangent of its argument, 'f', measured in radians."
+      }
+    },
+    "author_stats": {
+      "sourceSha256": "dd11efe6cdd228aefa7447f8f174b83abb49a4886b68283e102cebd04f65d638",
+      "fields": {
+        "summary": "domain_stats() 和 author_stats() 返回的都是信息映射。如果没有指定参数，返回的信息是所有域或所有创建者的。如果指定参数，返回的信息映射是指定域或创建者的，映射的键为：moves、errors、heart_beats、array_size 和 errors，映射的值为整型数值。\n\n   Moves is the number of objects that have moved into objects in the given domain（or author）. Errors is the number of errors incurred by objects with the given domain（or author）. Heart_beats is the number of heartbeat calls made on objects having the given domain（or author）. Array_size is the size (in bytes) of the arrays allocated by the domain（or author）. Objects is the number of objects created by the given domain（or author）.\n\n   如果没有指定参数，返回的映射格式如下：\n\n   ([ domain0 : info0, domain1 : info1, ... ])\n\n   其中 info0 格式如下：\n\n   ([ \"moves\" : moves, \"errors\" : errors, \"heart_beats\" : heart_beats, \"array_size\" : array_size, \"objects\" : objects ])\n\n   如果指定参数，返回的映射格式和 info0 相同。"
+      }
+    },
+    "base_name": {
+      "sourceSha256": "041b1518b62f4c6cdd82396e2727f703c5104799ceca367842cc02d85f2c552f",
+      "fields": {
+        "summary": "返回指定对象的基本文件名（不包括 `#` 以后的部分）。如果不指定参数，默认对象为 this_object()。\n\n   这是 FluffOS 1.13 新增的外部函数，在 MUDOS 中请用模拟外部函数实现。"
+      }
+    },
+    "bind": {
+      "sourceSha256": "f543cb8118155727a45ede452aa63f7ea07c873226a325a40073617a7eff2f8d",
+      "fields": {
+        "summary": "返回一个和函数指针 `f` 完全相同的函数指针，但是所属对象从创建 `f` 的对象变为 `ob`。这在函数 `f` 的创建者被摧毁或 `f` 是需要由其它对象调用的外部函数时非常有用。\n\n   示例:\n\n   void make_living(object ob)\n   {\n       function f;\n\n       f = bind((: enable_commands :), ob);\n\n       evaluate(f);\n   }\n\n   以上示例的效果和由对象 `ob` 自己执行 enable_commands() 外部函数完全一样。因为 bind() 允许你强制其它对象执行一些代码，这会造成一些安全风险，为了防止被滥用，需要 MASTER 对象中的 valid_bind() apply 方法返回1，否则 bind() 无法执行。"
+      }
+    },
+    "buffer_transcode": {
+      "sourceSha256": "6659dea26cfbe0d707d89de0271aac30e2d715543265b58404c096bf2fe2ee3b",
+      "fields": {
+        "summary": "将编码为 `from_encoding` 的缓冲区 `src` 转换为编码为 `to_encoding` 的缓冲区。"
+      }
+    },
+    "bufferp": {
+      "sourceSha256": "9402f85352f36e7efe65f2ee2145459817307d2ecbf2d2512bf2a3ded0678518",
+      "fields": {
+        "summary": "如果 `arg` 是一个缓冲区(buffer)类型的值返回 1，否则返回 0。"
+      }
+    },
+    "cache_stats": {
+      "sourceSha256": "215c4940a3b5d98256d76c8e214a93926decfab18f83ffc3dba661314afacde0",
+      "fields": {
+        "summary": "这个外部函数仅在驱动程序编译时定义过了 CACHE_STATS 时有效。这个函数会输出 call_other() 的缓存信息。"
+      }
+    },
+    "call_other": {
+      "sourceSha256": "59179e6bc90878fd232137ebefa6265462bf840fa83ff42e3a2a69ef13ff2b47",
+      "fields": {
+        "summary": "呼叫其它对象中的方法，因为返回值为调用方法的返回值，所以在编译阶段无法判断返回值的类型，最好在使用时做类型检查。字符串 `func` 是对象 `ob` 中被调用的方法名称，而第3、4……个等参数会做为第1、2……个参数按顺序传递给 `func`。\n\n   如果 call_other 函数第一个对象参数是数组，那么 call_other 会逐一呼叫它们的 `func`，返回值也是一个数组。\n\n   如果 call_other 函数的第二个参数是数组，那么数组的第一个元素必须是要调用的方法名字符串 `func` ,剩余的元素则是要传入方法的参数。\n\n   这里有一个使用 call_other() 更好的方式: object->function_name(arg1, arg2)这种语法糖自动转换为等效的call_other(object, \"function_name\", arg1, arg2)调用。\n\n   object ob | object *obs -> func ( ... );\n\n   如：\n   call_other(ob, \"query\", \"name\");\n\n   可以写成：\n   ob->query(\"name\");\n\n   如果第二个参数使用数组，以上示例可以写成：\n   call_other(ob, ({ \"query\", \"name\" }));\n\n   而第一个参数是数组的示例如下：\n   users()->quit();"
+      }
+    },
+    "call_out": {
+      "sourceSha256": "4ed66425f912ea604b08107d383abf0bda999b906fa8be50a0e2b4d9ad9274ad",
+      "fields": {
+        "summary": "设置在当前对象（this_object()）中呼叫函数 `fun`，呼叫会延迟 `delay` 秒，`arg` 做为参数传给函数 `fun`。\n\n   如果在运行时配置文件中的 gametick 小于1000，可以使用浮点数代表毫秒。\n\n   请注意：如果运行时配置文件中 THIS_PLAYER_IN_CALL_OUT 的值不为1，你将不能在 `fun` 中使用 write() 或 say()，这种情况下可以使用 tell_object() 代替。\n\n   返回值是一个代表 call_out　的句柄，可以做为 find_call_out() 和 remove_call_out() 的参数。"
+      }
+    },
+    "call_out_info": {
+      "sourceSha256": "35487f67fc0db7b83e367e59796ba80e99f5c2326618d2f6398ea18c57103ebd",
+      "fields": {
+        "summary": "获取所有延迟呼叫中的函数信息，返回二维数组的格式，子数组包括 3 个元素：对象、函数、延迟时间。"
+      }
+    },
+    "call_out_walltime": {
+      "sourceSha256": "351f06a71268d4781981f6ba8d1c61035b5ad06bfc6d99354169964aebdf698d",
+      "fields": {
+        "summary": "This efun is identical to call_out except it does not schedule the call on the game loop. Rather, in real seconds. The delay can be in seconds or fraction of a second."
+      }
+    },
+    "call_stack": {
+      "sourceSha256": "4301ef6fdd7af12ff8d925ac82f3d5e127b5891b1cf898b4e4c393109be36c84",
+      "fields": {
+        "summary": "If the int argument is 0, call_stack() returns an array of the names of the on the call stack, with the first one being the most recent (i.e. the currently running program).  If the int argument is 1, call_stack returns the objects in which that program is executing.  If it is 2, the name of the functions are returned.  If it is 3, the value of origin() in that frame is returned. If it is 4, the value will be the full file path and the line number.\n\n如果参数为0，call_stack()将返回一个包含调用栈中函数名称的数组，其中第一个函数是最近的（即当前正在运行的程序）。如果参数为1，则返回执行该程序的对象。如果为2，则返回函数的名称。如果为3，则返回该帧中origin()的值。如果为4，则返回完整的文件路径和行号。",
+        "details": "示例\n[728|728]eval return call_stack()\nResult = ({ /* sizeof() == 3 */\n  \"/tmp/debug_eval_file.c\",\n  \"/cmds/cmd/eval.c\",\n  \"/inherit/living.c\"\n})\n[728|728]eval return call_stack(0)\nResult = ({ /* sizeof() == 3 */\n  \"/tmp/debug_eval_file.c\",\n  \"/cmds/cmd/eval.c\",\n  \"/inherit/living.c\"\n})\n[728|728]eval return call_stack(1)\nResult = ({ /* sizeof() == 3 */\n  /tmp/debug_eval_file (\"/tmp/debug_eval_file\"),\n  /cmds/cmd/eval (\"/cmds/cmd/eval\"),\n  /inherit/user5#2 (\"杨宇(test)\")\n})\n[728|728]eval return call_stack(2)\nResult = ({ /* sizeof() == 3 */\n  \"eval\",\n  \"main\",\n  \"command_hook\"\n})\n[728|728]eval return call_stack(3)\nResult = ({ /* sizeof() == 3 */\n  \"call_other\",\n  \"call_other\",\n  \"driver\"\n})\n[728|728]eval return call_stack(4)\nResult = ({ /* sizeof() == 3 */\n  \"/tmp/debug_eval_file.c:2\",\n  \"/cmds/cmd/eval.c:23\",\n  \"/inherit/living.c:56\"\n})\n[728|728]eval return call_stack(5)\n*First argument of call_stack() must be 0, 1, 2, 3, or 4."
+      }
+    },
+    "capitalize": {
+      "sourceSha256": "4fa121b821a7262bdc717f747ad82f44251db542cd69d603f213d5002ed1736d",
+      "fields": {
+        "summary": "转换字符串 `str` 的首字母为大写并返回新的字符串。"
+      }
+    },
+    "catch": {
+      "sourceSha256": "5ef5c00c6b5813519b8a14188622d5dbb9427f60bf6cffaac2c1f9eda5de0a9e",
+      "fields": {
+        "summary": "执行表达式 `expr`，如果没有错误会返回0，如果有标准错误，会返回一个以 `*` 开头的包括错误信息的字符串。\n\n   外部函数 throw() 用来马上抛出一个错误并返回非零值，可以和 catch 配合使用。另外 catch 本质上并不是外部函数而是一个编译器指令(或者和PHP一样叫语言结构)，类似还有sscanf, time_expression, parse_command。"
+      }
+    },
+    "ceil": {
+      "sourceSha256": "1552883d57b9ac58415694004ca71262d70cb42cdf24cf705fd848247236b412",
+      "fields": {
+        "summary": "返回最接近的大于或等于 f 的整数（以浮点数形式），如：4.1 返回 5.000000。"
+      }
+    },
+    "check_memory": {
+      "sourceSha256": "2eab37c6c3788b933ec59a52d12e9e8dd7cb71f4806183eb127a3b88e1082f3e",
+      "fields": {
+        "summary": "FluffOS develop package efun.",
+        "details": "检查 driver 内存分配状态并返回调试信息。可选参数用于控制检查或输出细节，主要面向开发和排障场景。"
+      }
+    },
+    "children": {
+      "sourceSha256": "a8f216849f64baf6bbcb5990174e77b14430707135bbe9f06d6ac988ba4279f2",
+      "fields": {
+        "summary": "这个外部函数返回一个文件名为 `name` 的对象及其所有复制对象组成的数组。一个使用 children() 的示例是查找所有玩家对象：\n\n   object *list;\n\n   list = children(\"/obj/user\");\n\n   这让你能找到所有玩家（包括在线玩家和断线玩家，而 users() 外部函数仅报告在线玩家）。"
+      }
+    },
+    "classes": {
+      "sourceSha256": "94a5c4756db2f5852bc20fc6dd270572e33eb9f348125c7b10ee789a41d583ed",
+      "fields": {
+        "summary": "FluffOS 2.22 新增efun，返回对象 `ob` 中的所有 class 类型变量数组，如果指定参数 `flag` 值为 1，还会返回成员变量名和变量类型，具体格式如下：\n\n   （{ ({ “class_name”, ({ “member_name”, “type” }), … }), … })"
+      }
+    },
+    "classp": {
+      "sourceSha256": "69559ef248e0d0d7ef74727d2f5ab502f52bd73b0036cd668c34d67b984c2cbf",
+      "fields": {
+        "summary": "如果变量 `arg` 是 class/struct 类型返回 1。"
+      }
+    },
+    "clear_bit": {
+      "sourceSha256": "80a2be133b0460eda9a7d37e3983b88117b3f117f88d57ceffa26e69fd051011",
+      "fields": {
+        "summary": "返回字符串 `str` 的第 `n` 位(bit)清零后的字符串，注意：原始字符串 `str` 不会被修改。"
+      }
+    },
+    "clear_debug_level": {
+      "sourceSha256": "47a93d66fe5ed5344bc5b24316526aa4ee2493c0c73597024d6bcbd9a5154cb1",
+      "fields": {
+        "summary": "clear_debug_level 内置函数"
+      }
+    },
+    "clone_object": {
+      "sourceSha256": "2721f619f81e5cd9d3324b73221c7bada3e6b0bf6f875ed70fc3e65ab62f95fa",
+      "fields": {
+        "summary": "从文件 `name` 创建一个新的对象，并给予它一个唯一的编号（在文件名后附加#XXX，XXX是整个游戏中独一无二的数字编号）。如果系统中没有加载文件名为 `name` 的对象（称为蓝图对象），调用本函数时先载入蓝图对象然后再复制这个对象并返回复制的对象，复制对象和蓝图对象共享代码，但可以有不同的变量。如果指定额外参数 `extra`，会传给要加载的对象的 create() 方法。\n\n   clone_object()是new()的别名。\n\n   补充说明：复制对象传递参数的功能结合虚拟对象的功能可以很轻易的实现非常强大而有趣的功能（比如生成无限世界）。"
+      }
+    },
+    "clonep": {
+      "sourceSha256": "471dc59603362869bfc186af635fdfc0ca5d4fa5518b91ccc188f4fd4a19fc4f",
+      "fields": {
+        "summary": "如果参数 `arg` 是对象（objectp()为真）并且设置了 O_CLONE 标志(flag)，返回真（1）。驱动程序会给通过 new() 或 clone_object() 外部函数创建的对象设置 O_CLONE 标志。通过 call_other() 或 load_object() 载入的蓝图对象不是复制对象。\n\n   对复制对象，file_name() 外部函数的返回值会包括一个 `#`。\n\n   如果 clonep() 不指定参数，默认对象为 this_object()。"
+      }
+    },
+    "command": {
+      "sourceSha256": "2d7e839b39f389093a21b4b5d749bdd4aa783d2316dd4dde27ce09d34ee01963",
+      "fields": {
+        "summary": "让当前对象执行玩家命令 `str`，如果执行失败返回0，否则返回一个代表执行指令消耗时间的数值，数值越大代表越耗时。"
+      }
+    },
+    "commands": {
+      "sourceSha256": "e6211bbd48e1b01f8fe1c36f13a5fca407a5f5c8db19ab1d653f3777c1da3210",
+      "fields": {
+        "summary": "返回当前对象可用指令的资料，这是一个包括每个指令 4 项资料的二维数组，第 1 项是通过 add_action() 外部函数增加的指令的名称，第 2 项是指令标志（add_action() 命令的第三个参数，通常为0），第 3 项是定义此指令的对象，第 4 项是指令呼叫的函数（函数指针）。"
+      }
+    },
+    "compress": {
+      "sourceSha256": "37264eebab689929ae0aa8decf073915dc91cdb43ee7a393218365dbc9ae1d75",
+      "fields": {
+        "summary": "compress 内置函数"
+      }
+    },
+    "compress_file": {
+      "sourceSha256": "85b0dc001132cc1a578a428a8fad368a67f44aac77a7c35b6d788f742189332a",
+      "fields": {
+        "summary": "compress_file 内置函数"
+      }
+    },
+    "compressedp": {
+      "sourceSha256": "aaa3c1b5fc0fe73116d2f1584d114f9bea46543b105302a30525228f401c6955",
+      "fields": {
+        "summary": "compressedp 内置函数",
+        "details": "NAME\ncompressedp() - returns if interactive connection uses telopt compress\n\nSYNOPSIS\nint compressedp(object ob);\n\nDESCRIPTION\nAdded from FluffOS 1.4, returns if interactive connection uses telopt compress #ifdef PACKAGE_COMPRESS"
+      }
+    },
+    "copy": {
+      "sourceSha256": "30afd88472dfb444485eb49ebc92fdee37755bc39764c01573882357b29dc140",
+      "fields": {
+        "summary": "复制数组或映射",
+        "details": "说明\n返回变量 `arg` 的复制。变量只能是以下类型：\n   - array\n   - buffer (if compiled into driver)\n   - class\n   - mapping\n\n   例如：\n   int *a, *b = ({ 1 });\n   a = b;\n   a[0] = 2;\n   printf(\"%O %O\\n\", a, b);\n\n   结果是： ({ 2 }) ({ 2 })\n\n   int *a, *b = ({ 1 });\n   a = copy(b);\n   a[0] = 2;\n   printf(\"%O %O\\n\", a, b);\n\n   结果是： ({ 2 }) ({ 1 })"
+      }
+    },
+    "cos": {
+      "sourceSha256": "b32f4c7575436138d05230fbbecc70a05a7e8a6f062916285dfab356a0f0c4dd",
+      "fields": {
+        "summary": "Returns the cosine of its argument, 'f', measured in radians."
+      }
+    },
+    "cp": {
+      "sourceSha256": "4b3189aec2d2457d0bbcba329b6194a6474e1b8dfed1179c2e3382655b543f7d",
+      "fields": {
+        "summary": "复制 文件 `src` 到 `dst`。",
+        "details": "Return semantics:\n复制成功返回 1，复制失败返回负数。"
+      }
+    },
+    "crc32": {
+      "sourceSha256": "0f13fb5bd3b5221b2c6b5a373652c0db0699ceb6e24d58a4e2b7624b081cfbaf",
+      "fields": {
+        "summary": "计算并返回指定的缓冲区或字符串 `x` 的循环冗余校验码(CRC32)"
+      }
+    },
+    "crypt": {
+      "sourceSha256": "05adf7046ed0ff8e16b0374a13b90d8a18324757c82a4fd794a9809726ffdaa3",
+      "fields": {
+        "summary": "以字符串 `seed` 为种子加密字符串 `str`，如果 `seed` 是 0，使用随机种子。\n\n   如果以字符串 `str` 加密后的字符串做为种子继续对字符串 `str` 加密，返回字符串还是这个种子。\n\n   请注意，fluffos 和 mudos 的加密方式不同，如果要兼容，只能使用 oldcrypt() 外部函数加密。",
+        "details": "示例\n用 crypt() 函数验证密码的示例：\n\n// 将用户输入转化为加密密码\nstring cryptPasswd = crypt(input, 0);\n\n// 将加密后的密码存储在用户账号存档中\n\n// 将登录输入与存储的加密密码进行比较\nif (crypt(input, cryptPasswd) == cryptPasswd) {\n    // 有效密码\n} else {\n    // 无效的密码尝试\n}"
+      }
+    },
+    "ctime": {
+      "sourceSha256": "8aa458223fea177782724e280683236dba57d4bf87c9b7e1873f26e8880c4803",
+      "fields": {
+        "summary": "返回一个当前日期和时间的字符串。参数 `clock` 是一个时间戳，如果省略默认为当前时间。",
+        "details": "示例\n> eval return ctime()\nResult = \"Tue Jul 26 18:36:13 2022\""
+      }
+    },
+    "db_close": {
+      "sourceSha256": "5a3df282798978d1b76419b66864dcf28cee53da97e1ca32ed5422b4d60afead",
+      "fields": {
+        "summary": "通过给定句柄关闭数据库连接。\n\n   关闭成功返回 1 ，失败返回 0 ，如果指定句柄不存在会报错。"
+      }
+    },
+    "db_commit": {
+      "sourceSha256": "bdd7159960c9a209ce3fb422b1d09cab831adfd13d88ff65549b1910bb560337",
+      "fields": {
+        "summary": "对于事务数据库，这将提交最后一组操作。\n\n   提交成功返回 1，失败返回 0 。",
+        "details": "说明\nNot yet implemented!"
+      }
+    },
+    "db_connect": {
+      "sourceSha256": "1ae7d895cca5f1fadfe951986e853da5fe16205c7100437755447ca80b4d6f94",
+      "fields": {
+        "summary": "创建一个新的数据库连接到主机 `host` 上的数据库， `db` 是要连接的数据库，如果不指定用户名 `user` 将使用驱动编译时设置的值做登录ID， `type` 用来选择数据库类型，可用值取决于驱动编译时的配置，如果不指定类型将使用编译时设置的默认数据库类型。\n\n   数据库密码通过主控对象中的 valid_database() 方法设置。\n\n   连接成功返回一个新的数据库连接句柄（整型），否则返回失败消息（字符串型）。\n\n   FlufFOS 支持 MYSQL, SQLITE3 和 PostgreSQL。\n\nWhen compiling driver, you need to pass -DPACKAGE_DB=ON and -DPACKAGE_DB_MYSQL=X or -DPACKAGE_DB_SQLITE=X or -DPACKAGE_DB_POSTGRESQL=X and you should also pass -DPACKAGE_DB_DEFAULT_DB=X which should be one of the value above. If one value is an empty string, the driver support for that DB is disabled.\n\n   X here means an integer representing the \"type\" parameter in db_connect().\n\nDriver prvoides following pre-defines constant to lib for DB types.\n   __USE_MYSQL__   is what -DPACKAGE_DB_MYSQL=<value> is, default to be 1\n   __USE_SQLITE3__ is what -DPACKAGE_DB_SQLITE=<value> is, default to be not defined.\n   __USE_POSTGRE__ is what -DPACKAGE_DB_POSTGRESQL=<value> is, default to be not defined.\n   __DEFAULT_DB__  is what -DPACKAGE_DB_DEFAULT_DB=<value> is, default to be 1\n\n// SQLITE3示例\n   db = db_connect(\"\", \"/tmp/sqlite.db\", \"\", __USE_SQLITE3__);"
+      }
+    },
+    "db_exec": {
+      "sourceSha256": "be6ed4bc88154317f0bc07a8afbafc3f9ed41f75f4ea2f97f01f6e7eddf29081",
+      "fields": {
+        "summary": "通过指定句柄执行 SQL 语句，如果执行成功会返回结果的行数，否则返回错误消息字符串。"
+      }
+    },
+    "db_fetch": {
+      "sourceSha256": "f000c9825a7b49e13f7d9fa840d0a8e73f0968cb93a2167a495ffb92737bcebf",
+      "fields": {
+        "summary": "从数据库查询的结果集中返回指定行的数据列数组，如果失败会返回错误消息字符串。",
+        "details": "示例\nmixed dbconn, rows, *res;\n\n   if (stringp(dbconn = db_connect(\"192.168.10.10\", \"homestead\", \"homestead\")))\n   {\n       write(dbconn); /* error */\n   }\n   else\n   {\n       rows = db_exec(dbconn, \"SELECT name, phone FROM users limit 20\");\n       if (!rows)\n           write(\"查询结果为空\\n\");\n       else if (stringp(rows))\n           write(rows); /* error */\n       else\n           for (int i = 1; i <= rows; i++)\n           {\n               res = db_fetch(dbconn, i);\n               write(res[0] + \" \" + res[1] + \"\\n\");\n           }\n\n       db_close(dbconn);\n   }"
+      }
+    },
+    "db_rollback": {
+      "sourceSha256": "32551014717522e4db20bb45ee1477b236e159118f7853b6d4b2dbed6f918f25",
+      "fields": {
+        "summary": "对于事务数据库，这将回滚最后一组操作。\n\n   回滚成功返回 1，失败返回 0 。",
+        "details": "说明\nNot yet implemented!"
+      }
+    },
+    "db_status": {
+      "sourceSha256": "d719fc13f799475a5e4e79b3c9b774f3934f4b5efc3bb079deae85f9ff97bd1b",
+      "fields": {
+        "summary": "返回一个描述数据库当前连接状态的字符串（包括所有数据库句柄）。"
+      }
+    },
+    "debug_info": {
+      "sourceSha256": "1356debf11967a050bccd4011ce043962648304a09c92df7978868257040bf00",
+      "fields": {
+        "summary": "debug_info() 是一个用来调试驱动的通用工具。调试信息的操作由第一个参数 `operation` 决定，可用参数值为 0、1、2 ；第二个参数 `ob` 为要调试的对象。",
+        "details": "示例\n> eval return debug_info(0, me)\nResult = \"O_HEART_BEAT      : TRUE\nO_IS_WIZARD       : TRUE\nO_ENABLE_COMMANDS : TRUE\nO_CLONE           : TRUE\nO_VIRTUAL         : FALSE\nO_DESTRUCTED      : FALSE\nO_ONCE_INTERACTIVE: TRUE\nO_RESET_STATE     : FALSE\nO_WILL_CLEAN_UP   : FALSE\nO_WILL_RESET      : TRUE\nO_ZMP             : FALSE\nO_GMCP            : FALSE\nO_MXP             : FALSE\nO_COMPRESS        : TRUE\nO_MSP             : FALSE\nnext_reset  : 1582\ntotal light : 0\ntime_of_ref : 1151\nref         : 15\nname        : '/clone/user/user#1'\nnext_all    : OBJ(/clone/user/user)\nPrevious object in object list: OBJ(/adm/daemons/chard)\nposition in object list:8082\n\"\n\n> eval return debug_info(1, me)\nResult = \"program ref's 2\nName /clone/user/user.c\nprogram size 4633\nfunction flags table 484 (968)\ncompiler function table 66 (1056)\nnum strings 193\nnum vars 15 (150)\nnum inherits 7 (112)\ntotal size 8936\n\n\"\n\n> eval return debug_info(2, me)\nResult = \"busy:   0\ninterrupt:   0\noverride:   0\nalias:   0\nhistory:   0\nlast_input:   \"eval return debug_info(2,me)\"\norginal_input:   \"eval return debug_info(2,me)\"\ndirect_command:   0\nkiller:   ({ })\nwant_kills:   ({ })\nenemy:   ({ })\nnext_action:   (: call_other,   \"/adm/daemons/race/human.c\",   \"query_action\" :)\ndefault_object:   \"/adm/daemons/race/human.c\"\ndefault_function:   \"query_action\"\ncompetitor:   0\npath:   ({ /* sizeof() == 10 */\n\n   \"/cmds/adm/\",\n   \"/cmds/arch/\",\n   \"/cmds/wiz/\",\n   \"/cmds/imm/\",\n   \"/cmds/usr/\",\n   \"/cmds/std/\",\n   \"/cmds/skill/\",\n   \"/cmds/test/\",\n   \"/mudcore/cmds/wizard/\",\n   \"/mudcore/cmds/player/\"\n })\n\nenabled:   1\nlast_applyer_name:   0\nlast_applyer_id:   0\ncond_applyer:   0\nconditions:   0\nlast_damage_from:   0\nlast_damage_name:   0\ndefeated_by:   0\ndefeated_by_who:   0\nghost:   0\ndbase:   ([ /* sizeof() == 45 */\n\n   \"age\" : 14,\n   \"cwd\" : \"/\",\n   \"birthday\" : 1658792274,\n   \"cwf\" : \"/mudcore/system/daemons/http/qq_d.c\",\n   \"attitude\" : \"peaceful\",\n   \"max_jing\" : 100,\n   \"state\" : ([ /* sizeof() == 1 */\n       \"go\" : 86,\n     ]),\n   \"last_save\" : 1658830696,\n   \"surname\" : \"小\",\n   \"gender\" : \"男性\",\n   \"jing\" : 100,\n   \"purename\" : \"泥巴\",\n   \"id\" : \"mudren\",\n   \"limbs\" : ({ /* sizeof() == 16 */\n       \"头部\",\n       \"颈部\",\n       \"胸口\",\n       \"后心\",\n       \"左肩\",\n       \"右肩\",\n       \"左臂\",\n       \"右臂\",\n       \"左手\",\n       \"右手\",\n       \"腰间\",\n       \"小腹\",\n       \"左腿\",\n       \"右腿\",\n       \"左脚\",\n       \"右脚\"\n     }),\n   \"channels\" : ({ /* sizeof() == 7 */\n       \"chat\",\n       \"rumor\",\n       \"party\",\n       \"bill\",\n       \"sing\",\n       \"family\",\n       \"rultra\"\n     }),\n   \"food\" : 300,\n   \"potential\" : 100,\n   \"eff_jing\" : 100,\n   \"dex\" : 20,\n   \"name\" : \"小泥巴\",\n   \"mud_age\" : 30258,\n   \"race\" : \"人类\",\n   \"can_speak\" : 1,\n   \"born\" : \"扬州人氏\",\n   \"int\" : 20,\n   \"registered\" : 1,\n   \"max_qi\" : 100,\n   \"unit\" : \"位\",\n   \"eff_qi\" : 100,\n   \"water\" : 300,\n   \"con\" : 20,\n   \"startroom\" : \"/d/city/kedian\",\n   \"shen_type\" : 0,\n   \"kar\" : 8,\n   \"storage_bag\" : 1,\n   \"title\" : \"普通百姓\",\n   \"str\" : 20,\n   \"shen\" : 0,\n   \"special_skill\" : ([ /* sizeof() == 3 */\n       \"self\" : 1,\n       \"lucky\" : 1,\n       \"might\" : 1,\n     ]),\n   \"env\" : ([ /* sizeof() == 4 */\n       \"no_autoultra\" : 1,\n       \"wimpy\" : 60,\n       \"auto_get\" : 1,\n       \"auto_regenerate\" : 1,\n     ]),\n   \"born_family\" : \"没有\",\n   \"last_read_news\" : 1658792274,\n   \"per\" : 14,\n   \"qi\" : 100,\n ])\n\ntmp_dbase:   ([ /* sizeof() == 8 */\n\n   \"scan_time\" : 1658830696,\n   \"terminal_type\" : \"TINTIN++\",\n   \"apply\" : ([ /* sizeof() == 1 */\n       \"armor\" : 2,\n     ]),\n   \"reply\" : \"zhou butong\",\n   \"link_ob\" : /clone/user/login#0,\n   \"user_setup\" : 1,\n   \"armor\" : ([ /* sizeof() == 2 */\n       \"cloth\" : /clone/cloth/jinduan#2 (\"锦缎(jinduan)\"),\n       \"boots\" : /clone/cloth/xianlv#3 (\"仙履(shoes)\"),\n     ]),\n   \"logon_time\" : 1658830696,\n ])\n\ndefault_ob:   0\nmsg_buffer:   ({ })\nwritten:   2\nlog_in:   0\nweight:   42000\nencumb:   20\nmax_encumb:   66000\nmagic_move:   0\nin_temp:   0\nmy_id:   ({ /* sizeof() == 1 */\n\n   \"mudren\"\n })\n\nskills:   0\nlearned:   0\nskill_map:   0\nskill_prepare:   0\nwprepare:   0\ncount:   0\nvars:   ([ ])\nleader:   0\nteam:   0\nnext_beat:   1658830714\nkeep_beat_flag:   0\nshort_desc:   0\nautoload:   0\ngmcp_log:   ({ /* sizeof() == 1 */\n\n   \"Received: Room.Info.Get\"\n })\n\ntoDoList:   ([ ])\nsolved:   ({ })\nmy_depot:   ([ ])\nbag:   ({ })\nadmin_flag:   0\nuser_cracked:   0\nnet_dead:   0\nlast_age_set:   1658830703\nuser_say:   0\nuser_command:   0\nattach_flag:   0\nat_time:   0\nban_to:   0\nban_say_msg:   \"\"\nmy_defeater_id:   0\nmy_killer_id:   0\ncraze:   0\nprison:   0\ntime_to_leave:   0\n\n\""
+      }
+    },
+    "debug_levels": {
+      "sourceSha256": "15020458b5fec795e7f44d1b7781f1ae22eb2b1841bc5c4879e559819caae9f0",
+      "fields": {
+        "summary": "debug_levels 内置函数"
+      }
+    },
+    "debug_message": {
+      "sourceSha256": "f11777097398a88bc38f10e7107a24c25f924de54a76329c32d66a5fac87abe6",
+      "fields": {
+        "summary": "在驱动程序的标准错误输出界面中打印给定的信息并附加到 debug 日志文件。"
+      }
+    },
+    "debugmalloc": {
+      "sourceSha256": "0e0db22549263f38d536cc56c043789f799e96192fbf101aa49af01b65419be2",
+      "fields": {
+        "summary": "FluffOS develop package efun.",
+        "details": "查询或控制 malloc 调试信息，返回与指定调试项相关的文本结果。主要用于 driver 开发和内存问题排查。"
+      }
+    },
+    "deep_inherit_list": {
+      "sourceSha256": "c193622dfb26d9da337fcbe10c100b844d5d9cda7d88b26301918da5232dcebb",
+      "fields": {
+        "summary": "返回对象 `obj` 继承（包括直接继承和间接继承）的所有对象的文件名的数组。\n\n   省略 `obj` 默认对象为 this_object()。"
+      }
+    },
+    "deep_inventory": {
+      "sourceSha256": "40d8b8967a392b5758a85a01a164e5c96d9a77cffe526b9b7ad5ffbc91b83722",
+      "fields": {
+        "summary": "返回对象 `ob` 中的所有对象及对象中的所有对象（层层递进查找，直到传回所有对象为止）的数组。如果没有指定参数 `ob`，默认是 this_object()。"
+      }
+    },
+    "defer": {
+      "sourceSha256": "f6434fca0ba090e5740c2ef3f8e45b7b7c758bcbed15926f5e108287eb07fc90",
+      "fields": {
+        "summary": "FluffOS 2.23 新增efun，Call function pointer *f when current function ends (even if it was due to a runtime error).\n\n   参考教程：https://bbs.mud.ren/threads/158",
+        "details": "示例\nvoid create()\n   {\n     ::create();\n\n     defer( (: enable_commands :) );\n   }\n\n   The effect the defer() function has is it will cause the enable_commands() efun to be called after the execution of the create() function ends.  The argument passed to defer() can be any function type."
+      }
+    },
+    "destruct": {
+      "sourceSha256": "291246531a1799695e1df7828019f31aa744f96d09590d1f333b5d51438b149b",
+      "fields": {
+        "summary": "从游戏中完全销毁并移除对象 `ob`。如果不指定对象 `ob`，默认为 this_object()。在呼叫 destruct() 后，如果对象是 this_object()，this_object() 的代码仍然会继续执行，但最好马上返回一个值，而且所有指向被销毁的对象的变量值都会变成 0。\n\n   即将被销毁的对象的所有内容对象都会呼叫自己的 move_or_destruct() 方法，如果呼叫 move_or_destruct() 方法的对象不把自己移到即将被销毁的对象外，也会被一起销毁。"
+      }
+    },
+    "destructed_objects": {
+      "sourceSha256": "b7de1e6e6736033c0e68a17f9024479603a888e7eb40d5644937a4f959699058",
+      "fields": {
+        "summary": "FluffOS develop package efun.",
+        "details": "返回 driver 当前记录的已析构对象调试信息，用于检查对象生命周期和析构相关问题。"
+      }
+    },
+    "disable_commands": {
+      "sourceSha256": "48abbb13bc1f92960be4c36712ce6f44dd8931f7fbfad27b1fad7efd57b957c1",
+      "fields": {
+        "summary": "让一个活着的对象变成非活着的状态，也就是说：add_action() 无效，living() 返回值为0，而且，如果对象是玩家，将变的无法使用任何指令（input_to()依然可用）。\n\n   调用 disable_commands() 函数还有一个附加效果是清理掉此对象的所有行为指令，包括此对象本身定义的和来自其它对象的。\n\n   注意：这个函数本质上改变了对象的特性，不要简单的理解为禁用命令功能，而是失去所有生物相关的能力。",
+        "details": "Return semantics:\ndisable_commands()函数永远返回0"
+      }
+    },
+    "disable_wizard": {
+      "sourceSha256": "9124b5d5b742d2768d238fe54a3d08a4fd3c8d4421093be6258670ed909612ea",
+      "fields": {
+        "summary": "enable_wizard() 的反相操作，移除当前玩家对象的巫师特权。"
+      }
+    },
+    "disassemble_class": {
+      "sourceSha256": "d1d0d6839d708b8ee4fec713eb26fb0d2209252885c1fb8b6dd155db8c13763c",
+      "fields": {
+        "summary": "这是 FluffOS 2.0 新增的外部函数，返回一个包含已实例化的结构体 `instantiated_class` 所有成员的值的 mixed 类型的数组。",
+        "details": "示例\nclass person\n{\n    string name;\n    int age;\n    string city;\n}\n\nvoid fun()\n{\n    mixed *result;\n    class person me = new (class person);\n\n    me->name = \"Foo\";\n    me->age = 42;\n    me->city = \"Fooville\";\n\n    result = disassemble_class(me);\n\n    write(sprintf(\"%O\\n\", result));\n\n    // ({ /* sizeof() == 3 */\n    //   \"Foo\",\n    //   42,\n    //   \"Fooville\"\n    // })\n}"
+      }
+    },
+    "distance": {
+      "sourceSha256": "a4c1b4cf815864e67c7003febf4e1afcd343591cff91fffa23991737e3c3edfd",
+      "fields": {
+        "summary": "计算两点距离"
+      }
+    },
+    "domain_stats": {
+      "sourceSha256": "9b5223eb3c3ef52bbeeaa0b58875e0a6a02083a9671b6730ca3e0cee75e5ffec",
+      "fields": {
+        "summary": "domain_stats() 和 author_stats() 返回的都是信息映射。如果没有指定参数，返回的信息是所有域或所有创建者的。如果指定参数，返回的信息映射是指定域或创建者的，映射的键为：moves、errors、heart_beats、array_size 和 errors，值为整型数值。\n\n   Moves is the number of objects that have moved into objects in the given domain（or author）. Errors is the number of errors incurred by objects with the given domain（or author）. Heart_beats is the number of heartbeat calls made on objects having the given domain（or author）. Array_size is the size (in bytes) of the arrays allocated by the domain（or author）. Objects is the number of objects created by the given domain（or author）.\n\n   如果没有指定参数，返回的映射格式如下：\n\n   ([ domain0 : info0, domain1 : info1, ... ])\n\n   其中 info0 格式如下：\n\n   ([ \"moves\" : moves, \"errors\" : errors, \"heart_beats\" : heart_beats, \"array_size\" : array_size, \"objects\" : objects ])\n\n   如果指定参数，返回的映射格式和 info0 相同。"
+      }
+    },
+    "dotprod": {
+      "sourceSha256": "038be0f38fe76c108c05adc1c4b4cd496c235894d06980c690ae752d47f1d8c5",
+      "fields": {
+        "summary": "计算点积"
+      }
+    },
+    "dump_file_descriptors": {
+      "sourceSha256": "d2f0df130ecb368e92af2691e7d0d88e1110a7068f9bc50e04e82a938e36d38e",
+      "fields": {
+        "summary": "dump_file_descriptors 内置函数",
+        "details": "NAME\ndump_file_descriptors() - dump the MudOS process file descriptor table\n\nSYNOPSIS\nstring dump_file_descriptors( void );\n\nDESCRIPTION\nThis  function  is provided to assist in debugging the MudOS driver and helps overcome deficiencies in some UN*X implementations which  do not provide equivalent or superior debugging facilities as part of the operating system itself.  The interpretation of the output is very system-dependent. Each file descriptor is checked to determine whether it refers to an open file.  If so, information is displayed from the \"stat structure\" returned by the fstat() system call.\n\n   The following output was produced on Lambda Realms running on a Sequent DYNIX/ptx system:\n\n   Fd  Device Number  Inode   Mode    Uid    Gid      Size\n   --  -------------  -----  ------  -----  -----  ----------\n    0     3      2    10319  c  666      0      3           0\n    1    79      7   164598  f  644   2862      1      789522\n    2    79      7   164598  f  644   2862      1      789522\n    3    40    33b     6925  c    0   2862      1           0\n    4    40    2a4     6943  c    0   2862      1           0\n    5    79      7   164599  f  600   2862      1       44784\n    6    40    2e2   145996  c    0   2862      1           0\n    7    79      7   164601  f  644   2862      1         506\n\n   ERROR: dump_file_descriptors is no longer supported.\n\nSEE ALSO\nsocket_status(3), query_load_average(3)"
+      }
+    },
+    "dump_jemalloc": {
+      "sourceSha256": "28e61bdfc03c7f37526b4731167c3792ba481e7661ce1b2eeb2ac92034af1463",
+      "fields": {
+        "summary": "dump_jemalloc 内置函数"
+      }
+    },
+    "dump_prog": {
+      "sourceSha256": "f427ef66bd0276e37f02fceb9165b13c0b3dd70bab349a34e6f38b30479e7c12",
+      "fields": {
+        "summary": "dump_prog() 导出对象 `ob` 的程序资料到文件 `file`，如果没有文件的写入权限会导出失败，如果没有指定导出文件，会导出到文件 /PROG_DUMP。\n\n   标识符 `flag` 默认值为 0，如果指定为 1，导出资料包括反汇编的信息，如果指定为 2，导出资料包括行号信息。"
+      }
+    },
+    "dump_stralloc": {
+      "sourceSha256": "ba7a9ce28dda13bddae1bb6c4a7a7be22340d0de7912b6bba0310d2da85e45b9",
+      "fields": {
+        "summary": "dump_stralloc 内置函数"
+      }
+    },
+    "dump_trace": {
+      "sourceSha256": "8aab31ae641caec02593ee48a1bedd77b6db1fb6e633ef04f2ee28a24699ab16",
+      "fields": {
+        "summary": "Get current LPC stacktrace."
+      }
+    },
+    "dumpallobj": {
+      "sourceSha256": "52a581fdbd931c449f9d402babb508e848dfdfd8e29e15b80e85a75a9ad2b1a7",
+      "fields": {
+        "summary": "这个外部函数导出已加载的所有对象的统计信息列表。如果没有指定参数，信息会导出到文件 /OBJ_DUMP，如果指定参数 `filename`，会导出信息到文件 `filename`。"
+      }
+    },
+    "ed": {
+      "sourceSha256": "073b647aa6c3ba7135d3af65537eb29580959945f693ff1fd6cee71ffdbe592e",
+      "fields": {
+        "summary": "这个外部函数仅在驱动编译时定义了 __OLD_ED__ 后有效。\n\n   这是一个很有趣的函数，它会打开内置编辑器来编辑指定文件 `file`。这个编辑器基本和 UNIX ed 兼容，在编辑器中可以输入 `h` 查看使用帮助。\n\n   The <write_fn> function allows the mudlib to handle file locks and administrative logging of files modified. When the editor writes to a file, the driver will callback the <write_fn> function twice. The first time, the function is called before the write takes place -- <flag> will be 0. If the function returns TRUE, the write will continue, otherwise it will abort. The second time, the function is called after the write has completed -- <flag> will be non-zero. This callback function should have the form:\n\n   int write_fn(string fname, int flag)\n\n   When the editor is exited, the driver will callback the <exit_fn> function. This function allows the mudlib to clean up. This callback function has the form:\n\n   void exit_fn()\n\n   The optional <restricted> flag limits the editor's capabilities, such as inserting a file, and saving using an alternate file name."
+      }
+    },
+    "ed_cmd": {
+      "sourceSha256": "e4579af1a2eec20be0421601bd0327a94addaa354388d62b14b8a1828741e5b8",
+      "fields": {
+        "summary": "This efun is available only if __OLD_ED__ is not defined.\n\n   The  command  'cmd' is sent to the active ed session, and the resulting\n   output is returned."
+      }
+    },
+    "ed_start": {
+      "sourceSha256": "b992eea7db23e911372a686a99f6b6843d25d1f0ea9dce019e6a7a022a68b099",
+      "fields": {
+        "summary": "开始编辑文件",
+        "details": "NAME\ned_start() - start an ed session\n\nSYNOPSIS\nstring ed_start(string file | void, int restricted | void)\n\nDESCRIPTION\nThis efun is available only if __OLD_ED__ is not defined.\n\n   The internal editor is started, optionally loading 'file' for editing. The resulting output is returned.  The editor session  remains  active, and further calls to ed_cmd() can be used to send commands to it.\n\n   If restricted is 1, the commands that change which file is being edited will be disabled.\n\n   Only one ed session can be active per object at a time."
+      }
+    },
+    "element_of": {
+      "sourceSha256": "aeb2d992e071285d700500634ef48438192d10373cda48075042bb6db3d25680",
+      "fields": {
+        "summary": "返回给定数组的随机元素\n\n   本函数是 FluffOS 1.28 新增，原 MUDOS 不支持"
+      }
+    },
+    "enable_commands": {
+      "sourceSha256": "0fa057b505af5c735eba9d8bba16085041b68fc2c27045822a22faab362f8c0b",
+      "fields": {
+        "summary": "enable_commands() 把 this_object() 标记为活的（living）对象，并允许对象通过 command() 外部函数使用由 add_action() 外部函数增加的命令。当对象调用 enable_commands() 函数后，系统驱动（driver）还会在对象中寻找 catch_tell() 方法，如果找到，每次有消息发给对象（如通过外部函数 say()）时都会调用 catch_tell() 方法。\n\n   从 FluffOS  3.0-alpha7 开始，本函数接受整型参数，如果不指定参数，默认值为0，作用和旧版一样，仅仅是启用命令，但不设置动作。如果参数 setup_actions > 0，驱动会调用对象所在环境及环境中所有中所有对象的 init() 方法。",
+        "details": "BUGS\n尽量不要在 create() 方法以外的地方调用 enable_commands()，否则可能会产生奇怪的问题。"
+      }
+    },
+    "enable_wizard": {
+      "sourceSha256": "382e8dfc2c4825c6ba8c9f8fab506a6d0935e3a31182468e476579f228acaff0",
+      "fields": {
+        "summary": "本函数仅在驱动编译时未定义 NO_WIZARD 的情况下有效。\n\n   任何互动对象（玩家）呼叫 enable_wizard() 外部函数都会让此对象呼叫 wizardp() 外部函数的返回值为真（1）。enable_wizard() 可以让此玩家拥有以下三项特权：\n\n   1. 当驱动编译时定义了 RESTRICTED_ED ，可以使用 ed 的受限模式（restricted  modes）。\n   2. 可以收到运行时详细错误信息。\n   3. 可以使用 trace() 和 traceprefix() 外部函数。"
+      }
+    },
+    "environment": {
+      "sourceSha256": "8c48cd1be9214d4ae32055ff6d1b12708db76da6404449f9f943ad2e6c86259f",
+      "fields": {
+        "summary": "返回包含对象 `ob` 的对象(环境)，如果没有指定参数，`ob` 默认是 this_object()。如果对象 `ob` 不在任何环境里，返回 0。"
+      }
+    },
+    "error": {
+      "sourceSha256": "f0e2009dc7e44bb7937e1517e43dc7ddaf0044c4a2c8ef420d3f514cd916300b",
+      "fields": {
+        "summary": "当 error() 调用时会生成一个运行时错误消息 `err`，暂停当前线程，并把错误追踪信息记录到 debug 日志中。错误消息会附加前缀 `*`。"
+      }
+    },
+    "eval_cost": {
+      "sourceSha256": "904e3bb24ca1200cdf5e838a6d00be75d125c8279c519927162d63679913fabf",
+      "fields": {
+        "summary": "eval_cost() returns the number of instructions that can be executed before the driver decides it is in an infinite loop.\n\n   此函数相当于set_eval_limit(int default: -1);"
+      }
+    },
+    "evaluate": {
+      "sourceSha256": "7c8f91d7d95d64490dd2337bf7005bae679f16c5132d1c8916109bb9854e2e4b",
+      "fields": {
+        "summary": "如果 `f` 是一个函数会使用剩余的参数调用 `f`，否则直接返回 `f`。 evaluate(f, ...) 的作用和直接调用 f(...) 相同，等价于：(* f)(...)。"
+      }
+    },
+    "event": {
+      "sourceSha256": "8d4c28a94360d75bfa98427e98a1d6bc406cc5b245a07f086ffd77c313ec1e32",
+      "fields": {
+        "summary": "在目标对象中调用 \"event_\" + event_name。\"event_\" + event_name 必须是一个公共函数。目标可以是单个对象或对象数组。\n\n   如果目标是单个对象，event 函数将首先在该对象中调用事件函数，然后它将在目标的所有 all_inventory() 对象中调用事件函数。\n\n   如果目标是对象数组，event 函数将在所有指定的对象中调用事件函数。与单目标版本不同，它不会级联到每个对象的库存中。\n\n   该函数将传递调用对象作为其第一个参数，然后是所有指定的参数。",
+        "details": "示例\n// In a room\n\n// will call event_heal_up on the room, and then every object in the room\nevent( this_object(), \"heal_up\", 50, 50 ) ;\n\n// will call event_heal_up in the results of users() efun\nevent( users(), \"heal_up\", 25, 25 ) ;\n\n// In a player object\n\n// To take advantage of this event, write an event_heal_up in the player\n// object to receive the call\nvoid event_heal_up(object source, int health, int mana)\n{\n    message(\"heal\", sprintf(\"You were healed %d health and %d mana by %O.\\n\", health, mana, source), this_object()) ;\n}"
+      }
+    },
+    "exec": {
+      "sourceSha256": "8a5aaafd9f297239465482db5e87511f9aec380b4198f2f73a3d4c236dd55575",
+      "fields": {
+        "summary": "这个外部函数允许把玩家连接从一个对象迁移到另一个对象。也就是说，在成功执行 exec(to, from) 后，interactive(to) 会返回 1，interactive(from) 会返回 0，控制 `from` 的玩家改为控制 `to`。\n\n   请注意，这个外部函数的功能过于强大，为保证游戏安全，请谨慎使用。较为适合的限制使用 exec() 的方式是定义一个同名模拟外部函数(simul_efun)，并使用 valid_override() apply 方法来限制这个模拟外部函数的重写（efun::exec()）。\n\n   如果切换成功 exec() 会返回 1，否则返回 0。"
+      }
+    },
+    "exp": {
+      "sourceSha256": "a783144fa83afd853afec543afb33305cd357408393ee2b29ddcc6a2d82cc220",
+      "fields": {
+        "summary": "exp() returns e^f."
+      }
+    },
+    "explode": {
+      "sourceSha256": "dcfe3f80c1d232fadddf839c178ee0022086c6980ab5ffb0601b0d613d70eb4c",
+      "fields": {
+        "summary": "使用字符串 `del` 分割字符串 `str`，并返回分割后字符串组成的数组。",
+        "details": "示例\nexplode(str, \" \") 会返回一个由字符串 `str` 中所有单词组成的数组。\n   explode(str, \"\") 会返回一个由字符串 `str` 中所有字符组成的数组。"
+      }
+    },
+    "explode_reversible": {
+      "sourceSha256": "16fa7684c5ab713b89f99df763e652160f4ea8a4b38bdb8bf1d983c42b8ad77c",
+      "fields": {
+        "summary": "explode_reversible 内置函数"
+      }
+    },
+    "export_uid": {
+      "sourceSha256": "46c4c72b856868b7dd0d03bfaf776f1f5bcd454ef0f79d1ebf0504f6dd485cfc",
+      "fields": {
+        "summary": "把对象 `ob` 的用户ID（uid）设置为当前对象的有效用户ID（euid）。这个函数只有对象 `ob` 的有效用户ID（euid）为 0 时才有效。"
+      }
+    },
+    "external_start": {
+      "sourceSha256": "4fac09238fb24c7014907158bb11a34c314965f49928a45cb1989cf1ad0da2a0",
+      "fields": {
+        "summary": "If PACKAGE_EXTERNAL is defined, then lines of the form:\n\n       external_cmd_1: /usr/local/bin/gzip\n\n   in the config file allow the mud to run the command using the following efun:\n\n       int external_start(int which, string args, mixed read_cb, mixed write_cb, mixed close_cb)\n\n   which is the command number (e.g. 1 from the example above) args is the argument passed to the command.  A socket is returned, which can be used to communicate with stdin/stdout of the command.\n\n   valid_socket() is passed \"external\" as the operation.\n\nExecute a shell command external to the driver.\n\n   Commands that you would like to execute must be added to the runtime config. The enumerated commands may then be invoked by their number as the first argument to external_start `external_index`.\n\n   This function returns the socket number which you should record for later processing of the results from the external command.\n\n`args` - An array of the arguments passed to the external command.\n   `read_call_back` - As data becomes available, this function will be called with a string containing that data.\n   `write_call_back` - I am not 100% sure what would be written to the external command, but, this is a required parameter.\n   `close_call_back` - When the socket closes, this function is called.",
+        "details": "RUNTIME CONFIGURATION\nYou can configure your runtime configuration to know about various external commands by adding lines such as: external_cmd_## : /path/to/command\n   where ## is the number that will be invoked with `external_start`.\n\n       # external commands\n       external_cmd_1 : /usr/local/bin/node\n       external_cmd_2 : /usr/bin/curl\n\nCALLBACKS\nThe callbacks, when invoked, will pass the following information:\n\n       void read_call_back(int fd, string data)\n       void write_call_back(int fd)\n       void close_call_back(int fd)\n\n示例\n提示：fluffos v2019支持100个外部命令，使用示例：https://bbs.mud.ren/threads/244"
+      }
+    },
+    "fetch_class_member": {
+      "sourceSha256": "b7d4b6e03222dd84101c771bff44f3d7f2c79b64385adfc0022d798b7d7ef310",
+      "fields": {
+        "summary": "这是 FluffOS 2.0 新增的外部函数，返回实例化的类 `instantiated_class` 的索引为 `index` 的成员的值，这对数据成员没有标签（变量名）的匿名类非常有用。",
+        "details": "示例\n{\n    mixed me = assemble_class( ({ \"Foo\", 42, \"Fooville\" }) ) ;\n    int age ;\n    string name, city ;\n\n    name = fetch_class_member( me, 0 ) ;\n    age = fetch_class_member( me, 1 ) ;\n    city = fetch_class_member( me, 2 ) ;\n}"
+      }
+    },
+    "fetch_variable": {
+      "sourceSha256": "1d14470990739e8114e39d87e253b18dee09f06a38f69d94c128ace9ae838fe9",
+      "fields": {
+        "summary": "返回对象 `ob` 中定义的全局变量 `arg` 的值，如果不指定对象 `ob`，默认为 this_object()。请注意：变量 `arg` 必须是指定对象中已定义的，且不能是private类型。\n\n   此外部函数要求驱动程序编译是定义了 PACKAGE_CONTRIB 包。\n\n   此外部函数存在安全隐患，最好通过sefun重写做安全检查。",
+        "details": "示例\nint weight = fetch_variable( \"weight\", this_player() ) ;\n   printf(\"%d\\n\", weight\") ;"
+      }
+    },
+    "file_length": {
+      "sourceSha256": "087f228ad9417a1106fc01d6ab4c6101391dc5ae02fd41f2fc6eaaaeaa372248",
+      "fields": {
+        "summary": "函数返回指定文件 `file_name` 的行数，如果未找到文件返回 -1，如果是目录返回 -2。"
+      }
+    },
+    "file_name": {
+      "sourceSha256": "df88655e4f71b88cb0cbd92e97ce5e04c0cf673ee116228117720039080a0324",
+      "fields": {
+        "summary": "file_name() 外部函数返回对象 `ob` 载入时的文件名字符串，如果对象是复制对象，file_name() 返回的不是磁盘上的实际文件名，而是文件名后附加 `#` 和复制对象的编号。在游戏启动后，复制对象的编号从 0 开始，每复制一个对象编号加 1 ，所以每个复制对象的编号都是唯一的。\n\n   如果没有指定参数 `ob`，默认对象是 this_object()。"
+      }
+    },
+    "file_size": {
+      "sourceSha256": "f347a9fdbe32393a024c8b75a0e5f606275721f470356fede8b6f56bd68bcce3",
+      "fields": {
+        "summary": "file_size() 返回文件 `file` 的大小（字节），如果文件不存在或你无权读取返回　-1，如果 `file` 是一个目录返回 -2。"
+      }
+    },
+    "filter": {
+      "sourceSha256": "baeed106878d959d75ea9a89cd2847ebb2661d0f379eb95f972765bb62889c4d",
+      "fields": {
+        "summary": "如果第一个参数 `x` 是数组，filter() 的作用和 filter_array() 一样，如果第一个参数 `x` 是映射，filter() 的作用和 filter_mapping() 一样。如果第一个参数是字符串，filter() 会把每个字符转为整型传递给过滤函数，如果过滤函数返回 0 ，此字符被会过滤掉，否则正常返回。"
+      }
+    },
+    "filter_array": {
+      "sourceSha256": "7ed96bae76b5de7291671d3d6d7ac64fa17531aba10bccba1cd8798a96a62414",
+      "fields": {
+        "summary": "filter_array() 返回数组 `arr` 中成功通过对象 `ob` 中的方法 `fun` 或函数指针 `f` 处理的元素组成的子数组。数组 `arr` 的每个元素都会做为参数传递给函数过滤，如果有额外参数 `extra`，也会传给过滤函数。如果过滤函数结果为1，元素会在子数组返回，否则会被过滤掉。如果 `arr` 不是数组、映射或字符串，filter_arry()返回0。\n\n   说明：此函数本质上就是 filter() 外部函数：mixed filter(mixed *, string | function, ...);",
+        "details": "参照\nfilter(3), filter_mapping(3), sort_array(3), map_array(3)\n\nReturn semantics:\n过虑后的子数组或0"
+      }
+    },
+    "filter_mapping": {
+      "sourceSha256": "a360ece31ca93b57da57d621b92ca935cbf687852540ef707183de33b12dc36b",
+      "fields": {
+        "summary": "返回经 `ob->fun()` 或函数指针 `f` 处理后的映射。映射的每一组 key 和 value 都会做为参数传递给过滤函数，如果有附加参数 `extra`，也会按顺序传递给过滤函数。函数返回 0 此组元素会被过滤掉，否则正常返回。过滤函数的参数形式： fun(mixed key, mixed value, mixed extra,...);\n\n   说明：此函数本质上就是 filter() 外部函数：mapping filter(mapping, string | function, ...);"
+      }
+    },
+    "find_call_out": {
+      "sourceSha256": "79782c0ed9aa39ce3aaf9c104b650af0091df4f8786939c84bdcbb7cc748d37b",
+      "fields": {
+        "summary": "寻找一个即将被调用的调用，可以通过函数名或句柄来寻找。如果参数是一个字符串，则会找到将要执行的名为'func'的第一个调用，返回剩余的秒数。如果找不到调用，则返回-1。如果参数是一个整数，则会找到具有句柄'handle'的调用，并返回剩余的秒数。如果找不到调用，则返回-1。\n\n   这将会查找由call_out()或call_out_walltime()所安排的调用。如果剩余时间是小数，则结果将是一个整数，其值将被向下取整。",
+        "details": "示例\nint handle = call_out(\"func\", 10);\nprintf(\"剩余时间：%O\\n\", find_call_out(handle));\n// 剩余时间：10\n\nint handle = call_out(\"func\", 10.75);\nprintf(\"剩余时间：%O\\n\", find_call_out(handle));\n// 剩余时间：10"
+      }
+    },
+    "find_living": {
+      "sourceSha256": "f566c75c6ffcf1d0a97f9b7116d66870744df63af4208daa0d8cbe9768d7b67f",
+      "fields": {
+        "summary": "首先查找标记为“活的”对象（即生物），然后查找ID `str`。生物是曾经呼叫过 enable_commands() 外部函数的对象，而且必须使用 set_living_name() 外部函数设置了名字，这些生物的名字会被存入 hash 表方便快速搜索。"
+      }
+    },
+    "find_object": {
+      "sourceSha256": "fd8ad7d697da07918bb8e68ec05bbefc0832904c1e4bd9799772e4324c78b9a6",
+      "fields": {
+        "summary": "通过文件名 `str` 查找游戏已加载对象。如果对象是复制对象，文件名可以通过 file_name() 外部函数取得。如果对象不存在或未载入游戏，返回 0，否则返回对象指针。\n\n   如果可选参数 `flag`(不设置默认值为0) 为 1，此函数的效果等同于 load_object()。"
+      }
+    },
+    "find_player": {
+      "sourceSha256": "24f24ae9f929b1142c58cec8edd7c2461891d5b6afb489a3132d9a2e23d5cf21",
+      "fields": {
+        "summary": "和 find_living() 外部函数功能类似, 只是仅从玩家(interactive)或曾经是玩家的对象中寻找。"
+      }
+    },
+    "first_inventory": {
+      "sourceSha256": "32e4236e381d09e51b9d685867f96cd039f29a4995de34239573fa7f5500649b",
+      "fields": {
+        "summary": "返回对象 `ob` 内容物品中的第一个物品，参数 `ob` 既可以是对象也可以是对象的文件名（字符串类型），如果没有指定参数 `ob`，默认是 this_object()。"
+      }
+    },
+    "floatp": {
+      "sourceSha256": "25e90643b3d4856744e259fbf8011221420fe720941ed7f6ee09027df1d5d21b",
+      "fields": {
+        "summary": "如果 `arg` 是一个浮点数返回 1，否则返回 0 。"
+      }
+    },
+    "floor": {
+      "sourceSha256": "56dba288706524cb70d3d5461998533984bd041a77b80e0e43383bb7e876777c",
+      "fields": {
+        "summary": "返回小于或等于 f 的最接近的整数（以浮点数形式）。如：4.9 返回 4.000000"
+      }
+    },
+    "flush_messages": {
+      "sourceSha256": "27e07e54d02c1c43f959a219a460ae5187352f327e2c25cbf149caafb7f9cbe7",
+      "fields": {
+        "summary": "flush_messages 内置函数",
+        "details": "NAME\nflush_messages - send all pending messages to a user\n\nSYNOPSIS\nint flush_messages();\n   int flush_messages(object user);\n\nDESCRIPTION\nNormally, messages are queued, then sent all at once to minimize the number of packets required. This efun forces all pending messages to be written immediately. If no user is specified, messages for ALL users are flushed."
+      }
+    },
+    "function_exists": {
+      "sourceSha256": "fb26972c180747c6cd86ea922a8a9643f47928e9a9a7575a8762c8fc52f0ae21",
+      "fields": {
+        "summary": "返回对象 `ob` 中定义函数 `str` 的对象的文件名。如果函数由对象 `ob` 继承的对象定义，返回值会和 `file_name(ob)` 不同（返回的是被继承的对象文件）。\n\n   如果函数在指定对象中没有定义，返回 0 。\n\n   请注意，function_exists() 不会在投影对象 `ob` 的对象中寻找，也不会在无法从对象以外呼叫的函数（protected 和 private 类型）中寻找，但是如果指定参数 `flag` 且为非零值，protected 和 private 类型的方法也会被寻找到。\n\n如果要判断一个efun是否存在，可以判断相关宏是否定义，或者在条件编译中使用`efun_defined`，如：\n\n   #if efun_defined(snoop)\n   // todo\n   #endif"
+      }
+    },
+    "function_owner": {
+      "sourceSha256": "d70759d9fecbca3233e28f60c59e751691f41820f36fe5a76c940a9e9c5bfdf7",
+      "fields": {
+        "summary": "返回指定函数指针 `f` 的所有者对象。\n\n   此外部函数要求驱动程序编译时定义了 PACKAGE_CONTRIB 包。"
+      }
+    },
+    "function_profile": {
+      "sourceSha256": "70b6f841151d1e8284092fd18b11fde71f2c2cb03986fc62a7d90794efb23b8e",
+      "fields": {
+        "summary": "This is only available if the driver was compiled with PROFILE_FUNCTIONS defined.\n\n   Returns function profiling information for 'ob', or this_object() if 'ob' is not specified.\n\n   An array of mappings is returned, one for each function in 'ob'.  The format of the mapping is:\n\n      ([ \"name\"     : name_of_the_function,\n         \"calls\"    : number_of_calls,\n         \"self\"     : cpu_time_spent_in self,\n         \"children\" : cpu_time_spent_in_children\n      ])\n\n   The usefulness of this is tied to the resolution of the CPU clock-even though the units are microseconds, the CPU timer resolution is often much less."
+      }
+    },
+    "functionp": {
+      "sourceSha256": "5cc4a58bb766e122a3a3ec46786f251170be0624c558d17e881ec80b3b8d8338",
+      "fields": {
+        "summary": "如果 `arg` 是函数指针返回非零针，否则返回0。函数指针是函数类型的变量。\n   如：function f = (: this_player(), \"query\" :);\n   或：function f = (: write, \"Hello, world!\\n\" :);\n\n   返回值为驱动程序 \"include/function.h\" 中定义的函数指针类型。\n\n   function pointer type        value\n   ---------------------        -----\n   call_other                   FP_CALL_OTHER\n   lfun                         FP_LOCAL\n   efun                         FP_EFUN\n   simul_efun                   FP_SIMUL\n   functional                   FP_FUNCTIONAL\n\n   此外，在某些情况下会有以下值：\n   (有参数)                  FP_HAS_ARGUMENTS\n   (创建函数的对象被摧毁)     FP_OWNER_DESTED\n   (无法被绑定)              FP_NOT_BINDABLE\n\n   最后一组值为位元值（bit values），可以用来做位运算测试，FP_MASK 可以忽略某些位测试函数指针的基本型态。\n\n   示例:\n\n   测试一个函数指针是否是外部函数（efun）指针：\n\n   if ((functionp(f) & FP_MASK) == FP_EFUN) ...\n\n   测试函数是否有参数：\n\n   if (functionp(f) & FP_HAS_ARGUMENTS) ...\n\n   <function.h>头文件具体内容如下：\n\n/* codes returned by the functionp() efun */\n\n#define FP_LOCAL 2\n#define FP_EFUN 3\n#define FP_SIMUL 4\n#define FP_FUNCTIONAL 5\n\n/* internal use */\n#define FP_G_VAR 6\n#define FP_L_VAR 7\n#define FP_ANONYMOUS 8\n\n/* additional flags */\n#define FP_MASK 0x0f\n#define FP_HAS_ARGUMENTS 0x10\n#define FP_OWNER_DESTED 0x20\n#define FP_NOT_BINDABLE 0x40"
+      }
+    },
+    "functions": {
+      "sourceSha256": "63e2350fe7b08cec7e0947de5e9749554647e92828b6790a7c7da67ab56ad7a6",
+      "fields": {
+        "summary": "函数返回指定对象 `ob` 中定义的局部函数（方法）信息(包括继承对象中的方法)，可选参数 `flag` 为位域标识符，如果不指定默认为 0，表示只返回函数名称列表，如果指定为 1，返回一个二维数组，子数组格式为：\n\n   ({ 函数名, 参数个数, 返回值类型, 参数类型 })\n\n   如果`flag`为2，返回结果和`flag`为0类似，如果`flag`为3，返回结果和`flag`为1类似，区别是结果中不包括继承的函数。"
+      }
+    },
+    "get_char": {
+      "sourceSha256": "7aefa050e0f127252d4845f17fd905d590f90f9e2cb36e49af2cc6281b8c62a2",
+      "fields": {
+        "summary": "把玩家接下来输入的字符做为参数传给函数 `fun`。驱动程序不会解析（parse）输入的字符。\n\n   请注意： get_char() 是非阻塞式监听，也就是说呼叫 get_char() 的对象不会暂停下来等待用户输入，而是继续执行后续程序。\n\n   如果在同一次执行时多次调用 get_char()，仅第一次呼叫有效。\n\n   如果可选参数 `flag` 非零，用户输入的字符不会回显，在被窃听(snoop)时也不会显示（这在输入密码时很有用）。\n\n   函数 `fun` 执行时用户输入的字符会做为第一个参数（字符串类型），get_char() 函数 `flag` 之后的参数会做为额外参数传递给 `fun`。"
+      }
+    },
+    "get_config": {
+      "sourceSha256": "cd099aaace8a02bcd172d2505b5f694f44bc005d596254d5d28ab8b5e1c316fb",
+      "fields": {
+        "summary": "这个外部函数用来查询游戏程序程序的运行时配置文件的各种设置。关于配置可识别的选项可以参考游戏驱动的 `runtime_config.h` 文件。\n\n   此文件中具体定义的内容如下：\n\n/*\n * runtime_config.h\n *\n * Copy this file to your mudlib include dir for use with the\n * get_config() efun.\n *\n * See Config.Example describing most of these settings.  Some are actually\n * in options.h, but the mudlib doesn't have to know...\n *\n * Note for backwards compatibility:\n *   Neither the name or the number can be changed, or reused, avoid breaking mudlib code.\n */\n\n#ifndef RUNTIME_CONFIG_H\n#define RUNTIME_CONFIG_H\n\n#define RC_BASE_CONFIG_STR 0\n#define CFG_STR(x) ((x) + RC_BASE_CONFIG_STR)\n/*\n * These config settings return a string\n */\n\n#define __MUD_NAME__ CFG_STR(0)\n#define __RC_STR_1__ CFG_STR(1)\n#define __MUD_LIB_DIR__ CFG_STR(2)\n#define __BIN_DIR__ CFG_STR(3)\n#define __LOG_DIR__ CFG_STR(4)\n#define __INCLUDE_DIRS__ CFG_STR(5)\n#define __RC_STR_2__ CFG_STR(6)\n#define __MASTER_FILE__ CFG_STR(7)\n#define __SIMUL_EFUN_FILE__ CFG_STR(8)\n#define __SWAP_FILE__ CFG_STR(9)\n#define __DEBUG_LOG_FILE__ CFG_STR(10)\n#define __DEFAULT_ERROR_MESSAGE__ CFG_STR(11)\n#define __DEFAULT_FAIL_MESSAGE__ CFG_STR(12)\n#define __GLOBAL_INCLUDE_FILE__ CFG_STR(13)\n#define __MUD_IP__ CFG_STR(14)\n#define __RC_WEBSOCKET_HTTP_DIR__ CFG_STR(15)\n\n#define RC_LAST_CONFIG_STR CFG_STR(255)\n/*\n * These config settings return an int (ie number)\n */\n#define RC_BASE_CONFIG_INT (RC_LAST_CONFIG_STR + 1)\n#define CFG_INT(x) ((x) + RC_BASE_CONFIG_INT)\n\n#define __MUD_PORT__ CFG_INT(0)\n#define __RC_INT_1__ CFG_INT(1)\n#define __TIME_TO_CLEAN_UP__ CFG_INT(2)\n#define __TIME_TO_RESET__ CFG_INT(3)\n#define __TIME_TO_SWAP__ CFG_INT(4)\n#define __COMPILER_STACK_SIZE__ CFG_INT(5)\n#define __EVALUATOR_STACK_SIZE__ CFG_INT(6)\n#define __INHERIT_CHAIN_SIZE__ CFG_INT(7)\n#define __MAX_EVAL_COST__ CFG_INT(8)\n#define __MAX_LOCAL_VARIABLES__ CFG_INT(9)\n#define __MAX_CALL_DEPTH__ CFG_INT(10)\n#define __MAX_ARRAY_SIZE__ CFG_INT(11)\n#define __MAX_BUFFER_SIZE__ CFG_INT(12)\n#define __MAX_MAPPING_SIZE__ CFG_INT(13)\n#define __MAX_STRING_LENGTH__ CFG_INT(14)\n#define __MAX_BITFIELD_BITS__ CFG_INT(15)\n#define __MAX_BYTE_TRANSFER__ CFG_INT(16)\n#define __MAX_READ_FILE_SIZE__ CFG_INT(17)\n#define __RC_INT_18__ CFG_INT(18)\n#define __SHARED_STRING_HASH_TABLE_SIZE__ CFG_INT(19)\n#define __OBJECT_HASH_TABLE_SIZE__ CFG_INT(20)\n#define __LIVING_HASH_TABLE_SIZE__ CFG_INT(21)\n#define __RC_INT_22__ CFG_INT(22)\n#define __RC_INT_23__ CFG_INT(23)\n#define __RC_GAMETICK_MSEC__ CFG_INT(24)\n#define __RC_HEARTBEAT_INTERVAL_MSEC__ CFG_INT(25)\n#define __RC_SANE_EXPLODE_STRING__ CFG_INT(26)\n#define __RC_REVERSIBLE_EXPLODE_STRING__ CFG_INT(27)\n#define __RC_SANE_SORTING__ CFG_INT(28)\n#define __RC_WARN_TAB__ CFG_INT(29)\n#define __RC_WOMBLES__ CFG_INT(30)\n#define __RC_CALL_OTHER_TYPE_CHECK__ CFG_INT(31)\n#define __RC_CALL_OTHER_WARN__ CFG_INT(32)\n#define __RC_MUDLIB_ERROR_HANDLER__ CFG_INT(33)\n#define __RC_NO_RESETS__ CFG_INT(34)\n#define __RC_LAZY_RESETS__ CFG_INT(35)\n#define __RC_RANDOMIZED_RESETS__ CFG_INT(36)\n#define __RC_NO_ANSI__ CFG_INT(37)\n#define __RC_STRIP_BEFORE_PROCESS_INPUT__ CFG_INT(38)\n#define __RC_THIS_PLAYER_IN_CALL_OUT__ CFG_INT(39)\n#define __RC_TRACE__ CFG_INT(40)\n#define __RC_TRACE_CODE__ CFG_INT(41)\n#define __RC_INTERACTIVE_CATCH_TELL__ CFG_INT(42)\n#define __RC_RECEIVE_SNOOP__ CFG_INT(43)\n#define __RC_SNOOP_SHADOWED__ CFG_INT(44)\n#define __RC_REVERSE_DEFER__ CFG_INT(45)\n#define __RC_HAS_CONSOLE__ CFG_INT(46)\n#define __RC_NONINTERACTIVE_STDERR_WRITE__ CFG_INT(47)\n#define __RC_TRAP_CRASHES__ CFG_INT(48)\n#define __RC_OLD_TYPE_BEHAVIOR__ CFG_INT(49)\n#define __RC_OLD_RANGE_BEHAVIOR__ CFG_INT(50)\n#define __RC_WARN_OLD_RANGE_BEHAVIOR__ CFG_INT(51)\n#define __RC_SUPPRESS_ARGUMENT_WARNINGS__ CFG_INT(52)\n#define __RC_ENABLE_COMMANDS_CALL_INIT__ CFG_INT(53)\n#define __RC_SPRINTF_ADD_JUSTFIED_IGNORE_ANSI_COLORS__ CFG_INT(54)\n#define __RC_APPLY_CACHE_BITS__ CFG_INT(55)\n#define __RC_CALL_OUT_ZERO_NEST_LEVEL__ CFG_INT(56)\n#define __RC_TRACE_CONTEXT__ CFG_INT(57)\n#define __RC_TRACE_INSTR__ CFG_INT(58)\n#define __RC_ENABLE_MXP__ CFG_INT(59)\n#define __RC_ENABLE_GMCP__ CFG_INT(60)\n#define __RC_ENABLE_ZMP__ CFG_INT(61)\n#define __RC_ENABLE_MSSP__ CFG_INT(62)\n#define __RC_ENABLE_MSP__ CFG_INT(63)\n\n#define RC_LAST_CONFIG_INT CFG_INT(255)\n#endif /* RUNTIME_CONFIG_H */"
+      }
+    },
+    "get_dir": {
+      "sourceSha256": "eb173518f2e50d0340c817b9ef4642d304fec2eb45b64d9ae693c5268c44887b",
+      "fields": {
+        "summary": "如果 `dir` 是一个文件名（支持 `*` 和 `?` 通配符），返回一个包括所有匹配指定名称的文件名字符串数组。如果 `dir` 是一个目录名（以 `/` 结尾，如 \"/adm\"、\"/u/\" 等），返回包括目录中所有文件名的字符串数组。\n\n   如果第二个参数为 `-1`，get_dir() 返回一个二维数组，子数组的格式为：\n\n   ({ 文件名, 文件大小, 最近修改时间 })\n\n   文件名是字符串，最近修改时间是一个时间戳（和 time() 外部函数返回值的格式相同），文件大小的值和 file_size() 外部函数的返回值相同（单位为字节），如果是目录 值为 -2。"
+      }
+    },
+    "get_garbage": {
+      "sourceSha256": "c628af313da0ff5ac4c03ceeee9be1a8a2f683bf1d57f3a446bb683621d5dbd2",
+      "fields": {
+        "summary": "FluffOS 1.20 新增efun，返回游戏中复制的垃圾对象数组（最大值为 `MAX_ARRAY_SIZE`），垃圾对象是指既没有环境没有内容物，而且也没有映射其它对象 and haven't object->super set。"
+      }
+    },
+    "get_os_env": {
+      "sourceSha256": "c4d135a34a0f62d0dd180d5bcd93fdd0c031e7cb67d139ea8b8f8de82ea25c16",
+      "fields": {
+        "summary": "读取 driver 配置白名单允许的操作系统环境变量；未设置时返回 undefined。",
+        "details": "读取允许暴露给 LPC 的操作系统环境变量。可访问范围由 driver 配置控制；变量不存在或未被允许时不会返回可用字符串。"
+      }
+    },
+    "geteuid": {
+      "sourceSha256": "5c6e1ebb7b8b564f4b555a504b7b378b0b82c9323e07c1f83852c357a781b83c",
+      "fields": {
+        "summary": "如果参数是对象，返回对象的有效用户ID（euid），如果参数是一个函数指针，返回创建这个函数指针的对象的有效用户ID，如果在创建这个函数指针时对象没有 euid ，会使用对象的有效用户ID（uid）代替。如果不指定对象，默认对象为 this_object()。"
+      }
+    },
+    "getuid": {
+      "sourceSha256": "23a2961c77dab8714a6bb288a64f3303376abd466dc30cbdd75c5f21e7cf0f88",
+      "fields": {
+        "summary": "返回对象的用户ID（uid），一个对象的用户ID（uid）由对象创建时 creator_file() 方法的返回值决定，这个方法在主控对象。如果不指定对象，默认对象为 this_object()。"
+      }
+    },
+    "has_gmcp": {
+      "sourceSha256": "c046f03309d20934c680aee1797a2f0b1a44a8961177fe6ec285f15442eac340",
+      "fields": {
+        "summary": "has_gmcp 内置函数",
+        "details": "NAME\nhas_gmcp() - returns whether or not a given interactive user's client has GMCP protocol enabled.\n\nDESCRIPTION\nReturn non-zero if interactive user has the GMCP protocol enabled in\n   their client. 0 will be returned if the user does not.\n\nSEE ALSO\ngmcp_enable(4), gmcp(4), send_gmcp(3)"
+      }
+    },
+    "has_msdp": {
+      "sourceSha256": "c9d10e7fb494f03215bb14cadb0e28998b8c56f627811059b75af83271693767",
+      "fields": {
+        "summary": "MudWiki 列表包含该函数，但详情页尚未提供内容。"
+      }
+    },
+    "has_msp": {
+      "sourceSha256": "c432090edf209c81209aa0cb8792162516554e1bd6544bb768aa18c324b67168",
+      "fields": {
+        "summary": "MudWiki 列表包含该函数，但详情页尚未提供内容。"
+      }
+    },
+    "has_mxp": {
+      "sourceSha256": "afc1393fb61a796d4e06db244b5de67ea53ea739e6d10f4307ffe374f3853165",
+      "fields": {
+        "summary": "has_mxp 内置函数"
+      }
+    },
+    "has_zmp": {
+      "sourceSha256": "ebbada863888c0523efa876d2a96828cafbadd8ad4599ac51823a1041bcc4cfd",
+      "fields": {
+        "summary": "has_zmp 内置函数"
+      }
+    },
+    "hash": {
+      "sourceSha256": "f5b60db71f7b25b2a96dbd8ab918a4035c3fb5b24bf273046ebe63a4e1170fc6",
+      "fields": {
+        "summary": "返回字符串 `str` 通过 `algo` 算法的哈希值，算法 `algo` 可以是 md4 md5 sha1 sha224 sha256 sha384 sha512 ripemd160\n\n   这是 FLUFFOS 新增的外部函数，需要在编译驱动时启用 PACKAGE_CRYPTO 。",
+        "details": "示例\nhash(\"md4\", \"Something\")        =   \"abc554cae9acd8f168101954383335df\"\n   hash(\"md5\", \"Something\")        =   \"73f9977556584a369800e775b48f3dbe\"\n   hash(\"ripemd160\", \"Something\")  =   ...40 characters...\n   hash(\"sha1\", \"Something\")       =   ...40 characters...\n   hash(\"sha224\", \"Something\")     =   ...56 characters...\n   hash(\"sha256\", \"Something\")     =   ...64 characters...\n   hash(\"sha384\", \"Something\")     =   ...96 characters...\n   hash(\"sha512\", \"Something\")     =   ...128 characters..."
+      }
+    },
+    "heart_beats": {
+      "sourceSha256": "82a4279f75e762a753b6a51707661fea92cf5ad1b8fd4dee36910f07a43563df",
+      "fields": {
+        "summary": "返回游戏中所有有心跳对象的数组。"
+      }
+    },
+    "http_build_response": {
+      "sourceSha256": "8b220b8f9baad063b18d6c517f97f443eebc86937c3c0282aa3bebdb8ec75524",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "根据 HTTP 状态码、响应头 mapping 和正文内容构造完整 HTTP 响应字符串。"
+      }
+    },
+    "http_decode_form": {
+      "sourceSha256": "d5dbac5e46f24b095401cf3c3cd2abebb5f94757abae972745f597d5cf175d70",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "解析表单编码的请求体字符串并返回键值 mapping。"
+      }
+    },
+    "http_decode_query": {
+      "sourceSha256": "4e756ca69c8aaf29da4dde2148b43e71a66b84733f2dab227ad35b4f80552e39",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "解析 URL query 字符串并返回键值 mapping，适用于处理 HTTP 请求参数。"
+      }
+    },
+    "http_parser_close": {
+      "sourceSha256": "170180a49e95e3ce00dabe778e46934289ab8b683a551a58be6eabad996c5f47",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "关闭并释放由 http_parser_create 创建的 HTTP 请求解析器状态。"
+      }
+    },
+    "http_parser_create": {
+      "sourceSha256": "d5298a34445fe272cf4ac1a3b328bf9cbe5965615d254d6b411483143cebcade",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "创建一个 HTTP 请求解析器状态对象，用于分段解析 HTTP 请求数据。"
+      }
+    },
+    "http_parser_feed": {
+      "sourceSha256": "ecdbfc1057ff4f6b3dcf81ae93a4f5a9e43947acab49181c171991e304e00702",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "向 HTTP 请求解析器输入一段请求数据，返回当前可解析出的请求行、头部或正文信息。"
+      }
+    },
+    "http_response_parser_close": {
+      "sourceSha256": "3dbd89fa93bd28533c325c96f51b8e77b397bb861d2338167eaf8d9293ce70d2",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "关闭并释放由 http_response_parser_create 创建的 HTTP 响应解析器状态。"
+      }
+    },
+    "http_response_parser_create": {
+      "sourceSha256": "35d40eab9a5bd01f75750c0063c6d675bfc714e19cc4533ef6a146208f4fbda5",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "创建一个 HTTP 响应解析器状态对象，用于分段解析 HTTP 响应数据。"
+      }
+    },
+    "http_response_parser_feed": {
+      "sourceSha256": "c89472e6ff860ae9a1ab187caf4c16c057a7553badb16bac2e189bf4d987b1d4",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "向 HTTP 响应解析器输入一段响应数据，返回当前可解析出的响应状态、头部或正文信息。"
+      }
+    },
+    "id_matrix": {
+      "sourceSha256": "955463322826a84a6af0f191d44d4327f4dffa192ae93649860dcf3dfdf4b3b4",
+      "fields": {
+        "summary": "id_matrix 内置函数"
+      }
+    },
+    "implode": {
+      "sourceSha256": "694bc7825cd73b57066ae7941e4b244078a04675e342e5f0ca2c0de52680c24c",
+      "fields": {
+        "summary": "第一种模式下，使用字符串 `del` 连接数组 `arr` 中的每个字符串并返回合并后的字符串。数组中仅字符串类型的数据会被处理，非字符串类型的元素会被忽略。\n   第二种模式下，数组不限于字符串类型，会把参数`x`或函数`func`的返回值做第1个参数，数组元素做第2个参数传给函数处理并以返回值为结果继续循环至数组最后一个元素。"
+      }
+    },
+    "in_edit": {
+      "sourceSha256": "a507d0a313ed8e6c77b331cbeb3fcf4200f87c255eb8a968b21b8790ae4d516f",
+      "fields": {
+        "summary": "检查是否在编辑状态",
+        "details": "NAME\nin_edit() - determine if a player is in the editor\n\nSYNOPSIS\nstring in_edit( object default : F_THIS_OBJECT );\n\nDESCRIPTION\nIf  the  given  object  is  in  the  editor,  the  file being edited is\n   returned, else zero.\n\nSEE ALSO\ned(3), in_input(3)"
+      }
+    },
+    "in_input": {
+      "sourceSha256": "45f80a40322906e40f537590e36478c09cfcd9cab419e3b538aa670ae4fb1e2c",
+      "fields": {
+        "summary": "检查是否在输入状态",
+        "details": "NAME\nin_input() - determines if a player is inputting to an input_to\n\nSYNOPSIS\nint in_input( object default : F_THIS_OBJECT );\n\nDESCRIPTION\nReturns  1  if  the  object  is  currently  inputting to an input_to or\n   get_char.\n\nSEE ALSO\nget_char(3), input_to(3)"
+      }
+    },
+    "inherit_list": {
+      "sourceSha256": "bbf4fc2f2737a4a4c0ca6eba9f54533af1c5b7b1fce908de732b439cb990ede0",
+      "fields": {
+        "summary": "返回对象 `obj` 继承的对象的文件名数组，仅仅返回直接继承的对象，如：A 继承 B，B 继承 C，inherit_list(A) 返回的数组中只有 B 没有 C。\n\n   inherit_list() 是 shallow_inherit_list() 的别名。"
+      }
+    },
+    "inherits": {
+      "sourceSha256": "df9fd3108ea788a2c07c8f62f374c65cfe7e7caa688cea2e651a697c859740c6",
+      "fields": {
+        "summary": "如果 `ob` 没有继承 `file` inherits() 返回 0，如果继承最新版 `file` 返回 1，如果继承旧版本 `file` 返回 2，如果不指定参数`ob`，默认为this_object()。"
+      }
+    },
+    "input_to": {
+      "sourceSha256": "abecc2a43f2929bee1d2d57076f7f440ec2abfb22016013e748726fa1f79eccd",
+      "fields": {
+        "summary": "把玩家接下来输入的内容做为参数传给局部函数 `fun`。驱动程序不会解析（parse）输入的字符。\n\n   请注意： input_to() 是非阻塞式监听，也就是说呼叫 input_to() 的对象不会暂停下来等待用户输入，而是继续执行后续程序。\n\n   如果在同一次执行时多次调用 input_to()，仅第一次呼叫有效。\n\n   如果可选参数 `flag` 非零，用户输入的字符不会回显，在被窃听(snoop)时也不会显示（这在输入密码时很有用）。\n\n   函数 `fun` 执行时用户输入的字符会做为第一个参数（字符串类型），input_to() 函数 `flag` 之后的参数会做为额外参数传递给 `fun`。\n\n   说明：这个外部函数的用法和 get_char() 外部函数及其类似，只是获取的输入从单个字符改为字符串。"
+      }
+    },
+    "interactive": {
+      "sourceSha256": "4084172913a95654a18ef2a716c17af4b0c66d0a9aa5126ee152dd6357c4679b",
+      "fields": {
+        "summary": "如果 `ob` 是在线玩家返回非零值，如果是断线玩家或非玩家对象返回 0。"
+      }
+    },
+    "intp": {
+      "sourceSha256": "ddb803bf88ac47668f1a401d218cf03ce92729866bbd62361ea20be1d704d415",
+      "fields": {
+        "summary": "如果变量 `arg` 是整型返回1，否则返回0。"
+      }
+    },
+    "is_daylight_savings_time": {
+      "sourceSha256": "b702656614669b2a88ca0daf709681a2848e43a684e6fdaa52ebb2c222c56e20",
+      "fields": {
+        "summary": "is_daylight_savings_time 内置函数",
+        "details": "NAME\nis_daylight_savings_time\n\nSYNOPSIS\nint is_daylight_savings_time(string, int);\n\nDESCRIPTION\nreturns 1 if given time in given timezone is within daylight saving region\n   0 if not and -1 on error"
+      }
+    },
+    "json_decode": {
+      "sourceSha256": "fd8954211c71eebcbf3c4abcbaf371fdba66cd03e019ebad4de74727feeee479",
+      "fields": {
+        "summary": "将 JSON 字符串解码为 LPC 值。"
+      }
+    },
+    "json_encode": {
+      "sourceSha256": "8eb81a17d65b4a4c4d3f28509b56be465bc8fd9cc678f0e40ef3659365908e1a",
+      "fields": {
+        "summary": "FluffOS json package efun.",
+        "details": "将 LPC 值编码为 JSON 字符串。适用于把 mapping、array、字符串、数字等可表示值输出为 JSON。"
+      }
+    },
+    "json_format": {
+      "sourceSha256": "1a2467dd7caed9ba4cb3b62e9eba4ca4990937c823109fe21903dd6dc996da39",
+      "fields": {
+        "summary": "FluffOS json package efun.",
+        "details": "格式化 JSON 字符串，返回更易阅读的文本。可选整数参数用于控制缩进或格式化选项。"
+      }
+    },
+    "keys": {
+      "sourceSha256": "fb35258da9f9931c43ef4db63ecb7c8a5778878f782f48dd615d5ed31fb42433",
+      "fields": {
+        "summary": "keys() 返回一个包括映射 `m` 的所有索引（key）的数组。\n\n   示例，如果:\n\n   mapping m;\n   m = ([\"hp\" : 35, \"sp\" : 42, \"mass\" : 100]);\n\n   那么\n\n   keys(m) == ({\"hp\", \"sp\", \"mass\"})\n\n   注意：返回的 key 并不会有固定的顺序，不过其顺序和 values() 外部函数返回的值顺序相同。"
+      }
+    },
+    "link": {
+      "sourceSha256": "08a86988c16a6c8b304fd6e4ff39a1583ebe65367ad5db3c3e612cdca9624af0",
+      "fields": {
+        "summary": "创建一个从 `reference` 到 `original` 的链接。这个外部函数会触发主控对象调用 valid_link(original, reference) 方法，如果 valid_link() 返回 0，link() 会失败，如果 valid_link() 返回 1，当和 link() 使用相当参数的 rename() 外部函数执行成功时 link() 成功并返回 1。\n\n   注意：这个外部函数创建的是硬链接不是软链接（符号链接）。"
+      }
+    },
+    "living": {
+      "sourceSha256": "6c50494ea08f9b12450795016ede831d85717c3e2687c2f1286fe239759ee244",
+      "fields": {
+        "summary": "如果对象 `ob` 是活的（living）返回 1。关于 living 的定义：如果一个对象呼叫了 `enable_commands()` 外部函数，这个对象就活了。如果不指定参数，默认为this_object()。"
+      }
+    },
+    "livings": {
+      "sourceSha256": "6114c39043e847e692a0cdcfc0ca0083e69a4c336a080b430c8a7a53ce43a267",
+      "fields": {
+        "summary": "返回一个包括所有活着的对象指针的数组。关于什么对象算活的请看 living() 外部函数中的说明。"
+      }
+    },
+    "load_object": {
+      "sourceSha256": "75c7f69cf617ef0f81743dda018ff55021358a88a76b88510001a9cd81febe38",
+      "fields": {
+        "summary": "通过文件名 `str` 查找游戏对象并返回对象指针，如果文件存在但对象未载入，载入并返回对象指针。如果对象不存在，返回 0。此函数相当于find_object(str, 1)。"
+      }
+    },
+    "localtime": {
+      "sourceSha256": "010ff98764f640412246d2373c98a6c404fa61488ce5f9194dee07efe7a95d9f",
+      "fields": {
+        "summary": "localtime() 转换时间戳（使用 time() 外部函数返回）为一个代表本地时间的数组。数组的格式如下：\n\n   ({秒, 分, 时, 日, 月, 年, 星期, 天, 时差, 时区, 夏令时})\n\n   数组下标索引定义在驱动程序头文件 <localtime.h> 中，具体如下：\n\n#ifndef _LOCALTIME_H\n#define _LOCALTIME_H\n\n#define LT_SEC 0        // Seconds after the minute (0..59)\n#define LT_MIN 1        // Minutes after the hour (0..59)\n#define LT_HOUR 2       // Hour since midnight (0..23)\n#define LT_MDAY 3       // Day of the month (1..31)\n#define LT_MON 4        // Months since January (0..11)\n#define LT_YEAR 5       // Year (guarenteed to be >= 1900)\n#define LT_WDAY 6       // Days since Sunday (0..6)\n#define LT_YDAY 7       // Days since January 1 (0..365)\n#define LT_GMTOFF 8     // Seconds after GMT (UTC)\n#define LT_ZONE 9       // Timezone name\n#define LT_ISDST 10     // Is Daylight Saving Time?(0 || 1)\n\n#endif\n\n各字段类型和说明如下：\n   int LT_SEC      秒数 (0..59)\n   int LT_MIN      分钟 (0..59)\n   int LT_HOUR     小时 (0..23)\n   int LT_MDAY     日期 (1..31)\n   int LT_MON      几月 (0..11)\n   int LT_YEAR     年份 (必須大於 1900)\n   int LT_WDAY     星期几 (0..6)\n   int LT_YDAY     一年中的第几天 (0..365)\n   int LT_GMTOFF   格林威治时间相差的秒数 (UTC)\n   string LT_ZONE  本地时区名\n   int LT_ISDST    是否夏令时",
+        "details": "注意\nmudos下localtime时间上限是2038年1月19日11时14分7秒，时间戳最大值是2147483647（2**31-1），超上限后重新从1970年1月1月0时0分0秒开始（北京时间为从1970年1月1月8时0分0秒开始）。\n\n   fluffos v2017下localtime时间上限是2147483647年12月31日23时59分59秒，时间戳最大值是67767976233503999，超过上限后返回0。\n\n   fluffos v2019下localtime时间上限和操作系统相关，windows系统是3001年1月1日15时59分59秒，时间戳最大值是32535244799，超上限后返回0。ubuntu系统下localtime时间上限是2147483647年12月31日23时59分59秒，时间戳最大值是67767976233503999，超过上限后返回溢出为从-2147483648年1月1日0时0分0秒开始，继续超出67768036191647999后返回0。"
+      }
+    },
+    "log": {
+      "sourceSha256": "983c3ecb929bdbb9a33147367446526917799696bbdcdc23ea67bc3d25e02154",
+      "fields": {
+        "summary": "Returns the natural logarithm of its argument, 'f'. 'f' must be positive."
+      }
+    },
+    "log10": {
+      "sourceSha256": "10be5a7a0806429f7bf52c644e6dac32b73be1bd772f544649dcbb32355a4d91",
+      "fields": {
+        "summary": "计算以10为底的对数"
+      }
+    },
+    "log2": {
+      "sourceSha256": "8fa915e7ad64a8ac83581fc0bcf0c442330ae01fa288826368be9cc15702e692",
+      "fields": {
+        "summary": "计算以2为底的对数"
+      }
+    },
+    "lookat_rotate": {
+      "sourceSha256": "dedeac836bc00710658805a6b1cfbea94ec216b857bdfb7f5ccf68965c508d17",
+      "fields": {
+        "summary": "lookat_rotate 内置函数"
+      }
+    },
+    "lookat_rotate2": {
+      "sourceSha256": "245d3aedb053b141652ef3532ce6402f3bf57c14665ac0e088ae924145a7c816",
+      "fields": {
+        "summary": "lookat_rotate2 内置函数"
+      }
+    },
+    "lower_case": {
+      "sourceSha256": "3766c300ae4719ae1a0d6e6fa1adffa667538111784e32522ecc22bbe89b4e96",
+      "fields": {
+        "summary": "返回字符串的小写形式（本来是小写的不会改变）"
+      }
+    },
+    "ltrim": {
+      "sourceSha256": "9fd7b9a06fdd9958f94c9bb7c3156c1041d3ed19ebababf278d2d8d5283ea3a3",
+      "fields": {
+        "summary": "移除字符串左侧的空白字符或其他预定义字符。\n\n   这是 FLUFFOS 新增的外部函数，在 MUDOS 中请用模拟外部函数实现。"
+      }
+    },
+    "malloc_status": {
+      "sourceSha256": "55fa97358443d69fb4e0502464f479a19d3a1885735ff97d37c3b66de0f822c8",
+      "fields": {
+        "summary": "malloc_status 内置函数",
+        "details": "NAME\nmalloc_status() - report various statistics related to memory usage.\n\nSYNOPSIS\nstring malloc_status();\n\nDESCRIPTION\nThis  function  writes  memory usage statistics to the caller's screen.\n   This function replaces the hardcoded 'malloc' command in vanilla 3.1.2.\n   Note  that  the  output  produced by malloc_status() depends upon which\n   memory management package is chosen  in  options.h  when  building  the\n   driver.\n\nSEE ALSO\nmud_status(3), dumpallobj(3), memory_info(3)"
+      }
+    },
+    "map": {
+      "sourceSha256": "a03f67505454d4a1264f2e797218aea7963bdc5efc56393b2055621fd4c06ddb",
+      "fields": {
+        "summary": "如果第一个参数是一个映射，map() 的作用和 map_mapping() 一样。如果第一个参数是数组，map() 的作用和 map_array() 一样。如果第一个参数是字符串，map() 把字符串的每个字符转为整数传给处理函数，如果函数返回值为是非0整数，会转成字符替换原来的字符，如果是0保持不变。"
+      }
+    },
+    "map_array": {
+      "sourceSha256": "fa9622e49dd9d2dc153a47539bd576c4161994959233e3922004f4ef42570df3",
+      "fields": {
+        "summary": "返回由数组 `arr` 中的元素经过对象 `ob` 中的方法 `fun` 或函数指针 `f` 处理后的元素组成的新数组。如果有额外参数 `extra`，也会做为参数传递给处理函数。主要功能：\n\n   foreach (index) arr[index] = ob->fun(arr[index],extra);\n\n   此函数本质上就是限制参数为mixed *arr类型的map()函数。"
+      }
+    },
+    "map_delete": {
+      "sourceSha256": "03e2e8ee3a9e2e49d0781c77cc387c3380afbdd06e28b18c9d512b509679151a",
+      "fields": {
+        "summary": "map_delete 从映射 `m` 中移除 key 为 `element` 的键值对(key:value)。\n\n   示例，给定：\n\n   mapping names;\n\n   names = ([]);\n   names[\"truilkan\"] = \"john\";\n   names[\"wayfarer\"] = \"erik\";\n   names[\"jacques\"] = \"dwayne\";\n\n   那么：\n\n   map_delete(names,\"truilkan\");\n\n   导致映射 `names` 的结果为：\n\n   ([\"wayfarer\" : \"erik\", \"jacques\" : \"dwayne\"])\n\n   在 map_delete(names, \"truilkan\") 后映射 `names` 中不再包括 `truilkan`，除非再被加回去。"
+      }
+    },
+    "map_mapping": {
+      "sourceSha256": "4b8ce3c922919ebf67adbe7152873642a06215216ce1e05db7ad5601baf999a4",
+      "fields": {
+        "summary": "返回一个和映射 `map` 键相同但值为由 `ob->fun()` 或函数指针 `f` 处理后的返回值构成的新映射。映射的每一组元素的键和值都会作为参数呼叫处理函数，处理函数形式参数如： fun(mixed key, mixed value, mixed extra,...);\n\n   此函数本质上就是限制参数为mapping类型的map()函数。"
+      }
+    },
+    "mapp": {
+      "sourceSha256": "d6384d0bf81b36da73ce856bd328c15b9b8fbcb7d27a1259a5d55388907c12f6",
+      "fields": {
+        "summary": "如果变量 `arg` 是映射类型返回 1。"
+      }
+    },
+    "mapping_origin_stats": {
+      "sourceSha256": "a5bb335c7fed295113e651cb3ac31e2797d5095fce31cffedda56ab6464e47fb",
+      "fields": {
+        "summary": "mapping_origin_stats() 返回按分配来源（mapping origin）归因的映射（mapping）分配统计信息。该外部函数仅在驱动程序编译时开启了映射来源跟踪时有效。\n\n   返回的映射以来源名称（通常是分配映射的对象/文件）为键，对应的值为包含 mapping_count（该来源累计分配的映射数量）等字段的映射；如果没有可用的统计信息则返回 0。\n\n   与 domain_stats()、author_stats() 类似，但按映射分配来源进行归因，而不是按域或作者。"
+      }
+    },
+    "master": {
+      "sourceSha256": "e8d1c4226fefe4f49fddaa53591e2626404e68d92d50b473a7ee0d54e73c56b1",
+      "fields": {
+        "summary": "返回主控对象指针，游戏运行时配置文件中的 `master file` 设置指定主控对象文件位置。"
+      }
+    },
+    "match_path": {
+      "sourceSha256": "5e9ac2d80bd6606ba72256944e751a83f0dc3df34b31c62cb28465290ab40c47",
+      "fields": {
+        "summary": "match_path 内置函数",
+        "details": "NAME\nmatch_path() - search a mapping for a path\n\nSYNOPSIS\nmixed match_path( mapping m, string str );\n\nDESCRIPTION\nmatch_path()  searches a mapping for a path.  Each key is assumed to be a string.  The value is  completely  arbitrary.   The  efun  finds the largest matching path in the mapping.  Keys ended in '/' are assumed to match paths with character that follow the '/', i.e. / is  a wildcard for anything below this directory.\n\n示例\nvoid do_tests()\n   {\n       mapping m = ([\"foo/\":1, \"bar\":2, \"bazz/foo\":3, \"foo/bar/bazz\":4]);\n\n       ASSERT(!match_path(m, \"kajdfj\"));\n       ASSERT(match_path(m, \"bar\") == 2);\n       ASSERT(match_path(m, \"bar/\") == 2);\n       ASSERT(match_path(m, \"bazz//foo\") == 3);\n       ASSERT(match_path(m, \"bazz/foo//\") == 3);\n       ASSERT(match_path(m, \"foo/bar\") == 1);\n       ASSERT(match_path(m, \"foo/bar/bazz\") == 4);\n   }\n\nAUTHOR\nCygnus"
+      }
+    },
+    "max": {
+      "sourceSha256": "8216634e8ab3318af08dd8595845e701668e1b794c242bb95221005fbb0e701b",
+      "fields": {
+        "summary": "FluffOS 1.33新增efun，在数组 `arr` (int|float|string) 中查找最大值，如果参数 `flag` 缺省或值为 0，函数返回最大值，否则返回第一个最大值的索引。"
+      }
+    },
+    "max_eval_cost": {
+      "sourceSha256": "cf9c210fe6ee292246068a6c9c1ea449aa3752a9e211cad9c0f2828ad78913f9",
+      "fields": {
+        "summary": "max_eval_cost() returns the number of instructions that can be executed before the driver decides it is in an infinite loop.\n\n   此函数相当于set_eval_limit(int default: 1);"
+      }
+    },
+    "member_array": {
+      "sourceSha256": "b45b0d0d3c075381c2dc870a3878cff5e1b25054a05f29d3e536ab0ac8003e9c",
+      "fields": {
+        "summary": "返回 `item` 在 数组或字符串 `arr` 中首次出现的位置，如果指定起始位置 `start`，则从指定位置之后开始查询，如果没有找到则返回 -1。\n\n   Note, if the second argument is a string, the first parameter must be an int representing the character you are looking for in the provided string.",
+        "details": "示例\n{\n    member_array( \"red\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) ) ;\n    // 0\n\n    member_array( \"red\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) , 1) ;\n    // 2\n\n    member_array( \"blue\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) , 3) ;\n    // -1\n\n    member_array( \"purple\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) ) ;\n    // -1\n\n    member_array('F', \"Drink the FluffOS Kool-Aid!\") ;\n    // 10\n\n    member_array('Z', \"Drink the FluffOS Kool-Aid!\") ;\n    // -1\n}"
+      }
+    },
+    "memory_info": {
+      "sourceSha256": "073041d4171071953de27f3725aabdd688e65fe63f9542aed4fa06791d57e477",
+      "fields": {
+        "summary": "如果指定参数 `ob` ，memory_info() 返回对象 `ob` 的内存占用量，如果不指定参数，memory_info() 返回所有对象的内存占用量。请注意，返回值为近似值，MUD 的内存占用量并不完全等于系统分配给 MUD 的内存。"
+      }
+    },
+    "memory_summary": {
+      "sourceSha256": "fb2e03f60ea1a7551df36b2c2024a34da62896a54b2e498579027d3d6da42968",
+      "fields": {
+        "summary": "返回游戏中载入的所有对象的全局变量占用的内存情况。"
+      }
+    },
+    "message": {
+      "sourceSha256": "907a0d0bca421e4bdc298608b41f9133c456d925b8a3e81f14958d15af95630d",
+      "fields": {
+        "summary": "message() 呼叫 target 参数列表中除 exclude 参数列表以外的所有对象的 receive_message(mixed class, string message) 方法，通过此方法向对象发送消息。\n\n   参数 `class` 是消息的类型（用于客户端消息处理），例如：`combat`，`shout`, `emergency`等。\n\n   参数 `message` 是需要发送的消息字符串。\n\n   参数 `target` 是需要接收消息的对象列表，此参数数据类型既可以是单一对象字符串或者对象指针，也可以是一个对象数组。如果对象是非活着的，那么在此对象环境中的所有对象都会收到信息。\n\n   可选参数 `exclude` 是不需要接收消息的对象列表，此参数数据类型可以是对象或对象数组。"
+      }
+    },
+    "min": {
+      "sourceSha256": "ea061b7b30021b574118181fa82647cfc2a9dd96b977c7aad91906ffa790deaa",
+      "fields": {
+        "summary": "FluffOS 1.33新增efun，寻找数组 `arr` (int|float|string) 中的最小值，如果参数 `flag` 缺省或值为 0，函数返回最小值，否则返回第一个最小值的索引。"
+      }
+    },
+    "mkdir": {
+      "sourceSha256": "a0f734d79de6c80b7870a92fec86a0835fa6df680589848196d0140252a31826",
+      "fields": {
+        "summary": "创建目录 `directory`，成功返回 1，失败返回 0 。"
+      }
+    },
+    "moncontrol": {
+      "sourceSha256": "4e12c194f0c285451272a8ec3a7fc371c5f2eb60362e70dcff214121e1fceab0",
+      "fields": {
+        "summary": "FluffOS develop package efun.",
+        "details": "开启或关闭 driver profiling 采样控制，主要用于性能分析和开发调试。"
+      }
+    },
+    "move_object": {
+      "sourceSha256": "dffef85980e00d0b545136e7ad4b8ad4717a8f05f803c2f464737790c6ea23dc",
+      "fields": {
+        "summary": "移动当前对象到环境 `dest`，移动后会触发当前对象和目标环境及其中对象的 init() 方法。"
+      }
+    },
+    "mud_status": {
+      "sourceSha256": "4de6375a7fd2e4852039d70857d2ce4caf6cc6d70e5a24fedefa3c566cb10036",
+      "fields": {
+        "summary": "这个外部函数返回驱动程序和 mudlib 的统计信息。如果不指定参数，`extra`默认值为0，如果参数 `extra` 不为零，会输出更多附加信息。"
+      }
+    },
+    "named_livings": {
+      "sourceSha256": "91a2732fe8c20e2536b1b4d6888f8075a329b44ff8b3b425230b430e05dbe03f",
+      "fields": {
+        "summary": "返回一个包括游戏中所有呼叫过 enable_commands() 和 set_living_name() 外部函数的对象的数组。"
+      }
+    },
+    "network_stats": {
+      "sourceSha256": "16d918744a8555dae0b3e719a4ad6714e1ae75dbc9621b0cfd53e8d6bbe9958c",
+      "fields": {
+        "summary": "返回网络相关数据统计的映射，内容如下：\n\n   - incoming packets total : int\n   - incoming volume total : int\n   - outgoing packets total : int\n   - outgoing volume total : int\n\n   - incoming packets port X : int\n   - incoming volume port X : int\n   - outgoing packets port X : int\n   - outgoing volume port X : int\n\n   如果驱动编译时定义了 PACKAGE_SOCKETS，还会有以下内容：\n\n   - incoming packets sockets : int\n   - incoming volume sockets : int\n   - outgoing packets sockets : int\n   - outgoing volume sockets : int\n\n   这是 FLUFFOS 新增的外部函数，要求驱动程序编译时定义了 PACKAGE_CONTRIB 包。"
+      }
+    },
+    "new": {
+      "sourceSha256": "b3bbf88754dfb3aae0583f075394a8f3079bddaabb228321f9d8e7e22f22ce1d",
+      "fields": {
+        "summary": "第一种用法和 clone_object() 完全一样，注意：clone_object() 是 new() 的别名。\n\n   第二种用法用于初始化一个结构体类型（struct | class）的变量。示例如下：\n\n   class example {\n       string name;\n       int age;\n       string *lover;\n   }\n\n   void create()\n   {\n       // 变量\n       class example instance = new(class example);\n       // 赋值\n       instance->age = 24;\n       instance->name = \"Ivy\";\n       instance->lover = ({\"Alice\", \"Vivian\", \"lucy\"});\n       // ...\n   }\n\n   在结构体变量初始化时也可以直接传值，如：\n       class example instance = new(class exaample, name:\"ivy\", age:24, lover:({\"Alice\",\"Vivian\"}))"
+      }
+    },
+    "next_bit": {
+      "sourceSha256": "2dbf745ae044de79c89c1018913eefc11adde80b53d6fec6ed7b2d09cde497da",
+      "fields": {
+        "summary": "next_bit 内置函数"
+      }
+    },
+    "next_inventory": {
+      "sourceSha256": "50c7fd0c4146c3b5fc5e428a94753a053cce16c2a5e80387e22ead22c3ae9be9",
+      "fields": {
+        "summary": "返回和对象 `ob` 环境相同的后一个对象。如果没有指定参数 `ob`，默认是 this_object()。\n\n   先进入环境的对象顺序靠后，所以 next_inventory() 取得的是比指定对象先进入环境的对象，如果指定对象是第一个进入环境，哪怕环境中有其它对象进入返回值也是 0。"
+      }
+    },
+    "norm": {
+      "sourceSha256": "a2615b50a363991d6e1d392d8ffb63f6da13b5d0f1e61b3bc52c68a1a5bae04d",
+      "fields": {
+        "summary": "计算向量范数"
+      }
+    },
+    "notify_fail": {
+      "sourceSha256": "66a60cf0e04e5b7185fe2310fb252f1825450ac7d3e821cd53e83a315efbf314",
+      "fields": {
+        "summary": "取代通过 add_action() 外部函数设置的默认错误消息，将 `str` 存为要返回的错误消息。这是一种比较好的显示错误消息的方式，因为这个函数允许其它对象继续响应这个指令。请不要使用 write() 显示错误消息，因为这样做会要求函数返回 1，除非你想在 write() 返回的消息后看到运行时配置文件中设置的 `default fail message`，而如果直接返回 1，又会让其它对象失去了响应这个指令的机会。\n\n   如果参数使用函数指针，会调用这个函数，如果函数返回一个字符串，这个字符串会做为指令执行失败的消息。只要正确的设置 this_player()，在函数中也可以使用 write()。\n\n   如果 notify_fail() 调用多次，仅最后一次呼叫有效。\n\n   这个函数可以在指令执行失败时传回更友好的错误提示。",
+        "details": "示例\n在指令中通过notify_fail()设置失败提示，并在return 0;后触发。\n\nint main(object me, string arg)\n{\n    notify_fail(\"这里是指令执行失败的提示……\");\n    return 0;\n}\n\n以下是推荐方式：\n\nint main(object me, string arg)\n{\n    return notify_fail(\"这里是指令执行失败的提示……\");\n}\n\nReturn semantics:\nnotify_fail() 永远返回 0。"
+      }
+    },
+    "nullp": {
+      "sourceSha256": "2f0ca614f950a2b4242d552a55df6cf630d05bd85bbabe02c63dc0f74f375215",
+      "fields": {
+        "summary": "如果变量 'arg' 是空值（null）返回 1。 'arg' 在以下几种情况为 null:\n\n  1. 变量没有初始化。\n  2. 变量是函数的形式参数，但在调用时没有传递实参。\n  3. 变量是映射变量中不存在的元素。(如： arg = map[not_there])\n  4. 变量是 call_other() 外部函数呼叫对象中不存在的函数的返回值(如： arg = call_other(obj, \"???\"))\n  5. 变量指向（array/class/mapping）中被销毁的对象元素。\n\n   本质上 nullp() 是 undefinedp() 的别名。\n\n   fluffos v2019.20220507-11版本以后可以判断class中未赋值的变量。"
+      }
+    },
+    "num_classes": {
+      "sourceSha256": "d1f8bb222dcc1b388f2622440ebb3b8fe0fa10b89774a27911b0df4b54c28151",
+      "fields": {
+        "summary": "FluffOS 1.33新增efun，此外部函数对象 `ob` 中定义的 class 类型变量的数量。"
+      }
+    },
+    "objectp": {
+      "sourceSha256": "e69bb471be6b394a0e1293799deba64a4fe4c4b2988e625a2df0cab05a35c14b",
+      "fields": {
+        "summary": "如果 `arg` 是对象，返回 1。"
+      }
+    },
+    "objects": {
+      "sourceSha256": "c3eab65381389b9307259bf5659022010003fbaead13625b9603a41f71646d04",
+      "fields": {
+        "summary": "返回 MUD 游戏中加载的所有对象的数组。请注意，如果系统设置的数组大小最大值太小，objects() 返回的数组会被截断到允许的最大值，这种情况下，返回值也没什么用处了。\n\n   如果指定可选参数 `func`，所有已加载的对象都会作为参数呼叫当前对象中的 func()，函数返回值为 0 的对象会被过滤掉。\n\n   第三种用法和第二种类似，只是参数改为函数指针。如：objects( (: clonep :) ) 返回游戏中所有复制对象的列表。"
+      }
+    },
+    "oldcrypt": {
+      "sourceSha256": "c083f083887b44321c4bee66888ad7227228a3e4937b3a325c72962604aeec63",
+      "fields": {
+        "summary": "以字符串 `seed` 为种子加密字符串 `str`，如果 `seed` 是 0，使用随机种子。\n\n   如果以字符串 `str` 加密后的字符串做为种子继续对字符串 `str` 加密，返回字符串还是这个种子。",
+        "details": "示例\n用 oldcrypt() 函数验证密码的示例：\n\n   string crypt_pwd = oldcrypt(pwd, 0);\n   if (oldcrypt(pwd, crypt_pwd) == crypt_pwd)\n   {\n       // ...\n   }"
+      }
+    },
+    "opcprof": {
+      "sourceSha256": "f868c526ec506782684f53502ececeac5ea5ff07681dca4f4b69b57d631bb103",
+      "fields": {
+        "summary": "注意：需要驱动程序编译时 #define OPCPROF，FluffOS v2017 和 v2019 已移除这个外部函数。\n\n   This function dumps a list of statistics on each efunction and eoperator. If no argument is specified, then the information will be dumped to files named /OPCPROF.efun and /OPCPROF.eoper. If an argument is specified, then that name is used as the filename for the dump."
+      }
+    },
+    "origin": {
+      "sourceSha256": "72430ddbd5a3c07b8987d2f93b657d54701aa3591f0ee98ff59d91879aed188a",
+      "fields": {
+        "summary": "返回一个表示当前函数的调用方式的字符串，具体定义可以驱动源码的 `include/origin.h` 头文件中找到：\n\n/* codes returned by the origin() efun */\n\n#define ORIGIN_BACKEND \"driver\" /* backwards compat */\n#define ORIGIN_DRIVER \"driver\"\n#define ORIGIN_LOCAL \"local\"\n#define ORIGIN_CALL_OTHER \"call_other\"\n#define ORIGIN_SIMUL_EFUN \"simul\"\n#define ORIGIN_INTERNAL \"internal\"\n#define ORIGIN_EFUN \"efun\"\n/* pseudo frames for call_other function pointers and efun pointer */\n#define ORIGIN_FUNCTION_POINTER \"function_pointer\"\n/* anonymous functions */\n#define ORIGIN_FUNCTIONAL \"functional\""
+      }
+    },
+    "parse_add_rule": {
+      "sourceSha256": "ea60549edc0e2173bed8b8ac63c7db45c82e5efc9176dbcc3b03535a28d58c67",
+      "fields": {
+        "summary": "Here \"verb\" is the command word (e.g. \"look\", \"read\" etc), The \"rule\" is the parsing rule to add. Rules are made up from two parts - tokens, and prepositions. Tokens are used to match various objects or strings, and prepositions are fixed positional words to specify meaning (like \"with\" or \"in\").\n\n   The MudOS accepts six tokens that I'm aware of:\n\n   OBJ - matches a single object\n   OBS - matches one or more objects\n   LIV - matches a single, living object\n   LVS - matches one or more living objects\n   WRD - matches a single word\n   STR - matches one or more words"
+      }
+    },
+    "parse_add_synonym": {
+      "sourceSha256": "65e33739e35f8431590611512f395202ef58ee4d2ddb5404104822f0c860fcc1",
+      "fields": {
+        "summary": "parse_add_synonym 内置函数"
+      }
+    },
+    "parse_command": {
+      "sourceSha256": "12836f3ad7950615b2aac581a7641dd510b6d0485a9df236261609fc5ef063be",
+      "fields": {
+        "summary": "尝试用给定模式匹配命令字符串。FluffOS 将 parse_command 作为编译器 operator 处理，前三个参数为必填，后续目标变量为变参。"
+      }
+    },
+    "parse_dump": {
+      "sourceSha256": "4c046e01450e9f355f5307c72a819c96779a91eb451d3615052f17851d5cbfa7",
+      "fields": {
+        "summary": "parse_dump 内置函数"
+      }
+    },
+    "parse_init": {
+      "sourceSha256": "1b3a24e9af1b64b65c79c9a6d8592449e3b6130f0fb35acc241488c758f31f67",
+      "fields": {
+        "summary": "The efun parse_init() is used to tell MudOS that this object is one that may use or be used by the parsing package. If your object does not call this then trying to use other parsing efuns will generate a runtime error and the parser will ignore the object when searching for matches. Suggest call parse_init() from create() in the standard object."
+      }
+    },
+    "parse_my_rules": {
+      "sourceSha256": "31f837cba38af27cb24dde80adedf3550599fca8bedb354b9aaf44db0b7a48dc",
+      "fields": {
+        "summary": "parse_my_rules 内置函数"
+      }
+    },
+    "parse_refresh": {
+      "sourceSha256": "1e82b62a8551498cd5d806eafe25128400ca7f3eb260e6a276244f330ca80c8f",
+      "fields": {
+        "summary": "The parsing package caches information about objects in order to improve performance. This means that if any information that gets cached is changed, you need to tell MudOS to clear the cache. That's what this efun does. If the information returned by any of the applies below changes, you need to call parse_refresh() so that the parser knows it has changed. For example if the name of an object changes, or perhaps an adjective changes as a spell is cast to change it from blue to red - call parse_refresh() afterwards. The efun clears the cache for the object that called it."
+      }
+    },
+    "parse_remove": {
+      "sourceSha256": "d006f16c10efe16fdb3e60ef23ce5335c162e930460d1a5a14e8fd2afafc6ac1",
+      "fields": {
+        "summary": "parse_remove 内置函数"
+      }
+    },
+    "parse_sentence": {
+      "sourceSha256": "f5633d017c8eb398891fc46bf16b1d0570c231fb872ffb9c9481de3849143521",
+      "fields": {
+        "summary": "This efun calls the driver parser and tells it to parse and execute the command contained in the given string. The efun may return an integer error code, or a string error message. If a string message is returned, it should be displayed to the player. The integer codes are:\n\n   * 1: command has been processed ok\n   * 0: no matching command was found, no processing done\n   * -1: A matching command was found but none of its rules were matched.\n   * -2: A rule made sense but all \"can\" or \"direct\" applies returned 0.\n\n   * Parsing package changes:\n       . parse_sentence has an optional 3rd and 4th arg.\n       . The 3rd arg an array of objects to use in the parse instead of the inventory of the environment of the user.  Nested arrays indicate containment, i.e. ({ ob1, ({ object inside ob1 }), ob2, ob3, ({ first ob in ob3, second ob in ob3 }), ... })\n       . The 4th argument is a mapping of string -> object which can be used to supply nicknames and similar things.  For this parse, the 'object' acts as if 'string' were returned by pc_id_list(). Entries that do not correspond to objects involved in the current parse are ignored."
+      }
+    },
+    "pcre_assoc": {
+      "sourceSha256": "54b70f4e7e51ce157f4e5e277185d18c862b02dbb71a5c78e8f9b75eaf06daaf",
+      "fields": {
+        "summary": "analog with reg_assoc efun for backwards compatibility reasons but utilizing the PCRE library."
+      }
+    },
+    "pcre_cache": {
+      "sourceSha256": "086344afdf25eb082f45a97c90f4e3ff616168b26a5b702dddabea5c0462648d",
+      "fields": {
+        "summary": "returns content of the pcre cache (not all that useful)"
+      }
+    },
+    "pcre_extract": {
+      "sourceSha256": "a005bcb58eeccb352112d9a313326f3ad14d2c2230dfe883af15b71b8e325d63",
+      "fields": {
+        "summary": "returns an array of captured groups specified in pattern.",
+        "details": "示例\neval return pcre_extract(\"bbracadabra\", \"([abc]+)\");"
+      }
+    },
+    "pcre_match": {
+      "sourceSha256": "2169a0f336ce0772f458a6b834ed4cc7c2a3533d2acb67f4f6ff8f4c960ed9ab",
+      "fields": {
+        "summary": "analog with regexp efun for backwards compatibility reasons but utilizing the PCRE library."
+      }
+    },
+    "pcre_match_all": {
+      "sourceSha256": "cc6d03df372c7dda73b0c003c478962d09f046f93de6be4afbe1bc1e9352d8e9",
+      "fields": {
+        "summary": "pcre_match_all 内置函数",
+        "details": "NAME\npcre_match_all() - find all matches\n\nSYNOPSIS\nmixed pcre_match_all(string input, string pattern);\n\nDESCRIPTION\nSimiliar to php preg_match_all, this EFUN returns a array of string arrays,\n   containing all matches and captured groups.\n\nExample\n// https://tools.ietf.org/html/rfc3986#appendix-B\n   pcre_match_all(\"http://www.ics.uci.edu/pub/ietf/uri/#Related\",\n                      \"^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\\\?([^#]*))?(#(.*))?\" ));\n\n   Will return\n     ({ /* sizeof() == 1 */\n       ({ /* sizeof() == 10 */\n         \"http://www.ics.uci.edu/pub/ietf/uri/#Related\",\n             \"http:\",\n             \"http\",\n             \"//www.ics.uci.edu\",\n             \"www.ics.uci.edu\",\n             \"/pub/ietf/uri/\",\n             \"\",\n             \"\",\n             \"#Related\",\n             \"Related\"\n       })\n     }),\n\n   There are 1 match in the entire string, the first item in the array is the matched substring, then all the\n   captured groups."
+      }
+    },
+    "pcre_replace": {
+      "sourceSha256": "d36c29928461294a3614adb8f34de8e3648667c7d7326fdfb3e5c906d7408844",
+      "fields": {
+        "summary": "returns a string where all captured groups have been replaced by the elements of the replacement array. Number of subgroups and the size of the replacement array must match."
+      }
+    },
+    "pcre_replace_callback": {
+      "sourceSha256": "5db40a1393da03b36caad68301b8b43625a383df9c64f902f1ed60095f11c7d3",
+      "fields": {
+        "summary": "returns a string where all captured groups have been replaced by the return value of function pointe fun or function fun in object ob.(called with the matched string and match number, starting with 0)"
+      }
+    },
+    "pcre_version": {
+      "sourceSha256": "91caf3dc716e29a2344c6bf9f769602cb5fd479fb6e8406ff8ff4a391d2c3e96",
+      "fields": {
+        "summary": "返回系统使用的 PCRE 库版本"
+      }
+    },
+    "perf_counter_ns": {
+      "sourceSha256": "3e8d9f0e4d425cca0f4d81e88cfc78e81bfae2b070f0ae08c247f7074a8dbf40",
+      "fields": {
+        "summary": "返回自1970年1月1日午夜（GMT）以来的纳秒数。",
+        "details": "示例\neval return perf_counter_ns()\nResult = 1658831676469273200"
+      }
+    },
+    "pluralize": {
+      "sourceSha256": "11cfae5ef8cbd50f1514f53e42a2f36f26d7de76f31bba929ffb4e9d9622e5d7",
+      "fields": {
+        "summary": "此外部函数返回英文 `eng` 的复数形式。如 `a red house` 返回 `red houses`。"
+      }
+    },
+    "pointerp": {
+      "sourceSha256": "d9f71b6a9271a401c9aca0b4771353d3d9e4eab6c585546aa3fe2cabdc3208e7",
+      "fields": {
+        "summary": "如果变量 `arg` 是数组则返回1，否则返回0。",
+        "details": "Return semantics:\n1 或者 0"
+      }
+    },
+    "pow": {
+      "sourceSha256": "c4c56f6501a7e72fb81166afa57bd8a923cac4a7d3ff042e3aafcf3cf9784081",
+      "fields": {
+        "summary": "pow() 返回 x 的 y 次方。如果 x 是 0.0，y 必须是正整数，如果 x 是负数，y 必须是整数。"
+      }
+    },
+    "present": {
+      "sourceSha256": "18bab3b63206d63128e71dc2087621944cffc1ddb277a3bb7e256d500b5537fc",
+      "fields": {
+        "summary": "如果第一个参数是字符串，且第二个参数省略，则在当前对象的环境中查找对象，通过调用对象的 id() 方法进行匹配，返回 1 表示匹配成功。\n\n   如果第一个参数是字符串，且第二个参数是对象，则仅在该对象的 inventory（物品栏）中查找目标，使用与上述相同的匹配策略。\n\n   \"foo 1\" 表示 inventory 中的第一个 \"foo\" 对象。inventory 中的“第一个”指的是最后移入的对象。\n\n   如果第一个参数是对象，且第二个参数省略，则检查该对象是否在当前对象的 inventory 中，或作为同级对象存在于当前对象环境的 inventory 中，找到时返回该对象的父对象。\n\n   如果第一个参数是对象，且第二个参数是对象，则检查 object1 是否在 object2 的 inventory 中，存在则返回 object1。\n\n   如果对象被隐藏（通过 set_hide() 设置），且当前对象不可隐藏，则返回 0。\n\npresent() 函数用法说明\n\n参数1\n\n参数2\n\n功能说明\n\n字符串\n省略\n在当前对象的环境中查找对象，通过调用对象的 id() 方法进行匹配，返回 1 表示匹配成功。\n\n字符串\n对象\n仅在指定对象的 inventory（物品栏）中查找目标，使用与上述相同的匹配策略。\n\n对象\n省略\n检查该对象是否在当前对象的 inventory 中，或作为同级对象存在于当前对象环境的 inventory 中，找到时返回该对象的父对象。\n\n对象\n对象\n检查 object1 是否在 object2 的 inventory 中，存在则返回 object1。\n\n任意\n任意\n如果对象通过 set_hide() 隐藏，且当前对象不可隐藏，则返回 0。"
+      }
+    },
+    "previous_object": {
+      "sourceSha256": "1d1f5e32e9d244e3a047a86eeab2ea1ba82e754928629a9670baa7680f5c9ddd",
+      "fields": {
+        "summary": "返回呼叫当前函数的对象指针（如果存在），如果不传参数，int默认为０。请注意：呼叫局部函数不会改变 previous_object() 为当前对象。如果传递一个正整数为参数，就会传回先前第几个呼叫的对象，previous_object(0) 等于 previous_object()，previous_object(1) 是 previous_object() 的 previous_object()，以此类推。而 previous_object(-1) 返回包括所有 previous_object 的对象数组。"
+      }
+    },
+    "printf": {
+      "sourceSha256": "e771a8bf4173e3670572c0334ac1c771671e7a50359a35343f6ba6a802609c51",
+      "fields": {
+        "summary": "格式化输出信息给当前玩家，format 完整形式为：%[flag][width][.precision]type\n\n当前版本支持以下格式控制符，其中标志位控制符可组合使用:\n\n标志位（flag）\n\n\" \"     用于整数或者小数，输出值为正时冠以空格，为负时冠以负号。\n   \"+\"     用于整数或者小数，表示输出符号（正负号）。如果没有，那么只有负数才会输出符号。\n   \"-\"     示左对齐。如果没有，就按照默认的对齐方式，默认为右对齐。\n   \"|\"     对齐栏位中心。\n   \"=\"     用于字符串，如果字符串长度超出栏位宽度，使用纵列模式(column mode)，字符串会自动换行。\n   \"#\"     用于字符串， 在柆位内使用表格模式(table mode)换行（'\\n'）输出单词列表。\n   \"0\"     必须紧随宽度整数前面，将输出的资料空栏位用0填充，直到占满指定栏位列宽为止。\n   \"'X'\"   用单引号中的字符填充栏位（默认为用空格填充）(如果即指定用0填充，又指定用字符填充，以后\n           指定的为准。注意：如果要用“'”、“\"”或“\\”填充，必须使用转义字符“\\'”、“\\\"”、“\\\\”。\n   \"@\"     参数是数组，除 \"@\" 外的其它格式信息会应用于数组中的每一个元素。\n\n输出最小宽度（width）\n\n整数    指定栏位最小宽度（列宽）， 使用 '*' 则在输出参数列表中指定宽度。若实际位数多于指定的宽\n           度，则按实际位数输出，若实际位数少于定义的宽度则补以空格或0。\n           提示：宽度为strwidth()返回的值，英文为1中文为2。\n\n精度（.precision）\n\n\".整数\"     指定栏位的精度, 普通字符串在此之后会被截断(如果精度超出列宽，则列宽等于精度),\n               表格模式使用精度指定列数(如果未指定，表格会自动计算最适合的结果)。\n   \":整数\"     指定栏位宽度和精度。如果整数前补0，则代替空格使用0补满栏位。\n\n类型（type）\n\n%       简单的说，就是输出 % 用，示例：printf(\"%%\");\n   O       参数格式为 LPC 数据类型。（可以输出任何类型，方便DEBUG）\n   s       参数格式为字符串类型。\n   d, i    把整型参数输出为有符号十进制整数。（i为旧式写法）\n   c       把整型参数输出为字符。\n   o       把整型参数输出为无符号八进制整数。（不输出前缀0）\n   x       把整型参数输出为无符号十六进制整数。（不输出前缀0x，小写a-f）\n   X       把整型参数输出为无符号十六进制整数。（不输出前缀0x，大写A-F）\n   f       参数格式为浮点数。",
+        "details": "作者\nSean A. Reith (Lynscar)"
+      }
+    },
+    "program_info": {
+      "sourceSha256": "3ff4e0307aa3cd0e92b3503d995abf3a51ff80a0c25e43b1f38da22b0b1a779e",
+      "fields": {
+        "summary": "返回包括程序各种信息的映射，内容如下：\n   header size : int\n   code size : int\n   function size : int\n   var size : int\n   class size : int\n   inherit size : int\n   saved type size : int\n   total size : int\n\n   如果不指定对象，默认为所有游戏对象。\n\n   此外部函数要求驱动程序编译时定义了 PACKAGE_CONTRIB 包。"
+      }
+    },
+    "query_charmode": {
+      "sourceSha256": "b2a4b61e856f7a5df17f994de6078914869aa3b8f0d39b1c55b97034954eaf1c",
+      "fields": {
+        "summary": "查询字符模式",
+        "details": "NAME\nquery_charmode\n\nSYNOPSIS\nint query_charmode(object);\n\nDESCRIPTION\nreturns -1 if argument missing\n   -2 in case of error (object destroyed or not interactive)\n   0 if interactive object is in line mode\n   !0 otherwise (actual value depends on compile time define)\n\nSEE ALSO\nremove_charmode(3), input_to(3), get_char(3)"
+      }
+    },
+    "query_ed_mode": {
+      "sourceSha256": "b68ee45a8c1137a80fa15bc22dd66eddf471cfd264c83319f24f1319df9b547a",
+      "fields": {
+        "summary": "query_ed_mode 内置函数",
+        "details": "NAME\nquery_ed_mode() - find out the status of the current ed session\n\nSYNOPSIS\nint query_ed_mode()\n\nDESCRIPTION\nThis efun is available only if __OLD_ED__ is not defined.\n\n   Finds  the  status  of  the  ed  session for the current object, if one exists.  It returns:\n\n        0  - the current object is at a normal ed prompt (':')\n       -1  - the current object isn't in ed\n       -2  - the current object is at the more prompt in the middle of help\n       >0  - the object is at a prompt for a line.  The  number  is  the  line number."
+      }
+    },
+    "query_encoding": {
+      "sourceSha256": "6a85922bb0cd134bb6dd893d13655e98517c32d65c11561dc25b7e6370ca4811",
+      "fields": {
+        "summary": "获取当前玩家的输入输出编码。\n\n   注意：您得到的名称是ICU内部名称，它与 set_encoding() 返回的名称相同，可能是您传入的名称，也可能不是，但它们引用的是相同的编码。"
+      }
+    },
+    "query_heart_beat": {
+      "sourceSha256": "04e39496aeacb56dff18af0436c83a451caa848650ffac0c2fabb9a059d8dcf8",
+      "fields": {
+        "summary": "返回指定对象通过 set_heart_beat() 外部函数设置的心跳数值。如果没有心跳，返回 0。\n\n   如果不指定对象 `ob`，默认对象为 this_object()。"
+      }
+    },
+    "query_host_name": {
+      "sourceSha256": "af0e65ee7e1214af5b483eed3106a4eb2e8b45960bd4f703b97ee58000098443",
+      "fields": {
+        "summary": "query_host_name() 返回服务器主机名称",
+        "details": "Return semantics:\n成功返回主机名称字符串，失败返回一个空字符串。"
+      }
+    },
+    "query_idle": {
+      "sourceSha256": "0a188672e9794d37a180ffd7f16164b2b7e72efa64ef2bafea2e60e6f9d02075",
+      "fields": {
+        "summary": "查询一个玩家对象 `ob` 发呆了多少秒。"
+      }
+    },
+    "query_ip_name": {
+      "sourceSha256": "9995ab136910d8861baa080ba6e9e608a59415a0d1b1860e082e7a7aadc0d026",
+      "fields": {
+        "summary": "返回玩家 `ob` IP 的 DNS PTR 记录。每当服务器有新的玩家连线都有触发一个异步 DNS 反向查寻。\n\n   在查询结束前，这个函数的返回值和 'query_ip_number(3)' 一样。\n\n   在查询结束后，如果查询成功，函数会返回对象 `ob` IP 的 DNS PTR 值。如果查询失败，（比如网络问题，这个 IP 没有配置 PTR 记录。）这个函数的返回值还是和 'query_ip_number(3)' 一样。\n\n   查询结果会被缓存，所以这个函数不会有额外开销。"
+      }
+    },
+    "query_ip_number": {
+      "sourceSha256": "d6344e1b8db0ff23468381a6648f19d8b840fc37d4772ed8a018a38d7077a5b0",
+      "fields": {
+        "summary": "返回玩家对象 'ob' 的IP地址（IPv4 或 IPv6 格式）"
+      }
+    },
+    "query_ip_port": {
+      "sourceSha256": "3d61067c0e9a9a3df849382381975b4793b108ff85a834678387db29141ba1cb",
+      "fields": {
+        "summary": "返回指定玩家对象 `ob` 的连线端口，如果不指定玩家，默认为 this_player()。如果对象非在线玩家返回 0 。"
+      }
+    },
+    "query_load_average": {
+      "sourceSha256": "65081c00aacd36a95af74a1bd649d3c9f6427812be28e7d0b517cf459a0caf60",
+      "fields": {
+        "summary": "这个外部函数返回一个报个每秒用户指令数和每秒驱动程序编译行数的信息字符串。",
+        "details": "示例\n> eval return query_load_average()\nResult = \"0.00 cmds/s, 891.11 comp lines/s\""
+      }
+    },
+    "query_multiple_short": {
+      "sourceSha256": "d5707704ca404497e7c001473b69509190122f38da4d41c530e0ee7a07eb925c",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "把一组对象或短描述组合成人类可读的列表文本，可通过可选参数控制冠词、数量和列表格式。"
+      }
+    },
+    "query_notify_destruct": {
+      "sourceSha256": "f7d5e0fff65d615d2b3d7adbe11a53de4fecb6015bc760ac39a8b71627c07412",
+      "fields": {
+        "summary": "query_notify_destruct 内置函数"
+      }
+    },
+    "query_notify_fail": {
+      "sourceSha256": "fe78a1d38ccddfb71c42fd4912a707cc0a401f1dd352d027761c696bdfe5f2c4",
+      "fields": {
+        "summary": "returns current notify_fail setting (funcp or string) #ifndef NO_ADD_ACTION"
+      }
+    },
+    "query_num": {
+      "sourceSha256": "edc46d1178afc90e548bd6059408b855652e538b8121fbe4fa1a929ba25cf975",
+      "fields": {
+        "summary": "此外部函数返回数值 `num` 的英文读法。如果 num > 99999 或指定参数 `max`且 num > max 或 num < 0 ，函数返回 `many`。"
+      }
+    },
+    "query_privs": {
+      "sourceSha256": "95548535ab408bbe36b26f7b05871dcbd30ad07ca32b7f797e938e4f6601b51f",
+      "fields": {
+        "summary": "query_privs 内置函数",
+        "details": "NAME\nquery_privs() - return the privs string for an object\n\nSYNOPSIS\nstring query_privs( object ob | void );\n\nDESCRIPTION\nReturns the privs string for an object.  The privs string is determined\n   at compile time via a call to privs_file() in the  master  object,  and\n   changeable via the set_privs() efun.\n\n   This efun is only available if PRIVS is defined at driver compile time.\n\nSEE ALSO\nprivs_file(4), set_privs(3)"
+      }
+    },
+    "query_replaced_program": {
+      "sourceSha256": "6b69606c70f8721f839f5e4b0b1baf678faa0a88ce582e579bb5bcb22dc430b0",
+      "fields": {
+        "summary": "if object called replace_program this function returns the path to the object it was replaced with, if no ob, obiect defaults to this_object()"
+      }
+    },
+    "query_shadowing": {
+      "sourceSha256": "808a5622778edfcad3312b682024986d91ac02d908ba313b513dc9e090b61075",
+      "fields": {
+        "summary": "返回对象 `ob` 投影的对象，如果没有投影任何对象返回 0。"
+      }
+    },
+    "query_snoop": {
+      "sourceSha256": "77756d9122d278852872226ab1b43c6f280840268bff75ebbb172371ec5d38e3",
+      "fields": {
+        "summary": "如果玩家对象 'ob' 正在被其他玩家监听，返回监听者，否则返回 0 。"
+      }
+    },
+    "query_snooping": {
+      "sourceSha256": "5664336e9d0d7e377007220f01c6fd4925bae4903289803fa4a64c8c50609838",
+      "fields": {
+        "summary": "如果玩家对象 `ob` 正在监听其他玩家对象，返回被监听的对象，否则返回 0 。"
+      }
+    },
+    "query_verb": {
+      "sourceSha256": "e6e3d216df7ff9b81d814de9d925f29fe434432182f1ab3c801d96cd75a80732",
+      "fields": {
+        "summary": "返回当前指令的名称，如果不是通过指令执行的，返回 0 。这个函数可以用来判断在好几个命令会执行同一个函数时到底是哪一个命令呼叫的函数。\n\n   注意：长度限制为99个字符（汉字根据utf-8编码计算，为33个字符）。"
+      }
+    },
+    "random": {
+      "sourceSha256": "2e82598bc75cc0456e9dcae1cbbe2047222febe7b621a6c449fa2fef7bdcace4",
+      "fields": {
+        "summary": "random 内置函数",
+        "details": "说明\n返回一个介于[0 .. (n - 1)]之间的伪随机数（包含 0 和 n - 1）。"
+      }
+    },
+    "read_buffer": {
+      "sourceSha256": "1039ad88b168bc8dc4b63d85d5da237ccbf7832319b8fb3994762fa4d9a7d37e",
+      "fields": {
+        "summary": "如果 `src` 是一个字符串（文件名），会从文件第 `start` 字节开始读取长度 `len` 字节的内容并以缓冲区类型返回，如果没有指定起始和长度，会读取整个文件。\n\n   如果 `src` 是一个缓冲区，会从缓冲区第 `start` 字节开始读取长度 `len` 字节的内容并以字符串类型返回。\n\n   请注意，你能从文件读取到缓冲区的最大字节数通过运行时配置文件的 `maximum byte transfer` 参数控制。",
+        "details": "作者\nTruilkan"
+      }
+    },
+    "read_bytes": {
+      "sourceSha256": "a5be3002ac4b6cddcde7abf6e446f2224485ef354b39f61dd5b17d36052be64f",
+      "fields": {
+        "summary": "这个函数从文件 `path` 中 `start` 字节位置开始读取 `length` 长度的字节，读取的字符以字符串类型返回。注意： (start + length) 的大小不可以超出文件大小，否则会读取失败，如果缺省第三个参数会从指定位置读到文件尾，如果后两个参数都缺省会读取整个文件。"
+      }
+    },
+    "read_file": {
+      "sourceSha256": "be620ab65f59785f1c03accbaa92a3f6a96c1328a2379ed9502097946ee848b1",
+      "fields": {
+        "summary": "从文件 `file` 读取指定行数文本到字符串。第二、三个参数为可选参数，如果只指定第一个参数会读取整个文档。\n\n   `start_line` 指定你希望从文档的第几行开始读，`number_of_lines ` 为要读取的行数，如果起始行数超过文件尾行或要读取的行数为负函数返回 0 。\n\n   提示：如果读取的文件不存在，返回0。"
+      }
+    },
+    "real_time": {
+      "sourceSha256": "f226fb8097933ff8c57e5c0e9a73ecc03b8bab016aec10dbc76e7603e9e62c30",
+      "fields": {
+        "summary": "返回一个本地服务器时间戳，时间戳是指格林威治时间1970年01月01日00时00分00秒(北京时间1970年01月01日08时00分00秒)起至现在的总毫秒数。"
+      }
+    },
+    "receive": {
+      "sourceSha256": "8ddc00e081ca8edc9abb4b7a4b18ed046a66fc017d40e9cf9b626ca4f77e7148",
+      "fields": {
+        "summary": "这个外部函数是驱动程序 add_message() 函数的界面，其目的是向当前对象显示消息。如果当前对象是玩家(interactive)返回 1，否则返回 0 。通常，receive() 应该在 receive_snoop() 或 receive_message() 中被呼叫。"
+      }
+    },
+    "reclaim_objects": {
+      "sourceSha256": "25d273ea66d82880f6c5a20995200b9ff133e4b2c3b88c03ff71373ec26ff502",
+      "fields": {
+        "summary": "重复检查所有已加载的对象，并释放残留的对象，这个能释放大量内存占用，具体取决于MUD的代码情况。如果一个对象仅仅是被已摧毁的对象的全局变量指针，这个对象就是残留的对象。这个函数返回值是被清理的对象的数量。\n\n   提示：FLUFFOS驱动现在会自动调用此函数。"
+      }
+    },
+    "recompile_object": {
+      "sourceSha256": "be2fddce91a699a26d001b802dd1b186065f9075ffd9dd941fb1bfc7d200e244",
+      "fields": {
+        "summary": "按当前 driver 语义原地重编译对象程序，并返回受影响对象数量。",
+        "details": "重新编译已加载对象的程序定义，用于开发期刷新对象代码。调用方应自行处理对象状态迁移、失败回滚和相关依赖对象的刷新顺序。",
+        "note": "testsuite 中的 hot_reload daemon 是开发示例，不代表所有项目都默认启用热重载。"
+      }
+    },
+    "reference_allowed": {
+      "sourceSha256": "38cb8d17cd3c1b8876849f0ed4eee6357384a639392c7d9f9cdbf1060e144485",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "检查指定对象引用在当前上下文中是否允许被暴露或引用，常用于输出和调试辅助逻辑。"
+      }
+    },
+    "refs": {
+      "sourceSha256": "d9717afeee1f0e9a1757b60f4d2e20935ffb1e25cb0ff6aa06b9896bb7b0d188",
+      "fields": {
+        "summary": "refs 内置函数",
+        "details": "NAME\nrefs - return the number of references to a data structure\n\nSYNOPSIS\nint refs( mixed data );\n\nDESCRIPTION\nThe number of references to 'data' will be returned by refs().  This is useful for deciding whether or not to make a copy of a data structure before returning it.\n\nSEE ALSO\nchildren(3), inherit_list(3), deep_inherit_list(3), objects(3)"
+      }
+    },
+    "reg_assoc": {
+      "sourceSha256": "e022135dfa143f87e7fad40d63d9c2bc86f739d7b75c8689795204631110a5cc",
+      "fields": {
+        "summary": "reg_assoc takes a string and explodes it into substrings matching the regular expression pattern-strings given in pat_arr and associates them with tokens given in tok_arr. If def (default 0) is given, it is  associated  with  a  non-match. The return value is an array of two arrays, the 1st being an array of the form\n\n        ({ non-match1, match1, non-match2, match2, ...,\n           non-match n, match n, non-match n+1 })\n\n   and the 2nd holds the tokens corresponding to the matches in order\n\n        ({ def, token corresponding to match1, ....,  def, token corresponding to match n, def }).\n\n   pat_arr  and  tok_arr  must  be  of  the same sizes, the ith element in tok_arr being the corresponding token to the ith  element  of  pat_arr. pat_arr can only hold strings.\n\n   If pat_arr (and hence tok_arr) has size 0 then the return value is simply ({ ({ str }), ({ def }) }).",
+        "details": "示例\n#define STRING_PAT \"\\\"(\\\\\\\\.|[^\\\\\\\"])*\\\"\"\n   #define NUM_PAT \"[0-9]+\"\n\n   #define F_STRING 1\n   #define F_NUM 2\n\n   reg_assoc(\"Blah \\\"blah\\\" test 203 hhh j 308 \\\"bacdcd\\b\\\"acb\",\n     ({ STRING_PAT, NUM_PAT }), ({ F_STRING, F_NUM }), \"no-match\")\n\n   will return\n   ({ ({ \"Blah \", \"\\\"blah\\\"\", \" test \", \"203\", \" hhh j \", \"308\", \" \",\n         \"\\\"bacdcd\\b\\\"\", \"acb\" }),\n      ({ \"no-match\", F_STRING, \"no-match\", F_NUM, \"no-match\", F_NUM,\n         \"no-match\", F_STRING, \"no-match\" }) })"
+      }
+    },
+    "regexp": {
+      "sourceSha256": "c8f90a72fcf43f46a6ca7956a4d208fd734254d59b01f2abe9a00eb95b1926b9",
+      "fields": {
+        "summary": "Typically  when  presented with an array of lines of text and a regular\n   expression, regexp(3) returns an array  containing  those  lines  which\n   match  the  pattern  specified  by  the regular expression. If the flag\n   (default 0) has bit 2 set, then non-matches will be returned instead of\n   matches.  If the flag  has bit 1 set, the array returned will be of the\n   form ({ index1 + 1, match1, ..., indexn + 1, matchn }) where index1  is\n   the index of 1st match/non match in the array lines.",
+        "details": "正则表达式语法\nA  regular  expression  is zero or more branches, separated by '|'.  It\n   matches anything that matches one of the branches.\n\n   A branch is zero or more pieces, concatenated.  It matches a match  for\n   the first, followed by a match for the second, etc.\n\n   A piece is an atom possibly followed by '*', '+', or '?'.  An atom fol‐\n   lowed by '*' matches a sequence of 0 or more matches of the  atom.   An\n   atom  followed  by  '+'  matches a sequence of 1 or more matches of the\n   atom.  An atom followed by '?' matches a match of the atom, or the null\n   string.\n\n   An  atom  is  a regular expression in parentheses (matching a match for\n   the regular expression), a range (see below), '.'  (matching any single\n   character), '^' (matching the null string at the beginning of the input\n   string), '$' (matching the null string at the end of the input string),\n   a  '\\'  followed  by a single character (matching that character), or a\n   single character with no other significance (matching that character).\n\n   A range is a sequence of characters  enclosed  in  '[]'.   It  normally\n   matches any single character from the sequence.  If the sequence begins\n   with '^', it matches any single character not  from  the  rest  of  the\n   sequence.  If two characters in the sequence are separated by '-', this\n   is shorthand for the full list of ASCII characters between  them  (e.g.\n   '[0-9]'  matches  any  decimal digit).  To include a literal ']' in the\n   sequence, make it the first character (following a possible  '^').   To\n   include a literal '-', make it the first or last character.\n\nAMBIGUITY\nIf  a  regular  expression could match two different parts of the input\n   string, it will match the one which begins earliest.  If both begin  in\n   the same place but match different lengths, or match the same length in\n   different ways, life gets messier, as follows.\n\n   In general, the possibilities in a list of branches are  considered  in\n   left-to-right  order,  the possibilities for '*', '+', and '?' are con‐\n   sidered longest-first, nested constructs are considered from the outer‐\n   most  in,  and  concatenated  constructs are considered leftmost-first.\n   The match that will be chosen is the one that uses the earliest  possi‐\n   bility  in the first choice that has to be made.  If there is more than\n   one choice, the next will be made in the same manner  (earliest  possi‐\n   bility) subject to the decision on the first choice.  And so forth.\n\n   For  example,  '(ab|a)b*c'  could  match 'abc' in one of two ways.  The\n   first choice is between 'ab' and 'a'; since 'ab' is earlier,  and  does\n   lead  to  a  successful  overall match, it is chosen.  Since the 'b' is\n   already spoken for, the 'b*' must match its last possibility—the  empty\n   string—since it must respect the earlier choice.\n\n   In  the particular case where no '|'s are present and there is only one\n   '*', '+', or '?', the net effect is that  the  longest  possible  match\n   will  be  chosen.   So  'ab*',  presented  with  'xabbbby',  will match\n   'abbbb'.  Note that if 'ab*' is  tried  against  'xabyabbbz',  it  will\n   match  'ab'  just  after  'x',  due  to  the begins-earliest rule.  (In\n   effect, the decision on where to start the match is the first choice to\n   be  made,  hence  subsequent choices must respect it even if this leads\n   them to less-preferred alternatives.)"
+      }
+    },
+    "reload_object": {
+      "sourceSha256": "7df9b7beae1cacdb0d1084cfdec705e997fc7e5f0c2750a41980e46e2d35f1e9",
+      "fields": {
+        "summary": "当对象 `ob` 执行 reload_object()后，所有由驱动程序设置的属性全部初始化（heart_beat，call_outs，light，shadow等），所有变量也初始化，并且调用 create() 方法。这和销毁并重载对象等效果类似，但是，不会存取磁盘数据和执行语法分析，如果代码修改过，reload_object 不会载入新代码。"
+      }
+    },
+    "remove_action": {
+      "sourceSha256": "d2f82b6c0558ee7078a7807749fca7c2e523f4174d1a01e6c556c72bbb064035",
+      "fields": {
+        "summary": "取消玩家指令 `cmd` 和函数 `fun` 的绑定。基本上，remove_action() 是 add_action() 的反向操作，当一个指令不再需要时，可以使用 remove_action() 移除。",
+        "details": "Return semantics:\n成功返回 1，失败返回 0。"
+      }
+    },
+    "remove_call_out": {
+      "sourceSha256": "965d266fca41681b78c06ca1378778c5f9cc5422175c9f5f7ba1c9813304adc7",
+      "fields": {
+        "summary": "在第一种模式下移除当前对象中下一个即将呼叫的函数 `fun`，返回值是剩余延时，如果指定函数没有被延时呼叫返回 -1。\n\n   在第二种模式下通过call_out()返回的句柄移除当前对象中下一个即将呼叫的函数，返回值是剩余延时，如果指定函数没有被延时呼叫返回 -1。\n\n   在第三种模式下移除当前对象中所有的延时函数，返回值固定为0。"
+      }
+    },
+    "remove_charmode": {
+      "sourceSha256": "5ba5cee430981abffad76deb2d9c4187990cf32b0f82dde94d69980dfeff1b14",
+      "fields": {
+        "summary": "remove_charmode 内置函数",
+        "details": "NAME\nremove_charmode() - switches interactive object into linemode.\n\nSYNOPSIS\nint remove_charmode(object);\n\nDESCRIPTION\nswitches interactive object into linemode\n\n   returns -1 if argument missing\n   -2 in case of error (object destroyed or not interactive)\n   current input_to flags with char_mode unset\n\nSEE ALSO\nquery_charmode(3), input_to(3), get_char(3)"
+      }
+    },
+    "remove_get_char": {
+      "sourceSha256": "a42d23a927fa93faf8d75489aec825d77170009952d8870152d52b147a295a02",
+      "fields": {
+        "summary": "remove_get_char 内置函数",
+        "details": "NAME\nremove_get_char() - cancels active input_to\n\nSYNOPSIS\nint remove_get_char(object interactive);\n\nDESCRIPTION\ncancels active input_to\n   set's interactive->carryover = NULL\n   set's interactive->num_carry = 0\n\n   returns -3 if argument missing\n   -2 if object destroyed or not interactive\n   -1 if no input_to active\n   1 otherwise"
+      }
+    },
+    "remove_interactive": {
+      "sourceSha256": "aaf1614a859fdf1aeacfefafd2979608b95eb03c160af676980c42e241c3a9b4",
+      "fields": {
+        "summary": "强制对象 `ob` 断线，如果对象不是在线玩家或已被摧毁返回 0，否则返回 1。"
+      }
+    },
+    "remove_shadow": {
+      "sourceSha256": "3af70222febec7bcf4bd1d5aa0757d80bf65b8cb0d9b435773c3fce2dee3da3e",
+      "fields": {
+        "summary": "remove all shadows from the specified object, or remove a specified shadow from another object. does not destruct the shadow.\n\n   移除对象 `ob` 上的投影，如果对象没有投影或被投影返回 0 ，否则返回 1 。\n\n   此外部函数仅在驱动编译时没有定义 NO_SHADOWS 时有效。"
+      }
+    },
+    "rename": {
+      "sourceSha256": "d93e2169efc04d44060ac1424851e0d63a29e3bbc9dd007061d7b12b2967a6f5",
+      "fields": {
+        "summary": "修改文件 `src` 的文件名为 `dst`",
+        "details": "Return semantics:\nrename() 改名成功返回 0 ，失败返回非零值。"
+      }
+    },
+    "repeat_string": {
+      "sourceSha256": "55fd593c8b76ed2c5050298da244b1c73d24bc1806d03a4bfa340fb7e45d9b5c",
+      "fields": {
+        "summary": "以指定的次数 `i` 重复一个字符串 `str`,并返回新生成的字符串。如果 `i` 小于等于 0 返回空字符串。如果 `i` 大于 0 ，请注意生成的字符串长度不能超出系统最大长度。"
+      }
+    },
+    "replace": {
+      "sourceSha256": "a98198fe71ae5d08813cb543441066deeaf48984437ab491729ded8f73486117",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "在字符串中执行文本替换。第二个参数可指定替换表或单个匹配文本，第三个参数用于提供替换值。"
+      }
+    },
+    "replace_dollars": {
+      "sourceSha256": "1ff31441facc3e8cb040298ffc2312460d92bbce659ba27f96dc7b9d645d6879",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "按参数列表替换字符串中的 dollar 占位符，用于生成带变量插值的文本。"
+      }
+    },
+    "replace_html": {
+      "sourceSha256": "2de4b53172deb554bdc453e4b194cc2bcc5db01640c82b7bfb4210d433d10360",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "转义或替换字符串中的 HTML 特殊字符，使文本适合安全地嵌入 HTML 输出。"
+      }
+    },
+    "replace_mxp": {
+      "sourceSha256": "c891622ab4379c6de9cb9758809c3c999daba261df63185db417ceddfaa1653c",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "转义或替换字符串中的 MXP 相关特殊字符，使文本适合输出到支持 MXP 的客户端。"
+      }
+    },
+    "replace_objects": {
+      "sourceSha256": "71c2629b2954f519934b83a74b0004be7e24b6b1dd071948fcab577729230f9b",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "递归处理值中的对象引用，把对象转换为更适合序列化或显示的表示形式。"
+      }
+    },
+    "replace_program": {
+      "sourceSha256": "a76b3eb2b3f670eb9a6d4e56ddde7a9aae7ee3a87681f0bd747b2462a9e8a324",
+      "fields": {
+        "summary": "replace_program() 函数会将 this_object() 替换为其继承的对象。字符串参数指定了要使用其程序的对象的文件名。替换完成后，当前对象实际上就成为了那个其他对象的克隆体，但保留了自身当前的文件名和全局变量值。不过，程序并不会立即被替换，而是要等到当前的执行过程完成之后才会进行实际替换。\n   这个函数的核心作用用于减少大型MUD的内存占用，要求目标程序必须在继承树中且不能用于simul_efun对象、不能有自己的函数定义，可用replaceable()函数判断。实际作用在现在不缺内存的MUD中可有可无，现代MUDLIB中有一个功能类似的函数set_default_object(__FILE__)。"
+      }
+    },
+    "replace_string": {
+      "sourceSha256": "d068745add39d4c3aaf731aea284ffd00aa89674f0a9014d6f94b67255672dd9",
+      "fields": {
+        "summary": "replace_string() 返回字符串 `str` 中所有 `pattern` 替换成 `replace` 的新字符串。如果没有可替换的 `pattern` 返回原字符串 `str`。请注意：如果替换后字符串超过系统最大长度会报错。\n\n   replace_string() 可以使用 `replace` 为空的字符串来移除字符串 `str` 中的指定字符。如：replace_string(\"  1  2  3  \", \" \", \"\") 会返回 \"123\"。\n\n   第四和第五个参数为可选参数，其作用如下：\n\n   如果只指定第四个参数，为最大替换次数（基数从1开始），如果值为 0 代表替换所有，否则为替换指定次数，如： replace_string(\"xyxx\", \"x\", \"z\", 2) 会返回 \"zyzx\"。\n\n   如果指定第五个参数，那么第四个和第五个参数代表替换范围。如果 `first` < 1，代表从头开始全部替换；如果 `last` == 0 或 `last` > 字符串最大长度代表替换到字符串末尾；如果 `first` > `last` 不替换任何内容。如：replace_string(\"xyxxy\", \"x\", \"z\", 2, 3) 会返回 \"xyzzy\"。",
+        "details": "作者\nZak@TMI-2 wrote the range constraint additions."
+      }
+    },
+    "replaceable": {
+      "sourceSha256": "6a8899fc872a4943305984c2673fbb0c41aa4ff6811cda537b734cc4b9d88583",
+      "fields": {
+        "summary": "string *fun defaults to ({ \"create\", \"__INIT\" }) and contains a list of functions which may be ignored for checking。\n\n   checks if object defines any functions itself (beside create and __INIT)\n\n   如果对象 `ob` 中定义了局部函数，返回 0，否则返回 1 。"
+      }
+    },
+    "request_clean_up": {
+      "sourceSha256": "be0a47907a6fb4b6006f01e681747479f93ce27428480111dc9f6e8cdf680edb",
+      "fields": {
+        "summary": "请求对象进入 clean_up 调度；未传对象时默认使用 this_object()。",
+        "details": "请求 driver 对指定对象安排 clean_up 检查。省略参数时作用于当前对象，返回值表示请求是否被接受。"
+      }
+    },
+    "request_term_size": {
+      "sourceSha256": "5d30f8612d8b84412b16491f818753c9ae1008b2d9f7c5210ef8375a51536231",
+      "fields": {
+        "summary": "FluffOS 2.4 新增efun。"
+      }
+    },
+    "request_term_type": {
+      "sourceSha256": "58393c31b4d6ed3040295790905b4dd7fc4e2f27923232d75a5ca0d8f2f19159",
+      "fields": {
+        "summary": "FluffOS 2.4 新增efun。"
+      }
+    },
+    "reset_eval_cost": {
+      "sourceSha256": "a37be970277db55e4f5adb6a35ffd0ba8526edcb400bdd4ae3be1f433c7bbdea",
+      "fields": {
+        "summary": "reset_eval_cost() resets the evaluation cost remaining to the maximum evaluation cost.\n\n   此函数相当于set_eval_limit(int default: 0);"
+      }
+    },
+    "resolve": {
+      "sourceSha256": "ebf2865e5bba41f71db8441be397326f92a87d1009dac7f26756228b9c82d409",
+      "fields": {
+        "summary": "resolve()  resolves  'address',  which should be an internet address in the form \"127.0.0.1\" or a domain name, into its domain name, or  internet  address.   When  the  resolve is complete, 'callback_func' will be called in the current object.  The form of the callback is:\n\n   void callback(string address, string resolved, int key);\n\n   'key' will match  up  with  the  number  that  the  call  to  resolve() returned.   'address'  will  be  the  domain  name  of  the  host,  and 'resolved' the dotted decimal ip address.  The unknown value will be  0 if the lookup failed."
+      }
+    },
+    "restore_from_string": {
+      "sourceSha256": "09ff56efc68d689bc24fad271dda644a0eee8a94515fb61adf8062f9e571bbe2",
+      "fields": {
+        "summary": "这个外部函数到作用和 restore_object 类似， 唯一的区别是不是从文件读取存档，而是直接从存档字符串 `str` 中读取。"
+      }
+    },
+    "restore_object": {
+      "sourceSha256": "c1ea506e0c5ea74c979089ffe43d48535527b76dbd0ffa2f69e6c45ed0a5c7c7",
+      "fields": {
+        "summary": "从文件 `name` 读取存档（变量和值）到当前对象。如果第二个可选参数是 1，所有非 nosave 类型的变量不会在恢复存档前被重置为 0（正常情况下会重置为0）。\n\n   如果读取时出错，所有受影响到变量都不会被更改并传回错误。"
+      }
+    },
+    "restore_variable": {
+      "sourceSha256": "ad9513b8bd0397dcad5d72a9fd03e4025a589cf5a54e74a607e864ff287c98e8",
+      "fields": {
+        "summary": "从一个字符串取回变量的值，数据存取格式和 save/restore_object 外部函数一样。"
+      }
+    },
+    "rm": {
+      "sourceSha256": "3c060d61162e7e6d7d782d7d65c5be99080e3eec2ead680d0c3df8f7f2afd5e9",
+      "fields": {
+        "summary": "删除文件 `file`，成功返回 1 ，失败返回 0 。"
+      }
+    },
+    "rmdir": {
+      "sourceSha256": "5251cd42377f28081e776b0bc00a18f04c748319df93b5131f8c3418bc6fecc7",
+      "fields": {
+        "summary": "删除目录 'dir'。",
+        "details": "Return semantics:\n成功返回 1 ，失败返回 0 。"
+      }
+    },
+    "roll_MdN": {
+      "sourceSha256": "de4ceaf6674f3021df9a4d489eeae03b60a5fd4b91a31454b8d6f65aa5703185",
+      "fields": {
+        "summary": "FluffOS 1.33新增efun，生成数字 `n` 的随机数 `m` 次，并返回所有随机数之和。注意和 random() 外部函数不同，这里生成的数值范围是 1 ~ n 。\n\nFluffOS v2019.20220507-25-g0459814b 版新增支持第三个bonus参数。"
+      }
+    },
+    "rotate_x": {
+      "sourceSha256": "ab1076fb98ef9a847b925ff4e0addd84671519be37f727ed65ac921b708a21d8",
+      "fields": {
+        "summary": "rotate_x 内置函数"
+      }
+    },
+    "rotate_y": {
+      "sourceSha256": "ba96b39f9347556e8e95b6dff31cc7a80e0c916e7e71bacce9b5dacaed7318ea",
+      "fields": {
+        "summary": "rotate_y 内置函数"
+      }
+    },
+    "rotate_z": {
+      "sourceSha256": "2d9e870bfa1adfe525d51d38f8c13547f0124f5f6301bc05df68d66bb0f09837",
+      "fields": {
+        "summary": "rotate_z 内置函数"
+      }
+    },
+    "roulette_wheel": {
+      "sourceSha256": "5c40ba2cc39aa5c951d421fb70a7e0f8fbc23996462292b91511c0d34bb14b3a",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "从权重 mapping 中按权重随机选择一个键或值，适用于带概率的随机选择。"
+      }
+    },
+    "round": {
+      "sourceSha256": "daec871c2c3e889a42eaea40c41cb665869401a08bcd15fedbe45fbfa10b85be",
+      "fields": {
+        "summary": "返回四舍五入后的浮点数。"
+      }
+    },
+    "rtrim": {
+      "sourceSha256": "c583be8a14f8183b30cac54a58a2346053f58dd53d323fb47082a71fbc5ef44c",
+      "fields": {
+        "summary": "移除字符串左侧的空白字符或其他预定义字符。\n\n   这是 FLUFFOS 新增的外部函数，在 MUDOS 中请用模拟外部函数实现。"
+      }
+    },
+    "rusage": {
+      "sourceSha256": "46b2baa6baf46b685ce2efbc736ff84d240b0cdb00bf5093f7ca9f481770f239",
+      "fields": {
+        "summary": "这个外部函数返回通过 getrusage() 系统调用收集的信息，报告中的时间单位是毫秒。\n\n   这里有个 rusage() 的使用示例：\n\nvoid create()\n{\n    mapping info;\n\n    info = rusage();\n    write(\"user time = \" + info[\"utime\"] + \"ms\\n\");\n    write(\"system time = \" + info[\"stime\"] + \"ms\\n\");\n}\n\nrusage() 外部函数返回的映射键名包括: utime, stime, maxrss, ixrss, idrss, isrss, minflt, majflt, nswap, inblock, oublock, msgsnd, msgrcv, nsignals, nvcsw, nivcsw",
+        "details": "示例\n> eval return rusage()\nResult = ([ /* sizeof() == 16 */\n  \"utime\" : 2187,\n  \"idrss\" : 0,\n  \"nsignals\" : 0,\n  \"msgsnd\" : 0,\n  \"isrss\" : 0,\n  \"ixrss\" : 0,\n  \"msgrcv\" : 0,\n  \"inblock\" : 0,\n  \"minflt\" : 12647,\n  \"nswap\" : 0,\n  \"majflt\" : 0,\n  \"nvcsw\" : 0,\n  \"nivcsw\" : 0,\n  \"maxrss\" : 47240,\n  \"stime\" : 1265,\n  \"oublock\" : 0,\n])"
+      }
+    },
+    "save_object": {
+      "sourceSha256": "be610d8853b399889cf8dda724f56395ca59a33aa9ca1aacf7026bf1822c0352",
+      "fields": {
+        "summary": "保存当前对象中所有非 nosave 类型的全局变量的值到文件 `name` 中。主控对象中的 valid_write() 方法检测是否允许写文件。第二个参数为可选参数，是一个位域（00、01、10、11），如果 0 位是 1（如：01、11），值为 0 的变量也会保存（正常情况下不会保存），对象类型变量一只保存为 0，如果 1 位是 1（如：10、11），存档文件会被压缩。",
+        "details": "Return semantics:\n存档成功返回 1，失败返回 0。"
+      }
+    },
+    "save_variable": {
+      "sourceSha256": "3fce0d7cc9054eca9cf55b1d7fc27d1feac79080b8ace4c7d3758da774e7f9f9",
+      "fields": {
+        "summary": "保存变量的值为一个字符串，格式和 save/restore_object 外部函数相同。"
+      }
+    },
+    "say": {
+      "sourceSha256": "e4671116dd1463b7a881deb18e1b03edda8ac4f8c6f3bcb34b1781bc98be06ca",
+      "fields": {
+        "summary": "把信息发送给发送者所在环境中的所有对象及所在环境是发送者的所有对象。发送者只能是 `this_player()` 或者 `this_player() == 0` 的 `this_object()`。\n\n   第二个参数是可选的，如果指定第二个参数 `obj`，信息不会发给 `obj`，`obj` 可以是一个对象或者是对象数组。\n\n   注意：此efun不会调用receive_message() apply；say()函数输出的最大长度为__LARGEST_PRINTABLE_STRING__，默认为65535字节（utf8编码一个汉字占3个字节）。"
+      }
+    },
+    "scale": {
+      "sourceSha256": "fd702880ed25d8189ccbf4ab25b900de5b4f5dbb9366ffa9d7fc11ea3dc34030",
+      "fields": {
+        "summary": "scale 内置函数"
+      }
+    },
+    "secure_random": {
+      "sourceSha256": "1ff7f58241f998ab2952b75a587835618fd084cf976fb300eb71064f34402778",
+      "fields": {
+        "summary": "secure_random 内置函数",
+        "details": "NAME\nsecure_random() - return a pseudo-random number, this should be unpredictable, but maybe slightly slow.\n\nSYNOPSIS\nint secure_random( int n );\n\nDESCRIPTION\nReturn a cryptographically secure random number from the range [0 .. (n -1)] (inclusive).\n\n   On Linux & OSX, this function explicitly use randomness from /dev/urandom, on windows it is implementation defined."
+      }
+    },
+    "send_gmcp": {
+      "sourceSha256": "6fe7926fb26340b11b63af4cb0521c72bafc5a035c54e88f7219b3b34e34dd44",
+      "fields": {
+        "summary": "send_gmcp 内置函数",
+        "details": "NAME\nsend_gmcp() - send a GMCP message\n\nSYNOPSIS\nvoid send_gmcp( string message );\n\nDESCRIPTION\nSends a GMCP 'message' for this_object() to the user's client.\n\n   For payload formatting information see: http://www.gammon.com.au/gmcp, https://github.com/keneanung/GMCPAdditions\n\n   Note: send_gmcp() should only be called from within a user object.\n\nSEE ALSO\ngmcp_enable(4), gmcp(4), has_gmcp(3)"
+      }
+    },
+    "send_msdp_variable": {
+      "sourceSha256": "87d9e9ec0471c4342f8c17dde834736a6462104cd40d9352cefebd7b2c6fcf5f",
+      "fields": {
+        "summary": "MudWiki 列表包含该函数，但详情页尚未提供内容。"
+      }
+    },
+    "send_nullbyte": {
+      "sourceSha256": "b6deffc2a6fd4533737fda7a3dac4e5aa1c5f9f890f8a61de80a248091871602",
+      "fields": {
+        "summary": "sends '\\0' to interactive, returns -2 in case of error 1 otherwise\n\n   这是 FLUFFOS 新增的外部函数，要求驱动程序编译时定义了 PACKAGE_CONTRIB 包。"
+      }
+    },
+    "send_zmp": {
+      "sourceSha256": "dad82c0f0b03edd687943b0c708bb6c68a6826e7ef6f951a16880704ea7af4bc",
+      "fields": {
+        "summary": "send_zmp 内置函数"
+      }
+    },
+    "set_author": {
+      "sourceSha256": "4154c3269c0096a65b79ada6e382fd9a0f308a4638ea1f931d4bffb7b88964bd",
+      "fields": {
+        "summary": "每个对象都有一个作者和域与之关联用来统计相关信息。域只能通过主控对象中的 domain_file() 方法设置，但是创造者不同，既能通过主控对象中的 author_file() 初始化，也能使用 set_author() 外部函数修改。\n\n   set_author() 外部函数修改调用它的对象的创造者。作者可以获取对象所有影响 mudlib 统计的行为。Note that this may cause some weird numbers to occur in the categories \"objects\" and \"array_size\", since the object may have initialized arrays or been created under the original author's credit, but it could be destructed or free the arrays that it's using under another author, thus reducing numbers from a count that didn't have those same  numbers added previously. 要记住这一点，请仅在 create() 方法中使用 set_author()，并尽可能在分配任何数组之前使用它。"
+      }
+    },
+    "set_bit": {
+      "sourceSha256": "4feb8ffb245aaf6b206452905dc13e58ea825246e1a491c408afa352497b0bfd",
+      "fields": {
+        "summary": "返回字符串 `str` 的第 `n` 位（bit）设置为 1 后的新字符串，注意原始字符串 `sr` 不会被改变。\n\n   `n` 的上限在运行时配置文件中限制，如果需要，新字符串的长度会自动增加。可打印字符串的每个字节长度为 6 位。"
+      }
+    },
+    "set_clean_up": {
+      "sourceSha256": "ad50ad74789c36d61bc5d66c25e3c678da6655986ede9b9f24333d6f997f7385",
+      "fields": {
+        "summary": "设置对象 clean_up 调度时间；第二个参数省略时使用 driver 默认行为。",
+        "details": "调整指定对象的 clean_up 调度。传入整数时设置调度延迟；省略第二个参数时恢复 driver 默认处理。"
+      }
+    },
+    "set_config": {
+      "sourceSha256": "af8eaa8a3da933c72039b7f454d1add913b23680e09d222b4caafbd11a9db3ad",
+      "fields": {
+        "summary": "set_config 内置函数"
+      }
+    },
+    "set_debug_level": {
+      "sourceSha256": "d80a57b8f352df208b3cdbb7a6ab1dc9e6b1f4314722420af2a45f7f6c9bb6dd",
+      "fields": {
+        "summary": "set_debug_level 内置函数"
+      }
+    },
+    "set_encoding": {
+      "sourceSha256": "2e6b8b6cc41e4a7e07482294265443f51c82488356b0830499c281d2c24735af",
+      "fields": {
+        "summary": "设置当前玩家的输入/输出编码。\n\n   如果给定的编码名称不可用，会抛出错误。可用编码取决于你的 ICU 版本，一般来说，中文使用 GBK。\n\n   如果没有指定编码，会重置玩家的编码为 UTF-8。\n\n   返回值为 ICU 规范的编码名称，与 query_encoding() 返回值相同。"
+      }
+    },
+    "set_eval_limit": {
+      "sourceSha256": "14b95d720f0173a58353bd84d2c221477c8b2806556cda0e5cf2130cff11e210",
+      "fields": {
+        "summary": "set_eval_limit() with a nonzero argument, sets the maximum evaluation cost that is allowed for any one thread before a runtime error occurs. With a zero argument, it sets the current evaluation counter to zero, and the maximum cost is returned. set_eval_limit(-1) returns the remaining evaluation cost."
+      }
+    },
+    "set_heart_beat": {
+      "sourceSha256": "f7030347b2034639a1b3062ba7a9ce60c43bab56f4dcfdd2cc3b264b501532f4",
+      "fields": {
+        "summary": "参数 `flag` 为 0 时关闭对象心跳，为 1 时对象每一次心跳都会呼叫对象的 heart_beat() 方法一次（心跳频率可以在运行时配置文件中设置，默认为 1000 毫秒，即 1 秒）。参数数值大于 1 时代表每隔多少次心跳呼叫 heart_beat() 方法一次。"
+      }
+    },
+    "set_hide": {
+      "sourceSha256": "794d5d76444e52a28e64013ba1c9ae53a6bbcb4304bd0c1fa695b1e0f52d25ec",
+      "fields": {
+        "summary": "为当前对象设置隐藏标志 `flag`，0 代表不隐藏，1 代表隐藏。当对象隐藏后，只有其它有隐藏权限（主控对象中的 valid_hide() 判断）的对象可以使用 find_object()、users()、children()、all_inventory()等查找此对象，objects()不会显示隐藏对象。"
+      }
+    },
+    "set_light": {
+      "sourceSha256": "0ece7928a6674bfd8aa4bdfe7ea9cc38cb892769671dbab59863dc384c5be03d",
+      "fields": {
+        "summary": "参数 <light_level_adjustment> 为 0 为查询对象的当前光亮级别，为正代表增加当前对象的光亮级别，为负代表减少当前对象的光亮级别。\n\n   这个函数需要在local_options中#undef NO_LIGHT。\n\n   译者注：原则上这个函数不应该是驱动该提供的，因为这是很容易被模拟出来的游戏功能，但是既然驱动提供了，那就优先用驱动提供的吧。"
+      }
+    },
+    "set_living_name": {
+      "sourceSha256": "34750672006d875e86f536aa2868e1d4c075db21479807d8b4f2f57e79fe9f6f",
+      "fields": {
+        "summary": "为一个生物设置名字，设置后可以使用 find_living() 外部函数找到这个对象。"
+      }
+    },
+    "set_malloc_mask": {
+      "sourceSha256": "09e48cc23aefd094c3a78c39962dc89df2630999775e12d6a7cdbe103ce2e88d",
+      "fields": {
+        "summary": "FluffOS develop package efun.",
+        "details": "设置 malloc 调试掩码，用于控制 driver 内存调试信息的收集范围。"
+      }
+    },
+    "set_notify_destruct": {
+      "sourceSha256": "3e36e819c0c42c85534ea2d1c6a19a7413b05138d8539a6179fb208dd6d797fb",
+      "fields": {
+        "summary": "set_notify_destruct 内置函数"
+      }
+    },
+    "set_os_env": {
+      "sourceSha256": "85372867230ab560e20b375b5b6262047e89737695795af522e64099271b2cf2",
+      "fields": {
+        "summary": "设置或清除 driver 配置白名单允许写入的操作系统环境变量。",
+        "details": "设置允许由 LPC 修改的操作系统环境变量。省略 value 时表示清除该变量；是否允许写入由 driver 配置控制。"
+      }
+    },
+    "set_privs": {
+      "sourceSha256": "43bc89a714aaedb68851fd88156cdfc92624b2c22b4e95054bdcc7c6f2c11edf",
+      "fields": {
+        "summary": "set_privs 内置函数",
+        "details": "NAME\nset_privs() - set the privs string for an object\n\nSYNOPSIS\nvoid set_privs( object ob, int | string privs );\n\nDESCRIPTION\nSets the privs string for 'ob' to 'privs'.\n\n   This efun is only available if PRIVS is defined at driver compile time.\n\nSEE ALSO\nprivs_file(4), query_privs(3)"
+      }
+    },
+    "set_reset": {
+      "sourceSha256": "ed1d83435f1c82307321734e2b3e87625312cdca2afb5cbce6213d2e57776616",
+      "fields": {
+        "summary": "设置对象 `ob` 的重置时间为从现在开始的 `time` 秒后。如果省略 `time`，对象 `ob` 的重置时间会设置为驱动通用重置时间，其公式为：\n\n   reset_time = current_time + reset_time / 2 + random(reset_time / 2)"
+      }
+    },
+    "set_this_player": {
+      "sourceSha256": "baae5e99d781ef4bd17152e705f6c89666f84eb985a48fa1b41a7c91e30a645e",
+      "fields": {
+        "summary": "设置当前玩家",
+        "details": "SYNOPSIS\nvoid set_this_player(object | int);\n   void set_this_user(object | int);\n\nDESCRIPTION\nset_this_player() causes 'who' to become the new value of this_player().  This efun is only available with __NO_ADD_ACTION__ defined, and is included since with __NO_ADD_ACTION__ parsing and dispatching of commands is the mudlib's responsibility. who can also be zero, in which this_player() is set to zero.\n\nSEE ALSO\nthis_player(3)"
+      }
+    },
+    "set_this_user": {
+      "sourceSha256": "0daae580e06d797cf538051d7b9efc472a6d2a1a139a333feabce880458a87ff",
+      "fields": {
+        "summary": "FluffOS core package efun.",
+        "details": "设置当前交互用户对象。该函数与 set_this_player 相关，通常只应在 driver 或底层框架明确需要时使用。"
+      }
+    },
+    "seteuid": {
+      "sourceSha256": "ff82f8d7b19a9a54eca9d7d76c08b7eb6cb2a90362f66000e8ddbe12592aa6cb",
+      "fields": {
+        "summary": "设置当前对象的有效用户ID为 `id`。主控对象中的 valid_seteuid() 方法控制了对象的 euid 可以被设置为什么。\n\n   如果 euid 设置为 0，当前对象的用户ID（uid）可以且仅可以使用 export_uid() 外部函数改变。\n\n   但是，如果 euid 为 0，这个对象不能载入或复制任何对象。"
+      }
+    },
+    "sha1": {
+      "sourceSha256": "d8a8a1ea067b4064382a8684a1333969ff54b4a1549c1b682d453e772e6d779f",
+      "fields": {
+        "summary": "使用 SHA1 算法对字符串 `str` Hash运算。\n\n   此函数仅在编译驱动时定义了 `PACKAGE_SHA1` 有效。",
+        "details": "示例\nsha1(\"something\") = \"1af17e73721dbe0c40011b82ed4bb1a7dbe3ce29\""
+      }
+    },
+    "shadow": {
+      "sourceSha256": "bfc636d6000ea62982649c586ba12c4d10e1481d08634b1c95b09c6531e00ab6",
+      "fields": {
+        "summary": "如果参数 `flag` 是 1 或者不指定，当前对象会投影对象 `ob`。如果参数 `flag` 是 0 ，要么返回 0 要么返回已经投影对象 `ob` 的对象。\n\n   主控对象中定义了 apply 方法 \"valid_shadow()\"，每次执行 shadow() 外部函数时主控对象都会调用此方法，如果 valid_shadow() 返回 0 那么目标对象无法被投影，这时 shadow() 函数会返回 0 而不是被投影的对象 `ob`。\n\n   如果对象 `a` 投影对象 `b`，所有针对对象 `b` 的函数调用都会重定向到 `a`，只有 `a` 中没有定义被呼叫的函数时才会从 `b` 中呼叫（就像 a 没有投影 b 一样）。对象 `b` 中的内部方法仅限 `b` 自己调用，如果要通过 call_other() 呼叫 `b` 中的方法的话，仅对象 `a` 可以这样用。\n\n   有二种方法可以移除投影，一种是或者摧毁投影对象或者摧毁被投影对象，另一种是如果编译驱动时定义了 PACKAGE_CONTRIB，可以使用 remove_shadow() 外部函数取消投影。\n\n   利用投影，可以把一个对象隐藏在另一个对象后面，又可以像没有被隐藏一样运行。shadow() 外部函数可以在不改变相关对象代码的情况下改变对象的行为。举例来说，通过 shadow() 可以很容易的给不同玩家增加职业上的特殊能力，比如盗贼、战士、法师等。相比把所有特殊功能的代码都写在玩家对象中来说这种用法可以让代码更为简洁。\n\n   请注意：如果当前对象已经投影了对象，或被对象投影，或者在任何环境中，将无法再投影任何对象，投影时会报错。但是，如果对象 `ob` 已经被对象 A 投影了，还可以继续被对象 B 投影，结果是 B 投影 A，A 投影 `ob`，这也是让对象投影已投影其它对象的对象的唯一方式。另外，对象不能投影自己，即函数中参数 `ob` 不可以是 this_object()。"
+      }
+    },
+    "shallow_inherit_list": {
+      "sourceSha256": "d2234063b682b7a8777028eb0c42d2b41c8b94a55057fee86fb42ea7232f2b79",
+      "fields": {
+        "summary": "返回对象 `obj` 继承的对象的文件名数组，仅仅返回直接继承的对象，如：A 继承 B，B 继承 C，inherit_list(A) 返回的数组中只有 B 没有 C。"
+      }
+    },
+    "shout": {
+      "sourceSha256": "6f9f07f24c6f7ff30a50bea1bd25d1d0b722356e58b5a6cf4ef19e2025b79648",
+      "fields": {
+        "summary": "对 this_player() 以外的所有活着的对象发送信息 `str`。\n   注意：此efun不会调用receive_message() apply；shout()函数输出的最大长度为__LARGEST_PRINTABLE_STRING__，默认为65535字节（utf8编码一个汉字占3个字节）。"
+      }
+    },
+    "shuffle": {
+      "sourceSha256": "bbf1698100133e2d258323cc251cc8679dea0b3245428791ac3088d70089cc49",
+      "fields": {
+        "summary": "FluffOS 1.11 新增efun，打乱数组 `arr` 并返回乱序后的数组，请注意原始数组 `arr` 也被打乱。"
+      }
+    },
+    "shutdown": {
+      "sourceSha256": "fc32e7b002b17e31c06c2182aad9f080b1c970108cf38bd564e1d4c024afdcbe",
+      "fields": {
+        "summary": "和系统崩溃而强制关闭驱动程序不同，这个函数以可控的方式关闭驱动程序。参数 `how` 指定驱动应该以哪种方式关闭，如果要彻底关闭驱动请使用参数 -1，否则为重启驱动（实际上没用）。\n\n   很显然，shutdown() 是一个需要把关安全的外部函数，和 exec() 一样，可以重写一个同名模拟外部函数做安全校验。请确保在主控对象中设置 valid_override() 方法来防止使用 efun::shutdown() 跳过安全校验。"
+      }
+    },
+    "sin": {
+      "sourceSha256": "3336c8fc675b1353b1bb7619aa6e184cd5d172a6f97126def7455714698516aa",
+      "fields": {
+        "summary": "Returns the sine of its argument, 'f', measured in radians."
+      }
+    },
+    "sizeof": {
+      "sourceSha256": "7fa40be3971da3e25b68af528f65d1c441452a93ed43d1ad4af557d5d4696c12",
+      "fields": {
+        "summary": "返回 array、mapping、buffer 或 string 类型数据 `var` 的元素个数，如果 `var` 不是以上类型，返回 0 。"
+      }
+    },
+    "snoop": {
+      "sourceSha256": "a6e918234da4f392d4e24d6a56341dd177ca62ffd8a5a666cdbf364e780f8658",
+      "fields": {
+        "summary": "当使用2个参数时，对象 `snooper` 开始监听对象 `snoopee`。当第二个参数省略时，关闭 `snooper` 的所有监听。通常使用模拟外部函数控制 snoop() 的安全性。\n\n   如果函数执行成功，使用2个参数时返回 `snoopee`，只有一个参数时返回 `snooper`。如果执行失败返回 0 。"
+      }
+    },
+    "socket_accept": {
+      "sourceSha256": "88425087b37bbe39bfe5605b9491babf52e8e5964c4bc7bf8cfafc7a24c96a22",
+      "fields": {
+        "summary": "参数 `s` 是使用 socket_create() 创建的已调用 socket_bind() 绑定地址并通过 socket_listen() 进入监听状态的 socket。 socket_accept() 从待处理的连接队列中提取第一个连接创建一个和 `s` 有相同属性的新的 socket 并分配一个新的文件描述符，如果队列中不存在待处理的连接，socket_accept() 返回一个下面描述的错误。已接受的 socket 用来从已连接到它的 socket 中读数据或向其中写数据，它不能用来接受别的连接，原始的socket `s` 会保持打开状态以接受新的连接。\n\n   参数 `read_callback` 是当新的 socket （不是正在接收中的 socket）收到数据时驱动程序调用的函数名称，这个函数的原型应该是以下格式：\n\n   void read_callback(int fd, mixed message);\n\n   其中参数 `fd` 是已准备好接收数据的 socket，`message` 是收到的消息内容。\n\n   参数 `write_callback` 是当新的 socket （不是正在接收中的 socket） 准备好写入数据时驱动程序调用的函数名称，这个函数的原型应该是以下格式：\n\n   void write_callback(int fd);\n\n   其中参数 `fd` 是已准备好被写入数据的 socket。\n\n   注意：当新的socket 异常关闭时，正在接收中的 socket （不是新的 socket）中的 close_callback 方法会被调用，和调用 socket_close() 的结果不同，close_callback 函数原型应该是以下格式：\n\n   void close_callback(int fd)\n\n   其中参数 `fd` 是被关闭的 socket 连接。",
+        "details": "Return semantics:\nsocket_accept() 在成功时为接受的 socket 返回一个非负描述符，失败时返回一个错误值，可以使用 socket_error() 外部函数获取错误值的文字描述。\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性\n   EEMODENOTSUPP  不支持的 Socket 模式\n   EENOTLISTN     Socket 没有开启监听\n   EEWOULDBLOCK   操作会阻塞\n   EEINTR         中断的系统调用\n   EEACCEPT       接收出问题\n   EENOSOCKS      没有空余的 efun sockets"
+      }
+    },
+    "socket_acquire": {
+      "sourceSha256": "1133f1ba75c8ae40ffd9ccbd5b122581eb2b593f3a388184b65edd76e1b3d76a",
+      "fields": {
+        "summary": "socket_acquire() 在 socket_release() 把 `socket` 的所有权和控制权转移到新对象时被呼叫用来完成握手。 socket_release() 呼叫新拥有者对象中的 `release_callback` 方法用来通知对象它想移交 `socket` 的所有权。新对象有责任决定是否愿意接收 `socket`，如果愿意，就调用 socket_acquire() 外部函数完成转移，如果不愿意回调只是简单的回应而不完成握手。\n\n   在前一种情况下，握手完成，新对象成为 `socket` 的拥有者，读、写或关闭回调函数的参数都参照新对象中的函数，在新对象中的这些函数都需要定义以保证驱动程序知道调用哪些函数。后一种情况下 socket_release() 返回 EESOCKNOTRLSD 以保证原所有者可以做适合的处理。\n\n   socket_acquire() 应该仅在 `release_callback` 方法中调用并且只使用传递过来的这个 `socket`。"
+      }
+    },
+    "socket_address": {
+      "sourceSha256": "4c7c51ebf070d8204df80d112a243f853fd67101e9bf1463a0fed97f28c00edd",
+      "fields": {
+        "summary": "socket_address()  返回 efun socket `s` 的远程连接地址，返回地址格式类似：\"127.0.0.1 23\"",
+        "details": "Return semantics:\n成功返回地址字符串，失败返回一个空字符串。"
+      }
+    },
+    "socket_bind": {
+      "sourceSha256": "56da89ee6badec851f9487823d433af4021cc0596765a42a46540d115b71bf6f",
+      "fields": {
+        "summary": "socket_bind() 为未名称的 socket 指定名称， 当通过 socket_create() 创建一个 socket 连接后，它存在于命名空间中但没有指定名称（译者注：简单的说就是有 IP 没端口），socket_bind() 会请求把端口 `port` 分配给 socket `s`。\n   string可选参数为指定绑定的IP地址（字符串格式）当指定具体IP地址时只绑定到该特定地址，否则绑定到所有可用网络接口（0.0.0.0）。",
+        "details": "Return semantics:\n成功时返回 EESUCCESS，失败（错误）时返回代表以下意义的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性\n   EEISBOUND      Socket 已经绑定（被命名）\n   EEADDRINUSE    地址已经被占用\n   EEBIND         绑定（命名）出问题\n   EEGETSOCKNAME  获取 socket 名称（getsockname）出问题\n\n   注：所有错误名称定义在驱动程序源文件的 `socket_err.h` 头文件中。"
+      }
+    },
+    "socket_close": {
+      "sourceSha256": "583c49ebfef12095ecc6984ec40f3b237994312cf980ac543fb6d7f372461f6a",
+      "fields": {
+        "summary": "socket_close() 关闭 socket `s`，这将释放一个 socket 位置以供使用。",
+        "details": "Return semantics:\n成功返回 EESUCCESS ，失败返回代表以下错误的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性"
+      }
+    },
+    "socket_connect": {
+      "sourceSha256": "7084f1f098930fa1f0afdee9cb963dbb2ac6c1df3c8f8d97d8fa264dbda174d0",
+      "fields": {
+        "summary": "参数 `s` 是一个 socket 连接，`s` 必须是 STREAM 模式 或 MUD 模式. 参数 `address` 是将要连接的 socket 地址，地址格式类似： \"127.0.0.1 23\"。\n\n   参数 `read_callback` 是 socket 获取数据时驱动程序调用的函数名称，函数原型应该是以下格式：\n\n   void read_callback(int fd, mixed message)\n\n   其中参数 `fd` 是接受数据的 socket 连接，参数 `message` 是接收到的数据。\n\n   参数 `write_callback` 是 socket 准备写入数据时驱动程序调用的函数名称，函数原型应该是以下格式：\n\n   void write_callback(int fd)\n\n   其中参数 `fd` 是将被写入数据的 socket 连接。",
+        "details": "Return semantics:\n成功时返回 EESUCCESS ，失败（出错）时返回代表以下意义的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性\n   EEMODENOTSUPP  不支持的 Socket 模式\n   EEISLISTEN     Socket 正在监听中\n   EEISCONN       Socket 已连接\n   EEBADADDR      地址格式问题\n   EEINTR         中断的系统调用\n   EEADDRINUSE    地址已经被占用\n   EEALREADY      操作已在进行中\n   EECONNREFUSED  连接被拒绝\n   EECONNECT      连接问题"
+      }
+    },
+    "socket_create": {
+      "sourceSha256": "c08bed215a5b9d9fd8ca8ed1e3051d143fe81aa722f0219d7b31b1538c42ef87",
+      "fields": {
+        "summary": "socket_create() 创建一个 efun socket。参数 `mode` 决定要创建哪种模式的 socket。目前支持的 socket 模式为:\n\n   MUD         使用 TCP 协议传输 LPC 类型数据\n   STREAM      使用 TCP 协议传输原始数据\n   DATAGRAM    使用 UDP 协议\n\n   具体在<socket.h>头文件中有定义：\n\n#ifndef SOCKET_H\n#define SOCKET_H\n\n#define MUD                 0   // for sending LPC data types using TCP protocol.\n#define STREAM              1   // for sending raw data using TCP protocol.\n#define DATAGRAM            2   // for using UDP protocol.\n#define STREAM_BINARY       3\n#define DATAGRAM_BINARY     4\n#define STREAM_TLS          5\n#define STREAM_TLS_BINARY   6\n\n#endif          /* SOCKET_H */\n\n参数 `read_callback` 是 socket 接收数据后驱动程序调用的函数名称，此函数原型应该是以下格式：\n\n   void read_callback(int fd, mixed message, void|string addr);\n\n   其中参数 `fd` 是接收到数据的 socket 连接；参数 `message` 是接收到的数据，在非二进制模式下返回值是 utf-8 格式的字符串，在二进制模式下返回值是 buffer；在UDP模式下，第三个参数 `addr` 为客户端IP地址。\n\n   参数 `close_callback` 是 socket 意外关闭时驱动程序调用的函数名称（如不是通过 socket_close() 关闭）。此函数原型应该是以下格式：\n\n   void close_callback(int fd);\n\n   其中参数 `fd` 是被关闭的 socket 连接。注意：close_callback() 不能在 DATAGRAM 模式下使用。",
+        "details": "Return semantics:\n成功时返回一个非负连接描述符，失败(出错)时返回以下意义的负值：\n\n错误\n\nEEMODENOTSUPP  不支持的 Socket 模式\n   EESOCKET       创建 socket 时的问题\n   EESETSOCKOPT   设置 socket 选项（setsockopt）时的问题\n   EENONBLOCK     设置非阻塞模式（non-blocking mode）时的问题\n   EENOSOCKS      没有空余的 efun sockets\n   EESECURITY     试图违反安全性\n\n   以上错误定义在驱动程序源文件的<socket_err.h>头文件中,具体文件内容如下：\n\n/*\n * socket_errors.h -- definitions for efun socket error return codes.\n *    5-92 : Dwayne Fontenot (Jacques@TMI) : original coding.\n *   10-92 : Dave Richards (Cynosure) : less original coding.\n */\n\n#ifndef _SOCKET_ERRORS_H_\n#define _SOCKET_ERRORS_H_\n\n#define EESUCCESS 1       /* Call was successful */\n#define EESOCKET -1       /* Problem creating socket */\n#define EESETSOCKOPT -2   /* Problem with setsockopt */\n#define EENONBLOCK -3     /* Problem setting non-blocking mode */\n#define EENOSOCKS -4      /* UNUSED */\n#define EEFDRANGE -5      /* Descriptor out of range */\n#define EEBADF -6         /* Descriptor is invalid */\n#define EESECURITY -7     /* Security violation attempted */\n#define EEISBOUND -8      /* Socket is already bound */\n#define EEADDRINUSE -9    /* Address already in use */\n#define EEBIND -10        /* Problem with bind */\n#define EEGETSOCKNAME -11 /* Problem with getsockname */\n#define EEMODENOTSUPP -12 /* Socket mode not supported */\n#define EENOADDR -13      /* Socket not bound to an address */\n#define EEISCONN -14      /* Socket is already connected */\n#define EELISTEN -15      /* Problem with listen */\n#define EENOTLISTN -16    /* Socket not listening */\n#define EEWOULDBLOCK -17  /* Operation would block */\n#define EEINTR -18        /* Interrupted system call */\n#define EEACCEPT -19      /* Problem with accept */\n#define EEISLISTEN -20    /* Socket is listening */\n#define EEBADADDR -21     /* Problem with address format */\n#define EEALREADY -22     /* Operation already in progress */\n#define EECONNREFUSED -23 /* Connection refused */\n#define EECONNECT -24     /* Problem with connect */\n#define EENOTCONN -25     /* Socket not connected */\n#define EETYPENOTSUPP -26 /* Object type not supported */\n#define EESENDTO -27      /* Problem with sendto */\n#define EESEND -28        /* Problem with send */\n#define EECALLBACK -29    /* Wait for callback */\n#define EESOCKRLSD -30    /* Socket already released */\n#define EESOCKNOTRLSD -31 /* Socket not released */\n#define EEBADDATA -32     /* sending data with too many nested levels */\n\n#define ERROR_STRINGS 33 /* sizeof (error_strings) */\n\n#endif /* _SOCKET_ERRORS_H_ */"
+      }
+    },
+    "socket_error": {
+      "sourceSha256": "75f705f6a1416f5593f0047199b598190fa9f4a8ee9ea1b5a8c0e54f35fe91ff",
+      "fields": {
+        "summary": "socket_error() 返回 socket 错误 `error` 的文字描述",
+        "details": "Return semantics:\n报错时返回错误描述，否则返回 \"socket_error: invalid error number\"。"
+      }
+    },
+    "socket_get_option": {
+      "sourceSha256": "4055b2e7a76e0b03ac3419ddc920b2ce73d513029245d1f394adbe774c6ac43b",
+      "fields": {
+        "summary": "// todo"
+      }
+    },
+    "socket_listen": {
+      "sourceSha256": "7213d44f70546b2d52d809c072ff84dc71afe236e2b3a49a5d1acaee2dde8e8b",
+      "fields": {
+        "summary": "为了接收连接，需要先使用 socket_create() 创建 socket，并使用 socket_listen() 进入监听模式，最后使用 socket_accept() 接收连接。socket_listen() 仅仅在 STEAM 或 MUD 模式有效。\n\n   参数 `listen_callback` 是监听中的 socket 收到连接请求时驱动程序调用的函数名称，函数原型格式如下：\n\n   void listen_callback(int fd)\n\n   其中参数 `fd` 是正在监听中的 socket 连接。",
+        "details": "Return semantics:\n成功时返回 EESUCCESS，失败（错误）时返回代表以下意义的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性\n   EEMODENOTSUPP  不支持的 Socket 模式\n   EENOADDR       Socket 没有绑定地址\n   EEISCONN       Socket 已连接\n   EELISTEN       监听有问题"
+      }
+    },
+    "socket_release": {
+      "sourceSha256": "818d53c731097bdd5509c783e60c0ebb8d52e48392f617a27583f091d98f8ef3",
+      "fields": {
+        "summary": "socket_release() 用来改变一个 socket 的所有权和控制权到其它对象。这在接受连接设置然后转换已接受的 socket 连接到其它对象以做后续处理的守护进程对象中很有用。\n\n   socket 所有权的转移涉及当前所属对象和转移目标对象之间的一次握手，当 socket_release() 调用时启动握手。socket_release() 执行必要的安全性和完整性检查后调用对象 `ob` 中的 `release_callback` 方法，这个方法用来通知准备接收 `socket` 所有权的对象 `ob`，对象 `ob` 有责任在 `release_callback` 方法中调用 socket_acquire() 外部函数。如果 socket_acquire() 被调用，握手完成，`socket` 的所有权成功的移交给对象 `ob`。对象 `ob` 也可以不调用 socket_acquire() 以拒绝接收 `socket` 的所有权，在这种情况下 `socket` 的所有权不会改变，而且 `socket` 的当前所有者必须决定如何处理拒绝。\n\n   如果 `socket` 的所有者转移成功，socket_release() 返回 EESUCCESS；如果对象 `ob` 拒绝授受，socket_release() 返回 EESOCKNOTRLSD。其它基于安全检查、错误的 socket 描述符等等错误码也可能返回。"
+      }
+    },
+    "socket_set_option": {
+      "sourceSha256": "d02e6a7a73fe430c56878640bf8f956a040931a8976ee05f99cf87d2761cab96",
+      "fields": {
+        "summary": "// todo",
+        "details": "示例\n#define STREAM 1\n#define DATAGRAM 2\n#define STREAM_TLS 5\n\n#define STATE_RESOLVING 0\n#define STATE_CONNECTING 1\n#define STATE_CLOSED 2\n#define STATE_CONNECTED 3\n\n#define SO_TLS_VERIFY_PEER 1\n#define SO_TLS_SNI_HOSTNAME 2\n\nint get(string host, int port, string path, int tls, mixed callback) {\n  int fd;\n\n  receiver = this_player();\n\n  fd = socket_create(tls ? STREAM_TLS : STREAM, \"receive_data\", \"socket_shutdown\");\n\n  if (tls) {\n    socket_set_option(fd, SO_TLS_VERIFY_PEER, 1);\n    socket_set_option(fd, SO_TLS_SNI_HOSTNAME, host);\n  }\n  // ...\n}"
+      }
+    },
+    "socket_status": {
+      "sourceSha256": "319194a3e8f8dcc0c794998f5ddd225e3fccf78fbc597520b1aaa604c1c61d07",
+      "fields": {
+        "summary": "socket_status(int fd) returns an array with:\n   . ret[0] = (int) fd\n       . ret[1] = (string) state\n       . ret[2] = (string) mode\n       . ret[3] = (string) local address\n       . ret[4] = (string) remote address\n       . ret[5] = (object) owner\n   socket_status() returns an array of arrays; one for each socket."
+      }
+    },
+    "socket_write": {
+      "sourceSha256": "19f887ae09b1b1c2ee23cad4db034fdf51218de5e71b2792d15b289fea3993b8",
+      "fields": {
+        "summary": "socket_write() 在 socket `s` 上发送消息 `message`，如果 socket `s` 是 STREAM 或 MUD 模式，socket 必须已经连接且不能指定参数 `address`，如果 socket `s` 是 DATAGRAM 模式, 地址参数 `address` 必须指定，地址格式类似: \"127.0.0.1 23\"。",
+        "details": "Return semantics:\n成功时返回 EESUCCESS，失败（错误）时返回代表以下意义的负值：\n\n错误\n\nEEFDRANGE      连接描述符（Descriptor）超出范围\n   EEBADF         无效的连接描述符\n   EESECURITY     试图违反安全性\n   EENOADDR       Socket 没有绑定地址\n   EEBADADDR      地址格式有问题\n   EENOTCONN      Socket 没有连接\n   EEALREADY      操作已在进行中\n   EETYPENOTSUPP  不支持的对象类型\n   EEBADDATA      发送嵌套级别过多的数据\n   EESENDTO       sendto 有问题\n   EEMODENOTSUPP  不支持的 Socket 模式\n   EEWOULDBLOCK   操作会阻塞\n   EESEND         send 有问题\n   EECALLBACK     等待回调中"
+      }
+    },
+    "sort_array": {
+      "sourceSha256": "4258066f5623b773a2abb4caea177e867bf2fc8e17404e6e1fb397ea10ba8f2b",
+      "fields": {
+        "summary": "第一种形式返回一个和参数 `arr` 元素相同的数组，只是根据 `ob->fun()` 的规则按升序快速排序。`ob->fun()` 返回值 -1、0、1 说明二个元素的关系是小于、等于或大于。\n\n   第二种形式和第一种形式功能相同，只是参数使用函数指针。\n\n   第三种形式返回一个和参数 `arr` 元素相同的数组，只是使用内置排序程序快速排序，参数 `direction` 0或1代表升序，-1代表降序。使用内置排序程序的局限是数组元素必须是相同类型的，参与比较的元素必须是字符串、整型或浮点型中的一种，如果数组中包含数组，只会根据子数组的第一个元素进行排序。"
+      }
+    },
+    "sprintf": {
+      "sourceSha256": "4fe839171edf4f7fd2e6255030f11d963184635dd2020c1b4b01d475cec886eb",
+      "fields": {
+        "summary": "格式化输出信息给当前玩家，format 完整形式为：%[flag][width][.precision]type\n\n当前版本支持以下格式控制符，其中标志位控制符可组合使用:\n\n标志位（flag）\n\n\" \"     用于整数或者小数，输出值为正时冠以空格，为负时冠以负号。\n   \"+\"     用于整数或者小数，表示输出符号（正负号）。如果没有，那么只有负数才会输出符号。\n   \"-\"     示左对齐。如果没有，就按照默认的对齐方式，默认为右对齐。\n   \"|\"     对齐栏位中心。\n   \"=\"     用于字符串，如果字符串长度超出栏位宽度，使用纵列模式(column mode)，字符串会自动换\n           行。\n   \"#\"     用于字符串， 在柆位内使用表格模式(table mode)换行（'\\n'）输出单词列表。\n   \"0\"     必须紧随宽度整数前面，将输出的资料空栏位用0填充，直到占满指定栏位列宽为止。\n   \"'X'\"   用单引号中的字符填充栏位（默认为用空格填充）(如果即指定用0填充，又指定用字符填充，以\n           后指定的为准。注意：如果要用“'”、“\"”或“\\”填充，必须使用转义字符“\\'”、“\\\"”、“\\\\”。\n   \"@\"     参数是数组，除 \"@\" 外的其它格式信息会应用于数组中的每一个元素。\n\n输出最小宽度（width）\n\n整数    指定栏位最小宽度（列宽）， 使用 '*' 则在输出参数列表中指定宽度。若实际位数多于指定的\n           宽度，则按实际位数输出，若实际位数少于定义的宽度则补以空格或0。\n\n精度（.precision）\n\n\".整数\"     指定栏位的精度, 普通字符串在此之后会被截断(如果精度超出列宽，则列宽等于精度),\n               表格模式使用精度指定列数(如果未指定，表格会自动计算最适合的结果)。\n   \":整数\"     指定栏位宽度和精度。如果整数前补0，则代替空格使用0补满栏位。\n\n类型（type）\n\n%       简单的说，就是输出 % 用，示例：printf(\"%%\");\n   O       参数格式为 LPC 数据类型。（可以输出任何类型，方便DEBUG）\n   s       参数格式为字符串类型。\n   d, i    把整型参数输出为有符号十进制整数。（i为旧式写法）\n   c       把整型参数输出为字符。\n   o       把整型参数输出为无符号八进制整数。（不输出前缀0）\n   x       把整型参数输出为无符号十六进制整数。（不输出前缀0x，小写a-f）\n   X       把整型参数输出为无符号十六进制整数。（不输出前缀0x，大写A-F）\n   f       参数格式为浮点数。",
+        "details": "作者\nSean A. Reith (Lynscar)\n\nReturn semantics:\nsprintf() 返回格式化的字符串。"
+      }
+    },
+    "sqrt": {
+      "sourceSha256": "4a7efd796c4ad43ae10f1a9fc2e2e08609e67532cd0ac355e5d70c67d3e98dc3",
+      "fields": {
+        "summary": "sqrt() 返回浮点数 `f` 的正平方根，`f` 不能是负数。"
+      }
+    },
+    "sscanf": {
+      "sourceSha256": "828240a291f6e78691838f8adb47fc63a0925b8c6b8eb30a013fce51fcd52204",
+      "fields": {
+        "summary": "以格式 `fmt` 分析字符串 `str`，`fmt` 可以包含使用 `%d`（或 `%x`）或 `%s` 分隔的字符串，每一个 `%d` 和 `%s` 按顺序对应一个变量参数 `var1`、`var2`...。`%d` 读入整数到变量，`%s` 读入字符串到变量。* 也可以用在格式定义符中（如 %*d 和 %*s），表示忽略对应的内容（不分配给变量）。LPC语言中的 sscanf() 函数和C语言中的同名函数功能类似，但又稍有不同，一方面不需要像C语言一样对普通变量使用取地址运算符 &，另一方面在LPC语言中 sscanf(str, \"%s %s\",  str1,  str2) 会把第一个单词分配给变量str1，剩余部分分配给str2，而在C语言中str2只会是第二个单词。请注意 `%s%s` 是不能使用的。\n\n   返回值是匹配字符串的格式定义符数量。\n\nSpecifiers:\n       %s          -   match a string\n       %d          -   match an integer\n       %f          -   match a float\n       %x          -   match a base 16 number and convert to base 10\n       %(regexp)   -   match a regexp pattern\n\n   The \"*\" may be used in a specifier (e.g. \"%*s\") to skip over a match in\n   the input string and not assign it to a function argument.   A \"%%\" may\n   be used to match the \"%\" character,  which will also be skipped over in\n   the function arguments.",
+        "details": "EXAMPLE\nBasic Usage:\n       string what, who;\n\n       if (sscanf(input, \"give %s to %s\", what, who) == 2)\n           write(\"You give \" + what + \" to \" + who + \".\");\n       else\n           write(\"Give what to who?\");\n\n       sscanf(\"give\", \"give %s to %s\", what, who) == 0\n       // what == UNDEFINED && who == UNDEFINED\n\n       sscanf(\"give item\", \"give %s to %s\", what, who) == 1\n       // what == \"item\" && who == UNDEFINED\n\n       sscanf(\"give item to name\", \"give %s to %s\", what, who) == 2\n       // what == \"item\" && who == \"name\"\n\nNumeric:\n       int i;\n       sscanf(\"123\", \"%d\", i) == 1\n       // i == 123\n\n       float f;\n       sscanf(\"1.23\", \"%f\", f) == 1\n       // f == 1.230000\n\n       int b10;\n       sscanf(\"ABC\", \"%x\", b10) == 1\n       // b10 == 2748\n\nRegexp:\n       string str1, str2;\n       sscanf(\"one two\", \"%([a-z]+) %([a-z]+)\", str1, str2) == 2\n       // str1 == \"one\" && str2 == \"two\""
+      }
+    },
+    "start_request_term_type": {
+      "sourceSha256": "05e05ad7dbb6905730f4835350591533e95ac92871eb6fac11a7a620cdb84677",
+      "fields": {
+        "summary": "FluffOS 2.4 新增efun。"
+      }
+    },
+    "stat": {
+      "sourceSha256": "78682273616256613d9a1de7719937926952d79817a59938c8e2c113c906f645",
+      "fields": {
+        "summary": "如果 `str` 是一个文件，stat() 返回一个关于文件信息的数组，数组格式如下：\n\n   ({ 文件大小, 文件最后修改时间, 文件载入游戏时间, 文件创建时间 })\n\n   如果 `str` 是一个目录，或者第二个参数是 -1 ，stat() 的作用和 get_dir() 一样。"
+      }
+    },
+    "store_class_member": {
+      "sourceSha256": "b45e2b7217b7725f23dc3646a661a467ef52c790a8ea28b8e22eacf5d7c7fd91",
+      "fields": {
+        "summary": "这是 FluffOS 2.0 新增的外部函数，保存结构体 `instantiated_class` 的第 `class_element` 个成员的值为 `value`，返回更新后的结构体。",
+        "details": "示例\nclass person\n{\n    string name;\n    int age;\n    string city;\n}\n\nvoid fun()\n{\n    class person me = new (class person);\n\n    me->name = \"Foo\";\n    me->age = 42;\n    me->city = \"Fooville\";\n\n    write(sprintf(\"%O\\n\", me));\n\n    // Result:\n    // CLASS( 3 elements\n    //   \"Foo\",\n    //   42,\n    //   \"Fooville\"\n    //  )\n\n    me = store_class_member(me, 1, 43);\n\n    write(sprintf(\"%O\\n\", me));\n\n    // Result:\n    // CLASS( 3 elements\n    //   \"Foo\",\n    //   43,\n    //   \"Fooville\"\n    //  )\n}"
+      }
+    },
+    "store_variable": {
+      "sourceSha256": "819b14e53fd58ac9a5495fb2b4ef5dc08475df12f50c3f090c80ed20d6ab1b4a",
+      "fields": {
+        "summary": "设置对象 `ob` 中定义的全局变量 `arg` 的值为 `value`，如果不指定对象 `ob`，默认为 this_object()。请注意：变量 `arg` 必须是指定对象中已定义的，且不为private类型。\n\n   此外部函数要求驱动程序编译时定义了 PACKAGE_CONTRIB 包。\n\n   此外部函数存在安全隐患，最好通过sefun重写做安全检查。",
+        "details": "示例\nstore_variable( \"weight\", 150, this_player() ) ;"
+      }
+    },
+    "strcmp": {
+      "sourceSha256": "e180ee50641f04b5705036a83590646ec1dfc52c7d5fd51414274dd2aaf9e39e",
+      "fields": {
+        "summary": "这个外部函数的功能和C语言中的同名库函数完全相同。如果字符串 `one` 小于字符串 `tow` 返回值小于零，如果相等，返回 0 ，否则返回值大于零（大小关系按字母顺序，也是按其 ascii 值的大小比较）。\n\n   这个外部函数在 sort_array() 中做为比较函数使用特别方便。"
+      }
+    },
+    "strftime": {
+      "sourceSha256": "9a7f30b2749fb74a2827286c8b1328d0223a1e6982eef306b9b9919f91ac7af7",
+      "fields": {
+        "summary": "Format given time with a format string, see https://en.cppreference.com/w/cpp/chrono/c/strftime"
+      }
+    },
+    "string_decode": {
+      "sourceSha256": "edcd4c0e1b9ec20ffcd46465e1bdbe5cf86207c8e8519e5cc8cf559a84d4063f",
+      "fields": {
+        "summary": "将编码为 `encoding` 的缓冲区 `buf` 解码为 UTF-8 字符串。"
+      }
+    },
+    "string_difference": {
+      "sourceSha256": "d3a5be5fc7cd4ed58abfb41a36f92e09217885d6a14490d66167a366ae145ad2",
+      "fields": {
+        "summary": "按字符顺序比较字符串 `str1` 和 `str2` 的不同，并返回不同值的数量。"
+      }
+    },
+    "string_encode": {
+      "sourceSha256": "bd2493e6a5ea6f1302239fde8ab2270321ce9190e338e7c9c0152277eac6757c",
+      "fields": {
+        "summary": "将 utf-8 编码的字符串 `str` 编码为 `encoding` 编码的缓冲区。"
+      }
+    },
+    "stringp": {
+      "sourceSha256": "04443e9ae71b278e03d307633564958058076323b590ae91655c024e42787651",
+      "fields": {
+        "summary": "如果参数 `arg` 是一个字符串，返回 1 。"
+      }
+    },
+    "strlen": {
+      "sourceSha256": "63bdbe7d6a1014800d194a590cb43c6209791fd0dc475638597a871bd84bee79",
+      "fields": {
+        "summary": "strlen() 返回字符串 'str' 中的字符个数，这个函数是 sizeof(string) 的别名。\n\n   fluffos v2017 下 strlen() 和 strwidth() 作用一样，显示的是字符串占用的字节数。\n   fluffos v2019 下 strlen() 返回字符串的字符个数，strwidth() 显示字符串的显示宽度。"
+      }
+    },
+    "strptime": {
+      "sourceSha256": "db4beabfd3ccaf641167364cde510c93c45a3e42504df4c8e1a26c5b55d64c37",
+      "fields": {
+        "summary": "Parse given time 'str' with a format string, see https://en.cppreference.com/w/cpp/io/manip/get_time"
+      }
+    },
+    "strsrch": {
+      "sourceSha256": "e0769ad0ce31996bb61683c9f070384edc2f44f8eb8a1bf7720ff7237916f86c",
+      "fields": {
+        "summary": "strsrch() 在字符串 `str` 中寻找第一个子字符串 `substr` 出现的的位置，如果第三个参数（可选参数，默认值为0） `flag` 是 -1 代表最后一次出现的位置。如果第二个参数是整数，会寻找 ascii 字符（类似C语言中的 strchr() 和 strrchr()）。无法从空字符串或 null 值中寻找。",
+        "details": "Return semantics:\n返回第一个（或最后一个）匹配的字符串的位置，起始位置从 0 开始，如果返回 -1 代表没有匹配。"
+      }
+    },
+    "strwidth": {
+      "sourceSha256": "384bfcc6f45e6bc6343f04517e0e1b0d73a4a926b97cdfb78c70ec8af85764e0",
+      "fields": {
+        "summary": "FluffOS 2.1 新增efun，strwidth() 返回字符串 'str' 的显示宽度。\n\n   The driver uses rules defined in https://www.unicode.org/reports/tr11/tr11-36.html to calcuate character width.\n   Control characters has no width, Wide characters, including emojis are two column wide. This rule is also used by sprintf() to layout strings."
+      }
+    },
+    "sys_network_ports": {
+      "sourceSha256": "944e277ba3a53c36a28271a4da574269eb742e554d50a2e1f85659babc482424",
+      "fields": {
+        "summary": "sys_network_ports 内置函数",
+        "details": "NAME\nsys_network_ports() - 显示活动的网络端口\n\nSYNOPSIS\nmixed *sys_network_ports(void);\n\nDESCRIPTION\nReturns an array of arrays; one for each network port that is being actively used.\n   说明：2023年6月1日 commit 181308d 新增Efun。\n\nRETURN VALUES\nAn array of the following sub-array will be returned with each active port:\n\n       ({ (string) type, (int) port, (int) tls, })\n\nSEE ALSO\nnetwork_stats(3)"
+      }
+    },
+    "sys_reload_tls": {
+      "sourceSha256": "e6571be2226ba71a4ee6279626911b2f79d0ac7f2000f863e5fecac9a7c8b240",
+      "fields": {
+        "summary": "sys_reload_tls 内置函数",
+        "details": "NAME\nsys_reload_tls() - Reload the TLS certificate and key for given port.\n\nSYNOPSIS\nvoid sys_reload_tls ( int port_index );\n\nDESCRIPTION\nReload the TLS certificate and key for given port index, as specified in config file.\n\n   For example, if you defined external_port_1_tls in the config then you can calling sys_reload_tls(1) to reload it. This allows you to update the certificate and key without restarting the server.\n\n   Note:\n     - you have to overwrite the previous cert/key file on disk before calling this function.\n     - reloading TLS for websocket port is not currently supported.\n     - 这是2023年5月30日 3bca73a 分支新增的Efun。"
+      }
+    },
+    "tan": {
+      "sourceSha256": "a65de3e0dc49e74429b31394eee03ee792f4706687b445f7f180cd45088ab3d4",
+      "fields": {
+        "summary": "Returns the tangent of its argument, 'f', measured in radians."
+      }
+    },
+    "tell_object": {
+      "sourceSha256": "46e57a71e75f6489b7a2ccbaaf6865147ca60180f4dff859c82c4e066f33e2d0",
+      "fields": {
+        "summary": "向 `ob` 对象发送消息 `str`，如果对象是玩家，消息会显示给对方，否则会被此对象中的 apply 方法 `catch_tell()` 捕获。"
+      }
+    },
+    "tell_room": {
+      "sourceSha256": "7de0769679e8345aa495803897631c7177084a4fe993f5e5e1cfeaa3db752837",
+      "fields": {
+        "summary": "向房间 `room` 中的所有对象发送消息 `msg`，`room` 既可以是房间对象，也可以是房间文件名字符串。如果指定 `exclude` 参数，所有在此数组中的对象不会收到消息。\n   注意：tell_room()函数输出的最大长度为__LARGEST_PRINTABLE_STRING__，默认为65535字节（utf8编码一个汉字占3个字节）。"
+      }
+    },
+    "telnet_ga": {
+      "sourceSha256": "e50f2c465e828a6e42ac5ea9c4609a58f8c7a701414f118b2b55227940035c5b",
+      "fields": {
+        "summary": "发送Telnet GA信号",
+        "details": "NAME\ntelnet_ga() - send an TELNET GA message\n\nSYNOPSIS\nvoid telnet_ga();\n\nDESCRIPTION\nif user is under telnet, then send an TELNET_IAC TELNET_GA sequence, useful for prompts that don't terminate with a newline character.\n\n   GA is \"go ahead\".  It says that we are at the end of a message.  A game client can use this to process a whole message at one time.  Network packets are subjected to MTU, maximum transmission unit, so if you have a size limit of 1000 bytes on the network layer, and you send 1500 bytes, then on the network layer it will send it as 1000 and then 500.  So your game client will get 1000 bytes and then it wants to know if it has gotten a whole message or if it is about to get the second part of a message that has 2 parts.  If you have some scripting that looks for a pattern, then you want to be able to see the pattern even if the network spreads it out over 2 packets.  So when your client gets a message without GA at the end, it might wait a moment to see if there is a second half to this packet before processing for pattern matches. So, servers usually attach a GA onto the end of your prompt so that a response to you typing a command always comes in with GA at the end, and I think FluffOS does that too.  If you want to send it at other times, like when the game notifies you of something that is not a response to you typing a command, you can use that function.\n\nSEE ALSO\ntelnet_nop(3)"
+      }
+    },
+    "telnet_msp_oob": {
+      "sourceSha256": "75fc3151271d1e4f4b392edadcdbb0373a1548b61ee3b01223ae15fb228acd56",
+      "fields": {
+        "summary": "发送MSP带外数据",
+        "details": "NAME\ntelnet_msp_oob() - send an OOB MSP message\n\nSYNOPSIS\nvoid telnet_msp_oob(string);\n\nDESCRIPTION\nFluffOS v2019.20220507 新增支持，if user is under telnet, then send an IAC SB TELOPT_MSP msg IAC SE sequence, as documented in https://wiki.mudlet.org/w/Manual:Supported_Protocols#MSP\n\nSEE ALSO\nmsp_enable(4)"
+      }
+    },
+    "telnet_nop": {
+      "sourceSha256": "1c0dabbe225d0f1aef8a8e4d150db36616a88d021b49694373266b3018a8b86a",
+      "fields": {
+        "summary": "if user is under telnet, then send an TELNET_IAC TELNET_NOP sequence, useful to keep the connection alive.\n\n   NOP is \"no operation\".  You can send a packet that communicates to the client but does not include actual data.  It's like you say here is a message but it has size of 0.  This lets you keep the network connection active.  If you have networking equipment that forgets about connections whenever they are silent for too long, then this will stop that from happening."
+      }
+    },
+    "terminal_colour": {
+      "sourceSha256": "225c54d2839190c528b983b1a805c6b3c7c16864695e670d2cd1933df3edfd2c",
+      "fields": {
+        "summary": "terminal_colour 内置函数",
+        "details": "NAME\nterminal_colour - replaces codes in a string\n\nSYNOPSIS\nstring terminal_colour(string str, mapping m);\n   string terminal_colour(string str, mapping m, int wrap);\n   string terminal_colour(string str, mapping m, int wrap, int indent);\n\nDESCRIPTION\nterminal_colour() replaces each occurrence of %^key%^ in str with 'value', where 'key' and 'value' are the elements in the mapping m.\n\n   'wrap' is the optional column number to wrap at, and 'indent' is the amount to indent the second and following lines.  Codes are assumed to change the mode of the terminal and not generate any printable characters for the purposes of wrapping.\n\n   This efun is only available if PACKAGE_CONTRIB is defined.\n\n   Tim Hollebeek  Beek@ZorkMUD, Lima Bean, IdeaExchange, and elsewhere"
+      }
+    },
+    "test_bit": {
+      "sourceSha256": "55824c477f556784705c090499a83fdb1b82cfae122256b28adc295b0fe6d800",
+      "fields": {
+        "summary": "判断字符串`str`的第 `n` 位（bit）是否设置为 1。"
+      }
+    },
+    "test_load": {
+      "sourceSha256": "6a3ba5812418d275e6289fcb2b37ee4d2a4757cf8cfb286e3b60206fefb41fa6",
+      "fields": {
+        "summary": "FluffOS 2.25新增efun，检测文件 `file` 能否被载入游戏，可以返回 1，否则返回 0。"
+      }
+    },
+    "this_interactive": {
+      "sourceSha256": "61addfedd9772e05523a140645cbddf553dda51124f497d1644edac034f16e58",
+      "fields": {
+        "summary": "返回呼叫此函数的玩家对象。此函数总是返回原始的玩家对象，相当于this_player(1)，而不像 this_player() 会受到 enable_commands() 或 command() 影响。"
+      }
+    },
+    "this_object": {
+      "sourceSha256": "7594180601a00e53fbba4e937f2ca3d816bcd5905a496eae9a1705bd644eaeaf",
+      "fields": {
+        "summary": "返回当前对象的指针。"
+      }
+    },
+    "this_player": {
+      "sourceSha256": "837282c5bff0884b110ae1e625825b155f98d29fcc0eb6fee375cd1fa2b4080c",
+      "fields": {
+        "summary": "返回呼叫当前函数的玩家对象，flag默认值为０。需要注意的是：即使是从玩家对象本身呼叫 this_player() 和 this_object()，返回值也可能不同。如果使用 this_player(1)，返回呼叫此函数的玩家对象在某些情况下返回值和使用 this_player() 不同（比如系统管理员使用 command() 函数强制玩家使用指令时,this_player()返回玩家对象，this_player(1)返回幕后黑手管理员）。"
+      }
+    },
+    "this_user": {
+      "sourceSha256": "abc347a7cdf44d120840074ca231ea87dbc1e02f7362f36ed5e94bf45d18cd46",
+      "fields": {
+        "summary": "返回呼叫当前函数的玩家对象。需要注意的是：即使是从玩家对象本身呼叫 this_player() 和 this_object()，返回值也可能不同。如果使用 this_player(1)，返回呼叫此函数的玩家对象在某些情况下返回值和使用 this_player() 不同（比如系统管理员使用 command() 函数强制玩家使用指令时）。\n\n   this_user() 是 this_player() 的别名。"
+      }
+    },
+    "throw": {
+      "sourceSha256": "fd9aeb09b2f42d5cb879450ab8b3eff5ac8958a814563f61d23c2c6b6d171f95",
+      "fields": {
+        "summary": "throw() 外部函数常用来在对象中强制报错，throw() 和 catch() 联合使用可以让程序在运行时报错时选择显示哪种错误消息。以下是典型用法：\n\nvoid create()\n{\n    string err;\n\n    err = catch\n    {\n        throw(\"出错啦！\");\n    };\n\n    debug_message(err);\n}"
+      }
+    },
+    "time": {
+      "sourceSha256": "17e5bbc28c558cd565dff172471b2efd7f64e8db288ec4987739bd38a3926690",
+      "fields": {
+        "summary": "返回一个时间戳，时间戳是指格林威治时间1970年01月01日00时00分00秒(北京时间1970年01月01日08时00分00秒)起至现在的总毫秒数。"
+      }
+    },
+    "time_expression": {
+      "sourceSha256": "1571d3804a883331bc879deedd5adbbf87fb3005a85d697bb153378d8ee33ce7",
+      "fields": {
+        "summary": "Evaluate <expr>. The amount of real time that passed during the evaluation of <expr>, in microseconds, is returned. The precision of the value is not necessarily 1 microsecond; in fact, it probably is much less precise.\n\n评估 <expr>。返回在评估 <expr> 过程中经过的实际时间，以微秒为单位。返回值的精度不一定是1微秒；实际上，可能远没有这么精确。\n\n提示： time_expression 本质上并不是外部函数而是一个语言结构（类似还有sscanf, catch, parse_command等）。",
+        "details": "示例\nint main(object me, string arg)\n{\n    int cost;\n\n    cost = time_expression\n    {\n        for (int i = 0; i < 100; i++)\n        {\n            printf(\"i = %d\\n\", i);\n        }\n    };\n\n    printf(\"代码执行耗时：%d 微秒\\n\", cost);\n\n    return 1;\n}"
+      }
+    },
+    "time_ns": {
+      "sourceSha256": "b196d018c269f6fafc1a0132d0a76d4b815b1b163ec3cf71639a574081d623fe",
+      "fields": {
+        "summary": "time_ns 内置函数",
+        "details": "NAME\ntime_ns() - return the number of nanoseconds since January 1, 1970\n\nSYNOPSIS\nint time_ns( void );\n\nDESCRIPTION\nReturn the number of nanoseconds since midnight (GMT) January 1, 1970.\n\n   注意：这是202年5月30日 3478cc2 分支新增efun。\n\nSEE ALSO\ntime(3), ctime(3), localtime(3), time_expression(3), uptime(3), perf_counter_ns(3)"
+      }
+    },
+    "to_buffer": {
+      "sourceSha256": "b7f1d59c08fa60bf476221b9a21d891a9761770e2ff173d3e2b6ac929761d0b6",
+      "fields": {
+        "summary": "将字符串、已有 buffer 或整数数组转换为 buffer。整数数组元素必须是 0..255 的字节值。",
+        "details": "将字符串按字节内容转换为 buffer；传入 buffer 时返回对应 buffer 值；传入数组时按 0..255 的整数元素生成字节序列。"
+      }
+    },
+    "to_float": {
+      "sourceSha256": "42631b2cf5dc167ed38ca6eb2fd100e795ac0ffda28ed86c235200c97f66647e",
+      "fields": {
+        "summary": "to_float() 传回一个浮点数型态的数值, 此数值等于 i。"
+      }
+    },
+    "to_int": {
+      "sourceSha256": "603819194ced4c2b72aa072b16c3cd42351544df27c03d073f9ac19e3eb3c135",
+      "fields": {
+        "summary": "如果'x'是一个浮点数，to_int()调用将返回与'x'等价的'int'类型的数字（去除任何小数部分，并向下取整）。\n\n   如果'x'是一个缓冲区，调用将返回嵌入在缓冲区中的（以网络字节顺序表示的）整数。\n\n   如果'x'是一个字符串，调用将尝试将字符串转换为整数。转换将从第一个字符开始，直到最后一个非数字字符串表示的数字之前停止并返回。如果转换失败，它将返回UNDEFINED(值为0)。",
+        "details": "示例\nto_int(3.14) == 3\nto_int(3.89) == 3\nto_int(\"3.14\") == 3\nto_int(\"3.14abc\") == 3\nto_int(\"abc3.14\") == UNDEFINED"
+      }
+    },
+    "trace": {
+      "sourceSha256": "a2d334b7927858570772fa5d74b763fdd924e35341d942d1125ac393515f02a0",
+      "fields": {
+        "summary": "FluffOS develop package efun.",
+        "details": "设置 driver trace 调试级别，并返回此前的 trace 设置。"
+      }
+    },
+    "trace_end": {
+      "sourceSha256": "3eb32bdcc5f6855d9f3eed2596f274e3b220e755f7bfe2832a2f3d009000dc27",
+      "fields": {
+        "summary": "停止追踪并立即输出结果。\n\n   如果追踪没有启用，这个 efun 没有效果。"
+      }
+    },
+    "trace_start": {
+      "sourceSha256": "38265664164fa5a2ac9498566b96fa64020cdb7952c5388780520b956c957bf5",
+      "fields": {
+        "summary": "调用这个函数开始收集追踪信息，包括LPC函数级别的运行资料。\n\n   驱动在调用 `trace_end()` 或 `auto_stop_sec` 秒后停止收集并输出信息到 `filename` 文件，如果不指定`auto_stop_sec` 默认为 10 秒。\n\n   注意: 不要长时间的启动追踪，否则你会内存不足。"
+      }
+    },
+    "traceprefix": {
+      "sourceSha256": "ad3e24eff696c414c56fdb060ff80d6d5d31d254de80c9cec1e83db7f3ff33cb",
+      "fields": {
+        "summary": "FluffOS develop package efun.",
+        "details": "查询或设置 trace 输出的路径前缀过滤条件，用于限制调试跟踪信息范围。"
+      }
+    },
+    "translate": {
+      "sourceSha256": "37b1131d93d8320c1abf888c3492d20966275de12bf4867c72a92cc4cbaee564",
+      "fields": {
+        "summary": "translate 内置函数"
+      }
+    },
+    "trim": {
+      "sourceSha256": "594c287187176ff81979534269916e55c9607a8f7996862091fc682bcac3d570",
+      "fields": {
+        "summary": "移除字符串两侧的空白字符或其他预定义字符。\n\n   这是 FLUFFOS 新增的外部函数，在 MUDOS 中请用模拟外部函数实现。"
+      }
+    },
+    "typeof": {
+      "sourceSha256": "52e40588cb43cd734dc505b2ea7dea6c7c546d9a3fbea9691d6f1a0fc6888294",
+      "fields": {
+        "summary": "返回表达式或变量的数据类型，具体类型在驱动文件<type.h>中定义如下：\n\n/* /include/type.h */\n\n#ifndef _TYPE_H\n#define _TYPE_H\n\n#define T_INT \"int\"\n#define T_STRING \"string\"\n#define T_ARRAY \"array\"\n#define T_OBJECT \"object\"\n#define T_MAPPING \"mapping\"\n#define T_FUNCTION \"function\"\n#define T_FLOAT \"float\"\n#define T_BUFFER \"buffer\"\n#define T_CLASS \"class\"\n\n#define T_INVALID \"*invalid*\"\n#define T_LVALUE \"*lvalue*\"\n#define T_LVALUE_BYTE \"*lvalue_byte*\"\n#define T_LVALUE_RANGE \"*lvalue_range*\"\n#define T_LVALUE_CODEPOINT \"*lvalue_codepoint*\"\n#define T_ERROR_HANDLER \"*error_handler*\"\n#define T_FREED \"*freed*\"\n#define T_UNKNOWN \"*unknown*\"\n\n#endif\n\n请注意，在LPC中所有数据类型的变量如果没有初始化，默认值都为0，typeof() 返回值都是 int 型。"
+      }
+    },
+    "uncompress": {
+      "sourceSha256": "b5f82cb6ee6987bf341d8180306f411045dc244f0d017d99d45a308ba9d15bd9",
+      "fields": {
+        "summary": "uncompress 内置函数"
+      }
+    },
+    "uncompress_file": {
+      "sourceSha256": "80630ef4bf6342035bc6408b9ea859e14ad4680b60cab0acca5b5d1548cd8539",
+      "fields": {
+        "summary": "uncompress_file 内置函数"
+      }
+    },
+    "undefinedp": {
+      "sourceSha256": "36126b7ceef602e5f5de15fdf952ab057964713e7336fba2f5bd575de8c30ba9",
+      "fields": {
+        "summary": "如果变量 `arg` 未定义返回 1。`arg` 在以下几种情况下算未定义：\n\n   1. 变量没有初始化。\n   2. 变量是函数的形式参数，但在调用时没有传递实参。\n   3. 变量是映射变量中不存在的元素。(如： arg = map[not_there])\n   4. 变量是 call_other() 外部函数呼叫对象中不存在的函数的返回值(如： arg = call_other(obj, \"???\"))\n   5. 变量指向（array/class/mapping）中被销毁的对象元素。。\n\n   fluffos v2019.20220507-11版本以后可以判断class中未赋值的变量。"
+      }
+    },
+    "unique_array": {
+      "sourceSha256": "613c040ac9ec5648de42f02269f0899f93432925cf857e87ab80ef7f5d728061",
+      "fields": {
+        "summary": "将 `separator` 函数返回值相同的对象分为一组，`obarr` 只能是对象数组。在 `obarr`中的每个对象都会呼叫 `separator` 函数一次，如果指定 `skip` 参数，会先过滤掉符合条件的对象元素。\n\n   第二形式稍有不同，数组中的每个元素做为参数传给函数指针 f ，元素按函数返回值分组，但是数组不再限制为对象类型。",
+        "details": "Return semantics:\n返回值是有多个对象数组的二维数组，格式如下：\n\n   ({\n       ({Same1:1, Same1:2, Same1:3, .... Same1:N }),\n       ({Same2:1, Same2:2, Same2:3, .... Same2:N }),\n       ({Same3:1, Same3:2, Same3:3, .... Same3:N }),\n       ....\n       ....\n       ({SameM:1, SameM:2, SameM:3, .... SameM:N }),\n   })"
+      }
+    },
+    "unique_mapping": {
+      "sourceSha256": "a6c1cda135c219e3d981445743baf80be37f7e3535659dd5aa76805e141a7c6e",
+      "fields": {
+        "summary": "基于一个函数从一个数组使用以下方式创建一个映射：\n\n   以函数返回值相同的成员组成的数组做为映射的值（value），以函数的返回值做为映射的键（key）"
+      }
+    },
+    "upper_case": {
+      "sourceSha256": "6ef8d554fd74b5b3792849a3f3d1769049fdeb1344a21454c7e877fda5154774",
+      "fields": {
+        "summary": "返回字符串 `str` 的大写形式（`str` 本身不会被改变）"
+      }
+    },
+    "uptime": {
+      "sourceSha256": "2c31779cc58c1c5b85fce052939c4a23aae4d5427930a11a94bf0195fb2cebd6",
+      "fields": {
+        "summary": "函数返回驱动程序最近一次启动至今经过的秒数"
+      }
+    },
+    "url_decode": {
+      "sourceSha256": "23fee41f00770b2604f67745e35493bc1b1a2e59425ffa152d19b19ffbf29a05",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "对 URL 编码字符串进行解码，还原被转义的字符。"
+      }
+    },
+    "url_encode": {
+      "sourceSha256": "5aa6a5218824d7e3e92d45c67284bc383ddf9779f25ccdb7f795619a7c0b8804",
+      "fields": {
+        "summary": "FluffOS sockets package efun.",
+        "details": "对字符串进行 URL 编码，转义不能直接出现在 URL 参数中的字符。"
+      }
+    },
+    "userp": {
+      "sourceSha256": "7144db805f586ea8f123d4391fa6593fa12ce311771e49561454de09b3a31fad",
+      "fields": {
+        "summary": "如果 `arg` 曾经是玩家，返回 1。"
+      }
+    },
+    "users": {
+      "sourceSha256": "ed2cfbaa230e4ec997036209105e5f0e0ce7cfe21fc3fd52b8b272dc15592aa9",
+      "fields": {
+        "summary": "返回包括所有互动玩家的对象数组，注意不包括断线的玩家。"
+      }
+    },
+    "values": {
+      "sourceSha256": "3f0399418515ec6979fce8781f35dde12558e113160d8b0533e9676ec6094c16",
+      "fields": {
+        "summary": "values() 返回一个映射 `m` 所有 value 组成的数组\n\n   示例，如:\n\n   mapping m;\n\n   m = ([\"hp\" : 35, \"sp\" : 42, \"mass\" : 100]);\n\n   那么\n\n   values(m) == ({35, 42, 100})\n\n   注意：返回的 value 的顺序和 keys() 外部函数返回的所有 key 的顺序一致。"
+      }
+    },
+    "variables": {
+      "sourceSha256": "e284658322a77075029b22a83f4b5431a96fe799902b5e6671ae313298ad016b",
+      "fields": {
+        "summary": "函数返回指定对象 `ob` 中定义的全局变量信息(包括来自继承对象的全局变量)，可选参数 `flag` 为位域标识符，如果不指定默认为 0，表示只返回变量名称列表，如果指定为 1，返回一个二维数组，子数组格式为：\n\n   ({ 变量名, 变量类型 })"
+      }
+    },
+    "virtualp": {
+      "sourceSha256": "3e32a278858450a6fcb5b82375ec72850faf6f894f2c248522f53662212040a3",
+      "fields": {
+        "summary": "如果参数 `arg` 是对象并且有 O_VIRTUAL 标志(flag)，返回 1。由主控对象（master()）中 compile_object() 方法创造出来的对象，驱动程序都会设置 O_VIRTUAL 标志。\n   如果不指定对象，默认为this_object()。"
+      }
+    },
+    "vowel": {
+      "sourceSha256": "2fa0c2e679cd9769a66527f6eda3c3bc7ddb5fdddae819fa81e9e209a54efbc7",
+      "fields": {
+        "summary": "FluffOS dwlib package efun.",
+        "details": "判断字符码对应的字符是否为元音，常用于英文文本冠词或短描述处理。"
+      }
+    },
+    "wizardp": {
+      "sourceSha256": "188979b1cb9ecf0ec5b817685a30b1cb17dfecf8fa8507d4772b1c12c384fa9b",
+      "fields": {
+        "summary": "如果玩家 `arg` 执行过 enable_wizard() 外部函数返回 1 。"
+      }
+    },
+    "write": {
+      "sourceSha256": "3336c25a08750c5447b7809b5a711418b81d7525ea9bb3d5637cec7f1ac3e5a4",
+      "fields": {
+        "summary": "对当前玩家显示 'str' 信息。 'str' 如果是数字会自动转换成字符串。对象类型也可以正常显示，但其它类型比如数组、映射、函数指针或缓冲区类型会显示为<ARRAY>、<MAPPING>、<FUNCTION>和<BUFFER>。\n   注意：此efun不会调用receive_message() apply；write()函数输出的最大长度为__LARGEST_PRINTABLE_STRING__，默认为65535字节（utf8编码一个汉字占3个字节）。"
+      }
+    },
+    "write_buffer": {
+      "sourceSha256": "ebc67db3fbddf7e020dd95e2852ea15f1a5d5ec4a521636a28d25753fa56760e",
+      "fields": {
+        "summary": "If 'dest' is a file, then 'source' must be an int (and will be  written\n   to the file in network-byte-order), a buffer, or a string, and 'source'\n   will be written to the file 'dest' starting at byte # 'start'.\n\n   If 'dest' is a buffer, then 'source' will be written  into  the  buffer\n   starting  at  byte  # 'start' in the buffer.  If 'source' is an int, it\n   will be written in network-byte-order.",
+        "details": "作者\nTruilkan"
+      }
+    },
+    "write_bytes": {
+      "sourceSha256": "bd0b0bfa00a5c386ffdd3516c62484e91dc62eb86d5fb6a854053f3e9e6d6e7d",
+      "fields": {
+        "summary": "这个函数把字符串 `series` 的内容从文件 `path` 的字节位置 `start` 开始写入到文件。写入失败返回 0 ，成功返回 1 。"
+      }
+    },
+    "write_file": {
+      "sourceSha256": "1ea237becd173bb4b2abe624563245d56afc8b4cd3ba157e8514946bf5224691",
+      "fields": {
+        "summary": "将字符串 `str` 追加到文件 `file` 中，写入成功返回 1，失败返回  0 。可选参数`flag`默认值为0，如果参数 `flag` 是 1，写入方式是覆盖而不是追加。"
+      }
+    },
+    "zonetime": {
+      "sourceSha256": "55dff295cc56b6d0723c2deb48ee068894122a78ba80a1c9ffda771a7166df75",
+      "fields": {
+        "summary": "返回指定时区 `timezone` 和时间 `time` 的日期和时间的字符串，参数 `time` 是一个时间戳。"
+      }
+    }
+  }
+}

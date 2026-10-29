@@ -1,7 +1,5 @@
 {
   "name": "explode_reversible",
-  "summary": "explode_reversible 内置函数",
-  "category": "字符串相关函数（Strings）",
   "signatures": [
     {
       "label": "string *explode_reversible(string, string)",
@@ -22,5 +20,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "strings"
 }

@@ -1,0 +1,4 @@
+{
+    "summary": "Saves the values of all non-nosave global variables in the current object to file `name`. The master object valid_write() method controls whether the write is allowed. The optional second argument is a bit field (00, 01, 10, 11). If bit 0 is set (01 or 11), variables whose value is 0 are also saved; normally they are not. Object-typed variables are always saved as 0. If bit 1 is set (10 or 11), the save file is compressed.",
+    "details": "Return semantics:\nReturns 1 if saving succeeds, or 0 on failure."
+}

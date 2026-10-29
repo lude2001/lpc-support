@@ -1,0 +1,4 @@
+{
+  "summary": "Return the hash of string `str` using `algo`. Supported algorithms are md4 md5 sha1 sha224 sha256 sha384 sha512 ripemd160.\n\n   This efun was added in FLUFFOS and requires PACKAGE_CRYPTO to be enabled when the driver is compiled.",
+  "details": "Example\nhash(\"md4\", \"Something\")        =   \"abc554cae9acd8f168101954383335df\"\n   hash(\"md5\", \"Something\")        =   \"73f9977556584a369800e775b48f3dbe\"\n   hash(\"ripemd160\", \"Something\")  =   ...40 characters...\n   hash(\"sha1\", \"Something\")       =   ...40 characters...\n   hash(\"sha224\", \"Something\")     =   ...56 characters...\n   hash(\"sha256\", \"Something\")     =   ...64 characters...\n   hash(\"sha384\", \"Something\")     =   ...96 characters...\n   hash(\"sha512\", \"Something\")     =   ...128 characters..."
+}

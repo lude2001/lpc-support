@@ -1,0 +1,3 @@
+{
+    "summary": "Asynchronous get_dir; the result is passed to function `f`.\n\nIf 'dir' is a file name (supporting the '*' and '?' wildcards), the callback receives a string array containing all matching file names. If 'dir' is a directory name ending in a slash, such as \"/u/\" or \"/adm/\", all file names in that directory are returned.\n\nUnlike get_dir, this efun does not take an integer as its second argument to request additional information such as file names, sizes, and last modification times.\n\nThe callback should have the following form:\n\n   function(mixed res) {\n       // 当目录不存在时返回0\n       // 没有匹配文件时返回空数组\n       // 匹配的文件名数组\n   }"
+}

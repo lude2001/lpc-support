@@ -1,0 +1,4 @@
+{
+  "summary": "Added in FluffOS 2.0. Return the value of member `index` in the instantiated class `instantiated_class`. This is useful for anonymous classes whose data members have no labels (variable names).",
+  "details": "Example\n{\n    mixed me = assemble_class( ({ \"Foo\", 42, \"Fooville\" }) ) ;\n    int age ;\n    string name, city ;\n\n    name = fetch_class_member( me, 0 ) ;\n    age = fetch_class_member( me, 1 ) ;\n    city = fetch_class_member( me, 2 ) ;\n}"
+}

@@ -1,0 +1,3 @@
+{
+  "summary": "Return the number of characters in string 'str'. This function is an alias for sizeof(string).\n\n   In fluffos v2017, strlen() and strwidth() both report the number of bytes occupied by the string.\n   In fluffos v2019, strlen() returns the character count and strwidth() reports the display width."
+}

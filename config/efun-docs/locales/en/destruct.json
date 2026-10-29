@@ -1,0 +1,3 @@
+{
+    "summary": "Completely destroy and remove `ob` from the game. If `ob` is omitted, use this_object(). If the destructed object is this_object(), its code continues to execute after destruct(), although it is best to return immediately. All variables referring to the destructed object become 0.\n\nEvery object contained in the object being destructed has its move_or_destruct() method called. If it does not move itself out of the object being destructed, it is destructed as well."
+}

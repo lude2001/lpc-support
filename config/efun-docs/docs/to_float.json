@@ -1,13 +1,11 @@
 {
   "name": "to_float",
-  "summary": "to_float() 传回一个浮点数型态的数值, 此数值等于 i。",
   "reference": [
     "to_int",
     "read_buffer",
     "sprintf",
     "sscanf"
   ],
-  "category": "数字相关函数（Numbers）",
   "signatures": [
     {
       "label": "float to_float( string | float | int i )",
@@ -24,5 +22,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "numbers"
 }

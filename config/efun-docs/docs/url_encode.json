@@ -1,8 +1,5 @@
 {
   "name": "url_encode",
-  "summary": "FluffOS sockets package efun.",
-  "details": "对字符串进行 URL 编码，转义不能直接出现在 URL 参数中的字符。",
-  "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {
       "label": "string url_encode( string )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "sockets"
 }

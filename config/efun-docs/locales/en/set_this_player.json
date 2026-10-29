@@ -1,0 +1,4 @@
+{
+    "summary": "Set the current player.",
+    "details": "SYNOPSIS\nvoid set_this_player(object | int);\n   void set_this_user(object | int);\n\nDESCRIPTION\nset_this_player() causes 'who' to become the new value of this_player().  This efun is only available with __NO_ADD_ACTION__ defined, and is included since with __NO_ADD_ACTION__ parsing and dispatching of commands is the mudlib's responsibility. who can also be zero, in which this_player() is set to zero.\n\nSEE ALSO\nthis_player(3)"
+}

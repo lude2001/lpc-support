@@ -1,0 +1,3 @@
+{
+    "summary": "If the player object 'ob' is being snooped by another player, return the snooping player; otherwise, return 0."
+}

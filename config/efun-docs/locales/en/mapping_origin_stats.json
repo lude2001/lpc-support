@@ -1,0 +1,3 @@
+{
+    "summary": "mapping_origin_stats() returns mapping-allocation statistics attributed to mapping origins. It is available only when mapping-origin tracking was enabled when compiling the driver.\n\nThe returned mapping uses origin names (usually the object/file allocating mappings) as keys. Each value is a mapping containing fields such as mapping_count, the cumulative number of mappings allocated by that origin. Returns 0 if no statistics are available.\n\nIt is similar to domain_stats() and author_stats(), but attributes usage to mapping-allocation origins rather than domains or authors."
+}

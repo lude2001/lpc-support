@@ -1,0 +1,3 @@
+{
+  "summary": "Return true (1) if `arg` is an object (objectp() is true) and has the O_CLONE flag set. The driver sets O_CLONE on objects created by the new() or clone_object() efuns. Blueprint objects loaded through call_other() or load_object() are not clones.\n\n   For a clone, the value returned by file_name() includes a `#`.\n\n   If clonep() is called without an argument, the object defaults to this_object()."
+}

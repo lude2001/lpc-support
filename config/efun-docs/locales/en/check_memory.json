@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS develop package efun.",
+    "details": "Check the driver's memory allocation state and return debugging information. Optional arguments control checking or output details. Primarily intended for development and troubleshooting."
+}

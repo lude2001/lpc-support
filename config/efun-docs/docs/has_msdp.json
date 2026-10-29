@@ -1,7 +1,5 @@
 {
   "name": "has_msdp",
-  "summary": "MudWiki 列表包含该函数，但详情页尚未提供内容。",
-  "category": "互动对象(玩家)相关函数（Interactive）",
   "signatures": [
     {
       "label": "has_msdp()",
@@ -12,5 +10,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "interactive"
 }

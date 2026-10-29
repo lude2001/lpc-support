@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib package efun.",
+    "details": "Perform text replacement in a string. The second argument can specify a replacement table or a single match string; the third supplies the replacement value."
+}

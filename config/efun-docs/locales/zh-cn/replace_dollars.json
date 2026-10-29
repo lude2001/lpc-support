@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS dwlib 软件包中的 Efun。",
+  "details": "按参数列表替换字符串中的 dollar 占位符，用于生成带变量插值的文本。"
+}

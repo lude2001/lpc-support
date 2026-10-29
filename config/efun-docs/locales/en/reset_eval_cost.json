@@ -1,0 +1,3 @@
+{
+    "summary": "reset_eval_cost() resets the remaining evaluation cost to the maximum evaluation cost.\n\nEquivalent to set_eval_limit(int default: 0);"
+}

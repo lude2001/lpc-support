@@ -1,0 +1,3 @@
+{
+  "summary": "Return an array of all objects in the game that have called both enable_commands() and set_living_name()."
+}

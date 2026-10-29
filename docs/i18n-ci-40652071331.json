@@ -1,0 +1,361 @@
+{
+  "schemaVersion": 1,
+  "candidateVersion": "0.52.20",
+  "implementationCommit": "fbaec04b395a5aaa8026c62a8fa7a78312cc7c6f",
+  "pr": "https://github.com/lude2001/lpc-support/pull/30",
+  "ci": {
+    "runId": "40652071331",
+    "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331",
+    "conclusion": "success",
+    "testedMergeCommit": "dedec801b1702864e0f8541571aad7a3b251c9c3",
+    "testedTree": "1411908a41ebc32e7244bcfaf5b9018543037fdc",
+    "implementationTree": "1411908a41ebc32e7244bcfaf5b9018543037fdc",
+    "treesEqual": true,
+    "buildAndTest": {
+      "id": 122694253974,
+      "conclusion": "success"
+    }
+  },
+  "resourceContractSha256": "3ec4236e2976067a9c2a8b11584551d0827bc0758f53f53c11fd2094008a2aa7",
+  "structuralFingerprint": "sha256:b365718465065a9b5799064a65453f3afc2fc9feb48aafebd991bd4752efa640",
+  "downloadedPackageReportSha256": "1d3de2c2ca550e4c4c89b22cf1e7783b93d6d41b79382447b38c84511c3fb0eb",
+  "verification": {
+    "native": "Each target executed the existing stdio smoke and four localization sessions on its native CI runner. CI log native checksums equal those independently inspected in the downloaded VSIX files.",
+    "local": "All six downloaded VSIX archives passed the production bilingual resource and native format checker; no foreign-platform binary was executed on Windows.",
+    "digests": "vsixSha256 and nativeSha256 were independently computed from the downloaded packages. apiArchiveDigest is GitHub API metadata for the outer artifact archive, not a hash of the extracted VSIX.",
+    "followup": "This receipt describes the frozen implementation commit above. A subsequent documentation-only evidence commit does not change those source or package facts. Its live required checks remain visible on PR #30; no repeated receipt commit is needed for that rerun.",
+    "boundary": "No merge, tag, Marketplace publication, primary VS Code installation/reload, or game-workspace operation was performed."
+  },
+  "packages": [
+    {
+      "target": "win32-x64",
+      "filename": "lpc-support-win32-x64-0.52.20.vsix",
+      "sizeBytes": 2049127,
+      "vsixSha256": "1441711843ad0eb7068f558841b0ff3b905536ba41ef79d618d4e5cfed6e4c80",
+      "nativeSha256": "a1d9f0f774f0cb34198fe219d2365d52dfcf4eccf46d33344a3e8d77583752ad",
+      "counts": {
+        "languages": 2,
+        "efunDocuments": 413,
+        "efunBodies": 826,
+        "efunCategoriesPerLanguage": 23,
+        "nativeSnippetsPerLanguage": 9,
+        "runtimeMessages": 373,
+        "inspectedFiles": 1268
+      },
+      "job": {
+        "id": 122695960309,
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/job/122695960309",
+        "runnerLabels": [
+          "windows-latest"
+        ],
+        "conclusion": "success",
+        "requiredSteps": [
+          {
+            "name": "Package native extension",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify packaged bilingual resources and native target",
+            "conclusion": "success"
+          },
+          {
+            "name": "Smoke-test the native sidecar included in this platform package",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload platform VSIX",
+            "conclusion": "success"
+          }
+        ],
+        "observedLocalizationSessions": [
+          "english-cold",
+          "chinese-warm",
+          "missing-locale-warm",
+          "unknown-locale-warm"
+        ]
+      },
+      "artifact": {
+        "id": 12799983506,
+        "name": "lpc-support-win32-x64",
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/artifacts/12799983506",
+        "apiArchiveDigest": "sha256:4d1cacd91a0ec285525a11a839fe41da561240bf42f663a021fd428c03ca301d",
+        "expiredAtInspection": false
+      }
+    },
+    {
+      "target": "win32-arm64",
+      "filename": "lpc-support-win32-arm64-0.52.20.vsix",
+      "sizeBytes": 1965085,
+      "vsixSha256": "4e59d4d702ce1e545b39f3efe0a00bab630f4b2933bdf3fe58a24b9b97580a2a",
+      "nativeSha256": "ba930f3b10b1b2472e9d49cb95ec9eb89e6565dc59ed6e668c94fd1b6b7a786f",
+      "counts": {
+        "languages": 2,
+        "efunDocuments": 413,
+        "efunBodies": 826,
+        "efunCategoriesPerLanguage": 23,
+        "nativeSnippetsPerLanguage": 9,
+        "runtimeMessages": 373,
+        "inspectedFiles": 1268
+      },
+      "job": {
+        "id": 122695960376,
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/job/122695960376",
+        "runnerLabels": [
+          "windows-11-vs2026-arm"
+        ],
+        "conclusion": "success",
+        "requiredSteps": [
+          {
+            "name": "Package native extension",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify packaged bilingual resources and native target",
+            "conclusion": "success"
+          },
+          {
+            "name": "Smoke-test the native sidecar included in this platform package",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload platform VSIX",
+            "conclusion": "success"
+          }
+        ],
+        "observedLocalizationSessions": [
+          "english-cold",
+          "chinese-warm",
+          "missing-locale-warm",
+          "unknown-locale-warm"
+        ]
+      },
+      "artifact": {
+        "id": 12800727106,
+        "name": "lpc-support-win32-arm64",
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/artifacts/12800727106",
+        "apiArchiveDigest": "sha256:88b674ed081506e31ac897e0169ad7b128a3999d1f9f07c908597948d93da7d0",
+        "expiredAtInspection": false
+      }
+    },
+    {
+      "target": "linux-x64",
+      "filename": "lpc-support-linux-x64-0.52.20.vsix",
+      "sizeBytes": 2193409,
+      "vsixSha256": "77bd9bff64053638ecb44ae8e9152e3ecdaebfd2d7f461c15f0eb804c7f5a9e6",
+      "nativeSha256": "cb83650c41e24c382d8cb874337eaa2c54b9b7462335fc47745041b88c0eb8df",
+      "counts": {
+        "languages": 2,
+        "efunDocuments": 413,
+        "efunBodies": 826,
+        "efunCategoriesPerLanguage": 23,
+        "nativeSnippetsPerLanguage": 9,
+        "runtimeMessages": 373,
+        "inspectedFiles": 1268
+      },
+      "job": {
+        "id": 122695960306,
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/job/122695960306",
+        "runnerLabels": [
+          "ubuntu-latest"
+        ],
+        "conclusion": "success",
+        "requiredSteps": [
+          {
+            "name": "Package native extension",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify packaged bilingual resources and native target",
+            "conclusion": "success"
+          },
+          {
+            "name": "Smoke-test the native sidecar included in this platform package",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload platform VSIX",
+            "conclusion": "success"
+          }
+        ],
+        "observedLocalizationSessions": [
+          "english-cold",
+          "chinese-warm",
+          "missing-locale-warm",
+          "unknown-locale-warm"
+        ]
+      },
+      "artifact": {
+        "id": 12800187873,
+        "name": "lpc-support-linux-x64",
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/artifacts/12800187873",
+        "apiArchiveDigest": "sha256:fe90d158df63f3cbb0afbfc249b18057ebb0aee919e247619965d7ce04cfd9f8",
+        "expiredAtInspection": false
+      }
+    },
+    {
+      "target": "linux-arm64",
+      "filename": "lpc-support-linux-arm64-0.52.20.vsix",
+      "sizeBytes": 2097572,
+      "vsixSha256": "067c2b7e1f7e0b1f2b13aed385ec926bfc87d7285022966ffce178751113d764",
+      "nativeSha256": "8edf9340de7728a6181723ea8fb9a19b72a9d691f95b6ca10e59bb3977b28710",
+      "counts": {
+        "languages": 2,
+        "efunDocuments": 413,
+        "efunBodies": 826,
+        "efunCategoriesPerLanguage": 23,
+        "nativeSnippetsPerLanguage": 9,
+        "runtimeMessages": 373,
+        "inspectedFiles": 1268
+      },
+      "job": {
+        "id": 122695960316,
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/job/122695960316",
+        "runnerLabels": [
+          "ubuntu-24.04-arm"
+        ],
+        "conclusion": "success",
+        "requiredSteps": [
+          {
+            "name": "Package native extension",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify packaged bilingual resources and native target",
+            "conclusion": "success"
+          },
+          {
+            "name": "Smoke-test the native sidecar included in this platform package",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload platform VSIX",
+            "conclusion": "success"
+          }
+        ],
+        "observedLocalizationSessions": [
+          "english-cold",
+          "chinese-warm",
+          "missing-locale-warm",
+          "unknown-locale-warm"
+        ]
+      },
+      "artifact": {
+        "id": 12800491710,
+        "name": "lpc-support-linux-arm64",
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/artifacts/12800491710",
+        "apiArchiveDigest": "sha256:e3550e891b65a805369fd7cc9ea5d4eb22a2cec848a8c003038c9070b8563bd6",
+        "expiredAtInspection": false
+      }
+    },
+    {
+      "target": "darwin-x64",
+      "filename": "lpc-support-darwin-x64-0.52.20.vsix",
+      "sizeBytes": 2161678,
+      "vsixSha256": "55697d016ad9ff331d59c1779c0dda81d59e171ee6517387679453341bfd012a",
+      "nativeSha256": "ff788ae2188b71379ed99850113cc0c71c308b2f532ffaae3a831cb53b0e561f",
+      "counts": {
+        "languages": 2,
+        "efunDocuments": 413,
+        "efunBodies": 826,
+        "efunCategoriesPerLanguage": 23,
+        "nativeSnippetsPerLanguage": 9,
+        "runtimeMessages": 373,
+        "inspectedFiles": 1268
+      },
+      "job": {
+        "id": 122695960374,
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/job/122695960374",
+        "runnerLabels": [
+          "macos-15-intel"
+        ],
+        "conclusion": "success",
+        "requiredSteps": [
+          {
+            "name": "Package native extension",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify packaged bilingual resources and native target",
+            "conclusion": "success"
+          },
+          {
+            "name": "Smoke-test the native sidecar included in this platform package",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload platform VSIX",
+            "conclusion": "success"
+          }
+        ],
+        "observedLocalizationSessions": [
+          "english-cold",
+          "chinese-warm",
+          "missing-locale-warm",
+          "unknown-locale-warm"
+        ]
+      },
+      "artifact": {
+        "id": 12800538358,
+        "name": "lpc-support-darwin-x64",
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/artifacts/12800538358",
+        "apiArchiveDigest": "sha256:8c5d905295d8d37d9ddf11370039683489a161891915a4681027bcd7f8baece8",
+        "expiredAtInspection": false
+      }
+    },
+    {
+      "target": "darwin-arm64",
+      "filename": "lpc-support-darwin-arm64-0.52.20.vsix",
+      "sizeBytes": 2060013,
+      "vsixSha256": "b7fa77666d2e6579dbd1a1796f6f2fd26b9217fc4d63adb15201ac457026f171",
+      "nativeSha256": "68850a8ebd23c3762663f9ebd2908f4666345dfa5d7932396a6dfdf9d10eeffc",
+      "counts": {
+        "languages": 2,
+        "efunDocuments": 413,
+        "efunBodies": 826,
+        "efunCategoriesPerLanguage": 23,
+        "nativeSnippetsPerLanguage": 9,
+        "runtimeMessages": 373,
+        "inspectedFiles": 1268
+      },
+      "job": {
+        "id": 122695960361,
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/job/122695960361",
+        "runnerLabels": [
+          "macos-14"
+        ],
+        "conclusion": "success",
+        "requiredSteps": [
+          {
+            "name": "Package native extension",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify packaged bilingual resources and native target",
+            "conclusion": "success"
+          },
+          {
+            "name": "Smoke-test the native sidecar included in this platform package",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload platform VSIX",
+            "conclusion": "success"
+          }
+        ],
+        "observedLocalizationSessions": [
+          "english-cold",
+          "chinese-warm",
+          "missing-locale-warm",
+          "unknown-locale-warm"
+        ]
+      },
+      "artifact": {
+        "id": 12800527127,
+        "name": "lpc-support-darwin-arm64",
+        "url": "https://github.com/lude2001/lpc-support/actions/runs/40652071331/artifacts/12800527127",
+        "apiArchiveDigest": "sha256:8eb13ebda5dc4928e2d1b3f9bab19784a2e6fe5d049efe730cd74caecf76bcbc",
+        "expiredAtInspection": false
+      }
+    }
+  ]
+}

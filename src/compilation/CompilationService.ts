@@ -41,12 +41,12 @@ export class CompilationService {
         private readonly remoteBackend: RemoteBackend
     ) {
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('lpc');
-        this.outputChannel = vscode.window.createOutputChannel('LPC Compiler');
+        this.outputChannel = vscode.window.createOutputChannel(vscode.l10n.t('LPC Compiler'));
     }
 
     public async compileFile(filePath: string): Promise<void> {
         if (filePath.endsWith('.h')) {
-            vscode.window.showWarningMessage('头文件 (.h) 不需要单独编译。');
+            vscode.window.showWarningMessage(vscode.l10n.t('Header files (.h) do not need to be compiled separately.'));
             return;
         }
 
@@ -84,14 +84,14 @@ export class CompilationService {
     private async createRequest(targetFsPath: string, targetKind: CompilationTargetKind) {
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(targetFsPath));
         if (!workspaceFolder) {
-            vscode.window.showErrorMessage('请先打开一个工作区');
+            vscode.window.showErrorMessage(vscode.l10n.t('Open a workspace first.'));
             return undefined;
         }
 
         const workspaceRoot = workspaceFolder.uri.fsPath;
         const projectConfig = await this.projectConfigService.loadForWorkspace(workspaceRoot);
         if (!projectConfig?.compile?.mode) {
-            vscode.window.showErrorMessage('当前项目尚未配置编译管理');
+            vscode.window.showErrorMessage(vscode.l10n.t('Compilation is not configured for this project.'));
             return undefined;
         }
 
@@ -99,7 +99,7 @@ export class CompilationService {
 
         if (projectConfig.compile.mode === 'local') {
             if (!projectConfig.configHellPath) {
-                vscode.window.showErrorMessage('当前项目缺少 configHellPath，无法执行本地编译');
+                vscode.window.showErrorMessage(vscode.l10n.t('This project has no configHellPath. Local compilation cannot continue.'));
                 return undefined;
             }
 
@@ -178,7 +178,7 @@ export class CompilationService {
                     `unsupported=${result.summary.unsupported_count ?? 0}`,
                     `service=${result.summary.service_error_count ?? 0}`
                 ].join(', ');
-                this.outputChannel.appendLine(`lpccp summary: ${summary}`);
+                this.outputChannel.appendLine(vscode.l10n.t('lpccp summary: {0}', summary));
             }
         }
     }
@@ -204,7 +204,7 @@ export class CompilationService {
         });
 
         this.diagnosticCollection.set(uri, mapped);
-        this.outputChannel.appendLine(`${filePath}: ${mapped.length} diagnostics`);
+        this.outputChannel.appendLine(vscode.l10n.t('{0}: {1} diagnostics', filePath, mapped.length));
     }
 
     private createDiagnosticsForLocalResult(

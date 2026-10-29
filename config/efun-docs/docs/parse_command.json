@@ -1,7 +1,5 @@
 {
   "name": "parse_command",
-  "summary": "尝试用给定模式匹配命令字符串。FluffOS 将 parse_command 作为编译器 operator 处理，前三个参数为必填，后续目标变量为变参。",
-  "category": "语法分析相关函数（Parsing）",
   "signatures": [
     {
       "label": "int parse_command( string command, object | object *env, string pattern, mixed ...args )",
@@ -31,5 +29,6 @@
         "max": null
       }
     }
-  ]
+  ],
+  "categoryId": "parsing"
 }

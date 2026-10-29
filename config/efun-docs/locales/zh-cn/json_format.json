@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS json 包中的 Efun。",
+    "details": "格式化 JSON 字符串，返回更易阅读的文本。可选整数参数用于控制缩进或格式化选项。"
+}

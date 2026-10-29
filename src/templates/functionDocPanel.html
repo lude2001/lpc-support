@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{{lang}}">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} data:; style-src {{cspSource}}; script-src 'nonce-{{nonce}}';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LPC 函数文档中心</title>
+    <title>{{panelTitle}}</title>
     <link rel="stylesheet" href="{{styleUri}}">
 </head>
 <body>
@@ -13,62 +13,63 @@
             <div class="brand-block">
                 <span class="brand-mark" aria-hidden="true">ƒ</span>
                 <div>
-                    <h1>函数文档中心</h1>
-                    <p id="document-path">等待当前文档…</p>
+                    <h1>{{heading}}</h1>
+                    <p id="document-path">{{waitingDocument}}</p>
                 </div>
             </div>
             <div class="status-block">
                 <span id="status-dot" class="status-dot is-loading" aria-hidden="true"></span>
-                <span id="status-text" role="status" aria-live="polite">正在连接语言服务</span>
-                <button id="refresh-button" class="icon-button" type="button" title="刷新" aria-label="刷新函数文档">↻</button>
+                <span id="status-text" role="status" aria-live="polite">{{connectingService}}</span>
+                <button id="refresh-button" class="icon-button" type="button" title="{{refresh}}" aria-label="{{refreshDocumentation}}">↻</button>
             </div>
         </header>
 
-        <section class="toolbar" aria-label="函数筛选工具栏">
+        <section class="toolbar" aria-label="{{filterToolbar}}">
             <label class="search-box">
                 <span aria-hidden="true">⌕</span>
-                <input id="search-input" type="search" placeholder="搜索函数、签名、参数或文档" autocomplete="off">
+                <input id="search-input" type="search" placeholder="{{searchPlaceholder}}" aria-label="{{searchLabel}}" autocomplete="off">
                 <kbd>Ctrl K</kbd>
             </label>
-            <div class="filter-rail" role="group" aria-label="来源范围">
-                <button class="filter-chip is-active" type="button" data-filter-group="scope" data-filter-value="all">全部</button>
-                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="local">当前文件</button>
-                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="inherit">继承</button>
-                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="include">包含</button>
-                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="simulEfun">模拟函数</button>
-                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="efun">Efun</button>
+            <div class="filter-rail" role="group" aria-label="{{sourceScope}}">
+                <button class="filter-chip is-active" type="button" data-filter-group="scope" data-filter-value="all">{{all}}</button>
+                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="local">{{currentFile}}</button>
+                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="inherit">{{inherited}}</button>
+                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="include">{{included}}</button>
+                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="simulEfun">{{simulatedEfuns}}</button>
+                <button class="filter-chip" type="button" data-filter-group="scope" data-filter-value="efun">{{efun}}</button>
             </div>
-            <div class="filter-rail" role="group" aria-label="文档状态">
-                <button class="filter-chip is-active" type="button" data-filter-group="quality" data-filter-value="all">全部状态</button>
-                <button class="filter-chip" type="button" data-filter-group="quality" data-filter-value="complete">完整</button>
-                <button class="filter-chip" type="button" data-filter-group="quality" data-filter-value="incomplete">待补充</button>
-                <button class="filter-chip" type="button" data-filter-group="quality" data-filter-value="inconsistent">不一致</button>
+            <div class="filter-rail" role="group" aria-label="{{documentationStatus}}">
+                <button class="filter-chip is-active" type="button" data-filter-group="quality" data-filter-value="all">{{allStatuses}}</button>
+                <button class="filter-chip" type="button" data-filter-group="quality" data-filter-value="complete">{{complete}}</button>
+                <button class="filter-chip" type="button" data-filter-group="quality" data-filter-value="incomplete">{{incomplete}}</button>
+                <button class="filter-chip" type="button" data-filter-group="quality" data-filter-value="inconsistent">{{inconsistent}}</button>
             </div>
-            <div class="filter-rail" role="group" aria-label="声明种类">
-                <button class="filter-chip is-active" type="button" data-filter-group="kind" data-filter-value="all">全部声明</button>
-                <button class="filter-chip" type="button" data-filter-group="kind" data-filter-value="implementation">实现</button>
-                <button class="filter-chip" type="button" data-filter-group="kind" data-filter-value="prototype">原型</button>
+            <div class="filter-rail" role="group" aria-label="{{declarationKind}}">
+                <button class="filter-chip is-active" type="button" data-filter-group="kind" data-filter-value="all">{{allDeclarations}}</button>
+                <button class="filter-chip" type="button" data-filter-group="kind" data-filter-value="implementation">{{implementation}}</button>
+                <button class="filter-chip" type="button" data-filter-group="kind" data-filter-value="prototype">{{prototype}}</button>
             </div>
         </section>
 
         <main class="workspace">
-            <aside class="catalog" aria-label="函数目录">
+            <aside class="catalog" aria-label="{{functionCatalogue}}">
                 <div class="catalog-heading">
-                    <span>可见声明</span>
+                    <span>{{visibleDeclarations}}</span>
                     <span id="result-count" class="count-pill">0</span>
                 </div>
-                <div id="function-list" class="function-list" role="tree" aria-label="函数声明列表"></div>
+                <div id="function-list" class="function-list" role="tree" aria-label="{{declarationList}}"></div>
             </aside>
 
-            <section id="detail-panel" class="detail-panel" aria-label="函数详情">
+            <section id="detail-panel" class="detail-panel" aria-label="{{functionDetails}}">
                 <div class="empty-state">
                     <div class="empty-glyph" aria-hidden="true">{ }</div>
-                    <h2>选择一个函数</h2>
-                    <p>从左侧目录查看结构化签名、来源关系与文档质量。</p>
+                    <h2>{{selectFunction}}</h2>
+                    <p>{{selectionHelp}}</p>
                 </div>
             </section>
         </main>
     </div>
+    <script id="function-panel-localization" type="application/json" nonce="{{nonce}}">{{localizationData}}</script>
     <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
 </body>
 </html>

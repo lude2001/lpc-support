@@ -1,7 +1,5 @@
 {
   "name": "lookat_rotate2",
-  "summary": "lookat_rotate2 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "lookat_rotate2()",
@@ -12,5 +10,6 @@
         "max": 7
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

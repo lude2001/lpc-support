@@ -1,0 +1,3 @@
+{
+    "summary": "Returns the next object sharing the environment of `ob`. If omitted, `ob` defaults to this_object().\n\nObjects that entered an environment earlier appear later in inventory order. Thus next_inventory() returns an object that entered before the specified one. If the specified object entered first, it returns 0, even if other objects subsequently entered that environment."
+}

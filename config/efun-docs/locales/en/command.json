@@ -1,0 +1,3 @@
+{
+    "summary": "Makes the current object execute player command `str`. Returns 0 if execution fails; otherwise returns a number representing the time consumed by the command, with larger values indicating greater cost."
+}

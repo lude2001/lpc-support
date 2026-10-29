@@ -1,7 +1,5 @@
 {
   "name": "dump_stralloc",
-  "summary": "dump_stralloc 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "string dump_stralloc(string)",
@@ -18,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

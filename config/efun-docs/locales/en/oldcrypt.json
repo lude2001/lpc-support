@@ -1,0 +1,4 @@
+{
+    "summary": "Encrypt `str` using the string `seed` as the seed. If `seed` is 0, use a random seed.\n\nIf the encrypted form of `str` is used as the seed to encrypt `str` again, the returned string is the same as that seed.",
+    "details": "Example\nVerify a password using oldcrypt():\n\n   string crypt_pwd = oldcrypt(pwd, 0);\n   if (oldcrypt(pwd, crypt_pwd) == crypt_pwd)\n   {\n       // ...\n   }"
+}

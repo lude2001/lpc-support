@@ -1,0 +1,3 @@
+{
+  "summary": "返回呼叫此函数的玩家对象。此函数总是返回原始的玩家对象，相当于this_player(1)，而不像 this_player() 会受到 enable_commands() 或 command() 影响。"
+}

@@ -1,0 +1,3 @@
+{
+  "summary": "Return the heartbeat value set for the specified object through set_heart_beat(). Return 0 if there is no heartbeat.\n\n   If `ob` is omitted, it defaults to this_object()."
+}

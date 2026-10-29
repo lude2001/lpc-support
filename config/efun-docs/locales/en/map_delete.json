@@ -1,0 +1,3 @@
+{
+    "summary": "Removes the key/value pair whose key is `element` from mapping `m`.\n\nFor example, given:\n\n   mapping names;\n\n   names = ([]);\n   names[\"truilkan\"] = \"john\";\n   names[\"wayfarer\"] = \"erik\";\n   names[\"jacques\"] = \"dwayne\";\n\nCalling:\n\n   map_delete(names,\"truilkan\");\n\nleaves mapping `names` as:\n\n   ([\"wayfarer\" : \"erik\", \"jacques\" : \"dwayne\"])\n\nAfter map_delete(names, \"truilkan\"), `names` no longer contains `truilkan` unless it is added again."
+}

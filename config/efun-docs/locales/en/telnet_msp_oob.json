@@ -1,0 +1,4 @@
+{
+    "summary": "Sends MSP out-of-band data.",
+    "details": "NAME\ntelnet_msp_oob() - send an OOB MSP message\n\nSYNOPSIS\nvoid telnet_msp_oob(string);\n\nDESCRIPTION\nSupport was added in FluffOS v2019.20220507. For a user connected through telnet, sends the sequence IAC SB TELOPT_MSP msg IAC SE, as documented at https://wiki.mudlet.org/w/Manual:Supported_Protocols#MSP\n\nSEE ALSO\nmsp_enable(4)"
+}

@@ -1,0 +1,4 @@
+{
+  "summary": "Close socket `s`, freeing a socket slot for reuse.",
+  "details": "Return semantics:\nReturn EESUCCESS on success. On failure, return a negative value indicating one of these errors:\n\nErrors\n\nEEFDRANGE      Socket descriptor out of range\n   EEBADF         Invalid socket descriptor\n   EESECURITY     Attempt to violate security"
+}

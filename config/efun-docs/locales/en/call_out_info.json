@@ -1,0 +1,3 @@
+{
+    "summary": "Return information about all pending delayed function calls as an array of arrays. Each inner array contains three elements: object, function, and delay."
+}

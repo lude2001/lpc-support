@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib package efun.",
+    "details": "Determine whether the character represented by a character code is a vowel. Commonly used when selecting English articles or processing short descriptions."
+}

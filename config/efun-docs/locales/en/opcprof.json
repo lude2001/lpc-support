@@ -1,0 +1,3 @@
+{
+  "summary": "This function requires #define OPCPROF when the driver is compiled. It was removed in FluffOS v2017 and v2019.\n\n   This function dumps a list of statistics on each efunction and eoperator. If no argument is specified, then the information will be dumped to files named /OPCPROF.efun and /OPCPROF.eoper. If an argument is specified, then that name is used as the filename for the dump."
+}

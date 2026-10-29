@@ -1,0 +1,3 @@
+{
+  "summary": "只有驱动在编译时定义了 PROFILE_FUNCTIONS，此函数才可用。\n\n   返回 'ob' 的函数性能统计信息；如果未指定 'ob'，则使用 this_object()。\n\n   返回值是映射数组，'ob' 中每个函数对应一个映射，格式为：\n\n      ([ \"name\"     : name_of_the_function,\n         \"calls\"    : number_of_calls,\n         \"self\"     : cpu_time_spent_in self,\n         \"children\" : cpu_time_spent_in_children\n      ])\n\n   这些信息的实用性取决于 CPU 时钟的分辨率。虽然单位为微秒，但 CPU 计时器的分辨率通常要低得多。"
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "Moves the current object into environment `dest`. The move triggers init() in the current object, the destination environment, and the objects it contains."
+}

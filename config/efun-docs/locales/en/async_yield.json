@@ -1,0 +1,4 @@
+{
+    "summary": "Returns a promise that resolves to 0 after the next driver event-loop iteration. Inside an async function, await async_yield() suspends the current function and resumes it after the driver processes network input, commands, and due timers.",
+    "details": "This is a cooperative yield, suitable for processing longer tasks in batches. Awaiting a promise that has already resolved does not guarantee that another event-loop iteration occurs; async_yield() also does not reset the current evaluation budget."
+}

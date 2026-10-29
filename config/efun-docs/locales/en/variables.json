@@ -1,0 +1,3 @@
+{
+  "summary": "Return information about global variables defined in object `ob`, including globals inherited from other objects. Optional `flag` is a bit field and defaults to 0, which returns only the list of variable names. If `flag` is 1, return a two-dimensional array whose subarrays contain the variable name and variable type:\n\n   ({ 变量名, 变量类型 })"
+}

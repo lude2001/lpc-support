@@ -1,0 +1,3 @@
+{
+  "summary": "Set the current player's input/output encoding.\n\n   An error is raised if the given encoding name is unavailable. Available encodings depend on the ICU version; GBK is generally used for Chinese.\n\n   If no encoding is specified, reset the player's encoding to UTF-8.\n\n   Return the ICU-canonical encoding name, the same value returned by query_encoding()."
+}

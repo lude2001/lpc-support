@@ -98,16 +98,16 @@ function createLanguageClient(context: vscode.ExtensionContext): LanguageClient 
     };
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ language: 'lpc', scheme: 'file' }],
-        outputChannel: vscode.window.createOutputChannel('LPC LSP'),
+        outputChannel: vscode.window.createOutputChannel(vscode.l10n.t('LPC LSP')),
         connectionOptions: {
             maxRestartCount: 3
         },
-        errorHandler: createLspClientErrorHandler('LPC Support Rust', 3)
+        errorHandler: createLspClientErrorHandler(vscode.l10n.t('LPC Support Rust'), 3)
     };
 
     return new LanguageClient(
         'lpc-support-rust',
-        'LPC Support Rust',
+        vscode.l10n.t('LPC Support Rust'),
         serverOptions,
         clientOptions
     );
@@ -142,8 +142,7 @@ export function createLspClientErrorHandler(
 
             return {
                 action: CloseAction.DoNotRestart,
-                message: `${clientName} server crashed ${maxRestartCount + 1} times in the last 3 minutes. `
-                    + 'The server will not be restarted. See the LPC LSP output for details.'
+                message: vscode.l10n.t('{0} server crashed {1} times in the last 3 minutes. The server will not be restarted. See the LPC LSP output for details.', clientName, maxRestartCount + 1)
             };
         }
     };

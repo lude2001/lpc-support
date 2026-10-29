@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS dwlib 软件包中的 Efun。",
+  "details": "递归处理值中的对象引用，把对象转换为更适合序列化或显示的表示形式。"
+}

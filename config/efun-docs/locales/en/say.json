@@ -1,0 +1,3 @@
+{
+  "summary": "Send a message to all objects in the sender's environment and to all objects whose environment is the sender. The sender is `this_player()`, or `this_object()` when `this_player() == 0`.\n\n   The second argument is optional. If `obj` is supplied, the message is not sent to it. `obj` may be an object or an array of objects.\n\n   This efun does not call the receive_message() apply. The maximum length of say() output is __LARGEST_PRINTABLE_STRING__, which defaults to 65535 bytes (a Chinese character occupies 3 bytes in UTF-8)."
+}

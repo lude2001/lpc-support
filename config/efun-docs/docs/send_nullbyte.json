@@ -1,10 +1,8 @@
 {
   "name": "send_nullbyte",
-  "summary": "sends '\\0' to interactive, returns -2 in case of error 1 otherwise\n\n   这是 FLUFFOS 新增的外部函数，要求驱动程序编译时定义了 PACKAGE_CONTRIB 包。",
   "reference": [
     "telnet_nop"
   ],
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "int send_nullbyte(object ob)",
@@ -21,5 +19,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

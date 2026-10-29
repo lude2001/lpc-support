@@ -1,0 +1,3 @@
+{
+    "summary": "Returns an array of the file names of programs directly inherited by `obj`. For example, if A inherits B and B inherits C, inherit_list(A) returns B but not C."
+}

@@ -1,8 +1,5 @@
 {
   "name": "replace_objects",
-  "summary": "FluffOS dwlib package efun.",
-  "details": "递归处理值中的对象引用，把对象转换为更适合序列化或显示的表示形式。",
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "mixed replace_objects( mixed )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

@@ -1,0 +1,3 @@
+{
+    "summary": "socket_status(int fd) 返回包含以下项的数组：\n   . ret[0] = (int) fd\n       . ret[1] = (string) state\n       . ret[2] = (string) mode\n       . ret[3] = (string) local address\n       . ret[4] = (string) remote address\n       . ret[5] = (object) owner\n   socket_status() 返回二维数组，每个 socket 对应一个子数组。"
+}

@@ -1,6 +1,5 @@
 {
   "name": "tell_object",
-  "summary": "向 `ob` 对象发送消息 `str`，如果对象是玩家，消息会显示给对方，否则会被此对象中的 apply 方法 `catch_tell()` 捕获。",
   "reference": [
     "message",
     "write",
@@ -9,7 +8,6 @@
     "tell_room",
     "catch_tell"
   ],
-  "category": "对象相关函数（Objects）",
   "signatures": [
     {
       "label": "void tell_object( object ob, string str )",
@@ -30,5 +28,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "objects"
 }

@@ -4,6 +4,8 @@ import type {
     PanelDocumentationAction
 } from '../contracts/FunctionDocumentationPanelProtocol';
 import { parseParamTagHeader } from '../../language/documentation/DocCommentTagParser';
+import { getDocumentationLanguage } from '../../localization/documentationLanguage';
+import type { UiLocale } from '../../localization/locale';
 
 export class FunctionDocumentationAuthoringService {
     public async apply(
@@ -17,23 +19,23 @@ export class FunctionDocumentationAuthoringService {
         } = {}
     ): Promise<boolean> {
         if (!entry.sourceRange) {
-            throw new Error('所选声明缺少可编辑范围。');
+            throw new Error(vscode.l10n.t('The selected declaration has no editable range.'));
         }
         if (entry.selectionRange) {
             const selectedName = editor.document.getText(toVsCodeRange(entry.selectionRange));
             if (selectedName !== entry.name) {
-                throw new Error('函数声明已变化，请刷新文档中心后重试。');
+                throw new Error(vscode.l10n.t('The function declaration has changed. Refresh the Function Documentation Center and try again.'));
             }
         }
 
         if (mode === 'generate' || !entry.documentation.attachedCommentRange) {
             if (entry.documentation.hasAttachedComment || entry.documentation.attachedCommentRange) {
-                throw new Error('该函数已有文档注释，请使用补全或更新。');
+                throw new Error(vscode.l10n.t('This function already has a documentation comment. Complete or update it instead.'));
             }
             const position = new vscode.Position(entry.sourceRange.start.line, 0);
             const indent = getIndent(editor.document.lineAt(entry.sourceRange.start.line).text);
             const eol = getDocumentEol(editor.document);
-            const comment = renderSkeleton(entry, indent, eol);
+            const comment = renderSkeleton(entry, indent, eol, getDocumentationLanguage(editor.document.uri));
             return editor.edit((editBuilder) => editBuilder.insert(position, `${comment}${eol}`));
         }
 
@@ -45,15 +47,17 @@ export class FunctionDocumentationAuthoringService {
             || options.removeOrphanParamTags
             ? removeInconsistentTagBlocks(existingComment, entry, options)
             : existingComment;
-        const normalizedComment = completeEmptyTags(deduplicatedComment, entry);
+        const language = getDocumentationLanguage(editor.document.uri);
+        const normalizedComment = completeEmptyTags(deduplicatedComment, entry, language);
         const additions = renderMissingTags(
             entry,
             getIndent(editor.document.lineAt(commentRange.start.line).text),
-            normalizedComment
+            normalizedComment,
+            language
         );
         const closingIndex = normalizedComment.lastIndexOf('*/');
         if (closingIndex < 0) {
-            throw new Error('现有文档注释不完整，无法安全补全。');
+            throw new Error(vscode.l10n.t('The existing documentation comment is incomplete and cannot be safely completed.'));
         }
         if (additions.length === 0 && normalizedComment === existingComment) {
             return false;
@@ -133,7 +137,7 @@ function removeInconsistentTagBlocks(
     return kept.join(eol);
 }
 
-function completeEmptyTags(comment: string, entry: FunctionDocumentationPanelEntry): string {
+function completeEmptyTags(comment: string, entry: FunctionDocumentationPanelEntry, language: UiLocale): string {
     const missingSummary = entry.quality.issues.some((issue) => issue.code === 'missing-summary');
     const missingReturn = entry.quality.issues.some((issue) => issue.code === 'missing-return-description');
     const missingParams = new Set(
@@ -153,32 +157,32 @@ function completeEmptyTags(comment: string, entry: FunctionDocumentationPanelEnt
         }
         const [, prefix, tagName, remainder = ''] = tagMatch;
         if (tagName === 'brief' && missingSummary && !remainder.trim()) {
-            return `${prefix} TODO: 简要说明 ${entry.name} 的用途。`;
+            return `${prefix} ${summaryTodo(entry.name, language)}`;
         }
         if (tagName === 'return' && missingReturn && !remainder.trim()) {
-            return `${prefix} TODO: 说明返回值。`;
+            return `${prefix} ${returnTodo(language)}`;
         }
         if (tagName === 'param') {
             const parsedParam = parseParamTagHeader(remainder);
             if (parsedParam && missingParams.has(parsedParam.name) && !parsedParam.description?.trim()) {
-                return `${line} TODO: 说明 ${parsedParam.name}。`;
+                return `${line} ${parameterTodo(parsedParam.name, language)}`;
             }
         }
         return line;
     }).join(eol);
 }
 
-function renderSkeleton(entry: FunctionDocumentationPanelEntry, indent: string, eol: string): string {
+function renderSkeleton(entry: FunctionDocumentationPanelEntry, indent: string, eol: string, language: UiLocale): string {
     const lines = [
         `${indent}/**`,
-        `${indent} * @brief TODO: 简要说明 ${entry.name} 的用途。`
+        `${indent} * @brief ${summaryTodo(entry.name, language)}`
     ];
     const parameters = uniqueParameters(entry);
     for (const parameter of parameters) {
-        lines.push(`${indent} * @param ${parameter.type || 'mixed'} ${parameter.name} TODO: 说明 ${parameter.name}。`);
+        lines.push(`${indent} * @param ${parameter.type || 'mixed'} ${parameter.name} ${parameterTodo(parameter.name, language)}`);
     }
     if (requiresReturnDescription(entry)) {
-        lines.push(`${indent} * @return TODO: 说明返回值。`);
+        lines.push(`${indent} * @return ${returnTodo(language)}`);
     }
     lines.push(`${indent} */`);
     return lines.join(eol);
@@ -187,7 +191,8 @@ function renderSkeleton(entry: FunctionDocumentationPanelEntry, indent: string, 
 function renderMissingTags(
     entry: FunctionDocumentationPanelEntry,
     indent: string,
-    existingComment: string
+    existingComment: string,
+    language: UiLocale
 ): string[] {
     const lines: string[] = [];
     const existingTags = collectExistingTags(existingComment);
@@ -195,7 +200,7 @@ function renderMissingTags(
         entry.quality.issues.some((issue) => issue.code === 'missing-summary')
         && !existingTags.hasBrief
     ) {
-        lines.push(`${indent} * @brief TODO: 简要说明 ${entry.name} 的用途。`);
+        lines.push(`${indent} * @brief ${summaryTodo(entry.name, language)}`);
     }
 
     const parameters = new Map(uniqueParameters(entry).map((parameter) => [parameter.name, parameter]));
@@ -205,16 +210,28 @@ function renderMissingTags(
         }
         const parameter = parameters.get(issue.parameterName);
         if (parameter && !existingTags.paramNames.has(parameter.name)) {
-            lines.push(`${indent} * @param ${parameter.type || 'mixed'} ${parameter.name} TODO: 说明 ${parameter.name}。`);
+            lines.push(`${indent} * @param ${parameter.type || 'mixed'} ${parameter.name} ${parameterTodo(parameter.name, language)}`);
         }
     }
     if (
         entry.quality.issues.some((issue) => issue.code === 'missing-return-description')
         && !existingTags.hasReturn
     ) {
-        lines.push(`${indent} * @return TODO: 说明返回值。`);
+        lines.push(`${indent} * @return ${returnTodo(language)}`);
     }
     return lines;
+}
+
+function summaryTodo(name: string, language: UiLocale): string {
+    return language === 'zh-cn' ? `TODO: 简要说明 ${name} 的用途。` : `TODO: Briefly describe the purpose of ${name}.`;
+}
+
+function parameterTodo(name: string, language: UiLocale): string {
+    return language === 'zh-cn' ? `TODO: 说明 ${name}。` : `TODO: Describe ${name}.`;
+}
+
+function returnTodo(language: UiLocale): string {
+    return language === 'zh-cn' ? 'TODO: 说明返回值。' : 'TODO: Describe the return value.';
 }
 
 function collectExistingTags(comment: string): {

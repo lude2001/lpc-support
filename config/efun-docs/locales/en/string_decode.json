@@ -1,0 +1,3 @@
+{
+    "summary": "Decode the buffer `buf`, encoded using `encoding`, into a UTF-8 string."
+}

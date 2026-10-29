@@ -1,0 +1,4 @@
+{
+    "summary": "返回由 pattern 指定的捕获组组成的数组。",
+    "details": "示例\neval return pcre_extract(\"bbracadabra\", \"([abc]+)\");"
+}

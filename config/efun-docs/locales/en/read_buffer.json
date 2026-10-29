@@ -1,0 +1,4 @@
+{
+  "summary": "If `src` is a string (a filename), read `len` bytes from the file beginning at byte `start` and return them as a buffer. If the start and length are omitted, read the entire file.\n\n   If `src` is a buffer, read `len` bytes beginning at byte `start` and return them as a string.\n\n   The maximum number of bytes that can be read from a file into a buffer is controlled by `maximum byte transfer` in the runtime configuration.",
+  "details": "Author\nTruilkan"
+}

@@ -1,0 +1,4 @@
+{
+  "summary": "Return 1 if `arg` is an array; otherwise return 0.\n\n   `arrayp()` is an alias for `pointerp()`.",
+  "details": "Return semantics:\n1 or 0"
+}

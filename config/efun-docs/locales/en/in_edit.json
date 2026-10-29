@@ -1,0 +1,4 @@
+{
+    "summary": "Checks whether an object is in the editor.",
+    "details": "NAME\nin_edit() - determine if a player is in the editor\n\nSYNOPSIS\nstring in_edit( object default : F_THIS_OBJECT );\n\nDESCRIPTION\nIf  the  given  object  is  in  the  editor,  the  file being edited is\n   returned, else zero.\n\nSEE ALSO\ned(3), in_input(3)"
+}

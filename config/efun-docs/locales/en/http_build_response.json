@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets package efun.",
+    "details": "Build a complete HTTP response string from an HTTP status code, a header mapping, and the response body."
+}

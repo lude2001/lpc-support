@@ -1,0 +1,4 @@
+{
+    "summary": "The is_daylight_savings_time efun.",
+    "details": "NAME\nis_daylight_savings_time\n\nSYNOPSIS\nint is_daylight_savings_time(string, int);\n\nDESCRIPTION\nreturns 1 if given time in given timezone is within daylight saving region\n   0 if not and -1 on error"
+}

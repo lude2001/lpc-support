@@ -1,13 +1,11 @@
 {
   "name": "memory_summary",
-  "summary": "返回游戏中载入的所有对象的全局变量占用的内存情况。",
   "reference": [
     "debug_info",
     "malloc_status",
     "mud_status",
     "memory_info"
   ],
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "mapping memory_summary()",
@@ -19,5 +17,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

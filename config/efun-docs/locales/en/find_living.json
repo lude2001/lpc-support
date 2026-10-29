@@ -1,0 +1,3 @@
+{
+  "summary": "First search for objects marked as living, then look for the ID `str`. Living objects have called enable_commands() and must have been named with set_living_name(). These living names are stored in a hash table for fast lookup."
+}

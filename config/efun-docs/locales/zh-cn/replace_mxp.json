@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib 包中的 Efun。",
+    "details": "转义或替换字符串中的 MXP 相关特殊字符，使文本适合输出到支持 MXP 的客户端。"
+}

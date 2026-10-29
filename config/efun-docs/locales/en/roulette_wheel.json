@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS dwlib package efun.",
+  "details": "Randomly select a key or value from a weight mapping according to the weights, for probability-based random selection."
+}

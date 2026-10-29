@@ -107,7 +107,7 @@ export class RustFunctionDocumentationLookupProvider implements FunctionDocument
             { textDocument: { uri: document.uri.toString() } }
         );
         if (!lookup) {
-            throw new Error('Rust language server did not return function documentation data');
+            throw new Error(vscode.l10n.t('The Rust language server did not return function documentation data.'));
         }
         return {
             currentFile: this.materializeGroup(lookup.currentFile),

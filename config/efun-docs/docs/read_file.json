@@ -1,6 +1,5 @@
 {
   "name": "read_file",
-  "summary": "从文件 `file` 读取指定行数文本到字符串。第二、三个参数为可选参数，如果只指定第一个参数会读取整个文档。\n\n   `start_line` 指定你希望从文档的第几行开始读，`number_of_lines ` 为要读取的行数，如果起始行数超过文件尾行或要读取的行数为负函数返回 0 。\n\n   提示：如果读取的文件不存在，返回0。",
   "reference": [
     "file_size",
     "read_buffer",
@@ -10,7 +9,6 @@
     "valid_read",
     "valid_write"
   ],
-  "category": "文件系统相关函数（Filesystem）",
   "signatures": [
     {
       "label": "string read_file( string file )",
@@ -72,5 +70,6 @@
         "max": 3
       }
     }
-  ]
+  ],
+  "categoryId": "filesystem"
 }

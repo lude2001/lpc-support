@@ -1,0 +1,4 @@
+{
+    "summary": "is_daylight_savings_time 内置函数",
+    "details": "名称\nis_daylight_savings_time\n\n用法\nint is_daylight_savings_time(string, int);\n\n说明\n如果指定时区的指定时间处于夏令时范围内，返回 1；否则返回 0；出错时返回 -1。"
+}

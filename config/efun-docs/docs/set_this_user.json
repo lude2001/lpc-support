@@ -1,8 +1,5 @@
 {
   "name": "set_this_user",
-  "summary": "FluffOS core package efun.",
-  "details": "设置当前交互用户对象。该函数与 set_this_player 相关，通常只应在 driver 或底层框架明确需要时使用。",
-  "category": "互动对象(玩家)相关函数（Interactive）",
   "signatures": [
     {
       "label": "void set_this_user( object | int )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "interactive"
 }

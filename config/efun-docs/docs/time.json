@@ -1,6 +1,5 @@
 {
   "name": "time",
-  "summary": "返回一个时间戳，时间戳是指格林威治时间1970年01月01日00时00分00秒(北京时间1970年01月01日08时00分00秒)起至现在的总毫秒数。",
   "reference": [
     "ctime",
     "localtime",
@@ -10,7 +9,6 @@
     "strptime",
     "perf_counter_ns"
   ],
-  "category": "系统相关函数（System）",
   "signatures": [
     {
       "label": "int time( void )",
@@ -22,5 +20,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "system"
 }

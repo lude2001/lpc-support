@@ -1,0 +1,4 @@
+{
+    "summary": "Returns the remote address of efun socket `s`, in a form such as \"127.0.0.1 23\".",
+    "details": "Return semantics:\nReturns the address string on success, or an empty string on failure."
+}

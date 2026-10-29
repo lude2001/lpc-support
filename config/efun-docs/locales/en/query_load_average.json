@@ -1,0 +1,4 @@
+{
+  "summary": "Return an information string reporting user commands per second and lines compiled by the driver per second.",
+  "details": "Example\n> eval return query_load_average()\nResult = \"0.00 cmds/s, 891.11 comp lines/s\""
+}

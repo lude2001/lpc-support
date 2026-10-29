@@ -11,7 +11,7 @@ export class RemoteCompilationBackend {
     public async compile(request: RemoteCompilationRequest): Promise<NormalizedCompilationResult> {
         const server = this.resolveServer(request);
         if (!server) {
-            throw new Error('未配置远程编译服务器');
+            throw new Error(vscode.l10n.t('No remote compilation server is configured.'));
         }
 
         if (request.targetKind === 'directory') {
@@ -27,7 +27,7 @@ export class RemoteCompilationBackend {
         request: RemoteCompilationRequest
     ): Promise<NormalizedCompilationResult> {
         if (!request.targetFsPath) {
-            throw new Error('远程目录编译缺少目标路径');
+            throw new Error(vscode.l10n.t('Remote directory compilation requires a target path.'));
         }
 
         const pattern = new vscode.RelativePattern(request.targetFsPath, '**/*.c');
@@ -51,7 +51,7 @@ export class RemoteCompilationBackend {
             ok: diagnosticsByFile.size === 0,
             diagnosticsByFile,
             succeededFiles,
-            summary: `批量编译完成。成功: ${succeededFiles.length}, 失败: ${diagnosticsByFile.size}, 总计: ${files.length}`
+            summary: vscode.l10n.t('Batch compilation finished. Succeeded: {0}, failed: {1}, total: {2}', succeededFiles.length, diagnosticsByFile.size, files.length)
         };
     }
 

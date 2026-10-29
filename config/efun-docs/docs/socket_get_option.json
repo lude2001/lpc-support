@@ -1,10 +1,8 @@
 {
   "name": "socket_get_option",
-  "summary": "// todo",
   "reference": [
     "socket_set_option"
   ],
-  "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {
       "label": "mixed socket_get_option(int, int)",
@@ -25,5 +23,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "sockets"
 }

@@ -65,7 +65,7 @@ export class FunctionDocPanel {
     ): void {
         const activeEditor = vscode.window.activeTextEditor;
         if (!activeEditor || !isLpcSourceDocument(activeEditor.document)) {
-            vscode.window.showInformationMessage('请先打开一个 LPC 源文件或头文件。');
+            vscode.window.showInformationMessage(vscode.l10n.t('Open an LPC source or header file first.'));
             return;
         }
 
@@ -78,7 +78,7 @@ export class FunctionDocPanel {
         const templateRoot = vscode.Uri.joinPath(context.extensionUri, 'dist', 'templates');
         const panel = vscode.window.createWebviewPanel(
             'lpcFunctionDoc',
-            'LPC 函数文档中心',
+            vscode.l10n.t('LPC Function Documentation Center'),
             vscode.ViewColumn.Beside,
             {
                 enableScripts: true,
@@ -194,8 +194,8 @@ export class FunctionDocPanel {
             await this.postActionResult(
                 false,
                 rootDocumentChanged
-                    ? '文档已变化，请刷新后重试。'
-                    : '面板内容已更新，请重新选择函数。'
+                    ? vscode.l10n.t('The document has changed. Refresh and try again.')
+                    : vscode.l10n.t('The panel content has changed. Select the function again.')
             );
             return;
         }
@@ -214,20 +214,20 @@ export class FunctionDocPanel {
                 if (allowed) {
                     await this.authorDocumentation(entry, message.mode);
                 } else {
-                    await this.postActionResult(false, '当前声明不允许执行该文档操作。');
+                    await this.postActionResult(false, vscode.l10n.t('This documentation action is not available for the current declaration.'));
                 }
             } else if (message.type === 'generateJavadocWithAi') {
                 if (entry.capabilities.canGenerateDocumentation) {
                     await this.generateJavadocWithAi(entry);
                 } else {
-                    await this.postActionResult(false, '当前声明不允许生成 AI 注释。');
+                    await this.postActionResult(false, vscode.l10n.t('AI comment generation is not available for the current declaration.'));
                 }
             } else {
-                await this.postActionResult(false, '当前声明不支持该操作。');
+                await this.postActionResult(false, vscode.l10n.t('This action is not supported for the current declaration.'));
             }
         } catch (error) {
-            const actionError = error instanceof Error ? error.message : '未知错误';
-            await this.postActionResult(false, `操作失败：${actionError}`);
+            const actionError = error instanceof Error ? error.message : vscode.l10n.t('Unknown error');
+            await this.postActionResult(false, vscode.l10n.t('Action failed: {0}', actionError));
         }
     }
 
@@ -248,7 +248,7 @@ export class FunctionDocPanel {
                     code: 'snapshot-stale',
                     severity: 'info',
                     stage: 'analysis',
-                    message: '当前文档正在刷新，请稍后重试外部函数搜索。',
+                    message: vscode.l10n.t('The document is refreshing. Try searching external functions again shortly.'),
                     recoverable: true
                 }]
             });
@@ -282,7 +282,7 @@ export class FunctionDocPanel {
                 return;
             }
             this.externalActionEntries.clear();
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            const errorMessage = error instanceof Error ? error.message : vscode.l10n.t('Unknown error');
             await this.postMessage({
                 type: 'externalSearchResult',
                 requestId,
@@ -296,7 +296,7 @@ export class FunctionDocPanel {
                     recoverable: true
                 }]
             });
-            await this.postActionResult(false, `外部函数加载失败：${errorMessage}`);
+            await this.postActionResult(false, vscode.l10n.t('Failed to load external functions: {0}', errorMessage));
         }
     }
 
@@ -341,7 +341,7 @@ export class FunctionDocPanel {
             this.refreshTimer = undefined;
         }
         this.currentDocument = document;
-        this.panel.title = `函数文档: ${getDisplayPath(document)}`;
+        this.panel.title = vscode.l10n.t('Function documentation: {0}', getDisplayPath(document));
         const requestedDocumentUri = document.uri.toString();
         const requestedDocumentVersion = document.version;
         const revision = ++this.nextRevision;
@@ -356,7 +356,7 @@ export class FunctionDocPanel {
             type: 'loading',
             sessionId: this.sessionId,
             revision,
-            stage: '正在分析函数与依赖来源'
+            stage: vscode.l10n.t('Analyzing functions and dependency sources')
         });
 
         try {
@@ -392,7 +392,7 @@ export class FunctionDocPanel {
             ) {
                 return;
             }
-            const message = error instanceof Error ? error.message : '未知错误';
+            const message = error instanceof Error ? error.message : vscode.l10n.t('Unknown error');
             const failedSnapshot: FunctionDocumentationPanelSnapshot = {
                 protocolVersion: 2,
                 sessionId: this.sessionId,
@@ -437,7 +437,7 @@ export class FunctionDocPanel {
 
     private async goToDefinition(entry: FunctionDocumentationPanelEntry): Promise<void> {
         if (!entry.sourceUri || !entry.sourceRange) {
-            await this.postActionResult(false, '该函数没有可跳转的源码位置。');
+            await this.postActionResult(false, vscode.l10n.t('This function has no source location to navigate to.'));
             return;
         }
         const document = await this.textDocumentHost.openTextDocument(vscode.Uri.parse(entry.sourceUri));
@@ -449,7 +449,7 @@ export class FunctionDocPanel {
 
     private async findReferences(entry: FunctionDocumentationPanelEntry): Promise<void> {
         if (!entry.sourceUri || !(entry.selectionRange ?? entry.sourceRange)) {
-            await this.postActionResult(false, '该函数没有可用于查找引用的位置。');
+            await this.postActionResult(false, vscode.l10n.t('This function has no location for finding references.'));
             return;
         }
         const targetRange = toVsCodeRange(entry.selectionRange ?? entry.sourceRange!);
@@ -460,7 +460,7 @@ export class FunctionDocPanel {
             targetRange.start
         ) ?? [];
         if (locations.length === 0) {
-            await this.postActionResult(true, '未找到引用。');
+            await this.postActionResult(true, vscode.l10n.t('No references found.'));
             return;
         }
         await vscode.commands.executeCommand('editor.action.showReferences', uri, targetRange.start, locations);
@@ -471,11 +471,11 @@ export class FunctionDocPanel {
         mode: 'generate' | 'complete' | 'update'
     ): Promise<void> {
         if (!entry.sourceUri || !this.acceptedSnapshot || !this.currentDocument) {
-            await this.postActionResult(false, '当前声明不可编辑。');
+            await this.postActionResult(false, vscode.l10n.t('The current declaration cannot be edited.'));
             return;
         }
         if (this.currentDocument.version !== this.acceptedSnapshot.rootDocument.version) {
-            await this.postActionResult(false, '文档已变化，请刷新后重试。');
+            await this.postActionResult(false, vscode.l10n.t('The document has changed. Refresh and try again.'));
             return;
         }
         const document = await this.textDocumentHost.openTextDocument(vscode.Uri.parse(entry.sourceUri));
@@ -496,22 +496,26 @@ export class FunctionDocPanel {
             && (duplicateIssues.length > 0 || staleParameterNames.length > 0 || orphanParameterCount > 0)
         ) {
             const detailLines = [
-                duplicateIssues.length > 0 ? '• 重复标签：保留首个，移除后续重复块。' : undefined,
+                duplicateIssues.length > 0 ? vscode.l10n.t('• Duplicate tags: keep the first block and remove later duplicates.') : undefined,
                 staleParameterNames.length > 0
-                    ? `• 过时参数标签：移除 ${staleParameterNames.map((name) => `@param ${name}`).join('、')}。`
+                    ? vscode.l10n.t('• Stale parameter tags: remove {0}.', staleParameterNames.map((name) => `@param ${name}`).join(', '))
                     : undefined,
                 orphanParameterCount > 0
-                    ? `• 无法识别的参数标签：移除 ${orphanParameterCount} 个孤立 @param 标签块。`
+                    ? vscode.l10n.t('• Unrecognized parameter tags: remove {0} orphaned @param blocks.', orphanParameterCount)
                     : undefined,
-                '• 当前签名缺失的参数标签将以 TODO 补充。'
+                vscode.l10n.t('• Missing parameter tags for the current signature will be added with TODO placeholders.')
             ].filter((line): line is string => Boolean(line));
+            const safeFixAction = {
+                title: vscode.l10n.t('Apply safe fixes'),
+                actionId: 'applySafeFixes' as const
+            };
             const choice = await vscode.window.showWarningMessage(
-                '即将对不一致的文档标签应用安全修复。',
+                vscode.l10n.t('Safe fixes will be applied to inconsistent documentation tags.'),
                 { modal: true, detail: detailLines.join('\n') },
-                '应用安全修复'
+                safeFixAction
             );
-            if (choice !== '应用安全修复') {
-                await this.postActionResult(false, '已取消文档更新。');
+            if (choice?.actionId !== 'applySafeFixes') {
+                await this.postActionResult(false, vscode.l10n.t('Documentation update cancelled.'));
                 return;
             }
             removeDuplicateTags = duplicateIssues.length > 0;
@@ -524,11 +528,13 @@ export class FunctionDocPanel {
             removeOrphanParamTags
         });
         if (!changed) {
-            await this.postActionResult(true, '当前文档无需补充。');
+            await this.postActionResult(true, vscode.l10n.t('The current documentation needs no additions.'));
             return;
         }
         await this.update(document, true);
-        await this.postActionResult(true, mode === 'generate' ? '文档骨架已生成。' : '文档缺失项已补全。');
+        await this.postActionResult(true, mode === 'generate'
+            ? vscode.l10n.t('Documentation skeleton generated.')
+            : vscode.l10n.t('Missing documentation completed.'));
     }
 
     public static refreshAfterIndexChange(): void {
@@ -540,7 +546,7 @@ export class FunctionDocPanel {
 
     private async generateJavadocWithAi(entry: FunctionDocumentationPanelEntry): Promise<void> {
         if (!entry.sourceUri || !(entry.selectionRange ?? entry.sourceRange)) {
-            await this.postActionResult(false, '当前声明缺少可编辑位置。');
+            await this.postActionResult(false, vscode.l10n.t('The current declaration has no editable location.'));
             return;
         }
         const document = await this.textDocumentHost.openTextDocument(vscode.Uri.parse(entry.sourceUri));

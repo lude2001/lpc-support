@@ -1,8 +1,5 @@
 {
   "name": "roulette_wheel",
-  "summary": "FluffOS dwlib package efun.",
-  "details": "从权重 mapping 中按权重随机选择一个键或值，适用于带概率的随机选择。",
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "mixed roulette_wheel( mapping )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

@@ -1,0 +1,3 @@
+{
+  "summary": "Return a nonzero value if `ob` is a connected player, or 0 if it is a disconnected player or a non-player object."
+}

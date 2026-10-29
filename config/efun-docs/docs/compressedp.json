@@ -1,8 +1,5 @@
 {
   "name": "compressedp",
-  "summary": "compressedp 内置函数",
-  "details": "NAME\ncompressedp() - returns if interactive connection uses telopt compress\n\nSYNOPSIS\nint compressedp(object ob);\n\nDESCRIPTION\nAdded from FluffOS 1.4, returns if interactive connection uses telopt compress #ifdef PACKAGE_COMPRESS",
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "compressedp()",
@@ -13,5 +10,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

@@ -1,7 +1,5 @@
 {
   "name": "socket_status",
-  "summary": "socket_status(int fd) returns an array with:\n   . ret[0] = (int) fd\n       . ret[1] = (string) state\n       . ret[2] = (string) mode\n       . ret[3] = (string) local address\n       . ret[4] = (string) remote address\n       . ret[5] = (object) owner\n   socket_status() returns an array of arrays; one for each socket.",
-  "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {
       "label": "mixed *socket_status(void | int)",
@@ -19,5 +17,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "sockets"
 }

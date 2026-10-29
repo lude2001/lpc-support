@@ -1,0 +1,3 @@
+{
+  "summary": "Return a string with bit `n` of `str` cleared. The original string `str` is not modified."
+}

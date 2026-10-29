@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS dwlib 软件包中的 Efun。",
+  "details": "从权重 mapping 中按权重随机选择一个键或值，适用于带概率的随机选择。"
+}

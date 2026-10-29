@@ -1,0 +1,3 @@
+{
+  "summary": "Return an array of filenames of objects directly inherited by `obj`. Only direct inheritance is included: if A inherits B and B inherits C, inherit_list(A) contains B but not C.\n\n   inherit_list() is an alias for shallow_inherit_list()."
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "Return 1 if `ob` is living. An object becomes living by calling the `enable_commands()` efun. If the argument is omitted, use this_object()."
+}

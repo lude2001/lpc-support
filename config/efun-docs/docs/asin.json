@@ -1,6 +1,5 @@
 {
   "name": "asin",
-  "summary": "Returns the arcsine of its argument, 'f', measured in radians.",
   "reference": [
     "acos",
     "atan",
@@ -8,7 +7,6 @@
     "sin",
     "tan"
   ],
-  "category": "浮点运算相关函数（Floats）",
   "signatures": [
     {
       "label": "float asin( float f )",
@@ -25,5 +23,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "floats"
 }

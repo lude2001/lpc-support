@@ -1,0 +1,4 @@
+{
+    "summary": "returns an array of captured groups specified in pattern.",
+    "details": "Example\neval return pcre_extract(\"bbracadabra\", \"([abc]+)\");"
+}

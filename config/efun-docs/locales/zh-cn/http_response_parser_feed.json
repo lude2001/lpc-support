@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets 包提供的 efun。",
+    "details": "向 HTTP 响应解析器输入一段响应数据，返回当前可解析出的响应状态、头部或正文信息。"
+}

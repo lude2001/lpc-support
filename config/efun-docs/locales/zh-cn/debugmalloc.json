@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS develop 包提供的 efun。",
+    "details": "查询或控制 malloc 调试信息，返回与指定调试项相关的文本结果。主要用于 driver 开发和内存问题排查。"
+}

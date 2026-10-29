@@ -1,0 +1,4 @@
+{
+    "summary": "Find the first occurrence of the substring `substr` in `str`. If the optional third argument `flag`, defaulting to 0, is -1, find the last occurrence instead. If the second argument is an integer, search for the corresponding ASCII character, like strchr() and strrchr() in C. An empty string or null value cannot be searched.",
+    "details": "Return semantics:\nReturn the index of the first or last match, counting from 0. Return -1 if no match is found."
+}

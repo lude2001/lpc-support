@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS core package efun.",
+  "details": "Set the current interactive user object. This function is related to set_this_player and should generally be used only when explicitly required by the driver or low-level framework."
+}

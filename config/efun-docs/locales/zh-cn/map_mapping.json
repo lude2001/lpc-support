@@ -1,0 +1,3 @@
+{
+    "summary": "返回一个和映射 `map` 键相同但值为由 `ob->fun()` 或函数指针 `f` 处理后的返回值构成的新映射。映射的每一组元素的键和值都会作为参数呼叫处理函数，处理函数形式参数如： fun(mixed key, mixed value, mixed extra,...);\n\n   此函数本质上就是限制参数为mapping类型的map()函数。"
+}

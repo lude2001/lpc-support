@@ -1,8 +1,5 @@
 {
   "name": "traceprefix",
-  "summary": "FluffOS develop package efun.",
-  "details": "查询或设置 trace 输出的路径前缀过滤条件，用于限制调试跟踪信息范围。",
-  "category": "内部处理相关函数（Internals）",
   "signatures": [
     {
       "label": "string traceprefix( string | int )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "internals"
 }

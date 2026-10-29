@@ -1,0 +1,3 @@
+{
+  "summary": "This efun behaves exactly like the C library function of the same name. Return a value less than zero if string `one` is less than string `two`, 0 if they are equal, or a value greater than zero otherwise. Comparison is lexicographic, using the characters' ASCII values.\n\n   It is particularly useful as a comparison function for sort_array()."
+}

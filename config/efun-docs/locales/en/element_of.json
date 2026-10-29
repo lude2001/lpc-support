@@ -1,0 +1,3 @@
+{
+    "summary": "Returns a random element from the given array.\n\nIntroduced in FluffOS 1.28; the original MUDOS does not support it."
+}

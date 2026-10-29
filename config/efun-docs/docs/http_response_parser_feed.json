@@ -1,8 +1,5 @@
 {
   "name": "http_response_parser_feed",
-  "summary": "FluffOS sockets package efun.",
-  "details": "向 HTTP 响应解析器输入一段响应数据，返回当前可解析出的响应状态、头部或正文信息。",
-  "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {
       "label": "mapping http_response_parser_feed( mixed, string )",
@@ -23,5 +20,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "sockets"
 }

@@ -1,0 +1,4 @@
+{
+  "summary": "flush_messages 内置函数",
+  "details": "名称\nflush_messages - 向用户发送所有待发送消息\n\n用法\nint flush_messages();\n   int flush_messages(object user);\n\n说明\n通常会先将消息加入队列，再一次性发送，以减少所需的数据包数量。此函数强制立即写出所有待发送消息。如果未指定用户，则刷新所有用户的消息。"
+}

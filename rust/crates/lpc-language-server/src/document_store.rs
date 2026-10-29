@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail};
+use lpc_analysis::Locale;
 use lpc_protocol::DocumentPerformanceStatus;
 use serde::Deserialize;
 
@@ -51,12 +52,20 @@ pub struct DocumentSnapshot {
 
 #[derive(Debug, Default)]
 pub struct DocumentStore {
+    locale: Locale,
     documents: HashMap<String, DocumentSnapshot>,
     next_revision: u64,
     metrics: DocumentPerformanceStatus,
 }
 
 impl DocumentStore {
+    pub fn with_locale(locale: Locale) -> Self {
+        Self {
+            locale,
+            ..Self::default()
+        }
+    }
+
     pub fn open(&mut self, uri: String, version: i32, text: String) {
         let revision = self.allocate_revision();
         self.documents.insert(
@@ -77,16 +86,26 @@ impl DocumentStore {
         version: i32,
         changes: &[ContentChange],
     ) -> Result<ChangeResult> {
+        let locale = self.locale;
         let Some(current) = self.documents.get(uri) else {
             self.metrics.rejected_change_count += 1;
-            bail!("received a change for unopened document {uri}");
+            bail!(match locale {
+                Locale::En => format!("received a change for unopened document {uri}"),
+                Locale::ZhCn => format!("收到未打开文档 {uri} 的更改"),
+            });
         };
         if version <= current.version {
             self.metrics.rejected_change_count += 1;
-            bail!(
-                "received stale document version {version} for {uri}; current version is {}",
-                current.version
-            );
+            bail!(match locale {
+                Locale::En => format!(
+                    "received stale document version {version} for {uri}; current version is {}",
+                    current.version
+                ),
+                Locale::ZhCn => format!(
+                    "收到文档 {uri} 的过时版本 {version}；当前版本为 {}",
+                    current.version
+                ),
+            });
         }
 
         let mut next_text = current.text.clone();
@@ -100,6 +119,7 @@ impl DocumentStore {
                         &mut next_text,
                         range,
                         &change.text,
+                        locale,
                     )?);
                     incremental_edits += 1;
                 }
@@ -113,10 +133,12 @@ impl DocumentStore {
         }
 
         let revision = self.allocate_revision();
-        let document = self
-            .documents
-            .get_mut(uri)
-            .ok_or_else(|| anyhow!("document disappeared while applying changes"))?;
+        let document = self.documents.get_mut(uri).ok_or_else(|| {
+            anyhow!(locale.text(
+                "document disappeared while applying changes",
+                "应用更改时文档已不存在"
+            ))
+        })?;
         document.text = next_text;
         document.version = version;
         document.revision = revision;
@@ -163,16 +185,20 @@ fn apply_incremental_change(
     text: &mut String,
     range: Range,
     replacement: &str,
+    locale: Locale,
 ) -> Result<AppliedEdit> {
-    let start = position_to_offset(text, range.start)?;
-    let end = position_to_offset(text, range.end)?;
+    let start = position_to_offset(text, range.start, locale)?;
+    let end = position_to_offset(text, range.end, locale)?;
     if start > end {
-        bail!("incremental edit start is after its end");
+        bail!(locale.text(
+            "incremental edit start is after its end",
+            "增量编辑起点位于终点之后"
+        ));
     }
     let (start_row, start_column_bytes) = byte_point_at(text, start);
     let (old_end_row, old_end_column_bytes) = byte_point_at(text, end);
     let (new_end_row, new_end_column_bytes) =
-        replacement_end_point(start_row, start_column_bytes, replacement);
+        replacement_end_point(start_row, start_column_bytes, replacement, locale);
     let new_end_byte = start + replacement.len();
     text.replace_range(start..end, replacement);
     Ok(AppliedEdit {
@@ -201,26 +227,35 @@ fn replacement_end_point(
     start_row: usize,
     start_column_bytes: usize,
     replacement: &str,
+    locale: Locale,
 ) -> (usize, usize) {
     let newline_count = replacement.bytes().filter(|byte| *byte == b'\n').count();
     if newline_count == 0 {
         return (start_row, start_column_bytes + replacement.len());
     }
 
-    let last_newline = replacement.rfind('\n').expect("newline count was positive");
+    let last_newline = replacement.rfind('\n').unwrap_or_else(|| {
+        panic!(
+            "{}",
+            locale.text("newline count was positive", "换行计数为正时应存在换行符")
+        )
+    });
     (
         start_row + newline_count,
         replacement.len() - last_newline - 1,
     )
 }
 
-fn position_to_offset(text: &str, position: Position) -> Result<usize> {
+fn position_to_offset(text: &str, position: Position, locale: Locale) -> Result<usize> {
     let mut line_start = 0_usize;
     let mut current_line = 0_u32;
 
     while current_line < position.line {
         let Some(relative_newline) = text[line_start..].find('\n') else {
-            bail!("line {} is outside the document", position.line);
+            bail!(match locale {
+                Locale::En => format!("line {} is outside the document", position.line),
+                Locale::ZhCn => format!("行 {} 超出文档范围", position.line),
+            });
         };
         line_start += relative_newline + 1;
         current_line += 1;
@@ -240,7 +275,10 @@ fn position_to_offset(text: &str, position: Position) -> Result<usize> {
         }
         consumed_utf16 += character.len_utf16();
         if consumed_utf16 > target_utf16 {
-            bail!("position splits a UTF-16 surrogate pair");
+            bail!(locale.text(
+                "position splits a UTF-16 surrogate pair",
+                "位置位于 UTF-16 代理项对内部"
+            ));
         }
     }
 
@@ -248,11 +286,16 @@ fn position_to_offset(text: &str, position: Position) -> Result<usize> {
         return Ok(line_start + line.len());
     }
 
-    bail!(
-        "character {} is outside line {}",
-        position.character,
-        position.line
-    )
+    bail!(match locale {
+        Locale::En => format!(
+            "character {} is outside line {}",
+            position.character, position.line
+        ),
+        Locale::ZhCn => format!(
+            "字符 {} 超出行 {} 的范围",
+            position.character, position.line
+        ),
+    })
 }
 
 #[cfg(test)]
@@ -343,5 +386,113 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(store.get("file:///demo.c").unwrap().text, "before");
         assert_eq!(store.metrics().rejected_change_count, 1);
+    }
+
+    #[test]
+    fn localizes_document_state_errors_and_preserves_uri_and_rejected_state() {
+        let uri = "file:///fixture/函数.c";
+        for (locale, unopened, stale) in [
+            (
+                Locale::En,
+                format!("received a change for unopened document {uri}"),
+                format!("received stale document version 4 for {uri}; current version is 4"),
+            ),
+            (
+                Locale::ZhCn,
+                format!("收到未打开文档 {uri} 的更改"),
+                format!("收到文档 {uri} 的过时版本 4；当前版本为 4"),
+            ),
+        ] {
+            let mut store = DocumentStore::with_locale(locale);
+            assert_eq!(store.change(uri, 1, &[]).unwrap_err().to_string(), unopened);
+            assert!(store.is_empty());
+            store.open(uri.into(), 4, "original text 原文".into());
+            let before = store.get(uri).unwrap().clone();
+            let error = store
+                .change(
+                    uri,
+                    4,
+                    &[ContentChange {
+                        range: None,
+                        text: "replacement".into(),
+                    }],
+                )
+                .unwrap_err();
+            assert_eq!(error.to_string(), stale);
+            assert_eq!(store.get(uri), Some(&before));
+            assert_eq!(store.metrics().rejected_change_count, 2);
+            assert_eq!(store.metrics().full_replacement_count, 0);
+        }
+        assert_eq!(DocumentStore::default().locale, Locale::En);
+    }
+
+    #[test]
+    fn localizes_incremental_range_errors_without_changing_utf16_or_atomicity_rules() {
+        let cases = [
+            (
+                Range {
+                    start: position(2, 0),
+                    end: position(2, 0),
+                },
+                "line 2 is outside the document",
+                "行 2 超出文档范围",
+            ),
+            (
+                Range {
+                    start: position(0, 5),
+                    end: position(0, 5),
+                },
+                "character 5 is outside line 0",
+                "字符 5 超出行 0 的范围",
+            ),
+            (
+                Range {
+                    start: position(0, 2),
+                    end: position(0, 2),
+                },
+                "position splits a UTF-16 surrogate pair",
+                "位置位于 UTF-16 代理项对内部",
+            ),
+            (
+                Range {
+                    start: position(1, 1),
+                    end: position(0, 0),
+                },
+                "incremental edit start is after its end",
+                "增量编辑起点位于终点之后",
+            ),
+        ];
+        for locale in [Locale::En, Locale::ZhCn] {
+            for (range, english, chinese) in cases {
+                let mut store = DocumentStore::with_locale(locale);
+                let uri = "file:///fixture/unicode.c";
+                store.open(uri.into(), 1, "a😀b\nnext".into());
+                let before = store.get(uri).unwrap().clone();
+                let error = store
+                    .change(
+                        uri,
+                        2,
+                        &[
+                            ContentChange {
+                                range: Some(Range {
+                                    start: position(0, 0),
+                                    end: position(0, 1),
+                                }),
+                                text: "z".into(),
+                            },
+                            ContentChange {
+                                range: Some(range),
+                                text: "replacement".into(),
+                            },
+                        ],
+                    )
+                    .unwrap_err();
+                assert_eq!(error.to_string(), locale.text(english, chinese));
+                assert_eq!(store.get(uri), Some(&before));
+                assert_eq!(store.metrics().incremental_edit_count, 0);
+                assert_eq!(store.metrics().full_replacement_count, 0);
+                assert_eq!(store.metrics().rejected_change_count, 0);
+            }
+        }
     }
 }

@@ -1,8 +1,5 @@
 {
   "name": "replace_dollars",
-  "summary": "FluffOS dwlib package efun.",
-  "details": "按参数列表替换字符串中的 dollar 占位符，用于生成带变量插值的文本。",
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "string replace_dollars( string, string * )",
@@ -23,5 +20,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

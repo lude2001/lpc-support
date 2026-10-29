@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { resolveUiLocale } from '../localization/locale';
 import type { LspClientManager } from '../lsp/client/LspClientManager';
 import { WORKSPACE_INDEX_CHANGED_NOTIFICATION } from '../lsp/shared/protocol/workspaceIndex';
 
@@ -65,14 +66,14 @@ export class RustDiagnosticsCommands implements DiagnosticsCommands {
     public async showVariables(): Promise<void> {
         const editor = vscode.window.activeTextEditor;
         if (!editor || editor.document.languageId !== 'lpc') {
-            vscode.window.showInformationMessage('请先打开一个 LPC 源文件或头文件。');
+            vscode.window.showInformationMessage(vscode.l10n.t('Open an LPC source or header file first.'));
             return;
         }
         const variables = await this.manager?.sendRequest<RustVariableEntry[]>('lpc/documentVariables', {
             textDocument: { uri: editor.document.uri.toString() }
         });
         if (!variables) {
-            vscode.window.showErrorMessage('Rust LPC 语言服务器尚未就绪，无法读取变量。');
+            vscode.window.showErrorMessage(vscode.l10n.t('The Rust LPC language server is not ready. Variables cannot be loaded.'));
             return;
         }
         this.showVariablesPanel(editor.document, variables);
@@ -83,19 +84,19 @@ export class RustDiagnosticsCommands implements DiagnosticsCommands {
             canSelectFiles: false,
             canSelectFolders: true,
             canSelectMany: false,
-            openLabel: '选择要扫描的文件夹'
+            openLabel: vscode.l10n.t('Select a folder to scan')
         });
         if (!folders?.[0]) {
             return;
         }
         const folder = folders[0];
-        const output = vscode.window.createOutputChannel('LPC 变量检查');
+        const output = vscode.window.createOutputChannel(vscode.l10n.t('LPC Variable Check'));
         output.show();
-        output.appendLine(`开始扫描文件夹: ${folder.fsPath}`);
+        output.appendLine(vscode.l10n.t('Scanning folder: {0}', folder.fsPath));
         try {
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
-                title: '正在使用 Rust 索引检查 LPC 文件...',
+                title: vscode.l10n.t('Checking LPC files using the Rust index...'),
                 cancellable: false
             }, async () => {
                 const uriPrefix = `${folder.toString().replace(/\/$/, '')}/`;
@@ -106,7 +107,7 @@ export class RustDiagnosticsCommands implements DiagnosticsCommands {
                     { uriPrefix }
                 );
                 if (!entries) {
-                    throw new Error('Rust LPC 语言服务器尚未就绪');
+                    throw new Error(vscode.l10n.t('The Rust LPC language server is not ready.'));
                 }
                 if (revision !== this.scanRevision || this.scannedUriPrefix !== uriPrefix) return;
                 this.diagnosticCollection.clear();
@@ -117,12 +118,12 @@ export class RustDiagnosticsCommands implements DiagnosticsCommands {
                     this.diagnosticCollection.set(vscode.Uri.parse(entry.uri), diagnostics);
                     output.appendLine(`${vscode.Uri.parse(entry.uri).fsPath}: ${diagnostics.length}`);
                 }
-                output.appendLine(`扫描完成：${entries.length} 个文件，${diagnosticCount} 条诊断。`);
+                output.appendLine(vscode.l10n.t('Scan finished: {0} files, {1} diagnostics.', entries.length, diagnosticCount));
             });
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
-            output.appendLine(`扫描失败: ${message}`);
-            vscode.window.showErrorMessage(`LPC 文件夹扫描失败: ${message}`);
+            output.appendLine(vscode.l10n.t('Scan failed: {0}', message));
+            vscode.window.showErrorMessage(vscode.l10n.t('LPC folder scan failed: {0}', message));
         }
     }
 
@@ -200,7 +201,7 @@ export class RustDiagnosticsCommands implements DiagnosticsCommands {
     private showVariablesPanel(document: vscode.TextDocument, variables: RustVariableEntry[]): void {
         const panel = vscode.window.createWebviewPanel(
             'lpcVariables',
-            'LPC 变量列表',
+            vscode.l10n.t('LPC Variables'),
             vscode.ViewColumn.One,
             { enableScripts: true }
         );
@@ -264,15 +265,15 @@ function renderVariablesHtml(
     locals: RustVariableEntry[]
 ): string {
     return `<!DOCTYPE html>
-<html><head><style>
+<html lang="${resolveUiLocale(vscode.env.language)}"><head><style>
 .variable { cursor: pointer; padding: 2px 5px; }
 .variable:hover { background-color: var(--vscode-list-hoverBackground); }
 .unused { color: var(--vscode-errorForeground); }
 .section { margin-bottom: 20px; }
 </style></head><body>
-${renderVariableSection('未使用的变量', unused, 'unused')}
-${renderVariableSection('全局变量', globals)}
-${renderVariableSection('局部变量', locals)}
+${renderVariableSection(vscode.l10n.t('Unused variables'), unused, 'unused')}
+${renderVariableSection(vscode.l10n.t('Global variables'), globals)}
+${renderVariableSection(vscode.l10n.t('Local variables'), locals)}
 <script>
 const vscode = acquireVsCodeApi();
 document.querySelectorAll('[data-line]').forEach((element) => {
@@ -289,7 +290,7 @@ function renderVariableSection(title: string, entries: RustVariableEntry[], clas
     const items = entries.map((entry) =>
         `<div class="variable ${className}" data-line="${entry.range.start.line}" data-character="${entry.range.start.character}">- ${escapeHtml(entry.detail || entry.name)}</div>`
     ).join('');
-    return `<div class="section"><h3>${title}:</h3>${items || '<div>（无）</div>'}</div>`;
+    return `<div class="section"><h3>${escapeHtml(title)}:</h3>${items || `<div>${escapeHtml(vscode.l10n.t('(None)'))}</div>`}</div>`;
 }
 
 function escapeHtml(value: string): string {

@@ -1,14 +1,11 @@
 {
   "name": "ctime",
-  "summary": "返回一个当前日期和时间的字符串。参数 `clock` 是一个时间戳，如果省略默认为当前时间。",
-  "details": "示例\n> eval return ctime()\nResult = \"Tue Jul 26 18:36:13 2022\"",
   "reference": [
     "time",
     "time_expression",
     "localtime",
     "uptime"
   ],
-  "category": "系统相关函数（System）",
   "signatures": [
     {
       "label": "string ctime( void )",
@@ -36,5 +33,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "system"
 }

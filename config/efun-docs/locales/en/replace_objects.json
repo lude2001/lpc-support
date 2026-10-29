@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS dwlib package efun.",
+  "details": "Recursively process object references within a value, converting objects into representations more suitable for serialization or display."
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "Returns the nearest integer greater than or equal to f, represented as a float; for example, 4.1 returns 5.000000."
+}

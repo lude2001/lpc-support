@@ -1,0 +1,4 @@
+{
+  "summary": "remove_get_char 内置函数",
+  "details": "名称\nremove_get_char() - 取消活动的 input_to\n\n用法\nint remove_get_char(object interactive);\n\n说明\n取消活动的 input_to\n   设置 interactive->carryover = NULL\n   设置 interactive->num_carry = 0\n\n   未提供参数时返回 -3\n   对象已销毁或不是交互对象时返回 -2\n   没有活动的 input_to 时返回 -1\n   其它情况返回 1"
+}

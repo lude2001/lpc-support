@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets package efun.",
+    "details": "Close and release the HTTP response parser state created by http_response_parser_create."
+}

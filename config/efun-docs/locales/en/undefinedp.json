@@ -1,0 +1,3 @@
+{
+    "summary": "Return 1 if `arg` is undefined. A value is considered undefined in these cases:\n\n1. A variable has not been initialized.\n2. It is a formal function parameter for which no argument was supplied.\n3. It is an element absent from a mapping, for example arg = map[not_there].\n4. It is the result of call_other() invoking a nonexistent function, for example arg = call_other(obj, \"???\").\n5. It is an element of an array, class, or mapping referring to a destructed object.\n\nSince fluffos v2019.20220507-11, unassigned class variables can also be detected."
+}

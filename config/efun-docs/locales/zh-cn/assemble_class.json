@@ -1,0 +1,4 @@
+{
+    "summary": "这是 FluffOS 2.0 新增的外部函数，用数组 `elements` 的元素实例化一个结构体(class)",
+    "details": "示例\n{\n    mixed *elements = ({ \"Foo\", 42, \"Fooville\" }) ;\n    mixed cl = assemble_class( elements ) ;\n\n    write( sprintf( \"%O\\n\", cl ) ) ;\n}\n\n结果：\n\nCLASS( 3 elements\n     \"Foo\",\n     42,\n     \"Fooville\"\n   )\n\n警告\n如果已经定义了一个 class，并把 assemble_class 的结果赋给变量，该变量的结构将由 assemble_class 的结果决定。结构不同不会触发错误，原先的结构声明会被忽略。\n\n   class person {\n       string name ;\n       int age ;\n       string city ;\n   }\n\n   void fun()\n   {\n       class person me ;\n\n       me = assemble_class( ({ \"Would\", \"You\", \"Like\", 42, \"Bubblegums\" }) ) ;\n       write( sprintf( \"%O\\n\", me ) ) ;\n\n       // CLASS( 5 elements\n       //   \"Would\",\n       //   \"You\",\n       //   \"Like\",\n       //   42,\n       //   \"Bubblegums\"\n       //  )\n   }"
+}

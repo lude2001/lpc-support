@@ -1,0 +1,3 @@
+{
+  "summary": "Return an array containing the object whose filename is `name` and all its clones. For example, children() can be used to find all player objects:\n\n   object *list;\n\n   list = children(\"/obj/user\");\n\n   This finds all players, including connected and disconnected players, whereas the users() efun reports only connected players."
+}

@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib package efun.",
+    "details": "Escape or replace MXP-related special characters so that a string is suitable for output to an MXP-capable client."
+}

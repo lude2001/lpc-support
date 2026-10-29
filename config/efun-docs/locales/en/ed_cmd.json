@@ -1,0 +1,3 @@
+{
+    "summary": "This efun is available only if __OLD_ED__ is not defined.\n\n   The  command  'cmd' is sent to the active ed session, and the resulting\n   output is returned."
+}

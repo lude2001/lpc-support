@@ -1,0 +1,4 @@
+{
+  "summary": "Remove the binding between player command `cmd` and function `fun`. This is essentially the inverse of add_action(): use remove_action() when a command is no longer needed.",
+  "details": "Return semantics:\nReturn 1 on success and 0 on failure."
+}

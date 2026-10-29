@@ -1,0 +1,4 @@
+{
+    "summary": "设置当前玩家",
+    "details": "用法\nvoid set_this_player(object | int);\n   void set_this_user(object | int);\n\n说明\nset_this_player() 将 'who' 设置为 this_player() 的新值。仅在定义了 __NO_ADD_ACTION__ 时可用，因为此时命令解析和分发由 mudlib 负责。who 也可以是 0，此时 this_player() 被设置为 0。\n\n参见\nthis_player(3)"
+}

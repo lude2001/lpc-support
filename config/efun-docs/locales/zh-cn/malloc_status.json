@@ -1,0 +1,4 @@
+{
+    "summary": "malloc_status 内置函数",
+    "details": "名称\nmalloc_status() - 报告与内存使用有关的各种统计数据。\n\n用法\nstring malloc_status();\n\n说明\n此函数将内存使用统计输出到调用者的屏幕。它替代原版 3.1.2 中硬编码的 malloc 命令。malloc_status() 的具体输出取决于构建驱动时在 options.h 中选择的内存管理包。\n\n另见\nmud_status(3), dumpallobj(3), memory_info(3)"
+}

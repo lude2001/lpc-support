@@ -1,0 +1,3 @@
+{
+    "summary": "Returns an array containing all interactive player objects. Disconnected players are not included."
+}

@@ -65,6 +65,8 @@ const actualConfigurationBridge = jest.requireActual('../client/bridges/configur
 const actualSourceFileChangeBridge = jest.requireActual('../client/bridges/sourceFileChangeBridge') as typeof import('../client/bridges/sourceFileChangeBridge');
 
 jest.mock('vscode', () => ({
+    l10n: jest.requireActual<typeof import('vscode')>('vscode').l10n,
+    env: jest.requireActual<typeof import('vscode')>('vscode').env,
     workspace: {
         workspaceFolders: [],
         getConfiguration: jest.fn(),
@@ -88,6 +90,7 @@ type WatcherRegistration = {
 };
 
 const vscodeMock = jest.requireMock('vscode') as {
+    env: { language: string };
     workspace: {
         workspaceFolders: Array<{ uri: { fsPath: string } }>;
         getConfiguration: jest.Mock;
@@ -101,6 +104,7 @@ const vscodeMock = jest.requireMock('vscode') as {
 };
 
 describe('LspClientManager activation', () => {
+    afterEach(() => { (vscodeMock.env as { language: string }).language = 'zh-cn'; });
     beforeEach(() => {
         vscodeMock.workspace.workspaceFolders = [];
         vscodeMock.workspace.getConfiguration.mockReset();
@@ -276,7 +280,11 @@ describe('LspClientManager activation', () => {
         expect(stopSpy).toHaveBeenCalledTimes(1);
     });
 
-    test('language client hides recoverable transport noise but stops after four rapid crashes', async () => {
+    test.each([
+        ['en', 'crashed 4 times'],
+        ['zh-cn', '崩溃了 4 次']
+    ])('preserves the crash restart limit and localizes its explanation in %s', async (language, message) => {
+        (vscodeMock.env as { language: string }).language = language;
         let timestamp = 1_000;
         const handler = createLspClientErrorHandler('LPC Support Rust', 3, () => timestamp);
 
@@ -289,7 +297,7 @@ describe('LspClientManager activation', () => {
         expect(await handler.closed()).toEqual({ action: 2, handled: true });
         expect(await handler.closed()).toEqual(expect.objectContaining({
             action: 1,
-            message: expect.stringContaining('crashed 4 times')
+            message: expect.stringContaining(message)
         }));
 
         timestamp += 3 * 60 * 1000 + 1;

@@ -1,0 +1,3 @@
+{
+    "summary": "Return an array containing the filenames of every object inherited by `obj`, directly or indirectly.\n\nIf `obj` is omitted, use this_object()."
+}

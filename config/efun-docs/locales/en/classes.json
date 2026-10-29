@@ -1,0 +1,3 @@
+{
+    "summary": "Introduced in FluffOS 2.22. Returns an array of the names of class definitions used by object `ob`. If `flag` is nonzero, member names and variable types are also returned, in the following format:\n\n   （{ ({ “class_name”, ({ “member_name”, “type” }), … }), … })"
+}

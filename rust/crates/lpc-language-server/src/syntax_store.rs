@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Instant};
 
 use anyhow::{Context, Result};
+use lpc_analysis::Locale;
 use lpc_preprocessor::{InactiveRegion, IncludeFact, MacroDirectiveFact};
 use lpc_protocol::SyntaxPerformanceStatus;
 use tree_sitter::{InputEdit, Parser, Point, Tree};
@@ -24,6 +25,7 @@ pub struct SyntaxSnapshot {
 }
 
 pub struct SyntaxStore {
+    locale: Locale,
     parser: Parser,
     preprocessor: ProjectPreprocessor,
     snapshots: HashMap<String, SyntaxSnapshot>,
@@ -31,12 +33,22 @@ pub struct SyntaxStore {
 }
 
 impl SyntaxStore {
+    /// English-default entry point retained for existing callers.
+    #[allow(dead_code)]
     pub fn new() -> Result<Self> {
+        Self::new_with_locale(Locale::En)
+    }
+
+    pub fn new_with_locale(locale: Locale) -> Result<Self> {
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_lpc_support::LANGUAGE.into())
-            .context("failed to load the generated LPC grammar")?;
+            .context(locale.text(
+                "failed to load the generated LPC grammar",
+                "加载生成的 LPC 语法失败",
+            ))?;
         Ok(Self {
+            locale,
             parser,
             preprocessor: ProjectPreprocessor::default(),
             snapshots: HashMap::new(),
@@ -132,7 +144,10 @@ impl SyntaxStore {
         let tree = self
             .parser
             .parse(&preprocessed.text, previous_tree.as_ref())
-            .context("Tree-sitter cancelled LPC parsing")?;
+            .context(self.locale.text(
+                "Tree-sitter cancelled LPC parsing",
+                "Tree-sitter 已取消 LPC 解析",
+            ))?;
         let elapsed = started_at.elapsed().as_micros().min(u128::from(u64::MAX)) as u64;
 
         self.metrics.parse_count += 1;
@@ -158,9 +173,10 @@ impl SyntaxStore {
                 predefined_macros: preprocessed.initial_definitions,
             },
         );
-        self.snapshots
-            .get(&document.uri)
-            .context("syntax snapshot disappeared after insertion")
+        self.snapshots.get(&document.uri).context(self.locale.text(
+            "syntax snapshot disappeared after insertion",
+            "插入后语法快照已不存在",
+        ))
     }
 }
 
@@ -332,5 +348,49 @@ mod tests {
         let snapshot = syntax.open(documents.get(uri).unwrap()).unwrap();
         assert_eq!(snapshot.includes.len(), 1);
         assert_eq!(snapshot.includes[0].path, "mudlib.h");
+    }
+
+    #[test]
+    fn localizes_parse_failure_without_creating_a_snapshot_or_counting_a_parse() {
+        for (locale, message) in [
+            (Locale::En, "Tree-sitter cancelled LPC parsing"),
+            (Locale::ZhCn, "Tree-sitter 已取消 LPC 解析"),
+        ] {
+            let mut syntax = SyntaxStore::new_with_locale(locale).unwrap();
+            // A parser without an assigned language returns no tree.
+            syntax.parser = Parser::new();
+            let document = DocumentSnapshot {
+                uri: "file:///fixture/原文.c".into(),
+                version: 1,
+                revision: 1,
+                text: "int value;\n".into(),
+            };
+            assert_eq!(syntax.open(&document).unwrap_err().to_string(), message);
+            assert!(syntax.get(&document.uri).is_none());
+            assert_eq!(syntax.metrics().parse_count, 0);
+            assert_eq!(syntax.metrics().full_parse_count, 0);
+        }
+    }
+
+    #[test]
+    fn locale_does_not_change_syntax_or_preprocessed_source() {
+        let document = DocumentSnapshot {
+            uri: "file:///fixture/locale.c".into(),
+            version: 1,
+            revision: 1,
+            text: "#include <mudlib.h>\nstring value = \"原文 😀\";\n".into(),
+        };
+        let views = [Locale::En, Locale::ZhCn].map(|locale| {
+            let mut syntax = SyntaxStore::new_with_locale(locale).unwrap();
+            let snapshot = syntax.open(&document).unwrap();
+            (
+                snapshot.tree.root_node().to_sexp(),
+                snapshot.preprocessed_text.clone(),
+                snapshot.includes[0].path.clone(),
+            )
+        });
+        assert_eq!(views[0], views[1]);
+        assert_eq!(views[0].2, "mudlib.h");
+        assert_eq!(SyntaxStore::new().unwrap().locale, Locale::En);
     }
 }

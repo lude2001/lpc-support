@@ -1,0 +1,3 @@
+{
+  "summary": "This efun works like restore_object, except that it reads saved data directly from the save string `str` instead of from a file."
+}

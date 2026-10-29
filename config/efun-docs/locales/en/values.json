@@ -1,0 +1,3 @@
+{
+    "summary": "values() returns an array containing all values in the mapping `m`.\n\nFor example:\n\n   mapping m;\n\n   m = ([\"hp\" : 35, \"sp\" : 42, \"mass\" : 100]);\n\nThen:\n\n   values(m) == ({35, 42, 100})\n\nThe values appear in the same order as the keys returned by keys()."
+}

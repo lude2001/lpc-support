@@ -1,0 +1,4 @@
+{
+  "summary": "Copy an array or mapping.",
+  "details": "Description\nReturn a copy of `arg`. The value must have one of these types:\n   - array\n   - buffer (if compiled into driver)\n   - class\n   - mapping\n\n   For example:\n   int *a, *b = ({ 1 });\n   a = b;\n   a[0] = 2;\n   printf(\"%O %O\\n\", a, b);\n\n   The result is: ({ 2 }) ({ 2 })\n\n   int *a, *b = ({ 1 });\n   a = copy(b);\n   a[0] = 2;\n   printf(\"%O %O\\n\", a, b);\n\n   The result is: ({ 2 }) ({ 1 })"
+}

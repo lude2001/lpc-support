@@ -1,0 +1,3 @@
+{
+    "summary": "Return the current player's input/output encoding.\n\nThe returned name is the ICU internal name, also returned by set_encoding(). It may or may not match the name supplied to set_encoding(), but both names refer to the same encoding."
+}

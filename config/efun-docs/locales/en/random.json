@@ -1,0 +1,4 @@
+{
+    "summary": "The random efun.",
+    "details": "Description\nReturn a pseudo-random number in the range [0 .. (n - 1)], including both 0 and n - 1."
+}

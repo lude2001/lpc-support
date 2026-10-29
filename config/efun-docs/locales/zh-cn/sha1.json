@@ -1,0 +1,4 @@
+{
+    "summary": "使用 SHA1 算法对字符串 `str` Hash运算。\n\n   此函数仅在编译驱动时定义了 `PACKAGE_SHA1` 有效。",
+    "details": "示例\nsha1(\"something\") = \"1af17e73721dbe0c40011b82ed4bb1a7dbe3ce29\""
+}

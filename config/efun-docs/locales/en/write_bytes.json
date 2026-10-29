@@ -1,0 +1,3 @@
+{
+  "summary": "Write the contents of string `series` to file `path`, starting at byte position `start`. Return 0 on failure and 1 on success."
+}

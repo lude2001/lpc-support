@@ -1,0 +1,3 @@
+{
+    "summary": "Send `str` to every living object except this_player().\n\nThis efun does not call the receive_message() apply. The maximum output length is __LARGEST_PRINTABLE_STRING__, defaulting to 65535 bytes. A Chinese character uses 3 bytes in utf8."
+}

@@ -1,0 +1,3 @@
+{
+  "summary": "If `str` names a file, return an array of file information. The entries are the file size, last modification time, time loaded into the game, and creation time, in this form:\n\n   ({ 文件大小, 文件最后修改时间, 文件载入游戏时间, 文件创建时间 })\n\n   If `str` is a directory, or the second argument is -1, stat() works like get_dir()."
+}

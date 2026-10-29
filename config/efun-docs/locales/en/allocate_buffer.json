@@ -1,0 +1,4 @@
+{
+  "summary": "Allocate a buffer containing `size` bytes. The length must be >= 0 and must not exceed the runtime maximum buffer size setting. A length of 0 returns an empty buffer. All bytes are initialized to 0.",
+  "details": "Author\nTruilkan"
+}

@@ -1,7 +1,5 @@
 {
   "name": "crc32",
-  "summary": "计算并返回指定的缓冲区或字符串 `x` 的循环冗余校验码(CRC32)",
-  "category": "缓冲区相关函数（Buffers）",
   "signatures": [
     {
       "label": "int crc32( buffer | string x )",
@@ -18,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "buffers"
 }

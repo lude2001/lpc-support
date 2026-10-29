@@ -1,0 +1,4 @@
+{
+  "summary": "查询字符模式",
+  "details": "名称\nquery_charmode\n\n用法\nint query_charmode(object);\n\n说明\n未提供参数时返回 -1\n   发生错误（对象已销毁或不是交互对象）时返回 -2\n   交互对象处于行模式时返回 0\n   其它情况返回 !0（实际值取决于编译时定义）\n\n参照\nremove_charmode(3), input_to(3), get_char(3)"
+}

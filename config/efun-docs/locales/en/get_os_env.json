@@ -1,0 +1,4 @@
+{
+    "summary": "Reads an operating-system environment variable permitted by the driver configuration whitelist; returns undefined when it is not set.",
+    "details": "Reads operating-system environment variables that may be exposed to LPC. The accessible variables are controlled by driver configuration; a missing or disallowed variable does not return a usable string."
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "Encodes UTF-8 string `str` into a buffer using the specified `encoding`."
+}

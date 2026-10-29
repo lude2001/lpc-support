@@ -1,0 +1,3 @@
+{
+  "summary": "Return the first object in the inventory of `ob`. The argument can be an object or an object filename (a string). If `ob` is omitted, it defaults to this_object()."
+}

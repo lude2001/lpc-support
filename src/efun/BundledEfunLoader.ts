@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { resolveUiLocale, type UiLocale } from '../localization/locale';
 import type {
     StructuredEfunDoc,
     StructuredEfunParameter,
@@ -11,13 +12,12 @@ const BUNDLED_DOCS_DIR = 'efun-docs';
 const BUNDLED_DOCS_SUBDIR = 'docs';
 const BUNDLED_CATEGORIES_FILE = 'categories.json';
 
-export const DEFAULT_EFUN_CATEGORY = '标准 Efun';
-
 export class BundledEfunLoader {
     private structuredDocs: Map<string, StructuredEfunDoc> = new Map();
     private categories: Map<string, string[]> = new Map();
+    private categoryLabels: Map<string, string> = new Map();
 
-    constructor() {
+    constructor(private readonly locale: UiLocale = resolveUiLocale(vscode.env.language)) {
     }
 
     public async load(context: vscode.ExtensionContext): Promise<void> {
@@ -34,6 +34,10 @@ export class BundledEfunLoader {
 
     public getCategories(): Map<string, string[]> {
         return this.categories;
+    }
+
+    public getCategoryLabel(categoryId: string): string {
+        return this.categoryLabels.get(categoryId) ?? categoryId;
     }
 
     private async loadBundledDocsAsync(context: vscode.ExtensionContext): Promise<void> {
@@ -59,15 +63,15 @@ export class BundledEfunLoader {
             return;
         }
 
-        let rawCategories: unknown;
-        try {
-            rawCategories = JSON.parse(fs.readFileSync(categoriesPath, 'utf8'));
-        } catch (error) {
-            console.error('加载内置 Efun 分类失败: JSON 解析错误', error);
-            this.structuredDocs = new Map();
-            this.categories = new Map();
-            return;
-        }
+        const [rawCategories, englishCategories, selectedCategories] = await Promise.all([
+            readOptionalObject(categoriesPath),
+            readOptionalObject(path.join(bundledDocsDir, 'locales', 'en', BUNDLED_CATEGORIES_FILE)),
+            this.locale === 'en' ? undefined
+                : readOptionalObject(path.join(bundledDocsDir, 'locales', this.locale, BUNDLED_CATEGORIES_FILE))
+        ]);
+        this.categoryLabels = new Map(Object.keys(rawCategories).map(categoryId => [
+            categoryId, selectText(selectedCategories?.[categoryId], englishCategories[categoryId]) ?? categoryId
+        ]));
 
         const structuredDocs = new Map<string, StructuredEfunDoc>();
         const docFiles = fs.readdirSync(docsDir)
@@ -82,7 +86,12 @@ export class BundledEfunLoader {
                 try {
                     const content = await fs.promises.readFile(docPath, 'utf8');
                     const docValue = JSON.parse(content);
-                    return { docKey, docValue };
+                    const [english, selected] = await Promise.all([
+                        readOptionalObject(path.join(bundledDocsDir, 'locales', 'en', fileName)),
+                        this.locale === 'en' ? undefined
+                            : readOptionalObject(path.join(bundledDocsDir, 'locales', this.locale, fileName))
+                    ]);
+                    return { docKey, docValue, english, selected };
                 } catch (error) {
                     console.warn(`忽略无法加载的 Efun 文档文件: ${docPath}`, error);
                     return null;
@@ -95,7 +104,8 @@ export class BundledEfunLoader {
                 continue;
             }
 
-            const normalized = normalizeStructuredDoc(item.docKey, item.docValue);
+            const normalized = normalizeStructuredDoc(item.docKey, item.docValue, item.english, item.selected,
+                categoryId => this.getCategoryLabel(categoryId));
             if (!normalized) {
                 continue;
             }
@@ -147,7 +157,29 @@ export class BundledEfunLoader {
     }
 }
 
-function normalizeStructuredDoc(docKey: string, value: unknown): StructuredEfunDoc | undefined {
+async function readOptionalObject(filename: string): Promise<Record<string, unknown>> {
+    try {
+        const value: unknown = JSON.parse(await fs.promises.readFile(filename, 'utf8'));
+        if (isRecord(value)) {
+            return value;
+        }
+    } catch (error) {
+        console.warn(`Cannot load optional Efun text resource: ${filename}`, error);
+    }
+    // Translation failure must never remove the independent signature facts.
+    return {};
+}
+
+function selectText(selected: unknown, english: unknown): string | undefined {
+    const usable = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
+    // Preserve body bytes, including code indentation and trailing newlines.
+    return usable(selected) ? selected : usable(english) ? english : undefined;
+}
+
+function normalizeStructuredDoc(
+    docKey: string, value: unknown, english: Record<string, unknown>, selected: Record<string, unknown> | undefined,
+    categoryLabel: (categoryId: string) => string
+): StructuredEfunDoc | undefined {
     if (!isRecord(value)) {
         console.warn(`忽略非法的 Efun 文档条目: ${docKey}`);
         return undefined;
@@ -163,8 +195,8 @@ function normalizeStructuredDoc(docKey: string, value: unknown): StructuredEfunD
         return undefined;
     }
 
-    if (typeof value.category !== 'string' || !value.category.trim()) {
-        console.warn(`忽略缺少 category 的 Efun 文档条目: ${docKey}`);
+    if (typeof value.categoryId !== 'string' || !value.categoryId.trim()) {
+        console.warn(`忽略缺少 categoryId 的 Efun 文档条目: ${docKey}`);
         return undefined;
     }
 
@@ -184,15 +216,16 @@ function normalizeStructuredDoc(docKey: string, value: unknown): StructuredEfunD
 
     return {
         name: value.name.trim(),
-        summary: normalizeOptionalText(value.summary),
-        details: normalizeOptionalText(value.details),
-        note: normalizeOptionalText(value.note),
+        summary: selectText(selected?.summary, english.summary),
+        details: selectText(selected?.details, english.details),
+        note: selectText(selected?.note, english.note),
         reference: Array.isArray(value.reference)
             ? value.reference
                 .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
                 .map((item) => item.trim())
             : undefined,
-        category: value.category.trim() || DEFAULT_EFUN_CATEGORY,
+        categoryId: value.categoryId,
+        category: categoryLabel(value.categoryId),
         signatures
     };
 }
@@ -268,6 +301,7 @@ function cloneStructuredDoc(structuredDoc: StructuredEfunDoc): StructuredEfunDoc
         details: structuredDoc.details,
         note: structuredDoc.note,
         reference: structuredDoc.reference ? [...structuredDoc.reference] : undefined,
+        categoryId: structuredDoc.categoryId,
         category: structuredDoc.category,
         signatures: structuredDoc.signatures.map(cloneStructuredSignature)
     };

@@ -1,8 +1,5 @@
 {
   "name": "http_decode_query",
-  "summary": "FluffOS sockets package efun.",
-  "details": "解析 URL query 字符串并返回键值 mapping，适用于处理 HTTP 请求参数。",
-  "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {
       "label": "mapping http_decode_query( string )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "sockets"
 }

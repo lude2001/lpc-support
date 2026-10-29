@@ -1,0 +1,3 @@
+{
+  "summary": "FluffOS 1.20 新增 efun，返回由驱动 garbage_check 条件筛选出的复制对象数组，结果最多包含 `MAX_ARRAY_SIZE` 个对象。筛选要求 ob->ref == 1，且对象带有 O_CLONE 标志。启用环境支持（未定义 NO_ENVIRONMENT）时，还要求未设置 ob->super；启用投影支持（未定义 NO_SHADOWS）时，还要求未设置 ob->shadowing，即对象没有投影其它对象。该筛选条件不单独检查对象的内容物（inventory）。"
+}

@@ -1,0 +1,3 @@
+{
+  "summary": "Return the user ID (uid) of an object. Its uid is determined at creation time by the creator_file() apply in the master object. If the object is omitted, it defaults to this_object()."
+}

@@ -1,0 +1,3 @@
+{
+    "summary": "When reload_object() is executed for `ob`, all driver-managed properties, such as heart_beat, call_outs, light, and shadow, are reset; all variables are initialized, and create() is called. This resembles destructing and reloading the object, but it does not access disk data or parse source code. If the source has changed, reload_object does not load the new code."
+}

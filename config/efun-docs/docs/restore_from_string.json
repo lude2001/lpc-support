@@ -1,11 +1,9 @@
 {
   "name": "restore_from_string",
-  "summary": "这个外部函数到作用和 restore_object 类似， 唯一的区别是不是从文件读取存档，而是直接从存档字符串 `str` 中读取。",
   "reference": [
     "restore_object",
     "restore_variable"
   ],
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "void restore_from_string(string str, int flag | void)",
@@ -27,5 +25,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

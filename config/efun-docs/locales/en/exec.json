@@ -1,0 +1,3 @@
+{
+  "summary": "Move a player connection from one object to another. After a successful exec(to, from), interactive(to) returns 1, interactive(from) returns 0, and the player who controlled `from` controls `to` instead.\n\n   This efun is powerful; use it carefully to keep the game secure. One suitable restriction is to define a simulated efun with the same name and use the valid_override() apply in the master object to restrict overrides of that simulated efun through efun::exec().\n\n   Return 1 if the transfer succeeds, or 0 otherwise."
+}

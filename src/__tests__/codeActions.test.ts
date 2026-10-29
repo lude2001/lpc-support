@@ -93,7 +93,7 @@ describe('Javadoc generation command', () => {
         await command()();
         expect(generate).toHaveBeenCalledWith('void demo(int value) {}', {
             name: 'demo', parameters: ['value'], returnType: 'void'
-        });
+        }, 'zh-cn');
         expect(GLM4Client.selectModel).not.toHaveBeenCalled();
         expect(GLM4Client.fromVSCodeConfigWithModel).toHaveBeenCalledWith('GLM-4-Flash-250414');
         expect(insert).toHaveBeenCalledTimes(1);
@@ -107,5 +107,47 @@ describe('Javadoc generation command', () => {
         await command()();
         expect(insert).not.toHaveBeenCalled();
         expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('文档已变化'));
+    });
+
+    test('does not generate or edit when model selection is cancelled', async () => {
+        jest.spyOn(vscode.workspace, 'getConfiguration').mockReturnValue({
+            get: (key: string, fallback: unknown) => key === 'glm4.alwaysShowModelSelector' ? true : fallback
+        } as unknown as vscode.WorkspaceConfiguration);
+        jest.mocked(GLM4Client.selectModel).mockResolvedValueOnce(undefined);
+
+        await command()();
+
+        expect(GLM4Client.selectModel).toHaveBeenCalledTimes(1);
+        expect(GLM4Client.fromVSCodeConfigWithModel).not.toHaveBeenCalled();
+        expect(generate).not.toHaveBeenCalled();
+        expect(vscode.window.activeTextEditor!.edit).not.toHaveBeenCalled();
+        expect(insert).not.toHaveBeenCalled();
+    });
+
+    test.each(['en', 'zh-cn'].flatMap(uiLanguage => ['en', 'zh-cn'].map(outputLanguage => ({
+        uiLanguage, outputLanguage
+    }))))('passes resource-scoped $outputLanguage output with $uiLanguage UI and keeps CRLF/indent', async ({ uiLanguage, outputLanguage }) => {
+        (vscode.env as { language: string }).language = uiLanguage;
+        const configuration = jest.spyOn(vscode.workspace, 'getConfiguration').mockReturnValue({
+            get: (key: string, fallback: unknown) => key === 'documentation.language' ? outputLanguage : fallback
+        } as unknown as vscode.WorkspaceConfiguration);
+        const generated = outputLanguage === 'en'
+            ? '/**\n * @brief Run the operation.\n * @param int value Input value.\n */'
+            : comment;
+        generate.mockImplementation(async () => generated);
+        document.eol = vscode.EndOfLine.CRLF;
+        document.lineAt.mockReturnValue({ text: '    void demo(int value) {}' });
+
+        try {
+            await command()();
+
+            expect(configuration).toHaveBeenCalledWith('lpc', document.uri);
+            expect(generate).toHaveBeenCalledWith('void demo(int value) {}', {
+                name: 'demo', parameters: ['value'], returnType: 'void'
+            }, outputLanguage);
+            expect(insert.mock.calls[0][1]).toBe(generated.split('\n').map(line => '    ' + line).join('\r\n') + '\r\n');
+        } finally {
+            (vscode.env as { language: string }).language = 'zh-cn';
+        }
     });
 });

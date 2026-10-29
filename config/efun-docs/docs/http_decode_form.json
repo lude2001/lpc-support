@@ -1,8 +1,5 @@
 {
   "name": "http_decode_form",
-  "summary": "FluffOS sockets package efun.",
-  "details": "解析表单编码的请求体字符串并返回键值 mapping。",
-  "category": "SOCKET相关函数（Sockets）",
   "signatures": [
     {
       "label": "mapping http_decode_form( string )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "sockets"
 }

@@ -1,0 +1,3 @@
+{
+    "summary": "If `f` is a function, calls it with the remaining arguments; otherwise returns `f` unchanged. evaluate(f, ...) has the same effect as calling f(...) directly, or (* f)(...)."
+}

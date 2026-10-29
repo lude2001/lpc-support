@@ -1,0 +1,4 @@
+{
+  "summary": "取消玩家指令 `cmd` 和函数 `fun` 的绑定。基本上，remove_action() 是 add_action() 的反向操作，当一个指令不再需要时，可以使用 remove_action() 移除。",
+  "details": "返回值：\n成功返回 1，失败返回 0。"
+}

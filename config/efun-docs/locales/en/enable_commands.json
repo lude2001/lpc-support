@@ -1,0 +1,4 @@
+{
+    "summary": "Mark this_object() as a living object and allow it to use commands added by add_action() through the command() efun. After enable_commands() is called, the driver also looks for a catch_tell() method in the object. If found, it is called whenever a message is sent to the object, for example by say().\n\nSince FluffOS 3.0-alpha7, this function accepts an integer argument. If omitted, it defaults to 0, preserving the old behavior: commands are enabled without setting up actions. If setup_actions > 0, the driver calls init() in the object's environment and in all objects in that environment.",
+    "details": "BUGS\nAvoid calling enable_commands() outside create(), as this may cause unexpected problems."
+}

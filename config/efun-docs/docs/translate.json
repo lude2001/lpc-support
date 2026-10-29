@@ -1,7 +1,5 @@
 {
   "name": "translate",
-  "summary": "translate 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "float *translate(float *, float, float, float)",
@@ -30,5 +28,6 @@
         "max": 4
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

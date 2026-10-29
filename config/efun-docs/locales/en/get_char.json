@@ -1,0 +1,3 @@
+{
+  "summary": "Pass the next character entered by the player to function `fun`. The driver does not parse the input character.\n\n   get_char() listens without blocking: the calling object continues executing instead of waiting for user input.\n\n   If get_char() is called multiple times during the same execution, only the first call takes effect.\n\n   If optional `flag` is nonzero, the character is neither echoed nor shown to a snooper, which is useful for password entry.\n\n   When `fun` runs, the character entered by the user is its first argument, as a string. Arguments after `flag` are passed to `fun` as additional arguments."
+}

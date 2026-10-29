@@ -1,0 +1,3 @@
+{
+    "summary": "Appends string `str` to file `file`. Returns 1 on success or 0 on failure. Optional `flag` defaults to 0; if it is 1, the file is overwritten instead of appended to."
+}

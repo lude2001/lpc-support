@@ -1,10 +1,8 @@
 {
   "name": "strftime",
-  "summary": "Format given time with a format string, see https://en.cppreference.com/w/cpp/chrono/c/strftime",
   "reference": [
     "strptime"
   ],
-  "category": "系统相关函数（System）",
   "signatures": [
     {
       "label": "string strftime( string fmt, int time )",
@@ -25,5 +23,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "system"
 }

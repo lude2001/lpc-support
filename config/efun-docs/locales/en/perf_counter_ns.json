@@ -1,0 +1,4 @@
+{
+    "summary": "Returns the number of nanoseconds since midnight (GMT) on January 1, 1970.",
+    "details": "Example\neval return perf_counter_ns()\nResult = 1658831676469273200"
+}

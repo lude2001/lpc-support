@@ -1,0 +1,3 @@
+{
+    "summary": "Returns the object shadowed by `ob`, or 0 if it is not shadowing any object."
+}

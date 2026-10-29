@@ -1,0 +1,3 @@
+{
+    "summary": "Create the directory `directory`. Return 1 on success or 0 on failure."
+}

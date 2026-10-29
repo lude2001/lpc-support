@@ -1,0 +1,4 @@
+{
+    "summary": "query_ed_mode 内置函数",
+    "details": "名称\nquery_ed_mode() - 查询当前 ed 会话的状态\n\n用法\nint query_ed_mode()\n\n说明\n只有未定义 __OLD_ED__ 时才提供此 efun。\n\n如果当前对象存在 ed 会话，返回该会话的状态：\n\n        0  - 当前对象位于普通 ed 提示符（':'）。\n       -1  - 当前对象不在 ed 中。\n       -2  - 当前对象位于帮助内容中间的 more 提示符。\n       >0  - 对象正在输入某一行，返回的数字就是行号。"
+}

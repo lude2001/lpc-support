@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { GLM4Client, type JavadocContract } from './glm4Client';
 import type { LspClientManager } from './lsp/client/LspClientManager';
+import { getDocumentationLanguage } from './localization/documentationLanguage';
 
 const RENAME_COMMAND_IDS = ['lpc.renameVarToSnakeCase', 'lpc.renameVarToCamelCase'] as const;
 
@@ -60,7 +61,7 @@ async function generateJavadocCommand(
 ): Promise<void> {
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.languageId !== 'lpc') {
-        vscode.window.showErrorMessage('请在LPC文件中选择一个函数');
+        vscode.window.showErrorMessage(vscode.l10n.t('Select a function in an LPC file'));
         return;
     }
 
@@ -68,7 +69,7 @@ async function generateJavadocCommand(
     const enableAutoGeneration = config.get<boolean>('javadoc.enableAutoGeneration', true);
 
     if (!enableAutoGeneration) {
-        vscode.window.showInformationMessage('Javadoc自动生成功能已禁用');
+        vscode.window.showInformationMessage(vscode.l10n.t('Automatic Javadoc generation is disabled'));
         return;
     }
 
@@ -78,7 +79,7 @@ async function generateJavadocCommand(
     try {
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: '正在生成Javadoc注释...',
+            title: vscode.l10n.t('Generating Javadoc comment...'),
             cancellable: false
         }, async (progress) => {
             progress.report({ increment: 0 });
@@ -117,7 +118,7 @@ async function generateJavadocCommand(
             }
 
             if (!functionText || functionStartLine === undefined) {
-                vscode.window.showErrorMessage('无法找到函数定义，请确保光标位于函数内部或选择完整的函数');
+                vscode.window.showErrorMessage(vscode.l10n.t('No function definition was found. Place the cursor inside a function or select the complete function.'));
                 return;
             }
 
@@ -133,12 +134,12 @@ async function generateJavadocCommand(
                 : entry.range.start.line >= selection.start.line
                     && entry.range.end.line <= selection.end.line);
             if (matchingEntries.length !== 1) {
-                vscode.window.showErrorMessage('无法确认唯一的函数声明，请选择完整函数后重试。');
+                vscode.window.showErrorMessage(vscode.l10n.t('Could not identify exactly one function declaration. Select the complete function and try again.'));
                 return;
             }
             const target = matchingEntries[0];
             if (target.documentationRange) {
-                vscode.window.showInformationMessage('该函数已有文档注释，请使用函数文档中心补全或更新。');
+                vscode.window.showInformationMessage(vscode.l10n.t('This function already has a documentation comment. Use the Function Documentation Center to complete or update it.'));
                 return;
             }
             functionStartLine = target.range.start.line;
@@ -151,7 +152,7 @@ async function generateJavadocCommand(
                 }
                 : undefined;
 
-            progress.report({ increment: 30, message: '解析函数信息...' });
+            progress.report({ increment: 30, message: vscode.l10n.t('Reading function information...') });
 
             const alwaysShowModelSelector = config.get<boolean>('glm4.alwaysShowModelSelector', false);
             const rememberLastModel = config.get<boolean>('glm4.rememberLastModel', true);
@@ -162,18 +163,20 @@ async function generateJavadocCommand(
                 alwaysShowModelSelector, rememberLastModel, lastSelectedModel, configuredModel
             );
             if (!selectedModel) {
-                vscode.window.showInformationMessage('已取消生成Javadoc注释');
+                vscode.window.showInformationMessage(vscode.l10n.t('Javadoc generation was cancelled'));
                 return;
             }
 
             const glm4Client = GLM4Client.fromVSCodeConfigWithModel(selectedModel);
-            progress.report({ increment: 50, message: `使用模型 ${selectedModel} 调用API...` });
+            progress.report({ increment: 50, message: vscode.l10n.t('Calling the API with model {0}...', selectedModel) });
 
-            const javadocComment = await glm4Client.generateJavadoc(functionText, contract);
-            progress.report({ increment: 80, message: '插入注释...' });
+            const javadocComment = await glm4Client.generateJavadoc(
+                functionText, contract, getDocumentationLanguage(editor.document.uri)
+            );
+            progress.report({ increment: 80, message: vscode.l10n.t('Inserting comment...') });
 
             if (editor.document.version !== documentVersion) {
-                vscode.window.showErrorMessage('生成期间文档已变化，未写入注释；请重新执行。');
+                vscode.window.showErrorMessage(vscode.l10n.t('The document changed during generation. No comment was inserted. Run the command again.'));
                 return;
             }
 
@@ -187,15 +190,15 @@ async function generateJavadocCommand(
             });
 
             if (!applied) {
-                throw new Error('编辑器未接受注释插入，请重新执行。');
+                throw new Error(vscode.l10n.t('The editor did not accept the comment insertion. Run the command again.'));
             }
 
-            progress.report({ increment: 100, message: '完成' });
-            vscode.window.showInformationMessage('Javadoc注释生成成功！');
+            progress.report({ increment: 100, message: vscode.l10n.t('Done') });
+            vscode.window.showInformationMessage(vscode.l10n.t('Javadoc comment generated successfully!'));
         });
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : '未知错误';
-        vscode.window.showErrorMessage(`生成Javadoc注释失败: ${errorMessage}`);
+        const errorMessage = error instanceof Error ? error.message : vscode.l10n.t('Unknown error');
+        vscode.window.showErrorMessage(vscode.l10n.t('Failed to generate Javadoc comment: {0}', errorMessage));
     }
 }
 

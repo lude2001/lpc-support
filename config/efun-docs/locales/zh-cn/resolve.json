@@ -1,0 +1,3 @@
+{
+    "summary": "将 'address' 从 \"127.0.0.1\" 形式的互联网地址解析为域名，或将域名解析为互联网地址。解析完成后，在当前对象中调用 'callback_func'。回调形式如下：\n\n   void callback(string address, string resolved, int key);\n\n'key' 与 resolve() 的返回编号对应。'address' 是主机域名，'resolved' 是点分十进制 IP 地址。查询失败时，未知的一项为 0。"
+}

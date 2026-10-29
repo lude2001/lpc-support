@@ -1,0 +1,4 @@
+{
+    "summary": "The sys_network_ports built-in function.",
+    "details": "NAME\nsys_network_ports() - display active network ports\n\nSYNOPSIS\nmixed *sys_network_ports(void);\n\nDESCRIPTION\nReturns an array of arrays, one for each network port in active use.\nAdded on June 1, 2023 in commit 181308d.\n\nRETURN VALUES\nFor each active port, returns a subarray of this form:\n\n       ({ (string) type, (int) port, (int) tls, })\n\nSEE ALSO\nnetwork_stats(3)"
+}

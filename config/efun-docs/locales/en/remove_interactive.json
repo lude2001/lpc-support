@@ -1,0 +1,3 @@
+{
+    "summary": "Forcibly disconnects object `ob`. Returns 0 if it is not an online player or has been destructed; otherwise returns 1."
+}

@@ -1,8 +1,5 @@
 {
   "name": "trace",
-  "summary": "FluffOS develop package efun.",
-  "details": "设置 driver trace 调试级别，并返回此前的 trace 设置。",
-  "category": "内部处理相关函数（Internals）",
   "signatures": [
     {
       "label": "int trace( int )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "internals"
 }

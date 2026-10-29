@@ -4,6 +4,7 @@ export interface StructuredEfunDoc {
     details?: string;
     note?: string;
     reference?: string[];
+    categoryId: string;
     category: string;
     signatures: StructuredEfunSignature[];
 }

@@ -1,0 +1,3 @@
+{
+    "summary": "Return information about local functions defined in `ob`, including inherited methods. The optional `flag` is a bit field and defaults to 0, returning only function names. If it is 1, return an array of arrays, each with this form:\n\n   ({ 函数名, 参数个数, 返回值类型, 参数类型 })\n\nWith `flag` 2, the result is like `flag` 0; with `flag` 3, it is like `flag` 1. In these two cases, inherited functions are excluded."
+}

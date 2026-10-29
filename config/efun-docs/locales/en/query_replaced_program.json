@@ -1,0 +1,3 @@
+{
+  "summary": "if object called replace_program this function returns the path to the object it was replaced with, if no ob, obiect defaults to this_object()"
+}

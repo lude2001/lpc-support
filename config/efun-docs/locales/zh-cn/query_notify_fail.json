@@ -1,0 +1,3 @@
+{
+  "summary": "返回当前 notify_fail 设置（funcp 或 string），条件为 #ifndef NO_ADD_ACTION。"
+}

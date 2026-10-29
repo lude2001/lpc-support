@@ -99,7 +99,7 @@ export function registerCommands(
     register(context, 'lpc.showFunctionDoc', async () => {
         await efunDocsManager.bundledDocsReady;
         if (!lspClientManager) {
-            vscode.window.showErrorMessage('Rust 语言服务器尚未启动，无法生成函数文档视图。');
+            vscode.window.showErrorMessage(vscode.l10n.t('The Rust language server has not started. The function documentation view is unavailable.'));
             return;
         }
         const lookupProvider = new RustFunctionDocumentationLookupProvider(lspClientManager, efunDocsManager);
@@ -123,9 +123,9 @@ export function registerCommands(
 
         const created = await projectConfigOnboardingService.generateProjectConfig(workspaceRoot);
         if (created) {
-            vscode.window.showInformationMessage(`已生成 lpc-support.json：${workspaceRoot}`);
+            vscode.window.showInformationMessage(vscode.l10n.t('Generated lpc-support.json: {0}', workspaceRoot));
         } else {
-            vscode.window.showErrorMessage('生成 lpc-support.json 失败，请稍后重试。');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to generate lpc-support.json. Please try again later.'));
         }
     });
 
@@ -153,28 +153,28 @@ export function registerCommands(
             editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
             editor.selection = new vscode.Selection(range.start, range.end);
         } catch {
-            vscode.window.showErrorMessage(`无法打开文件: ${filePath}`);
+            vscode.window.showErrorMessage(vscode.l10n.t('Cannot open file: {0}', filePath));
         }
     });
 
     register(context, 'lpc.errorTree.copyError', async (errorItem: ErrorTreeItem) => {
         if (!errorItem?.fullError) {
-            vscode.window.showErrorMessage('无法复制错误信息：错误项无效');
+            vscode.window.showErrorMessage(vscode.l10n.t('Cannot copy error information: the error item is invalid.'));
             return;
         }
 
         try {
-            const errorType = errorItem.type === 'compile' ? '编译错误' : '运行时错误';
+            const errorType = errorItem.type === 'compile' ? vscode.l10n.t('Compilation error') : vscode.l10n.t('Runtime error');
             const errorInfo = [
-                `文件: ${errorItem.file}`,
-                `行号: ${errorItem.line}`,
-                `错误类型: ${errorType}`,
-                `错误信息: ${errorItem.fullError}`
+                vscode.l10n.t('File: {0}', errorItem.file),
+                vscode.l10n.t('Line: {0}', errorItem.line),
+                vscode.l10n.t('Error type: {0}', errorType),
+                vscode.l10n.t('Error information: {0}', errorItem.fullError)
             ].join('\n');
             await vscode.env.clipboard.writeText(errorInfo);
-            vscode.window.showInformationMessage('错误信息已复制到剪贴板');
+            vscode.window.showInformationMessage(vscode.l10n.t('Error information copied to the clipboard.'));
         } catch {
-            vscode.window.showErrorMessage('复制错误信息失败');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to copy error information.'));
         }
     });
 
@@ -222,7 +222,7 @@ export function registerCommands(
 
         if (!hasLpcprjCommand()) {
             vscode.window.showWarningMessage(
-                '未检测到系统命令 `lpcprj`。请前往 GitHub 获取并安装开发驱动环境（预览版）后，再使用“启动驱动”功能。'
+                vscode.l10n.t('The `lpcprj` system command was not found. Download and install the development driver environment (preview) from GitHub before using Start MUD Driver.')
             );
             return;
         }
@@ -230,7 +230,7 @@ export function registerCommands(
         const projectConfig = await projectConfigService.loadForWorkspace(workspaceRoot);
         if (!projectConfig?.configHellPath) {
             vscode.window.showWarningMessage(
-                '当前工作区缺少可用的 `lpc-support.json` 或 `configHellPath`，无法启动开发驱动。'
+                vscode.l10n.t('The current workspace has no usable `lpc-support.json` or `configHellPath`. The development driver cannot be started.')
             );
             return;
         }
@@ -239,7 +239,7 @@ export function registerCommands(
             workspaceRoot,
             projectConfig.configHellPath
         );
-        const terminal = vscode.window.createTerminal({ name: 'MUD Driver', cwd: workspaceRoot });
+        const terminal = vscode.window.createTerminal({ name: vscode.l10n.t('MUD Driver'), cwd: workspaceRoot });
         terminal.sendText(getLpcprjStartCommand(resolvedConfigPath));
         terminal.show();
     });
@@ -269,7 +269,7 @@ function getWorkspaceRoot(): string | undefined {
 function requireWorkspaceRoot(): string | undefined {
     const workspaceRoot = getWorkspaceRoot();
     if (!workspaceRoot) {
-        vscode.window.showErrorMessage('请先打开一个工作区');
+        vscode.window.showErrorMessage(vscode.l10n.t('Open a workspace first.'));
     }
 
     return workspaceRoot;
@@ -278,7 +278,7 @@ function requireWorkspaceRoot(): string | undefined {
 async function resolveProjectConfigWorkspaceRoot(): Promise<string | undefined> {
     const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
     if (workspaceFolders.length === 0) {
-        vscode.window.showErrorMessage('请先打开一个工作区');
+        vscode.window.showErrorMessage(vscode.l10n.t('Open a workspace first.'));
         return undefined;
     }
 
@@ -292,7 +292,7 @@ async function resolveProjectConfigWorkspaceRoot(): Promise<string | undefined> 
             description: folder.uri.fsPath,
             fsPath: folder.uri.fsPath
         })),
-        { placeHolder: '选择要初始化配置的工作区' }
+        { placeHolder: vscode.l10n.t('Select the workspace to initialize') }
     );
 
     return selected?.fsPath;
@@ -308,7 +308,7 @@ async function resolveCompileFolderTarget(uri?: vscode.Uri): Promise<{ targetFol
 
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
-        vscode.window.showErrorMessage('请先打开一个工作区');
+        vscode.window.showErrorMessage(vscode.l10n.t('Open a workspace first.'));
         return undefined;
     }
 
@@ -326,7 +326,7 @@ async function resolveCompileFolderTarget(uri?: vscode.Uri): Promise<{ targetFol
             uri: folder.uri
         })),
         {
-            placeHolder: '选择要编译的文件夹'
+            placeHolder: vscode.l10n.t('Select the folder to compile')
         }
     );
 
@@ -356,17 +356,17 @@ async function showCompilationManager(
     const selectedMode = await vscode.window.showQuickPick<ModeQuickPickItem>(
         [
             {
-                label: '本地编译 (lpccp)',
+                label: vscode.l10n.t('Local compilation (lpccp)'),
                 value: 'local',
-                description: compileConfig?.mode === 'local' ? '当前模式' : ''
+                description: compileConfig?.mode === 'local' ? vscode.l10n.t('Current mode') : ''
             },
             {
-                label: '远程编译 (HTTP)',
+                label: vscode.l10n.t('Remote compilation (HTTP)'),
                 value: 'remote',
-                description: compileConfig?.mode === 'remote' ? '当前模式' : ''
+                description: compileConfig?.mode === 'remote' ? vscode.l10n.t('Current mode') : ''
             }
         ],
-        { placeHolder: '选择编译模式' }
+        { placeHolder: vscode.l10n.t('Select the compilation mode') }
     );
 
     if (!selectedMode) {
@@ -393,12 +393,12 @@ async function showLocalCompilationManager(
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
     const selectedAction = await vscode.window.showQuickPick<ActionQuickPickItem>(
         [
-            { label: '切换为使用系统命令', action: 'toggleSystemCommand' },
-            { label: '设置 lpccp 路径', action: 'setLpccpPath' },
-            { label: '设置 lpccp 编译模式', action: 'setCompileMode' },
-            { label: '查看当前本地编译配置', action: 'showCurrentConfig' }
+            { label: vscode.l10n.t('Toggle use of the system command'), action: 'toggleSystemCommand' },
+            { label: vscode.l10n.t('Set the lpccp path'), action: 'setLpccpPath' },
+            { label: vscode.l10n.t('Set the lpccp compilation mode'), action: 'setCompileMode' },
+            { label: vscode.l10n.t('View the current local compilation configuration'), action: 'showCurrentConfig' }
         ],
-        { placeHolder: '管理本地编译配置' }
+        { placeHolder: vscode.l10n.t('Manage local compilation configuration') }
     );
 
     if (!selectedAction) {
@@ -422,7 +422,7 @@ async function showLocalCompilationManager(
             canSelectFiles: true,
             canSelectFolders: false,
             canSelectMany: false,
-            openLabel: '选择 lpccp 可执行文件',
+            openLabel: vscode.l10n.t('Select the lpccp executable'),
             defaultUri: compileConfig?.local?.lpccpPath
                 ? vscode.Uri.file(
                     projectConfigService.resolveWorkspacePath(workspaceRoot, compileConfig.local.lpccpPath)
@@ -465,25 +465,25 @@ async function setLocalCompileMode(
     const selectedMode = await vscode.window.showQuickPick<LocalCompileModeQuickPickItem>(
         [
             {
-                label: '重载已加载对象',
-                description: currentMode === 'reload-loaded' || !currentMode ? '当前模式' : '',
-                detail: '--reload-loaded：目标已加载时尝试销毁并重载',
+                label: vscode.l10n.t('Reload loaded objects'),
+                description: currentMode === 'reload-loaded' || !currentMode ? vscode.l10n.t('Current mode') : '',
+                detail: vscode.l10n.t('--reload-loaded: Try to destruct and reload the target if it is already loaded.'),
                 value: 'reload-loaded'
             },
             {
-                label: '仅编译',
-                description: currentMode === 'compile-only' ? '当前模式' : '',
-                detail: '--compile-only：不替换已加载对象，已加载时返回 reload_loaded_object_failed',
+                label: vscode.l10n.t('Compile only'),
+                description: currentMode === 'compile-only' ? vscode.l10n.t('Current mode') : '',
+                detail: vscode.l10n.t('--compile-only: Keep loaded objects unchanged and return reload_loaded_object_failed if the target is already loaded.'),
                 value: 'compile-only'
             },
             {
-                label: '要求未加载',
-                description: currentMode === 'fresh-required' ? '当前模式' : '',
-                detail: '--fresh-required：目标已加载时提示需要重启 runtime 后验证',
+                label: vscode.l10n.t('Require an unloaded target'),
+                description: currentMode === 'fresh-required' ? vscode.l10n.t('Current mode') : '',
+                detail: vscode.l10n.t('--fresh-required: If the target is already loaded, indicate that validation requires a runtime restart.'),
                 value: 'fresh-required'
             }
         ],
-        { placeHolder: '选择 lpccp 编译模式' }
+        { placeHolder: vscode.l10n.t('Select the lpccp compilation mode') }
     );
 
     if (!selectedMode) {
@@ -506,13 +506,13 @@ async function showRemoteCompilationManager(
 ): Promise<void> {
     const selectedAction = await vscode.window.showQuickPick<ActionQuickPickItem>(
         [
-            { label: '选择活动服务器', action: 'selectServer' },
-            { label: '添加服务器', action: 'addServer' },
-            { label: '编辑服务器', action: 'editServer' },
-            { label: '删除服务器', action: 'removeServer' },
-            { label: '查看当前远程编译配置', action: 'showCurrentConfig' }
+            { label: vscode.l10n.t('Select the active server'), action: 'selectServer' },
+            { label: vscode.l10n.t('Add a server'), action: 'addServer' },
+            { label: vscode.l10n.t('Edit a server'), action: 'editServer' },
+            { label: vscode.l10n.t('Remove a server'), action: 'removeServer' },
+            { label: vscode.l10n.t('View the current remote compilation configuration'), action: 'showCurrentConfig' }
         ],
-        { placeHolder: '管理远程编译配置' }
+        { placeHolder: vscode.l10n.t('Manage remote compilation configuration') }
     );
 
     if (!selectedAction) {
@@ -547,17 +547,17 @@ async function addRemoteServer(
     projectConfigService: ProjectConfigServiceLike,
     workspaceRoot: string
 ): Promise<void> {
-    const name = await vscode.window.showInputBox({ prompt: '输入服务器名称' });
+    const name = await vscode.window.showInputBox({ prompt: vscode.l10n.t('Enter the server name') });
     if (!name) {
         return;
     }
 
-    const url = await vscode.window.showInputBox({ prompt: '输入服务器URL' });
+    const url = await vscode.window.showInputBox({ prompt: vscode.l10n.t('Enter the server URL') });
     if (!url) {
         return;
     }
 
-    const description = await vscode.window.showInputBox({ prompt: '输入服务器描述（可选）' });
+    const description = await vscode.window.showInputBox({ prompt: vscode.l10n.t('Enter the server description (optional)') });
 
     await projectConfigService.updateCompileConfigForWorkspace(workspaceRoot, (currentConfig) => ({
         ...currentConfig,
@@ -580,13 +580,13 @@ async function selectRemoteServer(
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
     const servers = compileConfig?.remote?.servers ?? [];
     if (servers.length === 0) {
-        vscode.window.showInformationMessage('没有可用的服务器，请先添加。');
+        vscode.window.showInformationMessage(vscode.l10n.t('No servers are available. Add a server first.'));
         return;
     }
 
     const selected = await vscode.window.showQuickPick<ServerQuickPickItem>(
         createServerQuickPickItems(servers),
-        { placeHolder: '选择活动服务器' }
+        { placeHolder: vscode.l10n.t('Select the active server') }
     );
 
     if (!selected) {
@@ -616,13 +616,13 @@ async function removeRemoteServer(
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
     const servers = compileConfig?.remote?.servers ?? [];
     if (servers.length === 0) {
-        vscode.window.showInformationMessage('没有配置的服务器。');
+        vscode.window.showInformationMessage(vscode.l10n.t('No servers are configured.'));
         return;
     }
 
     const selected = await vscode.window.showQuickPick<ServerQuickPickItem>(
         createServerQuickPickItems(servers),
-        { placeHolder: '选择要删除的服务器' }
+        { placeHolder: vscode.l10n.t('Select the server to remove') }
     );
 
     if (!selected) {
@@ -660,13 +660,13 @@ async function editRemoteServer(
     const compileConfig = await projectConfigService.getCompileConfigForWorkspace(workspaceRoot);
     const servers = compileConfig?.remote?.servers ?? [];
     if (servers.length === 0) {
-        vscode.window.showInformationMessage('没有配置的服务器。');
+        vscode.window.showInformationMessage(vscode.l10n.t('No servers are configured.'));
         return;
     }
 
     const selected = await vscode.window.showQuickPick<ServerQuickPickItem>(
         createServerQuickPickItems(servers),
-        { placeHolder: '选择要编辑的服务器' }
+        { placeHolder: vscode.l10n.t('Select the server to edit') }
     );
 
     if (!selected) {
@@ -677,18 +677,18 @@ async function editRemoteServer(
     if (!current) {
         return;
     }
-    const nextName = await vscode.window.showInputBox({ prompt: '输入服务器名称', value: current.name });
+    const nextName = await vscode.window.showInputBox({ prompt: vscode.l10n.t('Enter the server name'), value: current.name });
     if (!nextName) {
         return;
     }
 
-    const nextUrl = await vscode.window.showInputBox({ prompt: '输入服务器URL', value: current.url });
+    const nextUrl = await vscode.window.showInputBox({ prompt: vscode.l10n.t('Enter the server URL'), value: current.url });
     if (!nextUrl) {
         return;
     }
 
     const nextDescription = await vscode.window.showInputBox({
-        prompt: '输入服务器描述（可选）',
+        prompt: vscode.l10n.t('Enter the server description (optional)'),
         value: current.description
     });
 
@@ -737,18 +737,18 @@ function formatLocalCompilationSummary(
     projectConfig: ProjectConfigFile | undefined
 ): string {
     return [
-        '当前模式: local',
+        vscode.l10n.t('Current mode: local'),
         `useSystemCommand: ${compileConfig?.local?.useSystemCommand ? 'true' : 'false'}`,
-        `lpccpPath: ${compileConfig?.local?.lpccpPath || '(系统命令)'}`,
+        `lpccpPath: ${compileConfig?.local?.lpccpPath || vscode.l10n.t('(system command)')}`,
         `compileMode: ${compileConfig?.local?.compileMode || 'reload-loaded'}`,
-        `configHellPath: ${projectConfig?.configHellPath || '(未设置)'}`
+        `configHellPath: ${projectConfig?.configHellPath || vscode.l10n.t('(not set)')}`
     ].join('\n');
 }
 
 function formatRemoteCompilationSummary(compileConfig: CompileConfig | undefined): string {
     return [
-        '当前模式: remote',
-        `活动服务器: ${compileConfig?.remote?.activeServer || '(未设置)'}`,
-        `服务器数量: ${compileConfig?.remote?.servers?.length || 0}`
+        vscode.l10n.t('Current mode: remote'),
+        vscode.l10n.t('Active server: {0}', compileConfig?.remote?.activeServer || vscode.l10n.t('(not set)')),
+        vscode.l10n.t('Server count: {0}', compileConfig?.remote?.servers?.length || 0)
     ].join('\n');
 }

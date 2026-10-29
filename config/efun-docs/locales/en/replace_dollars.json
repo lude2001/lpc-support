@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS dwlib package efun.",
+  "details": "Replace dollar placeholders in a string according to an argument list, producing text with variable interpolation."
+}

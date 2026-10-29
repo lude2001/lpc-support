@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS develop 软件包中的 Efun。",
+  "details": "开启或关闭 driver profiling 采样控制，主要用于性能分析和开发调试。"
+}

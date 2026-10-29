@@ -1,0 +1,4 @@
+{
+    "summary": "The query_privs efun.",
+    "details": "NAME\nquery_privs() - return the privs string for an object\n\nSYNOPSIS\nstring query_privs( object ob | void );\n\nDESCRIPTION\nReturns the privs string for an object.  The privs string is determined\n   at compile time via a call to privs_file() in the  master  object,  and\n   changeable via the set_privs() efun.\n\n   This efun is only available if PRIVS is defined at driver compile time.\n\nSEE ALSO\nprivs_file(4), set_privs(3)"
+}

@@ -1,7 +1,5 @@
 {
   "name": "uncompress",
-  "summary": "uncompress 内置函数",
-  "category": "未归类函数",
   "signatures": [
     {
       "label": "buffer uncompress(string | buffer)",
@@ -18,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "uncategorized"
 }

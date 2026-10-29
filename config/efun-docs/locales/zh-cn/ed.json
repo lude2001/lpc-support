@@ -1,0 +1,3 @@
+{
+    "summary": "此 efun 仅在驱动编译时定义 __OLD_ED__ 后可用。\n\n它打开内置编辑器编辑指定的文件 `file`。该编辑器基本兼容 UNIX ed；在编辑器中输入 `h` 可查看帮助。\n\n<write_fn> 函数可让 mudlib 处理文件锁以及修改文件的管理日志。编辑器每次写文件时，驱动会调用 <write_fn> 两次。第一次在写入前调用，<flag> 为 0；如果返回 TRUE 则继续写入，否则中止。第二次在写入完成后调用，<flag> 为非零值。回调形式为：\n\n   int write_fn(string fname, int flag)\n\n退出编辑器时，驱动会调用 <exit_fn>，使 mudlib 有机会清理。其形式为：\n\n   void exit_fn()\n\n可选的 <restricted> 标志限制编辑器的能力，例如插入文件、使用其他文件名保存。"
+}

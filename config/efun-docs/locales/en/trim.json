@@ -1,0 +1,3 @@
+{
+    "summary": "Removes whitespace or other predefined characters from both ends of a string.\n\nThis efun was added in FLUFFOS. In MUDOS, implement it as a simulated efun."
+}

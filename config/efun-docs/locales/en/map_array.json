@@ -1,0 +1,3 @@
+{
+  "summary": "Return a new array containing the results of processing each element of `arr` with method `fun` in object `ob`, or function pointer `f`. Additional `extra` arguments, if present, are also passed to the function. Its main operation is:\n\n   foreach (index) arr[index] = ob->fun(arr[index],extra);\n\n   This function is essentially map() with its array argument restricted to type mixed *arr."
+}

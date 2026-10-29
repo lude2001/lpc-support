@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib package efun.",
+    "details": "Checks whether the specified object reference may be exposed or referenced in the current context. It is commonly used by output and debugging helpers."
+}

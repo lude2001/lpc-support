@@ -1,0 +1,4 @@
+{
+    "summary": "Set the global variable `arg` defined in `ob` to `value`. If `ob` is omitted, use this_object(). `arg` must already be defined in that object and must not be private.\n\nRequires PACKAGE_CONTRIB to be defined when compiling the driver.\n\nThis efun poses security risks. It is best to override it with a sefun that performs security checks.",
+    "details": "Example\nstore_variable( \"weight\", 150, this_player() ) ;"
+}

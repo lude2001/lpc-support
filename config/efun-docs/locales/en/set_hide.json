@@ -1,0 +1,3 @@
+{
+  "summary": "Set the current object's hidden `flag`: 0 means not hidden, and 1 means hidden. Once hidden, the object can be found through find_object(), users(), children(), all_inventory(), and similar functions only by objects with permission to see hidden objects, as determined by valid_hide() in the master object. objects() does not list hidden objects."
+}

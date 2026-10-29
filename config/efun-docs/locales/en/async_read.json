@@ -1,0 +1,3 @@
+{
+    "summary": "Read file contents into a string and pass them to the callback, subject to the configured maximum read-file size. This is not a line-based read operation.\n\nThe callback should have the following form:\n\n   function(mixed res) {\n       // 如果文件未读取，返回-1\n       // 否则返回文件的内容字符串\n   }"
+}

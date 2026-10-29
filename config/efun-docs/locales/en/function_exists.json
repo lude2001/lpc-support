@@ -1,0 +1,3 @@
+{
+    "summary": "Returns the file name of the object that defines function `str` in object `ob`. If the function is defined by an inherited object, this differs from file_name(ob): the inherited program file is returned.\n\nReturns 0 if the function is not defined in the specified object.\n\nfunction_exists() does not search objects shadowing `ob`, nor functions that cannot be called from outside the object (protected and private functions). A non-zero `flag` also allows protected and private methods to be found.\n\nTo check whether an efun exists, test an appropriate defined macro or use efun_defined in conditional compilation, for example:\n\n   #if efun_defined(snoop)\n   // todo\n   #endif"
+}

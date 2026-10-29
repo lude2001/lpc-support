@@ -1,0 +1,4 @@
+{
+    "summary": "Changes a living object into a non-living object: add_action() no longer applies, living() returns 0, and, if the object is a player, it can no longer use commands (input_to() remains available).\n\nCalling disable_commands() also removes every action registered for the object, including actions defined by the object itself and those supplied by other objects.\n\nThis changes the properties of the object: it loses all living-related capabilities, rather than merely having commands disabled.",
+    "details": "Return semantics:\ndisable_commands() always returns 0."
+}

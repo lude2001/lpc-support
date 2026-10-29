@@ -1,0 +1,4 @@
+{
+  "summary": "Rename file `src` to `dst`.",
+  "details": "Return semantics:\nrename() returns 0 on success and a nonzero value on failure."
+}

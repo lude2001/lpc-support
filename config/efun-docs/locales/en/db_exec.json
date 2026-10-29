@@ -1,0 +1,3 @@
+{
+  "summary": "Execute an SQL statement using the specified handle. Return the number of result rows on success, or an error-message string on failure."
+}

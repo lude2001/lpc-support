@@ -1,0 +1,3 @@
+{
+    "summary": "Returns an array of all objects loaded in the MUD. If the configured maximum array size is too small, the result is truncated to that maximum, which can make the returned list of little use.\n\nIf optional `func` is supplied, every loaded object is passed to func() in the current object. Objects for which it returns 0 are excluded.\n\nThe third form behaves like the second but accepts a function pointer. For example, objects( (: clonep :) ) returns all cloned objects in the game."
+}

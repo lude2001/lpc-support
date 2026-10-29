@@ -1,0 +1,4 @@
+{
+  "summary": "match_path 内置函数",
+  "details": "名称\nmatch_path() - 在映射中查找路径\n\n用法\nmixed match_path( mapping m, string str );\n\n说明\nmatch_path() 在映射中查找路径。每个键都应为字符串，而值可以是任意内容。此函数寻找映射中匹配的最长路径。以 '/' 结尾的键也匹配 '/' 后还有字符的路径，也就是说，/ 是匹配该目录下任何内容的通配符。\n\n示例\nvoid do_tests()\n   {\n       mapping m = ([\"foo/\":1, \"bar\":2, \"bazz/foo\":3, \"foo/bar/bazz\":4]);\n\n       ASSERT(!match_path(m, \"kajdfj\"));\n       ASSERT(match_path(m, \"bar\") == 2);\n       ASSERT(match_path(m, \"bar/\") == 2);\n       ASSERT(match_path(m, \"bazz//foo\") == 3);\n       ASSERT(match_path(m, \"bazz/foo//\") == 3);\n       ASSERT(match_path(m, \"foo/bar\") == 1);\n       ASSERT(match_path(m, \"foo/bar/bazz\") == 4);\n   }\n\n作者\nCygnus"
+}

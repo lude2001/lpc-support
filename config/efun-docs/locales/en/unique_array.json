@@ -1,0 +1,4 @@
+{
+  "summary": "Group objects for which `separator` returns the same value. `obarr` must be an array of objects. `separator` is called once for each object. If `skip` is supplied, matching objects are filtered out first.\n\n   In the second form, each array element is passed to function pointer f, and the elements are grouped by its return value. This form is not restricted to arrays of objects.",
+  "details": "Return semantics:\nReturn a two-dimensional array containing arrays of objects, in this form:\n\n   ({\n       ({Same1:1, Same1:2, Same1:3, .... Same1:N }),\n       ({Same2:1, Same2:2, Same2:3, .... Same2:N }),\n       ({Same3:1, Same3:2, Same3:3, .... Same3:N }),\n       ....\n       ....\n       ({SameM:1, SameM:2, SameM:3, .... SameM:N }),\n   })"
+}

@@ -1,0 +1,4 @@
+{
+  "summary": "分配一个包含 `size` 个字节的缓冲区。长度必须 >= 0，且不能超过运行时 maximum buffer size 配置项设置的上限。长度为 0 时返回空缓冲区。所有字节初始化为 0。",
+  "details": "作者\nTruilkan"
+}

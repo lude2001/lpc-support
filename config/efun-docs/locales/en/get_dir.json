@@ -1,0 +1,3 @@
+{
+    "summary": "If `dir` is a filename, allowing the `*` and `?` wildcards, return an array of all matching filenames. If `dir` names a directory ending in `/`, such as \"/adm/\" or \"/u/\", return an array of every filename in that directory. Without the trailing slash, \"/adm\" matches the directory entry itself.\n\nIf the second argument is `-1`, return an array of arrays with this form:\n\n   ({ 文件名, 文件大小, 最近修改时间 })\n\nThe filename is a string. The modification time is a timestamp in the format returned by time(). The file size is the value returned by file_size(), in bytes, or -2 for a directory."
+}

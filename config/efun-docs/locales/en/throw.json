@@ -1,0 +1,3 @@
+{
+    "summary": "The throw() efun is commonly used to force an error in an object. Using throw() together with catch() lets the program choose which message is displayed when a runtime error occurs. A typical example follows:\n\nvoid create()\n{\n    string err;\n\n    err = catch\n    {\n        throw(\"出错啦！\");\n    };\n\n    debug_message(err);\n}"
+}

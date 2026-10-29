@@ -1,10 +1,8 @@
 {
   "name": "max",
-  "summary": "FluffOS 1.33新增efun，在数组 `arr` (int|float|string) 中查找最大值，如果参数 `flag` 缺省或值为 0，函数返回最大值，否则返回第一个最大值的索引。",
   "reference": [
     "min"
   ],
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "mixed max(mixed * arr)",
@@ -41,5 +39,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

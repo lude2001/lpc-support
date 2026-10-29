@@ -1,0 +1,3 @@
+{
+    "summary": "If `ob` is supplied, returns the memory used by that object. Otherwise returns the memory used by all objects. These values are approximate: MUD memory usage is not exactly the same as the memory allocated to the MUD by the operating system."
+}

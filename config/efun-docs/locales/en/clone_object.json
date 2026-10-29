@@ -1,0 +1,3 @@
+{
+    "summary": "Create a new object from the file `name` and give it a unique number by appending #XXX to the filename, where XXX is unique throughout the game. If the object named `name`, called the blueprint, is not already loaded, first load it, then clone it and return the clone. The clone and blueprint share code but can have different variable values. Any additional `extra` arguments are passed to the loaded object's create() method.\n\nclone_object() is an alias for new().\n\nCombined with virtual objects, argument passing to cloned objects makes it easy to implement powerful and interesting features, such as an infinite world."
+}

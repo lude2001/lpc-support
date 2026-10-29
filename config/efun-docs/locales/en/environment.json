@@ -1,0 +1,3 @@
+{
+    "summary": "Returns the object containing `ob` (its environment). If omitted, `ob` defaults to this_object(). Returns 0 if `ob` has no environment."
+}

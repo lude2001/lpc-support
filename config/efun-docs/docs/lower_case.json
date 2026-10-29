@@ -1,11 +1,9 @@
 {
   "name": "lower_case",
-  "summary": "返回字符串的小写形式（本来是小写的不会改变）",
   "reference": [
     "capitalize",
     "upper_case"
   ],
-  "category": "字符串相关函数（Strings）",
   "signatures": [
     {
       "label": "string lower_case( string str )",
@@ -22,5 +20,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "strings"
 }

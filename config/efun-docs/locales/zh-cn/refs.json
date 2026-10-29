@@ -1,0 +1,4 @@
+{
+    "summary": "refs 内置函数",
+    "details": "名称\nrefs - 返回数据结构的引用数量\n\n用法\nint refs( mixed data );\n\n说明\nrefs() 返回 'data' 的引用数量，可用来判断返回数据结构之前是否需要复制一份。\n\n参见\nchildren(3), inherit_list(3), deep_inherit_list(3), objects(3)"
+}

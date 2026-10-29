@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets 包中的 Efun。",
+    "details": "关闭并释放由 http_parser_create 创建的 HTTP 请求解析器状态。"
+}

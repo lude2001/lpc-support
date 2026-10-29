@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS develop package efun.",
+    "details": "Set the driver's trace debugging level and return the previous trace setting."
+}

@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS sockets 包提供的 efun。",
+    "details": "解析 URL query 字符串并返回键值 mapping，适用于处理 HTTP 请求参数。"
+}

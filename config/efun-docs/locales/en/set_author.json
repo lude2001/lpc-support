@@ -1,0 +1,3 @@
+{
+    "summary": "Each object has an associated author and domain for collecting statistics. Domains can only be set through domain_file() in the master object. Authors can be initialized by author_file() in the master object or changed with set_author().\n\nset_author() changes the author of the calling object. The author is credited for all object actions that affect mudlib statistics. This can produce unusual numbers in the \"objects\" and \"array_size\" categories: an object or its arrays may originally be credited to one author but be destructed or freed under another, subtracting numbers from a total to which they were never added. For this reason, call set_author() only in create(), and as early as possible before allocating arrays."
+}

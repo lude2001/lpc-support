@@ -1,0 +1,3 @@
+{
+    "summary": "Return the connection port of the player object `ob`. If the argument is omitted, use this_player(). Return 0 if the object is not an online player."
+}

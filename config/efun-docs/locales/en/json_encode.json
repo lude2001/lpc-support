@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS json package efun.",
+    "details": "Encodes an LPC value as a JSON string. This can output representable values such as mappings, arrays, strings, and numbers as JSON."
+}

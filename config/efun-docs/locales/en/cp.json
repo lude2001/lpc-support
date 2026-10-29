@@ -1,0 +1,4 @@
+{
+    "summary": "Copy the file `src` to `dst`.",
+    "details": "Return semantics:\nReturn 1 on success, or a negative value on failure."
+}

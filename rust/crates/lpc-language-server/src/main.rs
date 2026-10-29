@@ -5,10 +5,13 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use lpc_analysis::{AnalysisDatabase, Position, Range, byte_range_to_lsp, position_to_byte};
+use lpc_analysis::{
+    AnalysisDatabase, Locale, Position, Range, byte_range_to_lsp, position_to_byte,
+};
 use lpc_formatter::FormatterConfig;
 use lpc_language_server::document_store::{ContentChange, DocumentStore};
 use lpc_language_server::efun_docs;
+use lpc_language_server::messages::{RequestKind, ServerMessage};
 use lpc_language_server::project_preprocessor::WorkspacePreprocessorConfig;
 use lpc_language_server::semantic_tokens::{TOKEN_MODIFIERS, TOKEN_TYPES};
 use lpc_language_server::syntax_store::SyntaxStore;
@@ -263,11 +266,15 @@ fn main() -> Result<()> {
     let (initialize_id, initialize_params) = connection
         .initialize_start()
         .context("LSP initialization request failed")?;
+    let locale = Locale::from_language(initialize_params.get("locale").and_then(Value::as_str));
     connection
         .initialize_finish(initialize_id, initialize_result)
-        .context("LSP initialization response failed")?;
-    let efuns = efun_docs::load_from_environment().unwrap_or_else(|error| {
-        eprintln!("lpc-language-server: efun documentation unavailable: {error:#}");
+        .context(ServerMessage::InitializationResponseFailed.render(locale))?;
+    let efuns = efun_docs::load_from_environment_with_locale(locale).unwrap_or_else(|error| {
+        eprintln!(
+            "lpc-language-server: {}: {error:#}",
+            ServerMessage::EfunDocumentationUnavailable.render(locale)
+        );
         Vec::new()
     });
     let semantic_tokens_refresh_supported = initialize_params
@@ -279,8 +286,11 @@ fn main() -> Result<()> {
         workspace_roots(initialize_params),
         efuns,
         semantic_tokens_refresh_supported,
+        locale,
     )?;
-    io_threads.join().context("LSP transport failed")?;
+    io_threads
+        .join()
+        .context(ServerMessage::TransportFailed.render(locale))?;
     Ok(())
 }
 
@@ -289,19 +299,23 @@ fn run(
     _workspace_roots: Vec<PathBuf>,
     efuns: Vec<lpc_analysis::ExternalFunction>,
     semantic_tokens_refresh_supported: bool,
+    locale: Locale,
 ) -> Result<()> {
-    let mut documents = DocumentStore::default();
-    let mut syntax = SyntaxStore::new()?;
+    let mut documents = DocumentStore::with_locale(locale);
+    let mut syntax = SyntaxStore::new_with_locale(locale)?;
     let efun_names = efuns
         .iter()
         .map(|efun| efun.name.clone())
         .collect::<Vec<_>>();
     syntax.set_efuns(efun_names.clone());
     let analysis = Arc::new(Mutex::new(AnalysisDatabase::default()));
-    analysis
-        .lock()
-        .expect("analysis lock poisoned")
-        .set_external_functions(efuns);
+    {
+        let mut database = analysis
+            .lock()
+            .unwrap_or_else(|_| panic!("{}", ServerMessage::AnalysisLockPoisoned.render(locale)));
+        database.set_locale(locale);
+        database.set_external_functions(efuns);
+    }
     let workspace_index = WorkspaceIndexController::default();
     let mut formatter_config = FormatterConfig::default();
     let mut next_server_request_id = -1_i32;
@@ -361,9 +375,9 @@ fn run(
                         preprocessor_workspaces.clone(),
                     );
                     {
-                        let mut database = analysis
-                            .lock()
-                            .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                        let mut database = analysis.lock().map_err(|_| {
+                            anyhow::anyhow!(ServerMessage::AnalysisLockPoisoned.render(locale))
+                        })?;
                         database.set_type_checking_enabled(type_checking_enabled);
                         database.set_diagnostic_preferences(
                             unused_global_var_check_enabled,
@@ -428,9 +442,9 @@ fn run(
                     send_ok(&connection, request.id, result)?;
                     continue;
                 }
-                let mut database = analysis
-                    .lock()
-                    .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                let mut database = analysis.lock().map_err(|_| {
+                    anyhow::anyhow!(ServerMessage::AnalysisLockPoisoned.render(locale))
+                })?;
                 handle_request(
                     &connection,
                     request,
@@ -486,9 +500,9 @@ fn run(
                         preprocessor_workspaces.clone(),
                     );
                     {
-                        let mut database = analysis
-                            .lock()
-                            .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                        let mut database = analysis.lock().map_err(|_| {
+                            anyhow::anyhow!(ServerMessage::AnalysisLockPoisoned.render(locale))
+                        })?;
                         database.set_type_checking_enabled(type_checking_enabled);
                         database.set_diagnostic_preferences(
                             unused_global_var_check_enabled,
@@ -580,9 +594,9 @@ fn run(
                         });
                     if header_changed {
                         syntax.invalidate_preprocessor_cache();
-                        let mut database = analysis
-                            .lock()
-                            .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                        let mut database = analysis.lock().map_err(|_| {
+                            anyhow::anyhow!(ServerMessage::AnalysisLockPoisoned.render(locale))
+                        })?;
                         for document in documents.iter() {
                             let snapshot = syntax.open(document)?;
                             database.invalidate(&document.uri);
@@ -663,9 +677,9 @@ fn run(
                             || database.is_simulated_efun_dependency(uri)
                     })
                 });
-                let mut database = analysis
-                    .lock()
-                    .map_err(|_| anyhow::anyhow!("analysis database lock was poisoned"))?;
+                let mut database = analysis.lock().map_err(|_| {
+                    anyhow::anyhow!(ServerMessage::AnalysisLockPoisoned.render(locale))
+                })?;
                 handle_notification(
                     &connection,
                     notification,
@@ -852,6 +866,7 @@ fn handle_request(
     analysis: &mut AnalysisDatabase,
     formatter_config: FormatterConfig,
 ) -> Result<()> {
+    let locale = analysis.locale();
     if request.method == HEALTH_METHOD {
         let analysis_metrics = analysis.metrics();
         let response = HealthStatusResponse {
@@ -957,12 +972,20 @@ fn handle_request(
     if request.method == "textDocument/semanticTokens/full" {
         let params: SemanticTokensParams = serde_json::from_value(request.params)?;
         let uri = params.text_document.uri;
-        let document = documents
-            .get(&uri)
-            .with_context(|| format!("semantic tokens requested for unopened document {uri}"))?;
-        let snapshot = syntax
-            .get(&uri)
-            .with_context(|| format!("semantic tokens requested without syntax for {uri}"))?;
+        let document = documents.get(&uri).with_context(|| {
+            ServerMessage::UnopenedDocument {
+                kind: RequestKind::SemanticTokens,
+                uri: &uri,
+            }
+            .render(locale)
+        })?;
+        let snapshot = syntax.get(&uri).with_context(|| {
+            ServerMessage::MissingSyntax {
+                kind: RequestKind::SemanticTokens,
+                uri: &uri,
+            }
+            .render(locale)
+        })?;
         let facts = analysis.semantic_token_facts(&uri);
         return send_ok(
             connection,
@@ -980,12 +1003,20 @@ fn handle_request(
     if request.method == "textDocument/documentSymbol" {
         let params: DocumentSymbolParams = serde_json::from_value(request.params)?;
         let uri = params.text_document.uri;
-        let document = documents
-            .get(&uri)
-            .with_context(|| format!("document symbols requested for unopened document {uri}"))?;
-        let snapshot = syntax
-            .get(&uri)
-            .with_context(|| format!("document symbols requested without syntax for {uri}"))?;
+        let document = documents.get(&uri).with_context(|| {
+            ServerMessage::UnopenedDocument {
+                kind: RequestKind::DocumentSymbols,
+                uri: &uri,
+            }
+            .render(locale)
+        })?;
+        let snapshot = syntax.get(&uri).with_context(|| {
+            ServerMessage::MissingSyntax {
+                kind: RequestKind::DocumentSymbols,
+                uri: &uri,
+            }
+            .render(locale)
+        })?;
         let mut symbols = serde_json::to_value(lpc_language_server::document_symbols::collect(
             &snapshot.tree,
             &document.text,
@@ -1082,12 +1113,20 @@ fn handle_request(
     if request.method == "textDocument/formatting" {
         let params: FormattingParams = serde_json::from_value(request.params)?;
         let uri = params.text_document.uri;
-        let document = documents
-            .get(&uri)
-            .with_context(|| format!("formatting requested for unopened document {uri}"))?;
-        let snapshot = syntax
-            .get(&uri)
-            .with_context(|| format!("formatting requested without syntax for {uri}"))?;
+        let document = documents.get(&uri).with_context(|| {
+            ServerMessage::UnopenedDocument {
+                kind: RequestKind::Formatting,
+                uri: &uri,
+            }
+            .render(locale)
+        })?;
+        let snapshot = syntax.get(&uri).with_context(|| {
+            ServerMessage::MissingSyntax {
+                kind: RequestKind::Formatting,
+                uri: &uri,
+            }
+            .render(locale)
+        })?;
         let config = formatting_config(&params.options, formatter_config);
         let context = formatting_context(snapshot);
         let edits = lpc_formatter::format_document_checked(
@@ -1111,16 +1150,24 @@ fn handle_request(
     if request.method == "textDocument/rangeFormatting" {
         let params: RangeFormattingParams = serde_json::from_value(request.params)?;
         let uri = params.text_document.uri;
-        let document = documents
-            .get(&uri)
-            .with_context(|| format!("range formatting requested for unopened document {uri}"))?;
-        let snapshot = syntax
-            .get(&uri)
-            .with_context(|| format!("range formatting requested without syntax for {uri}"))?;
+        let document = documents.get(&uri).with_context(|| {
+            ServerMessage::UnopenedDocument {
+                kind: RequestKind::RangeFormatting,
+                uri: &uri,
+            }
+            .render(locale)
+        })?;
+        let snapshot = syntax.get(&uri).with_context(|| {
+            ServerMessage::MissingSyntax {
+                kind: RequestKind::RangeFormatting,
+                uri: &uri,
+            }
+            .render(locale)
+        })?;
         let start = position_to_byte(&document.text, params.range.start)
-            .context("range formatting start is outside the document")?;
+            .context(ServerMessage::RangeStartOutsideDocument.render(locale))?;
         let end = position_to_byte(&document.text, params.range.end)
-            .context("range formatting end is outside the document")?;
+            .context(ServerMessage::RangeEndOutsideDocument.render(locale))?;
         let context = formatting_context(snapshot);
         let edits = lpc_formatter::format_range_checked(
             &snapshot.tree,
@@ -1160,7 +1207,7 @@ fn handle_request(
                 let end = position_to_byte(&document.text, diagnostic.range.end)?;
                 let name = document.text.get(start..end)?;
                 Some(json!({
-                    "title": format!("将未使用的 `{name}` 标记为有意保留"),
+                    "title": ServerMessage::MarkUnused { name }.render(locale),
                     "kind": "quickfix",
                     "diagnostics": [{
                         "range": diagnostic.range,
@@ -1186,7 +1233,10 @@ fn handle_request(
         connection,
         request.id,
         lsp_server::ErrorCode::MethodNotFound,
-        format!("Rust LPC server does not implement {} yet", request.method),
+        ServerMessage::UnsupportedMethod {
+            method: &request.method,
+        }
+        .render(locale),
     )
 }
 
@@ -1245,6 +1295,7 @@ fn handle_notification(
     syntax: &mut SyntaxStore,
     analysis: &mut AnalysisDatabase,
 ) -> Result<()> {
+    let locale = analysis.locale();
     match notification.method.as_str() {
         "textDocument/didOpen" => {
             let params: DidOpenParams = serde_json::from_value(notification.params)?;
@@ -1256,7 +1307,7 @@ fn handle_notification(
             );
             let document = documents
                 .get(&uri)
-                .context("opened document was not retained")?;
+                .context(ServerMessage::OpenedDocumentNotRetained.render(locale))?;
             if is_header_uri(&uri) {
                 syntax.set_open_header(&uri, &document.text);
             }
@@ -1291,7 +1342,7 @@ fn handle_notification(
             let change = documents.change(&uri, version, &params.content_changes)?;
             let document = documents
                 .get(&uri)
-                .context("changed document was not retained")?;
+                .context(ServerMessage::ChangedDocumentNotRetained.render(locale))?;
             if is_header_uri(&uri) {
                 syntax.set_open_header(&uri, &document.text);
             }

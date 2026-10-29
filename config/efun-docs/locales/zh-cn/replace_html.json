@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib 包提供的 efun。",
+    "details": "转义或替换字符串中的 HTML 特殊字符，使文本适合安全地嵌入 HTML 输出。"
+}

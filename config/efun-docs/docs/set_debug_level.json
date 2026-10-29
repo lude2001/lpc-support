@@ -1,11 +1,9 @@
 {
   "name": "set_debug_level",
-  "summary": "set_debug_level 内置函数",
   "reference": [
     "clear_debug_level",
     "debug_levels"
   ],
-  "category": "内部处理相关函数（Internals）",
   "signatures": [
     {
       "label": "set_debug_level()",
@@ -16,5 +14,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "internals"
 }

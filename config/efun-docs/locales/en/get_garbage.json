@@ -1,0 +1,3 @@
+{
+  "summary": "Added in FluffOS 1.20. Return an array of cloned objects selected by the driver's garbage_check predicate, truncated to `MAX_ARRAY_SIZE`. The predicate requires ob->ref == 1 and the O_CLONE flag. When environment support is enabled (NO_ENVIRONMENT is not defined), ob->super must be unset. When shadow support is enabled (NO_SHADOWS is not defined), ob->shadowing must be unset, meaning that the object is not shadowing another object. The predicate does not separately inspect the object's inventory."
+}

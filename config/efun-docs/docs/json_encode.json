@@ -1,8 +1,5 @@
 {
   "name": "json_encode",
-  "summary": "FluffOS json package efun.",
-  "details": "将 LPC 值编码为 JSON 字符串。适用于把 mapping、array、字符串、数字等可表示值输出为 JSON。",
-  "category": "常规函数（General）",
   "signatures": [
     {
       "label": "string json_encode( mixed )",
@@ -19,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "general"
 }

@@ -1,0 +1,4 @@
+{
+    "summary": "sys_reload_tls 内置函数",
+    "details": "名称\nsys_reload_tls() - 重新加载指定端口的 TLS 证书和密钥\n\n用法\nvoid sys_reload_tls ( int port_index );\n\n说明\n按配置文件中指定的端口索引，重新加载该端口的 TLS 证书和密钥。\n\n例如，在配置中定义了 external_port_1_tls 时，可调用 sys_reload_tls(1) 重新加载。这样无需重启服务器就能更新证书和密钥。\n\n注意：\n- 调用前必须先覆盖磁盘上原来的证书和密钥文件。\n- 目前不支持为 websocket 端口重新加载 TLS。\n- 这是2023年5月30日 3bca73a 分支新增的Efun。"
+}

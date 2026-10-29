@@ -1,0 +1,3 @@
+{
+    "summary": "Builds a mapping from an array using a function. Elements for which the function returns the same result are grouped into an array used as the mapping value; that function result is the corresponding mapping key."
+}

@@ -1,0 +1,4 @@
+{
+    "summary": "Requests that an object be scheduled for clean_up; defaults to this_object() when no object is supplied.",
+    "details": "Asks the driver to schedule a clean_up check for the specified object. If the argument is omitted, applies to the current object. The return value indicates whether the request was accepted."
+}

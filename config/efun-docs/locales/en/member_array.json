@@ -1,0 +1,4 @@
+{
+  "summary": "Return the position of the first occurrence of `item` in array or string `arr`. If `start` is supplied, begin searching at that position (inclusive). Return -1 if no match is found.\n\n   If the second argument is a string, the first argument must be an int representing the character to find in that string.",
+  "details": "Example\n{\n    member_array( \"red\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) ) ;\n    // 0\n\n    member_array( \"red\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) , 1) ;\n    // 2\n\n    member_array( \"blue\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) , 3) ;\n    // -1\n\n    member_array( \"purple\", ({ \"red\", \"blue\", \"red\", \"green\", \"red\", }) ) ;\n    // -1\n\n    member_array('F', \"Drink the FluffOS Kool-Aid!\") ;\n    // 10\n\n    member_array('Z', \"Drink the FluffOS Kool-Aid!\") ;\n    // -1\n}"
+}

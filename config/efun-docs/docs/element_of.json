@@ -1,7 +1,5 @@
 {
   "name": "element_of",
-  "summary": "返回给定数组的随机元素\n\n   本函数是 FluffOS 1.28 新增，原 MUDOS 不支持",
-  "category": "数组相关函数（Arrays）",
   "signatures": [
     {
       "label": "mixed element_of(mixed *arr)",
@@ -18,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "arrays"
 }

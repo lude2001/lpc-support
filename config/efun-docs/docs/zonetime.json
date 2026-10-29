@@ -1,13 +1,11 @@
 {
   "name": "zonetime",
-  "summary": "返回指定时区 `timezone` 和时间 `time` 的日期和时间的字符串，参数 `time` 是一个时间戳。",
   "reference": [
     "time",
     "time_expression",
     "localtime",
     "uptime"
   ],
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "string zonetime(string timezone, int time)",
@@ -28,5 +26,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

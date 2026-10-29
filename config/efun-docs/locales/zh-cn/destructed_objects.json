@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS develop 软件包中的 Efun。",
+  "details": "返回 driver 当前记录的已析构对象调试信息，用于检查对象生命周期和析构相关问题。"
+}

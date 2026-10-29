@@ -1,10 +1,8 @@
 {
   "name": "set_config",
-  "summary": "set_config 内置函数",
   "reference": [
     "get_config"
   ],
-  "category": "内部处理相关函数（Internals）",
   "signatures": [
     {
       "label": "void set_config(int, mixed)",
@@ -25,5 +23,6 @@
         "max": 2
       }
     }
-  ]
+  ],
+  "categoryId": "internals"
 }

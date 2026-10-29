@@ -1,6 +1,9 @@
 import { build } from 'esbuild';
 import { copyFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname } from 'path';
+import { buildBundles } from './scripts/localization/build-bundles.mjs';
+
+await buildBundles(process.cwd(), { write: true });
 
 // 复制文件的辅助函数
 function copyFile(src, dest) {

@@ -1,0 +1,3 @@
+{
+    "summary": "Replaces the program of this_object() with one of its inherited programs. The string argument names the file whose program is to be used. After replacement, the current object effectively becomes a clone of that other object, while retaining its current file name and global variable values. Replacement is deferred until the current execution finishes.\n\nIts main purpose is to reduce memory use in large MUDs. The target must be in the inheritance tree; the function cannot be used for the simul_efun object or an object with its own function definitions. Use replaceable() to check eligibility. Its practical value is limited in MUDs that are not short of memory; modern MUDLIBs have a function with a similar purpose, set_default_object(__FILE__)."
+}

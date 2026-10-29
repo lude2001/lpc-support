@@ -1,0 +1,4 @@
+{
+  "summary": "FluffOS develop package efun.",
+  "details": "Return the driver's currently recorded debugging information about destructed objects, for investigating object lifetimes and destruction-related problems."
+}

@@ -1,0 +1,4 @@
+{
+    "summary": "If x is a float, returns the equivalent int value, discarding any fractional part by truncating toward zero.\n\nIf x is a buffer, returns the integer embedded in the buffer in network byte order.\n\nIf x is a string, attempts to convert it to an integer by reading the numeric prefix from the first character until a non-numeric portion is encountered. If conversion fails, returns UNDEFINED (whose value is 0).",
+    "details": "Example\nto_int(3.14) == 3\nto_int(3.89) == 3\nto_int(\"3.14\") == 3\nto_int(\"3.14abc\") == 3\nto_int(\"abc3.14\") == UNDEFINED"
+}

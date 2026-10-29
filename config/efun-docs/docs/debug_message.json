@@ -1,7 +1,5 @@
 {
   "name": "debug_message",
-  "summary": "在驱动程序的标准错误输出界面中打印给定的信息并附加到 debug 日志文件。",
-  "category": "内部处理相关函数（Internals）",
   "signatures": [
     {
       "label": "void debug_message(string msg)",
@@ -18,5 +16,6 @@
         "max": 1
       }
     }
-  ]
+  ],
+  "categoryId": "internals"
 }

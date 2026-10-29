@@ -1,8 +1,10 @@
 import * as path from 'path';
-import { describe, expect, test } from '@jest/globals';
+import * as vscode from 'vscode';
+import { afterEach, describe, expect, test } from '@jest/globals';
 import { resolveLanguageServerRuntime } from '../client/languageServerRuntime';
 
 describe('language server runtime selection', () => {
+    afterEach(() => { (vscode.env as { language: string }).language = 'zh-cn'; });
     const extensionRoot = path.resolve('D:/extension');
     const context = {
         asAbsolutePath: (relativePath: string) => path.join(extensionRoot, relativePath)
@@ -27,9 +29,13 @@ describe('language server runtime selection', () => {
         });
     });
 
-    test('rejects an explicitly requested missing Rust server', () => {
+    test.each([
+        ['en', 'bundled Rust LPC language server is missing'],
+        ['zh-cn', '打包的 Rust LPC 语言服务器缺失']
+    ])('rejects an explicitly requested missing Rust server in %s', (language, message) => {
+        (vscode.env as { language: string }).language = language;
         expect(() => resolveLanguageServerRuntime(context, {
             LPC_RUST_SERVER_PATH: path.join(extensionRoot, 'missing.exe')
-        }, 'win32')).toThrow('bundled Rust LPC language server is missing');
+        }, 'win32')).toThrow(message);
     });
 });

@@ -15,6 +15,22 @@ The extension follows a conservative static-proof principle: facts that can be p
 
 The extension ships with a Rust language server matched to your operating system and CPU architecture, so it works right after installation with no extra components. Document synchronization, preprocessing, incremental syntax trees, semantic snapshots, and the workspace index run in a single process. Background indexing is limited to one worker thread that regularly yields CPU time, keeping the editor responsive even on low-end machines and large mudlibs.
 
+## Interface and Documentation Languages
+
+Commands, setting descriptions, messages, diagnostics, quick fixes, the analysis inspector, and the function documentation interface follow the VS Code display language. English (`en`) and Simplified Chinese (`zh-cn`) are supported; other languages fall back to English. Change the VS Code display language and restart when prompted to apply it. User source code, existing comments, identifiers, file paths, and original compiler output retain their original text.
+
+All 413 bundled Efun documentation entries have English and Chinese versions. Signatures, parameters, return types, and membership in the 23 categories share the same structural data. Some original entries lack behavior descriptions; those entries explicitly acknowledge the missing information. Bilingual coverage does not fill gaps in the source documentation or establish compatibility with every driver version.
+
+Snippets use VS Code's native snippet support. Both languages retain the same 9 logical entry keys, prefixes, and inserted bodies; only descriptions differ. Because the languages use separate resource files, VS Code stores snippet hiding preferences and usage history separately for each language.
+
+New comments use the independent `lpc.documentation.language` setting: `zh-cn` or `en`, with `zh-cn` as the default to preserve the existing Chinese output. This setting applies to documentation skeletons and AI comment generation. It does not follow the interface language or translate existing comments. To generate English comments, set:
+
+```json
+{
+  "lpc.documentation.language": "en"
+}
+```
+
 ## Feature Overview
 
 ### Editor Features
@@ -58,7 +74,7 @@ The extension ships with a Rust language server matched to your operating system
 
 Use **Ctrl+T** (Windows / Linux) or **Cmd+T** (macOS) to search indexed functions, global variables, types, and macros. Search supports fuzzy matching and returns up to 512 results; narrow the query to find more specific declarations. Cursor highlights identify occurrences of the same declaration within the current document, respecting local scopes and macro redefinitions.
 
-Run **LPC: 打开 LPC 分析查看器** or use the inspect icon in the editor title bar to view symbol origins, macro replacement text, inactive regions, direct include / inherit dependencies, and configured global-header / simulated-efun entries. Source locations are clickable. The inspector follows cursor movements, unsaved edits, and dependency updates.
+Run **LPC: Open LPC Analysis Inspector** or use the inspect icon in the editor title bar to view symbol origins, macro replacement text, inactive regions, direct include / inherit dependencies, and configured global-header / simulated-efun entries. Source locations are clickable. The inspector follows cursor movements, unsaved edits, and dependency updates.
 
 The static preprocessing view preserves line numbers and blanks directives and inactive regions. It does not expand macro calls or includes and is not the FluffOS compiler's full preprocessor output. Unresolved dynamic targets are shown without guessing a unique declaration.
 
@@ -202,6 +218,7 @@ Common settings:
 - `lpc.performance.debounceDelay`: diagnostics debounce delay
 - `lpc.performance.enableMonitoring`: enable lightweight performance monitoring
 - `lpc.javadoc.enableAutoGeneration`: enable Javadoc generation
+- `lpc.documentation.language`: language for newly generated comments, `zh-cn` or `en`; defaults to `zh-cn` independently of the interface language
 - `lpc.glm4.*`: configure GLM-4 powered comment generation
 
 ## Language Feature Boundaries

@@ -1,7 +1,5 @@
 {
   "name": "get_garbage",
-  "summary": "FluffOS 1.20 新增efun，返回游戏中复制的垃圾对象数组（最大值为 `MAX_ARRAY_SIZE`），垃圾对象是指既没有环境没有内容物，而且也没有映射其它对象 and haven't object->super set。",
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "object *get_garbage()",
@@ -13,5 +11,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

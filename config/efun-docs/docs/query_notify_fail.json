@@ -1,7 +1,5 @@
 {
   "name": "query_notify_fail",
-  "summary": "returns current notify_fail setting (funcp or string) #ifndef NO_ADD_ACTION",
-  "category": "FluffOS新增函数（Contrib）",
   "signatures": [
     {
       "label": "mixed query_notify_fail()",
@@ -13,5 +11,6 @@
         "max": 0
       }
     }
-  ]
+  ],
+  "categoryId": "contrib"
 }

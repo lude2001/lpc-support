@@ -1,0 +1,4 @@
+{
+    "summary": "FluffOS dwlib package efun.",
+    "details": "Adds an indefinite article to a string according to the pronunciation of the English word, returning a phrase prefixed with a/an."
+}

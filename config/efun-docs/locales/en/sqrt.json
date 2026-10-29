@@ -1,0 +1,3 @@
+{
+  "summary": "Return the positive square root of floating-point value `f`. `f` must not be negative."
+}

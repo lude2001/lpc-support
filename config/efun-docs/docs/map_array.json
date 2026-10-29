@@ -1,12 +1,10 @@
 {
   "name": "map_array",
-  "summary": "返回由数组 `arr` 中的元素经过对象 `ob` 中的方法 `fun` 或函数指针 `f` 处理后的元素组成的新数组。如果有额外参数 `extra`，也会做为参数传递给处理函数。主要功能：\n\n   foreach (index) arr[index] = ob->fun(arr[index],extra);\n\n   此函数本质上就是限制参数为mixed *arr类型的map()函数。",
   "reference": [
     "filter_array",
     "sort_array",
     "map"
   ],
-  "category": "数组相关函数（Arrays）",
   "signatures": [
     {
       "label": "mixed *map_array(mixed *arr, string fun, object ob, mixed extra, ... )",
@@ -69,5 +67,6 @@
         "max": null
       }
     }
-  ]
+  ],
+  "categoryId": "arrays"
 }
